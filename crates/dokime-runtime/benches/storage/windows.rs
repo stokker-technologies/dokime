@@ -32,11 +32,10 @@ use tokio::runtime::Runtime;
 // Local Imports
 use super::publication::{Fixture, settings};
 use dokime::SettingDeclaration;
-use dokime::plugin::HostOperation;
 use dokime::prelude::*;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_runtime::{HostSettings, PluginProcess, SchedulerClock, services};
-use prost::Message as _;
+use prost::Message;
 
 /* === Constants === */
 
@@ -80,27 +79,27 @@ type ClockSource = fn() -> Arc<dyn SchedulerClock>;
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "storage.windows.v1")]
+#[dokime(package = "storage.windows.v1")]
 struct Level {
     value: f64,
 }
 
 /// One Window of a Level Stream.
 #[derive(dokime::Message)]
-#[harmos(package = "storage.windows.v1")]
+#[dokime(package = "storage.windows.v1")]
 struct LevelColumns {
     value: Vec<f64>,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "storage.windows.v1")]
+#[dokime(package = "storage.windows.v1")]
 struct Produced {
     rows: u64,
     unscoped: u64,
 }
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "storage.windows.v1")]
+#[dokime(package = "storage.windows.v1")]
 struct Capture {
     rows: u64,
 }
@@ -125,11 +124,14 @@ pub fn serve() -> Result<()> {
     let streams = streams.parse::<u64>().map_err(|error| Error::Invalid(format!("Serve Window Benchmark: {error}")))?;
     let period = Duration::from_nanos(period.parse::<u64>().map_err(|error| Error::Invalid(format!("Serve Window Benchmark: {error}")))?);
     let mut template = Template::new("windows", "Windows")
+        .record(Record::<Produced>::new("produced", "Produced"))
+        .prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"))
+        .prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"))
         .parameters(Capture { rows: 1 })
-        .step(Step::new("Capture", async move |context: &Context| capture(context, period).await));
+        .step(Step::new("Capture", async move |context: &Context| capture(context, period).await).identifier("capture"));
     for index in 0..streams {
-        let stream = Stream::<Level>::new(format!("level.stream_{index:03}"), format!("Level {}", index + 1));
-        let observer = Observer::window(&stream, async |context: &Context, window: &SampleWindow| {
+        let stream = Stream::<Level>::new(format!("level_stream_{index:03}"), format!("Level {}", index + 1));
+        let observer = Observer::window(&stream, async |context: &Context, window: &Window| {
             if context.execution_id().is_empty() {
                 UNSCOPED.fetch_add(window.count, Ordering::SeqCst);
             } else {
@@ -155,11 +157,6 @@ pub fn serve() -> Result<()> {
             }),
         })
         .suite(Suite::new("storage.windows", "Window Benchmark").template(template))
-        .prompt(Prompt::new("continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .requires_host(HostOperation::TimeSleep)
-        .record(Record::<Produced>::new("produced", "Produced"))
         .remote()
         .serve()
 }
@@ -198,7 +195,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                         let measured = if once { iterations.max(ONCE_ITERATIONS) } else { iterations };
                         for _ in 0..measured {
                             let host = HostSettings { clock: source(), ..settings() };
-                            let fixture = Fixture::new(host, plugin.endpoint(), "windows", rows as usize).await;
+                            let fixture = Fixture::new(host, plugin.endpoint(), "storage.windows.windows", rows as usize).await;
                             fixture.prompt("ready").await;
                             let started = Instant::now();
                             fixture.release("ready").await;
@@ -225,9 +222,9 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                                 let answered = execution
                                     .evidence
                                     .iter()
-                                    .filter(|entry| entry.kind == "record:produced")
+                                    .filter(|entry| entry.kind == "record:storage.windows.windows.produced")
                                     .filter_map(|entry| RecordsAppendRequest::decode(entry.payload.as_slice()).ok())
-                                    .filter_map(|record| Produced::decode(record.payload.as_slice()).ok())
+                                    .filter_map(|record| <Produced as Message>::decode(record.payload.as_slice()).ok())
                                     .map(|produced| (produced.rows, produced.unscoped))
                                     .fold((0, 0), |sum, (rows, unscoped)| (sum.0 + rows, sum.1 + unscoped));
                                 let mut counts = BTreeMap::<u64, usize>::new();
@@ -276,7 +273,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
 /* === Private Functions === */
 
 async fn capture(context: &Context, period: Duration) -> Result<()> {
-    context.host().prompts.create("ready".into(), "continue".into(), Default::default()).await?;
+    context.prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"), &[]).await?;
     let rows = context.parameters::<Capture>()?.rows;
     // A Controlled Sleep Settles After Every Window Due by Its End, So It Stores Every Requested Sample.
     let span = period.checked_mul(u32::try_from(rows).map_err(|_| Error::Invalid("Capture: Too Many Samples".into()))?);
@@ -285,7 +282,7 @@ async fn capture(context: &Context, period: Duration) -> Result<()> {
     let rows = ANSWERED.swap(0, Ordering::SeqCst);
     let unscoped = UNSCOPED.swap(0, Ordering::SeqCst);
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows, unscoped }).await?;
-    context.host().prompts.create("captured".into(), "continue".into(), Default::default()).await?;
+    context.prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"), &[]).await?;
     Ok(())
 }
 

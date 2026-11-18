@@ -21,7 +21,6 @@ use std::env;
 // Third Party Imports
 
 // Local Imports
-use dokime::origin;
 use dokime::prelude::*;
 use dokime::{Metadata, SecretDeclaration, SettingDeclaration, SettingValue, setting_value};
 
@@ -34,13 +33,13 @@ use dokime::{Metadata, SecretDeclaration, SettingDeclaration, SettingValue, sett
 /* === Structs === */
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "secret_fixture")]
+#[dokime(package = "secret_fixture")]
 struct Parameters {
     identifier: String,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "secret_fixture")]
+#[dokime(package = "secret_fixture")]
 struct ReadResult {
     value: String,
     refusal: String,
@@ -59,7 +58,8 @@ struct ReadResult {
 fn main() -> Result<()> {
     let owner = env::var_os("DOKIME_SECRET_FIXTURE_OWNER").is_some();
     let (plugin, secret) = if owner { ("secret_owner", "secrets.other") } else { ("secret_reader", "secrets.owned") };
-    let template = Template::new(format!("{plugin}.read"), "Read Secret")
+    let template = Template::new("read", "Read Secret")
+        .record(Record::<ReadResult>::new("read_result", "Secret Read"))
         .parameters(Parameters { identifier: secret.into() })
         .step(Step::new("Read Secret", read));
     Plugin::new(plugin, "1.0.0")
@@ -82,7 +82,6 @@ fn main() -> Result<()> {
         })
         .requires_host(HostOperation::SecretsGet)
         .requires_host(HostOperation::EvidenceRecordsAppend)
-        .record(Record::<ReadResult>::new(format!("{plugin}.read_result"), "Secret Read"))
         .remote()
         .serve()
 }
@@ -99,10 +98,7 @@ async fn read(ctx: &Context) -> Result<()> {
             refusal: error.to_string(),
         },
     };
-    let Some(origin::Kind::PluginRun(run)) = ctx.origin()?.kind.as_ref() else {
-        return Err(Error::Invalid("Read Secret: Use a Plugin Execution".into()));
-    };
-    ctx.record(&Record::new(format!("{}.read_result", run.plugin), "Secret Read"), result).await?;
+    ctx.record(&Record::new("read_result", "Secret Read"), result).await?;
     Ok(())
 }
 

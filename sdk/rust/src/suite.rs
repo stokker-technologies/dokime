@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::plugin::Template;
-use crate::{Metadata, Suite as SuiteDefinition};
+use crate::{Metadata, wire::model};
 
 /* === Constants === */
 
@@ -32,7 +32,7 @@ use crate::{Metadata, Suite as SuiteDefinition};
 /* === Structs === */
 
 pub struct Suite {
-    pub(crate) definition: SuiteDefinition,
+    pub(crate) definition: model::Suite,
     pub(crate) templates: Vec<Template>,
 }
 
@@ -45,7 +45,7 @@ pub struct Suite {
 impl Suite {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         Self {
-            definition: SuiteDefinition {
+            definition: model::Suite {
                 metadata: Some(Metadata {
                     identifier: identifier.into(),
                     label: label.into(),
@@ -57,8 +57,16 @@ impl Suite {
             templates: Vec::new(),
         }
     }
+    pub fn single(template: Template) -> Self {
+        let identifier = template.identifier().to_owned();
+        let mut suite = Self::new(&identifier, template.label());
+        suite.templates.push(template.bind(&identifier, true));
+        suite
+    }
+
     pub fn template(mut self, template: Template) -> Self {
-        self.templates.push(template);
+        let identifier = &self.definition.metadata.as_ref().expect("Suite Metadata").identifier;
+        self.templates.push(template.bind(identifier, false));
         self
     }
     pub fn tag(mut self, tag: impl Into<String>) -> Self {

@@ -24,7 +24,7 @@ use std::time::Duration;
 use dokime::RetryPolicy;
 use dokime::model::Section;
 use dokime::prelude::*;
-use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, PromptArchetype, Severity, card, value};
+use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, Severity, card, value};
 
 /* === Constants === */
 
@@ -35,32 +35,32 @@ use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotK
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct Temperature {
     celsius: f64,
 }
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct Parameters {
     limit: f64,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct Door {
     closed: bool,
 }
 
 #[derive(dokime::Row)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct Counter {
     value: u64,
 }
 
 // One Window of the Counter, One Value per Sample.
 #[derive(dokime::Message)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct CounterColumns {
     value: Vec<u64>,
 }
@@ -80,16 +80,12 @@ struct Bench {
 /* === Private Functions === */
 
 fn main() -> Result<()> {
-    let temperature = Stream::<Temperature>::new("thermal.temperature", "Temperature [°C]");
+    let temperature = Stream::<Temperature>::new("temperature", "Temperature [°C]");
     let observer = Observer::new(&temperature, read_temperature).every(Duration::from_secs(1));
-    let counter = Stream::<Counter>::new("thermal.counter", "Exact Counter");
+    let counter = Stream::<Counter>::new("counter", "Exact Counter");
     // A 1 kHz Stream Answers Each Host Window at Once.
     let counter_observer = Observer::window(&counter, read_counter).every(Duration::from_millis(1));
-    let door = Record::<Door>::new("thermal.door", "Door Check");
-    let prompt = Prompt::new("thermal.door", "Door Check", "Is the Door Closed?")
-        .archetype(PromptArchetype::Confirmation)
-        .action("yes", "Yes")
-        .action("no", "No");
+    let door = Record::<Door>::new("door", "Door Check");
     let plot = Plot {
         metadata: Some(Metadata {
             identifier: "thermal.temperature.plot".into(),
@@ -97,11 +93,12 @@ fn main() -> Result<()> {
             ..Default::default()
         }),
         kind: PlotKind::TimeSeries as i32,
-        y: vec![FieldReference::new("thermal.temperature").field("celsius")],
+        y: vec![FieldReference::new("thermal.cycle.temperature").field("celsius")],
         unit: "°C".into(),
         ..Default::default()
     };
-    let template = Template::new("thermal.cycle", "Thermal Cycle")
+    let template = Template::new("cycle", "Thermal Cycle")
+        .record(door)
         .parameters(Parameters { limit: 85.0 })
         .initialize(initialize)
         .step(
@@ -136,18 +133,7 @@ fn main() -> Result<()> {
                 ..Default::default()
             }),
         ));
-    let plugin = Plugin::new("thermal", "1.0.0")
-        .suite(Suite::new("thermal", "Thermal").template(template))
-        .prompt(prompt)
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .requires_host(HostOperation::EvidenceRecordsList)
-        .requires_host(HostOperation::EvidenceStatistics)
-        .requires_host(HostOperation::ExecutionsProgressGet)
-        .requires_host(HostOperation::ExecutionsProgressSet)
-        .requires_host(HostOperation::EvidenceLogsAppend)
-        .requires_host(HostOperation::TimeSleep)
-        .record(door);
+    let plugin = Plugin::new("thermal", "1.0.0").suite(Suite::new("thermal", "Thermal").template(template));
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
@@ -164,19 +150,13 @@ async fn ramp(ctx: &Context) -> Result<()> {
 }
 
 async fn hold(ctx: &Context) -> Result<()> {
-    let answer = ctx.host().prompts.create("door".into(), "thermal.door".into(), Default::default()).await?;
-    ctx.record(
-        &Record::<Door>::new("thermal.door", "Door Check"),
-        Door {
-            closed: answer.action == "yes" && answer.accepted,
-        },
-    )
-    .await?;
+    let answer = ctx.prompt("Is the Door Closed?", &["Yes", "No"]).await?;
+    ctx.record(&Record::<Door>::new("door", "Door Check"), Door { closed: answer == "Yes" }).await?;
     ctx.sleep(std::time::Duration::from_millis(2500)).await?;
     ctx.progress(2, 2, "Hold").await
 }
 
-async fn read_counter(_: &Context, window: &SampleWindow) -> Result<CounterColumns> {
+async fn read_counter(_: &Context, window: &Window) -> Result<CounterColumns> {
     let samples = usize::try_from(window.count).map_err(|_| Error::Invalid("Read Counter: Shorten the Window".into()))?;
     Ok(CounterColumns {
         value: vec![1_152_921_504_606_847_975; samples],
@@ -189,11 +169,11 @@ async fn read_temperature(ctx: &Context) -> Result<Temperature> {
 
 async fn within_limit(ctx: &Context) -> Result<bool> {
     let stats = ctx
-        .statistics("thermal.temperature", "celsius", "hold")
+        .statistics("temperature", "celsius", "hold")
         .await?
         .statistics
         .ok_or_else(|| Error::Invalid("Read Statistics: Missing Payload".into()))?;
-    let records = ctx.records("thermal.door", "hold", 0).await?;
+    let records = ctx.records(&Record::<Door>::new("door", "Door Check")).step(hold).list(0).await?;
     let closed = records
         .last
         .map(|record| <Door as dokime::encoding::Message>::decode(record.payload.as_slice()))

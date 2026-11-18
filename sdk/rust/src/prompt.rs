@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{AnswerRule, EvidenceCondition, Metadata, Prompt as PromptDefinition, PromptAction, PromptArchetype, PromptField};
+use crate::{AnswerRule, EvidenceCondition, Metadata, PromptAction, PromptArchetype, PromptField, wire::model};
 
 /* === Constants === */
 
@@ -30,8 +30,10 @@ use crate::{AnswerRule, EvidenceCondition, Metadata, Prompt as PromptDefinition,
 
 /* === Structs === */
 
+#[derive(Clone)]
 pub struct Prompt {
-    pub(crate) definition: PromptDefinition,
+    pub(crate) definition: model::Prompt,
+    pub(crate) declared: bool,
 }
 
 /* === Enums === */
@@ -40,10 +42,29 @@ pub struct Prompt {
 
 /* === Implementations === */
 
+impl From<&str> for Prompt {
+    fn from(text: &str) -> Self {
+        let mut prompt = Self::new("question", text, text).action("0", "OK");
+        prompt.declared = false;
+        prompt
+    }
+}
+
+impl From<&Prompt> for Prompt {
+    fn from(prompt: &Prompt) -> Self {
+        prompt.clone()
+    }
+}
+
 impl Prompt {
+    pub fn of<H: Fn() -> Self>(_: H, label: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::new(crate::authoring::code_name::<H>(false), label, message)
+    }
+
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            definition: PromptDefinition {
+            declared: true,
+            definition: model::Prompt {
                 metadata: Some(Metadata {
                     identifier: identifier.into(),
                     label: label.into(),
@@ -79,7 +100,7 @@ impl Prompt {
         self.definition.condition = Some(condition);
         self
     }
-    pub fn into_message(self) -> PromptDefinition {
+    pub fn into_message(self) -> model::Prompt {
         self.definition
     }
 }

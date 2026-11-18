@@ -38,19 +38,19 @@ pub const SET_POWER: &str = "obc.device.set_power";
 
 /// Read the Demonstration Charger Without Changing It.
 #[derive(Message)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct DeviceRead {}
 
 /// Energize or De-Energize the Demonstration Charger.
 #[derive(Message)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct DeviceSetPower {
     pub enabled: bool,
 }
 
 /// The Demonstration Charger as Observed After the Call.
 #[derive(Message)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct DeviceState {
     pub enabled: bool,
     pub voltage_rms_v: f64,

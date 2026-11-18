@@ -58,10 +58,11 @@ struct Outcome {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let template = Template::new(TEMPLATE, "Overvoltage Protection")
+    let template = Template::new("overvoltage", "Overvoltage Protection")
         .description("Step the voltage until the overvoltage latch opens the supply, then probe a restart.")
         .tag("device")
         .tag("protection");
+    let template = charger::catalog(template);
     let template = parameters(template, supply());
     let template = parameters(
         template,
@@ -166,7 +167,7 @@ async fn disconnect(ctx: &Context) -> Result<()> {
 
 async fn protected(ctx: &Context) -> Result<bool> {
     let stopped = charger::stopped();
-    Ok(charger::last(ctx, &stopped, "").await?.is_some_and(|stopped| stopped.accepted))
+    Ok(charger::last(ctx, &stopped).await?.is_some_and(|stopped| stopped.accepted))
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

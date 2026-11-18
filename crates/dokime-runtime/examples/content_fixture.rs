@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
 // Third Party Imports
@@ -53,7 +54,6 @@ use dokime::{ExecutionProgressValue, FileMetadata, Metadata, TraceabilityEntry, 
 fn main() -> Result<()> {
     // Hold Managed Startup Until Its Caller Cancels the Installation.
     if let Ok(address) = std::env::var("DOKIME_PENDING_INSTALL") {
-        use std::io::{Read, Write};
         let mut connection = TcpStream::connect(address).map_err(|error| Error::Invalid(format!("Announce Pending Install: {error}")))?;
         connection.write_all(&[1]).map_err(|error| Error::Invalid(format!("Announce Pending Install: {error}")))?;
         let mut release = Vec::new();
@@ -61,10 +61,10 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let template = Template::new("content.capture", "Capture Content").step(Step::new("Capture", capture));
-    let progress = Template::new("content.progress", "Observe Progress").step(Step::new("Progress", revisioned_progress));
-    let traceability =
-        Template::new("content.traceability", "Observe Traceability").step(Step::new("Traceability", revisioned_traceability));
+    let template = Template::new("capture", "Capture Content").step(Step::new("Capture", capture));
+    let progress = Template::new("progress", "Observe Progress").step(Step::new("Progress", revisioned_progress).identifier("progress"));
+    let traceability = Template::new("traceability", "Observe Traceability")
+        .step(Step::new("Traceability", revisioned_traceability).identifier("traceability"));
     let plugin = Plugin::new("content_fixture", "1.0.0")
         .suite(Suite::new("content", "Content").template(template).template(progress).template(traceability))
         .requires_host(HostOperation::EvidenceTraceabilityGet)

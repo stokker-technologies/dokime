@@ -46,10 +46,10 @@ use harmos_protocol::plugin::Response;
 use harmos_protocol::plugin::SamplesSelection;
 use harmos_protocol::plugin::Window;
 use harmos_protocol::plugin::child_response;
-use harmos_protocol::plugin::instance_invoke_request::Frame as InstanceInvokeRequestFrame;
-use harmos_protocol::plugin::instance_invoke_response::Frame as InstanceInvokeResponseFrame;
-use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesRequestFrame;
-use harmos_protocol::plugin::instance_samples_response::Frame as InstanceSamplesResponseFrame;
+use harmos_protocol::plugin::instance_invoke_request;
+use harmos_protocol::plugin::instance_invoke_response;
+use harmos_protocol::plugin::instance_samples_request;
+use harmos_protocol::plugin::instance_samples_response;
 use harmos_protocol::plugin::response;
 
 /* === Constants === */
@@ -117,7 +117,7 @@ impl Process {
     pub async fn invoke<Q: Message>(&mut self, operation: &str, scope: &str, request: Q) -> TestResult<Invocation> {
         let (send, receive) = mpsc::channel(8);
         send.send(InstanceInvokeRequest {
-            frame: Some(InstanceInvokeRequestFrame::Request(Request {
+            frame: Some(instance_invoke_request::Frame::Request(Request {
                 operation: operation.into(),
                 payload: request.encode_to_vec(),
                 invocation: format!("{scope}:{operation}"),
@@ -134,7 +134,7 @@ impl Process {
     ) -> TestResult<(mpsc::Sender<InstanceSamplesRequest>, Streaming<InstanceSamplesResponse>)> {
         let (send, receive) = mpsc::channel(8);
         send.send(InstanceSamplesRequest {
-            frame: Some(InstanceSamplesRequestFrame::Open(SamplesSelection {
+            frame: Some(instance_samples_request::Frame::Open(SamplesSelection {
                 stream: stream.into(),
                 scope: scope.into(),
             })),
@@ -148,9 +148,13 @@ impl Process {
         grants: &mpsc::Sender<InstanceSamplesRequest>, samples: &mut Streaming<InstanceSamplesResponse>, window: Window,
     ) -> TestResult<Vec<u8>> {
         let count = window.count;
-        grants.send(InstanceSamplesRequest { frame: Some(InstanceSamplesRequestFrame::Window(window)) }).await?;
+        grants
+            .send(InstanceSamplesRequest {
+                frame: Some(instance_samples_request::Frame::Window(window)),
+            })
+            .await?;
         let answer = samples.message().await?.ok_or("Missing Window Answer")?;
-        let Some(InstanceSamplesResponseFrame::Batch(batch)) = answer.frame else {
+        let Some(instance_samples_response::Frame::Batch(batch)) = answer.frame else {
             return Err(format!("Expected a Sample Batch, Got {answer:?}").into());
         };
         assert_eq!((batch.offset, batch.count, batch.last), (0, count, true));
@@ -173,14 +177,14 @@ impl Process {
 impl Invocation {
     pub async fn child(&mut self) -> TestResult<ChildRequest> {
         match self.output.message().await?.and_then(|frame| frame.frame) {
-            Some(InstanceInvokeResponseFrame::Child(request)) => Ok(request),
+            Some(instance_invoke_response::Frame::Child(request)) => Ok(request),
             other => Err(format!("Expected Host Call, Got {other:?}").into()),
         }
     }
     pub async fn reply<R: Message>(&self, call: u64, response: R) -> TestResult<()> {
         self.send
             .send(InstanceInvokeRequest {
-                frame: Some(InstanceInvokeRequestFrame::Child(ChildResponse {
+                frame: Some(instance_invoke_request::Frame::Child(ChildResponse {
                     call,
                     result: Some(child_response::Result::Payload(response.encode_to_vec())),
                 })),
@@ -190,7 +194,7 @@ impl Invocation {
     }
     pub async fn finish<R: Message + Default>(mut self) -> TestResult<R> {
         let frame = self.output.message().await?.and_then(|frame| frame.frame);
-        let Some(InstanceInvokeResponseFrame::Response(Response {
+        let Some(instance_invoke_response::Frame::Response(Response {
             result: Some(response::Result::Payload(payload)),
         })) = frame
         else {
@@ -204,7 +208,7 @@ impl Invocation {
     }
     pub async fn failure(mut self) -> TestResult<Failure> {
         let frame = self.output.message().await?.and_then(|frame| frame.frame);
-        let Some(InstanceInvokeResponseFrame::Response(Response {
+        let Some(instance_invoke_response::Frame::Response(Response {
             result: Some(response::Result::Failure(failure)),
         })) = frame
         else {

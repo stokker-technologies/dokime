@@ -1,7 +1,6 @@
 # Dokime Python SDK
 
 `dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
-It composes Harmos at immutable revision `c2cfb153ab136159f07741d1061fcb3a1191e86c`.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
@@ -15,7 +14,7 @@ mise -C sdk/python run prepare
 Prepare synchronizes the repository's `.venv/`, then builds the wheel and installs it there.
 
 Consumers install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
-The wheel depends on `grpcio`, `protobuf` and the pinned Harmos SDK. Building it needs no Rust compiler.
+The wheel resolves its pinned transport dependencies automatically. Building it needs no Rust compiler.
 The `polars` and `pandas` extras add the optional dataframe helpers, for example
 `uv add "dokime-sdk[polars] @ file:///path/to/dokime_sdk-0.1.5-py3-none-any.whl"`.
 
@@ -50,7 +49,7 @@ requires a pinned PEM certificate. `access_key` applies bearer metadata to unary
 and streaming calls; a paired host identity is checked through Status before use.
 Use the generated access resources to manage listener settings and pairings.
 
-Plugin administration and settings use the library's PluginEntry identity:
+Plugin administration and settings use `PluginEntry` identities:
 
 ```python
 from dokime.client import PluginPlacement, PluginRemote, PluginValue
@@ -78,82 +77,124 @@ whether Secret Storage holds it, never secret bytes. The plugin context exposes 
 
 ## Author a Plugin
 
-The examples are the starter sources:
-
-- [Client](examples/client/main.py) browses a running host.
-- [Plugin](examples/plugin/main.py) serves an independent typed operation.
-- [Test Suite](examples/test/suite.py) declares a confirmation journey with decorators.
-- [Test Template](examples/test/template.py) composes that journey explicitly.
-- [Thermal Suite](examples/thermal/suite.py) retains the cross-language host fixture.
-
-Serve the test example with `uv run python sdk/python/examples/test/main.py`.
-The endpoint stays open until cancellation. Its owner always calls `close()`.
-The command-line tool embeds these example sources; its embedding is owned by the CLI.
-
-Import authoring builders and decorators from `dokime.authoring`, document builders
-from `dokime.documents`, and `Plugin`, `Context` and `HostOperation` from
-`dokime.plugin`. Root types are model values. For example, the authoring `Suite`
-builder and the root Suite model have distinct modules.
-
-`Plugin(identifier, version, suites=[...], records=[...])` composes one Harmos
-plugin. `requires` accepts generated HostOperation members and independently typed
-operation declarations. Omitting it selects the generated plugin host requirements;
-an explicit sequence replaces that set. `settings` accepts library setting
-declarations. `secrets` accepts SecretDeclaration values; duplicate or empty
-identifiers fail before serving. A secret read must name a declared secret, and the
-host also authorizes its trusted plugin identity and binding.
-
-Lifecycle payloads come from `dokime.plugin`. Independent lifecycle
-bindings remain Protected. Use the library's `operation` decorator for additional
-operations, and pass their instance through `Plugin(operations=...)`. The SDK
-constructs an execution-owned suite instance, shares it with steps, criteria and
-observers, and releases it after cleanup even when cleanup raises.
-
-Materializers are synchronous and pure. They freeze parameter-dependent steps
-and criteria without host calls. Resources remain on the suite instance and are
-never serialized. Stream callbacks retain their declared protobuf row types;
-scalar observers use DoubleValue rows.
-
-The host grants each interval stream one window at a time: `count` samples from
-`start`, one `period` apart. `@observer(interval_ms=...)` is called once per sample
-of a window; `@window_observer(columns=..., interval_ms=...)` receives the context and
-the `Window` and returns a columns message that repeats every row field, which suits
-high-rate streams. `interval_ms` may be fractional (`0.001` is 1 MHz).
-`window_setting` names a plugin duration setting that replaces the host's window
-length for that stream. Interval rows hold one value per field.
+Authors import the product SDK. The starter uses plain values and declaration objects:
 
 ```python
-from dokime.authoring import stream, window_observer
-from dokime.plugin import Context, Window
+from dokime import Plugin, Context, suite, step, criterion, record
 
 
-class Bench:
-    @stream("Exact Counter", identifier="bench.counter", row=Counter)
-    @window_observer(columns=CounterColumns, interval_ms=1, window_setting="counter_window")
-    def counter(self, ctx: Context, window: Window) -> CounterColumns:
-        return CounterColumns(value=[1] * window.count)
+@suite(label="Capture")
+class Capture:
+    confirmation = record(bool, label="Confirmation")
+
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
+
+
+plugin = Plugin("example", "0.1.0", suites=[Capture])
 ```
+
+`record(bool)`, `record(str)`, `record(int)` and `record(float)` use the protobuf
+Boolean, string, signed 64-bit integer and double wrappers. Reading returns the
+plain value; structured protobuf rows retain their message type. `last()` refuses
+an empty result: append a record before reading its last value.
+
+The SDK generates identifiers from code names, independently of labels: remove a
+trailing `Suite` or `Template` from class names, separate word boundaries in every code name
+with underscores, and lowercase. `ReadVoltage`, `readVoltage` and `read_voltage`
+all become `read_voltage`.
+For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite`
+becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit
+`identifier=` wins.
+A single-class suite uses its suite identifier for its sole template:
+`Capture` gives template `capture` and record `capture.confirmation`.
+A grouped `Suite("accuracy", [Template(VoltageTemplate)])` gives template
+`accuracy.voltage` and member `accuracy.voltage.measure`.
+The grouping builder lives in `dokime.authoring`; root `Suite` is the wire model.
+
+Records and reusable prompts live on template classes. Declare a reusable prompt
+with `question = prompt("Continue?", choices=["Yes", "No"])` and pass it to
+`await ctx.prompt(self.question)`. The short text call uses the qualified
+`<template>.question` identifier too. Plugin construction qualifies declarations and
+rejects empty or duplicate identifiers before serving. `ctx.record`, `ctx.records`
+and `ctx.statistics` take a local declaration or stream method; step filters take
+the bound step method. Materializers are synchronous and pure. Repeated calls to
+one handler must supply distinct local `identifier=` values when adding case steps
+or criteria; the same identifier function qualifies them during materialization.
+Both class methods and bound instance methods may reference their declared handlers.
+
+The runnable examples are:
+
+- [Client](examples/client/main.py) browses a host.
+- [Independent Operation](examples/plugin/operations.py) serves a plain string operation.
+- [Capture](examples/test/suite.py) is the starter above.
+- [Grouped Template](examples/test/template.py) composes the capture class explicitly.
+- [Thermal](examples/thermal/suite.py) provides the cross-language host fixture.
+
+Each plugin example has `plugin.py`, which starts only the sidecar, and `main.py`,
+which starts it and drives a connected host through the client. The test project
+includes `pyproject.toml`, suite modules and tests. Serve it with
+`uv run --project sdk/python/examples/test python sdk/python/examples/test/plugin.py`.
+Drive it with `uv run python sdk/python/examples/test/main.py --host <endpoint>`.
+The application embedding these sources must use `plugin.py` as its entry point.
+The owner of an endpoint closes it explicitly.
+
+Additional operations use the same product package and plain payloads:
+
+```python
+from dokime import Context, Plugin, Visibility, operation
+
+
+class Operations:
+    @operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC)
+    async def echo(self, ctx: Context, request: str) -> str:
+        return request
+
+
+plugin = Plugin("example.echo", "1.0.0", operations=Operations())
+```
+
+Structured operation payloads remain protobuf messages. `Visibility` has `PUBLIC`,
+`PROTECTED` and `PRIVATE` members. Lifecycle operations remain protected.
+The SDK creates one execution-owned template instance, shares it with steps,
+criteria and observers, and releases it after cleanup, including when cleanup raises.
+
+Settings and secrets are typed declarations on the plugin value. Secret reads name
+only declared secrets; the host authorizes the trusted plugin identity and binding.
+Omitting `requires` selects the generated host requirements. An explicit sequence
+replaces them; host requirement enforcement remains in place.
+
+## Observe Streams
+
+`@stream("Temperature", row=Reading)` declares a stream method on a template;
+its identifier comes from the method name unless explicitly supplied.
+`@observer(interval_ms=...)` samples once per host-granted sample, while
+`@window_observer(columns=..., interval_ms=...)` receives `ctx` and a `Window`
+and returns a message repeating each row field across the window.
+Import these decorators, `Context` and `Window` from `dokime`.
+
+The host grants a window containing `count` samples from `start`, one `period` apart.
+`interval_ms` may be fractional; `window_setting` selects the plugin duration
+setting that replaces the host's window length. Streams use the shared payload
+conversion: the default row is `float` (a double wrapper), and `row=bool`, `str`
+or `int` selects the corresponding wrapper. Structured rows and window columns
+return their declared protobuf messages.
 
 ## Call the Host
 
-Callbacks receive a typed Context. Its `host` is the generated plugin resource root:
-
-```python
-from dokime.plugin import Context
-
-
-async def confirm(context: Context) -> None:
-    answer = await context.host.prompts.create("confirmation", "example.confirmation", {})
-    await context.record("example.confirmation", value=answer.accepted and answer.action == "yes")
-```
-
-Conveniences cover records, prompts, progress, logs, traceability, document parts,
-settings and declared secrets. `context.operation(operation)(request)` binds an
-independent typed operation and supports a policy override. Host calls inherit
-execution scope and cancellation. Time reads and sleeps use the library's host
-clock; observer intervals and retries belong to operation policies and settings.
-The library's sample carrier must provide an invocation channel before sample
-callbacks can make child calls.
+`Context` provides `prompt`, `record`, `records`, `statistics`, `progress`, `log`,
+`traceability`, `document`, `artifact`, `settings`, `secret`, `sleep` and `now`.
+Its `host` exposes the typed resource tree for calls needing the full contract.
+`ctx.operation(Operation(...))(value)` binds an independent operation and accepts
+a per-call policy override. Calls inherit execution scope and cancellation.
+Time reads and sleeps use the host clock; observer cadence and retries belong to
+operation policies and settings.
 
 Media capture, FTP capture and the effects journal remain unimplemented. Their
 host operations refuse the action rather than returning empty success. Storage
@@ -226,15 +267,9 @@ credentials before disposing of its temporary storage, including on Windows.
 Existing roots are never reset; incompatible roots require selecting a fresh root.
 See [Execution Host](../../docs/execution-host.md) for fixture build commands.
 
-For transport conformance, build the Python wheel and Rust host fixtures in the
-same profile. The fixture producer includes the pinned library's conformance
-package, and the runner supplies both prepared inputs:
-
-```sh
-mise run build -- --language python --profile release
-mise run build:host-fixtures -- --language rust --profile release
-mise -C sdk/python run conformance -- --profile release
-```
+Product/carrier integration stories serve real sidecars and exercise protobuf
+round trips, private operation calls, records and qualified step filters. Generic
+transport conformance belongs to the pinned transport dependency.
 
 Full platform validation belongs to hosted CI and Nightly; a local native run
 does not substitute for the other platform.

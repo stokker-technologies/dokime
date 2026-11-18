@@ -30,7 +30,7 @@
 /* === Structs === */
 
 #[derive(dokime::Message)]
-#[harmos(package = "resources.v1")]
+#[dokime(package = "resources.v1")]
 pub struct ResourceState {
     pub before: bool,
     pub present: bool,

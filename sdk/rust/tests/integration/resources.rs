@@ -18,7 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message as _;
+use prost::Message;
 
 // Local Imports
 use super::support::{TestResult, plugin::Process};
@@ -88,7 +88,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Materialization Cannot Allocate a Bench Resource for a Later Execution.
     let step = StepsExecuteRequest {
         execution: "a".into(),
-        step: "ramp".into(),
+        step: "thermal.cycle.ramp".into(),
         test_case: Some(case.clone()),
         origin: Some(origin.clone()),
     };

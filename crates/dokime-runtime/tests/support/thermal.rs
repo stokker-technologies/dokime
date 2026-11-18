@@ -24,7 +24,7 @@ use dokime::ExecutionProgressValue;
 use dokime_protocol::host::evidence::LogsAppendRequest;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::evidence::RecordsListRequest;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::origin;
 use dokime_storage::ExecutionSnapshot;
 use dokime_storage::StatisticsRead;
 use harmos_protocol::model::Declarations;
@@ -56,9 +56,9 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
     let catalog = Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let temperature = pool
-        .get_message_by_name(&catalog.streams.iter().find(|stream| stream.id == "thermal.temperature").unwrap().row)
+        .get_message_by_name(&catalog.streams.iter().find(|stream| stream.id == "thermal.cycle.temperature").unwrap().row)
         .expect("Retain the Temperature Stream Schema");
-    for sample in actual.samples.iter().filter(|sample| sample.stream == "thermal.temperature") {
+    for sample in actual.samples.iter().filter(|sample| sample.stream == "thermal.cycle.temperature") {
         let decoded = DynamicMessage::decode(temperature.clone(), sample.row.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("celsius").unwrap().as_ref(), &Value::F64(84.0));
     }
@@ -66,7 +66,7 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
     let mut origin = actual.execution.origin.clone().unwrap();
     let mut reference = expected.execution.origin.clone().unwrap();
     for value in [&mut origin, &mut reference] {
-        let Some(OriginKind::PluginRun(run)) = value.kind.as_mut() else { panic!("Expected PluginRun") };
+        let Some(origin::Kind::PluginRun(run)) = value.kind.as_mut() else { panic!("Expected PluginRun") };
         run.digest.clear();
         run.started_at = None;
         let case = run.test_case.as_mut().unwrap();
@@ -192,7 +192,7 @@ pub fn frozen_record_schema_decodes_door(actual: &ExecutionSnapshot) {
     let catalog = Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let door = pool.all_messages().find(|message| message.name() == "Door").expect("Retain the Door Record Schema");
-    for record in actual.records("thermal.door") {
+    for record in actual.records("thermal.cycle.door") {
         let record = RecordsAppendRequest::decode(record.payload.as_slice()).unwrap();
         let decoded = DynamicMessage::decode(door.clone(), record.payload.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("closed").unwrap().as_ref(), &Value::Bool(true));

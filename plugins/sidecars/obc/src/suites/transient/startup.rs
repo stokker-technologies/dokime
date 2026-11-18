@@ -48,7 +48,7 @@ const MOST_IMAGE_BYTES: u64 = 4 * 1024 * 1024;
 
 /// The Point at Which the Operator Inspected the Trace.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Checkpoint {
     pub sample_index: u64,
     pub prompt_type: String,
@@ -71,14 +71,15 @@ struct Decision {
 /* === Public Functions === */
 
 pub fn checkpoint() -> Record<Checkpoint> {
-    Record::new(CHECKPOINT, "Inspection Checkpoint")
+    Record::new("checkpoint", "Inspection Checkpoint")
 }
 
 pub fn template() -> Template {
-    let template = Template::new(TEMPLATE, "Start-Up Sequence")
+    let template = Template::new("startup", "Start-Up Sequence")
         .description("Measure the AC start-up inrush, inspect the charger, then observe settling.")
         .tag("device")
         .tag("startup");
+    let template = charger::catalog(template).prompt(crate::prompts::catalog().into_iter().next().expect("Inspection Prompt"));
     let template = parameters(template, supply());
     let template = parameters(template, timing("Observation Duration", 0.02));
     let template = parameters(
@@ -92,6 +93,7 @@ pub fn template() -> Template {
     );
     template
         .initialize(initialize)
+        .record(checkpoint())
         .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
         .step(Step::new("Measure Start-Up Inrush", inrush).identifier("inrush"))
         .step(Step::new("Inspect Powered Charger", inspection).identifier("inspection"))
@@ -239,7 +241,7 @@ async fn accepted(ctx: &Context) -> Result<bool> {
         return Ok(unfaulted && sample_count(ctx, SAMPLES, "").await? > 0);
     }
     let completed = charger::completed();
-    let Some(completed) = charger::last(ctx, &completed, "").await? else {
+    let Some(completed) = charger::last(ctx, &completed).await? else {
         return Ok(false);
     };
     // Check / Number of Saved Rows and Operator Acceptance

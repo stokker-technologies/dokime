@@ -17,12 +17,11 @@ from pathlib import Path
 # isort: split
 
 # Third Party Imports
-from harmos_tools.build.resources.sdk import generate
 
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol import configuration
+from dokime_tools.build.protocol import configuration, generate
 
 # Type Checking Imports
 

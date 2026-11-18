@@ -11,16 +11,19 @@
 
 /* === Modules === */
 
+mod suite;
+
 /* === Re-Exports === */
 
 /* === Imports === */
 
 // Standard Library Imports
+use std::env;
 
 // Third Party Imports
 
 // Local Imports
-use dokime::prelude::*;
+use dokime::Result;
 
 /* === Constants === */
 
@@ -29,12 +32,6 @@ use dokime::prelude::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-#[derive(dokime::Record)]
-#[harmos(package = "example")]
-struct Confirmation {
-    accepted: bool,
-}
 
 /* === Enums === */
 
@@ -47,40 +44,9 @@ struct Confirmation {
 /* === Private Functions === */
 
 fn main() -> Result<()> {
-    let confirmation = Record::<Confirmation>::new("example.confirmation", "Confirmation");
-    let template = Template::new("example.capture", "Capture")
-        .step(Step::new("Confirm", confirm).identifier("confirm"))
-        .criterion(Criterion::new("Confirmed", confirmed).identifier("confirmed"));
-    let plugin = Plugin::new("example", "0.1.0")
-        .suite(Suite::new("example", "Example").template(template))
-        .prompt(Prompt::new("example.confirmation", "Confirmation", "Continue?").action("yes", "Yes").action("no", "No"))
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .requires_host(HostOperation::EvidenceRecordsList)
-        .record(confirmation);
-    let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
+    let plugin = suite::plugin();
+    let plugin = if env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
-}
-
-async fn confirm(ctx: &Context) -> Result<()> {
-    let answer = ctx.host().prompts.create("confirmation".into(), "example.confirmation".into(), Default::default()).await?;
-    let record = Record::<Confirmation>::new("example.confirmation", "Confirmation");
-    ctx.record(
-        &record,
-        Confirmation {
-            accepted: answer.accepted && answer.action == "yes",
-        },
-    )
-    .await?;
-    Ok(())
-}
-
-async fn confirmed(ctx: &Context) -> Result<bool> {
-    let records = ctx.records("example.confirmation", "confirm", 0).await?;
-    let record = records.last.ok_or_else(|| Error::Invalid("Read Confirmation: Missing Record".into()))?;
-    let value = <Confirmation as dokime::encoding::Message>::decode(record.payload.as_slice())
-        .map_err(|error| Error::Invalid(error.to_string()))?;
-    Ok(value.accepted)
 }
 
 /* === Tests === */

@@ -65,10 +65,14 @@ def build(profile: str) -> None:
 
     # Bundle the Prepared Shared SDK Fixture Without Compiling in a Story
     executable = paths.output(root, "build", profile) / "fixtures/host" / f"dokime-rust-thermal{extension}"
+    project = output / "projects/thermal"
+    project.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(executable, project / executable.name)
+    (project / "dokime.toml").write_text('executable = "dokime-rust-thermal"\n', encoding="utf-8")
     bundle = output / "thermal.dokime"
     bundle.unlink(missing_ok=True)
     result = subprocess.run(
-        [str(cli), "plugin", "bundle", "--executable", str(executable), "--out", str(bundle)],
+        [str(cli), "plugin", "bundle", str(project), "--out", str(bundle)],
         cwd=root,
         check=False,
         text=True,
@@ -82,10 +86,14 @@ def build(profile: str) -> None:
 
     # Bundle the OBC Charger Plugin Exactly as the Product Build Packages It
     executable = paths.output(root, "build", profile) / "fixtures/host" / f"plugin-obc{extension}"
+    project = output / "projects/plugin-obc"
+    project.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(executable, project / executable.name)
+    (project / "dokime.toml").write_text('executable = "plugin-obc"\n', encoding="utf-8")
     bundle = output / "plugin-obc.dokime"
     bundle.unlink(missing_ok=True)
     result = subprocess.run(
-        [str(cli), "plugin", "bundle", "--executable", str(executable), "--out", str(bundle)],
+        [str(cli), "plugin", "bundle", str(project), "--out", str(bundle)],
         cwd=root,
         check=False,
         text=True,

@@ -3,7 +3,7 @@
     <IsPackable>true</IsPackable>
     <PackageId>Dokime</PackageId>
     <Version>0.1.0-dev</Version>
-    <PackageReadmeFile>sdk-csharp.md</PackageReadmeFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Dokime Plugin Authoring and gRPC Client SDK</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/stokker-technologies/dokime</RepositoryUrl>
@@ -11,7 +11,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Stories" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <None Include="$(RepoRoot)docs/sdk-csharp.md" Pack="true" PackagePath="/" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
     <ProjectReference Include="$(RepoRoot)target/cs/h/Harmos.csproj" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Google.Protobuf" />

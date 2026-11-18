@@ -365,7 +365,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     ExecutionCommandAction::try_from(ExecutionCommandAction::RunStep as i32)?,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(identifier.clone()),
-                        step_id: Some("ramp".into()),
+                        step_id: Some("thermal.cycle.ramp".into()),
                         ..Default::default()
                     }
                 )
@@ -399,7 +399,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         }
         let held = client.executions.commands.get("hold-command", identifier.clone()).await?;
         let prompt = client.prompts.list(identifier.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-        client.prompts.answers.create(prompt, "yes", MapValue::default(), true).await?;
+        client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
         loop {
             let receipt =
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
@@ -483,7 +483,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .clone()
             .steps(identifier.clone())
             .await?;
-        assert_eq!(steps.steps.iter().map(|step| step.step_id.as_str()).collect::<Vec<_>>(), vec!["ramp", "hold"]);
+        assert_eq!(steps.steps.iter().map(|step| step.step_id.as_str()).collect::<Vec<_>>(), vec!["thermal.cycle.ramp", "thermal.cycle.hold"]);
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                 .executions
@@ -685,7 +685,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                     "interrupted-command",
                     ExecutionCommandAction::RunStep,
                     ExecutionsCommandsCreateOptions {
-                        step_id: Some("hold".into()),
+                        step_id: Some("thermal.cycle.hold".into()),
                         ..Default::default()
                     },
                 )
@@ -740,7 +740,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                     ExecutionCommandAction::RunStep,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(running.request_id),
-                        step_id: Some("hold".into()),
+                        step_id: Some("thermal.cycle.hold".into()),
                         ..Default::default()
                     },
                 )

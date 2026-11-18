@@ -88,7 +88,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         async for progress in client.executions.progress.watch(identifier):
             if progress.phase == "prompt":
                 pending = await client.prompts.list("", True, execution_id=identifier)
-                await client.prompts.answers.create(pending.prompts[0].prompt.prompt_id, "yes", MapValue(), True)
+                await client.prompts.answers.create(pending.prompts[0].prompt.prompt_id, "0", MapValue(), True)
 
         # Find It by Template and Status at One Fixed Cut, Without Following Anything.
         found = [item async for item in executions(client, template="thermal.cycle", status="sealed")]
@@ -102,7 +102,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
             [item async for item in executions(client, status="failed")]
 
         # Read Exact Rows and Their Source Times.
-        temperature = sealed.telemetry("thermal.temperature", fields=["celsius"])
+        temperature = sealed.telemetry("thermal.cycle.temperature", fields=["celsius"])
         rows = await temperature.collect()
         self.assertEqual(
             [(row.timestamp_ns, row.values) for row in rows], [(1_000_000_000, {"celsius": 84.0}), (2_000_000_000, {"celsius": 84.0})]
@@ -110,10 +110,10 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0].timestamp, datetime(1970, 1, 1, 0, 0, 1, tzinfo=UTC))
         self.assertIsNotNone(temperature.snapshot)
         with self.assertRaises(ValueError):
-            await sealed.telemetry("thermal.temperature").collect(max_rows=1)
+            await sealed.telemetry("thermal.cycle.temperature").collect(max_rows=1)
 
         # Keep Exact Unsigned Values, Nanosecond Times and Paged Reads in Polars and Pandas.
-        counter = sealed.telemetry("thermal.counter", fields=["value"], page_size=500)
+        counter = sealed.telemetry("thermal.cycle.counter", fields=["value"], page_size=500)
         frame = await counter.to_polars()
         count = frame.height
         self.assertGreater(count, 500)
@@ -122,7 +122,7 @@ class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(frame.schema["timestamp"]), "Datetime(time_unit='ns', time_zone='UTC')")
         self.assertEqual(frame["value"].to_list(), [COUNTER] * count)
         self.assertEqual(frame["timestamp"].cast(int).to_list()[:2], [1_000_000, 2_000_000])
-        table = await sealed.telemetry("thermal.counter", fields=["value"], at=counter.snapshot).to_pandas()
+        table = await sealed.telemetry("thermal.cycle.counter", fields=["value"], at=counter.snapshot).to_pandas()
         self.assertEqual(str(table["value"].dtype), "UInt64")
         self.assertEqual(str(table["timestamp"].dtype), "datetime64[ns, UTC]")
         self.assertEqual(table["value"].tolist(), [COUNTER] * count)

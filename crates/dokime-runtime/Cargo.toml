@@ -130,6 +130,10 @@ criterion = { workspace = true }
 
 # === Target Dependencies === #
 
+[target.'cfg(unix)'.dependencies]
+# Utilities
+libc = { workspace = true }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 # Utilities
 windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }

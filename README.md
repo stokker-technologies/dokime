@@ -56,6 +56,8 @@ controls a running host. `dokime new` embeds the SDK's `plugin` and `test` examp
 ```sh
 mise run build -- --package dokime-cli
 ./target/debug/dokime new bench --lang python
+./target/debug/dokime dev --plugin ./bench/test
+./target/debug/dokime plugin bundle ./bench/test --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
 ```
 
@@ -120,7 +122,11 @@ mise -C sdk/cpp run test
 
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
-managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
+managed `.dokime` bundle or add a remote plugin URL with `--trust`, materialize a case and run it.
+For development, `dokime dev --plugin <bundle-or-plugin-folder>` reads `dokime.toml` in
+plugin folders, runs their configured build, and starts a disposable host with console
+logging. It opens a sibling `dokime-gui` desktop when installed and removes its data root
+on exit. Python projects require `uv` on PATH, `pyproject.toml` and `uv.lock`.
 The [Execution Host Guide](docs/execution-host.md) lists the exact commands and
 configuration; the [Product Guide](docs/product-guide.md) explains the model.
 

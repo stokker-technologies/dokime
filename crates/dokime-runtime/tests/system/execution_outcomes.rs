@@ -28,8 +28,8 @@ use dokime::client::DeclaredOutcome;
 use dokime::client::ExecutionOutcome;
 use dokime::client::ExecutionSelection;
 use dokime::client::ResultStatus;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::model::origin;
 use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
 use dokime_storage::Execution;
@@ -99,12 +99,12 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
             );
             assert!(matches!(
                 result.executions[1].execution.outcome.as_ref().unwrap().attribution,
-                Some(ExecutionOutcomeAttribution::NotEvaluated(_))
+                Some(execution_outcome::Attribution::NotEvaluated(_))
             ));
 
             // Count Declared Outcomes Without Letting Them Set the Cycle Verdict
             let declared = ExecutionOutcome {
-                attribution: Some(ExecutionOutcomeAttribution::Declared(DeclaredOutcome {
+                attribution: Some(execution_outcome::Attribution::Declared(DeclaredOutcome {
                     status: ResultStatus::Failed as i32,
                     importer: "sample.importer".into(),
                     ..Default::default()
@@ -115,7 +115,7 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
                 identifier: "declared".into(),
                 cycle: cycle_identifier.clone(),
                 origin: Some(Origin {
-                    kind: Some(OriginKind::Import(Import {
+                    kind: Some(origin::Kind::Import(Import {
                         importer: "sample.importer".into(),
                         ..Default::default()
                     })),
@@ -164,20 +164,20 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
             let prompt = host.next_prompt(&cycle.executions[0]).await?;
             super::support::answer(&host, &cycle.executions[0], prompt)?;
             let result = cycle.wait().await?;
-            let Some(OriginKind::PluginRun(current)) = result.executions[0].execution.origin.as_ref().unwrap().kind.as_ref() else {
+            let Some(origin::Kind::PluginRun(current)) = result.executions[0].execution.origin.as_ref().unwrap().kind.as_ref() else {
                 panic!("PluginRun")
             };
-            let Some(OriginKind::PluginRun(previous)) = stale.kind.as_ref() else { panic!("PluginRun") };
+            let Some(origin::Kind::PluginRun(previous)) = stale.kind.as_ref() else { panic!("PluginRun") };
             assert_ne!(current.digest, previous.digest);
             assert_eq!(current.digest, host.description(&entry)?.declarations.unwrap().digest);
             assert_eq!(current.test_case.as_ref().unwrap().steps.len(), 2);
             assert_eq!(previous.test_case.as_ref().unwrap().steps.len(), 3);
-            assert!(!result.executions[0].evidence.iter().any(|evidence| evidence.step == "tail"));
+            assert!(!result.executions[0].evidence.iter().any(|evidence| evidence.step == "execution.capture.tail"));
 
             // Refuse a Failed Rematerialization Without Creating Execution Evidence
             let before = host.executions()?;
             let mut invalid = stale;
-            let Some(OriginKind::PluginRun(run)) = invalid.kind.as_mut() else { unreachable!() };
+            let Some(origin::Kind::PluginRun(run)) = invalid.kind.as_mut() else { unreachable!() };
             run.test_case.as_mut().unwrap().parameters = super::support::parameters(8.0, u32::MAX, true);
             assert!(host.start_cycle(vec![invalid]).await.is_err());
             assert_eq!(host.executions()?, before);
@@ -207,7 +207,7 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
             assert_eq!(counts.result_status, Some(ResultStatus::Passed as i32));
             assert!(page.executions.iter().any(|row| matches!(
                 row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-                Some(ExecutionOutcomeAttribution::Declared(_))
+                Some(execution_outcome::Attribution::Declared(_))
             )));
 
             for row in &page.executions {

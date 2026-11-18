@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
 
 // Third Party Imports
@@ -38,8 +37,8 @@ use dokime::{
 pub const TEMPLATE: &str = "obc.benchmark.plots";
 pub const SURVEY: &str = "obc.benchmark.plots.survey";
 const SAMPLES: &str = measurement::SAMPLES;
-const STARTED: &str = "obc.records.charger.started";
-const COMPLETED: &str = "obc.records.charger.completed";
+const STARTED: &str = "obc.benchmark.plots.started";
+const COMPLETED: &str = "obc.benchmark.plots.completed";
 
 /* === Macros === */
 
@@ -48,13 +47,13 @@ const COMPLETED: &str = "obc.records.charger.completed";
 /* === Structs === */
 
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct PlotConfirmation {
     pub accepted: bool,
 }
 
 #[derive(dokime::Row)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Survey {
     pub sweep: f64,
     pub module: f64,
@@ -74,18 +73,19 @@ struct Scan {
 /* === Public Functions === */
 
 pub fn contracts() -> Record<PlotConfirmation> {
-    Record::new("obc.benchmark.plots.confirmation", "Plot Inputs Confirmed")
+    Record::new("confirmation_record", "Plot Inputs Confirmed")
 }
 pub fn prompt() -> Prompt {
-    Prompt::new("obc.benchmark.plots.confirm", "Confirm Plot Inputs", "Do the Signal Maps and Traces Look Plausible?")
+    Prompt::new("confirm", "Confirm Plot Inputs", "Do the Signal Maps and Traces Look Plausible?")
         .archetype(PromptArchetype::Confirmation)
         .action("yes", "Yes")
         .action("no", "No")
 }
 pub fn template() -> Template {
-    let survey = Stream::<Survey>::new(SURVEY, "Thermal Channel Survey");
+    let survey = Stream::<Survey>::new("survey", "Thermal Channel Survey");
     let observer = Observer::new(&survey, scan).interval_setting(settings::SAMPLE_INTERVAL);
-    let template = parameters(Template::new(TEMPLATE, "Plot Families"), supply());
+    let template = parameters(Template::new("plots", "Plot Families"), supply());
+    let template = charger::catalog(template).record(contracts()).prompt(prompt());
     parameters(template, timing("Capture Duration", 0.25))
         .initialize(initialize)
         .step(Step::new("Capture Plot Inputs", capture).identifier("capture"))
@@ -111,14 +111,14 @@ async fn capture(ctx: &Context) -> Result<()> {
     suites::wait(ctx, &bench, samples).await
 }
 async fn confirmation(ctx: &Context) -> Result<()> {
-    let answer = ctx.host().prompts.create("confirm".into(), "obc.benchmark.plots.confirm".into(), HashMap::new()).await?;
-    let accepted = answer.accepted && answer.action == "yes";
+    let answer = ctx.prompt(prompt(), &[]).await?;
+    let accepted = answer == "Yes";
     let bench = ctx.get::<Bench>()?;
     ctx.record(
         &charger::completed(),
         charger::Completed {
             sample_count: bench.index(),
-            prompt_action: answer.action,
+            prompt_action: answer.clone(),
             operator_note: String::new(),
             accepted: accepted && bench.fault().is_none(),
         },
@@ -128,7 +128,7 @@ async fn confirmation(ctx: &Context) -> Result<()> {
     Ok(())
 }
 async fn captured(ctx: &Context) -> Result<bool> {
-    let confirmed = charger::last(ctx, &contracts(), "").await?.is_some_and(|record| record.accepted);
+    let confirmed = charger::last(ctx, &contracts()).await?.is_some_and(|record| record.accepted);
     Ok(confirmed && suites::sample_count(ctx, SAMPLES, "").await? > 0)
 }
 async fn cleanup(ctx: &Context) -> Result<()> {

@@ -6,6 +6,10 @@
 #
 # ***
 
+[vars]
+
+configuration = "{{ get_env(name='DOKIME_CSHARP_CONFIGURATION', default='Release') }}"
+
 [tools]
 dotnet = "10.0.403"
 
@@ -14,9 +18,9 @@ description = "Build the Managed Plugin Executable"
 # Re-Evaluate the Mutable Development Preview Before Building With Its Verified Lock.
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore Test.csproj --force-evaluate',
-  '"{{tools.dotnet.path}}/dotnet" build Test.csproj --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" build Test.csproj --configuration {{vars.configuration}} --no-restore',
 ]
 
 [tasks.dev]
 description = "Serve the Remote Plugin"
-run = '"{{tools.dotnet.path}}/dotnet" run --project Test.csproj --configuration Release --no-build -- --remote'
+run = '"{{tools.dotnet.path}}/dotnet" run --project Test.csproj --configuration {{vars.configuration}} --no-build -- --remote'

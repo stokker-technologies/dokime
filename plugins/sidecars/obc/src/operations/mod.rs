@@ -23,7 +23,7 @@ pub mod power;
 
 // Local Imports
 use dokime::Result;
-use dokime::plugin::{DeclarationTypes, Plugin};
+use dokime::plugin::Plugin;
 
 /* === Constants === */
 
@@ -41,7 +41,7 @@ use dokime::plugin::{DeclarationTypes, Plugin};
 
 /* === Public Functions === */
 
-pub fn catalog<C: DeclarationTypes>(mut plugin: Plugin<C>) -> Result<Plugin<C>> {
+pub fn catalog(mut plugin: Plugin) -> Result<Plugin> {
     let manual = power::Manual::new()?;
     for operation in manual.operations() {
         plugin = plugin.operation(operation);

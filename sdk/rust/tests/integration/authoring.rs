@@ -20,7 +20,7 @@
 // Third Party Imports
 
 use harmos_runtime::plugin::grpc::Placement;
-use prost::Message as _;
+use prost::Message;
 
 // Local Imports
 use super::support::{TestResult, plugin::Process, reference};
@@ -70,13 +70,13 @@ use harmos_protocol::plugin::Window;
 /* === Structs === */
 
 #[derive(dokime::Message)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct TemperatureColumns {
     celsius: Vec<f64>,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "thermal")]
+#[dokime(package = "thermal")]
 struct Door {
     closed: bool,
 }
@@ -103,14 +103,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     assert_eq!(template.metadata.as_ref().ok_or("Missing Metadata")?.identifier, "thermal.cycle");
     // The Catalog Declares the Procedure in Order Before Any Case Is Materialized.
     let declared = template.steps.iter().map(|step| (step.metadata.as_ref().unwrap().identifier.as_str(), step.operation.as_str()));
-    assert_eq!(declared.collect::<Vec<_>>(), [("ramp", "thermal.cycle.step.0"), ("hold", "thermal.cycle.step.1")]);
+    assert_eq!(declared.collect::<Vec<_>>(), [("thermal.cycle.ramp", "thermal.cycle.ramp"), ("thermal.cycle.hold", "thermal.cycle.hold")]);
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(declarations.types.clone().ok_or("Missing Types")?)?;
     assert!(pool.get_message_by_name("thermal.Door").is_some());
     assert_eq!(
         declarations
             .operations
             .iter()
-            .find(|operation| operation.id == "thermal.cycle.step.0")
+            .find(|operation| operation.id == "thermal.cycle.ramp")
             .and_then(|operation| operation.policy.as_ref())
             .ok_or("Missing Retry Policy")?
             .retries
@@ -123,9 +123,9 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     for (id, request, response) in [
         ("thermal.cycle.materialize", "TestCasesMaterializeRequest", "TestCasesMaterializeResponse"),
         ("thermal.cycle.initialize", "ExecutionsInitializeRequest", "ExecutionsInitializeResponse"),
-        ("thermal.cycle.step.0", "StepsExecuteRequest", "StepsExecuteResponse"),
-        ("thermal.cycle.step.1", "StepsExecuteRequest", "StepsExecuteResponse"),
-        ("thermal.cycle.criterion.0", "CriteriaEvaluateRequest", "CriteriaEvaluateResponse"),
+        ("thermal.cycle.ramp", "StepsExecuteRequest", "StepsExecuteResponse"),
+        ("thermal.cycle.hold", "StepsExecuteRequest", "StepsExecuteResponse"),
+        ("thermal.cycle.within_limit", "CriteriaEvaluateRequest", "CriteriaEvaluateResponse"),
         ("thermal.cycle.cleanup", "ExecutionsCleanupRequest", "ExecutionsCleanupResponse"),
     ] {
         let operation = declarations.operations.iter().find(|operation| operation.id == id).ok_or("Missing Lifecycle Binding")?;
@@ -137,8 +137,8 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     }
 
     // Only the Step Authored With Retries Advertises Replay Safety.
-    assert!(declarations.operations.iter().find(|operation| operation.id == "thermal.cycle.step.0").unwrap().replay_safe);
-    assert!(!declarations.operations.iter().find(|operation| operation.id == "thermal.cycle.step.1").unwrap().replay_safe);
+    assert!(declarations.operations.iter().find(|operation| operation.id == "thermal.cycle.ramp").unwrap().replay_safe);
+    assert!(!declarations.operations.iter().find(|operation| operation.id == "thermal.cycle.hold").unwrap().replay_safe);
 
     // Admit the Suite and Materialize It Through the Published Harmos Reference Host.
     let runtime = reference::start().await?;
@@ -150,9 +150,12 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     };
     let payload = runtime.operations.call_encoded(&template.materialize, request.encode_to_vec()).await?;
     let case = TestCasesMaterializeResponse::decode(payload.as_slice())?.test_case.ok_or("Missing Materialized Test Case")?;
-    assert_eq!(case.steps.iter().map(|step| step.metadata.as_ref().unwrap().identifier.as_str()).collect::<Vec<_>>(), ["ramp", "hold"]);
-    assert_eq!(case.streams, ["thermal.temperature", "thermal.counter"]);
-    assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "within_limit");
+    assert_eq!(
+        case.steps.iter().map(|step| step.metadata.as_ref().unwrap().identifier.as_str()).collect::<Vec<_>>(),
+        ["thermal.cycle.ramp", "thermal.cycle.hold"]
+    );
+    assert_eq!(case.streams, ["thermal.cycle.temperature", "thermal.cycle.counter"]);
+    assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "thermal.cycle.within_limit");
     attached.stop("Materialization Complete").await?;
     runtime.shutdown().await?;
 
@@ -190,7 +193,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             "execution_a",
             StepsExecuteRequest {
                 execution: "execution_a".into(),
-                step: "ramp".into(),
+                step: "thermal.cycle.ramp".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
             },
@@ -217,7 +220,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             "execution_a",
             StepsExecuteRequest {
                 execution: "execution_a".into(),
-                step: "hold".into(),
+                step: "thermal.cycle.hold".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
             },
@@ -225,12 +228,13 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         .await?;
     let question = hold.child().await?;
     assert_eq!(question.operation, "dokime.host.v1.Prompts/Create");
-    assert_eq!(PromptsCreateRequest::decode(question.payload.as_slice())?.prompt_type, "thermal.door");
+    let prompt = PromptsCreateRequest::decode(question.payload.as_slice())?;
+    assert_eq!(prompt.definition.as_ref().unwrap().actions.len(), 2);
     hold.reply(
         question.call,
         PromptsCreateResponse {
-            prompt: "door".into(),
-            action: "yes".into(),
+            prompt: prompt.prompt,
+            action: prompt.definition.unwrap().actions[0].identifier.clone(),
             accepted: true,
             ..Default::default()
         },
@@ -251,7 +255,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         TimeSleepRequest::decode(sleep.payload.as_slice())?.duration,
         Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 })
     );
-    let (grants, mut samples) = process.publish("thermal.temperature", "execution_a").await?;
+    let (grants, mut samples) = process.publish("thermal.cycle.temperature", "execution_a").await?;
     let period = prost_types::Duration { seconds: 1, nanos: 0 };
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     let window = Window {
@@ -298,7 +302,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             "execution_a",
             CriteriaEvaluateRequest {
                 execution: "execution_a".into(),
-                criterion: "within_limit".into(),
+                criterion: "thermal.cycle.within_limit".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
             },
@@ -307,7 +311,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let stats = criterion.child().await?;
     let query = EvidenceStatisticsRequest::decode(stats.payload.as_slice())?;
     assert!(query.scope.is_none());
-    assert_eq!(query.step, "hold");
+    assert_eq!(query.step, "thermal.cycle.hold");
     assert_eq!(query.field, "celsius");
     criterion
         .reply(
@@ -331,7 +335,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             RecordsListResponse {
                 count: 1,
                 last: Some(CapturedRecord {
-                    record_type: "thermal.door".into(),
+                    record_type: "thermal.cycle.door".into(),
                     payload: record.1.payload,
 
                     timestamp: Some(at),
@@ -365,3 +369,18 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn plain_operation_values_roundtrip_over_the_plugin_carrier() -> TestResult {
+    let mut process = Process::start("dokime-rust-plugin", true).await?;
+    let declarations = process.describe().await?.declarations.ok_or("Missing Declarations")?;
+    let operation = declarations.operations.iter().find(|operation| operation.id == "example.ping").ok_or("Missing Echo")?;
+    assert_eq!(
+        (&operation.request, &operation.response),
+        (&"google.protobuf.StringValue".to_owned(), &"google.protobuf.StringValue".to_owned())
+    );
+    let invocation = process.invoke("example.ping", "", String::from("plain value")).await?;
+    assert_eq!(invocation.finish::<String>().await?, "plain value");
+    process.stop(true).await?;
+    Ok(())
+}

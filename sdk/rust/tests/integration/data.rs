@@ -23,6 +23,10 @@
 use dokime::Suites;
 use dokime::ValueType;
 use dokime::prelude::*;
+use dokime::{ExactNumber, FromValue, Value, encoding, value};
+use dokime_protocol::descriptor_pool;
+use harmos_protocol::model::Protobuf;
+use harmos_protocol::schema;
 
 /* === Constants === */
 
@@ -63,9 +67,34 @@ struct Payload {
 /* === Tests === */
 
 #[test]
+fn default_host_requirements_preserve_protocol_operation_kinds() -> Result<()> {
+    // Compose the Complete Default Inventory Without Starting a Host.
+    let declarations = Plugin::new("requirements", "1.0.0").declarations()?;
+    assert_eq!(declarations.requires.len(), HostOperation::ALL.len());
+
+    // Fingerprint Each Requirement From the Authoritative Protocol Kind.
+    let pool = descriptor_pool();
+    for requirement in declarations.requires {
+        let (service, name) = requirement.id.split_once('/').expect("Host Operation Identity");
+        let service = pool.get_service_by_name(service).expect("Host Service Descriptor");
+        let method = service.methods().find(|method| method.name() == name).expect("Host Method Descriptor");
+        let contract = Protobuf {
+            descriptors: pool.encode_to_vec(),
+            request: method.input().full_name().into(),
+            response: method.output().full_name().into(),
+            input: method.is_client_streaming().then(|| method.input().full_name().into()),
+            output: method.is_server_streaming().then(|| method.output().full_name().into()),
+        };
+        let fingerprint = schema::host_fingerprint(&requirement.id, &contract).map_err(|error| Error::Invalid(error.to_string()))?;
+        assert_eq!(requirement.fingerprint, fingerprint, "{}", requirement.id);
+    }
+    Ok(())
+}
+
+#[test]
 fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()> {
     // Define Parameters from Data and Compose a Suite by Value.
-    let template = Template::new("data.case", "Data Case").parameters(Inputs {
+    let template = Template::new("case", "Data Case").parameters(Inputs {
         limit: 70.0,
         channels: vec![1, 3],
         serial: None,
@@ -77,44 +106,43 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
         .suite(Suite::new("data", "Data").template(template))
         .declarations()?;
     let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").expect("Suites Section");
-    let suites =
-        <Suites as dokime::encoding::Message>::decode(section.payload.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
+    let suites = <Suites as encoding::Message>::decode(section.payload.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
     let parameters = &suites.suites[0].templates[0].parameters;
     assert_eq!(parameters[1].element_type, ValueType::UnsignedInteger as i32);
     assert_eq!(parameters[1].r#type, ValueType::List as i32);
 
     // Preserve Signed Data and Bytes Through the Public Data Derive.
     let payload = Payload { signed: -9, bytes: vec![0, 255] };
-    let bytes = dokime::encoding::Message::encode_to_vec(&payload);
-    let decoded = <Payload as dokime::encoding::Message>::decode(bytes.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
+    let bytes = encoding::Message::encode_to_vec(&payload);
+    let decoded = <Payload as encoding::Message>::decode(bytes.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
     assert_eq!(decoded.signed, -9);
     assert_eq!(decoded.bytes, [0, 255]);
     assert!(declarations.sections.iter().any(|section| section.r#type == "harmos.model.v1.SettingsDeclarations"));
 
     // Retain Integer Precision and Rational Values Without Floating Conversion.
-    let exact = dokime::ExactNumber {
+    let exact = ExactNumber {
         negative: true,
         numerator: "1152921504606847975".into(),
         denominator: "3".into(),
     };
-    let value = dokime::Value {
-        kind: Some(dokime::value::Kind::Exact(exact.clone())),
+    let value = Value {
+        kind: Some(value::Kind::Exact(exact.clone())),
     };
-    assert_eq!(<dokime::ExactNumber as dokime::FromValue>::from_value(&value)?, exact);
-    assert!(<f64 as dokime::FromValue>::from_value(&value).is_err());
+    assert_eq!(<ExactNumber as FromValue>::from_value(&value)?, exact);
+    assert!(<f64 as FromValue>::from_value(&value).is_err());
 
     // Reject Duplicate Step Identifiers Before Serving Any Request.
-    let template = Template::new("data.duplicate", "Duplicate")
-        .step(Step::new("Same", async |_: &Context| Ok(())))
-        .step(Step::new("Same", async |_: &Context| Ok(())));
+    let template = Template::new("duplicate", "Duplicate")
+        .step(Step::new("Same", async |_: &Context| Ok(())).identifier("same"))
+        .step(Step::new("Same", async |_: &Context| Ok(())).identifier("same"));
     assert!(Plugin::new("data", "1.0.0").suite(Suite::new("data", "Data").template(template)).declarations().is_err());
 
     // Reject Duplicate Templates Across Suites and Nonfinite Defaults.
     let plugin = Plugin::new("data", "1.0.0")
-        .suite(Suite::new("first", "First").template(Template::new("data.case", "Case")))
-        .suite(Suite::new("second", "Second").template(Template::new("data.case", "Case")));
+        .suite(Suite::new("first", "First").template(Template::new("case", "Case")))
+        .suite(Suite::new("first", "First").template(Template::new("case", "Case")));
     assert!(plugin.declarations().is_err());
-    let template = Template::new("data.invalid", "Invalid").parameters(Inputs {
+    let template = Template::new("invalid", "Invalid").parameters(Inputs {
         limit: f64::NAN,
         channels: Vec::new(),
         serial: None,

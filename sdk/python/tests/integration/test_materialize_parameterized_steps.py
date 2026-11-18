@@ -20,12 +20,20 @@ from uuid import uuid4
 
 # Third Party Imports
 from google.protobuf.wrappers_pb2 import Int32Value
-from harmos import CLASSIFICATION_TRANSIENT, VISIBILITY_PRIVATE, FailureValue, plugin
 from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
-from harmos.plugin import Operation, operation
 
 # Local Imports
-from dokime import ArtifactScope, FailureError, Metadata, Parameter
+from dokime import (
+    CLASSIFICATION_TRANSIENT,
+    ArtifactScope,
+    FailureError,
+    FailureValue,
+    Metadata,
+    Operation,
+    Parameter,
+    Visibility,
+    operation,
+)
 from dokime.authoring import Case, criterion, materialize, step, suite
 from dokime.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
 from dokime.plugin import Context, HostOperation, Plugin
@@ -43,15 +51,15 @@ from dokime.values import Scalar, encode
 
 
 class MaterializationStory(unittest.IsolatedAsyncioTestCase):
-    async def test_materialize_retry_and_cleanup(self) -> None:
+    async def test_freeze_explicit_members_retry_and_cleanup(self) -> None:
         # Compose A Parameter-Dependent Template With Execution-Owned State.
         instances: list[tuple[list[int], list[tuple[int, int]]]] = []
-        reading = Operation("example.reading.square", Int32Value, Int32Value, VISIBILITY_PRIVATE)
+        reading = Operation("example.reading.square", int, int, Visibility.PRIVATE)
 
         class Operations:
-            @operation(reading.id, request=Int32Value, response=Int32Value, visibility=VISIBILITY_PRIVATE)
-            async def read(self, ctx: plugin.Context, request: Int32Value) -> Int32Value:
-                return Int32Value(value=mul(request.value, request.value))
+            @operation(reading.identifier, request=int, response=int, visibility=Visibility.PRIVATE)
+            async def read(self, ctx: Context, request: int) -> int:
+                return mul(request, request)
 
         @suite(
             "example.channels",
@@ -74,7 +82,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 if not isinstance(channels, list):
                     raise TypeError("Materialize Channels: Supply a List")
                 for channel in channels:
-                    case.step(f"Channel {channel}", cls.measure, channel=channel)
+                    case.step(f"Channel {channel}", cls.measure, identifier=f"channel-{channel}", channel=channel)
                 case.criterion("All Channels", cls.all_channels)
 
             @step("Measure", retries=1)
@@ -88,9 +96,9 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                             message="Retry measurement",
                         )
                     )
-                measured = await ctx.operation(reading)(Int32Value(value=channel))
-                await ctx.artifact(f"channel-{channel}.pb", measured.SerializeToString())
-                self.channels.append(measured.value)
+                measured = await ctx.operation(reading)(channel)
+                await ctx.artifact(f"channel-{channel}.pb", Int32Value(value=measured).SerializeToString())
+                self.channels.append(measured)
 
             @criterion("All Channels")
             def all_channels(self, ctx: Context) -> bool:
@@ -110,7 +118,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             HostOperation.FILES_UPLOADS_DELETE,
         ]
         plugin = Plugin("channels", "1.0.0", suites=[Channels], requires=required, operations=Operations())
-        self.assertNotIn(reading.id, {operation.id for operation in plugin.declarations().operations})
+        self.assertNotIn(reading.identifier, {operation.id for operation in plugin.declarations().operations})
         endpoint = await plugin.start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         self.addAsyncCleanup(host.close)
@@ -130,7 +138,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         declared = (await host.client.suites.get(suites[0].metadata.identifier, "", 0)).value.templates[0].steps
         self.assertEqual(
             [(item.metadata.identifier, item.metadata.label, item.operation) for item in declared],
-            [("measure", "Measure", "example.channels.step.0")],
+            [("example.channels.measure", "Measure", "example.channels.measure")],
         )
         plan = SelectionPlan(
             selections=[
@@ -146,7 +154,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([case.origin for case in first], [case.origin for case in second])
         self.assertEqual(instances, [])
         case = first[0].origin.plugin_run.test_case
-        self.assertEqual([item.metadata.identifier for item in case.steps], ["channel.2", "channel.4"])
+        self.assertEqual([item.metadata.identifier for item in case.steps], ["example.channels.channel-2", "example.channels.channel-4"])
 
         # Execute Twice; The Host Owns Retry, Scope And Cleanup.
         identifiers = []

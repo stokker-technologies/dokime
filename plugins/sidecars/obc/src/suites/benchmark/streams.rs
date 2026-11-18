@@ -21,12 +21,13 @@ use std::f64::consts::TAU;
 // Third Party Imports
 
 // Local Imports
+use crate::records::charger;
 use crate::suites::{self, parameters};
 
 use crate::device::Bench;
 use crate::device::{Charger, Power, Supply};
 use crate::settings;
-use dokime::plugin::{Context, Criterion, Observer, SampleWindow, Step, Stream, Template};
+use dokime::plugin::{Context, Criterion, Observer, Step, Stream, Template, Window};
 use dokime::{Document, Error, Parameter, Result, Severity};
 
 /* === Constants === */
@@ -47,7 +48,7 @@ const SHARE: f64 = 1.0 / MODULES as f64;
 
 /// One Power Module's Telemetry at One Instant.
 #[derive(dokime::Row)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct ModuleTelemetry {
     pub ac_voltage_v: f64,
     pub ac_current_a: f64,
@@ -63,7 +64,7 @@ pub struct ModuleTelemetry {
 
 /// One Window of Module Telemetry, One Value per Sample in Every Channel.
 #[derive(dokime::Message)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct ModuleTelemetryColumns {
     pub ac_voltage_v: Vec<f64>,
     pub ac_current_a: Vec<f64>,
@@ -90,9 +91,10 @@ pub fn stream(module: usize) -> String {
 }
 
 pub fn template() -> Template {
-    let template = Template::new(TEMPLATE, "Module Array Capture")
+    let template = Template::new("streams", "Module Array Capture")
         .description("Capture sixty-four independent module streams at full sample rate.")
         .tag("bench");
+    let template = charger::catalog(template);
     let mut template =
         parameters(template, [Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=3600.0).build()])
             .initialize(initialize)
@@ -105,8 +107,8 @@ pub fn template() -> Template {
             )
             .cleanup(cleanup);
     for module in 0..MODULES {
-        let telemetry = Stream::<ModuleTelemetry>::new(stream(module), format!("Module {} Telemetry", module + 1));
-        let observer = Observer::window(&telemetry, async move |ctx: &Context, window: &SampleWindow| observe(ctx, module, window).await)
+        let telemetry = Stream::<ModuleTelemetry>::new(format!("module_{:02}", module + 1), format!("Module {} Telemetry", module + 1));
+        let observer = Observer::window(&telemetry, async move |ctx: &Context, window: &Window| observe(ctx, module, window).await)
             .interval_setting(settings::SAMPLE_INTERVAL);
         template = template.stream(telemetry).observer(observer);
     }
@@ -150,7 +152,7 @@ async fn cleanup(ctx: &Context) -> Result<()> {
 }
 
 /// One Window of a Module's Telemetry, Each Sample Read From the Charger at Its Own Model Time.
-async fn observe(ctx: &Context, module: usize, window: &SampleWindow) -> Result<ModuleTelemetryColumns> {
+async fn observe(ctx: &Context, module: usize, window: &Window) -> Result<ModuleTelemetryColumns> {
     let mut columns = ModuleTelemetryColumns::default();
     let samples = usize::try_from(window.count).map_err(|_| Error::Invalid("Observe Module: Shorten the Window".into()))?;
     if !suites::captures(ctx, &stream(module)) {
