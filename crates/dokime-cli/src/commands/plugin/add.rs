@@ -21,7 +21,7 @@
 use tonic::Status;
 
 // Local Imports
-use crate::{Result, settings::Settings};
+use crate::{Result, output, settings::Settings};
 use dokime::client::PluginsCreateOptions;
 use dokime::client::plugin_placement::Kind;
 use dokime::client::{PluginPlacement, PluginRemote, PluginValue};
@@ -41,9 +41,6 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
-
-    #[arg(long, help = "Trust the Plugin to Run Code with the Host Access")]
-    pub(super) trust: bool,
 }
 
 /* === Enums === */
@@ -111,7 +108,7 @@ pub(crate) async fn attach(url: String, endpoint: Option<String>, settings: &Set
     drop(watch);
     value.entry = Some(entry);
     if let Some(json) = output {
-        crate::output::print(&value, json)?;
+        output::print(&value, json)?;
     }
     Ok(())
 }
