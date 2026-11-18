@@ -21,8 +21,8 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from host import Host
 from suite import plugin
 
-from dokime import CapturedRecordSelection, MapValue, Metadata, RecordScope, model
-from dokime.client import (
+from dokime_sdk import CapturedRecordSelection, MapValue, Metadata, RecordScope, model
+from dokime_sdk.client import (
     PLUGIN_STATE_READY,
     RESULT_STATUS_PASSED,
     ExecutionBinding,
@@ -32,7 +32,7 @@ from dokime.client import (
     RegisteredSelection,
     SelectionPlan,
 )
-from dokime.schemas import FrozenSchemaCache
+from dokime_sdk.schemas import FrozenSchemaCache
 
 # Type Checking Imports
 

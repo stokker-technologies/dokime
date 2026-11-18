@@ -46,7 +46,8 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
     root = sdk.parents[1]
     bundled_protocols = sdk / "proto"
     protocols = bundled_protocols if bundled_protocols.is_dir() else root / "proto"
-    source = sdk / "src/dokime"
+    python_package = "dokime_sdk"
+    source = sdk / "src" / python_package
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))
     try:
         if not exports_only:
@@ -79,12 +80,13 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                     target.parent.mkdir(parents=True, exist_ok=True)
                 text = path.read_text(encoding="utf-8")
                 for owner in ("dokime", "harmos"):
+                    package = python_package if owner == "dokime" else owner
                     for executor in ("model", "host", "plugin"):
-                        text = text.replace(f"from {owner}.{executor}", f"from {owner}._wire.{executor}")
-                        text = text.replace(f"import {owner}.{executor}.", f"import {owner}._wire.{executor}.")
+                        text = text.replace(f"from {owner}.{executor}", f"from {package}._wire.{executor}")
+                        text = text.replace(f"import {owner}.{executor}.", f"import {package}._wire.{executor}.")
                         text = text.replace(
                             f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}.{executor}.",
-                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}._wire.{executor}.",
+                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{package}._wire.{executor}.",
                         )
                 if check:
                     if not target.is_file() or target.read_text(encoding="utf-8") != text:

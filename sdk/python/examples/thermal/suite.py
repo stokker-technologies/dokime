@@ -17,8 +17,8 @@ from typing import cast
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from google.protobuf.message import Message
 
-from dokime import Context, Parameter, Plugin, Window, criterion, observer, record, step, stream, window_observer
-from dokime.authoring import Suite, Template
+from dokime_sdk import Context, Parameter, Plugin, Window, criterion, observer, record, step, stream, window_observer
+from dokime_sdk.authoring import Suite, Template
 
 # Local Imports
 

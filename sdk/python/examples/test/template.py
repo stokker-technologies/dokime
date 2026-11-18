@@ -16,8 +16,8 @@
 # Local Imports
 from suite import Capture
 
-from dokime import Plugin, Template
-from dokime.authoring import Suite
+from dokime_sdk import Plugin, Template
+from dokime_sdk.authoring import Suite
 
 # Type Checking Imports
 

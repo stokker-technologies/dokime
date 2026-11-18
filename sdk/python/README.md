@@ -1,6 +1,6 @@
 # Dokime Python SDK
 
-`dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
+`dokime-sdk` (import `dokime_sdk`) is a pure Python package for async clients and remote plugin authoring.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
@@ -29,7 +29,7 @@ The `polars` and `pandas` extras add the optional dataframe helpers, for example
 ## Connect a Client
 
 ```python
-from dokime.connection import connect
+from dokime_sdk.connection import connect
 
 
 async def inspect(endpoint: str) -> None:
@@ -45,7 +45,7 @@ async def inspect(endpoint: str) -> None:
         await client.close()
 ```
 
-`dokime.client.ClientRoot` exposes one composed resource tree.
+`dokime_sdk.client.ClientRoot` exposes one composed resource tree.
 Pass request content as arguments, such as `client.executions.get(name)` and
 `client.plugins.settings.list(name)`. Operations with one response field return
 that field; operations with several return their typed response. Client calls accept
@@ -60,8 +60,8 @@ Use the generated access resources to manage listener settings and pairings.
 Plugin administration and settings use `PluginEntry` identities:
 
 ```python
-from dokime.client import PluginPlacement, PluginRemote, PluginValue
-from dokime.connection import connect
+from dokime_sdk.client import PluginPlacement, PluginRemote, PluginValue
+from dokime_sdk.connection import connect
 
 
 async def register(endpoint: str, plugin_url: str) -> None:
@@ -88,7 +88,7 @@ whether Secret Storage holds it, never secret bytes. The plugin context exposes 
 Authors import the product SDK. The starter uses plain values and declaration objects:
 
 ```python
-from dokime import Plugin, Context, suite, step, criterion, record
+from dokime_sdk import Plugin, Context, suite, step, criterion, record
 
 
 @suite(label="Capture")
@@ -124,7 +124,7 @@ A single-class suite uses its suite identifier for its sole template:
 `Capture` gives template `capture` and record `capture.confirmation`.
 A grouped `Suite("accuracy", [Template(VoltageTemplate)])` gives template
 `accuracy.voltage` and member `accuracy.voltage.measure`.
-The grouping builder lives in `dokime.authoring`; root `Suite` is the wire model.
+The grouping builder lives in `dokime_sdk.authoring`; root `Suite` is the wire model.
 
 Records and reusable prompts live on template classes. Declare a reusable prompt
 with `question = prompt("Continue?", choices=["Yes", "No"])` and pass it to
@@ -156,7 +156,7 @@ The owner of an endpoint closes it explicitly.
 Additional operations use the same product package and plain payloads:
 
 ```python
-from dokime import Context, Plugin, Visibility, operation
+from dokime_sdk import Context, Plugin, Visibility, operation
 
 
 class Operations:
@@ -210,7 +210,7 @@ is an in-process host boundary; there is no SDK storage service.
 
 ## Compose and Decode Evidence
 
-`dokime.plot` composes plot expressions. `Document`, `Section` and `Summary` in
+`dokime_sdk.plot` composes plot expressions. `Document`, `Section` and `Summary` in
 `dokime.documents` retain canonical model messages, including pending/result
 bindings and card completion supplied by host document responses.
 
@@ -218,18 +218,18 @@ bindings and card completion supplied by host document responses.
 values through ExactNumber, including statistics sums, typed presence and plot
 category totals. Drawing coordinates do not replace exact totals.
 
-`FrozenSchemaCache` in `dokime.schemas` fetches execution schema pages at one read
+`FrozenSchemaCache` in `dokime_sdk.schemas` fetches execution schema pages at one read
 cut, verifies their SHA-256, caches by digest and decodes frozen record/stream
 bindings after plugin removal. Returned descriptor snapshots are independent copies.
 
-Use `upload_file` in `dokime.transfers` for unified Files uploads and
+Use `upload_file` in `dokime_sdk.transfers` for unified Files uploads and
 `download_report(client, execution, max_bytes=...)` for verified report previews.
 Uploads honor returned chunk/message bounds and preserve mutation identities;
 report downloads verify file length and digest and never publish a report.
 
 ## Query and Export Evidence
 
-`dokime.evidence` lists retained executions with `executions(client, template=...,
+`dokime_sdk.evidence` lists retained executions with `executions(client, template=...,
 status=...)`, reads one stream at a fixed cut with `execution.telemetry(...)` and
 converts it with `collect`, `to_polars` or `to_pandas`. `execution.export(path)` and
 `execution.cycle.export(path)` download verified evidence archives atomically and

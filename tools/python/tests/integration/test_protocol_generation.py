@@ -37,6 +37,25 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
+    def test_retired_python_package_and_imports_are_refused(self) -> None:
+        cases = (
+            ("dokime/__init__.py", ""),
+            ("dokime_sdk/__init__.py", "import dokime\n"),
+            ("dokime_sdk/_internal.py", "from dokime.client import Client\n"),
+            ("dokime_sdk/_wire/generated.pyi", "from dokime import Value\n"),
+        )
+        for name, source in cases:
+            with self.subTest(name=name):
+                scratch = tempfile.TemporaryDirectory()
+                try:
+                    root = Path(scratch.name)
+                    path = root / "sdk/python/src" / name
+                    path.parent.mkdir(parents=True)
+                    path.write_text(source, encoding="utf-8")
+                    self.assertRaisesRegex(ValueError, "Retired Python", check_public_surfaces, root)
+                finally:
+                    scratch.cleanup()
+
     def test_duplicate_exports_distinguish_namespaces_from_values(self) -> None:
         value = "class Value: pass\n__all__ = ['Value']\n"
         namespace = "__all__ = ['Value']\n"
@@ -104,7 +123,7 @@ class GenerationContracts(unittest.TestCase):
                 try:
                     root = Path(scratch_directory.name)
                     for relative, source in files.items():
-                        path = root / "sdk/python/src/dokime" / relative
+                        path = root / "sdk/python/src/dokime_sdk" / relative
                         path.parent.mkdir(parents=True, exist_ok=True)
                         path.write_text(source, encoding="utf-8")
                     if duplicate:
@@ -129,7 +148,7 @@ class GenerationContracts(unittest.TestCase):
             internal.replace(public)
             self.assertRaises(ValueError, check_public_surfaces, root)
             public.write_text('#include "detail/messages.hpp"', encoding="utf-8")
-            exports = root / "sdk/python/src/dokime"
+            exports = root / "sdk/python/src/dokime_sdk"
             exports.mkdir(parents=True)
             (exports / "__init__.py").write_text("__all__ = ['Value']", encoding="utf-8")
             (exports / "client.py").write_text("__all__ = ['Value']", encoding="utf-8")

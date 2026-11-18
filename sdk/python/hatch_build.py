@@ -23,7 +23,7 @@ class CustomBuildHook(BuildHookInterface):
         root = Path(self.root)
         for name in ("LICENSE", "NOTICE"):
             source = root / name if (root / name).is_file() else root.parents[1] / name
-            build_data["force_include"][str(source)] = f"dokime/{name}"
+            build_data["force_include"][str(source)] = f"dokime_sdk/{name}"
 
 
 # === Entry Point === #

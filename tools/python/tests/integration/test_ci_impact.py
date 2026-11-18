@@ -67,7 +67,7 @@ class ImpactTests(unittest.TestCase):
             (["docs/assets/navigation.svg"], {"build_docs"}),
             (["openspec/changes/example/tasks.md", "openspec/config.yaml"], {"build_docs"}),
             (["site/pnpm-lock.yaml"], {"build_docs"}),
-            (["sdk/python/src/dokime/client.py"], python),
+            (["sdk/python/src/dokime_sdk/client.py"], python),
             (["sdk/python/uv.lock"], python),
             (["sdk/csharp/src/Dokime/Client.cs"], csharp),
             (["sdk/csharp/src/Dokime/packages.lock.json"], csharp),
@@ -94,7 +94,7 @@ class ImpactTests(unittest.TestCase):
             ([".github/actions/setup/action.yml"], all_review),
             (["new-component/input.dat"], all_review),
             (["docs/product-guide.md", "sdk/cpp/src/client.cpp"], cpp),
-            (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime/client.py"], all_review),
+            (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime_sdk/client.py"], all_review),
         )
         for paths, expected in cases:
             with self.subTest(paths=paths):

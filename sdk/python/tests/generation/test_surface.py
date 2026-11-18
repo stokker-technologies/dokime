@@ -18,7 +18,7 @@ from typing import Self, assert_type
 from google.protobuf.wrappers_pb2 import Int64Value
 
 # Local Imports
-from dokime import (
+from dokime_sdk import (
     Case,
     Context,
     FileReference,
@@ -39,7 +39,7 @@ from dokime import (
     suite,
     window_observer,
 )
-from dokime.client import ClientRoot
+from dokime_sdk.client import ClientRoot
 
 # Type Checking Imports
 

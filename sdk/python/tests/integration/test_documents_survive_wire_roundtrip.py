@@ -17,11 +17,11 @@ from typing import Any, cast
 
 # Third Party Imports
 # Local Imports
-from dokime import GridAxisEntry, Value, plot
-from dokime.authoring import Stream
-from dokime.documents import Document, Section, Summary, plot_card, records_card
-from dokime.parameters import Parameter
-from dokime.values import Scalar, decode, encode
+from dokime_sdk import GridAxisEntry, Value, plot
+from dokime_sdk.authoring import Stream
+from dokime_sdk.documents import Document, Section, Summary, plot_card, records_card
+from dokime_sdk.parameters import Parameter
+from dokime_sdk.values import Scalar, decode, encode
 
 # Type Checking Imports
 

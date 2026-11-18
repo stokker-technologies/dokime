@@ -13,7 +13,7 @@
 # Standard Library Imports
 
 # Third Party Imports
-from dokime import Context, Plugin, criterion, record, step, suite
+from dokime_sdk import Context, Plugin, criterion, record, step, suite
 
 # Local Imports
 

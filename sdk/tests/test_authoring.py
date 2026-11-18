@@ -28,7 +28,7 @@ from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetR
 # isort: split
 
 # Local Imports
-from dokime import RecordContracts, Suites
+from dokime_sdk import RecordContracts, Suites
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
 

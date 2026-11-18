@@ -14,7 +14,7 @@
 # Standard Library Imports
 
 # Third Party Imports
-from dokime import Context, Plugin, Visibility, operation
+from dokime_sdk import Context, Plugin, Visibility, operation
 
 # Local Imports
 

@@ -66,10 +66,10 @@ def check_public_surfaces(root: Path) -> None:
     grpc_path = re.compile(r"/?[a-zA-Z_]\w*(?:\.\w+)*\.v\d+(?:\.\w+)*/[A-Za-z_]\w*")
     candidates = sorted((root / "sdk/cpp/include").rglob("*.hpp"))
     candidates += sorted((root / "sdk/cpp/examples").glob("*/generated/*.hpp"))
-    for path in (root / "sdk/python/src/dokime").rglob("*"):
+    for path in (root / "sdk/python/src/dokime_sdk").rglob("*"):
         if path.suffix not in {".py", ".pyi"}:
             continue
-        if any(part.startswith("_") for part in path.relative_to(root / "sdk/python/src/dokime").parts[:-1]):
+        if any(part.startswith("_") for part in path.relative_to(root / "sdk/python/src/dokime_sdk").parts[:-1]):
             continue
         if path.name.startswith("_") and path.name != "__init__.py":
             continue
@@ -84,8 +84,23 @@ def check_public_surfaces(root: Path) -> None:
             if wire.search(line) or re.search(r"\bv\d+\b", line):
                 findings.append(f"{relative.as_posix()}:{number}: Public Surface Names a Wire Package")
     exports: dict[str, bool] = {}
+    if (root / "sdk/python/src/dokime").exists():
+        findings.append("sdk/python/src/dokime: Remove the Retired Python Package; Use dokime_sdk")
+    for path in sorted((root / "sdk/python/src/dokime_sdk").rglob("*")):
+        if path.suffix not in {".py", ".pyi"}:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            imports = []
+            if isinstance(node, ast.Import):
+                imports = [item.name for item in node.names]
+            if isinstance(node, ast.ImportFrom) and not node.level and node.module:
+                imports = [node.module]
+            if any(name.split(".")[0] == "dokime" for name in imports):
+                findings.append(f"{path.relative_to(root)}:{node.lineno}: Replace the Retired Python Import with dokime_sdk")
     for name in ("__init__.py", "client.py", "plugin/__init__.py"):
-        path = root / "sdk/python/src/dokime" / name
+        path = root / "sdk/python/src/dokime_sdk" / name
         if not path.is_file():
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

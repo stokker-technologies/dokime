@@ -23,9 +23,9 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from harmos import PageRequest, Position
 
 # Local Imports
-from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest
-from dokime.client import ExecutionDetail, SchemasGetResponse
-from dokime.schemas import FrozenSchemaCache
+from dokime_sdk._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest
+from dokime_sdk.client import ExecutionDetail, SchemasGetResponse
+from dokime_sdk.schemas import FrozenSchemaCache
 
 # Type Checking Imports
 

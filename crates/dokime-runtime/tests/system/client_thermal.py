@@ -15,7 +15,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-from dokime import (
+from dokime_sdk import (
     CapturedRecordSelection,
     EvidenceScope,
     MapValue,
@@ -24,7 +24,7 @@ from dokime import (
     Value,
     model,
 )
-from dokime.client import (
+from dokime_sdk.client import (
     PLUGIN_STATE_READY,
     RESULT_STATUS_PASSED,
     BucketRequest,
@@ -41,8 +41,8 @@ from dokime.client import (
     SelectionPlan,
     SelectionValues,
 )
-from dokime.connection import connect
-from dokime.schemas import FrozenSchemaCache
+from dokime_sdk.connection import connect
+from dokime_sdk.schemas import FrozenSchemaCache
 
 # === Public Exports === #
 

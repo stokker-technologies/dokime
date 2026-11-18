@@ -17,9 +17,9 @@ from unittest import TestCase
 
 # Third Party Imports
 # Local Imports
-from dokime import Statistics, Value
-from dokime.client import PlotColumn
-from dokime.values import decode, encode
+from dokime_sdk import Statistics, Value
+from dokime_sdk.client import PlotColumn
+from dokime_sdk.values import decode, encode
 
 # Type Checking Imports
 

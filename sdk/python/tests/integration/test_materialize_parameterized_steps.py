@@ -23,7 +23,7 @@ from google.protobuf.wrappers_pb2 import Int32Value
 from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
 
 # Local Imports
-from dokime import (
+from dokime_sdk import (
     CLASSIFICATION_TRANSIENT,
     ArtifactScope,
     Context,
@@ -36,10 +36,10 @@ from dokime import (
     Visibility,
     operation,
 )
-from dokime.authoring import Case, criterion, materialize, step, suite
-from dokime.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
-from dokime.plugin import HostOperation
-from dokime.values import Scalar, encode
+from dokime_sdk.authoring import Case, criterion, materialize, step, suite
+from dokime_sdk.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
+from dokime_sdk.plugin import HostOperation
+from dokime_sdk.values import Scalar, encode
 
 # Type Checking Imports
 

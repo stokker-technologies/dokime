@@ -43,10 +43,10 @@ run = 'uv run --no-sync --project ../../tools/python python tools/installed.py i
 
 [tasks.test]
 description = "Test the Installed Python SDK"
-usage = 'flag "--layer <layer>" { choices "unit" "integration" }'
+usage = 'flag "--layer <layer>" { choices "unit" "integration" }; flag "--select <select>" help="Run Matching Python Tests"'
 run = [
-  '{% if not usage.layer or usage.layer == "unit" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v{% endif %}',
-  '{% if not usage.layer or usage.layer == "integration" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v{% endif %}',
+  '{% if not usage.layer or usage.layer == "unit" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v{% if usage.select %} -k "{{usage.select}}"{% endif %}{% endif %}',
+  '{% if not usage.layer or usage.layer == "integration" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v{% if usage.select %} -k "{{usage.select}}"{% endif %}{% endif %}',
 ]
 
 [tasks.wheel]

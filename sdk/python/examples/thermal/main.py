@@ -19,8 +19,8 @@ from uuid import uuid4
 from suite import plugin
 
 # Third Party Imports
-from dokime import MapValue, Metadata
-from dokime.client import (
+from dokime_sdk import MapValue, Metadata
+from dokime_sdk.client import (
     PLUGIN_STATE_READY,
     ExecutionBinding,
     PluginPlacement,
@@ -29,7 +29,7 @@ from dokime.client import (
     RegisteredSelection,
     SelectionPlan,
 )
-from dokime.connection import connect
+from dokime_sdk.connection import connect
 
 # Type Checking Imports
 

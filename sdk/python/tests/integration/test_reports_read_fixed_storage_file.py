@@ -21,7 +21,7 @@ from typing import Never
 import grpc
 from grpc.aio import ServicerContext
 
-from dokime._wire.host.v1.files_pb2 import (
+from dokime_sdk._wire.host.v1.files_pb2 import (
     FilesDeleteRequest,
     FilesGetRequest,
     FilesReadRequest,
@@ -29,12 +29,12 @@ from dokime._wire.host.v1.files_pb2 import (
     FilesWatchRequest,
     FilesWatchResponse,
 )
-from dokime._wire.host.v1.reports_pb2 import ReportsCreateRequest, ReportsGetRequest, ReportsPublishRequest
+from dokime_sdk._wire.host.v1.reports_pb2 import ReportsCreateRequest, ReportsGetRequest, ReportsPublishRequest
 
 # Local Imports
-from dokime.client import ReportsCreateResponse
-from dokime.connection import connect
-from dokime.transfers import download_report
+from dokime_sdk.client import ReportsCreateResponse
+from dokime_sdk.connection import connect
+from dokime_sdk.transfers import download_report
 
 # Type Checking Imports
 
@@ -49,8 +49,8 @@ from dokime.transfers import download_report
 
 class ReportStory(unittest.IsolatedAsyncioTestCase):
     async def test_preview_reads_verified_bytes_and_refuses_changed_files(self) -> None:
-        report_rpc = import_module("dokime._wire.host.v1.reports_pb2_grpc")
-        storage_rpc = import_module("dokime._wire.host.v1.files_pb2_grpc")
+        report_rpc = import_module("dokime_sdk._wire.host.v1.reports_pb2_grpc")
+        storage_rpc = import_module("dokime_sdk._wire.host.v1.files_pb2_grpc")
         data = bytes(range(7))
         digest = sha256(data).digest()
         mode = ["valid"]

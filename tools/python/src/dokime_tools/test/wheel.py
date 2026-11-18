@@ -77,10 +77,15 @@ def main() -> None:
                 (
                     "from importlib.metadata import distribution\n"
                     "from pathlib import Path\n"
-                    "import dokime\n"
-                    "package = Path(dokime.__file__).parent\n"
+                    "import dokime_sdk\n"
+                    "from importlib.util import find_spec\n"
+                    "package = Path(dokime_sdk.__file__).parent\n"
                     "installed = distribution('dokime-sdk')\n"
                     "assert package.joinpath('py.typed').is_file()\n"
+                    "assert package.joinpath('LICENSE').is_file()\n"
+                    "assert package.joinpath('NOTICE').is_file()\n"
+                    "assert list(package.rglob('*.pyi'))\n"
+                    "assert find_spec('dokime') is None\n"
                     "assert 'Root-Is-Purelib: true' in installed.read_text('WHEEL')\n"
                     "print('Installed Pure Wheel:', installed.version, package)\n"
                 ),

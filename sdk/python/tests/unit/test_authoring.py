@@ -21,10 +21,10 @@ from typing import Self
 from google.protobuf.wrappers_pb2 import BoolValue
 
 # Local Imports
-from dokime import Context, Plugin, Prompt, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
-from dokime._payloads import message_type, pack, unpack
-from dokime.authoring import Case, Suite, build_identifier, materialize
-from dokime.values import Scalar
+from dokime_sdk import Context, Plugin, Prompt, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
+from dokime_sdk._payloads import message_type, pack, unpack
+from dokime_sdk.authoring import Case, Suite, build_identifier, materialize
+from dokime_sdk.values import Scalar
 
 # Type Checking Imports
 
@@ -209,7 +209,7 @@ class AuthoringStory(unittest.TestCase):
                     imported.extend((source, item.name) for item in node.names)
                 if isinstance(node, ast.ImportFrom) and node.module:
                     imported.append((source, node.module))
-        self.assertTrue(any(name == "dokime" for _, name in imported))
+        self.assertTrue(any(name == "dokime_sdk" for _, name in imported))
         self.assertEqual([(path, name) for path, name in imported if name.split(".")[0] == "harmos"], [])
 
 

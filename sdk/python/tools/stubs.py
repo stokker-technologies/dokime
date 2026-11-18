@@ -27,21 +27,21 @@ from mypy.options import Options
 # === Constants === #
 
 MODULES = [
-    "dokime",
-    "dokime._context",
-    "dokime._plugin",
-    "dokime.authoring",
-    "dokime.client",
-    "dokime.connection",
-    "dokime.evidence",
-    "dokime.transfers",
-    "dokime.documents",
-    "dokime.operations",
-    "dokime.plot",
-    "dokime.plugin",
-    "dokime.schemas",
-    "dokime.values",
-    "dokime._generated.client",
+    "dokime_sdk",
+    "dokime_sdk._context",
+    "dokime_sdk._plugin",
+    "dokime_sdk.authoring",
+    "dokime_sdk.client",
+    "dokime_sdk.connection",
+    "dokime_sdk.evidence",
+    "dokime_sdk.transfers",
+    "dokime_sdk.documents",
+    "dokime_sdk.operations",
+    "dokime_sdk.plot",
+    "dokime_sdk.plugin",
+    "dokime_sdk.schemas",
+    "dokime_sdk.values",
+    "dokime_sdk._generated.client",
 ]
 
 # === Types === #

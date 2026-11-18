@@ -23,8 +23,8 @@ from zipfile import ZipFile
 from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
 
 # Local Imports
-from dokime import MapValue, Metadata, Value
-from dokime.client import (
+from dokime_sdk import MapValue, Metadata, Value
+from dokime_sdk.client import (
     RESULT_STATUS_PASSED,
     ExecutionBinding,
     RegisteredSelection,
@@ -32,7 +32,7 @@ from dokime.client import (
     SelectionPlan,
     SelectionValues,
 )
-from dokime.evidence import cycle, execution, executions
+from dokime_sdk.evidence import cycle, execution, executions
 
 # Type Checking Imports
 

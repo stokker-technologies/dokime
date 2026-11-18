@@ -32,13 +32,13 @@ from harmos._wire.plugin.v1.instance_pb2 import (
 from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 # Local Imports
-from dokime import Context, Operation, Plugin, Visibility, criterion, observer, prompt, record, step, stream, suite
-from dokime._generated.host import HostOperation, host_requirement
-from dokime._wire.host.v1.evidence.records_pb2 import CapturedRecord, RecordsAppendRequest, RecordsListRequest, RecordsListResponse
-from dokime._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
-from dokime._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
-from dokime._wire.plugin.v1.steps_pb2 import StepsExecuteRequest
-from dokime.operations import operation
+from dokime_sdk import Context, Operation, Plugin, Visibility, criterion, observer, prompt, record, step, stream, suite
+from dokime_sdk._generated.host import HostOperation, host_requirement
+from dokime_sdk._wire.host.v1.evidence.records_pb2 import CapturedRecord, RecordsAppendRequest, RecordsListRequest, RecordsListResponse
+from dokime_sdk._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
+from dokime_sdk._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
+from dokime_sdk._wire.plugin.v1.steps_pb2 import StepsExecuteRequest
+from dokime_sdk.operations import operation
 
 # Type Checking Imports
 

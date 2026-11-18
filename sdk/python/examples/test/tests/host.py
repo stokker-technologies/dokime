@@ -21,8 +21,8 @@ from tempfile import TemporaryDirectory
 from unittest import IsolatedAsyncioTestCase
 
 # Third Party Imports
-from dokime.client import ClientRoot
-from dokime.connection import connect
+from dokime_sdk.client import ClientRoot
+from dokime_sdk.connection import connect
 
 # Local Imports
 

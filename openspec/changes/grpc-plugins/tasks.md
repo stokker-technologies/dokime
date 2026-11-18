@@ -131,7 +131,7 @@
 
 ## Locked Python Shape
 
-- [ ] (a) Rename the Python Package Alone per the SDK Surface Specification Ownership Inventory; Regenerate Imports, Wheel Paths and Guards Without Keeping `dokime` Aliases.
+- [x] (a) Rename the Python Package Alone per the SDK Surface Specification Ownership Inventory; Regenerate Imports, Wheel Paths and Guards Without Keeping `dokime` Aliases.
 - [ ] (b) Implement the SDK Surface Specification's Python Authoring Classes, Separate Contexts, `ctx.plugin` and `plugin.serve()`; Resolve Its Named Capability Decisions Before Their Dependent Work.
 - [ ] (c) Implement the SDK Surface Specification's Python Bound Handles, Host Compositions and Configuration Precedence/Grammar With Secret Storage, Readback, Controls, Seal, Evidence, Notes, Artifacts and Explicit Close.
 - [ ] (d) Implement the Exact Manifest Schema, Dynamic Metadata, Implicit Assets, Bundle Identity/Version and Four-Language `dokime new` Embedding per the SDK Surface Specification.

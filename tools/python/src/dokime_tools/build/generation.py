@@ -85,7 +85,7 @@ def main() -> None:
                     "tools/python",
                     "ruff",
                     "check",
-                    "sdk/python/src/dokime",
+                    "sdk/python/src/dokime_sdk",
                     "sdk/python/tests/generation",
                 ],
                 [
@@ -98,10 +98,10 @@ def main() -> None:
                     "check",
                     "--project",
                     "sdk/python",
-                    "sdk/python/src/dokime/__init__.py",
-                    "sdk/python/src/dokime/client.py",
-                    "sdk/python/src/dokime/plugin",
-                    "sdk/python/src/dokime/_generated",
+                    "sdk/python/src/dokime_sdk/__init__.py",
+                    "sdk/python/src/dokime_sdk/client.py",
+                    "sdk/python/src/dokime_sdk/plugin",
+                    "sdk/python/src/dokime_sdk/_generated",
                     "sdk/python/tests/generation",
                 ],
             ]

@@ -17,7 +17,7 @@ import asyncio
 
 # Third Party Imports
 # Local Imports
-from dokime.connection import connect
+from dokime_sdk.connection import connect
 
 # Type Checking Imports
 

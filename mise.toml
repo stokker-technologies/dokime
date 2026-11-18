@@ -81,10 +81,10 @@ run = [
 
 [tasks."generate"]
 description = "Generate Clients from Contracts"
-usage = 'flag "--check" help="Check Rust Bindings; Requires --protocol"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"'
+usage = 'flag "--check" help="Check Bindings; Requires --protocol"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"; flag "--language <language>" { choices "python" }'
 run = """
 {% if usage.protocol %}
-{{vars.tools}} dokime_tools.build.protocol {% if usage.check %}--check{% endif %}
+{{vars.tools}} dokime_tools.build.protocol {% if usage.check %}--check{% endif %}{% if usage.language %} --language {{usage.language}}{% endif %}
 {% elif usage.check %}
 python -c "raise SystemExit('Check Protocol: Add --protocol; Native Client Drift Returns With the Desktop')"
 {% else %}

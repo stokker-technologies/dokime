@@ -66,10 +66,10 @@ mise run build -- --package dokime-cli
 
 ### Python
 
-The pure Python `dokime-sdk` package (import `dokime`) composes remote plugins and async clients over Harmos gRPC.
+The pure Python `dokime-sdk` package (import `dokime_sdk`) composes remote plugins and async clients over Harmos gRPC.
 Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
-`await connect("operator.pair", connect_timeout=10.0)` (from `dokime.connection`) overrides the
+`await connect("operator.pair", connect_timeout=10.0)` (from `dokime_sdk.connection`) overrides the
 30-second connection budget for each endpoint attempt. The CLI's
 `--connect-timeout <seconds>` overrides `connect_timeout_s` for one invocation.
 

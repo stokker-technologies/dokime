@@ -21,8 +21,8 @@ from google.protobuf.wrappers_pb2 import StringValue
 # Local Imports
 from operations import plugin
 
-from dokime.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
-from dokime.connection import connect
+from dokime_sdk.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
+from dokime_sdk.connection import connect
 
 # Type Checking Imports
 

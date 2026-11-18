@@ -27,7 +27,7 @@ from grpc.aio import Channel, ServicerContext, UnaryStreamClientInterceptor, Una
 from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse
 
 # Local Imports
-from dokime.connection import connect
+from dokime_sdk.connection import connect
 
 # Type Checking Imports
 
@@ -54,7 +54,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
             self.channels.append(channel)
             return channel
 
-        self.channel_patch = patch("dokime.connection.insecure_channel", side_effect=open_channel)
+        self.channel_patch = patch("dokime_sdk.connection.insecure_channel", side_effect=open_channel)
         self.channel_patch.start()
         self.addCleanup(self.channel_patch.stop)
 
@@ -98,7 +98,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         refused = self.refused()
         accepted = await self.listening("intended-host")
         path = self.pairing([refused, accepted])
-        with patch("dokime.connection.wait_for", wraps=wait_for) as bounded:
+        with patch("dokime_sdk.connection.wait_for", wraps=wait_for) as bounded:
             client = await connect(path, connect_timeout=7.5)
         self.addAsyncCleanup(client.close)
         self.assertEqual([call.args[1] for call in bounded.call_args_list], [7.5, 7.5])
@@ -126,7 +126,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
 
     async def test_plain_url_uses_connection_budget(self) -> None:
         endpoint = await self.listening("intended-host")
-        with patch("dokime.connection.wait_for", wraps=wait_for) as bounded:
+        with patch("dokime_sdk.connection.wait_for", wraps=wait_for) as bounded:
             client = await connect(endpoint, connect_timeout=4.25)
         self.addAsyncCleanup(client.close)
         self.assertEqual(bounded.call_args.args[1], 4.25)

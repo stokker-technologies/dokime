@@ -34,7 +34,7 @@ stubs = ["mypy==2.4.1", "pandas-stubs==3.1.0.261029", "polars==2.1.0", "types-pr
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/dokime"]
+packages = ["src/dokime_sdk"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 path = "hatch_build.py"
@@ -52,7 +52,7 @@ python-version = "3.13"
 python = "../../.venv"
 
 [tool.ty.src]
-include = ["src/dokime", "tests", "examples", "tools", "hatch_build.py"]
+include = ["src/dokime_sdk", "tests", "examples", "tools", "hatch_build.py"]
 # protoc Owns Generated Bindings; Descriptor and Stub Stories Verify Their Contract.
 exclude = ["**/*_pb2*"]
 
@@ -65,10 +65,10 @@ extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py", "*_pb2_grpc.pyi"]
 addopts = ["--strict-config", "--strict-markers", "--import-mode=importlib"]
 
 [tool.coverage.run]
-source_pkgs = ["dokime"]
+source_pkgs = ["dokime_sdk"]
 
 [tool.coverage.paths]
-dokime = ["src/dokime", "*/site-packages/dokime"]
+dokime_sdk = ["src/dokime_sdk", "*/site-packages/dokime_sdk"]
 
 [tool.ruff.lint]
 # Every SDK and Tooling Function Has an Explicit Typed Signature.

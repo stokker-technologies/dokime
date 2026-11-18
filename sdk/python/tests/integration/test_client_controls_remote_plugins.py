@@ -34,7 +34,7 @@ from harmos._wire.host.v1.status_pb2 import HostIdentity, HostStatus, StatusGetR
 from harmos._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
 from harmos.client import PluginEntry, PluginPlacement, PluginRemote, PluginValue
 
-from dokime.connection import connect
+from dokime_sdk.connection import connect
 
 # === Public Exports === #
 
