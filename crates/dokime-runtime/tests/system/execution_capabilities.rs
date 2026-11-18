@@ -63,11 +63,13 @@ fn execution_capabilities() -> Result<(), Box<dyn Error>> {
             assert!(active.cancel && active.inspect);
             assert!(!active.start && !active.rerun && !active.export);
             assert!(host.rerun(&execution).await.is_err());
+            assert!(host.start_execution(&execution).await.is_err());
             host.cancel(&execution)?;
             cycle.wait().await?;
             let sealed = host.capabilities(&execution)?;
             assert!(sealed.rerun && sealed.inspect && sealed.export);
             assert!(!sealed.start && !sealed.cancel);
+            assert!(host.start_execution(&execution).await.is_err());
             assert!(host.cancel(&execution).unwrap_err().to_string().to_lowercase().contains("cancel"));
             let mut archive = zip::ZipArchive::new(Cursor::new(host.export_execution(&execution).await?))?;
             let mut metadata = Vec::new();
