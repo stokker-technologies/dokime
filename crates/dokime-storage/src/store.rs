@@ -44,7 +44,7 @@ use sha2::{Digest, Sha256};
 use tokio::sync::watch::{self, Sender};
 
 // Local Imports
-use crate::telemetry::aggregates::{NumericSummary, SummarySelection};
+use crate::telemetry::aggregates::SummaryReads;
 use crate::{Backend, StorageSettings, expressions, history, stream_windows, telemetry};
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample, StatisticsRead, storage_defaults};
 use dokime_protocol::host::ExecutionOutcome;
@@ -78,7 +78,9 @@ pub struct Store {
     pub(crate) cancelled: Option<Arc<AtomicBool>>,
 
     /// Numeric Results Belong to One Finite Read and Its Nested Readers, Never the Host Store.
-    pub(crate) summaries: Option<Arc<Mutex<BTreeMap<SummarySelection, NumericSummary>>>>,
+    pub(crate) summaries: Option<Arc<Mutex<SummaryReads>>>,
+
+    pub(crate) sample_reads: Option<Arc<telemetry::SampleReads>>,
 
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
@@ -263,6 +265,7 @@ impl Store {
             identity: identity.into(),
             cancelled: None,
             summaries: None,
+            sample_reads: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
@@ -301,6 +304,7 @@ impl Store {
             identity: self.identity.clone(),
             cancelled: Some(cancelled.clone()),
             summaries: Some(self.summaries.clone().unwrap_or_else(|| Arc::new(Mutex::new(BTreeMap::new())))),
+            sample_reads: self.sample_reads.clone(),
             statistics: self.statistics.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),

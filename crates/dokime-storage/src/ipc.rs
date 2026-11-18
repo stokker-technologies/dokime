@@ -54,12 +54,14 @@ pub(crate) use projection::Projection;
 /* === Imports === */
 
 // Standard Library Imports
-use std::io::Result as IoResult;
 use std::{
     fs::{File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     path::Path,
 };
+
+#[cfg(test)]
+use std::mem;
 
 // Third Party Imports
 use arrow_array::RecordBatch;
@@ -288,7 +290,7 @@ impl Writer {
     /// Make Every Written Batch Durable.
     pub(crate) fn sync(&mut self) -> Result<()> {
         #[cfg(test)]
-        if std::mem::take(&mut self.fail_sync) {
+        if mem::take(&mut self.fail_sync) {
             return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
         }
         #[cfg(test)]
@@ -303,7 +305,7 @@ impl Writer {
         Ok(SyncHandle {
             file: self.file.file.try_clone()?,
             #[cfg(test)]
-            fail: std::mem::take(&mut self.fail_sync),
+            fail: mem::take(&mut self.fail_sync),
         })
     }
 
@@ -348,7 +350,7 @@ impl BatchIndex {
 }
 
 impl Write for HashedFile {
-    fn write(&mut self, bytes: &[u8]) -> IoResult<usize> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         let write_span = tracing::debug_span!("ingest.ipc.write").entered();
         let written = self.file.write(bytes)?;
         drop(write_span);
@@ -358,7 +360,7 @@ impl Write for HashedFile {
         Ok(written)
     }
 
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.file.flush()
     }
 }
@@ -399,13 +401,21 @@ pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> 
 }
 
 pub(crate) fn read_query_batch(path: &Path, index: &BatchIndex, projection: &Projection, maximum: usize) -> Result<RecordBatch> {
+    let buffer = read_query_buffer(path, index, maximum)?;
+    decode_query_buffer(&buffer, index, projection, maximum)
+}
+
+pub(crate) fn read_query_buffer(path: &Path, index: &BatchIndex, maximum: usize) -> Result<Buffer> {
     let length = index.body_bytes.saturating_add(u64::from(index.metadata_bytes));
     if length > maximum as u64 {
         return Err(Error::Data("query batch exceeds working budget"));
     }
-    let buffer = read_buffer(path, index)?;
-    projection.check_budget(&buffer, index, maximum)?;
-    projection.decode(&buffer, index)
+    read_buffer(path, index)
+}
+
+pub(crate) fn decode_query_buffer(buffer: &Buffer, index: &BatchIndex, projection: &Projection, maximum: usize) -> Result<RecordBatch> {
+    projection.check_budget(buffer, index, maximum)?;
+    projection.decode(buffer, index)
 }
 
 // Inspect Only Committed Batch Headers. Serialized SHA State Avoids A Payload Hash Scan.
@@ -536,7 +546,7 @@ mod tests {
     use super::*;
     use arrow_array::{Int64Array, StringArray};
     use arrow_schema::{DataType, Field, Schema};
-    use std::sync::Arc;
+    use std::{fs, result, sync::Arc};
     fn batch() -> RecordBatch {
         RecordBatch::try_new(
             Arc::new(Schema::new(vec![Field::new("integer", DataType::Int64, true), Field::new("text", DataType::Utf8, true)])),
@@ -557,7 +567,7 @@ mod tests {
         let encoded = encode(&batch.schema(), &batch).unwrap();
         writer.write(&encoded).unwrap();
         writer.sync().unwrap();
-        let ours = std::fs::read(&path).unwrap();
+        let ours = fs::read(&path).unwrap();
         let mut reference = Vec::new();
         let mut file = arrow_ipc::writer::FileWriter::try_new_with_options(&mut reference, &batch.schema(), options().unwrap()).unwrap();
         file.write(&batch).unwrap();
@@ -573,10 +583,10 @@ mod tests {
         let batch = batch();
         let mut writer = Writer::create(&path, batch.schema()).unwrap();
         writer.append(&batch).unwrap();
-        let before = std::fs::read(&path).unwrap();
+        let before = fs::read(&path).unwrap();
         let result = writer.finish().unwrap();
         assert_eq!(writer.finish().unwrap(), result);
-        let after = std::fs::read(&path).unwrap();
+        let after = fs::read(&path).unwrap();
         assert_eq!(&after[..before.len()], before);
         assert_eq!(Sha256::digest(&after).as_slice(), result.1);
         assert!(writer.append(&batch).is_err());
@@ -593,7 +603,7 @@ mod tests {
         writer.rollback(&checkpoint).unwrap();
         writer.append(&batch).unwrap();
         let (length, hash) = writer.finish().unwrap();
-        let bytes = std::fs::read(&path).unwrap();
+        let bytes = fs::read(&path).unwrap();
         assert_eq!(length, bytes.len() as u64);
         assert_eq!(hash, <[u8; 32]>::from(Sha256::digest(&bytes)));
         let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
@@ -615,7 +625,7 @@ mod tests {
         drop(writer);
         let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
         assert_eq!(reader.num_batches(), 1);
-        assert_eq!(reader.collect::<std::result::Result<Vec<_>, _>>().unwrap(), [batch]);
+        assert_eq!(reader.collect::<result::Result<Vec<_>, _>>().unwrap(), [batch]);
     }
     #[test]
     fn zstd_file_round_trip_and_metadata_only_recovery() {
@@ -635,14 +645,14 @@ mod tests {
         let mut file = OpenOptions::new().append(true).open(&path).unwrap();
         file.write_all(b"uncommitted partial batch").unwrap();
         drop(file);
-        let before = std::fs::read(&path).unwrap()[..checkpoint.end as usize].to_vec();
+        let before = fs::read(&path).unwrap()[..checkpoint.end as usize].to_vec();
         let (length, digest) = recover(&path, batch.schema(), &[first, second], &checkpoint).unwrap();
-        let bytes = std::fs::read(&path).unwrap();
+        let bytes = fs::read(&path).unwrap();
         assert_eq!(bytes.len() as u64, length);
         assert_eq!(Sha256::digest(&bytes).as_slice(), digest);
         assert_eq!(&bytes[..before.len()], before);
         let reader = arrow_ipc::reader::FileReader::try_new(File::open(&path).unwrap(), None).unwrap();
-        let batches = reader.collect::<std::result::Result<Vec<_>, _>>().unwrap();
+        let batches = reader.collect::<result::Result<Vec<_>, _>>().unwrap();
         assert_eq!(batches, vec![batch.clone(), batch]);
     }
 }

@@ -22,6 +22,7 @@ mod writer;
 /* === Re-Exports === */
 
 pub use reader::BatchSelection;
+pub(crate) use reader::SampleReads;
 
 /* === Imports === */
 

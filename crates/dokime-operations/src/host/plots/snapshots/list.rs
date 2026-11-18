@@ -19,6 +19,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU128;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::time::Instant;
 
 // Third Party Imports
 use harmos_protocol::model::Declarations;
@@ -28,7 +30,7 @@ use prost::Message;
 use prost_reflect::DescriptorPool;
 use prost_reflect::Kind;
 use sha2::{Digest, Sha256};
-use tokio::task;
+use tokio::task::JoinSet;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
@@ -73,6 +75,12 @@ pub const ID: &str = "dokime.host.v1.plots.Snapshots/List";
 /* === Type Aliases === */
 
 /* === Structs === */
+
+struct PlotSource {
+    cut: ExecutionCut,
+    catalog: Declarations,
+    pool: DescriptorPool,
+}
 
 struct PlotRead<'a> {
     store: &'a Store,
@@ -140,89 +148,13 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
     .await
 }
 
-/* === Private Functions === */
-async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
-    let (store, _cancel_on_drop) = context.host.store().read_session()?;
-    let context = context.clone();
-    task::spawn_blocking(move || {
-        let mut executions = BTreeMap::new();
-        let mut selections = BTreeMap::<Vec<u8>, PlotEnvelope>::new();
-        let mut output = Vec::new();
-        for request in requests {
-            let execution = crate::host::projection::execution_scope(request.scope.as_ref())?;
-            if !executions.contains_key(execution) {
-                let cut = store.metadata(execution)?;
-                let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
-                let pool = {
-                    let _span = tracing::info_span!("plot.schema").entered();
-                    DescriptorPool::from_file_descriptor_set(
-                        catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
-                    )
-                    .map_err(|error| Error::Invalid(error.to_string()))?
-                };
-                executions.insert(execution.to_owned(), (cut, catalog, pool));
-            }
-            let (cut, catalog, pool) = &executions[execution];
-            let mut cut = cut.clone();
-            if let Some(at) = &request.at {
-                let history = History {
-                    store: context.host.identity().backend_id,
-                    epoch: execution.into(),
-                };
-                if at.positions.len() != 1
-                    || !at.revisions.is_empty()
-                    || at.positions[0].history.as_ref() != Some(&history)
-                    || at.positions[0].sequence > cut.frontier
-                {
-                    return Err(Error::Invalid("Query Plot: Refresh the Document's Evidence Cut for This Backend".into()));
-                }
-                cut.frontier = at.positions[0].sequence;
-            }
-            let selection = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-            let mut shape = request.clone();
-            shape.plot_id = None;
-            let key = shape.encode_to_vec();
-            if let Some(envelope) = selections.get(&key) {
-                let mut envelope = envelope.clone();
-                envelope.plot_id = request.plot_id.clone().unwrap_or_else(|| request.stream.clone());
-                envelope.selection = selection;
-                output.push(envelope);
-                continue;
-            }
-            let mut request = request;
-            loop {
-                let mut envelope = snapshot_prepared(
-                    PlotRead {
-                        store: &store,
-                        cut: &cut,
-                        maximum: context.settings.page_items,
-                        now_ns: context.host.now_ns(),
-                        epoch: &context.host.identity().epoch,
-                        catalog,
-                        pool,
-                    },
-                    &request,
-                )?;
-                envelope.selection = selection.clone();
-                if envelope.encoded_len().saturating_add(32) <= context.settings.message_bytes {
-                    selections.insert(key.clone(), envelope.clone());
-                    output.push(envelope);
-                    break;
-                }
-                let points = request.max_points.unwrap_or(context.settings.page_items as u64).min(context.settings.page_items as u64);
-                if points <= 4 || request.technique == Downsample::Raw as i32 {
-                    return Err(Error::Invalid(
-                        "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
-                    ));
-                }
-                request.max_points = Some((points / 2).max(4));
-            }
-        }
-        Ok(output)
-    })
-    .await
-    .map_err(|error| Error::Invalid(format!("Query Plot: Retry After the Query Worker Failed: {error}")))?
+/// Capture Complete Plot Responses at the Report's Cut Without Live Reply Coarsening.
+pub(crate) async fn snapshots_at(
+    context: &Context, store: &Store, cut: &ExecutionCut, requests: Vec<PlotRequest>,
+) -> Result<Vec<PlotEnvelope>> {
+    batch(context, store, requests, Some(cut), false).await
 }
+
 #[tracing::instrument(name = "plot.query", skip_all, fields(kind = request.plot_type))]
 pub fn snapshot_at(
     store: &Store, cut: &ExecutionCut, request: &PlotRequest, maximum: usize, now_ns: i64, epoch: &str,
@@ -245,6 +177,127 @@ pub fn snapshot_at(
         request,
     )
 }
+/* === Private Functions === */
+async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
+    let (store, _cancellation) = context.host.store().read_session()?;
+    batch(context, &store, requests, None, true).await
+}
+
+async fn batch(
+    context: &Context, store: &Store, requests: Vec<PlotRequest>, fixed: Option<&ExecutionCut>, fit_message: bool,
+) -> Result<Vec<PlotEnvelope>> {
+    let capacity = NonZeroUsize::new(context.settings.max_cases)
+        .ok_or_else(|| Error::Invalid("Query Plots: Configure Positive Query Admission Capacity".into()))?;
+    let mut sources = BTreeMap::new();
+    let mut selections = BTreeMap::new();
+    let mut work = Vec::new();
+    let mut placements = Vec::new();
+    for request in &requests {
+        let execution = crate::host::projection::execution_scope(request.scope.as_ref())?;
+        if !sources.contains_key(execution) {
+            let cut = match fixed {
+                Some(cut) if cut.execution.identifier == execution => cut.clone(),
+                Some(_) => return Err(Error::Invalid("Capture Plots: Keep Every Plot Within Its Execution Cut".into())),
+                None => store.metadata(execution)?,
+            };
+            let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
+            let pool = {
+                let _span = tracing::info_span!("plot.schema").entered();
+                DescriptorPool::from_file_descriptor_set(
+                    catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
+                )
+                .map_err(|source| Error::Invalid(source.to_string()))?
+            };
+            sources.insert(execution.to_owned(), Arc::new(PlotSource { cut, catalog, pool }));
+        }
+        let source = sources[execution].clone();
+        if let Some(at) = &request.at {
+            let history = History {
+                store: context.host.identity().backend_id,
+                epoch: execution.into(),
+            };
+            if at.positions.len() != 1
+                || !at.revisions.is_empty()
+                || at.positions[0].history.as_ref() != Some(&history)
+                || at.positions[0].sequence > source.cut.frontier
+            {
+                return Err(Error::Invalid("Query Plot: Refresh the Document's Evidence Cut for This Backend".into()));
+            }
+        }
+        let mut shape = request.clone();
+        shape.plot_id = None;
+        let key = shape.encode_to_vec();
+        let index = *selections.entry(key).or_insert_with(|| {
+            let index = work.len();
+            work.push((request.clone(), source, context.host.now_ns()));
+            index
+        });
+        placements.push(index);
+    }
+    let mut output = vec![None; work.len()];
+    let mut pending = work.into_iter().enumerate();
+    let mut workers = JoinSet::new();
+    loop {
+        while workers.len() < capacity.get() {
+            let Some((index, (mut request, source, now_ns))) = pending.next() else { break };
+            let reader = store.independent_projection();
+            let maximum = context.settings.page_items;
+            let message_bytes = context.settings.message_bytes;
+            let epoch = context.host.identity().epoch;
+            let span = tracing::Span::current();
+            workers.spawn_blocking(move || -> Result<_> {
+                let _entered = span.enter();
+                let started = Instant::now();
+                let mut cut = source.cut.clone();
+                if let Some(at) = &request.at {
+                    cut.frontier = at.positions[0].sequence;
+                }
+                loop {
+                    let envelope = snapshot_prepared(
+                        PlotRead {
+                            store: &reader,
+                            cut: &cut,
+                            maximum,
+                            now_ns,
+                            epoch: &epoch,
+                            catalog: &source.catalog,
+                            pool: &source.pool,
+                        },
+                        &request,
+                    )?;
+                    if !fit_message || envelope.encoded_len().saturating_add(32) <= message_bytes {
+                        tracing::info!(phase = "plot", plot = ?request.plot_id,
+                            samples = envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count),
+                            elapsed_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+                        return Ok((index, envelope));
+                    }
+                    let points = request.max_points.unwrap_or(maximum as u64).min(maximum as u64);
+                    if points <= 4 || request.technique == Downsample::Raw as i32 {
+                        return Err(Error::Invalid(
+                            "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
+                        ));
+                    }
+                    request.max_points = Some((points / 2).max(4));
+                }
+            });
+        }
+        let Some(result) = workers.join_next().await else { break };
+        let (index, envelope) =
+            result.map_err(|source| Error::Invalid(format!("Query Plot: Restart After the Query Worker Failed: {source}")))??;
+        output[index] = Some(envelope);
+    }
+    requests
+        .into_iter()
+        .zip(placements)
+        .map(|(request, index)| {
+            let mut envelope = output[index].as_ref().unwrap().clone();
+            envelope.plot_id = request.plot_id.clone().unwrap_or_else(|| request.stream.clone());
+            envelope.selection = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
+            Ok(envelope)
+        })
+        .collect()
+}
+
 #[tracing::instrument(name = "plot.query", skip_all, fields(kind = request.plot_type))]
 fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEnvelope> {
     let PlotRead {

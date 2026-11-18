@@ -137,6 +137,64 @@ fn numeric(through: u64) -> NumericWindow<'static> {
 /* === Tests === */
 
 #[test]
+fn request_source_blocks_replay_exact_windows_and_cuts() -> Result<()> {
+    // Save One Immutable Source Block.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    store.sample_batch("execution", &fixture::samples(6))?;
+    store.flush_samples()?;
+    let cut = store.cut("execution")?;
+    let (mut reader, cancellation) = store.read_session()?;
+    reader.reuse_sample_reads()?;
+    let mut expected = Vec::new();
+    store.read_batches(selection(6), &["value".into()], |batch| {
+        expected.push(batch);
+        Ok(true)
+    })?;
+    let mut actual = Vec::new();
+    reader.read_batches(selection(6), &["value".into()], |batch| {
+        actual.push(batch);
+        Ok(true)
+    })?;
+    assert_eq!(actual, expected);
+
+    // Different Projections and Windows Reuse the Original Bytes, Even If the Source Becomes Unavailable.
+    let source = fs::read_dir(root.path().join("telemetry"))?.next().unwrap()?.path();
+    let retained = source.with_extension("retained");
+    fs::rename(&source, &retained)?;
+    let expression = FieldReference::new("readings").field("label");
+    let value = reader.document_value(&cut, &expression)?;
+    assert_eq!(value.kind, Some(value::Kind::Text("group2".into())));
+    let values = reader.sample_window(SampleWindow {
+        execution: "execution",
+        streams: &["readings".into()],
+        after: &[("readings".into(), 1)],
+        through: 4,
+        start_ns: i64::MIN,
+        end_ns: i64::MAX,
+        latest: false,
+        limit: NonZeroUsize::new(6).unwrap(),
+    })?;
+    assert_eq!(values.iter().map(|sample| sample.position).collect::<Vec<_>>(), vec![2, 3, 4]);
+    let earlier = reader.sample_page("execution", "readings", 0, 3, NonZeroUsize::new(6).unwrap())?;
+    assert_eq!(earlier.iter().map(|sample| sample.position).collect::<Vec<_>>(), vec![1, 2, 3]);
+
+    // A New Request Cannot Borrow Another Request's Source Blocks.
+    let (mut fresh, _fresh_cancellation) = store.read_session()?;
+    fresh.reuse_sample_reads()?;
+    assert!(fresh.document_value(&cut, &expression).is_err());
+    fs::rename(&retained, &source)?;
+    assert_eq!(fresh.document_value(&cut, &expression)?, value);
+
+    // Cancellation Still Applies to Retained Bytes.
+    drop(cancellation);
+    assert!(reader.document_value(&cut, &expression).is_err());
+    Ok(())
+}
+
+#[test]
 fn finite_numeric_reads_keep_selection_and_request_boundaries() -> Result<()> {
     // Save and Reopen One Stream.
     let root = tempfile::tempdir()?;

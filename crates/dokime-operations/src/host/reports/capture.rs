@@ -58,7 +58,8 @@ pub(super) async fn collect(
         .and_then(|subject| subject.kind.as_ref())
         .ok_or_else(|| Error::Invalid("Create Report: Select Its Execution or Cycle".into()))?;
     let store = context.host.store();
-    let (reader, _cancellation) = store.read_session()?;
+    let (mut reader, _cancellation) = store.read_session()?;
+    reader.reuse_sample_reads()?;
     let (cycle, execution) = match subject {
         host::report_subject::Kind::Execution(id) => (reader.metadata(id)?.execution.cycle, Some(id.clone())),
         host::report_subject::Kind::Cycle(id) => (id.clone(), None),
@@ -190,7 +191,7 @@ pub(super) async fn collect(
             });
         }
         let phase = Instant::now();
-        let document = documents::get::response_at(
+        let document = documents::get::response_at_with_reader(
             context,
             &host::DocumentsGetRequest {
                 scope: Some(scope),
@@ -199,11 +200,12 @@ pub(super) async fn collect(
             },
             document,
             cut,
+            &reader,
         )
         .await?;
         tracing::info!(phase = "documents", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
-        let mut envelopes = Vec::new();
+        let mut requests = Vec::new();
         for frame in &document.frames {
             let Some(host::document_frame_frame::Kind::Binding(binding)) = frame.frame.as_ref().and_then(|frame| frame.kind.as_ref())
             else {
@@ -214,18 +216,9 @@ pub(super) async fn collect(
                 continue;
             };
             let plot = plot.request.as_ref().ok_or_else(|| Error::Invalid("Create Report: Restore the Bound Plot Request".into()))?;
-            let started = Instant::now();
-            let envelope = crate::host::plots::snapshots::list::snapshot_at(
-                &reader,
-                cut,
-                plot,
-                context.settings.page_items,
-                context.host.now_ns(),
-                &context.host.identity().epoch,
-            )?;
-            tracing::info!(phase = "plot", plot = ?plot.plot_id, samples = envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count), elapsed_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Stage");
-            envelopes.push(envelope);
+            requests.push(plot.clone());
         }
+        let envelopes = crate::host::plots::snapshots::list::snapshots_at(context, &reader, cut, requests).await?;
         tracing::info!(phase = "plots", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut captured = host::ReportExecution {
