@@ -50,7 +50,6 @@ pub async fn handle(context: &Context, request: ExecutionsSealRequest) -> Result
         if request.request_id.trim().is_empty() {
             return Err(Error::Invalid("Seal Execution: Supply a Nonempty Request ID".into()));
         }
-        let _guard = context.administration.lock().await;
         let admitted = context.host.controls(&request.name)?.request_id.is_some();
         let cut = context.host.store().cut(&request.name)?;
         let outcome = sealed_outcome(&cut, admitted)?;
