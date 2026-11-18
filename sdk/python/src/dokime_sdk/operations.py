@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 
 Context = _context.Context
 BoundOperation = _context.BoundOperation
+StreamSubscription = _context.StreamSubscription
 FailureError = _errors.FailureError
 
 

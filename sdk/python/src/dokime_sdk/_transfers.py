@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 from hashlib import sha256
+from mimetypes import guess_type
 from typing import Protocol
 from uuid import uuid4
 
@@ -23,7 +24,10 @@ from harmos import FileMetadata, FileReference, Upload
 from ._errors import SdkError, call, invalid
 from ._generated.client import ClientRoot
 from ._generated.client_types import ReportSubject
+from ._generated.host import HostRoot
 from ._generated.shared import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
+from ._values import Artifact
+from ._wire.model.v1.evidence_pb2 import ArtifactScope
 
 # Type Checking Imports
 
@@ -44,6 +48,46 @@ class Uploads(Protocol):
 
 
 # === Public Functions === #
+
+
+async def publish_artifact(
+    transport: ClientRoot | HostRoot,
+    scope: ArtifactScope,
+    name: str,
+    data: bytes,
+    *,
+    mime: str | None = None,
+    request_id: str | None = None,
+) -> Artifact:
+    if request_id == "":
+        raise ValueError("Publish Artifact: Supply a Nonempty Request Identity")
+    identity = request_id if request_id is not None else str(uuid4())
+    media_type = mime if mime is not None else guess_type(name)[0] or "application/octet-stream"
+    file = await upload_bytes(
+        transport.files.uploads,
+        data,
+        metadata=FileMetadata(
+            scope=f"execution/{scope.execution_id}" if scope.execution_id else f"cycle/{scope.cycle_id}",
+            media_type=media_type,
+            expected_length=len(data),
+        ),
+        request_id=identity,
+    )
+    reply = await call(
+        "content.artifacts.create",
+        transport.content.artifacts.create(file, name, media_type, scope=scope, request_id=f"{identity}/attach"),
+        identity,
+    )
+    value = reply.artifact
+    return Artifact(
+        value.artifact_id,
+        value.filename,
+        value.content_type,
+        value.size_bytes,
+        bytes.fromhex(value.sha256),
+        value.scope.cycle_id or None,
+        value.scope.execution_id or None,
+    )
 
 
 async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata, request_id: str | None = None) -> FileReference:

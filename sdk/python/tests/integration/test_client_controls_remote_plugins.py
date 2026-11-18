@@ -22,6 +22,7 @@ from harmos._wire.host.v1 import plugins_pb2
 from harmos._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Local Imports
+import dokime_sdk.operations
 from dokime_sdk._connection import connect
 from dokime_sdk._errors import SdkError
 from dokime_sdk._plugin import Plugin
@@ -219,6 +220,21 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
             await registration
         self.assertEqual(self.entries, {})
         self.assertEqual(self.client.plugins._owned, {})
+
+    async def test_registration_and_serve_share_the_lifecycle_activation_refusal(self) -> None:
+        class LifecyclePlugin(Plugin):
+            version = "1.0.0"
+
+            async def initialize(self, ctx: "dokime_sdk.operations.Context") -> None:
+                raise AssertionError("Library Activation Must Own This Hook")
+
+        author = LifecyclePlugin()
+        with self.assertRaises(ValueError):
+            await self.client.plugins.register(author, address="127.0.0.1:0")
+        with self.assertRaises(ValueError):
+            await author.serve("127.0.0.1:0")
+        self.assertEqual(self.trace, [])
+        self.assertEqual(self.entries, {})
 
 
 # === Public Functions === #

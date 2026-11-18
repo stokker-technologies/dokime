@@ -136,14 +136,17 @@
   - [x] Bind Explicit Plugin, Suite and TestTemplate Classes, Derived Identities and Labels, Annotated Plain Operations and Separate Contexts; Move Documents, Plots and Parameters to Templates and Delete Replaced Authoring Entry Points.
   - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Setup With Python-Only Tests.
   - [ ] Resolve Carrier Activation Contexts and Stream Subscription Support; Prove Plugin initialize/finalize Order, Failed/Cancelled Initialization Finalization, Admission Draining and Repeated Shutdown.
-  - [ ] Resolve Shared Template/Client Query Ownership, Termination Values and Activation Calls; Complete Typed Readback, Artifact Projection, Plugin Notes, Requirement Inference and Local Document Declaration Binding.
+  - [x] Share Template/Client Record Query and Decode Ownership, Termination Values, Bound Operation Calls, Plugin-Owned Listener Activation and Artifact Publication; Complete Typed Statistics, Artifact Projection and Local Document Declaration Binding.
+  - [ ] Admit Plugin Notes/Create and Resolve Complete Automatic Peer Requirements Against the Library's Frozen Activation Requirements; Authors Declare No Requirements.
   - [ ] Complete Installed-Wheel Stub/Public-Home Consumer Proof After Item (e) Updates Its Inventories, Then Run the Required Host Stories on the Combined Candidate.
 - [ ] (c) Implement the SDK Surface Specification's Python Bound Handles, Host Compositions and Configuration Precedence/Grammar With Secret Storage, Readback, Controls, Seal, Evidence, Notes, Artifacts and Explicit Close.
   - [x] Replace Owned Selector/Export Wrappers With Bound Client Resources, Current Host Compositions, Immutable Product Values, Structured Failures and Explicit Owned Registration Cleanup.
   - [x] Implement Working-Directory Configuration Precedence and the Shared Dotenv Grammar Without Dependencies or Environment Mutation; Preserve Ordered Pairing Attempts and Connection Budgets.
   - [x] Share Verified Archive/Report Downloads, Preserve Acknowledged Upload Fences and Child Request Identities, and Prove Frozen Decoding, Fixed-Cut Queries, Controls, Notes, Artifacts and Cleanup With Host-Free Services.
-  - [ ] Bind Managed Bundle Installation, Client Invocation Policy Overrides, Execution Seal Outcomes and Sealed Progress After Their Host Contracts Land; Complete Run/Watch Finality and Real-Host Retained Archive Proof Without Substituting Readback for Seal.
-  - [ ] Resolve Shared Query, Termination and Listener Activation Ownership With Item (b), and Complete Installed-Wheel Stub/Public-Surface and Consumer Proof After Item (e) Migrates Its Inventories.
+  - [x] Bind Host Execution Seal Outcomes and Sealed Progress; Prove Lazy Run/Watch Finality and Observation Close Without Execution Cancellation With Host-Free Services.
+  - [ ] Bind Managed Bundle Installation and Client Invocation Policy Overrides After Their Host Contracts Land; Complete Real-Host Retained Archive Proof Without Substituting Readback for Seal.
+  - [x] Resolve Shared Query, Termination, Bound Operation, Artifact Publisher and Listener Activation Ownership With Item (b).
+  - [ ] Complete Installed-Wheel Stub/Public-Surface and Consumer Proof After Item (e) Migrates Its Inventories.
 - [ ] (d) Implement the Exact Manifest Schema, Dynamic Metadata, Implicit Assets, Bundle Identity/Version and Four-Language `dokime new` Embedding per the SDK Surface Specification.
   - [x] Replace Top-Level Manifest Scripts and Assets Lists With Strict Plugin, Compatibility and Scripts Tables; Resolve Native Metadata With Static Overrides.
   - [x] Bundle Implicit Assets, Referenced Metadata and Required Launch Inputs; Preserve User Locks and Exclude Private Inputs.

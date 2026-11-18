@@ -360,6 +360,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                         if last is not None:
                             response.last.payload = last
                             response.last.record_type = child.record_type
+                            response.last.scope.execution_id = "execution"
                     else:
                         self.fail(f"Unexpected Host Call: {kind}")
                     await call.write(

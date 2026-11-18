@@ -14,42 +14,36 @@
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from types import MappingProxyType
-from typing import TYPE_CHECKING, ClassVar, TypeVar, cast
-from uuid import uuid4
+from typing import TYPE_CHECKING, cast
 
 # Third Party Imports
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
-from harmos import FileMetadata, PageRequest, plugin
-
-from .._generated import shared
-
-# Local Imports
-from .._generated.plugin_types import (
-    EffectWritable,
-)
-from .._generated.shared import (
-    CapturedRecordSelection,
-    Card,
-    EvidenceStatisticsResponse,
-    ExecutionProgressValue,
-    RecordsListResponse,
-    TraceabilityEntry,
-)
-from .._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse
-from .._wire.model.v1.evidence_pb2 import ArtifactScope, Window
-from .._wire.model.v1.metadata_pb2 import Metadata
-
-if TYPE_CHECKING:
-    from .._plugin import Plugin
+from harmos import plugin
 
 from .. import operations
 from .._authoring import PromptDeclaration, Record, _Template, prompt
-from .._payloads import Payload, message_type, pack, unpack
-from .._transfers import upload_bytes
-from .._values import Scalar, encode
-from ._captures import CaptureMode, CaptureResult, Environment, FileSource, Severity, Termination
-from ._documents import Section
+from .._errors import refused
+from .._evidence import RecordsQuery
+
+# Local Imports
+from .._generated import shared
+from .._generated.plugin_types import EffectWritable
+from .._generated.shared import (
+    Card,
+    ExecutionProgressValue,
+    TraceabilityEntry,
+)
+from .._payloads import Payload, pack
+from .._transfers import publish_artifact
+from .._values import Artifact, Note, Scalar, Statistics, Termination, decode, encode
+from .._wire.model.v1.evidence_pb2 import ArtifactScope, Window
+from ._captures import CaptureMode, CaptureResult, Environment, FileSource, Severity
+from ._documents import Document, Section
+
+# Type Checking Imports
+if TYPE_CHECKING:
+    from .._plugin import Plugin
 
 # === Public Exports === #
 
@@ -120,7 +114,7 @@ class Context(operations.Context):
 
     def records[T: Payload](self, declaration: Record[T], *, step: Callable[..., object] | None = None) -> "RecordsQuery[T]":
         self._resolve(declaration)
-        return RecordsQuery(self, declaration, self._resolve(step) if step is not None else "")
+        return RecordsQuery._for_context(self, declaration, step=self._resolve(step) if step is not None else "")
 
     async def statistics(
         self,
@@ -128,9 +122,26 @@ class Context(operations.Context):
         field: str = "",
         *,
         step: Callable[..., object] | None = None,
-    ) -> EvidenceStatisticsResponse:
-        return await self._host.evidence.statistics(
+    ) -> Statistics:
+        response = await self._host.evidence.statistics(
             self._resolve(stream), [], Window(), [], field, self._resolve(step) if step is not None else ""
+        )
+        value = response.statistics
+        fields = ("min", "max", "mean", "median", "p05", "p95", "p99", "first", "last", "sum")
+        values = {name: decode(getattr(value, name)) if value.HasField(name) else None for name in fields}
+        return Statistics(
+            count=value.count,
+            min=values["min"],
+            max=values["max"],
+            mean=values["mean"],
+            stddev=value.stddev,
+            median=values["median"],
+            p05=values["p05"],
+            p95=values["p95"],
+            p99=values["p99"],
+            first=values["first"],
+            last=values["last"],
+            sum=values["sum"],
         )
 
     def _resolve(self, declaration: object) -> str:
@@ -158,34 +169,32 @@ class Context(operations.Context):
         current = await self._host.evidence.traceability.get(entry=identifier)
         await self._host.evidence.traceability.set(entry, current.revision, identifier, request_id=request_id)
 
-    async def document(self, document: str, part: Section | Card, *, section: str = "", request_id: str | None = None) -> None:
+    async def document(self, document: str | Document, part: Section | Card, *, section: str = "", request_id: str | None = None) -> None:
+        if isinstance(document, Document):
+            identity = self._resolve(document)
+        else:
+            documents = {item.message.metadata.identifier for item in self._template.documents}
+            identity = document if document in documents else f"{self._template.identifier}.{document}"
+            if identity not in documents:
+                raise ValueError("Append Document: Select a Document Declared by This Template")
         await self._host.documents.append_parts(
             self.execution,
-            document,
+            identity,
             section,
             subsection=part.message if isinstance(part, Section) else None,
             card=part if isinstance(part, Card) else None,
             request_id=request_id,
         )
 
-    async def artifact(
-        self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None
-    ) -> ArtifactsCreateResponse:
-        identity = request_id if request_id is not None else str(uuid4())
-        file = await upload_bytes(
-            self._host.files.uploads,
-            data,
-            metadata=FileMetadata(scope=f"execution/{self.execution}", media_type=mime, expected_length=len(data)),
-            request_id=identity,
+    async def note(self, text: str, *, request_id: str | None = None) -> Note:
+        raise refused(
+            "evidence.notes.create",
+            "Plugin Note Publication Is Not Admitted by the Host Contract",
+            "Admit Notes/Create for Plugin Callers and Regenerate the Host Bindings",
         )
-        return await self._host.content.artifacts.create(
-            file,
-            name,
-            mime,
-            scope=ArtifactScope(execution_id=self.execution),
-            metadata=Metadata(identifier=name, label=name),
-            request_id=f"{identity}/attach",
-        )
+
+    async def artifact(self, name: str, data: bytes, *, mime: str | None = None, request_id: str | None = None) -> Artifact:
+        return await publish_artifact(self._host, ArtifactScope(execution_id=self.execution), name, data, mime=mime, request_id=request_id)
 
     async def start_capture(self, source: FileSource, output: str, mode: CaptureMode) -> int:
         return await self._host.files.captures.start(source._wire(), output, mode._wire())
@@ -214,30 +223,6 @@ class Context(operations.Context):
 
     async def capture(self, source: FileSource, output: str) -> CaptureResult:
         return CaptureResult._from_wire(await self._host.files.capture(source._wire(), output))
-
-
-class RecordsQuery[T: Payload]:
-    __type_params__: ClassVar[tuple[TypeVar, ...]]
-
-    def __init__(self, context: Context, definition: Record[T], step: str) -> None:
-        self._context = context
-        self._definition = definition
-        self._step = step
-
-    async def read(self, *, limit: int = 0) -> RecordsListResponse:
-        return await self._context._host.evidence.records.list(
-            self._context._resolve(self._definition), [], Window(), self._step, CapturedRecordSelection(), page=PageRequest(page_size=limit)
-        )
-
-    async def count(self) -> int:
-        return (await self.read()).count
-
-    async def last(self) -> T:
-        response = await self.read()
-        if not response.HasField("last"):
-            raise ValueError("Read Records: Append a Record Before Reading the Last Value")
-        message = message_type(self._definition.row).FromString(response.last.payload)
-        return unpack(self._definition.row, message)
 
 
 # === Public Functions === #

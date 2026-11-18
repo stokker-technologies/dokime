@@ -45,14 +45,6 @@ class Severity(IntEnum):
     FAILURE = 4
 
 
-class Termination(IntEnum):
-    UNSPECIFIED = 0
-    COMPLETED = 1
-    FAILED = 2
-    CANCELLED = 3
-    INTERRUPTED = 4
-
-
 @dataclass(frozen=True)
 class FtpLocation:
     url: str

@@ -11,13 +11,14 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import datetime
 from types import MappingProxyType
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 # Third Party Imports
 from google.protobuf.descriptor_pb2 import DescriptorProto
+from google.protobuf.message import DecodeError
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import PageRequest, ReadCut
 
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
     import polars
 
     from ._client import Execution
+    from .templates._context import Context
 
 # === Public Exports === #
 
@@ -46,24 +48,80 @@ if TYPE_CHECKING:
 # === Classes === #
 
 
+class RecordsReader(Protocol):
+    async def list(
+        self,
+        record_type: str,
+        versions: list[int],
+        between: Window,
+        step: str,
+        selection: CapturedRecordSelection,
+        *,
+        scope: RecordScope | None = None,
+        at: ReadCut | None = None,
+        page: PageRequest | None = None,
+    ) -> RecordsListResponse: ...
+
+
 class RecordsQuery[T: Payload]:
-    def __init__(self, execution: "Execution", declaration: Record[T] | str, *, step: str = "", row_type: type[T] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        execution: str,
+        reader: RecordsReader,
+        decoder: Callable[[bytes], Awaitable[T]],
+        *,
+        step: str = "",
+        prepare: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
+        self._name = name
         self._execution = execution
-        self._name, self._row_type = _selector(execution, declaration, row_type)
+        self._reader = reader
+        self._decoder = decoder
+        self._prepare = prepare
         self._step = step
         self._at: ReadCut | None = None
 
+    @classmethod
+    def _for_execution(
+        cls,
+        execution: "Execution",
+        declaration: Record[T] | str,
+        *,
+        step: str = "",
+        row_type: type[T] | None = None,
+    ) -> "RecordsQuery[T]":
+        name, row_type = _selector(execution, declaration, row_type)
+
+        async def prepare() -> None:
+            await _prepare(execution, name)
+
+        async def decode(payload: bytes) -> T:
+            return await _decode(execution, name, payload, row_type)
+
+        return cls(name, execution.identifier, execution._client._transport.evidence.records, decode, step=step, prepare=prepare)
+
+    @classmethod
+    def _for_context(cls, context: "Context", declaration: Record[T], *, step: str = "") -> "RecordsQuery[T]":
+        name = context._resolve(declaration)
+
+        async def decode(payload: bytes) -> T:
+            return await _decode(None, name, payload, declaration.row)
+
+        return cls(name, context.execution, context._host.evidence.records, decode, step=step)
+
     async def _page(self, cursor: PageRequest) -> RecordsListResponse:
-        await _prepare(self._execution, self._name)
+        if self._prepare is not None:
+            await self._prepare()
         reply = await call(
             "evidence.records.list",
-            self._execution._client._transport.evidence.records.list(
+            self._reader.list(
                 self._name,
                 [],
                 Window(),
                 self._step,
                 CapturedRecordSelection(),
-                scope=RecordScope(execution=self._execution.identifier),
+                scope=RecordScope(execution=self._execution),
                 at=self._at,
                 page=cursor,
             ),
@@ -75,9 +133,9 @@ class RecordsQuery[T: Payload]:
         return reply
 
     async def _decode(self, row: CapturedRecord) -> RecordRow[T]:
-        if row.record_type != self._name or row.scope.execution_id != self._execution.identifier:
+        if row.record_type != self._name or row.scope.execution_id != self._execution:
             raise invalid("evidence.records.list", "The Host Returned a Record Outside the Selected Execution or Type")
-        value = await _decode(self._execution, self._name, row.payload, self._row_type)
+        value = await self._decoder(row.payload)
         return RecordRow(
             row.record_id,
             row.sequence,
@@ -295,12 +353,17 @@ async def _prepare(execution: "Execution", name: str) -> None:
         raise invalid("evidence.decode", "The Selector Has No Frozen Message Binding")
 
 
-async def _decode[T: Payload](execution: "Execution", name: str, payload: bytes, row_type: type[T] | None) -> T:
-    if not execution._detail.HasField("schemas"):
-        await execution.refresh()
+async def _decode[T: Payload](execution: "Execution | None", name: str, payload: bytes, row_type: type[T] | None) -> T:
     try:
-        value = await execution._client._schemas.decode(execution._client._transport, execution._detail, name, payload)
-    except ValueError as error:
+        if execution is None:
+            if row_type is None:
+                raise invalid("evidence.decode", "Bind a Declared Row Type Before Reading Scoped Records")
+            value = message_type(row_type).FromString(payload)
+        else:
+            if not execution._detail.HasField("schemas"):
+                await execution.refresh()
+            value = await execution._client._schemas.decode(execution._client._transport, execution._detail, name, payload)
+    except (DecodeError, ValueError) as error:
         raise invalid("evidence.decode", str(error)) from error
     if row_type is None:
         return cast(T, value)

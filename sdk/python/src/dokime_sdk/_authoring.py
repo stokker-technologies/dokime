@@ -169,6 +169,18 @@ class _Template:
             raise ValueError("Build Plugin: Give Every Template Member a Unique Declaration and Identifier")
         if any(name in bound._lifecycle.values() for name in names):
             raise ValueError("Build Plugin: Rename Members That Collide With Lifecycle Operations")
+        bound.documents = tuple(deepcopy(item) for item in self.documents)
+        document_ids: set[str] = set()
+        for declaration, document in zip(self.documents, bound.documents, strict=True):
+            local = document.message.metadata.identifier
+            if not local:
+                raise ValueError("Bind Document: Declare a Nonempty Local Identifier")
+            qualified = build_identifier(local, prefix=bound.identifier)
+            if qualified in document_ids or id(declaration) in bound._identifiers:
+                raise ValueError("Bind Document: Give Every Document a Unique Declaration and Identifier")
+            document_ids.add(qualified)
+            bound._identifiers[id(declaration)] = qualified
+            document.message.metadata.identifier = qualified
         for declaration in self.prompts:
             value = shared.Prompt()
             value.CopyFrom(declaration.value)
@@ -450,7 +462,7 @@ def bind_suite(declaration: type[Suite]) -> _Suite:
             item.identifier,
             parameters=tuple(deepcopy(item.parameters)),
             files=tuple(deepcopy(item.files)),
-            documents=tuple(deepcopy(item.documents)),
+            documents=tuple(item.documents),
         ).bind(identity)
         templates.append(template)
     return _Suite(identity, tuple(templates), declaration.label or build_label(declaration.__name__))

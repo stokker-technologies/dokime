@@ -11,20 +11,25 @@
 # === Imports === #
 
 # Standard Library Imports
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, ClassVar, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar
 
 # Third Party Imports
 from google.protobuf.duration_pb2 import Duration
-from harmos import plugin
+from harmos import VISIBILITY_PUBLIC, plugin
 
 # Local Imports
+from ._errors import call, invalid, refused
+from ._generated.client import ClientRoot
 from ._generated.host import HostRoot
-from ._payloads import Payload, pack, unpack
+from ._payloads import Payload, message_type, pack, unpack
+from ._values import SampleRow
 
 # Type Checking Imports
 if TYPE_CHECKING:
     from . import operations
+    from ._authoring import Stream
     from ._plugin import Plugin
 
 # === Public Exports === #
@@ -59,6 +64,13 @@ class Context:
     async def cancelled(self) -> str:
         return await self._transport.cancelled()
 
+    async def subscribe[T: Payload](self, stream: "Stream[T]") -> "StreamSubscription[T]":
+        raise refused(
+            "streams.subscribe",
+            "The Pinned Library Has No Admitted Typed Sample Subscription API",
+            "Upgrade harmos-sdk to Provide Scoped Sample Demand, Cancellation and Subscription Close on plugin.Context",
+        )
+
     async def secret(self, identifier: str) -> bytes:
         if identifier not in self._secrets:
             raise ValueError(f"Read Secret: Declare {identifier} on the Plugin Before Reading It")
@@ -88,18 +100,37 @@ class Context:
         return values
 
 
+class StreamSubscription[T: Payload](Protocol):
+    def __aiter__(self) -> AsyncIterator[SampleRow[T]]: ...
+    async def close(self) -> None: ...
+
+
 class BoundOperation[RequestT: Payload, ResponseT: Payload]:
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
-    def __init__(self, transport: plugin.Context, operation: "operations.Operation[RequestT, ResponseT]") -> None:
+    def __init__(self, transport: plugin.Context | ClientRoot, operation: "operations.Operation[RequestT, ResponseT]") -> None:
         self._transport = transport
         self._operation = operation
 
     async def __call__(self, request: RequestT, *, policy: "operations.OperationPolicy | None" = None) -> ResponseT:
         wire = self._operation._definition()
-        response = await self._transport.call(
-            wire, pack(self._operation.request, request), policy=policy._definition() if policy is not None else None
-        )
+        encoded = pack(self._operation.request, request)
+        if isinstance(self._transport, ClientRoot):
+            if policy is not None:
+                raise refused(
+                    "invocations.create",
+                    "The Host Invocation Contract Has No Operation Policy Override",
+                    "Publish the Product Invocation Policy Contract and Regenerate Bindings",
+                )
+            observed = await call("operations.get", self._transport.operations.get(wire.id))
+            if observed.contract.fingerprint != wire.fingerprint or observed.contract.visibility != VISIBILITY_PUBLIC:
+                raise invalid("operations.get", "The Public Operation Contract Differs from the Declared Contract")
+            payload = await call(
+                "invocations.create", self._transport.invocations.create(wire.id, wire.fingerprint, encoded.SerializeToString())
+            )
+            response = message_type(self._operation.response).FromString(payload)
+        else:
+            response = await self._transport.call(wire, encoded, policy=policy._definition() if policy is not None else None)
         return unpack(self._operation.response, response)
 
 

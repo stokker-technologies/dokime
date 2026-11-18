@@ -15,7 +15,7 @@ import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 # Third Party Imports
@@ -26,15 +26,15 @@ from harmos.plugin import Endpoint
 
 # Local Imports
 from ._authoring import _Template
-from ._configuration import load, resolve
+from ._context import BoundOperation
 from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
 from ._generated import client_types
 from ._generated.client import ClientRoot
 from ._generated.shared import MapValue
-from ._payloads import Payload, message_type, pack, unpack
+from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
-from ._transfers import download, upload_bytes
-from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, Scalar, decode, encode
+from ._transfers import download, publish_artifact
+from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, ResultStatus, Scalar, Termination, decode, encode
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 from ._wire.model.v1.metadata_pb2 import Metadata
 
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from ._authoring import Record, Stream, TestTemplate
     from ._evidence import RecordsQuery, SamplesQuery
     from ._plugin import Plugin
-    from .operations import Operation, OperationPolicy
+    from .operations import Operation
 
 # === Public Exports === #
 
@@ -52,10 +52,6 @@ if TYPE_CHECKING:
 # === Types === #
 
 # === Classes === #
-
-
-class _SealedProgress(Protocol):
-    sealed: bool
 
 
 class Client:
@@ -97,7 +93,7 @@ class Client:
         return Cycle._bind(self, reply.cycle)
 
     def operation[Q: Payload, R: Payload](self, operation: "Operation[Q, R]") -> "BoundOperation[Q, R]":
-        return BoundOperation(self, operation)
+        return BoundOperation(self._transport, operation)
 
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None:
         if self._close_task is not None:
@@ -205,9 +201,8 @@ class Plugins:
     async def _register(self, plugin: "Plugin", *, address: str | None = None, request_id: str | None = None) -> "RegisteredPlugin":
         if self._client._close_task is not None:
             raise ValueError("Register Plugin: Connect a New Client After Close")
-        selected = resolve("DOKIME_PLUGIN_ADDRESS", address, load())
         identity = _identity(request_id)
-        endpoint = await plugin._plugin.start(selected)
+        endpoint = await plugin._activate(address)
         entry: RegisteredPlugin | None = None
         try:
             reply = await call(
@@ -630,8 +625,10 @@ class Cycle:
     async def note(self, text: str, *, request_id: str | None = None) -> Note:
         return await _note(self._client, self.identifier, None, text, request_id)
 
-    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None) -> Artifact:
-        return await _artifact(self._client, self.identifier, None, name, data, mime, request_id)
+    async def artifact(self, name: str, data: bytes, *, mime: str | None = None, request_id: str | None = None) -> Artifact:
+        return await publish_artifact(
+            self._client._transport, ArtifactScope(cycle_id=self.identifier), name, data, mime=mime, request_id=request_id
+        )
 
 
 class Execution:
@@ -689,17 +686,10 @@ class Execution:
         self._observe(reply.execution, identity)
 
     async def watch(self) -> AsyncGenerator[Progress]:
-        # Require the Agreed Host Field; Never Translate the Superseded Terminal Contract.
-        if "sealed" not in client_types.ProgressWatchResponse.DESCRIPTOR.fields_by_name:
-            raise refused(
-                "executions.progress.watch",
-                "The Host Progress Contract Does Not Expose Sealed State",
-                "Land seal-finality and Regenerate the Progress Bindings",
-            )
         watch = self._client._transport.executions.progress.watch(self.identifier)
         try:
             async for frame in watch:
-                sealed = cast(_SealedProgress, frame).sealed
+                sealed = frame.sealed
                 yield Progress(frame.phase, frame.value.completed, frame.value.total, frame.value.label, sealed)
                 if sealed:
                     return
@@ -729,12 +719,20 @@ class Execution:
         self._observe(reply.execution, identity)
 
     async def seal(self, *, request_id: str | None = None) -> Outcome:
-        raise refused(
-            "executions.seal",
-            "The Host Has No Executions/Seal Operation",
-            "Land seal-finality and Regenerate the Execution Bindings",
-            request_id=_identity(request_id),
-        )
+        identity = _identity(request_id)
+        reply = await call("executions.seal", self._client._transport.executions.seal(self.identifier, request_id=identity), identity)
+        value = reply.outcome
+        attribution = value.WhichOneof("attribution")
+        try:
+            if attribution == "not_evaluated":
+                return Outcome(ResultStatus.PENDING, attribution, value.not_evaluated.reason, Termination(value.not_evaluated.termination))
+            if attribution == "evaluated":
+                return Outcome(ResultStatus(value.evaluated.status), attribution, value.evaluated.reason)
+            if attribution == "declared":
+                return Outcome(ResultStatus(value.declared.status), attribution, value.declared.reason, importer=value.declared.importer)
+        except ValueError as error:
+            raise invalid("executions.seal", "The Host Returned an Unknown Result Status or Termination", request_id=identity) from error
+        raise invalid("executions.seal", "The Host Returned No Stable Outcome", request_id=identity)
 
     async def evidence(self) -> bytes:
         return await _archive(self._client, client_types.EvidenceSubject(execution=self.identifier))
@@ -742,13 +740,15 @@ class Execution:
     async def note(self, text: str, *, request_id: str | None = None) -> Note:
         return await _note(self._client, self.cycle.identifier, self.identifier, text, request_id)
 
-    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None) -> Artifact:
-        return await _artifact(self._client, self.cycle.identifier, self.identifier, name, data, mime, request_id)
+    async def artifact(self, name: str, data: bytes, *, mime: str | None = None, request_id: str | None = None) -> Artifact:
+        return await publish_artifact(
+            self._client._transport, ArtifactScope(execution_id=self.identifier), name, data, mime=mime, request_id=request_id
+        )
 
     def records[T: Payload](self, declaration: "Record[T] | str", *, step: str = "", row_type: type[T] | None = None) -> "RecordsQuery[T]":
         from ._evidence import RecordsQuery
 
-        return RecordsQuery(self, declaration, step=step, row_type=row_type)
+        return RecordsQuery._for_execution(self, declaration, step=step, row_type=row_type)
 
     def samples[T: Payload](
         self,
@@ -761,30 +761,6 @@ class Execution:
         from ._evidence import SamplesQuery
 
         return SamplesQuery(self, stream, fields=fields, between=between, row_type=row_type)
-
-
-class BoundOperation[Q: Payload, R: Payload]:
-    def __init__(self, client: Client, operation: "Operation[Q, R]") -> None:
-        self._client = client
-        self._operation = operation
-
-    async def __call__(self, request: Q, *, policy: "OperationPolicy | None" = None) -> R:
-        if policy is not None:
-            raise refused(
-                "invocations.create",
-                "The Host Invocation Contract Has No Operation Policy Override",
-                "Publish the Product Invocation Policy Contract and Regenerate Bindings",
-            )
-        definition = self._operation._definition()
-        encoded = pack(self._operation.request, request)
-        observed = await call("operations.get", self._client._transport.operations.get(definition.id))
-        if observed.contract.fingerprint != definition.fingerprint or observed.contract.visibility != harmos.VISIBILITY_PUBLIC:
-            raise invalid("operations.get", "The Public Operation Contract Differs from the Declared Contract")
-        payload = await call(
-            "invocations.create",
-            self._client._transport.invocations.create(definition.id, definition.fingerprint, encoded.SerializeToString()),
-        )
-        return unpack(self._operation.response, message_type(self._operation.response).FromString(payload))
 
 
 # === Public Functions === #
@@ -832,32 +808,6 @@ async def _note(client: Client, cycle: str, execution: str | None, text: str, re
         value.author if value.HasField("author") else None,
         value.created_at.ToDatetime(tzinfo=UTC),
         value.scope.cycle_id,
-        value.scope.execution_id or None,
-    )
-
-
-async def _artifact(
-    client: Client, cycle: str, execution: str | None, name: str, data: bytes, mime: str, request_id: str | None
-) -> Artifact:
-    identity = _identity(request_id)
-    file = await upload_bytes(
-        client._transport.files.uploads, data, metadata=harmos.FileMetadata(media_type=mime, expected_length=len(data)), request_id=identity
-    )
-    reply = await call(
-        "content.artifacts.create",
-        client._transport.content.artifacts.create(
-            file, name, mime, scope=ArtifactScope(cycle_id=cycle, execution_id=execution), request_id=f"{identity}/attach"
-        ),
-        identity,
-    )
-    value = reply.artifact
-    return Artifact(
-        value.artifact_id,
-        value.filename,
-        value.content_type,
-        value.size_bytes,
-        bytes.fromhex(value.sha256),
-        value.scope.cycle_id or None,
         value.scope.execution_id or None,
     )
 

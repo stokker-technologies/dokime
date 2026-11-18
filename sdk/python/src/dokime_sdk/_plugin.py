@@ -194,7 +194,9 @@ class Plugin:
 
         if type(self).initialize is not Plugin.initialize or type(self).finalize is not Plugin.finalize:
             raise ValueError(
-                "Activate Plugin: Adopt Carrier Activation Hooks With an Admitted Context Before Overriding initialize or finalize"
+                "Activate Plugin: Upgrade harmos-sdk to Provide initialize(ctx) and finalize(ctx) Activation Hooks "
+                "With an Admitted harmos.plugin.Context; Plugin.start in harmos/_authoring.py Only Binds a Listener, "
+                "and on_stop in harmos/_contracts.py Accepts No Context. Keep Plugin Hooks Unoverridden Until Then"
             )
         return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
 

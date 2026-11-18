@@ -25,7 +25,7 @@ import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Plugin, Scalar, Suite
 from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, Visibility, operation
-from dokime_sdk.templates import Materialization, TestTemplate, criterion, materialize, record, step
+from dokime_sdk.templates import Document, Materialization, Section, TestTemplate, criterion, materialize, record, step
 
 # Type Checking Imports
 
@@ -217,6 +217,32 @@ class AuthoringStory(unittest.TestCase):
         ):
             self.assertFalse(hasattr(operations, name))
             self.assertTrue(callable(getattr(templates, name)))
+
+    def test_document_declarations_bind_copies_in_each_template_home(self) -> None:
+        class ReportTestTemplate(TestTemplate):
+            report = Document("Report").section(Section("Measurements"))
+            documents: ClassVar[list[Document]] = [report]
+
+        class FirstSuite(Suite):
+            templates: ClassVar[list[type[TestTemplate]]] = [ReportTestTemplate]
+
+        class SecondSuite(FirstSuite):
+            pass
+
+        class ReportPlugin(ExamplePlugin):
+            suites: ClassVar[list[type[Suite]]] = [FirstSuite, SecondSuite]
+
+        plugin = ReportPlugin()
+        first, second = [suite.templates[0] for suite in plugin._suites]
+        self.assertEqual(first.resolve(ReportTestTemplate.report), "first.report.report")
+        self.assertEqual(second.resolve(ReportTestTemplate.report), "second.report.report")
+        first.documents[0].message.sections[0].metadata.label = "Changed"
+        self.assertEqual(ReportTestTemplate.report.message.sections[0].metadata.label, "Measurements")
+        self.assertEqual(second.definition().documents[0].sections[0].metadata.label, "Measurements")
+        self.assertEqual(ReportTestTemplate.report.message.metadata.identifier, "report")
+        self.assertRaises(ValueError, first.resolve, Document("Unknown"))
+        ReportTestTemplate.documents = [ReportTestTemplate.report, ReportTestTemplate.report]
+        self.assertRaises(ValueError, ReportPlugin)
 
 
 # === Public Functions === #

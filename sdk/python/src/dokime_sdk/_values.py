@@ -110,6 +110,22 @@ class PromptAnswer:
 
 
 @dataclass(frozen=True)
+class Statistics:
+    count: int
+    min: Scalar
+    max: Scalar
+    mean: Scalar
+    stddev: float
+    median: Scalar
+    p05: Scalar
+    p95: Scalar
+    p99: Scalar
+    first: Scalar
+    last: Scalar
+    sum: Scalar
+
+
+@dataclass(frozen=True)
 class RecordRow[T: "Payload"]:
     identifier: str
     sequence: int

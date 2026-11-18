@@ -30,13 +30,15 @@ from harmos._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_Ope
 from dokime_sdk._client import Case, Client
 from dokime_sdk._connection import connect
 from dokime_sdk._errors import SdkError
-from dokime_sdk._values import PromptAnswer, PromptQuestion, decode
+from dokime_sdk._values import Outcome, PromptAnswer, PromptQuestion, ResultStatus, Termination, decode
 from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2
 from dokime_sdk._wire.host.v1.cases_pb2_grpc import CasesServicer, add_CasesServicer_to_server
 from dokime_sdk._wire.host.v1.cycles_pb2_grpc import CyclesServicer, add_CyclesServicer_to_server
 from dokime_sdk._wire.host.v1.evidence import notes_pb2
 from dokime_sdk._wire.host.v1.evidence.notes_pb2_grpc import NotesServicer, add_NotesServicer_to_server
 from dokime_sdk._wire.host.v1.evidence_pb2_grpc import EvidenceServicer, add_EvidenceServicer_to_server
+from dokime_sdk._wire.host.v1.executions import progress_pb2
+from dokime_sdk._wire.host.v1.executions.progress_pb2_grpc import ProgressServicer, add_ProgressServicer_to_server
 from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
 from dokime_sdk._wire.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
 from dokime_sdk._wire.host.v1.prompts import answers_pb2
@@ -59,6 +61,8 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.changed_binding = False
         self.settled_seal = False
+        self.outcome = executions_pb2.ExecutionOutcome(evaluated={"status": "RESULT_STATUS_PASSED", "reason": "Evaluated"})
+        self.end_unsealed = False
         owner = self
         self.trace: list[Message] = []
         trace = self.trace
@@ -181,6 +185,12 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                 trace.append(request)
                 return executions_pb2.ExecutionsCancelResponse(execution=detail)
 
+            async def Seal(
+                self, request: executions_pb2.ExecutionsSealRequest, context: ServicerContext
+            ) -> executions_pb2.ExecutionsSealResponse:
+                trace.append(request)
+                return executions_pb2.ExecutionsSealResponse(outcome=owner.outcome)
+
             async def List(
                 self, request: executions_pb2.ExecutionsListRequest, context: ServicerContext
             ) -> executions_pb2.ExecutionsListResponse:
@@ -189,6 +199,18 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                     executions=[detail],
                     resolved_at={"positions": [{"sequence": 10}]},
                     next_page_token="next" if not request.page.page_token else "",
+                )
+
+        class Progress(ProgressServicer):
+            async def Watch(
+                self, request: progress_pb2.ProgressWatchRequest, context: ServicerContext
+            ) -> AsyncIterator[progress_pb2.ProgressWatchResponse]:
+                trace.append(request)
+                yield progress_pb2.ProgressWatchResponse(phase="Cleaning Up", value={"completed": 1, "total": 2})
+                if owner.end_unsealed:
+                    return
+                yield progress_pb2.ProgressWatchResponse(
+                    phase="Sealed", value={"completed": 2, "total": 2}, sealed=True, outcome=owner.outcome
                 )
 
         class Notes(NotesServicer):
@@ -277,6 +299,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             (add_CyclesServicer_to_server, Cycles()),
             (add_CasesServicer_to_server, Cases()),
             (add_ExecutionsServicer_to_server, Executions()),
+            (add_ProgressServicer_to_server, Progress()),
             (add_NotesServicer_to_server, Notes()),
             (add_EvidenceServicer_to_server, Evidence()),
             (add_FilesServicer_to_server, Files()),
@@ -438,16 +461,44 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([(reply.parent, reply.action, reply.accepted) for reply in replies], [("question", "accept", True)])
         self.assertTrue(replies[0].request_id)
 
-    async def test_missing_host_finality_refuses_without_readback_or_fake_outcome(self) -> None:
+    async def test_seal_projects_each_stable_outcome_without_readback(self) -> None:
         execution = await self.client.executions.get("execution")
         self.trace.clear()
+        self.assertEqual(await execution.seal(request_id="seal-id"), Outcome(ResultStatus.PASSED, "evaluated", "Evaluated"))
+        self.assertEqual(self.trace, [executions_pb2.ExecutionsSealRequest(name="execution", request_id="seal-id")])
+        self.outcome = executions_pb2.ExecutionOutcome(not_evaluated={"termination": "TERMINATION_CANCELLED", "reason": "Interrupted"})
+        self.assertEqual(await execution.seal(), Outcome(ResultStatus.PENDING, "not_evaluated", "Interrupted", Termination.CANCELLED))
+        self.outcome = executions_pb2.ExecutionOutcome(
+            declared={"status": "RESULT_STATUS_FAILED", "reason": "Imported", "importer": "reader"}
+        )
+        self.assertEqual(await execution.seal(), Outcome(ResultStatus.FAILED, "declared", "Imported", importer="reader"))
+        self.outcome.Clear()
         with self.assertRaises(SdkError) as failed:
-            await execution.seal(request_id="seal-id")
-        self.assertEqual(failed.exception.request_id, "seal-id")
+            await execution.seal(request_id="missing-outcome")
+        self.assertEqual(failed.exception.request_id, "missing-outcome")
+
+    async def test_run_starts_lazily_and_watch_requires_sealed_finality(self) -> None:
+        execution = await self.client.executions.get("execution")
+        self.trace.clear()
+        run = execution.run(request_id="run")
         self.assertEqual(self.trace, [])
+        values = [value async for value in run]
+        self.assertEqual([(value.phase, value.sealed) for value in values], [("Cleaning Up", False), ("Sealed", True)])
+        self.assertEqual(
+            self.trace,
+            [
+                executions_pb2.ExecutionsStartRequest(name="execution", mode="EXECUTION_MODE_AUTOMATIC", request_id="run"),
+                progress_pb2.ProgressWatchRequest(name="execution"),
+            ],
+        )
+        self.trace.clear()
+        watch = execution.watch()
+        await anext(watch)
+        await watch.aclose()
+        self.assertEqual(self.trace, [progress_pb2.ProgressWatchRequest(name="execution")])
+        self.end_unsealed = True
         with self.assertRaises(SdkError):
-            await anext(execution.watch())
-        self.assertEqual(self.trace, [])
+            [value async for value in execution.watch()]
 
 
 # === Public Functions === #
