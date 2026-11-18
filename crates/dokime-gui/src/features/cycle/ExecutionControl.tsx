@@ -39,7 +39,7 @@ import type { PromptRequest, TestExecution } from "@/lib/types";
 import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
-import { type CycleExecutionRow, caseActionTooltip } from "./cycle-workspace-model";
+import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "./cycle-workspace-model";
 
 /* === Re-Exports === */
 
@@ -140,7 +140,7 @@ export function useExecutionActions({
 }): ExecutionActions | null {
   const commands = useCycleCommands(cycleId);
   const rerunCase = useRerunCase(cycleId);
-  const live = useExecutionProgress(execution?.test_execution_id ?? null);
+  const live = useExecutionProgress(execution && !isUnstartedExecution(execution.status) ? execution.test_execution_id : null);
   if (!execution) {
     return null;
   }
