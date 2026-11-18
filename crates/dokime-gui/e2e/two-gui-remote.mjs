@@ -213,14 +213,11 @@ try {
   for (const gui of [a, b])
     await until("Remote Operator Prompt", () => gui.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
   await b.clickNamed("button", "Yes");
-  await until(
-    "Both Desktops Observe Sealed Result",
-    async () => {
-      const details = await Promise.all([a, b].map((gui) => call(gui, "Executions", "Get", { name: executionId })));
-      const sealed = details.every((reply) => reply.execution.summary.state === "EXECUTION_STATE_SEALED");
-      return sealed && (await a.text()).includes("Passed") && (await b.text()).includes("Passed");
-    },
-  );
+  await until("Both Desktops Observe Sealed Result", async () => {
+    const details = await Promise.all([a, b].map((gui) => call(gui, "Executions", "Get", { name: executionId })));
+    const sealed = details.every((reply) => reply.execution.summary.state === "EXECUTION_STATE_SEALED");
+    return sealed && (await a.text()).includes("Passed") && (await b.text()).includes("Passed");
+  });
   const detailA = await call(a, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   const detailB = await call(b, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(detailA.summary.state, "EXECUTION_STATE_SEALED");

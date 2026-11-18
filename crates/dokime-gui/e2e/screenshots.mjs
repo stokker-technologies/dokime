@@ -27,7 +27,6 @@ import { parseArgs, promisify } from "node:util";
 // Local Imports
 import {
   answerPendingPrompts,
-  chooseNativeFile,
   obcExecutable,
   prepareNativeFixture,
   setDensity,
@@ -39,7 +38,8 @@ import {
   terminate,
   until,
 } from "./native-fixture.mjs";
-import { call, invoke } from "./native-rpc.mjs";
+import { call } from "./native-rpc.mjs";
+import { printReportSaveTimings, saveReport } from "./report-save.mjs";
 
 /* === Re-Exports === */
 
@@ -470,16 +470,7 @@ try {
 
       // Generate The Saved Report And Open Its Actual HTML In The Webview.
       const reportPath = join(work, "report.html");
-      let delivered = false;
-      const delivery = invoke(session, "desktop_artifact_deliver", {
-        generation: (await invoke(session, "desktop_session_status")).connection.generation,
-        request: { source: { kind: "execution_report", executionId }, kind: "html_report", filename: "report.html", action: "save" },
-      }).finally(() => {
-        delivered = true;
-      });
-      const picker = { window: null };
-      await until("report save picker", () => delivered || chooseNativeFile(picker, reportPath, "Save"), undefined, 25);
-      const saved = await delivery;
+      const saved = await saveReport(session, reportPath, { label: "OBC" });
       const html = await readFile(saved.path, "utf8");
       await writeFile(join(evidence, "report.html"), html);
       assert.ok(html.includes('id="hub-report-data"'), "The real saved report contains its captured document");
@@ -637,6 +628,7 @@ try {
       cleanupErrors.push(new Error(`${label}: ${error.message}`, { cause: error }));
     }
   }
+  await printReportSaveTimings();
   const logs = join(work, "shell/application/logs");
   for (const name of await readdir(logs).catch(() => [])) {
     if (!name.endsWith(".log")) continue;
