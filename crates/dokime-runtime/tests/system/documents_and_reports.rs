@@ -236,13 +236,20 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                 prepared.resolved_at.as_ref().unwrap().positions[0].sequence
             );
 
-            // Compare Embedded Bytes With the Original Serial Computation at the Fixed Fixture Cut.
+            // Compare Embedded Bytes With a Separate Batch at the Fixed Fixture Cut.
             let fixed = store.cut(&execution)?;
             let (reader, _cancellation) = store.read_session()?;
             let envelope = &captured.plots.as_ref().unwrap().envelopes[0];
-            let expected =
-                list::snapshot_at(&reader, &fixed, &captured_plot, super::support::service_settings().page_items, 0, &envelope.epoch)?;
-            assert_eq!(envelope.encode_to_vec(), expected.encode_to_vec());
+            let expected = list::snapshots_at(
+                &reader,
+                &fixed,
+                vec![captured_plot.clone()],
+                super::support::service_settings().page_items,
+                0,
+                &envelope.epoch,
+            )
+            .await?;
+            assert_eq!(envelope.encode_to_vec(), expected[0].encode_to_vec());
 
             // Duplicate and Independent Selections Preserve Bytes and Request Order in the Shared Batch Path.
             let mut duplicate = captured_plot.clone();
@@ -252,13 +259,21 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             histogram.plot_type = PlotKind::Histogram as i32;
             histogram.histogram = Some(PlotHistogramOptions { bins: 3, ..Default::default() });
             let requests = vec![histogram, captured_plot.clone(), duplicate];
-            let expected = requests
-                .iter()
-                .map(|request| {
-                    let reader = reader.independent_projection();
-                    list::snapshot_at(&reader, &fixed, request, super::support::service_settings().page_items, 0, &envelope.epoch)
-                })
-                .collect::<dokime_operations::Result<Vec<_>>>()?;
+            let mut expected = Vec::new();
+            for request in &requests {
+                let reader = reader.independent_projection();
+                expected.extend(
+                    list::snapshots_at(
+                        &reader,
+                        &fixed,
+                        vec![request.clone()],
+                        super::support::service_settings().page_items,
+                        0,
+                        &envelope.epoch,
+                    )
+                    .await?,
+                );
+            }
             let batch = plots.list(SnapshotsListRequest { requests, ..Default::default() }).await?.into_inner();
             assert_eq!(
                 batch.envelopes.iter().map(Message::encode_to_vec).collect::<Vec<_>>(),

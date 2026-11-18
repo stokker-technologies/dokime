@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroU128;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::time::Instant;
+use std::thread;
 
 // Third Party Imports
 use harmos_protocol::model::Declarations;
@@ -31,6 +31,7 @@ use prost_reflect::DescriptorPool;
 use prost_reflect::Kind;
 use sha2::{Digest, Sha256};
 use tokio::task::JoinSet;
+use tracing::dispatcher;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
@@ -148,46 +149,33 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
     .await
 }
 
-/// Capture Complete Plot Responses at the Report's Cut Without Live Reply Coarsening.
-pub(crate) async fn snapshots_at(
-    context: &Context, store: &Store, cut: &ExecutionCut, requests: Vec<PlotRequest>,
+/// Capture Complete Plot Responses at a Fixed Cut Without Live Reply Coarsening.
+pub async fn snapshots_at(
+    store: &Store, cut: &ExecutionCut, requests: Vec<PlotRequest>, maximum: usize, now_ns: i64, epoch: &str,
 ) -> Result<Vec<PlotEnvelope>> {
-    batch(context, store, requests, Some(cut), false).await
+    batch(store, requests, Some(cut), maximum, now_ns, epoch, None).await
 }
 
-#[tracing::instrument(name = "plot.query", skip_all, fields(kind = request.plot_type))]
-pub fn snapshot_at(
-    store: &Store, cut: &ExecutionCut, request: &PlotRequest, maximum: usize, now_ns: i64, epoch: &str,
-) -> Result<PlotEnvelope> {
-    let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
-    let pool = DescriptorPool::from_file_descriptor_set(
-        catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
-    )
-    .map_err(|error| Error::Invalid(error.to_string()))?;
-    snapshot_prepared(
-        PlotRead {
-            store,
-            cut,
-            maximum,
-            now_ns,
-            epoch,
-            catalog: &catalog,
-            pool: &pool,
-        },
-        request,
-    )
-}
 /* === Private Functions === */
+
 async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
     let (store, _cancellation) = context.host.store().read_session()?;
-    batch(context, &store, requests, None, true).await
+    batch(
+        &store,
+        requests,
+        None,
+        context.settings.page_items,
+        context.host.now_ns(),
+        &context.host.identity().epoch,
+        Some(context.settings.message_bytes),
+    )
+    .await
 }
 
 async fn batch(
-    context: &Context, store: &Store, requests: Vec<PlotRequest>, fixed: Option<&ExecutionCut>, fit_message: bool,
+    store: &Store, requests: Vec<PlotRequest>, fixed: Option<&ExecutionCut>, maximum: usize, now_ns: i64, epoch: &str,
+    message_bytes: Option<usize>,
 ) -> Result<Vec<PlotEnvelope>> {
-    let capacity = NonZeroUsize::new(context.settings.max_cases)
-        .ok_or_else(|| Error::Invalid("Query Plots: Configure Positive Query Admission Capacity".into()))?;
     let mut sources = BTreeMap::new();
     let mut selections = BTreeMap::new();
     let mut work = Vec::new();
@@ -202,7 +190,7 @@ async fn batch(
             };
             let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
             let pool = {
-                let _span = tracing::info_span!("plot.schema").entered();
+                let _span = tracing::debug_span!("plot.schema").entered();
                 DescriptorPool::from_file_descriptor_set(
                     catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
                 )
@@ -213,7 +201,7 @@ async fn batch(
         let source = sources[execution].clone();
         if let Some(at) = &request.at {
             let history = History {
-                store: context.host.identity().backend_id,
+                store: store.identity().into(),
                 epoch: execution.into(),
             };
             if at.positions.len() != 1
@@ -229,25 +217,28 @@ async fn batch(
         let key = shape.encode_to_vec();
         let index = *selections.entry(key).or_insert_with(|| {
             let index = work.len();
-            work.push((request.clone(), source, context.host.now_ns()));
+            work.push((request.clone(), source));
             index
         });
         placements.push(index);
     }
+    let capacity = thread::available_parallelism().map_or(1, |threads| threads.get()).min(work.len());
     let mut output = vec![None; work.len()];
     let mut pending = work.into_iter().enumerate();
     let mut workers = JoinSet::new();
     loop {
-        while workers.len() < capacity.get() {
-            let Some((index, (mut request, source, now_ns))) = pending.next() else { break };
+        while workers.len() < capacity {
+            let Some((index, (mut request, source))) = pending.next() else { break };
             let reader = store.independent_projection();
-            let maximum = context.settings.page_items;
-            let message_bytes = context.settings.message_bytes;
-            let epoch = context.host.identity().epoch;
+            let epoch = epoch.to_owned();
             let span = tracing::Span::current();
+            let dispatch = dispatcher::get_default(Clone::clone);
             workers.spawn_blocking(move || -> Result<_> {
+                let _dispatch = dispatcher::set_default(&dispatch);
                 let _entered = span.enter();
-                let started = Instant::now();
+                let query =
+                    tracing::debug_span!("plot.query", kind = request.plot_type, plot = ?request.plot_id, samples = tracing::field::Empty);
+                let _query = query.enter();
                 let mut cut = source.cut.clone();
                 if let Some(at) = &request.at {
                     cut.frontier = at.positions[0].sequence;
@@ -265,10 +256,8 @@ async fn batch(
                         },
                         &request,
                     )?;
-                    if !fit_message || envelope.encoded_len().saturating_add(32) <= message_bytes {
-                        tracing::info!(phase = "plot", plot = ?request.plot_id,
-                            samples = envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count),
-                            elapsed_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+                    if message_bytes.is_none_or(|maximum| envelope.encoded_len().saturating_add(32) <= maximum) {
+                        query.record("samples", envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count));
                         return Ok((index, envelope));
                     }
                     let points = request.max_points.unwrap_or(maximum as u64).min(maximum as u64);
@@ -298,7 +287,6 @@ async fn batch(
         .collect()
 }
 
-#[tracing::instrument(name = "plot.query", skip_all, fields(kind = request.plot_type))]
 fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEnvelope> {
     let PlotRead {
         store,
@@ -947,8 +935,101 @@ fn ns(seconds: f64) -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PlotColumn, Value, order_categories, value};
+    use std::thread;
+
+    use harmos_protocol::model::{Declarations, StreamDeclaration};
+    use prost::Message;
+    use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
+
+    use super::{PlotColumn, Value, order_categories, snapshots_at, value};
     use dokime_protocol::host::plots::NullableNumber;
+    use dokime_protocol::host::plots::PlotRequest;
+    use dokime_protocol::model::{Downsample, EvidenceScope, Import, Origin, PlotKind, origin};
+    use dokime_storage::{Execution, Sample, Store};
+
+    #[tokio::test]
+    async fn batch_larger_than_worker_bound_preserves_every_envelope_in_request_order() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::open(root.path()).unwrap();
+        let catalog = Declarations {
+            types: Some(FileDescriptorSet {
+                file: vec![FileDescriptorProto {
+                    name: Some("plots.proto".into()),
+                    package: Some("plots".into()),
+                    syntax: Some("proto3".into()),
+                    message_type: vec![DescriptorProto {
+                        name: Some("Row".into()),
+                        field: vec![FieldDescriptorProto {
+                            name: Some("value".into()),
+                            number: Some(1),
+                            r#type: Some(Type::Double as i32),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            }),
+            streams: vec![StreamDeclaration {
+                id: "readings".into(),
+                row: "plots.Row".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        store
+            .create(&Execution {
+                identifier: "execution".into(),
+                cycle: "cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(origin::Kind::Import(Import::default())),
+                }),
+                catalog: catalog.encode_to_vec(),
+                ..Default::default()
+            })
+            .unwrap();
+        store.open_stream("execution", "readings").unwrap();
+        let samples = (0..6)
+            .map(|index| Sample {
+                stream: "readings".into(),
+                source_ns: index,
+                sequence: index as u64,
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("execution", &samples).unwrap();
+        store.flush_samples().unwrap();
+        let cut = store.cut("execution").unwrap();
+        let (reader, _cancellation) = store.read_session().unwrap();
+        let count = thread::available_parallelism().map_or(1, |threads| threads.get()) + 2;
+        let requests = (0..count)
+            .rev()
+            .map(|index| PlotRequest {
+                plot_id: Some(format!("plot-{index}")),
+                scope: Some(EvidenceScope {
+                    execution_id: Some("execution".into()),
+                    ..Default::default()
+                }),
+                stream: "readings".into(),
+                y_keys: vec!["value".into()],
+                plot_type: PlotKind::TimeSeries as i32,
+                technique: Downsample::Lttb as i32,
+                max_points: Some((index + 4) as u64),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        let mut expected = Vec::new();
+        for request in &requests {
+            expected.extend(snapshots_at(&reader, &cut, vec![request.clone()], count + 4, 0, "epoch").await.unwrap());
+        }
+        let actual = snapshots_at(&reader, &cut, requests.clone(), count + 4, 0, "epoch").await.unwrap();
+        assert_eq!(actual, expected);
+        assert!(actual.iter().all(|envelope| envelope.payload.as_ref().unwrap().series[0].raw_points == samples.len() as u64));
+        assert_eq!(
+            actual.iter().map(|envelope| &envelope.plot_id).collect::<Vec<_>>(),
+            requests.iter().map(|request| request.plot_id.as_ref().unwrap()).collect::<Vec<_>>()
+        );
+    }
 
     #[test]
     fn pareto_orders_exact_totals_above_float_precision_with_their_categories() {

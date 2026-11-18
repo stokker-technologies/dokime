@@ -75,7 +75,7 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             .position(|window| window == marker)
             .ok_or_else(|| Error::Invalid("Create Report: Rebuild the Template with `mise run generate`".into()))?;
         let data = STANDARD.encode(capture.encode_to_vec());
-        tracing::info!(phase = "serialization", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "serialization", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut file =
             tempfile::tempfile().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
@@ -86,7 +86,7 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         file.rewind().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         let (retained, length, digest) = crate::host::content::transfer::temporary(file)?;
-        tracing::info!(phase = "template", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "template", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
@@ -173,7 +173,7 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         let reference =
             response.file.clone().ok_or_else(|| Error::Precondition("Create Report: Restore Its Retained File Reference".into()))?;
         context.host.retain_report(reference)?;
-        tracing::info!(phase = "upload_retention", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "upload_retention", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         tracing::info!(report = %name, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Created");
         Ok(response)
     })

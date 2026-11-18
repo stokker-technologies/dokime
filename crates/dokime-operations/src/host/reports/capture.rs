@@ -101,7 +101,7 @@ pub(super) async fn collect(
             .collect(),
         revisions: Vec::new(),
     };
-    tracing::info!(phase = "resolve_cut", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "resolve_cut", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
     let mut capture = host::ReportCapture {
         report: Some(host::ReportMetadata {
@@ -160,7 +160,7 @@ pub(super) async fn collect(
             ),
         });
     }
-    tracing::info!(phase = "planning", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "planning", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let mut suites = BTreeSet::new();
     let mut prepared = None;
     for cut in &cuts {
@@ -203,7 +203,7 @@ pub(super) async fn collect(
             &reader,
         )
         .await?;
-        tracing::info!(phase = "documents", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "documents", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut requests = Vec::new();
         for frame in &document.frames {
@@ -218,8 +218,16 @@ pub(super) async fn collect(
             let plot = plot.request.as_ref().ok_or_else(|| Error::Invalid("Create Report: Restore the Bound Plot Request".into()))?;
             requests.push(plot.clone());
         }
-        let envelopes = crate::host::plots::snapshots::list::snapshots_at(context, &reader, cut, requests).await?;
-        tracing::info!(phase = "plots", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let envelopes = crate::host::plots::snapshots::list::snapshots_at(
+            &reader,
+            cut,
+            requests,
+            context.settings.page_items,
+            context.host.now_ns(),
+            &context.host.identity().epoch,
+        )
+        .await?;
+        tracing::debug!(phase = "plots", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut captured = host::ReportExecution {
             detail: Some(
@@ -244,7 +252,7 @@ pub(super) async fn collect(
             }),
             ..Default::default()
         };
-        tracing::info!(phase = "execution", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "execution", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut at = None;
         let mut token = String::new();
@@ -265,7 +273,7 @@ pub(super) async fn collect(
                 break;
             }
         }
-        tracing::info!(phase = "schemas", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "schemas", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut at = None;
         let mut token = String::new();
@@ -291,7 +299,7 @@ pub(super) async fn collect(
                 break;
             }
         }
-        tracing::info!(phase = "traceability", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "traceability", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         let phase = Instant::now();
         let mut at = None;
         let mut token = String::new();
@@ -326,7 +334,7 @@ pub(super) async fn collect(
                 break;
             }
         }
-        tracing::info!(phase = "execution_files", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "execution_files", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         capture.executions.push(captured);
     }
     if execution.is_none() {
@@ -383,7 +391,7 @@ pub(super) async fn collect(
             break;
         }
     }
-    tracing::info!(phase = "notes", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "notes", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
     let mut at = None;
     let mut token = String::new();
@@ -404,7 +412,7 @@ pub(super) async fn collect(
             break;
         }
     }
-    tracing::info!(phase = "health", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "health", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
     let scope = EvidenceScope {
         cycle_id: Some(cycle),
@@ -434,7 +442,7 @@ pub(super) async fn collect(
             break;
         }
     }
-    tracing::info!(phase = "records", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "records", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
     let mut at = None;
     let mut token = String::new();
@@ -472,7 +480,7 @@ pub(super) async fn collect(
             break;
         }
     }
-    tracing::info!(phase = "artifacts", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "artifacts", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
     if let Some(appearance) = capture.appearance.as_ref().and_then(|reply| reply.appearance.as_ref()) {
         for logo in &appearance.logos {
@@ -481,7 +489,7 @@ pub(super) async fn collect(
             }
         }
     }
-    tracing::info!(phase = "logos", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(phase = "logos", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     Ok((capture, resolved_at, prepared))
 }
 

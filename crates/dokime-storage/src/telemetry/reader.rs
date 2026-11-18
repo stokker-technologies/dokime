@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Instant;
 use std::{
     collections::BTreeMap,
     num::NonZeroUsize,
@@ -27,7 +26,6 @@ use std::{
 
 // Third Party Imports
 use arrow_array::{BinaryArray, BooleanArray, Int64Array, RecordBatch, StructArray, UInt64Array};
-use arrow_buffer::Buffer;
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::filter::filter_record_batch;
 use harmos_query::{Table, TableWriter};
@@ -59,7 +57,12 @@ pub struct BatchSelection<'a> {
 /// Immutable Source Blocks Belong to One Finite Read, Including Its Nested Plot Readers.
 #[derive(Default)]
 pub(crate) struct SampleReads {
-    blocks: Mutex<BTreeMap<(String, u64), Table>>,
+    blocks: Mutex<BTreeMap<(String, u64), Arc<SampleBlock>>>,
+}
+
+#[derive(Default)]
+struct SampleBlock {
+    value: Mutex<Option<Table>>,
 }
 
 /* === Enums === */
@@ -72,11 +75,17 @@ impl SampleReads {
     fn batch(&self, store: &Store, path: &Path, index: &BatchIndex, projection: &ipc::Projection, maximum: usize) -> Result<RecordBatch> {
         store.check_read()?;
         let key = (path.to_string_lossy().into_owned(), index.offset);
-        let table = {
+        let block = {
             let mut blocks = self.blocks.lock().map_err(|_| Error::Data("start a new read after its source block lock failed"))?;
-            if !blocks.contains_key(&key) {
-                let started = Instant::now();
+            blocks.entry(key).or_insert_with(|| Arc::new(SampleBlock::default())).clone()
+        };
+        let table = {
+            let mut value = block.value.lock().map_err(|_| Error::Data("start a new read after its source block load failed"))?;
+            store.check_read()?;
+            if value.is_none() {
+                let _span = tracing::debug_span!("source.block", samples = index.rows).entered();
                 let buffer = ipc::read_query_buffer(path, index, maximum)?;
+                // Spill Retained Blocks So Earlier Blocks Do Not Accumulate Beyond the Query Working Budget.
                 let schema = Arc::new(Schema::new(vec![Field::new("block", DataType::Binary, false)]));
                 let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(BinaryArray::from_iter_values([buffer.as_slice()]))])?;
                 let mut writer = TableWriter::new(schema)?;
@@ -86,15 +95,9 @@ impl SampleReads {
                         reason: "start a new read after cancellation",
                     })
                 })?;
-                blocks.insert(key.clone(), writer.finish()?);
-                tracing::info!(
-                    phase = "source_block",
-                    samples = index.rows,
-                    elapsed_ms = started.elapsed().as_secs_f64() * 1000.0,
-                    "Report Stage"
-                );
+                *value = Some(writer.finish()?);
             }
-            blocks[&key].clone()
+            value.as_ref().unwrap().clone()
         };
         let mut reader = table.reader()?;
         let batch = reader
@@ -106,7 +109,8 @@ impl SampleReads {
             })?
             .ok_or(Error::Corrupt("retained source block is absent"))?;
         let bytes = batch.column(0).as_any().downcast_ref::<BinaryArray>().ok_or(Error::Corrupt("retained source block layout differs"))?;
-        let buffer = Buffer::from(bytes.value(0));
+        let offsets = bytes.value_offsets();
+        let buffer = bytes.values().slice_with_length(offsets[0] as usize, (offsets[1] - offsets[0]) as usize);
         ipc::decode_query_buffer(&buffer, index, projection, maximum)
     }
 }
@@ -176,19 +180,14 @@ impl Store {
     pub fn read_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
-        let started = Instant::now();
+        let span = tracing::debug_span!("source.read", stream = selection.stream, samples = tracing::field::Empty);
+        let _entered = span.enter();
         let mut samples = 0;
         self.ordered_batches(selection, columns, false, |batch, _| {
             samples += batch.num_rows() as u64;
             read(batch)
         })?;
-        tracing::info!(
-            phase = "source_read",
-            stream = selection.stream,
-            samples,
-            elapsed_ms = started.elapsed().as_secs_f64() * 1000.0,
-            "Report Stage"
-        );
+        span.record("samples", samples);
         Ok(())
     }
     pub(crate) fn ordered_batches(

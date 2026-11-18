@@ -35,10 +35,11 @@ use prost::Message;
 use prost_types::Timestamp;
 use tokio::runtime::Runtime;
 use tracing::{
-    Event, Subscriber,
+    Event, Id, Subscriber,
     field::{Field, Visit},
+    span::{Attributes, Record},
 };
-use tracing_subscriber::{Layer, layer::Context};
+use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 
 // Local Imports
 use super::{EXPORT_ROWS, WRITE_ROWS, aggregate, boundary, definition, publication, report, samples};
@@ -72,6 +73,12 @@ struct ReportEvent {
     samples: Option<u64>,
 }
 
+struct QuerySpan {
+    phase: &'static str,
+    started: Instant,
+    value: ReportEvent,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -100,7 +107,39 @@ impl Visit for ReportEvent {
     }
 }
 
-impl<S: Subscriber> Layer<S> for Times {
+impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Times {
+    fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
+        let phase = match attributes.metadata().name() {
+            "source.read" => "source_read",
+            "source.block" => "source_block",
+            "document.reduce" => "statistics",
+            "plot.query" => "plot",
+            _ => return,
+        };
+        let mut value = ReportEvent::default();
+        attributes.record(&mut value);
+        context.span(id).unwrap().extensions_mut().insert(QuerySpan { phase, started: Instant::now(), value });
+    }
+
+    fn on_record(&self, id: &Id, values: &Record<'_>, context: Context<'_, S>) {
+        let span = context.span(id).unwrap();
+        if let Some(query) = span.extensions_mut().get_mut::<QuerySpan>() {
+            values.record(&mut query.value);
+        }
+    }
+
+    fn on_close(&self, id: Id, context: Context<'_, S>) {
+        let span = context.span(&id).unwrap();
+        if let Some(query) = span.extensions().get::<QuerySpan>() {
+            let elapsed_ms = query.started.elapsed().as_secs_f64() * 1000.0;
+            let mut stages = self.0.lock().unwrap();
+            stages.entry(query.phase.into()).or_default().push(elapsed_ms);
+            if let Some(samples) = query.value.samples {
+                stages.entry(format!("{}_samples", query.phase)).or_default().push(samples as f64);
+            }
+        }
+    }
+
     fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
         let mut value = ReportEvent::default();
         event.record(&mut value);
