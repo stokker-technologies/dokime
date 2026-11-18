@@ -9,6 +9,7 @@
 [plugin]
 label = "Capture"
 tags = ["example"]
+icon = "assets/icon.svg"
 dynamic = ["version", "description", "authors", "license", "repository"]
 
 [compatibility]
@@ -16,4 +17,4 @@ dokime = ">=0.1.5"
 
 [scripts]
 build = ["mise", "run", "build"]
-executable = "bin/Release/net10.0/dokime-example-test"
+launch = ["dotnet", "assets/plugin/dokime-example-test.dll"]

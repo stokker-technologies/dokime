@@ -9,6 +9,7 @@
 [plugin]
 label = "Example"
 tags = ["example"]
+icon = "assets/icon.svg"
 dynamic = ["version", "description", "authors", "license", "repository"]
 
 [compatibility]

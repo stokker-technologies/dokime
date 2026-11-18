@@ -18,7 +18,7 @@ description = "Build the Managed Plugin Executable"
 # Re-Evaluate the Mutable Development Preview Before Building With Its Verified Lock.
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore Plugin.csproj --force-evaluate',
-  '"{{tools.dotnet.path}}/dotnet" build Plugin.csproj --configuration {{vars.configuration}} --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" publish Plugin.csproj --configuration {{vars.configuration}} --no-restore --output assets/plugin',
 ]
 
 [tasks.dev]

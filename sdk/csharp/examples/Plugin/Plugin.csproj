@@ -4,6 +4,11 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <OutputType>Exe</OutputType>
     <AssemblyName>dokime-example-plugin</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>Example Plugin</Description>
+    <Authors>Your Name</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/your-organization/your-project</RepositoryUrl>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

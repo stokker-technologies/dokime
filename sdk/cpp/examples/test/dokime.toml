@@ -9,6 +9,7 @@
 [plugin]
 label = "Capture"
 tags = ["example"]
+icon = "assets/icon.svg"
 version = "0.1.0"
 description = "Example Plugin"
 authors = [{ name = "Your Name" }]
