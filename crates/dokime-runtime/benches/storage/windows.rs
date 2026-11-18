@@ -222,7 +222,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                                 let answered = execution
                                     .evidence
                                     .iter()
-                                    .filter(|entry| entry.kind == "record:produced")
+                                    .filter(|entry| entry.kind == "record:storage.windows.windows.produced")
                                     .filter_map(|entry| RecordsAppendRequest::decode(entry.payload.as_slice()).ok())
                                     .filter_map(|record| <Produced as Message>::decode(record.payload.as_slice()).ok())
                                     .map(|produced| (produced.rows, produced.unscoped))

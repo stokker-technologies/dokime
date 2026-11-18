@@ -18,7 +18,7 @@ run = "cargo build --locked --manifest-path tests/consumer/Cargo.toml --package 
 [tasks."test"]
 description = "Run Focused Rust SDK Journeys"
 usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integration" }'
-run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib --no-tests pass{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
+run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib --no-tests pass{% else %}--package dokime-rust-stories --test integration --test capture --bin dokime-rust-test{% endif %}"
 
 [tasks."check"]
 description = "Prove Protocol-Only SDK Product Dependencies"
