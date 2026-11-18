@@ -47,7 +47,7 @@
 - [ ] 5.18 Complete host-owned backup/reset recovery with preserved bundles, settings, host identity and secrets, occupied-root refusal and verified backup; keep destructive desktop recovery unavailable until its public contract exists.
 - [ ] 5.19 Expose connected-host build target/revision/channel to plugin release selection and verify operation discovery enables only actually served storage-source mutations; retain explicit unavailable controls while the contracts are missing.
 - [ ] 6.1 Run final focused host, CLI, installed four-language SDK and generated-consumer proof on the combined published dependency candidate; include frozen-origin/schema evolution and plugin absence, bounded retained queries/watch gaps, authorization, Public peer calls/cancellation and execution-file live producer/follow behavior.
-- [ ] 6.2 Run final managed/remote plugin and self-driving script stories, both native WebView lanes and packaged desktop/installer organization, licensing, signing and update journeys on native Windows and Linux. Source inspection and historical Windows results do not close this proof.
+- [ ] 6.2 Run final managed/remote plugin stories, both native WebView lanes and packaged desktop/installer organization, licensing, signing and update journeys on native Windows and Linux. Source inspection and historical Windows results do not close this proof.
 - [ ] 6.3 After all source owners hand off, complete configured format/lint/language checks, Tests producer, locked dependency metadata and authorized hosted CI/Nightly; repair failures without weakening checks and obtain delivery authorization before pushing.
 
 ## Locked Authoring Surface
@@ -68,6 +68,7 @@
 - [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
 - [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
 - [x] Command Line: Implement Locked Point 11 With the Manifest-Project Amendment.
+- [x] Command Line: Delete Superseded Python Remote Control and Bootstrap Scripts.
 
 - [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
 - [x] Integration: Give the Python SDK Sole Ownership of Its Authoring Root Exports.
