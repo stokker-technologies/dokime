@@ -116,6 +116,7 @@
 
 - [x] Share the Journey's Submit-and-Observe Report Save With Screenshots and Measure Thermal/OBC Creation, Transfer and Write.
 - [x] Keep Desktop and Python Remote Access Files at `.pair`; Prove the Python Client Reads the Portable File.
+- [ ] Complete the Ordered Pairing Endpoints Contract in remote-access-simplification: Reuse an Established Python Client Read Policy Before Adding Bounded Sequential Attempts and Prove Refusal, Aggregate Failure and Identity-Mismatch Fallback With Local Listeners. No Such Policy Exists in the Current Python SDK or Its Pinned Shared Transport; Keep This Item Open. Reconcile CLI `ca_certificate_pem` With Desktop/Python `certificate_pem` Before Claiming Cross-Client Portable Files.
 - [ ] Add and Prove Python Drives a Paired Desktop Through the Real Remote Access Export Control and the Unmodified Starter.
 
 ## Single Plugin Paths
