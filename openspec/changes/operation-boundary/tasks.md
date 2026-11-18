@@ -120,6 +120,8 @@ with `plugin-boundary` and `plugin-lifecycle`.
 - [x] 6.5a Repair the C++ SDK validation path: share the manifest/baseline-, platform- and runner-image-keyed vcpkg binary archive cache across Check, SDK Test and host-fixture Build; save only on dev and preserve SDK logs/JUnit on every test outcome. Match the library conformance executable's EventEngine drain before process exit in the plugin/client starters and native plugin story. Prove the five Windows dev SDK stories, repository workflow checks and C++ tooling tests without changing dependency versions or deadlines. This closes only the C++ repair, not 6.5 or the complete operation-boundary delivery.
 - [ ] 6.6 After source closure and authorized push, report actual native Linux/Windows and hosted CI/Nightly results and pending proof. Measure sealed full-range cost using existing plot/document benchmarks without changing budgets; benchmark work follows source closure, not the implementation slices.
 
+- [x] 6.5b Share Visual Studio C++ discovery between native CI provisioning and the C++ SDK through the existing tooling package; retain their distinct environment setup and prove focused native setup tests and Python typing.
+
 ## Workflow Follow-Up
 
 - Delivery authorization governs push/review/merge; these slices do not grant it.
