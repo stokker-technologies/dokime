@@ -122,7 +122,7 @@ mise -C sdk/cpp run test
 
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
-managed `.dokime` bundle or add a remote plugin URL with `--trust`, materialize a case and run it.
+managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
 For development, `dokime dev --plugin <bundle-or-plugin-folder>` reads `dokime.toml` in
 plugin folders, runs their configured build, and starts a disposable host with console
 logging. It opens a sibling `dokime-gui` desktop when installed and removes its data root

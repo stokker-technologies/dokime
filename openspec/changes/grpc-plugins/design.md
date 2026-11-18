@@ -803,7 +803,7 @@ Applies to every SDK language; Python is the reference implementation, the other
     - `dokime dev --plugin <path>` starts the application with console logging and a temporary data root and attaches one plugin. `<path>` is a bundle file or a project folder containing `dokime.toml`, for every language. A project runs its configured build before starting its executable or launch command. An installed sibling desktop attaches when present and closes with the disposable host.
     - `dokime plugin dev --executable` is deleted.
     - `dokime plugin bundle <folder> --out <bundle>` accepts a manifest project folder. The manifest's optional `build` command runs before description and packaging. Exactly one `executable` or `launch` is required; native `assets` may name files or folders. Launch projects apply `.gitignore` to their file inventory. Python projects require `pyproject.toml` and `uv.lock` after their build, and launch `plugin.py` with `uv`; Python and `uv` on the host are an accepted requirement.
-    - Installing a plugin asks the user once whether they trust it: a confirmation in the desktop, an explicit `--trust` flag on the command line (which never prompts).
+    - Installing a plugin asks nothing; the user decides what to install.
 
 Target starter (Python):
 

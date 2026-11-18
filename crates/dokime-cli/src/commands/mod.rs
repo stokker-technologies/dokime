@@ -114,9 +114,6 @@ impl Command {
 /* === Public Functions === */
 
 pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: Settings) -> Result<()> {
-    if let Command::Plugin(command) = &command {
-        command.require_trust()?;
-    }
     if !matches!(
         command,
         Command::New(_) | Command::Dev(_) | Command::Server(_) | Command::Doctor(_) | Command::Version(_) | Command::Proto(_)

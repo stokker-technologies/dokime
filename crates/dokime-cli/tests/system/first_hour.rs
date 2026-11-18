@@ -26,8 +26,10 @@ use std::process::Stdio;
 // Third Party Imports
 use serde_json::{Deserializer, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 
 // Local Imports
+use dokime_runtime::process;
 
 /* === Constants === */
 
@@ -87,7 +89,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
 
                 // Add the Bundle as a Managed Entry Through the Host Service
                 let installation: Value = serde_json::from_str(
-                    &super::run(&["--endpoint", &endpoint, "plugin", "install", bundle.to_str().unwrap(), "--trust", "--json"]).await?,
+                    &super::run(&["--endpoint", &endpoint, "plugin", "install", bundle.to_str().unwrap(), "--json"]).await?,
                 )?;
                 let entry = installation["entry"]["name"].as_str().ok_or("Install Plugin: Missing Managed Entry")?;
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
@@ -184,11 +186,11 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 // Create and Serve the Pure Python Starter Remotely
                 let project = directory.path().join("first-python");
                 super::run(&["new", project.to_str().unwrap(), "--lang", "python"]).await?;
-                let python = env::var_os("DOKIME_PYTHON")
-                    .map(PathBuf::from)
-                    .unwrap_or_else(|| super::root().join(if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" }));
+                let python = env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
+                    super::root().join(if cfg!(target_os = "windows") { ".venv/Scripts/python.exe" } else { ".venv/bin/python" })
+                });
                 remote_plugin = Some(
-                    tokio::process::Command::from(dokime_runtime::process::command(python))
+                    Command::from(process::command(python))
                         .arg(project.join("test/plugin.py"))
                         .current_dir(&project)
                         .stdout(Stdio::piped())
@@ -199,7 +201,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let plugin = remote_plugin.as_mut().unwrap();
                 let mut lines = BufReader::new(plugin.stdout.take().unwrap()).lines();
                 let url = lines.next_line().await?.ok_or("Serve Python: Missing Listener Announcement")?;
-                super::run(&["--endpoint", &endpoint, "plugin", "add", &url, "--trust"]).await?;
+                super::run(&["--endpoint", &endpoint, "plugin", "add", &url]).await?;
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
                 let suite = suites["values"].as_array().unwrap().last().unwrap()["metadata"]["identifier"].as_str().unwrap();
                 let cases = directory.path().join("python-cases.pb");

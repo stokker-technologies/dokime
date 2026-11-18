@@ -20,11 +20,12 @@ use std::path::{Path, PathBuf};
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
+use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tonic::Status;
 
 // Local Imports
-use crate::{Result, settings::Settings};
+use crate::{Result, output, settings::Settings};
 use dokime::FileMetadata;
 use dokime::client::PluginsCreateOptions;
 use dokime::client::plugin_placement::Kind;
@@ -48,9 +49,6 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
-
-    #[arg(long, help = "Trust the Plugin to Run Code with the Host Access")]
-    pub(super) trust: bool,
 }
 
 /* === Enums === */
@@ -69,7 +67,7 @@ pub(crate) async fn attach(bundle: &Path, endpoint: Option<String>, settings: &S
     let manifest = super::bundle::inspect(bundle)?;
     let name = manifest["identity"]["name"].as_str().ok_or("Install Plugin: Missing Bundle Identity")?;
     let client = settings.sdk(endpoint).await?;
-    let mut file = tokio::fs::File::open(bundle).await?;
+    let mut file = File::open(bundle).await?;
     let length = file.metadata().await?.len();
     let identity = settings.request_id(None)?;
     let metadata = FileMetadata {
@@ -212,7 +210,7 @@ pub(crate) async fn attach(bundle: &Path, endpoint: Option<String>, settings: &S
     drop(watch);
     value.entry = Some(entry);
     if let Some(json) = output {
-        crate::output::print(&value, json)?;
+        output::print(&value, json)?;
     }
     Ok(())
 }
