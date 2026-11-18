@@ -223,8 +223,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     super::run(&["--endpoint", &endpoint, "execution", "start", stopped]).await?;
                     super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", stopped, "--json"]).await?;
                     super::run(&["--endpoint", &endpoint, "execution", "stop", stopped]).await?;
-                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", stopped, "--action", "0", "--accepted"])
-                        .await?;
+                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", stopped, "--action", "0", "--accepted"]).await?;
                     super::run(&["--endpoint", &endpoint, "execution", "wait", stopped]).await?;
                     let stopped_detail: Value =
                         serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", stopped, "--json"]).await?)?;
@@ -255,8 +254,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     for execution in rerun_executions.executions {
                         let id = execution.summary.unwrap().execution_id;
                         super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", &id, "--json"]).await?;
-                        super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", &id, "--action", "0", "--accepted"])
-                            .await?;
+                        super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", &id, "--action", "0", "--accepted"]).await?;
                         super::run(&["--endpoint", &endpoint, "execution", "wait", &id]).await?;
                         let detail: Value =
                             serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", &id, "--json"]).await?)?;

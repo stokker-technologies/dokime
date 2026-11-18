@@ -63,10 +63,10 @@
   - [x] Rust: Migrate the Retired SDK Surface in Owner-Scoped `crates/dokime-runtime/benches/storage/{windows,publication}.rs` and `crates/dokime-gui/benches/system/fixture.rs` (Derive Attributes, Plugin Records, Window Type, Local IDs and Selectors).
   - [ ] Rust: Resolve Runtime-Defined Plain Context Operation Calls Against the Pinned Carrier's Static `OperationRequest` Contract.
 - [x] C#: Follow the Locked Authoring Surface.
-- [ ] C#: Complete the Language Check and Host Fixture Producer After Resolving the Shared Generator/Python Root Export Conflict.
+- [x] C#: Complete the Language Check and Host Fixture Producer With SDK-Owned Python Root Exports.
 - [x] C++: Follow the Locked Authoring Surface.
 - [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
-- [ ] C++: Complete the Prescribed Host-Fixture Producer Proof After Resolving Its Release-Only Build Against the Worker Debug-Only Rule.
+- [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
 - [ ] Command Line: Implement Locked Point 11.
 
 
@@ -75,4 +75,5 @@
 - [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
 - [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
-- [ ] Integration: Complete Format and Focused Language Checks on the Combined Tree.
+- [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
+- [ ] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.

@@ -22,8 +22,8 @@ from pathlib import Path
 # isort: split
 
 # Third Party Imports
-from harmos_tools.build.resources.configuration import Configuration
 from harmos_tools.build.resources import sdk
+from harmos_tools.build.resources.configuration import Configuration
 
 # isort: split
 
@@ -65,7 +65,6 @@ def configuration(root: Path) -> Configuration:
     )
 
 
-
 def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration) -> None:
     """Publish Shared Projections Except the SDK-Owned Python Authoring Barrel."""
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
@@ -76,7 +75,9 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
         existing = sdk.inventory(root, configuration) - {barrel}
         if check:
             differences = [str(path) for path in sorted(expected ^ existing)]
-            differences.extend(str(path) for path in sorted(expected & existing) if (root / path).read_bytes() != (output / path).read_bytes())
+            differences.extend(
+                str(path) for path in sorted(expected & existing) if (root / path).read_bytes() != (output / path).read_bytes()
+            )
             if differences:
                 raise ValueError("Check SDK Definitions: Run mise run generate -- --protocol\n" + "\n".join(differences))
         else:

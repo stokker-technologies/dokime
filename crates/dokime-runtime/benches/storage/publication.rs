@@ -128,7 +128,13 @@ impl Fixture {
         let origin = host.materialize(&plugin, template, parameters).await.unwrap();
         let cycle = host.start_cycle(vec![origin]).await.unwrap();
         let execution = cycle.executions[0].clone();
-        Self { host, root, cycle, execution, template: template.into() }
+        Self {
+            host,
+            root,
+            cycle,
+            execution,
+            template: template.into(),
+        }
     }
 
     pub(super) async fn prompt(&self, name: &str) -> PromptsCreateRequest {
@@ -170,12 +176,13 @@ pub fn serve() -> Result<()> {
     let stream = Stream::<Reading>::new("readings", "Readings");
     let observer = Observer::new(&stream, async |context: &Context| {
         let at = context.now().await?;
-        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.capture.readings")) {
-            let observed = context.get::<Observed>()?;
-            observed.count.fetch_add(1, Ordering::SeqCst)
-        } else {
-            0
-        };
+        let index =
+            if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.capture.readings")) {
+                let observed = context.get::<Observed>()?;
+                observed.count.fetch_add(1, Ordering::SeqCst)
+            } else {
+                0
+            };
         Ok(Reading {
             timestamp: at.to_string(),
             value: (index % 1024) as f64,

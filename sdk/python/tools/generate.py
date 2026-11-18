@@ -155,7 +155,10 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
         lines.extend(["", "__all__ = " + repr(exports), ""])
         barrel = output / "__init__.py"
         barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-        subprocess.run([sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)],
+            check=True,
+        )
         subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
         text = barrel.read_text(encoding="utf-8")
         target = source / "__init__.py"

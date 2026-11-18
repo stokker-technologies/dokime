@@ -81,7 +81,12 @@ fn window_lag_names_its_stream() -> Result<(), Box<dyn Error>> {
         assert_eq!(failures, std::slice::from_ref(&outcome.reason), "Fall Behind a Window: Report One Stream Failure");
 
         // It Names the Lagging Stream Alone and the Lag Setting That Resolves It.
-        let streams = ["execution.boundary", "execution.windows.window.host", "execution.windows.window.setting", "execution.overflow.window.overflow"];
+        let streams = [
+            "execution.boundary",
+            "execution.windows.window.host",
+            "execution.windows.window.setting",
+            "execution.overflow.window.overflow",
+        ];
         assert!(outcome.reason.contains("execution.lag.window.lag"), "Fall Behind a Window: Name the Stream: {}", outcome.reason);
         assert!(
             streams.iter().all(|stream| !outcome.reason.contains(stream)),

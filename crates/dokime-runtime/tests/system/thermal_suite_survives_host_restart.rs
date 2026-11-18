@@ -128,7 +128,8 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                         RunState::Finished
                     ]
                 );
-                let temperatures = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.cycle.temperature").collect::<Vec<_>>();
+                let temperatures =
+                    snapshot.samples.iter().filter(|sample| sample.stream == "thermal.cycle.temperature").collect::<Vec<_>>();
                 let counters = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.cycle.counter").collect::<Vec<_>>();
                 assert_eq!(snapshot.samples.len(), 2502);
                 assert_eq!(temperatures.len(), 2);

@@ -91,8 +91,9 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             assert_eq!(one_at_a_time.html()?, html);
 
             // Refuse an Unresolvable Plot Without Publishing Any Partial Output
-            let invalid = Document::new("Missing Field")
-                .section(Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.capture.reading").field("absent"))));
+            let invalid = Document::new("Missing Field").section(
+                Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.capture.reading").field("absent"))),
+            );
             assert!(host.render_document(&fixed, invalid, settings).is_err());
             assert!(host.reports(&execution)?.is_empty());
 

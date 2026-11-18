@@ -1,9 +1,16 @@
+# ***
+#
+# dokime-rust-workspace
+#
 # SPDX-License-Identifier: Apache-2.0
+#
+# ***
 
 """Compare the Four Installed SDKs' Shared Capture Description."""
 
 # === Imports === #
 
+# Standard Library Imports
 import asyncio
 import os
 import subprocess
@@ -11,13 +18,21 @@ import sys
 import unittest
 from pathlib import Path
 
+# isort: split
+
+# Third Party Imports
 from grpc.aio import insecure_channel
 from harmos._wire.model.v1.description_pb2 import Declarations
 from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetResponse
 
+# isort: split
+
+# Local Imports
 from dokime import RecordContracts, Suites
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
+
+# Type Checking Imports
 
 # === Public Exports === #
 
@@ -34,7 +49,9 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         extension = ".exe" if os.name == "nt" else ""
         configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release").lower()
         dotnet = subprocess.check_output(
-            ["mise", "-C", str(root / "sdk/csharp"), "which", "dotnet"], text=True, creationflags=spawn_flags(),
+            ["mise", "-C", str(root / "sdk/csharp"), "which", "dotnet"],
+            text=True,
+            creationflags=spawn_flags(),
         ).strip()
         commands = {
             "python": [sys.executable, str(root / "sdk/python/examples/test/plugin.py"), "--address", "127.0.0.1:0"],
@@ -48,8 +65,11 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         environment.pop("HARMOS_ADDRESS", None)
         for language, command in commands.items():
             process = await asyncio.create_subprocess_exec(
-                *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-                env=environment, creationflags=spawn_flags(),
+                *command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                env=environment,
+                creationflags=spawn_flags(),
             )
             try:
                 async with asyncio.timeout(timeout):
@@ -82,7 +102,10 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         expected = descriptions["python"]
         self.assertEqual(expected["operations"], ["capture.cleanup", "capture.confirm", "capture.confirmed", "capture.materialize"])
         self.assertEqual(expected["records"], [("capture.confirmation", "google.protobuf.BoolValue")])
-        self.assertEqual(expected["suites"], [("capture", [("capture", "capture.materialize", "", "capture.cleanup", [("capture.confirm", "capture.confirm")])])])
+        self.assertEqual(
+            expected["suites"],
+            [("capture", [("capture", "capture.materialize", "", "capture.cleanup", [("capture.confirm", "capture.confirm")])])],
+        )
         for language, description in descriptions.items():
             self.assertEqual(description, expected, language)
 
@@ -103,11 +126,20 @@ def contracts(declarations: Declarations) -> dict[str, object]:
         "streams": sorted(stream.id for stream in declarations.streams),
         "records": sorted((record.metadata.identifier, record.message) for record in records.records),
         "suites": [
-            (suite.metadata.identifier, [
-                (template.metadata.identifier, template.materialize, template.initialize, template.cleanup,
-                 [(step.metadata.identifier, step.operation) for step in template.steps])
-                for template in suite.templates
-            ]) for suite in suites.suites
+            (
+                suite.metadata.identifier,
+                [
+                    (
+                        template.metadata.identifier,
+                        template.materialize,
+                        template.initialize,
+                        template.cleanup,
+                        [(step.metadata.identifier, step.operation) for step in template.steps],
+                    )
+                    for template in suite.templates
+                ],
+            )
+            for suite in suites.suites
         ],
     }
 

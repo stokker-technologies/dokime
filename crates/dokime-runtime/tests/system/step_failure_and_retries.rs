@@ -137,8 +137,11 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                     assert_eq!(read.positions, positions);
                     assert_eq!(read.response.as_ref().unwrap().statistics.as_ref().unwrap().count, positions.len() as u64);
                     assert!(positions.len() < snapshot.samples.len());
-                    let boundary =
-                        snapshot.evidence.iter().find(|evidence| evidence.kind == "step:start" && evidence.step == "execution.capture.measure").unwrap();
+                    let boundary = snapshot
+                        .evidence
+                        .iter()
+                        .find(|evidence| evidence.kind == "step:start" && evidence.step == "execution.capture.measure")
+                        .unwrap();
                     assert!(
                         snapshot.samples.iter().any(|sample| sample.source_ns == boundary.source_ns && sample.position < boundary.position),
                         "Boundary ({}, {}), Samples {:?}",
