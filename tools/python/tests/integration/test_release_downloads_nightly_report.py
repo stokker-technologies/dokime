@@ -16,6 +16,7 @@ import json
 import tempfile
 import unittest
 import zipfile
+from itertools import product
 from pathlib import Path
 from unittest import mock
 
@@ -27,9 +28,8 @@ from unittest import mock
 
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.release import (
-    reports,
-)
+from dokime_tools.release import reports
+from dokime_tools.test import desktop_bench
 
 from .environment import isolate_environment
 
@@ -45,6 +45,83 @@ from .environment import isolate_environment
 
 
 class NightlyReportTests(unittest.TestCase):
+    def test_failed_desktop_split_jobs_merge_only_their_selected_cases(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name)
+            expected = {
+                "round-trip": {
+                    f"desktop/2073600/{count}/{condition}"
+                    for count, condition in product((30, 100), ("cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled"))
+                },
+                "history": {
+                    f"desktop/{rows}/{count}/{condition}"
+                    for rows, count, condition in product((307200, 1536000, 3072000), (30, 100), ("cold", "warm", "live"))
+                },
+            }
+            missing = {}
+
+            # Collect Both Failed Jobs Through the Desktop Reporter.
+            for job, selection in (("round-trip", "^desktop_round_trip/"), ("history", "^desktop_history_round_trip/")):
+                home = root / job
+                home.mkdir()
+                policy.write_json(home / "observations.json", {"fixture": None, "results": []})
+                policy.write_json(home / "completion.json", {"failure": "Native Initialization Failed", "measuring": "2073600/30/cold"})
+                with (
+                    mock.patch.object(desktop_bench.policy, "execute", return_value="candidate"),
+                    mock.patch.object(desktop_bench.paths, "target", return_value="windows-x86_64"),
+                ):
+                    desktop_bench.collect(root, home, {"arguments": [selection]}, 20, refresh=True, success=False)
+                summary = json.loads((home / "new.json").read_text())
+                self.assertTrue(all(row["status"] == "not_measured" and row["value"] is None for row in summary["benchmarks"]))
+                missing[job] = {row["case"] for row in summary["benchmarks"]}
+                self.assertEqual(missing[job], expected[job])
+                output = root / "target/nightly-reports" / job / "benchmarks-rust-desktop.json"
+                policy.write_json(output, summary)
+
+            # Merge Disjoint Failure Reports Without Losing Any Case.
+            self.assertTrue(missing["round-trip"].isdisjoint(missing["history"]))
+            published, files = reports.collect(root)
+            self.assertEqual(len(files), 2)
+            self.assertEqual(len(published["benchmarks"]), 34)
+            self.assertEqual({row["case"] for row in published["benchmarks"]}, expected["round-trip"] | expected["history"])
+
+            # Apply an Anchored Case Filter Alongside Diagnostic Mode.
+            selection = "^desktop_history_round_trip/1536000/(30|100)/warm$"
+            with (
+                mock.patch.object(desktop_bench.policy, "execute", return_value="candidate"),
+                mock.patch.object(desktop_bench.paths, "target", return_value="windows-x86_64"),
+            ):
+                desktop_bench.collect(root, home, {"arguments": ["--test", selection]}, 20, refresh=False, success=False)
+            summary = json.loads((home / "new.json").read_text())
+            self.assertEqual({row["case"] for row in summary["benchmarks"]}, {"desktop/1536000/30/warm", "desktop/1536000/100/warm"})
+
+            # Keep Completed Measurements Inside the Same Selection.
+            sample = {"count": 30, "condition": "warm", "outcome": "drawn", "errors": [], "backendStages": {}, "stages": {}, "queryMs": []}
+            policy.write_json(
+                home / "observations.json",
+                {"fixture": {"rows": 2073600}, "results": [sample, {**sample, "rows": 1536000, "durationMs": 7}]},
+            )
+            with (
+                mock.patch.object(desktop_bench.policy, "execute", return_value="candidate"),
+                mock.patch.object(desktop_bench.paths, "target", return_value="windows-x86_64"),
+            ):
+                desktop_bench.collect(root, home, {"arguments": [selection]}, 20, refresh=False, success=False)
+            summary = json.loads((home / "new.json").read_text())
+            rows = {row["name"]: row for row in summary["benchmarks"]}
+            self.assertEqual(
+                set(rows),
+                {
+                    "desktop/1536000/30/warm/durationMs/p50",
+                    "desktop/1536000/30/warm/durationMs/p95",
+                    "desktop/1536000/30/warm/refusals",
+                    "desktop/1536000/100/warm",
+                },
+            )
+            self.assertEqual(rows["desktop/1536000/30/warm/durationMs/p50"]["value"], 7)
+        finally:
+            temporary_directory.cleanup()
+
     def test_collects_all_suites_baselines_and_coverage(self) -> None:
         directory_directory = tempfile.TemporaryDirectory()
         directory = directory_directory.name
