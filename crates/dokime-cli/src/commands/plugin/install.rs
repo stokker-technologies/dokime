@@ -22,7 +22,6 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use tonic::Status;
 
 // Local Imports
 use crate::{Result, output, settings::Settings};
@@ -33,7 +32,6 @@ use dokime::client::{
     FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginManaged,
     PluginPlacement, PluginValue,
 };
-use dokime::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 
@@ -175,40 +173,8 @@ pub(crate) async fn attach(bundle: &Path, endpoint: Option<String>, settings: &S
             },
         )
         .await?;
-    let mut entry = value.entry.take().ok_or("Install Plugin: Missing Registered Entry")?;
-    let mut watch = client
-        .plugins
-        .watch_with(PluginsWatchOptions {
-            name: Some(entry.name.clone()),
-            context: settings.context()?,
-            ..Default::default()
-        })
-        .await?;
-    while entry.state != PluginState::Ready as i32 {
-        if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable | PluginState::Stopped)) {
-            return Err(Status::failed_precondition(format!(
-                "Install Plugin {}: {}",
-                entry.name,
-                entry.failure.map_or_else(|| "Activation Stopped".into(), |failure| failure.message)
-            ))
-            .into());
-        }
-        watch.next().await?.ok_or("Install Plugin: Plugin Watch Closed Before Readiness")?;
-        entry = client
-            .plugins
-            .get_with(
-                entry.name,
-                PluginsGetOptions {
-                    context: settings.context()?,
-                    ..Default::default()
-                },
-            )
-            .await?
-            .entry
-            .ok_or("Install Plugin: Plugin Entry Was Removed")?;
-    }
-    drop(watch);
-    value.entry = Some(entry);
+    let entry = value.entry.take().ok_or("Install Plugin: Missing Registered Entry")?;
+    value.entry = Some(super::await_ready(&client, entry, settings, "Install Plugin").await?);
     if let Some(json) = output {
         output::print(&value, json)?;
     }

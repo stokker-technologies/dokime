@@ -39,12 +39,14 @@ pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};
 pub use plugin::{
-    INTERVAL_LAG, INTERVAL_WINDOW, PLUGINS_TIMEOUT, PlacementSettings, PluginProcess, STOP_GRACE, describe_plugin, plugin_settings,
+    INTERVAL_LAG, INTERVAL_WINDOW, PLUGINS_TIMEOUT, PlacementSettings, PluginProcess, STOP_GRACE, await_plugin_ready, describe_plugin,
+    plugin_settings,
 };
 
 /* === Imports === */
 
 // Standard Library Imports
+use std::result;
 
 // Third Party Imports
 
@@ -56,7 +58,7 @@ pub use plugin::{
 
 /* === Type Aliases === */
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 /* === Structs === */
 

@@ -252,26 +252,26 @@ impl Host {
                 bytes: self.settings.placement.message_bytes,
             },
         )?;
-        let result = loop {
-            context.host.refresh_plugin_states().await?;
-            let entry = lock(&self.plugins)?.get(name).cloned();
-            if let Some(entry) = entry {
-                if entry.state == PluginState::Ready as i32 {
-                    break Ok(());
+        let result = crate::await_plugin_ready(
+            async || {
+                context.host.refresh_plugin_states().await?;
+                Ok(lock(&self.plugins)?.get(name).cloned())
+            },
+            async || Ok(watch.next().await?.is_some()),
+            |entry| {
+                if entry.state == PluginState::Stopped as i32 {
+                    return None;
                 }
-                if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable)) {
-                    // The Entry's Failure Names the Cause, Such as a Missed Load Deadline, and the Action.
-                    let failure = entry.failure.as_ref().map_or_else(
-                        || "The Plugin Became Unavailable; Restart It".to_owned(),
-                        |failure| format!("{}; {}", failure.message, failure.action),
-                    );
-                    break Err(Error::Invalid(format!("Add Plugin {name}: {failure}")));
-                }
-            }
-            if watch.next().await?.is_none() {
-                break Err(Error::Invalid(format!("Add Plugin {name}: Plugin Watch Closed")));
-            }
-        };
+                let failure = entry.failure.as_ref().map_or_else(
+                    || "The Plugin Became Unavailable; Restart It".to_owned(),
+                    |failure| format!("{}; {}", failure.message, failure.action),
+                );
+                Some(Error::Invalid(format!("Add Plugin {name}: {failure}")))
+            },
+            || Error::Invalid(format!("Add Plugin {name}: Plugin Watch Closed")),
+        )
+        .await
+        .map(|_| ());
         watch.request_cancel();
         let _ = watch.join().await;
         result
