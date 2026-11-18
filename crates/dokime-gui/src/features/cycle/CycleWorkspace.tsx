@@ -159,7 +159,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   /* Only prompts whose owner still runs are offered: a prompt never outlives
      its execution, here as in the runtime that settles it. */
   const prompts = useMemo(() => {
-    if (!live) return [];
+    if (!live) {
+      return [];
+    }
     const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
       cycleEnded: phase !== "active",
@@ -254,12 +256,13 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   }
 
   if (selectedRow) {
+    const execution = selectedRow.execution;
     const executionMenu: ExecutionMenu = {
       kind: "execution",
-      onStart: selectedRow.execution?.controls?.canStart
+      onStart: execution?.controls?.canStart
         ? () =>
             run({ done: "Execution Started", failed: "Execution Could Not Start" }, () =>
-              commands.startExecution.mutateAsync(selectedRow.execution!.test_execution_id),
+              commands.startExecution.mutateAsync(execution.test_execution_id),
             )
         : null,
       startRefusal: selectedRow.execution?.controls?.canStart ? undefined : "Reload Execution Controls or Select a New Plugin Execution",
@@ -289,7 +292,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
       onSettings: selectedRow.execution ? () => setSettingsOpen(true) : null,
     };
-    const execution = selectedRow.execution;
     const executionSealed = caseSealed(executions, selectedRow.case.caseId);
     return (
       <div className="grid min-h-0">

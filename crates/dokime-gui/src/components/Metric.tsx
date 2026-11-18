@@ -14,6 +14,7 @@ import { PathPill } from "@/components/PathPill";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
+import { exactNumericText } from "@/lib/record-display";
 import { isPathLike } from "@/lib/path-display";
 import type { MetricState } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -105,9 +106,10 @@ function MetricValue({
     return <PathPill value={value} />;
   }
   const compact = value.length > 10;
+  const complete = exactValue === value && /^-?\d/.test(value);
   return (
     <AbbreviatedValue
-      className={`block min-w-0 max-w-full truncate ${compact ? "text-base" : ""}`}
+      className={cn("block min-w-0 max-w-full", complete ? "break-all whitespace-normal" : "truncate", compact && "text-base")}
       exact={exactValue ?? value}
       value={value}
     />
@@ -115,6 +117,9 @@ function MetricValue({
 }
 
 function progressValue(rawValue: unknown, formatted: string): number | null {
+  if (exactNumericText(rawValue) !== null) {
+    return null;
+  }
   const candidate = typeof rawValue === "number" ? rawValue : Number.parseFloat(formatted.replace("%", ""));
   if (!Number.isFinite(candidate)) {
     return null;
@@ -136,24 +141,46 @@ function statusVariant(value: string): "default" | "secondary" | "destructive" |
 }
 
 function stateVariant(state?: MetricState | null): "default" | "secondary" | "destructive" | "success" | "warning" | null {
-  if (state === "ok") return "success";
-  if (state === "warning") return "warning";
-  if (state === "critical") return "destructive";
-  if (state === "muted") return "secondary";
+  if (state === "ok") {
+    return "success";
+  }
+  if (state === "warning") {
+    return "warning";
+  }
+  if (state === "critical") {
+    return "destructive";
+  }
+  if (state === "muted") {
+    return "secondary";
+  }
   return null;
 }
 
 function stateClass(state?: MetricState | null): string {
-  if (state === "ok") return "border-success/30 bg-success/10";
-  if (state === "warning") return "border-warning/30 bg-warning/10";
-  if (state === "critical") return "border-destructive/30 bg-destructive/10";
+  if (state === "ok") {
+    return "border-success/30 bg-success/10";
+  }
+  if (state === "warning") {
+    return "border-warning/30 bg-warning/10";
+  }
+  if (state === "critical") {
+    return "border-destructive/30 bg-destructive/10";
+  }
   return "";
 }
 
 function progressClass(state?: MetricState | null): string {
-  if (state === "ok") return "[&_[data-slot=progress-indicator]]:bg-success";
-  if (state === "warning") return "[&_[data-slot=progress-indicator]]:bg-warning";
-  if (state === "critical") return "[&_[data-slot=progress-indicator]]:bg-destructive";
-  if (state === "muted") return "[&_[data-slot=progress-indicator]]:bg-muted-foreground";
+  if (state === "ok") {
+    return "[&_[data-slot=progress-indicator]]:bg-success";
+  }
+  if (state === "warning") {
+    return "[&_[data-slot=progress-indicator]]:bg-warning";
+  }
+  if (state === "critical") {
+    return "[&_[data-slot=progress-indicator]]:bg-destructive";
+  }
+  if (state === "muted") {
+    return "[&_[data-slot=progress-indicator]]:bg-muted-foreground";
+  }
   return "[&_[data-slot=progress-indicator]]:bg-primary";
 }

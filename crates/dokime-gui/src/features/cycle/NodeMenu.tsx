@@ -152,7 +152,9 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         </DropdownMenuItem>
       );
     case "Start Execution":
-      if (menu.kind !== "execution") return null;
+      if (menu.kind !== "execution") {
+        return null;
+      }
       return (
         <DropdownMenuItem disabled={!menu.onStart} onSelect={() => menu.onStart?.()} title={menu.startRefusal}>
           <Play />
@@ -160,7 +162,9 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         </DropdownMenuItem>
       );
     case "Delete Case":
-      if (menu.kind !== "execution") return null;
+      if (menu.kind !== "execution") {
+        return null;
+      }
       return (
         <DropdownMenuItem
           disabled={!menu.onDeleteCase}
@@ -173,7 +177,9 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         </DropdownMenuItem>
       );
     case "Re-Run":
-      if (menu.kind !== "execution") return null;
+      if (menu.kind !== "execution") {
+        return null;
+      }
       return (
         <DropdownMenuItem
           disabled={!menu.onRerun || Boolean(menu.rerunRefusal)}
@@ -185,7 +191,9 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         </DropdownMenuItem>
       );
   }
-  if (menu.kind !== "cycle") return null;
+  if (menu.kind !== "cycle") {
+    return null;
+  }
   switch (item) {
     case "Rerun Cycle":
       return (

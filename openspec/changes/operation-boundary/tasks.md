@@ -182,3 +182,5 @@ with `plugin-boundary` and `plugin-lifecycle`.
 - Review the overlapping conditional-object replay paths in `backend/objects.rs::exchange` (position-keyed receipts, called by `StorageBackend::set_object`) and `backend/compound.rs::commit` (mutation-ID receipts, called by `StorageBackend::mutate`). Keep both until the owner decides whether the library ports can consolidate; the preferred eventual removal is the position-keyed exchange path.
 
 - [x] 6.5g Move sidebar execution overflow actions into the entry header menu, preserving host Start capability, case deletion confirmation and the visible Start control. Remove the row menu and long-press machinery; migrate desktop stories and prove focused cycle tests and TypeScript checking.
+
+- [x] 6.5h Render signed/unsigned integer and exact document values with their full ungrouped decimal text. Remove integer tile abbreviation and display-time numeric coercion in the owned card, record, parameter and criterion formatters; wrap long card values and prove deterministic large-integer rendering. Shared signed-value projection and parameter-editor conversion remain outside this worker ownership.

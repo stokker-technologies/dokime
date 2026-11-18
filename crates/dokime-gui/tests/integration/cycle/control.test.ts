@@ -224,7 +224,8 @@ test("Entry Header Menu Invokes Start and Delete and Respects Refusals", async (
     onOpenReport: null,
   };
   const open = async () => {
-    const trigger = element.querySelector("button")!;
+    const trigger = element.querySelector("button");
+    assert.ok(trigger);
     await act(async () =>
       trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse", ctrlKey: false })),
     );
@@ -233,17 +234,21 @@ test("Entry Header Menu Invokes Start and Delete and Respects Refusals", async (
     await act(async () => root.render(createElement(NodeMenu, { menu })));
     await open();
     let items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-    await act(async () => items.find((item) => item.textContent === "Start Execution")!.click());
+    const startItem = items.find((item) => item.textContent === "Start Execution");
+    assert.ok(startItem);
+    await act(async () => startItem.click());
     assert.equal(start.mock.calls.length, 1);
     await open();
     items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-    await act(async () => items.find((item) => item.textContent === "Delete Case")!.click());
+    const deleteItem = items.find((item) => item.textContent === "Delete Case");
+    assert.ok(deleteItem);
+    await act(async () => deleteItem.click());
     assert.equal(remove.mock.calls.length, 1);
     await act(async () => root.render(createElement(NodeMenu, { menu: { ...menu, onStart: null, onDeleteCase: null } })));
     await open();
     items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-    assert.equal(items.find((item) => item.textContent === "Start Execution")!.getAttribute("aria-disabled"), "true");
-    assert.equal(items.find((item) => item.textContent === "Delete Case")!.getAttribute("aria-disabled"), "true");
+    assert.equal(items.find((item) => item.textContent === "Start Execution")?.getAttribute("aria-disabled"), "true");
+    assert.equal(items.find((item) => item.textContent === "Delete Case")?.getAttribute("aria-disabled"), "true");
   } finally {
     await act(async () => root.unmount());
     element.remove();

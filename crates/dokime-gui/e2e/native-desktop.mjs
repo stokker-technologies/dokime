@@ -231,18 +231,20 @@ async function exactBench() {
     // Sealed evidence is complete; the view shows it once the settled run's document refresh lands,
     // until then tiles may hold a capture taken before the samples were saved.
     const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
-    return captured ? Object.fromEntries(values) : null;`),
+    return captured ? {exact: Object.fromEntries(values), shown: Object.fromEntries(tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.textContent]))} : null;`),
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last"]) {
-    assert.equal(values[name], String(base));
+    assert.equal(values.exact[name], String(base));
+    assert.equal(values.shown[name], String(base));
   }
   for (const name of ["p05", "p95", "p99"]) {
-    assert.equal(values[name], String(BigInt(Number(base))));
+    assert.equal(values.exact[name], String(BigInt(Number(base))));
   }
-  const count = BigInt(values.count);
+  const count = BigInt(values.exact.count);
   assert.ok(count > 0n);
-  assert.equal(values.sum, String(base * count));
+  assert.equal(values.exact.sum, String(base * count));
+  assert.equal(values.shown.sum, String(base * count));
 }
 
 async function reportsAndHistory() {
