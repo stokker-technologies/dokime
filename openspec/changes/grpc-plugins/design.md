@@ -744,6 +744,35 @@ remote-access-simplification. Decoded-memory admission was an additive upstream
 follow-up, not a gate on adopting existing wire/queue-bounded clients. The final
 registry release pin and all required native proof remain open.
 
+### Canonical Plugin Project Structure (Proposed, Not Locked)
+
+The owner parked this discussion on 2026-11-18 as not yet clean enough. Nothing
+below is implemented or binding.
+
+```text
+my-project/
+  dokime.toml
+  pyproject.toml
+  main.py                      # client flow: connect, add the plugin, run, watch
+  src/my_project/
+    py.typed
+    plugin/
+      __main__.py              # sidecar entry
+      __init__.py              # the plugin value
+      settings.py
+      device.py
+      operations/<family>.py   # one file per operation family
+      streams.py  records.py  prompts.py
+      suites/<suite>/<template>.py
+    client/                    # only when the client side grows beyond main.py
+```
+
+Agreed so far: one file per operation family, and every language's example gets
+a client program in the same codebase (a second binary in compiled languages).
+Open: whether plugin and client share one package, where the sidecar entry
+lives relative to today's root `plugin.py`, and how the compiled-language
+layouts mirror this one.
+
 ## Current Implementation Evidence
 
 Protocol Origin/TestCase are in `proto/dokime/model/v1/execution.proto`; the host
