@@ -17,6 +17,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 // Third Party Imports
@@ -28,7 +29,7 @@ use tokio::io::AsyncWriteExt;
 // Local Imports
 use dokime_sdk::client::{
     ContentArtifactsGetOptions, ContentExecutionFilesGetOptions, EvidenceArchiveOptions, FilesGetOptions, FilesReadOptions,
-    ReportsCreateOptions, ReportsGetOptions, ReportsPublishOptions,
+    ReportsGetOptions,
 };
 
 use super::desktop::ArtifactSource;
@@ -124,6 +125,7 @@ pub(crate) async fn fetch_verified(
 ) -> Result<VerifiedContent, DeliveryError> {
     let session = lease.client();
     let client = session.client();
+    let started = Instant::now();
     let (reference, report_origin) = match source {
         ArtifactSource::Artifact { artifact_id } => {
             let options = ContentArtifactsGetOptions {
@@ -164,39 +166,26 @@ pub(crate) async fn fetch_verified(
             let reply = session.execute(client.evidence.archive_with(subject, options)).await?;
             (reply.file, None)
         }
-        ArtifactSource::CycleReport { cycle_id } => {
+        ArtifactSource::CycleReport { cycle_id, name } => {
             let subject = ReportSubject {
                 kind: Some(report_subject::Kind::Cycle(cycle_id.clone())),
             };
-            let options = ReportsCreateOptions {
-                context: session.call_options()?,
-                ..Default::default()
-            };
-            let reply = session.execute(client.reports.create_with(subject, "", options)).await?;
-            (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
-        }
-        ArtifactSource::ExecutionReport { execution_id } => {
-            let subject = ReportSubject {
-                kind: Some(report_subject::Kind::Execution(execution_id.clone())),
-            };
-            let options = ReportsCreateOptions {
-                context: session.call_options()?,
-                ..Default::default()
-            };
-            let prepared = session.execute(client.reports.create_with(subject.clone(), "", options)).await?;
-            let file = prepared.file.ok_or_else(|| invalid("Prepare Report: Host Omitted Its File Reference"))?;
-            let name = file.metadata.as_ref().ok_or_else(|| invalid("Prepare Report: Host Omitted Its Identity"))?.id.clone();
-            let options = ReportsPublishOptions {
-                context: session.call_options()?,
-                ..Default::default()
-            };
-            let published = session.execute(client.reports.publish_with(name, subject.clone(), file.sha256, options)).await?;
-            let name = published.report.ok_or_else(|| invalid("Publish Report: Host Omitted Its Published Identity"))?.identifier;
             let options = ReportsGetOptions {
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.reports.get_with(subject, name, options)).await?;
+            let reply = session.execute(client.reports.get_with(subject, name.clone(), options)).await?;
+            (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
+        }
+        ArtifactSource::ExecutionReport { execution_id, name } => {
+            let subject = ReportSubject {
+                kind: Some(report_subject::Kind::Execution(execution_id.clone())),
+            };
+            let options = ReportsGetOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply = session.execute(client.reports.get_with(subject, name.clone(), options)).await?;
             (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
         }
     };
@@ -221,6 +210,8 @@ pub(crate) async fn fetch_verified(
         return Err(invalid("Read Content: Host Omitted Its Transfer Limits"));
     }
     let content_type = reference.metadata.as_ref().map(|metadata| metadata.media_type.clone());
+    let request_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let started = Instant::now();
     let directory =
         destination.parent().ok_or_else(|| DeliveryError::local(DeliveryStage::Prepare, "Select a destination with a parent directory"))?;
     fs::create_dir_all(directory).await.map_err(write_error)?;
@@ -229,12 +220,15 @@ pub(crate) async fn fetch_verified(
     let mut digest = Sha256::new();
     let mut offset = 0;
     let mut at = selected.resolved_at;
+    let mut transfer = Duration::ZERO;
     while offset < reference.length {
         let options = FilesReadOptions {
             at: at.clone(),
             context: session.call_options()?,
         };
+        let reading = Instant::now();
         let reply = session.execute(client.files.read_with(reference.clone(), offset, frame_bytes as u64, options)).await?;
+        transfer += reading.elapsed();
         if reply.total_length != reference.length
             || reply.sha256 != reference.sha256
             || reply.data.is_empty()
@@ -262,6 +256,14 @@ pub(crate) async fn fetch_verified(
     drop(file);
     let path = destination.to_path_buf();
     staged.persist_noclobber(&path).map_err(|error| DeliveryError::local(DeliveryStage::Rename, error.to_string()))?;
+    tracing::info!(
+        file = %reference.metadata.as_ref().map(|metadata| metadata.id.as_str()).unwrap_or_default(),
+        request_ms,
+        transfer_ms = transfer.as_secs_f64() * 1000.0,
+        write_ms = started.elapsed().saturating_sub(transfer).as_secs_f64() * 1000.0,
+        bytes = reference.length,
+        "Content Delivered"
+    );
     Ok(VerifiedContent { path, content_type, report_origin })
 }
 

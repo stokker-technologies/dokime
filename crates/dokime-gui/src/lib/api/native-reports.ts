@@ -1,4 +1,3 @@
-import type { NotificationFailure } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -15,7 +14,9 @@ import type { NotificationFailure } from "@/lib/notification-details";
 // Third Party Imports
 
 // Local Imports
-import { failureOf } from "@/lib/notification-details";
+import { failureOf, type NotificationFailure } from "@/lib/notification-details";
+import { reportsCreate, reportsPublish } from "@/lib/host/client";
+import { required } from "@/lib/rpc/canonical";
 import { commands } from "@/lib/desktop/commands";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -59,7 +60,20 @@ export async function downloadNativeReport(
   source: NativeReportSource,
   filename: string,
 ): Promise<SavedReport | null> {
-  const delivered = await deliverNativeContent(session, { source, kind: "html_report", filename, action: "save" });
+  const subject = {
+    kind:
+      source.kind === "execution_report"
+        ? ({ case: "execution", value: source.executionId } as const)
+        : ({ case: "cycle", value: source.cycleId } as const),
+  };
+  const prepared = await reportsCreate(session, { subject, documentId: "", requestId: crypto.randomUUID() });
+  const file = required(prepared.file, "Create Report");
+  let name = required(file.metadata, "Create Report File").id;
+  if (source.kind === "execution_report") {
+    const published = await reportsPublish(session, { subject, name, expectedRevision: file.sha256, requestId: crypto.randomUUID() });
+    name = required(published.report, "Publish Report").identifier;
+  }
+  const delivered = await deliverNativeContent(session, { source: { ...source, name }, kind: "html_report", filename, action: "save" });
   if (!delivered) return null;
   try {
     await commands.desktopOpenPath(delivered.path);

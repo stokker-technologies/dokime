@@ -215,7 +215,11 @@ try {
   await b.clickNamed("button", "Yes");
   await until(
     "Both Desktops Observe Sealed Result",
-    async () => (await a.text()).includes("Passed") && (await b.text()).includes("Passed"),
+    async () => {
+      const details = await Promise.all([a, b].map((gui) => call(gui, "Executions", "Get", { name: executionId })));
+      const sealed = details.every((reply) => reply.execution.summary.state === "EXECUTION_STATE_SEALED");
+      return sealed && (await a.text()).includes("Passed") && (await b.text()).includes("Passed");
+    },
   );
   const detailA = await call(a, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   const detailB = await call(b, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
@@ -231,6 +235,7 @@ try {
 
   // Each Native Owner Saves and Reopens the Same Verified Sealed Report.
   const subject = { execution: executionId };
+  await assert.rejects(call(a, "Reports", "Get", { subject }));
   const preview = await call(a, "Reports", "Create", { subject, requestId: crypto.randomUUID() });
   await call(a, "Reports", "Publish", {
     subject,
@@ -247,6 +252,7 @@ try {
     const report = await deliver(gui, { kind: "execution_report", executionId }, "execution.html", "html_report");
     assert.equal(report.origin, "sealed");
     const html = await readFile(report.path);
+    assert.equal(createHash("sha256").update(html).digest("base64"), preview.file.sha256);
     await mkdir(join(evidence, name), { recursive: true });
     await writeFile(join(evidence, name, "execution.html"), html);
     hashes.push(createHash("sha256").update(html).digest("hex"));

@@ -10,9 +10,8 @@
 /* Download Report: a labelled button beside Export Evidence, in the same
  * style, in the action cluster of the cycle and the execution viewer.
  *
- * It saves through the native dialog the same report Open Report opens — one
- * rendered from the run so far, the sealed one, or the sealed one rendered
- * again when its file is gone — named after the cycle or execution, then
+ * It creates one frozen report and saves its retained bytes through the native
+ * dialog, named after the cycle or execution, then
  * opens the saved file in the default browser. It waits only for a save
  * already in progress.
  */

@@ -189,12 +189,28 @@ test("Saved Report Browser", async () => {
   const opened: string[] = [];
   let refuseOpen = false;
   const saved: string[] = [];
+  const created: unknown[] = [];
+  const published: unknown[] = [];
   vi.resetModules();
   vi.doMock("@/lib/desktop-open", async (original) => ({ ...(await original<object>()), isTauriDesktop: () => true }));
+  vi.doMock("@/lib/host/client", () => ({
+    reportsCreate: async (_session: unknown, request: unknown) => {
+      created.push(request);
+      return { file: { metadata: { id: "prepared-report/one" }, sha256: new Uint8Array([1]) } };
+    },
+    reportsPublish: async (_session: unknown, request: unknown) => {
+      published.push(request);
+    },
+  }));
   vi.doMock("@/lib/desktop/commands", () => ({
     commands: {
       desktopArtifactDeliver: async (_generation: string, document: { filename: string; source: unknown; action: string }) => {
-        assert.deepEqual(document.source, { kind: "cycle_report", cycleId: "cycle-1" });
+        assert.deepEqual(
+          document.source,
+          document.action === "open"
+            ? { kind: "cycle_report", cycleId: "cycle-1" }
+            : { kind: "cycle_report", cycleId: "cycle-1", name: "prepared-report/one" },
+        );
         assert.equal("bytesBase64" in document, false);
         if (document.action === "open") {
           return { path: "/native/cache/report.html", origin: "current" };
@@ -231,11 +247,58 @@ test("Saved Report Browser", async () => {
     assert.equal(delivered?.openFailure?.message, "no default browser");
     assert.ok(delivered?.openFailure?.stack);
     assert.deepEqual(saved, ["bench.html", "cancelled.html", "night.html"]);
+    assert.equal(created.length, 3);
+    assert.equal(published.length, 0);
 
     // Current Report Origin Survives the Native Pull Without an HTML Payload
     assert.equal(await openNativeReport(session, source), "Current");
   } finally {
+    vi.doUnmock("@/lib/host/client");
     vi.doUnmock("@/lib/desktop-open");
+    vi.doUnmock("@/lib/desktop/commands");
+    vi.resetModules();
+  }
+});
+
+test("Execution Report Save Creates Once and Downloads the Published File", async () => {
+  const actions: string[] = [];
+  const digest = new Uint8Array([1, 2, 3]);
+  vi.resetModules();
+  vi.doMock("@/lib/host/client", () => ({
+    reportsCreate: async () => {
+      actions.push("create");
+      return { file: { metadata: { id: "prepared-report/one" }, sha256: digest } };
+    },
+    reportsPublish: async (_session: unknown, request: { name: string; expectedRevision: Uint8Array }) => {
+      actions.push("publish");
+      assert.equal(request.name, "prepared-report/one");
+      assert.deepEqual(request.expectedRevision, digest);
+      return { report: { identifier: "published" } };
+    },
+  }));
+  vi.doMock("@/lib/api/native-delivery", () => ({
+    deliverNativeContent: async (_session: unknown, request: { source: unknown }) => {
+      actions.push("download");
+      assert.deepEqual(request.source, { kind: "execution_report", executionId: "execution", name: "published" });
+      return { path: "/saved/report.html" };
+    },
+  }));
+  vi.doMock("@/lib/desktop/commands", () => ({
+    commands: {
+      desktopOpenPath: async () => {
+        actions.push("open");
+      },
+    },
+  }));
+  try {
+    const { downloadNativeReport } = await import("@/lib/api/native-reports");
+    const session = { generation: "generation", isCurrent: () => true } as never;
+    const result = await downloadNativeReport(session, { kind: "execution_report", executionId: "execution" }, "report.html");
+    assert.deepEqual(result, { path: "/saved/report.html", openFailure: null });
+    assert.deepEqual(actions, ["create", "publish", "download", "open"]);
+  } finally {
+    vi.doUnmock("@/lib/host/client");
+    vi.doUnmock("@/lib/api/native-delivery");
     vi.doUnmock("@/lib/desktop/commands");
     vi.resetModules();
   }

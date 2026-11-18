@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::io::{Seek, Write};
+use std::time::Instant;
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -53,6 +54,7 @@ pub const ID: &str = "dokime.host.v1.Reports/Create";
 
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
+        let started = Instant::now();
         let (capture, resolved_at, prepared) = capture::collect(context, &request).await?;
         let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
         let template = context.host.report_template();
@@ -142,11 +144,11 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             }
         };
 
-        if let Some(mut prepared) = prepared {
-            prepared.file = Some(reference.clone());
-            administration::retain(context, &name, Scope::Execution(&prepared.execution).identifier()?, &prepared).await?;
-        }
+        let mut prepared = prepared.unwrap_or_default();
+        prepared.file = Some(reference.clone());
+        administration::retain(context, &name, scope.identifier()?, &prepared).await?;
         context.host.retain_report(reference.clone())?;
+        tracing::info!(report = %name, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Created");
         Ok(ReportsCreateResponse {
             report: Some(metadata),
             file: Some(reference),

@@ -13,16 +13,24 @@
 
 /* === Imports === */
 
-use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
-
 // Standard Library Imports
-use std::path::{Path, PathBuf};
+use std::{
+    env, fmt, fs,
+    future::Future,
+    io::{ErrorKind, Write},
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
+
+#[cfg(windows)]
+use std::{os::windows::ffi::OsStrExt, ptr::null_mut};
 
 #[cfg(unix)]
-use std::{fs, os::unix::fs::PermissionsExt};
+use std::os::unix::fs::PermissionsExt;
 
 // Third Party Imports
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -30,21 +38,9 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
 // Local Imports
-// ***
-
-//
-
-// Dokime
-
-//
-
-// SPDX-License-Identifier: Apache-2.0
-
-//
-
-// ***
 use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
+use crate::rpc::protocol;
 use dokime_sdk::client::AccessListenerGetOptions;
 
 /* === Constants === */
@@ -108,12 +104,31 @@ enum ExtensionPolicy {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum ArtifactSource {
-    Artifact { artifact_id: String },
-    ExecutionFile { execution_id: String, relative_path: String },
-    ExecutionEvidence { execution_id: String },
-    CycleEvidence { cycle_id: String },
-    CycleReport { cycle_id: String },
-    ExecutionReport { execution_id: String },
+    Artifact {
+        artifact_id: String,
+    },
+    ExecutionFile {
+        execution_id: String,
+        relative_path: String,
+    },
+    ExecutionEvidence {
+        execution_id: String,
+    },
+    CycleEvidence {
+        cycle_id: String,
+    },
+    CycleReport {
+        cycle_id: String,
+
+        #[serde(default)]
+        name: String,
+    },
+    ExecutionReport {
+        execution_id: String,
+
+        #[serde(default)]
+        name: String,
+    },
 }
 
 // Where a delivery landed, and for a report whether it was sealed or rendered from current evidence.
@@ -135,8 +150,8 @@ pub enum DeliveryAction {
 
 /* === Implementations === */
 
-impl std::fmt::Debug for DesktopSaveDocument {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for DesktopSaveDocument {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("DesktopSaveDocument").field("kind", &self.kind).field("filename", &self.filename).finish_non_exhaustive()
     }
 }
@@ -153,6 +168,30 @@ pub fn desktop_build() -> DesktopBuild {
 }
 
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
+    let automation =
+        (env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true")).then(|| env::var("DOKIME_AUTOMATION_REPORT_OPENER").ok()).flatten();
+    if let Some(endpoint) = automation {
+        let endpoint = url::Url::parse(&endpoint).map_err(|error| error.to_string())?;
+        if endpoint.scheme() != "http"
+            || endpoint.host_str() != Some("127.0.0.1")
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+            || endpoint.path() != "/open"
+        {
+            return Err("The automation report opener must be an owned loopback endpoint.".to_owned());
+        }
+        let client =
+            crate::app::http::client().no_proxy().redirect(reqwest::redirect::Policy::none()).build().map_err(|error| error.to_string())?;
+        let response = client
+            .post(endpoint)
+            .json(&serde_json::json!({ "path": path }))
+            .timeout(Duration::from_millis(DESKTOP_DOCUMENT_TIMEOUT_MS))
+            .send()
+            .await
+            .map_err(|error| error.to_string())?;
+        response.error_for_status().map_err(|error| error.to_string())?;
+        return Ok(());
+    }
     tauri::async_runtime::spawn_blocking(move || open_path(&app, path)).await.map_err(|error| error.to_string())?
 }
 
@@ -206,7 +245,7 @@ pub async fn desktop_pairing_create(
         now.minute(),
         now.second()
     );
-    if settings.endpoint.parse::<std::net::SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
+    if settings.endpoint.parse::<SocketAddr>().is_ok_and(|address| address.ip().is_loopback()) {
         label.push_str(" (Same PC)");
     }
     let filename = sanitize_filename(&label, DesktopSaveKind::Artifact, 128).map_err(local)?;
@@ -223,7 +262,7 @@ pub async fn desktop_pairing_create(
         if path.extension().and_then(|value| value.to_str()) != Some("pair") {
             return Err("Remote access files require the .pair extension".into());
         }
-        match std::fs::symlink_metadata(&path) {
+        match fs::symlink_metadata(&path) {
             Ok(metadata) => {
                 if !metadata.is_file() || metadata.file_type().is_symlink() {
                     return Err("Pairing destination must be a regular file".into());
@@ -240,7 +279,7 @@ pub async fn desktop_pairing_create(
                 }
                 Ok(Some((path, true)))
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Some((path, false))),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(Some((path, false))),
             Err(error) => Err(error.to_string()),
         }
     })
@@ -258,7 +297,6 @@ pub async fn desktop_pairing_create(
     let destination = path.clone();
     let saved = match bytes {
         Ok(bytes) => tauri::async_runtime::spawn_blocking(move || {
-            use std::io::Write;
             let parent = destination.parent().ok_or("Pairing destination has no parent")?;
             let mut staged = tempfile::Builder::new().prefix(".pair-").tempfile_in(parent).map_err(|error| error.to_string())?;
             set_private_file(staged.path())?;
@@ -372,7 +410,7 @@ pub async fn desktop_pick_secret_archive(
         let maximum = 699_052u64 as usize;
         let bytes = harmos_runtime::filesystem::input::read(&path, maximum).map_err(|_| "Secret archive is unreadable or oversized")?;
         ensure_document_session(&session, &generation)?;
-        Ok(Some(BASE64.encode(bytes)))
+        Ok(Some(STANDARD.encode(bytes)))
     })
     .await
     .map_err(|_| "Secret archive picker failed".to_owned())?
@@ -434,10 +472,10 @@ pub async fn desktop_artifact_deliver(
         .map_err(|error| prepare(error.to_string()))?
         .into_temp_path();
     // The Download API Creates Its Own Output File; Keep The Unique Name And Cleanup Guard.
-    std::fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
+    fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
 
     // Stream and Verify Beside the Chosen Destination or in the Open Cache
-    let verified = content::fetch_verified(&lease, &request.source, &staged, DESKTOP_FRAME_BYTES as usize).await?;
+    let verified = content::fetch_verified(&lease, &request.source, &staged, protocol::FRAME_BYTES as usize).await?;
     let cleanup = staged;
     ensure_document_session(&session, &generation).map_err(prepare)?;
 
@@ -451,33 +489,13 @@ pub async fn desktop_artifact_deliver(
     // thread other in-flight async commands need.
     let path = verified.path.to_string_lossy().into_owned();
     let launched = path.clone();
-    let automation = (std::env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true"))
-        .then(|| std::env::var("DOKIME_AUTOMATION_REPORT_OPENER").ok())
-        .flatten();
-    if let Some(endpoint) = automation {
-        let endpoint = url::Url::parse(&endpoint).map_err(|error| open(error.to_string()))?;
-        if endpoint.scheme() != "http"
-            || endpoint.host_str() != Some("127.0.0.1")
-            || !endpoint.username().is_empty()
-            || endpoint.password().is_some()
-            || endpoint.path() != "/open"
-        {
-            return Err(open("The automation report opener must be an owned loopback endpoint.".to_owned()));
-        }
-        ensure_document_session(&session, &generation).map_err(prepare)?;
-        let client = crate::app::http::client()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|error| open(error.to_string()))?;
-        let response = client
-            .post(endpoint)
-            .json(&serde_json::json!({ "path": launched }))
-            .timeout(std::time::Duration::from_millis(DESKTOP_DOCUMENT_TIMEOUT_MS))
-            .send()
+    let automation = env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true") && env::var("DOKIME_AUTOMATION_REPORT_OPENER").is_ok();
+    if automation {
+        lease
+            .guard(desktop_open_path(app, launched))
             .await
-            .map_err(|error| open(error.to_string()))?;
-        response.error_for_status().map_err(|error| open(error.to_string()))?;
+            .map_err(|error| open(format!("Native report delivery lost its owning connection: {error:?}")))?
+            .map_err(open)?;
     } else {
         tauri::async_runtime::spawn_blocking(move || {
             let opened = session.with_current(&generation, || open_path(&app, launched));
@@ -495,7 +513,7 @@ pub async fn desktop_artifact_deliver(
 // Tests Supply A Picker Result; Download And Publication Stay On The Real Path.
 pub async fn save_verified(
     session: ConnectionSession, generation: String, source: ArtifactSource, filename: String,
-    picked: impl std::future::Future<Output = Result<Option<(PathBuf, bool)>, String>>,
+    picked: impl Future<Output = Result<Option<(PathBuf, bool)>, String>>,
 ) -> Result<Option<Delivered>, DeliveryError> {
     let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
     let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
@@ -508,13 +526,15 @@ pub async fn save_verified(
         .tempfile_in(directory)
         .map_err(|error| prepare(error.to_string()))?
         .into_temp_path();
-    std::fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
-    let verified = content::fetch_verified(&lease, &source, &staged, DESKTOP_FRAME_BYTES as usize).await?;
+    fs::remove_file(&staged).map_err(|error| prepare(error.to_string()))?;
+    let verified = content::fetch_verified(&lease, &source, &staged, protocol::FRAME_BYTES as usize).await?;
     ensure_document_session(&session, &generation).map_err(prepare)?;
     let origin = verified.report_origin();
+    let publishing = Instant::now();
     move_verified_file(session, generation, verified.path, destination.clone(), overwrite)
         .await
         .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
+    tracing::info!(path = %destination.display(), write_publish_ms = publishing.elapsed().as_secs_f64() * 1000.0, "Verified File Saved");
     Ok(Some(Delivered {
         path: destination.to_string_lossy().into_owned(),
         origin,
@@ -525,7 +545,7 @@ pub fn desktop_set_title(window: WebviewWindow, title: String) -> Result<(), Str
     set_window_title(&window, &title).map_err(|error| error.to_string())
 }
 
-// === Native document delivery helpers === //
+// === Native Document Delivery Helpers === //
 
 pub(crate) fn ensure_main_window<R: tauri::Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
     if window.label() == "main" { Ok(()) } else { Err("Native document delivery is restricted to the main window".into()) }
@@ -645,7 +665,7 @@ fn decode_bounded(encoded: &str, max_encoded_chars: usize, max_bytes: usize, lab
     if encoded.len() > max_encoded_chars {
         return Err(format!("{label} bytes exceed the native delivery limit before decoding"));
     }
-    let bytes = BASE64.decode(encoded).map_err(|error| format!("{label} bytes are not valid base64: {error}"))?;
+    let bytes = STANDARD.decode(encoded).map_err(|error| format!("{label} bytes are not valid base64: {error}"))?;
     if bytes.len() > max_bytes {
         return Err(format!("{label} exceeds the {max_bytes}-byte native delivery limit"));
     }
@@ -729,7 +749,6 @@ fn restrict_to_owner(path: &Path, mode: u32) -> Result<(), String> {
 
 #[cfg(windows)]
 fn restrict_to_owner(path: &Path, mode: u32) -> Result<(), String> {
-    use std::os::windows::ffi::OsStrExt;
     use windows::{
         Win32::{
             Foundation::{HLOCAL, LocalFree},
@@ -753,7 +772,7 @@ fn restrict_to_owner(path: &Path, mode: u32) -> Result<(), String> {
         let result = (|| {
             let mut present = BOOL::default();
             let mut defaulted = BOOL::default();
-            let mut acl = std::ptr::null_mut();
+            let mut acl = null_mut();
             GetSecurityDescriptorDacl(descriptor, &mut present, &mut acl, &mut defaulted).map_err(|error| error.to_string())?;
             if !present.as_bool() || acl.is_null() {
                 return Err("Private file ACL is absent".into());
@@ -813,9 +832,9 @@ fn pick_destination(
         return Ok(Some((destination, true)));
     }
 
-    let metadata = match std::fs::symlink_metadata(&destination) {
+    let metadata = match fs::symlink_metadata(&destination) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some((destination, false))),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Some((destination, false))),
         Err(error) => return Err(error.to_string()),
     };
     if !metadata.is_file() || metadata.file_type().is_symlink() {
@@ -837,7 +856,7 @@ pub async fn move_verified_file(
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _source = tempfile::TempPath::try_from_path(source.clone()).map_err(|error| error.to_string())?;
-        let input = std::fs::OpenOptions::new().read(true).write(true).open(&source).map_err(|error| error.to_string())?;
+        let input = fs::OpenOptions::new().read(true).write(true).open(&source).map_err(|error| error.to_string())?;
         input.sync_all().map_err(|error| error.to_string())?;
         drop(input);
         let staged_path = &source;
@@ -877,7 +896,7 @@ mod tests {
         let document = DesktopSaveDocument {
             kind: DesktopSaveKind::HtmlReport,
             filename: "report.html".into(),
-            bytes_base64: BASE64.encode("<html></html>"),
+            bytes_base64: STANDARD.encode("<html></html>"),
         };
         let error = validate_save_document("7", &document).unwrap_err();
         assert!(error.contains("desktop_artifact_deliver"));
@@ -887,7 +906,7 @@ mod tests {
         serde_json::from_value(serde_json::json!({
             "kind": "json_document",
             "filename": filename,
-            "bytesBase64": BASE64.encode(bytes),
+            "bytesBase64": STANDARD.encode(bytes),
         }))
         .unwrap()
     }
