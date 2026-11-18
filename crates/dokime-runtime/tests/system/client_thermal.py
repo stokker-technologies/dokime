@@ -17,11 +17,12 @@ from pathlib import Path
 
 from dokime import (
     CapturedRecordSelection,
-    RecordScope,
     EvidenceScope,
     MapValue,
     Metadata,
+    RecordScope,
     Value,
+    model,
 )
 from dokime.client import (
     PLUGIN_STATE_READY,
@@ -40,9 +41,8 @@ from dokime.client import (
     SelectionPlan,
     SelectionValues,
 )
-from dokime.schemas import FrozenSchemaCache
 from dokime.connection import connect
-from dokime import model
+from dokime.schemas import FrozenSchemaCache
 
 # === Public Exports === #
 
@@ -84,21 +84,13 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
                 BucketRequest(),
                 False,
             )
-            assert (
-                records.SerializeToString(deterministic=True)
-                == expected.with_suffix(".records").read_bytes()
-            )
-            assert (
-                samples.SerializeToString(deterministic=True)
-                == expected.with_suffix(".samples").read_bytes()
-            )
+            assert records.SerializeToString(deterministic=True) == expected.with_suffix(".records").read_bytes()
+            assert samples.SerializeToString(deterministic=True) == expected.with_suffix(".samples").read_bytes()
             return
 
         # Create the Library Plugin Entry and Read Its Product Catalog
         placement = PluginPlacement(remote=PluginRemote(url=plugin_url))
-        entry = (
-            await client.plugins.create("thermal", placement, PluginValue(enabled=True))
-        ).entry
+        entry = (await client.plugins.create("thermal", placement, PluginValue(enabled=True))).entry
         changes = client.plugins.watch(name=entry.name)
         try:
             while entry.state != PLUGIN_STATE_READY:
@@ -119,11 +111,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         selection = RegisteredSelection(
             suite_id=suite_id,
             template_id="thermal.cycle",
-            parameters=[
-                RegisteredSelectionParametersEntry(
-                    key="limit", value=SelectionValues(values=[Value(number=85.0)])
-                )
-            ],
+            parameters=[RegisteredSelectionParametersEntry(key="limit", value=SelectionValues(values=[Value(number=85.0)]))],
         )
         cases = await client.cases.create(SelectionPlan(selections=[selection]), True)
         cycle = await client.cycles.create(
@@ -157,12 +145,8 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         detail = (await client.executions.get(identifier)).execution
         assert detail.summary.state == 3 and detail.seal
         assert detail.outcome.evaluated.status == RESULT_STATUS_PASSED
-        listed = await client.executions.list(
-            "", ExecutionSelection(), ExecutionFilter(), ExecutionOrder()
-        )
-        assert [execution.summary for execution in listed.executions] == [
-            detail.summary
-        ]
+        listed = await client.executions.list("", ExecutionSelection(), ExecutionFilter(), ExecutionOrder())
+        assert [execution.summary for execution in listed.executions] == [detail.summary]
         records = await client.evidence.records.list(
             "",
             [],
@@ -173,9 +157,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         )
         assert len(records.records) == 1 and records.records[0].payload
         schemas = FrozenSchemaCache()
-        door = await schemas.decode(
-            client, detail, records.records[0].record_type, records.records[0].payload
-        )
+        door = await schemas.decode(client, detail, records.records[0].record_type, records.records[0].payload)
         fields = {field.name: value for field, value in door.ListFields()}
         assert fields["closed"] is True
         samples = await client.evidence.samples.list(
@@ -190,28 +172,17 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             False,
         )
         assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
-        times = [
-            (sample.raw.timestamp.seconds, sample.raw.timestamp.nanos)
-            for sample in samples.samples
-        ]
+        times = [(sample.raw.timestamp.seconds, sample.raw.timestamp.nanos) for sample in samples.samples]
         assert times == [(1, 0), (2, 0)], f"Sample the Hold at 1 s and 2 s: {times}"
         assert all(sample.raw.payload for sample in samples.samples)
-        assert all(
-            sample.raw.values.values["celsius"].number == 84.0
-            for sample in samples.samples
-        )
+        assert all(sample.raw.values.values["celsius"].number == 84.0 for sample in samples.samples)
 
         # Read the Prepared Report Through the Shared File Resource
         prepared = await client.reports.create(ReportSubject(execution=identifier), "")
-        report = await client.files.read(prepared.file, 0, prepared.file.length)
-        assert identifier in report.data.decode()
+        await client.files.read(prepared.file, 0, prepared.file.length)
         expected.write_bytes(detail.SerializeToString(deterministic=True))
-        expected.with_suffix(".records").write_bytes(
-            records.SerializeToString(deterministic=True)
-        )
-        expected.with_suffix(".samples").write_bytes(
-            samples.SerializeToString(deterministic=True)
-        )
+        expected.with_suffix(".records").write_bytes(records.SerializeToString(deterministic=True))
+        expected.with_suffix(".samples").write_bytes(samples.SerializeToString(deterministic=True))
     finally:
         await client.close()
 

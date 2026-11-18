@@ -26,17 +26,19 @@ from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, Plu
 from dokime import (
     CLASSIFICATION_TRANSIENT,
     ArtifactScope,
+    Context,
     FailureError,
     FailureValue,
     Metadata,
     Operation,
     Parameter,
+    Plugin,
     Visibility,
     operation,
 )
 from dokime.authoring import Case, criterion, materialize, step, suite
 from dokime.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
-from dokime.plugin import Context, HostOperation, Plugin
+from dokime.plugin import HostOperation
 from dokime.values import Scalar, encode
 
 # Type Checking Imports

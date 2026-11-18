@@ -36,6 +36,7 @@ MODULES = [
     "dokime.evidence",
     "dokime.transfers",
     "dokime.documents",
+    "dokime.operations",
     "dokime.plot",
     "dokime.plugin",
     "dokime.schemas",

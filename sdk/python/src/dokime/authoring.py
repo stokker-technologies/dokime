@@ -17,7 +17,7 @@ from collections.abc import Callable, Sequence
 from copy import copy
 from dataclasses import dataclass, field
 from types import FunctionType
-from typing import Any
+from typing import Any, ClassVar, TypeVar
 from weakref import WeakKeyDictionary
 
 # Third Party Imports
@@ -102,6 +102,8 @@ class Stream:
 
 @dataclass(frozen=True)
 class Record[T: Payload]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     row: type[T]
     label: str = ""
     identifier: str | None = None
@@ -156,7 +158,8 @@ class Template:
         bound._prompts = {}
         names: list[str] = []
         declarations: list[tuple[object, str, str | None]] = []
-        for item in (*self.steps, *self.criteria):
+        members: tuple[Step | Criterion, ...] = (*self.steps, *self.criteria)
+        for item in members:
             declarations.append((item.handler, getattr(item.handler, "__name__", ""), item.identifier))
         for name, member in self._methods.items():
             if isinstance(member, Record):
@@ -314,6 +317,7 @@ def prompt(
         if identifier is None and value.metadata.identifier:
             identifier = value.metadata.identifier
     else:
+        value.archetype = shared.PROMPT_ARCHETYPE_CHOICE
         value.message = text
         value.metadata.label = label or text
         for index, choice in enumerate(choices or ("OK",)):

@@ -48,7 +48,12 @@ public sealed class PromptDeclaration
   public PromptDeclaration(string text, string[]? choices = null, string? identifier = null, string label = "")
   {
     Identifier = identifier;
-    Definition = new Prompt { Message = text, Metadata = new Metadata { Label = label.Length == 0 ? text : label } };
+    Definition = new Prompt
+    {
+      Message = text,
+      Archetype = PromptArchetype.Choice,
+      Metadata = new Metadata { Label = label.Length == 0 ? text : label },
+    };
     foreach (var (choice, index) in (choices ?? ["OK"]).Select((choice, index) => (choice, index)))
       Definition.Actions.Add(new PromptAction { Identifier = index.ToString(CultureInfo.InvariantCulture), Label = choice });
   }

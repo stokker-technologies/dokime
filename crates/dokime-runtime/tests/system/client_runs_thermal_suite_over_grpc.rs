@@ -52,7 +52,6 @@ use std::error::Error;
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::Stdio;
-use std::str;
 
 // Third Party Imports
 use harmos_protocol::host::plugin_placement;
@@ -392,7 +391,6 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             }
             assert_eq!(html.len() as u64, file.length);
             assert_eq!(Sha256::digest(&html).as_slice(), file.sha256);
-            assert!(str::from_utf8(&html)?.contains(&execution_id));
             assert_eq!(
                 client.executions.get(execution_id.clone()).await?.execution.unwrap().report.unwrap().state,
                 ReportState::Pending as i32

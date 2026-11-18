@@ -37,7 +37,7 @@ type Payload = Message | bool | str | int | float
 # === Public Functions === #
 
 
-def message_type(row_type: type[Payload]) -> type[Message]:
+def message_type[T: Payload](row_type: type[T]) -> type[Message]:
     wrappers = {bool: BoolValue, str: StringValue, int: Int64Value, float: DoubleValue}
     wrapper = wrappers.get(row_type)
     if wrapper is not None:
@@ -47,7 +47,7 @@ def message_type(row_type: type[Payload]) -> type[Message]:
     raise TypeError("Declare Payload: Supply bool, str, int, float or a Protobuf Message")
 
 
-def pack(row_type: type[Payload], value: Payload) -> Message:
+def pack[T: Payload](row_type: type[T], value: T) -> Message:
     if type(value) is not row_type and not (isinstance(value, Message) and isinstance(value, row_type)):
         raise TypeError(f"Encode Payload: Supply a {row_type.__name__} Value")
     if isinstance(value, Message):

@@ -32,6 +32,7 @@ from unittest.mock import patch
 import dokime_tools.test
 import dokime_tools.test.archive
 import dokime_tools.test.credentials
+import dokime_tools.test.scratch
 from dokime_tools.ci import tasks
 from dokime_tools.test import focused, lanes
 
@@ -124,13 +125,18 @@ class ChangedPathsTests(unittest.TestCase):
             temporary_directory.cleanup()
 
     def test_focused_dispatch_runs_the_story_filter_and_plan_never_compiles(self) -> None:
-        with patch.object(tasks.transport, "receive"), patch.object(tasks.cargo, "focused", return_value=7) as execute:
+        output = io.StringIO()
+        with (
+            patch.object(tasks.transport, "receive"),
+            patch.object(tasks.cargo, "focused", return_value=7) as execute,
+            patch.object(lanes, "run", return_value=7) as archive,
+            redirect_stdout(output),
+        ):
             for selector in ("--story", "--select"):
                 self.assertEqual(tasks.main(["test", "--package", "example", "--target", "integration", selector, "save::"]), 7)
                 self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--test", "integration", "save::"])
             execute.reset_mock()
-            with redirect_stdout(io.StringIO()) as output:
-                self.assertEqual(tasks.main(["test", "--package", "example", "--story", "save::", "--no-run", "--timings", "--plan"]), 0)
+            self.assertEqual(tasks.main(["test", "--package", "example", "--story", "save::", "--no-run", "--timings", "--plan"]), 0)
             execute.assert_not_called()
             self.assertIn("--test integration --no-run save::", output.getvalue())
             self.assertEqual(tasks.main(["test", "--package", "example"]), 7)
@@ -138,22 +144,25 @@ class ChangedPathsTests(unittest.TestCase):
             self.assertEqual(tasks.main(["test", "--package", "example", "--layer", "system", "--story", "save::"]), 7)
             self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--test", "system", "save::"])
             execute.reset_mock()
-            with patch.object(lanes, "run", return_value=7) as archive:
-                self.assertEqual(
-                    tasks.main(["test", "--package", "example", "--target", "integration", "--artifact", "tests", "--exact", "save"]), 7
-                )
-                self.assertEqual(archive.call_args.args[-1], ["-E", "binary_id(=example::integration)", "--", "--exact", "save"])
+            self.assertEqual(
+                tasks.main(["test", "--package", "example", "--target", "integration", "--artifact", "tests", "--exact", "save"]), 7
+            )
+            self.assertEqual(archive.call_args.args[-1], ["-E", "binary_id(=example::integration)", "--", "--exact", "save"])
             execute.assert_not_called()
 
     def test_filterset_reaches_source_and_archived_story_selection(self) -> None:
         expression = "not (test(native_one) or test(native_two))"
         arguments = ["test", "--package", "example", "--target", "system", "--filterset", expression]
-        with patch.object(tasks.transport, "receive"), patch.object(tasks.cargo, "focused", return_value=7) as execute:
+        with (
+            patch.object(tasks.transport, "receive"),
+            patch.object(tasks.cargo, "focused", return_value=7) as execute,
+            patch.object(dokime_tools.test.archive, "install_wheels"),
+            patch.object(lanes, "run", return_value=9) as run,
+        ):
             self.assertEqual(tasks.main(arguments), 7)
             self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--test", "system", "-E", expression])
-            with patch.object(dokime_tools.test.archive, "install_wheels"), patch.object(lanes, "run", return_value=9) as run:
-                self.assertEqual(tasks.main([*arguments, "--artifact", "tests"]), 9)
-                self.assertEqual(run.call_args.args[-1], ["-E", "binary_id(=example::system)", "-E", expression])
+            self.assertEqual(tasks.main([*arguments, "--artifact", "tests"]), 9)
+            self.assertEqual(run.call_args.args[-1], ["-E", "binary_id(=example::system)", "-E", expression])
 
     def test_native_runner_keeps_deadlines_exact_selection_and_failure(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
@@ -207,6 +216,33 @@ class ChangedPathsTests(unittest.TestCase):
                 )
             )
             self.assertEqual((root / "target/test-reports/focused/junit.xml").read_text(), '<testsuite><testcase name="save"/></testsuite>')
+        finally:
+            temporary_directory.cleanup()
+
+    def test_native_report_survives_cleanup_failure(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name)
+            (root / "tools").mkdir()
+            (root / "tools/project.toml").write_text("", encoding="utf-8")
+            resource = Resource({})
+            native = '<testsuite><testcase name="save"><failure/></testcase></testsuite>'
+
+            def execute(command: list[str], **options: Any) -> SimpleNamespace:
+                configuration = Path(command[command.index("--config-file") + 1])
+                junit = configuration.parent / "store/project/junit.xml"
+                junit.parent.mkdir(parents=True)
+                junit.write_text(native, encoding="utf-8")
+                return SimpleNamespace(returncode=1)
+
+            with (
+                patch.object(dokime_tools.test.scratch, "Root", return_value=resource),
+                patch.object(resource, "close", side_effect=RuntimeError("cleanup failed")) as close,
+                patch.object(focused.subprocess, "run", side_effect=execute),
+            ):
+                self.assertRaises(RuntimeError, focused.run, root, ["--package", "example", "--lib"])
+                close.assert_called_once_with()
+            self.assertEqual((root / "target/test-reports/focused/junit.xml").read_text(encoding="utf-8"), native)
         finally:
             temporary_directory.cleanup()
 

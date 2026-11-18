@@ -91,7 +91,7 @@ class Plugin:
             else tuple(
                 host_requirement(item)
                 if isinstance(item, HostOperation)
-                else item._wire()
+                else item._definition()
                 if isinstance(item, dokime.operations.Operation)
                 else item
                 for item in requires
@@ -109,7 +109,7 @@ class Plugin:
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
                 raise ValueError(f"Build Plugin: Supply Unique, Nonempty {name.title()} Identifiers")
-        methods = {}
+        methods: dict[str, Callable[..., Awaitable[Message | None]]] = {}
         if operations is not None:
             for cls in reversed(type(operations).__mro__):
                 for name, method in vars(cls).items():
