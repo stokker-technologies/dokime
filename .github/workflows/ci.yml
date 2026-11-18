@@ -273,7 +273,7 @@ jobs:
     - build_docs
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.release_rehearsal == 'true'
   required:
-    name: CI / Required
+    name: Check / CI / Required
     runs-on: ubuntu-latest
     if: always() && (github.event_name != 'pull_request' || github.event.action != 'closed')
     needs:
