@@ -52,6 +52,8 @@ use dokime_runtime::process;
 
 /* === Private Functions === */
 
+/* === Tests === */
+
 #[test]
 fn managed_installation_preserves_resolved_bundle_version() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
@@ -320,5 +322,3 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
         .await?
     }))
 }
-
-/* === Tests === */
