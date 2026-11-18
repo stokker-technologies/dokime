@@ -159,6 +159,8 @@ export function TextCell({
   onChange: (raw: string) => void;
 }) {
   const unit = definition.unit?.trim() ?? "";
+  const integer = ["int", "integer", "unsigned"].includes(parameterValueType(definition));
+  const expanded = isExpandedParameter(definition);
   return (
     <div className="relative min-w-0">
       <Input
@@ -166,6 +168,11 @@ export function TextCell({
         className={cn("w-full", CELL_HEIGHT, numeric && "text-right font-mono tabular-nums")}
         data-testid={`parameter-input-${definition.name}`}
         id={inputId}
+        inputMode={numeric ? (integer ? "numeric" : "decimal") : undefined}
+        type={numeric && !expanded ? "number" : "text"}
+        min={numeric && !expanded ? (definition.min ?? (parameterValueType(definition) === "unsigned" ? 0 : undefined)) : undefined}
+        max={numeric && !expanded ? (definition.max ?? undefined) : undefined}
+        step={numeric && !expanded ? (integer ? 1 : "any") : undefined}
         onChange={(event) => onChange(event.target.value)}
         spellCheck={false}
         style={

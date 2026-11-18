@@ -37,6 +37,7 @@ use dokime_protocol::model::Value;
 use dokime_protocol::model::ValueList;
 use dokime_protocol::model::ValueType;
 use dokime_protocol::model::parameter_expansion;
+use dokime_protocol::model::parameter_expression;
 use dokime_protocol::model::value;
 
 /* === Constants === */
@@ -195,8 +196,9 @@ fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usi
             return Err(Error::Invalid(format!("Plan Selection: Supply Bounded Nonempty Values for {name}")));
         }
         for value in &mut values {
-            coerce(parameter.r#type, value)?;
-            validate_parameter(parameter, value)?;
+            let received = value.clone();
+            coerce(parameter, value)?;
+            validate_parameter(parameter, value).map_err(|_| parameter_error(parameter, &received))?;
         }
         let expansion = parameter.expansion.as_ref().and_then(|expansion| expansion.kind.as_ref());
         if matches!(expansion, Some(parameter_expansion::Kind::Single(true))) && values.len() != 1 {
@@ -267,49 +269,93 @@ fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usi
     Ok(combinations)
 }
 
-fn coerce(kind: i32, value: &mut Value) -> Result<()> {
-    use dokime_protocol::model::value::Kind;
-    value.kind = Some(match (ValueType::try_from(kind), value.kind.take()) {
-        (Ok(ValueType::Number), Some(Kind::Integer(value))) => Kind::Number(value as f64),
-        (Ok(ValueType::Number), Some(Kind::UnsignedInteger(value))) => Kind::Number(value as f64),
-        (Ok(ValueType::Integer), Some(Kind::Number(value)))
+fn coerce(parameter: &Parameter, value: &mut Value) -> Result<()> {
+    value.kind = Some(match (ValueType::try_from(parameter.r#type), value.kind.take()) {
+        (Ok(ValueType::Number), Some(value::Kind::Integer(value))) if value as f64 as i128 == i128::from(value) => {
+            value::Kind::Number(value as f64)
+        }
+        (Ok(ValueType::Number), Some(value::Kind::UnsignedInteger(value))) if value as f64 as i128 == i128::from(value) => {
+            value::Kind::Number(value as f64)
+        }
+        (Ok(ValueType::UnsignedInteger), Some(value::Kind::Integer(value))) if value >= 0 => value::Kind::UnsignedInteger(value as u64),
+        (Ok(ValueType::Integer), Some(value::Kind::UnsignedInteger(value))) if i64::try_from(value).is_ok() => {
+            value::Kind::Integer(value as i64)
+        }
+        (Ok(ValueType::Integer), Some(value::Kind::Number(value)))
             if value.is_finite() && value.fract() == 0.0 && value >= i64::MIN as f64 && value < -(i64::MIN as f64) =>
         {
-            Kind::Integer(value as i64)
+            value::Kind::Integer(value as i64)
         }
-        (Ok(ValueType::UnsignedInteger), Some(Kind::Number(value)))
+        (Ok(ValueType::UnsignedInteger), Some(value::Kind::Number(value)))
             if value.is_finite() && value.fract() == 0.0 && value >= 0.0 && value < u64::MAX as f64 =>
         {
-            Kind::UnsignedInteger(value as u64)
+            value::Kind::UnsignedInteger(value as u64)
         }
         (_, Some(value)) => value,
-        (_, None) => return Err(Error::Invalid("Plan Selection: Supply a Typed Parameter Value".into())),
+        (_, None) => return Err(parameter_error(parameter, value)),
     });
     Ok(())
 }
 
 fn validate_parameter(parameter: &Parameter, value: &Value) -> Result<()> {
-    let name = &parameter.metadata.as_ref().unwrap().identifier;
     if matches!(value.kind, Some(value::Kind::Null(_))) && !parameter.required {
         return Ok(());
     }
     if !crate::host::prompts::validation::type_matches(parameter.r#type, value)
         || (!parameter.choices.is_empty() && !parameter.choices.contains(value))
     {
-        return Err(Error::Invalid(format!("Plan Selection: Use the Declared Type and Choices for {name}")));
+        return Err(parameter_error(parameter, value));
     }
     if let Some(value::Kind::List(list)) = &value.kind
         && (parameter.min_items.is_some_and(|min| list.values.len() < min as usize)
             || parameter.max_items.is_some_and(|max| list.values.len() > max as usize)
             || list.values.iter().any(|value| !crate::host::prompts::validation::type_matches(parameter.element_type, value)))
     {
-        return Err(Error::Invalid(format!("Plan Selection: Match the Declared List Shape for {name}")));
+        return Err(parameter_error(parameter, value));
     }
-    let number = numeric(value);
-    if number.is_some_and(|number| parameter.min.is_some_and(|min| number < min) || parameter.max.is_some_and(|max| number > max)) {
-        return Err(Error::Invalid(format!("Plan Selection: Use the Declared Range for {name}")));
+    let integer = match value.kind {
+        Some(value::Kind::Integer(value)) => Some(i128::from(value)),
+        Some(value::Kind::UnsignedInteger(value)) => Some(i128::from(value)),
+        _ => None,
+    };
+    let outside_range = if let Some(integer) = integer {
+        parameter.min.is_some_and(|min| integer < min.ceil() as i128) || parameter.max.is_some_and(|max| integer > max.floor() as i128)
+    } else {
+        numeric(value).is_some_and(|number| parameter.min.is_some_and(|min| number < min) || parameter.max.is_some_and(|max| number > max))
+    };
+    if outside_range {
+        return Err(parameter_error(parameter, value));
     }
     Ok(())
+}
+
+fn parameter_error(parameter: &Parameter, value: &Value) -> Error {
+    let metadata = parameter.metadata.as_ref().unwrap();
+    let label = if metadata.label.is_empty() { &metadata.identifier } else { &metadata.label };
+    let (kind, minimum, maximum) = match ValueType::try_from(parameter.r#type) {
+        Ok(ValueType::UnsignedInteger) => ("unsigned integer", "0", "18446744073709551615"),
+        Ok(ValueType::Integer) => ("signed integer", "-9223372036854775808", "9223372036854775807"),
+        Ok(ValueType::Number) => ("number", "unbounded", "unbounded"),
+        Ok(ValueType::Boolean) => ("boolean", "unbounded", "unbounded"),
+        Ok(ValueType::Text) => ("text", "unbounded", "unbounded"),
+        Ok(ValueType::Bytes) => ("bytes", "unbounded", "unbounded"),
+        Ok(ValueType::Datetime) => ("datetime", "unbounded", "unbounded"),
+        Ok(ValueType::List) => ("list with the declared element type and item bounds", "unbounded", "unbounded"),
+        _ => ("declared value type", "unbounded", "unbounded"),
+    };
+    let minimum = parameter.min.map_or_else(|| minimum.into(), |value| value.to_string());
+    let maximum = parameter.max.map_or_else(|| maximum.into(), |value| value.to_string());
+    let choices = if parameter.choices.is_empty() { String::new() } else { format!(", choices {:?}", parameter.choices) };
+    let received = match &value.kind {
+        Some(value::Kind::Integer(value)) => format!("signed integer {value}"),
+        Some(value::Kind::UnsignedInteger(value)) => format!("unsigned integer {value}"),
+        Some(value::Kind::Number(value)) => format!("number {value}"),
+        Some(value::Kind::Text(value)) => format!("text {value:?}"),
+        Some(value::Kind::Boolean(value)) => format!("boolean {value}"),
+        Some(value) => format!("{value:?}"),
+        None => "untyped value".into(),
+    };
+    Error::Invalid(format!("Plan Selection: Enter {kind} for {label} in range [{minimum}, {maximum}]{choices}; received {received}"))
 }
 
 fn numeric(value: &Value) -> Option<f64> {
@@ -322,11 +368,10 @@ fn numeric(value: &Value) -> Option<f64> {
 }
 
 fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String, Vec<Value>>, cap: usize) -> Result<Option<Vec<Value>>> {
-    use dokime_protocol::model::parameter_expression::Kind;
     let values = match expression.kind.as_ref() {
-        Some(Kind::Literal(value)) => vec![value.clone()],
-        Some(Kind::Reference(name)) => return Ok(resolved.get(name).cloned()),
-        Some(Kind::Array(array)) => {
+        Some(parameter_expression::Kind::Literal(value)) => vec![value.clone()],
+        Some(parameter_expression::Kind::Reference(name)) => return Ok(resolved.get(name).cloned()),
+        Some(parameter_expression::Kind::Array(array)) => {
             let mut values = Vec::new();
             for item in &array.values {
                 let Some(items) = expression_values(item, resolved, cap)? else {
@@ -339,7 +384,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
             }
             values
         }
-        Some(Kind::Range(range)) => {
+        Some(parameter_expression::Kind::Range(range)) => {
             if range.step == 0 {
                 return Err(Error::Invalid("Plan Selection: Use a Nonzero Integer Range Step".into()));
             }
@@ -356,7 +401,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
             }
             values
         }
-        Some(Kind::Arange(range)) => {
+        Some(parameter_expression::Kind::Arange(range)) => {
             if !range.start.is_finite() || !range.stop.is_finite() || !range.step.is_finite() || range.step == 0.0 {
                 return Err(Error::Invalid("Plan Selection: Use Finite Ranges with a Nonzero Step".into()));
             }
@@ -373,7 +418,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
             }
             values
         }
-        Some(Kind::Linspace(range)) => {
+        Some(parameter_expression::Kind::Linspace(range)) => {
             if range.count == 0 || range.count > cap as u64 || !range.start.is_finite() || !range.stop.is_finite() {
                 return Err(Error::Invalid("Plan Selection: Use a Bounded Finite Linear Space".into()));
             }
@@ -387,14 +432,14 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
                 })
                 .collect()
         }
-        Some(Kind::DynamicDefault(default)) => {
+        Some(parameter_expression::Kind::DynamicDefault(default)) => {
             let fallback = default
                 .fallback
                 .as_ref()
                 .ok_or_else(|| Error::Invalid("Plan Selection: Supply a Fallback for an Unavailable Operator Default".into()))?;
             return expression_values(fallback, resolved, cap);
         }
-        Some(Kind::Unary(unary)) => {
+        Some(parameter_expression::Kind::Unary(unary)) => {
             if unary.operator != ParameterUnaryOperator::Negate as i32 {
                 return Err(Error::Invalid("Plan Selection: Declare a Valid Unary Operator".into()));
             }
@@ -415,7 +460,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
                 })
                 .collect::<Result<_>>()?
         }
-        Some(Kind::Binary(binary)) => {
+        Some(parameter_expression::Kind::Binary(binary)) => {
             let left = binary.left.as_ref().ok_or_else(|| Error::Invalid("Plan Selection: Supply the Left Operand".into()))?;
             let right = binary.right.as_ref().ok_or_else(|| Error::Invalid("Plan Selection: Supply the Right Operand".into()))?;
             let (Some(left), Some(right)) = (expression_values(left, resolved, cap)?, expression_values(right, resolved, cap)?) else {
@@ -469,7 +514,134 @@ mod tests {
     use dokime_protocol::model::ParameterBinary;
     use dokime_protocol::model::ParameterExpansion;
     use dokime_protocol::model::ParameterExpressions;
-    use dokime_protocol::model::parameter_expression;
+    use dokime_protocol::model::Suites;
+
+    #[test]
+    fn numeric_parameters_accept_only_lossless_conversions() -> Result<()> {
+        for (declared, received, expected) in [
+            (ValueType::UnsignedInteger, value::Kind::Integer(4096), Some(value::Kind::UnsignedInteger(4096))),
+            (ValueType::UnsignedInteger, value::Kind::Integer(i64::MAX), Some(value::Kind::UnsignedInteger(i64::MAX as u64))),
+            (ValueType::UnsignedInteger, value::Kind::Integer(0), Some(value::Kind::UnsignedInteger(0))),
+            (ValueType::UnsignedInteger, value::Kind::Integer(-1), None),
+            (ValueType::Integer, value::Kind::UnsignedInteger(i64::MAX as u64), Some(value::Kind::Integer(i64::MAX))),
+            (ValueType::Integer, value::Kind::UnsignedInteger(i64::MAX as u64 + 1), None),
+            (ValueType::Integer, value::Kind::UnsignedInteger(u64::MAX), None),
+            (ValueType::Integer, value::Kind::Number(i64::MIN as f64), Some(value::Kind::Integer(i64::MIN))),
+            (ValueType::Integer, value::Kind::Number(-(i64::MIN as f64)), None),
+            (ValueType::UnsignedInteger, value::Kind::Number(u64::MAX as f64), None),
+            (ValueType::UnsignedInteger, value::Kind::Number(4096.0), Some(value::Kind::UnsignedInteger(4096))),
+            (ValueType::UnsignedInteger, value::Kind::Number(-1.0), None),
+            (ValueType::UnsignedInteger, value::Kind::Number(1.5), None),
+            (ValueType::Integer, value::Kind::Number(1.5), None),
+            (ValueType::Integer, value::Kind::Number(f64::NAN), None),
+            (ValueType::UnsignedInteger, value::Kind::Number(f64::INFINITY), None),
+            (ValueType::UnsignedInteger, value::Kind::Text("4096".into()), None),
+            (ValueType::Number, value::Kind::Integer(1 << 53), Some(value::Kind::Number((1_u64 << 53) as f64))),
+            (ValueType::Number, value::Kind::Integer((1 << 53) + 1), None),
+            (ValueType::Number, value::Kind::UnsignedInteger(u64::MAX), None),
+            (ValueType::Number, value::Kind::Integer(i64::MIN), Some(value::Kind::Number(i64::MIN as f64))),
+        ] {
+            let parameter = Parameter {
+                metadata: Some(Metadata {
+                    identifier: "value".into(),
+                    label: "Sample Value".into(),
+                    ..Default::default()
+                }),
+                r#type: declared as i32,
+                required: true,
+                ..Default::default()
+            };
+            let mut value = Value { kind: Some(received) };
+            coerce(&parameter, &mut value)?;
+            if let Some(expected) = expected {
+                validate_parameter(&parameter, &value)?;
+                assert_eq!(value.kind, Some(expected));
+            } else {
+                assert!(validate_parameter(&parameter, &value).is_err(), "{declared:?}: {value:?}");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn numeric_parameters_enforce_declared_ranges_after_conversion() {
+        let template = TestCaseTemplate {
+            parameters: vec![Parameter {
+                metadata: Some(Metadata {
+                    identifier: "iterations".into(),
+                    label: "Iterations per Sample".into(),
+                    ..Default::default()
+                }),
+                r#type: ValueType::UnsignedInteger as i32,
+                min: Some(1.0),
+                max: Some(65536.0),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        for received in [value::Kind::Integer(0), value::Kind::Integer(65537), value::Kind::Text("4096".into())] {
+            let selection = RegisteredSelection {
+                parameters: vec![RegisteredSelectionParametersEntry {
+                    key: "iterations".into(),
+                    value: Some(SelectionValues {
+                        values: vec![Value { kind: Some(received) }],
+                    }),
+                }],
+                ..Default::default()
+            };
+            assert!(matches!(expand(&template, &selection, 1), Err(Error::Invalid(_))));
+        }
+
+        // Compare Wide Integer Bounds Without Rounding the Received Value
+        let mut template = template;
+        template.parameters[0].max = Some((1_u64 << 53) as f64);
+        let selection = RegisteredSelection {
+            parameters: vec![RegisteredSelectionParametersEntry {
+                key: "iterations".into(),
+                value: Some(SelectionValues {
+                    values: vec![Value {
+                        kind: Some(value::Kind::Integer((1_i64 << 53) + 1)),
+                    }],
+                }),
+            }],
+            ..Default::default()
+        };
+        assert!(matches!(expand(&template, &selection, 1), Err(Error::Invalid(_))));
+    }
+
+    #[test]
+    fn every_obc_template_plans_its_declared_defaults() -> Result<()> {
+        let declarations = plugin_obc::declarations().expect("OBC Declarations");
+        let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").unwrap();
+        let suites = Suites::decode(section.payload.as_slice())?;
+        let mut kinds = HashSet::new();
+        let mut templates = 0;
+        for suite in suites.suites {
+            for template in suite.templates {
+                templates += 1;
+                let defaults = expand(&template, &RegisteredSelection::default(), 256)?;
+                assert!(!defaults.is_empty(), "{:?}", template.metadata);
+                for parameter in &template.parameters {
+                    kinds.insert(parameter.r#type);
+                }
+                for parameters in defaults {
+                    let selection = RegisteredSelection {
+                        parameters: parameters
+                            .iter()
+                            .map(|(key, value)| RegisteredSelectionParametersEntry {
+                                key: key.clone(),
+                                value: Some(SelectionValues { values: vec![value.clone()] }),
+                            })
+                            .collect(),
+                        ..Default::default()
+                    };
+                    assert_eq!(expand(&template, &selection, 256)?, vec![parameters]);
+                }
+            }
+        }
+        eprintln!("Planned {templates} OBC Templates With Parameter Kinds {kinds:?}");
+        Ok(())
+    }
 
     #[test]
     fn parameter_expressions_preserve_zip_and_list_shapes() -> Result<()> {
