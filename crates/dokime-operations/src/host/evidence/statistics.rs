@@ -26,10 +26,11 @@ use prost::Message;
 use prost_reflect::{DescriptorPool, Kind};
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::host::evidence::selection;
+use crate::{Error, Result, host, host::Context, resources};
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
-use dokime_storage::{BatchSelection, Evidence, NumericWindow, StatisticsRead};
+use dokime_storage::{BatchSelection, Evidence, NumericWindow, StatisticsRead, Store};
 
 /* === Constants === */
 
@@ -50,16 +51,26 @@ pub const ID: &str = "dokime.host.v1.Evidence/Statistics";
 /* === Public Functions === */
 
 pub async fn handle(context: &Context, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
-    crate::host::complete(ID, context.settings.read_timeout, async { read(context, request) }).await
+    host::complete(ID, context.settings.read_timeout, async { read(context, request) }).await
 }
+
+/* === Private Functions === */
 
 fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
     let selected = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
-    let execution = context.resolve_execution(selected, ID)?;
+    let execution = context.resolve_execution(selected, ID)?.to_owned();
     if let Some(caller) = &context.caller {
-        caller.check_action_scope(execution, ID)?;
+        caller.check_action_scope(&execution, ID)?;
     }
     let store = context.host.store();
+    let read = select(&store, &execution, request, context.settings.page_items)?;
+    if let Some(caller) = &context.caller {
+        caller.evidence("read:statistics", read.encode_to_vec(), None)?;
+    }
+    Ok(read.response.unwrap())
+}
+
+fn select(store: &Store, execution: &str, request: EvidenceStatisticsRequest, page_items: usize) -> Result<StatisticsRead> {
     if request.at.as_ref().is_some_and(|at| at.positions.len() != 1 || !at.revisions.is_empty()) {
         return Err(Error::Invalid("Compute Statistics: Supply Its Returned Execution Cut".into()));
     }
@@ -119,43 +130,28 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
         return Err(Error::Invalid("Compute Statistics: Keep Both Step Selections Consistent".into()));
     }
     let step = if request.step.is_empty() { scope_step } else { &request.step };
-    let start_ns = request
-        .between
-        .as_ref()
-        .and_then(|window| window.start.as_ref())
-        .map(crate::resources::timestamp_ns)
-        .transpose()?
-        .unwrap_or(i64::MIN);
-    let end_ns = request
-        .between
-        .as_ref()
-        .and_then(|window| window.end.as_ref())
-        .map(crate::resources::timestamp_ns)
-        .transpose()?
-        .unwrap_or(i64::MAX);
+    let start_ns =
+        request.between.as_ref().and_then(|window| window.start.as_ref()).map(resources::timestamp_ns).transpose()?.unwrap_or(i64::MIN);
+    let end_ns =
+        request.between.as_ref().and_then(|window| window.end.as_ref()).map(resources::timestamp_ns).transpose()?.unwrap_or(i64::MAX);
     if start_ns > end_ns {
         return Err(Error::Invalid("Compute Statistics: Choose Increasing Source-Time Bounds".into()));
     }
     let selected = Evidence { step: step.into(), ..Default::default() };
-    let scope_matches = crate::host::evidence::selection::scope_matches(scope, &snapshot, &selected);
-    let page_size = NonZeroUsize::new(context.settings.page_items).unwrap();
+    let scope_matches = selection::scope_matches(scope, &snapshot, &selected);
+    let page_size = NonZeroUsize::new(page_items).unwrap();
     let (after, through) = store.step_range(execution, step, snapshot.frontier, page_size)?;
     let start = after;
     let frontier = store.sample_frontier(execution, &request.stream, after, through)?;
     let mut key = request.clone();
     key.field = field.name().into();
     if let Some(mut read) = store.cached_statistics(execution, &key, start, frontier)? {
-        read.request = Some(request);
         let response = read.response.get_or_insert_default();
         response.resolved_at = Some(ReadCut {
             positions: vec![resolved_at],
             revisions: Vec::new(),
         });
-        let response = response.clone();
-        if let Some(caller) = &context.caller {
-            caller.evidence("read:statistics", read.encode_to_vec(), None)?;
-        }
-        return Ok(response);
+        return Ok(read);
     }
     let mut positions = Vec::new();
     store.read_batches(
@@ -203,19 +199,167 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
         }),
     };
     let read = StatisticsRead {
-        request: Some(request.clone()),
+        request: Some(request),
         positions,
-        response: Some(response.clone()),
+        response: Some(response),
     };
     store.cache_statistics(execution, &key, start, frontier, read.clone())?;
-    if let Some(caller) = &context.caller {
-        caller.evidence("read:statistics", read.encode_to_vec(), None)?;
-    }
-    Ok(response)
+    Ok(read)
 }
-
-/* === Private Functions === */
 
 /* === Tests === */
 
 crate::native::unary!(EvidenceStatisticsRequest, EvidenceStatisticsResponse, context, "dokime.host.v1", "Evidence", "Statistics");
+
+#[cfg(test)]
+mod tests {
+    use prost::Message;
+    use prost_types::{
+        DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, Timestamp,
+        field_descriptor_proto::{Label, Type},
+    };
+    use tempfile::TempDir;
+
+    use super::{EvidenceStatisticsRequest, Result, Store, select};
+    use dokime_protocol::model::{EvidenceScope, Import, Origin, Window, origin, value};
+    use dokime_storage::{Evidence, Execution, Sample};
+    use harmos_protocol::model::{Declarations, StreamDeclaration};
+
+    #[derive(Clone, PartialEq, Message)]
+    struct Row {
+        #[prost(uint64, tag = "1")]
+        value: u64,
+    }
+
+    fn fixture() -> Result<(TempDir, Store, EvidenceStatisticsRequest)> {
+        let root = tempfile::tempdir().map_err(dokime_storage::Error::from)?;
+        let store = Store::open(root.path())?;
+        let types = FileDescriptorSet {
+            file: vec![FileDescriptorProto {
+                name: Some("statistics.proto".into()),
+                package: Some("statistics".into()),
+                syntax: Some("proto3".into()),
+                message_type: vec![DescriptorProto {
+                    name: Some("Row".into()),
+                    field: vec![FieldDescriptorProto {
+                        name: Some("value".into()),
+                        number: Some(1),
+                        label: Some(Label::Optional as i32),
+                        r#type: Some(Type::Uint64 as i32),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+        let catalog = Declarations {
+            types: Some(types),
+            streams: vec![StreamDeclaration {
+                id: "readings".into(),
+                row: "statistics.Row".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        store.create(&Execution {
+            identifier: "execution".into(),
+            cycle: "cycle".into(),
+            origin: Some(Origin {
+                kind: Some(origin::Kind::Import(Import::default())),
+            }),
+            catalog: catalog.encode_to_vec(),
+            ..Default::default()
+        })?;
+        store.open_stream("execution", "readings")?;
+        store.append(
+            "execution",
+            Evidence {
+                step: "measure".into(),
+                kind: "step:start".into(),
+                ..Default::default()
+            },
+        )?;
+        for (source_ns, value) in [(10, 1), (20, 100)] {
+            store.sample(
+                "execution",
+                Sample {
+                    stream: "readings".into(),
+                    source_ns,
+                    row: Row { value }.encode_to_vec(),
+                    ..Default::default()
+                },
+            )?;
+        }
+        store.append(
+            "execution",
+            Evidence {
+                step: "measure".into(),
+                kind: "step:end".into(),
+                ..Default::default()
+            },
+        )?;
+        let request = EvidenceStatisticsRequest {
+            stream: "readings".into(),
+            step: "measure".into(),
+            ..Default::default()
+        };
+        Ok((root, store, request))
+    }
+
+    #[test]
+    fn cached_statistics_keep_source_time_windows_at_the_same_frontier() -> Result<()> {
+        let (_root, store, mut request) = fixture()?;
+        let frontier = store.cut("execution")?.frontier;
+        for (nanos, expected) in [(10, 1), (20, 100)] {
+            let timestamp = Timestamp { seconds: 0, nanos };
+            request.between = Some(Window {
+                start: Some(timestamp),
+                end: Some(timestamp),
+            });
+            let read = select(&store, "execution", request.clone(), 1)?;
+            assert_eq!(read.request.as_ref(), Some(&request));
+            assert_eq!(read.positions.len(), 1);
+            let statistics = read.response.unwrap().statistics.unwrap();
+            assert_eq!(statistics.count, 1);
+            assert_eq!(statistics.mean.unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
+        }
+        assert_eq!(store.cut("execution")?.frontier, frontier);
+        Ok(())
+    }
+
+    #[test]
+    fn cached_statistics_keep_scope_and_version_selections() -> Result<()> {
+        let (_root, store, request) = fixture()?;
+        let scoped = EvidenceStatisticsRequest {
+            scope: Some(EvidenceScope {
+                template_id: Some("foreign".into()),
+                ..Default::default()
+            }),
+            ..request.clone()
+        };
+        let versioned = EvidenceStatisticsRequest { versions: vec![2], ..request.clone() };
+        for excluded in [scoped, versioned] {
+            let original = select(&store, "execution", request.clone(), 1)?;
+            assert_eq!(original.response.as_ref().unwrap().statistics.as_ref().unwrap().count, 2);
+            let filtered = select(&store, "execution", excluded.clone(), 1)?;
+            assert_eq!(filtered.request, Some(excluded));
+            assert!(filtered.positions.is_empty());
+            assert_eq!(filtered.response.unwrap().statistics.unwrap().count, 0);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn cache_hits_preserve_the_original_request_and_positions() -> Result<()> {
+        let (_root, store, request) = fixture()?;
+        let original = select(&store, "execution", request.clone(), 1)?;
+        let mut explicit = request.clone();
+        explicit.field = "value".into();
+        let cached = select(&store, "execution", explicit, 1)?;
+        assert_eq!(cached.request, Some(request));
+        assert_eq!(cached.positions, original.positions);
+        assert_eq!(cached.response, original.response);
+        Ok(())
+    }
+}

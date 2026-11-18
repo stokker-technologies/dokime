@@ -150,10 +150,10 @@ def download(
     return content
 
 
-def windows(workspace: Path) -> None:
+def visual_studio() -> Path:
+    """Select the Latest Visual Studio Installation with the Native C++ Toolchain."""
     if sys.platform != "win32":
-        raise OSError("Prepare Native Prerequisites: Windows provisioning requires Windows")
-    temporary_root(workspace)
+        raise OSError("Locate Visual Studio: Run Native C++ Setup on Windows")
     vswhere = Path(os.environ["ProgramFiles(x86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
     installation = subprocess.check_output(
         [
@@ -170,8 +170,15 @@ def windows(workspace: Path) -> None:
         creationflags=spawn_flags(),
     ).strip()
     if not installation:
-        raise RuntimeError("Prepare Native Prerequisites: the Windows image requires Visual Studio C++ tools")
-    vcvars = Path(installation) / "VC/Auxiliary/Build/vcvars64.bat"
+        raise RuntimeError("Locate Visual Studio: Install the Visual Studio C++ Tools and Rerun Setup")
+    return Path(installation)
+
+
+def windows(workspace: Path) -> None:
+    if sys.platform != "win32":
+        raise OSError("Prepare Native Prerequisites: Windows provisioning requires Windows")
+    temporary_root(workspace)
+    vcvars = visual_studio() / "VC/Auxiliary/Build/vcvars64.bat"
     # Preserve Cmd Quoting Through CreateProcess.
     output = subprocess.check_output(f'cmd.exe /d /s /c ""{vcvars}" >nul && set"', text=True, creationflags=spawn_flags())
     values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line and not line.startswith("="))
