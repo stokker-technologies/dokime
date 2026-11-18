@@ -28,7 +28,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   impact:
-    name: Plan / Impact
+    name: Check / CI / Impact
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -64,7 +64,7 @@ jobs:
       check_matrix: ${{ steps.impact.outputs.check_matrix }}
       test_matrix: ${{ steps.impact.outputs.test_matrix }}
   check:
-    name: Check
+    name: Check / Product
     uses: ./.github/workflows/validate-check.yml
     with:
       channel: ci
@@ -92,7 +92,7 @@ jobs:
     needs:
     - impact
   build_host_fixtures_csharp:
-    name: Build / Host Fixtures / csharp
+    name: Build / SDK / C# / Fixtures
     uses: ./.github/workflows/validate-build-tests.yml
     with:
       channel: ci
@@ -102,7 +102,7 @@ jobs:
     needs:
     - impact
   build_python:
-    name: Build / Python
+    name: Build / SDK / Python
     uses: ./.github/workflows/validate-build-python.yml
     with:
       channel: ci
@@ -111,7 +111,7 @@ jobs:
     needs:
     - impact
   build_docs:
-    name: Build / Documentation
+    name: Build / Docs
     uses: ./.github/workflows/validate-build-docs.yml
     with:
       channel: ci
@@ -130,7 +130,7 @@ jobs:
     - build_python
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.check_generated == 'true'
   test:
-    name: Test
+    name: Test / Product
     uses: ./.github/workflows/validate-test.yml
     with:
       channel: ci
@@ -153,7 +153,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.impact.outputs.test_matrix) }}
   test_host_csharp:
-    name: Test / Execution Host / C# Equivalence
+    name: Test / SDK / Equivalence / C# (${{ matrix.platform }})
     uses: ./.github/workflows/validate-test.yml
     needs:
     - impact
@@ -173,14 +173,14 @@ jobs:
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
-      work: Rust / System / Execution Host / C# Equivalence
+      work: SDK / Equivalence / C#
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)"
       bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst"]'
       minutes: 120
       suite: execution-host-csharp
   package:
-    name: Package
+    name: Package / Product
     uses: ./.github/workflows/validate-package.yml
     with:
       channel: ci
@@ -273,7 +273,7 @@ jobs:
     - build_docs
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.release_rehearsal == 'true'
   required:
-    name: CI / Required
+    name: Check / CI / Required
     runs-on: ubuntu-latest
     if: always() && (github.event_name != 'pull_request' || github.event.action != 'closed')
     needs:
@@ -305,7 +305,7 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
   cancel_closed:
-    name: Cancel Closed Review
+    name: Check / CI / Closed Review
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && !(github.event.pull_request.merged && startsWith(github.head_ref,
       'release/v'))
     runs-on: ubuntu-latest

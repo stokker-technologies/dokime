@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   analysis:
-    name: Security / Scorecard
+    name: Check / Repository / Scorecard
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.ref == 'refs/heads/dev'

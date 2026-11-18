@@ -29,6 +29,7 @@ from time import perf_counter
 # isort: split
 
 # Local Imports
+from dokime_tools.ci.native import visual_studio
 from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
@@ -138,27 +139,12 @@ def environment() -> dict[str, str]:
     if os.name == "nt" and not environment.get("VCINSTALLDIR"):
         print("Prepare C++ Compiler: Load the MSVC Developer Environment", flush=True)
         tool_path = environment["PATH"]
-        vswhere = Path(environment["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
-        installation = subprocess.check_output(
-            [
-                str(vswhere),
-                "-latest",
-                "-products",
-                "*",
-                "-requires",
-                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-                "-property",
-                "installationPath",
-            ],
-            text=True,
-            stderr=sys.stderr,
-            creationflags=spawn_flags(),
-        ).strip()
-        developer = Path(installation) / "Common7/Tools/VsDevCmd.bat"
+        installer = Path(environment["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer"
+        developer = visual_studio() / "Common7/Tools/VsDevCmd.bat"
         output = subprocess.check_output(
             f'cmd /d /s /c ""{developer}" -no_logo -arch=x64 -host_arch=x64 >nul && set"',
             text=True,
-            env=dict(environment, PATH=str(vswhere.parent) + os.pathsep + environment["PATH"]),
+            env=dict(environment, PATH=str(installer) + os.pathsep + environment["PATH"]),
             stderr=sys.stderr,
             creationflags=spawn_flags(),
         )

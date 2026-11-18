@@ -13,6 +13,7 @@
 
 mod backend;
 mod fixture;
+mod query;
 mod report_integrity;
 mod resource_positions;
 mod telemetry;

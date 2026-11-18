@@ -378,6 +378,15 @@ test("Native Rejections and Captured Diagnostics Reach Notification History", as
     operation: "fixture.operation",
     diagnostics: "fixture-diagnostic",
   });
+  const direct = normalizeRpcError({
+    kind: "grpc",
+    detail: { code: 13, message: "fixture-outer", details: Array.from(toBinary(FailureSchema, rejected)) },
+  });
+  const decoded = failureOf(direct, "fixture-failure");
+  assert.equal(decoded.message, rejected.message);
+  assert.equal(decoded.reason, rejected.code);
+  assert.equal(decoded.operationId, rejected.operation);
+  assert.equal(decoded.diagnostics, rejected.diagnostics);
   const captured = create(CapturedRecordErrorSchema, {
     message: "fixture-summary",
     causeChain: [{ message: "fixture-wrapper" }, { message: "fixture-root", code: "fixture-root-code", source: "fixture-root.rs" }],

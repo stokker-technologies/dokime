@@ -186,7 +186,7 @@ jobs:
       group: release-tag
       cancel-in-progress: false
   publish:
-    name: Release / Publish
+    name: Release / Publish / GitHub
     uses: ./.github/workflows/publish.yml
     needs:
     - validated
@@ -206,7 +206,7 @@ jobs:
       build-version: ${{ needs.validated.outputs.review_version }}
   publish_pypi:
     # PyPI Trusted Publishing Accepts Only A Job Declared Directly In release.yml.
-    name: Release / Publish PyPI
+    name: Release / Publish / PyPI
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs:
@@ -252,7 +252,7 @@ jobs:
       group: release-pypi-publication
       cancel-in-progress: false
   validated:
-    name: Review / Release
+    name: Release / Review
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

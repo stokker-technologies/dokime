@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   freshness:
-    name: Plan / Freshness
+    name: Check / Nightly / Freshness
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -51,7 +51,7 @@ jobs:
       test_matrix: ${{ steps.impact.outputs.test_matrix }}
     if: github.ref == 'refs/heads/dev'
   check:
-    name: Check
+    name: Check / Product
     uses: ./.github/workflows/validate-check.yml
     with:
       channel: nightly
@@ -79,7 +79,7 @@ jobs:
     - freshness
     if: needs.freshness.outputs.build == 'true'
   build_host_fixtures:
-    name: Build / Host Fixtures / ${{ matrix.language }}
+    name: Build / SDK / ${{ matrix.language == 'csharp' && 'C#' || 'C++' }} / Fixtures
     uses: ./.github/workflows/validate-build-tests.yml
     needs:
     - freshness
@@ -105,13 +105,23 @@ jobs:
       profile: release
       bench: true
   bench:
-    name: Bench / Desktop
+    name: Bench / Desktop / ${{ matrix.variant.name }} (${{ matrix.platform }})
     uses: ./.github/workflows/validate-test.yml
     needs:
     - build_bench
     strategy:
       fail-fast: false
       matrix:
+        platform:
+        - unix
+        - windows
+        variant:
+        - name: Round Trip
+          select: ^desktop_round_trip/
+          suite: desktop-bench-round-trip
+        - name: History
+          select: ^desktop_history_round_trip/
+          suite: desktop-bench-history
         include:
         - platform: unix
           runner: ubuntu-22.04
@@ -125,13 +135,13 @@ jobs:
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
       bootstrap: ${{ matrix.bootstrap }}
-      work: Rust / Desktop
-      command: bench -- --language rust --layer system --binary system-desktop --refresh-baseline
+      work: Desktop / ${{ matrix.variant.name }}
+      command: bench -- --language rust --layer system --binary system-desktop --refresh-baseline --select "${{ matrix.variant.select }}"
       archives: '["target/ci/build-bench-{platform}.tar.zst"]'
       minutes: 120
-      suite: desktop-bench
+      suite: ${{ matrix.variant.suite }}
   build_python:
-    name: Build / Python
+    name: Build / SDK / Python
     uses: ./.github/workflows/validate-build-python.yml
     with:
       channel: nightly
@@ -140,7 +150,7 @@ jobs:
     - freshness
     if: needs.freshness.outputs.build == 'true'
   build_docs:
-    name: Build / Documentation
+    name: Build / Docs
     uses: ./.github/workflows/validate-build-docs.yml
     with:
       channel: nightly
@@ -157,7 +167,7 @@ jobs:
     needs:
     - build_python
   test:
-    name: Test
+    name: Test / Product
     uses: ./.github/workflows/validate-test.yml
     with:
       channel: nightly
@@ -180,7 +190,7 @@ jobs:
       matrix: ${{ fromJSON(needs.freshness.outputs.test_matrix) }}
     if: needs.freshness.outputs.build == 'true'
   test_host:
-    name: Test / Execution Host
+    name: Test / Host / System / Execution (${{ matrix.platform }})
     uses: ./.github/workflows/validate-test.yml
     needs:
     - build_tests
@@ -198,7 +208,7 @@ jobs:
       profile: release
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
-      work: Rust / System / Execution Host
+      work: Host / System / Execution
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence))"
       bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
@@ -206,7 +216,7 @@ jobs:
       minutes: 120
       suite: execution-host
   test_host_sdks:
-    name: Test / Execution Host / SDK Equivalence
+    name: Test / SDK / Equivalence (${{ matrix.platform }})
     uses: ./.github/workflows/validate-test.yml
     needs:
     - build_tests
@@ -224,7 +234,7 @@ jobs:
       profile: release
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
-      work: Rust / System / Execution Host / SDK Equivalence
+      work: SDK / Equivalence
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence)"
       bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
@@ -333,19 +343,19 @@ jobs:
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          work: Python / Coverage
+          work: SDK / Python / Coverage
           command: test -- --language python --coverage
           bootstrap: '["mise run ci:prerequisites -- --gui-runtime"]'
           inputs: 0,1,2,3
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
-          work: Rust / Coverage
+          work: Host / Coverage
           command: test -- --language rust --coverage
           bootstrap: '["mise run ci:prerequisites -- --gui-packages"]'
           inputs: 0,1,2,3,4,5,6
   package:
-    name: Package
+    name: Package / Product
     uses: ./.github/workflows/validate-package.yml
     with:
       channel: nightly
@@ -365,7 +375,7 @@ jobs:
       actions: read
       contents: read
   publish:
-    name: Nightly / Publish
+    name: Release / Publish / GitHub
     uses: ./.github/workflows/publish.yml
     needs:
     - package
@@ -380,7 +390,7 @@ jobs:
     with:
       channel: nightly
   report:
-    name: Nightly / Report
+    name: Release / Report / Nightly
     uses: ./.github/workflows/publish.yml
     needs:
     - freshness
@@ -414,7 +424,7 @@ jobs:
       report: true
       results: ${{ toJSON(needs) }}
   verify:
-    name: Nightly / Verify
+    name: Release / Verify
     uses: ./.github/workflows/verify.yml
     needs:
     - publish

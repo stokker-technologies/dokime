@@ -19,6 +19,7 @@
 import { fromBinary } from "@bufbuild/protobuf";
 
 // Local Imports
+import type { Failure } from "@host/model";
 import type { RpcError } from "@/lib/desktop/rpc";
 import type { NotificationFailure } from "@/lib/notification-details";
 import { CapturedRecordErrorSchema, FailureSchema, StatusSchema } from "./generated/errors";
@@ -55,10 +56,7 @@ export function rpcFailureDetails(error: RpcError, reason: string): Partial<Noti
     for (const detail of status.details) {
       if (detail.typeUrl === "type.googleapis.com/harmos.model.v1.Failure") {
         const rejection = fromBinary(FailureSchema, detail.value);
-        failure.message = rejection.message;
-        failure.reason = rejection.code || reason;
-        failure.operationId = rejection.operation || undefined;
-        failure.diagnostics = rejection.diagnostics || undefined;
+        Object.assign(failure, nativeFailure(rejection, reason));
       } else if (detail.typeUrl === "type.googleapis.com/dokime.host.v1.evidence.CapturedRecordError") {
         const captured = fromBinary(CapturedRecordErrorSchema, detail.value);
         failure.message = captured.message;
@@ -80,12 +78,26 @@ export function rpcFailureDetails(error: RpcError, reason: string): Partial<Noti
       }
     }
   } catch {
-    failure.diagnostics = `Unrecognized Backend Details (Base64):\n${toBase64(Uint8Array.from(error.detail.details))}`;
+    try {
+      const rejection = fromBinary(FailureSchema, Uint8Array.from(error.detail.details));
+      Object.assign(failure, nativeFailure(rejection, reason));
+    } catch {
+      failure.diagnostics = `Unrecognized Backend Details (Base64):\n${toBase64(Uint8Array.from(error.detail.details))}`;
+    }
   }
   return failure;
 }
 
 /* === Private Functions === */
+
+function nativeFailure(rejection: Failure, reason: string): Partial<NotificationFailure> {
+  return {
+    message: rejection.message,
+    reason: rejection.code || reason,
+    operationId: rejection.operation || undefined,
+    diagnostics: rejection.diagnostics || undefined,
+  };
+}
 
 function toBase64(bytes: Uint8Array): string {
   return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));

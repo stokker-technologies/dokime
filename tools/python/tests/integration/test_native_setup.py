@@ -107,6 +107,37 @@ class PackageFetchTests(unittest.TestCase):
 
 
 class NativeSetupTests(unittest.TestCase):
+    def test_visual_studio_selects_latest_cpp_installation(self) -> None:
+        installation = Path("C:/Visual Studio/Build Tools")
+        with (
+            patch.object(sys, "platform", "win32"),
+            patch.dict(os.environ, {"ProgramFiles(x86)": "C:/Programs"}),
+            patch.object(subprocess, "check_output", return_value=f"{installation}\r\n") as output,
+        ):
+            self.assertEqual(SETUP["visual_studio"](), installation)
+        self.assertEqual(
+            output.call_args.args[0],
+            [
+                str(Path("C:/Programs/Microsoft Visual Studio/Installer/vswhere.exe")),
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-property",
+                "installationPath",
+            ],
+        )
+
+    def test_visual_studio_refuses_missing_cpp_tools(self) -> None:
+        with (
+            patch.object(sys, "platform", "win32"),
+            patch.dict(os.environ, {"ProgramFiles(x86)": "C:/Programs"}),
+            patch.object(subprocess, "check_output", return_value="\r\n"),
+            self.assertRaises(RuntimeError),
+        ):
+            SETUP["visual_studio"]()
+
     def test_cache_outputs(self) -> None:
         directory_directory = tempfile.TemporaryDirectory()
         directory = directory_directory.name
@@ -167,6 +198,8 @@ class NativeSetupTests(unittest.TestCase):
 
     def test_windows_apis_refuse_other_platforms(self) -> None:
         with patch.object(sys, "platform", "linux"):
+            with self.assertRaises(OSError):
+                SETUP["visual_studio"]()
             with self.assertRaises(OSError):
                 SETUP["windows"](Path.cwd())
             with self.assertRaises(OSError):
