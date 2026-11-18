@@ -84,7 +84,8 @@ public sealed class Context
 
   private async Task<string> AskAsync(PromptDeclaration declaration, bool declared)
   {
-    var identity = declared ? Resolve(declaration) : "question";
+    var identity = declared ? Resolve(declaration) : Identifiers.Build("question", prefix: template?.Definition.Metadata.Identifier
+        ?? throw new ArgumentException("Create Prompt: Call From a Template Operation"));
     var definition = declaration.Definition.Clone();
     definition.Metadata ??= new Metadata();
     definition.Metadata.Identifier = identity;

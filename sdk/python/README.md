@@ -106,8 +106,9 @@ plain value; structured protobuf rows retain their message type. `last()` refuse
 an empty result: append a record before reading its last value.
 
 The SDK generates identifiers from code names, independently of labels: remove a
-trailing `Suite` or `Template` from class names, separate class word boundaries
-with underscores, and lowercase. Method and attribute names retain their underscores.
+trailing `Suite` or `Template` from class names, separate word boundaries in every code name
+with underscores, and lowercase. `ReadVoltage`, `readVoltage` and `read_voltage`
+all become `read_voltage`.
 For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite`
 becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit
 `identifier=` wins.
@@ -119,7 +120,8 @@ The grouping builder lives in `dokime.authoring`; root `Suite` is the wire model
 
 Records and reusable prompts live on template classes. Declare a reusable prompt
 with `question = prompt("Continue?", choices=["Yes", "No"])` and pass it to
-`await ctx.prompt(self.question)`. Plugin construction qualifies declarations and
+`await ctx.prompt(self.question)`. The short text call uses the qualified
+`<template>.question` identifier too. Plugin construction qualifies declarations and
 rejects empty or duplicate identifiers before serving. `ctx.record`, `ctx.records`
 and `ctx.statistics` take a local declaration or stream method; step filters take
 the bound step method. Materializers are synchronous and pure. Repeated calls to

@@ -784,9 +784,9 @@ historical Windows result establishes passing final native proof or push authori
 Applies to every SDK language; Python is the reference implementation, the others follow its shape.
 
 1. **Only the product package.** Every example, starter and consumer-facing snippet imports only from `dokime`. Nothing an author writes imports or names the underlying library. The SDK re-exports what authors need (operation decorator, context, visibility).
-2. **Short prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. The long host-operation form is not used in examples.
+2. **Short prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. Its implicit local identifier is `question`, qualified by the bound template (`capture.question` or `accuracy.voltage.question`) in every language. The long host-operation form is not used in examples.
 3. **Qualified identifiers.** A template is `<suite>.<template>` (`accuracy.voltage`). Everything declared inside a template (records, streams, prompts, steps, criteria) is `<suite>.<template>.<name>` on the wire and in evidence. Authors write and pass only the local declaration; the SDK qualifies it.
-4. **Generated identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; class word boundaries become `_`, and names are lowercased; Python method and attribute names otherwise pass through unchanged. For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite` becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
+4. **Generated identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; all code-name word boundaries become `_`, and names are lowercased in every language. `ReadVoltage`, `readVoltage` and `read_voltage` all become `read_voltage`. For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite` becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
 5. **Declarations live on the template.** Records are declared on the template class (as streams already are with the stream decorator) and on observers. The plugin-level `records=` argument is removed.
 6. **Plain values.** Records and simple operations accept `str`, `bool`, `int`, `float` (and the language's equivalents); the SDK wraps them in the well-known wrapper messages. Structured rows stay protobuf messages.
 7. **No `sections`.** The raw declaration-section list is removed from the author-facing plugin value; the SDK builds every section from typed declarations.
@@ -883,6 +883,11 @@ Command-line running, bundling and trust behavior remains point 11's separate ow
 Generated underscore identifiers satisfy the pinned carrier
 `crates/harmos-protocol/src/schema/identity.rs` segment grammar without a library
 change or a second identifier family. Explicit identifiers remain author supplied.
+
+The Python SDK generator owns `sdk/python/src/dokime/__init__.py`, composing model
+exports with product authoring exports. Shared generation owns the remaining
+descriptor projections and excludes this root barrel from publication and drift
+validation; product generation checks validate it through its SDK owner.
 
 ### Authoring Adoption Owners
 

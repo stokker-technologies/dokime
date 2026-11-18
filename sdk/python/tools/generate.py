@@ -41,7 +41,7 @@ from grpc_tools import protoc
 # === Public Functions === #
 
 
-def main(*, check: bool = False) -> None:
+def main(*, check: bool = False, exports_only: bool = False) -> None:
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
     bundled_protocols = sdk / "proto"
@@ -49,69 +49,70 @@ def main(*, check: bool = False) -> None:
     source = sdk / "src/dokime"
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))
     try:
-        arguments = [
-            "protoc",
-            f"-I{protocols}",
-            f"-I{Path(grpc_tools.__file__).parent / '_proto'}",
-            f"--python_out={output}",
-            f"--pyi_out={output}",
-            f"--grpc_python_out={output}",
-            f"--descriptor_set_out={output / 'surface.pb'}",
-            "--include_imports",
-            *map(str, sorted(protocols.glob("dokime/**/*.proto"))),
-        ]
-        status = protoc.main(arguments)
-        if status:
-            raise RuntimeError("Generate Python Protocols: Correct the Reported Proto Errors and Regenerate")
-        if not check:
-            for old in source.rglob("*_pb2*"):
-                if old.is_file():
-                    old.unlink()
-        drift: list[str] = []
-        expected: set[Path] = set()
-        for path in (output / "dokime").rglob("*"):
-            if not path.is_file():
-                continue
-            target = source / "_wire" / path.relative_to(output / "dokime")
-            expected.add(target)
+        if not exports_only:
+            arguments = [
+                "protoc",
+                f"-I{protocols}",
+                f"-I{Path(grpc_tools.__file__).parent / '_proto'}",
+                f"--python_out={output}",
+                f"--pyi_out={output}",
+                f"--grpc_python_out={output}",
+                f"--descriptor_set_out={output / 'surface.pb'}",
+                "--include_imports",
+                *map(str, sorted(protocols.glob("dokime/**/*.proto"))),
+            ]
+            status = protoc.main(arguments)
+            if status:
+                raise RuntimeError("Generate Python Protocols: Correct the Reported Proto Errors and Regenerate")
             if not check:
-                target.parent.mkdir(parents=True, exist_ok=True)
-            text = path.read_text(encoding="utf-8")
-            for owner in ("dokime", "harmos"):
-                for executor in ("model", "host", "plugin"):
-                    text = text.replace(f"from {owner}.{executor}", f"from {owner}._wire.{executor}")
-                    text = text.replace(f"import {owner}.{executor}.", f"import {owner}._wire.{executor}.")
-                    text = text.replace(
-                        f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}.{executor}.",
-                        f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}._wire.{executor}.",
-                    )
+                for old in source.rglob("*_pb2*"):
+                    if old.is_file():
+                        old.unlink()
+            drift: list[str] = []
+            expected: set[Path] = set()
+            for path in (output / "dokime").rglob("*"):
+                if not path.is_file():
+                    continue
+                target = source / "_wire" / path.relative_to(output / "dokime")
+                expected.add(target)
+                if not check:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                text = path.read_text(encoding="utf-8")
+                for owner in ("dokime", "harmos"):
+                    for executor in ("model", "host", "plugin"):
+                        text = text.replace(f"from {owner}.{executor}", f"from {owner}._wire.{executor}")
+                        text = text.replace(f"import {owner}.{executor}.", f"import {owner}._wire.{executor}.")
+                        text = text.replace(
+                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}.{executor}.",
+                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}._wire.{executor}.",
+                        )
+                if check:
+                    if not target.is_file() or target.read_text(encoding="utf-8") != text:
+                        drift.append(str(target.relative_to(sdk)))
+                else:
+                    target.write_text(text, encoding="utf-8", newline="\n")
+                    (target.parent / "py.typed").touch()
+                    (target.parent / "__init__.py").touch(exist_ok=True)
             if check:
-                if not target.is_file() or target.read_text(encoding="utf-8") != text:
-                    drift.append(str(target.relative_to(sdk)))
+                existing = {path for path in (source / "_wire").rglob("*_pb2*") if path.is_file() and path.suffix in {".py", ".pyi"}}
+                drift.extend(str(path.relative_to(sdk)) for path in sorted(existing - expected))
+                if (output / "surface.pb").read_bytes() != (source / "_wire/surface.pb").read_bytes():
+                    drift.append("_wire/surface.pb")
             else:
-                target.write_text(text, encoding="utf-8", newline="\n")
-                (target.parent / "py.typed").touch()
-                (target.parent / "__init__.py").touch(exist_ok=True)
-        if check:
-            existing = {path for path in (source / "_wire").rglob("*_pb2*") if path.is_file() and path.suffix in {".py", ".pyi"}}
-            drift.extend(str(path.relative_to(sdk)) for path in sorted(existing - expected))
-            if (output / "surface.pb").read_bytes() != (source / "_wire/surface.pb").read_bytes():
-                drift.append("_wire/surface.pb")
-        else:
-            shutil.copyfile(output / "surface.pb", source / "_wire/surface.pb")
-        manifest = {}
-        for path in protocols.rglob("*.proto"):
-            relative = path.relative_to(protocols).as_posix()
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            manifest[relative] = digest
-        text = json.dumps(manifest, sort_keys=True) + "\n"
-        if check:
-            if (source / "_wire/sources.json").read_text(encoding="utf-8") != text:
-                drift.append("_wire/sources.json")
-            if drift:
-                raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
-        else:
-            (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
+                shutil.copyfile(output / "surface.pb", source / "_wire/surface.pb")
+            manifest = {}
+            for path in protocols.rglob("*.proto"):
+                relative = path.relative_to(protocols).as_posix()
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                manifest[relative] = digest
+            text = json.dumps(manifest, sort_keys=True) + "\n"
+            if check:
+                if (source / "_wire/sources.json").read_text(encoding="utf-8") != text:
+                    drift.append("_wire/sources.json")
+                if drift:
+                    raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
+            else:
+                (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
         # Compose the Product Authoring Barrel From the Generated Model Export Inventory.
         shared = ast.parse((source / "_generated/shared.py").read_text(encoding="utf-8"))
         names = sorted(
@@ -174,4 +175,6 @@ def main(*, check: bool = False) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
-    main(check=parser.parse_args().check)
+    parser.add_argument("--exports-only", action="store_true")
+    options = parser.parse_args()
+    main(check=options.check, exports_only=options.exports_only)

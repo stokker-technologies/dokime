@@ -77,6 +77,8 @@ automatically and share one template instance per execution.
 values with unique local instance identifiers; `Case` qualifies them through the
 same identifier function while preserving the declared operation identity.
 
+The short prompt call uses `<template>.question` in its request and definition.
+
 ## Plain Operations
 
 ```cpp

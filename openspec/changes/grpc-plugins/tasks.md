@@ -60,7 +60,7 @@
   - [x] Rust: Bind Local Template Declarations, Generate Code Names, Wrap Plain Values and Remove Plugin-Type Growth.
   - [x] Rust: Migrate the Owned Examples, OBC Plugin and Host Fixture Sources; Keep the Client Flow Separate.
   - [x] Rust: Complete SDK, Example, Host-Fixture, Format and Focused Language Proof in This Worktree.
-  - [ ] Rust: Migrate the Retired SDK Surface in Owner-Scoped `crates/dokime-runtime/benches/storage/{windows,publication}.rs` and `crates/dokime-gui/benches/system/fixture.rs` (Derive Attributes, Plugin Records, Window Type, Local IDs and Selectors).
+  - [x] Rust: Migrate the Retired SDK Surface in Owner-Scoped `crates/dokime-runtime/benches/storage/{windows,publication}.rs` and `crates/dokime-gui/benches/system/fixture.rs` (Derive Attributes, Plugin Records, Window Type, Local IDs and Selectors).
   - [ ] Rust: Resolve Runtime-Defined Plain Context Operation Calls Against the Pinned Carrier's Static `OperationRequest` Contract.
 - [x] C#: Follow the Locked Authoring Surface.
 - [ ] C#: Complete the Language Check and Host Fixture Producer After Resolving the Shared Generator/Python Root Export Conflict.
@@ -69,3 +69,10 @@
 - [ ] C++: Complete the Prescribed Host-Fixture Producer Proof After Resolving Its Release-Only Build Against the Worker Debug-Only Rule.
 - [ ] Command Line: Implement Locked Point 11.
 
+
+- [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
+- [x] Integration: Give the Python SDK Sole Ownership of Its Authoring Root Exports.
+- [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
+- [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
+- [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
+- [ ] Integration: Complete Format and Focused Language Checks on the Combined Tree.

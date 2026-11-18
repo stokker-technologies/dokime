@@ -78,7 +78,7 @@ class Thermal:
     def counter(self, ctx: Context, window: Window) -> Message:
         return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
 
-    @criterion("Temperature Within Limit", identifier="within-limit")
+    @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:
         stats = await ctx.statistics(self.temperature, "celsius", step=self.hold)
         door = await ctx.records(self.door, step=self.hold).last()

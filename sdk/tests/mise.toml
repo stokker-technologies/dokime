@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[tasks.test]
+description = "Compare Shared Four-Language Authoring Contracts"
+run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s . -v'

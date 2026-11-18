@@ -93,6 +93,8 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
     if (operation == "dokime.host.v1.Prompts/Create") {
       const auto request = harmos::plugin::decode<dokime::host::v1::PromptsCreateRequest>(bytes);
       check(request.definition().actions_size() == 2, "Prompt Lost Its Actions");
+      check(request.prompt() == "capture.question" && request.definition().metadata().identifier() == "capture.question",
+            "Short Prompt Was Not Qualified by Its Template");
       dokime::host::v1::PromptsCreateResponse response;
       response.set_accepted(accepted);
       response.set_action(answer);

@@ -288,8 +288,8 @@ def build_identifier(name: str, explicit: str | None = None, *, prefix: str | No
     else:
         if class_name:
             name = re.sub(r"(?:Template|Suite)$", "", name)
-            name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
-            name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+        name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+        name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
         local = name.lower()
     if not local or not local.strip():
         raise ValueError("Build Plugin: Supply a Nonempty Declaration Identifier")

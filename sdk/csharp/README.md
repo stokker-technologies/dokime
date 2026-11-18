@@ -44,6 +44,8 @@ var plugin = new Plugin("example.echo", "1.0.0")
     .Operation(echo, (_, request) => Task.FromResult(request));
 ```
 
+The short prompt call uses `<template>.question` in its request and definition.
+
 ## Identifiers and Evidence
 
 `Suite.From<Capture>()` declares the single template `capture`, with members

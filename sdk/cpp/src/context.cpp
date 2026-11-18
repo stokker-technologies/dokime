@@ -76,8 +76,11 @@ string Context::ask(Prompt definition, string identity, string prompt_type) {
 }
 string Context::prompt(string text, vector<string> choices) {
   PromptDeclaration declaration("question", move(text), move(choices));
-  declaration.value.mutable_metadata()->set_identifier("question");
-  return ask(move(declaration.value), "question", {});
+  if (!bindings_)
+    throw invalid_argument("Create Prompt: Call From a Template Operation");
+  const auto identity = build_identifier("question", {}, bindings_->template_id);
+  declaration.value.mutable_metadata()->set_identifier(identity);
+  return ask(move(declaration.value), identity, {});
 }
 string Context::prompt(const PromptDeclaration &declaration) {
   const auto identity = resolve(declaration);

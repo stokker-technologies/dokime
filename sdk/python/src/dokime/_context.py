@@ -105,7 +105,9 @@ class Context:
         return await self._transport.cancelled()
 
     async def prompt(self, text: str | PromptDeclaration, *, choices: Sequence[str] = ()) -> str:
-        identity = "question"
+        if self._template is None:
+            raise ValueError("Create Prompt: Call From a Template Operation")
+        identity = f"{self._template.identifier}.question"
         if isinstance(text, PromptDeclaration):
             identity = self._resolve(text)
             assert self._template is not None

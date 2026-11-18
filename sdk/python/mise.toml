@@ -67,4 +67,5 @@ run = 'uv run --no-sync --project ../../../../tools/python python -m unittest di
 
 [tasks.generate]
 description = "Generate Typed Python Protocol Packages"
-run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'
+usage = 'flag "--check"'
+run = 'uv run --no-sync --project ../../tools/python python tools/generate.py{% if usage.check %} --check{% endif %}'

@@ -58,7 +58,7 @@ let plugin = Plugin::new("example", "0.1.0").operation(echo);
 ```
 
 Declare structured questions with `dokime::plugin::Prompt` on the template and
-pass the declaration to `ctx.prompt(&question, &[])`. The call returns the chosen
+pass the declaration to `ctx.prompt(&question, &[])`. The short text call uses `<template>.question`. The call returns the chosen
 label and refuses rejected or unknown actions. `records(&declaration).last()`
 returns a typed value and refuses an empty result. `.step(handler)` or
 `.step(&step_declaration)` selects one declared step.

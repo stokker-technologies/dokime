@@ -92,7 +92,7 @@ public:
     value.record(door);
     value.steps.push_back(Step::method<&Thermal::ramp>("Ramp to Target", "ramp", 2));
     value.steps.push_back(Step::method<&Thermal::hold>("Hold", "hold"));
-    value.criteria.push_back(Criterion::method<&Thermal::within_limit>("Temperature Within Limit", "within-limit"));
+    value.criteria.push_back(Criterion::method<&Thermal::within_limit>("Temperature Within Limit", "within_limit"));
     Observer<Temperature> observer{temperature_stream,
                                    [](Context &ctx) {
                                      Temperature sample;

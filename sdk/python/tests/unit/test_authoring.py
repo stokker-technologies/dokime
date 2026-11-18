@@ -23,7 +23,7 @@ from google.protobuf.wrappers_pb2 import BoolValue
 # Local Imports
 from dokime import Context, Plugin, Prompt, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
 from dokime._payloads import message_type, pack, unpack
-from dokime.authoring import Case, Suite, materialize
+from dokime.authoring import Case, Suite, build_identifier, materialize
 from dokime.values import Scalar
 
 # Type Checking Imports
@@ -63,7 +63,7 @@ class AuthoringStory(unittest.TestCase):
         case = template.build({}).message
         self.assertEqual(template.identifier, "http_accuracy")
         self.assertEqual(case.steps[0].metadata.identifier, "http_accuracy.read_voltage")
-        self.assertEqual(case.criteria[0].metadata.identifier, "http_accuracy.readingok")
+        self.assertEqual(case.criteria[0].metadata.identifier, "http_accuracy.reading_ok")
         self.assertEqual(list(case.streams), ["http_accuracy.outlet_temperature"])
         self.assertEqual(template.resolve(HTTPAccuracySuite.accepted_reading), "http_accuracy.accepted_reading")
         self.assertEqual(template.resolve(HTTPAccuracySuite().read_voltage), case.steps[0].metadata.identifier)
@@ -71,6 +71,11 @@ class AuthoringStory(unittest.TestCase):
         prompts = next(section for section in sections if section.type.endswith("PromptDefinitions"))
         value = PromptDefinitions.FromString(prompts.payload)
         self.assertEqual(value.prompts[0].metadata.identifier, "http_accuracy.operator_choice")
+
+    def test_member_names_share_word_boundaries(self) -> None:
+        for name in ("ReadVoltage", "readVoltage", "read_voltage"):
+            self.assertEqual(build_identifier(name, prefix="accuracy.voltage"), "accuracy.voltage.read_voltage")
+        self.assertEqual(build_identifier("ignored", "RMS", prefix="accuracy.voltage"), "accuracy.voltage.RMS")
 
     def test_grouped_templates_bind_once_without_mutating_shared_declarations(self) -> None:
         class VoltageTemplate:

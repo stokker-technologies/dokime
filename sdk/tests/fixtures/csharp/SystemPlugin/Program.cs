@@ -48,18 +48,9 @@ var template = new Template("cycle", "Thermal Cycle")
           && statistics.Max.Number <= context.Resource<Bench>().Limit;
       var closed = records.Closed;
       return withinLimit && closed;
-    }, Identifier: "within-limit"))
+    }, Identifier: "within_limit"))
     .Cleanup(async context => await context.LogAsync(Severity.Info, "Cleaned Up"));
-var plugin = new Plugin("thermal", "1.0.0", new Dokime.Plugins.Suite("thermal", "Thermal", template))
-    .Requires(HostOperation.PromptsCreate)
-    .Requires(HostOperation.EvidenceRecordsAppend)
-    .Requires(HostOperation.EvidenceRecordsList)
-    .Requires(HostOperation.EvidenceStatistics)
-    .Requires(HostOperation.ExecutionsProgressGet)
-    .Requires(HostOperation.ExecutionsProgressSet)
-    .Requires(HostOperation.EvidenceLogsAppend)
-    .Requires(HostOperation.TimeGet)
-    .Requires(HostOperation.TimeSleep);
+var plugin = new Plugin("thermal", "1.0.0", new Dokime.Plugins.Suite("thermal", "Thermal", template));
 await plugin.ServeAsync(remote: args.Contains("--remote"));
 
 internal sealed class Bench(double limit) : IAsyncDisposable

@@ -73,6 +73,8 @@ public sealed class AuthorDeclaresQualifiedMembers
             var question = Dokime.Clients.PromptsCreateRequest.Parser.ParseFrom(child.Payload);
             Assert.Equal(["0", "1"], question.Definition.Actions.Select(item => item.Identifier));
             Assert.Empty(question.PromptType);
+            Assert.Equal("capture.question", question.Prompt);
+            Assert.Equal("capture.question", question.Definition.Metadata.Identifier);
             return new Dokime.Clients.PromptsCreateResponse { Accepted = true, Action = "0" }.ToByteString();
           }
           Assert.Equal(HostContracts.EvidenceRecordsAppend.Contract.Id, child.Operation);
