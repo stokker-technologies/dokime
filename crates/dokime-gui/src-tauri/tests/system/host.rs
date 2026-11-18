@@ -667,7 +667,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                     },
                 )
                 .await?;
-            assert!(records.records.iter().any(|record| record.record_type == "obc.benchmark.plots.confirmation"));
+            assert!(records.records.iter().any(|record| record.record_type == "obc.benchmark.plots.confirmation_record"));
             let samples: SamplesListResponse = session
                 .unary(
                     "/dokime.host.v1.evidence.Samples/List",

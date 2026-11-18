@@ -229,8 +229,8 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             // Run the Exact Values Workload and Read Its Register Statistics
             let answer = Some(("yes", MapValue::default()));
             let (bench, cycle) = run(&client, "obc.benchmark", "obc.benchmark.exact_values", HashMap::new(), answer).await?;
-            let captured = records(&client, &bench, &[("obc.benchmark.exact_values.confirmation", "obc.Confirmation")]).await?;
-            let confirmation = &captured["obc.benchmark.exact_values.confirmation"];
+            let captured = records(&client, &bench, &[("obc.benchmark.exact_values.confirmation_record", "obc.Confirmation")]).await?;
+            let confirmation = &captured["obc.benchmark.exact_values.confirmation_record"];
             assert_eq!(confirmation.len(), 1);
             assert_eq!(confirmation[0].get_field_by_name("accepted").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
             let scope = EvidenceScope {
