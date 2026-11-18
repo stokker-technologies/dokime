@@ -30,29 +30,37 @@ import { SidebarFrame } from "@/shell/SidebarFrame";
 
 /* === Types === */
 
+type ReportShellProps = {
+  children: ReactNode;
+  frozen: FrozenShell;
+  executionId: string | null;
+};
+
 /* === Components === */
-export function ReportShell({ children, frozen }: { children: ReactNode; frozen: FrozenShell }) {
+export function ReportShell({ children, frozen, executionId }: ReportShellProps) {
   const snapshot = useCycleSnapshotSource();
   if (!snapshot) throw new Error("A frozen report requires its captured cycle snapshot.");
   return (
     <AppShellLayout
       frozen={frozen}
       sidebar={
-        <SidebarFrame>
-          <ul className="grid min-h-0 content-start gap-1 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
-            <CycleSidebarCasesView
-              selection={frozen.selection}
-              cycleId={frozen.cycleId}
-              detailQuery={{
-                data: { plan: snapshot.plan, executions: snapshot.executions },
-                isError: false,
-                error: null,
-              }}
-              live={false}
-              onSelect={frozen.onSelect}
-            />
-          </ul>
-        </SidebarFrame>
+        executionId === null && frozen.onSelect ? (
+          <SidebarFrame>
+            <ul className="grid min-h-0 content-start gap-1 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
+              <CycleSidebarCasesView
+                selection={frozen.selection}
+                cycleId={frozen.cycleId}
+                detailQuery={{
+                  data: { plan: snapshot.plan, executions: snapshot.executions },
+                  isError: false,
+                  error: null,
+                }}
+                live={false}
+                onSelect={frozen.onSelect}
+              />
+            </ul>
+          </SidebarFrame>
+        ) : null
       }
       statusBar={null}
     >
