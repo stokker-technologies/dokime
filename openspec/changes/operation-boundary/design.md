@@ -538,6 +538,64 @@ claim remain open until the dependency owner supplies this contract and a valida
 revision, or authorizes coupled library implementation. The implementation worker
 is restricted to this product worktree and does not change dependency checkouts.
 
+### Populated Release Measurement Baseline
+
+The report benchmark now prepares 306 native plot views and their cut indexes
+before timing the same eight-section, 116-stream, 118,784-sample, three-record save.
+The previous full-save fixture already warmed 116 plot views; the 17-object
+administration inventory in the original attribution belongs to its isolated example,
+not this full-save fixture. Do not compare those different workloads as a scan repair.
+One optimized release iteration produces this pre-prefix-repair baseline (milliseconds):
+
+| Stage | Populated Baseline | After Prefix Repair |
+| --- | ---: | --- |
+| Execution Files | 2,597.203 | Pending |
+| Notes | 1,042.240 | Pending |
+| Artifacts | 1,055.980 | Pending |
+| Host Create | 6,818.570 | Pending |
+| Complete Save | 7,417.382 | Pending |
+
+The task-built release benchmark runs with `DOKIME_BENCH_ONCE=1` and
+`--bench --test reports/save`; its observation is in
+`target/benchmarks/storage/rscan-release.log`. Prefix selection is unchanged, so
+there is no paired after-repair measurement yet.
+
+The release native-desktop story's final run passes nine tests and captures both
+generic native report-call events. Thermal contains 2,502 samples and one record.
+The supplied prior Thermal attribution and this run give these observations, not
+a controlled performance comparison (milliseconds):
+
+| Stage | Supplied Release Observation | Current Release Observation |
+| --- | ---: | ---: |
+| Execution Files | 148.195 | 196.987 |
+| Notes | 124.468 | 148.929 |
+| Artifacts | 166.479 | 190.125 |
+| Host Create | 571.076 | 709.428 |
+| Complete Save | 4,627.801 | 3,716.160 |
+
+The current picker takes 2,053.517 ms versus 3,316.512 ms previously; a smaller
+total does not establish a host speedup. Current native admission totals 0.0021 ms
+and RPC overhead 3.0639 ms. Evidence lives under
+`target/tests/release/windows-x86_64/system-typescript/native-desktop-2XcfS0/`
+and `target/native-desktop-rscan-release.log`.
+
+Previously release fixture producers staged debug Rust SDK/host/content/plugin
+and desktop CLI bytes, while the shipping GUI was release. Rust test harnesses
+and their native host supplied through `NEXTEST_BIN_EXE` intentionally use the
+unoptimized test profile; they are distinct from those auxiliary fixtures.
+The reference conformance host also explicitly installed with the debug profile.
+All these auxiliary producers now select the requested profile and fail if its
+binary is missing. C# defaults to Release, C++ uses its release preset, and pure
+Python has no compiler profile. The supplied attribution explicitly selected actual
+release executables, so the producer defect does not explain that measured gap.
+
+The final native run also proves the helper's correction for the formatter's quoted
+operation field. Setup failures from missing prepared tooling/driver and concurrent
+frontend/host generation were REAL preparation errors; sequential preparation and
+the final checks pass. No test, deadline or bound was weakened. The explicitly
+requested release measurements and scoped Rust lint take precedence over the generic
+worker prohibitions on release profiles and lint.
+
 ## Browsing View Retention Ownership
 
 `crates/dokime-operations/src/host/views.rs::read` retains a native file index per
@@ -550,7 +608,9 @@ change resource keys, response changes create content revisions, and new evidenc
 positions create additional cut indexes even for unchanged response bytes.
 
 The native backend's `backend/compound.rs::delete_scope` can tombstone scoped objects
-and files, but `host/executions/delete.rs` still calls the SQL ledger's
+and files. `host/cases/storage.rs::delete` already calls native `DeleteScope` for C,
+so deleting an unexecuted case releases that case's view ownership; `cases/get.rs`
+and `cases/parameters.rs` assign their views to C. `host/executions/delete.rs` still calls the SQL ledger's
 `history.rs::delete_sealed_execution`, which deletes SQL `resource_values` and
 `resource_requests`, not native view indexes or native files. This is a lifecycle
 REWORK finding, not permission to add a second deletion path. Native scope deletion
@@ -566,6 +626,14 @@ or durable resource views with an explicit release operation. Prefer explicit re
 of client-owned views while retaining separately owned report/evidence captures, as
 part of the coupled view cutover. No retention lifetime, expiry, bound or automatic
 deletion is introduced by the administration performance repair.
+
+The same `views.rs::read` has two retained-reference lookup paths: position-only
+client cuts select `view-at:{resource}:{epoch}:{sequence}`, while returned cuts with
+a resource revision select `view:{resource}:{digest}`. Both resolve a native file
+through `retained`; catalog, document, content, plot and report read operations call
+this function with their client's cut. Prefer deleting the position-only lookup and
+`view-at` index family after canonical cuts and their consumers migrate, subject to
+the owner's contract decision. Keep both paths and their existing accepted cuts now.
 
 ## Administration Reader Ownership Review
 
@@ -585,6 +653,7 @@ the same page operation, without retaining a cache across Create requests.
 | --- | --- | --- |
 | `crates/dokime-storage/src/administration.rs` and `crates/dokime-operations/src/host/storage/administration.rs` | SQL keyed protobuf administration serves runtime root claims/access credentials and the secret journal; native administration serves content, notes, commands, views and prepared reports. | Delete SQL administration after migrating its remaining root/security owners with their durable replay and cleanup semantics. Keep both pending the coupled storage cutover. |
 | `crates/dokime-storage/src/notes.rs` and `crates/dokime-operations/src/host/evidence/notes/{create,get,set,list,watch}.rs` | SQL note persistence has no current operation callers; native note operations own Create/Get/Set/List/Watch. Native Create/List still call SQL-backed `Store::note_owner` for owner validation. | Delete unused SQL note persistence after the owner's decision; preserve/migrate owner validation. |
+| `tools/python/src/dokime_tools/build/{desktop_fixtures,host_fixtures}.py::build` raw executable-path selection and `build/outputs.py::executables` compiler-record selection | Desktop/host fixture tasks map dev to debug and otherwise use the requested profile directory. The native Product builder selects non-test executable paths from Cargo compiler messages through `outputs.executables`. | Prefer deleting the fixture path inference after the owner agrees that fixture builds should emit compiler records consumed by the existing selector. Keep independent Product/Tests builds; do not add a second selector or make Tests depend on Product. |
 
 The storage benchmark's `main.rs` also prepares an unrelated 16,384-row export
 fixture even when Criterion selects only `reports/save`. Prefer lazy fixture setup
