@@ -75,14 +75,17 @@ def build(profile: str) -> list[str]:
 
     # Bundle the Shipped Plugin With the Command-Line Tool Built Beside It
     extension = ".exe" if os.name == "nt" else ""
+    project = output / "product/plugin-obc"
+    project.mkdir(parents=True, exist_ok=True)
+    stage_file(binaries / f"plugin-obc{extension}", project / f"plugin-obc{extension}")
+    (project / "dokime.toml").write_text('executable = "plugin-obc"\n', encoding="utf-8")
     bundle = binaries / "plugin-obc.dokime"
     subprocess.run(
         [
             str(binaries / f"dokime{extension}"),
             "plugin",
             "bundle",
-            "--executable",
-            str(binaries / f"plugin-obc{extension}"),
+            str(project),
             "--out",
             str(bundle),
         ],

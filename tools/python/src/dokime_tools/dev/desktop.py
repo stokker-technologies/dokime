@@ -275,9 +275,13 @@ def main(arguments: list[str] | None = None) -> int:
     status = 1
     try:
         # Bundle the Plugin Exactly as the Product Build Packages It
+        project = root / "plugin-obc"
+        project.mkdir()
+        shutil.copy2(plugin, project / plugin.name)
+        (project / "dokime.toml").write_text('executable = "plugin-obc"\n', encoding="utf-8")
         bundle = root / "plugin-obc.dokime"
         subprocess.run(
-            [str(cli), "plugin", "bundle", "--executable", str(plugin), "--out", str(bundle)],
+            [str(cli), "plugin", "bundle", str(project), "--out", str(bundle)],
             cwd=ROOT,
             env=environment,
             check=True,

@@ -26,7 +26,9 @@ run = [
 hide = true
 description = "Prepare the Pinned Harmos Project and NuGet Feed"
 usage = 'flag "--refresh-lock"'
-run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet" --configuration {{vars.configuration}}{% if usage.refresh_lock %} --refresh-lock{% endif %}']
+run = [
+  'python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet" --configuration {{vars.configuration}}{% if usage.refresh_lock %} --refresh-lock{% endif %}',
+]
 
 [tasks."restore"]
 hide = true

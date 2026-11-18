@@ -64,9 +64,12 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 // Select the Development Input
                 let input = if language == "rust" {
                     let executable = super::fixtures().join(format!("dokime-example-test{}", EXE_SUFFIX));
+                    let prepared = directory.path().join("prepared-plugin");
+                    fs::create_dir(&prepared)?;
+                    fs::copy(&executable, prepared.join(format!("plugin{EXE_SUFFIX}")))?;
+                    fs::write(prepared.join("dokime.toml"), "executable = 'plugin'\n")?;
                     let bundle = directory.path().join("starter.dokime");
-                    super::run(&["plugin", "bundle", "--executable", executable.to_str().unwrap(), "--out", bundle.to_str().unwrap()])
-                        .await?;
+                    super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
                     super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
                     bundle
                 } else {

@@ -87,5 +87,5 @@
 - [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
 - [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
 - [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.
-- [ ] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.
+- [x] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.
 

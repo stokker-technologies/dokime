@@ -80,7 +80,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
     // Start Through the Server Command and the Existing Plugin Commands
     let result: Result<()> = async {
         let endpoint = {
-            let activate = async {
+            let mut activate = Box::pin(async {
                 if input == DevelopmentInput::Project {
                     super::plugin::project::prepare(&plugin).await?;
                 }
@@ -98,8 +98,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
                     }
                 }
                 Ok::<_, Error>(endpoint)
-            };
-            tokio::pin!(activate);
+            });
             loop {
                 tokio::select! {
                     result = &mut activate => break result?,

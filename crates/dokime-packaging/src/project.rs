@@ -227,8 +227,10 @@ mod tests {
     #[test]
     fn native_projects_resolve_the_platform_executable_suffix() -> Result<()> {
         let root = tempfile::tempdir()?;
-        fs::write(root.path().join("dokime.toml"), "executable = 'plugin'\n")?;
-        let executable = root.path().join(format!("plugin{}", super::EXE_SUFFIX));
+        fs::write(root.path().join("dokime.toml"), "executable = 'target/debug/plugin'\n")?;
+        let directory = root.path().join("target/debug");
+        fs::create_dir_all(&directory)?;
+        let executable = directory.join(format!("plugin{}", super::EXE_SUFFIX));
         fs::write(&executable, [2, 3, 5])?;
         let project = PluginProject::read(root.path())?;
         assert_eq!(project.executable()?, executable.canonicalize()?);

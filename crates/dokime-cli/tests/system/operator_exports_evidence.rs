@@ -61,8 +61,12 @@ fn operator_exports_evidence() -> Result<(), Box<dyn Error>> {
             // Develop the Boundary Fixture and Materialize Its Case
             let fixture = super::host_fixtures().join(format!("dokime-rust-boundary{}", EXE_SUFFIX));
             assert!(fixture.is_file(), "Build Host Fixtures Through mise run build:host-fixtures -- --language rust");
+            let prepared = directory.path().join("prepared-plugin");
+            fs::create_dir(&prepared)?;
+            fs::copy(&fixture, prepared.join(format!("plugin{EXE_SUFFIX}")))?;
+            fs::write(prepared.join("dokime.toml"), "executable = 'plugin'\n")?;
             let bundle = directory.path().join("boundary.dokime");
-            super::run(&["plugin", "bundle", "--executable", fixture.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
+            super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
             let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
             let mut plugin = super::command()
                 .envs(credentials.environment.iter().cloned())

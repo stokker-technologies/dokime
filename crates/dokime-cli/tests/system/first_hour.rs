@@ -60,8 +60,12 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
 
             // Bundle the Executable Built From Those Exact Starter Sources
             let executable = super::fixtures().join(format!("dokime-example-test{}", EXE_SUFFIX));
+            let prepared = directory.path().join("prepared-plugin");
+            fs::create_dir(&prepared)?;
+            fs::copy(&executable, prepared.join(format!("plugin{EXE_SUFFIX}")))?;
+            fs::write(prepared.join("dokime.toml"), "executable = 'plugin'\n")?;
             let bundle = directory.path().join("first.dokime");
-            super::run(&["plugin", "bundle", "--executable", executable.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
+            super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
             super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
 
             // Start a Host With an Explicit Endpoint and Controlled Clock
