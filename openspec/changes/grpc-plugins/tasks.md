@@ -67,7 +67,7 @@
 - [x] C++: Follow the Locked Authoring Surface.
 - [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
 - [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
-- [ ] Command Line: Implement Locked Point 11.
+- [x] Command Line: Implement Locked Point 11 With the Manifest-Project Amendment.
 
 - [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
 - [x] Integration: Give the Python SDK Sole Ownership of Its Authoring Root Exports.
@@ -86,4 +86,5 @@
 - [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
 - [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
 - [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
-- [ ] Complete Focused CLI, Packaging and Runtime Unit Proof, Formatting, Locked Metadata and Three-Package Compilation With Tests.
+- [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.
+- [ ] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.
