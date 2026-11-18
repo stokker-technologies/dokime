@@ -131,13 +131,13 @@
 
 ## Locked Python Shape
 
-- [ ] Rename the Python Import Package to `dokime_sdk` With `operations` and `templates` Submodules and Separate Contexts; Export No Root Context.
-- [ ] Implement Class-Based `Plugin`, `Suite` and `TestTemplate` With Class-Derived Identifiers and Labels, Label Overrides and Plain Function Operations With Annotated Payload Types.
-- [ ] Provide `plugin.serve()` as the Python Sidecar Entry Point.
-- [ ] Read `DOKIME_REMOTE` and `DOKIME_PLUGIN_ADDRESS` and Load Working-Directory `.env` in the SDK With Precedence Keyword Argument, Process Environment, `.env`, Default; Keep Secrets in Secret Storage.
-- [ ] Implement Bound Client Handles and Their Host-Operation Compositions per the Mapping Table in design.md, With Direct Values, Run/Start/Watch Primitives, Seal, Evidence, Notes, Artifacts and Explicit Client Close.
-- [ ] Implement the Manifest Schema (`[plugin]`, `dynamic`, `[compatibility]`, `[scripts]`, Bundled `assets/` Without an Assets Key) in the Command Line for Every Language's Starters.
-- [ ] Embed the Reshaped Python Starter in `dokime new`, Including the Single Source Package, Client and Plugin Module Entries, Mise Tasks, Banners, Ignore Rules and No Shipped Lock File or Argument Parsing.
-- [ ] Apply the Same Project and Client Shape to the Rust, C# and C++ Starters.
+- [ ] (a) Rename the Python Package Alone per the SDK Surface Specification Ownership Inventory; Regenerate Imports, Wheel Paths and Guards Without Keeping `dokime` Aliases.
+- [ ] (b) Implement the SDK Surface Specification's Python Authoring Classes, Separate Contexts, `ctx.plugin` and `plugin.serve()`; Resolve Its Named Capability Decisions Before Their Dependent Work.
+- [ ] (c) Implement the SDK Surface Specification's Python Bound Handles, Host Compositions and Configuration Precedence/Grammar With Secret Storage, Readback, Controls, Seal, Evidence, Notes, Artifacts and Explicit Close.
+- [ ] (d) Implement the Exact Manifest Schema, Dynamic Metadata, Implicit Assets, Bundle Identity/Version and Four-Language `dokime new` Embedding per the SDK Surface Specification.
+- [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
+- [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
+- [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
+- [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
 - [ ] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
