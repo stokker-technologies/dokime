@@ -389,6 +389,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         return Err(Error::Invalid("Query Plot: Supply Positive Panel Dimensions".into()));
     }
     let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
+    let temporal = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries | PlotKind::Xy | PlotKind::Trajectory);
     if aggregate.is_some()
         && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
             || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(data_expression::Kind::Aggregate(_)))))
@@ -426,10 +427,12 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         .map_err(|_| Error::Invalid("Query Plot: Select a Display Resolution Within This Host's Address Range".into()))?;
     let display = if kind == PlotKind::Xy {
         requested
+    } else if temporal {
+        requested.max(4)
     } else {
         request.panel_width.map(|width| width as usize * 4).unwrap_or(requested).min(requested).max(4)
     };
-    let bins = NonZeroUsize::new((display / 4).max(1)).unwrap();
+    let bins = NonZeroUsize::new(request.panel_width.map(|width| width as usize).unwrap_or(display / 4).min(display / 4).max(1)).unwrap();
     let (after, through) = store.step_range(
         execution,
         request.scope.as_ref().and_then(|scope| scope.step_id.as_deref()).unwrap_or_default(),
@@ -488,6 +491,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         };
 
         let mut column_groups = None;
+        let frame_start = frame.series.len();
         let count = if let Some(group_field) = group
             .as_deref()
             .filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified | PlotKind::Histogram | PlotKind::BoxPlot))
@@ -495,7 +499,9 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             let groups = store.plot_group_values(window, group_field, (display / 4).max(1))?;
             let mut total = 0;
             let mut counts = Vec::new();
-            let group_display = (display / groups.len().max(1)).max(4);
+            let within_budget =
+                matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified) && store.time_series_window(window)?.2 <= display as u64;
+            let group_display = if within_budget { display } else { (display / groups.len().max(1)).max(4) };
             for group in groups {
                 store.select_plot_group(Some(&group))?;
                 let label = group.label.clone();
@@ -691,23 +697,33 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         }
         examined += count;
         if let Some(groups) = column_groups {
-            for (group, raw_points) in groups {
+            for (index, (group, raw_points)) in groups.into_iter().enumerate() {
+                let served = if temporal {
+                    frame.series.get(frame_start + index).map_or(display as u64, |column| column.y.len() as u64)
+                } else {
+                    display as u64
+                };
                 payload.series.push(PlotSeries {
                     key: if group.is_empty() { field.clone() } else { format!("{field}/{group}") },
                     label: if group.is_empty() { field.clone() } else { group },
                     unit: request.unit.clone(),
                     raw_points,
-                    downsampled: raw_points > display as u64,
+                    downsampled: raw_points > served,
                     ..Default::default()
                 });
             }
         } else {
+            let served = if temporal {
+                frame.series.get(frame_start).map_or(display as u64, |column| column.y.len() as u64)
+            } else {
+                display as u64
+            };
             payload.series.push(PlotSeries {
                 key: field.clone(),
                 label: field,
                 unit: request.unit.clone(),
                 raw_points: count,
-                downsampled: count > display as u64,
+                downsampled: count > served,
                 ..Default::default()
             });
         }
@@ -804,8 +820,10 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     } else {
         frame.point_count
     };
-    let temporal = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries | PlotKind::Xy | PlotKind::Trajectory);
-    if !temporal || matches!(technique, Downsample::Raw | Downsample::Lttb) {
+    let bucketed = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries)
+        && !matches!(technique, Downsample::Raw | Downsample::Lttb)
+        && point_count < examined;
+    if !bucketed {
         payload.bucket_width_s = None;
     }
     if !temporal {
@@ -874,7 +892,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             max_points: display as u64,
             window_s: request.window_s,
             examined_rows: examined,
-            resolution_nanos: if temporal && !matches!(technique, Downsample::Raw | Downsample::Lttb) { resolution } else { 0 },
+            resolution_nanos: if bucketed { resolution } else { 0 },
         }),
         payload: Some(payload),
         warnings: Vec::new(),
@@ -1061,6 +1079,9 @@ mod tests {
 
         #[prost(double, tag = "2")]
         elapsed_s: f64,
+
+        #[prost(bool, tag = "3")]
+        phase: bool,
     }
 
     #[tokio::test]
@@ -1075,7 +1096,7 @@ mod tests {
                     syntax: Some("proto3".into()),
                     message_type: vec![DescriptorProto {
                         name: Some("Row".into()),
-                        field: [("value", Type::Double), ("elapsed_s", Type::Double)]
+                        field: [("value", Type::Double), ("elapsed_s", Type::Double), ("phase", Type::Bool)]
                             .into_iter()
                             .enumerate()
                             .map(|(index, (name, kind))| FieldDescriptorProto {
@@ -1116,6 +1137,7 @@ mod tests {
                 row: Waveform {
                     value: (index as f64 * TAU / 20.0).sin(),
                     elapsed_s: index as f64 / 1000.0,
+                    phase: index > 1000,
                 }
                 .encode_to_vec(),
                 sequence: index as u64,
@@ -1154,7 +1176,39 @@ mod tests {
                         assert_eq!(y.value, Some((index as f64 * TAU / 20.0).sin()));
                     }
                 }
+                if budget == 2000 && technique == Downsample::Auto {
+                    let grouped = PlotRequest {
+                        series_by: Some("phase".into()),
+                        ..request.clone()
+                    };
+                    let grouped = snapshots_at(&reader, &cut, vec![grouped], 1000, 0, "epoch").await.unwrap();
+                    let payload = grouped[0].payload.as_ref().unwrap();
+                    assert_eq!(payload.frame.as_ref().unwrap().point_count, budget);
+                    assert_eq!(payload.series.len(), 2);
+                    assert!(payload.series.iter().all(|series| series.downsampled));
+                }
                 let response = SnapshotsListResponse { envelopes, ..Default::default() };
+                if budget >= samples.len() as u64 {
+                    let temporal = PlotRequest {
+                        plot_type: PlotKind::TimeSeries as i32,
+                        panel_width: Some(1),
+                        ..request.clone()
+                    };
+                    let temporal = snapshots_at(&reader, &cut, vec![temporal], 1000, 0, "epoch").await.unwrap();
+                    let payload = temporal[0].payload.as_ref().unwrap();
+                    assert_eq!(payload.frame.as_ref().unwrap().series[0].y.len(), samples.len());
+                    assert_eq!(payload.bucket_width_s, None);
+                    assert_eq!(temporal[0].diagnostics.as_ref().unwrap().resolution_nanos, 0);
+                    let grouped = PlotRequest {
+                        plot_type: PlotKind::TimeSeries as i32,
+                        series_by: Some("phase".into()),
+                        ..request.clone()
+                    };
+                    let grouped = snapshots_at(&reader, &cut, vec![grouped], 1000, 0, "epoch").await.unwrap();
+                    let frame = grouped[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+                    assert_eq!(frame.point_count, samples.len() as u64);
+                    assert_eq!(frame.series.len(), 2);
+                }
                 eprintln!(
                     "XY {technique:?}: {budget} Budget, {} Points, {} Encoded Bytes",
                     response.envelopes[0].diagnostics.as_ref().unwrap().point_count,

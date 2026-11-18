@@ -184,6 +184,7 @@ export type PlotViewportRange = {
 type DrawnWindow = {
   source: uPlot.AlignedData | null;
   aligned: boolean;
+  preserveSamples: boolean;
   range: PlotViewportRange | null;
   everySample: boolean;
 };
@@ -263,7 +264,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const referenceBandsRef = useRef<DocumentReferenceBand[]>(referenceBands);
   const intervalRangesRef = useRef<IntervalRange[]>([]);
   const dataSignatureRef = useRef<string | null>(null);
-  const drawnRef = useRef<DrawnWindow>({ source: null, aligned: true, range: null, everySample: true });
+  const drawnRef = useRef<DrawnWindow>({ source: null, aligned: true, preserveSamples: true, range: null, everySample: true });
   const resetKeyRef = useRef<string | undefined>(resetKey);
   const viewportModeRef = useRef<PlotViewportMode>(viewportMode);
   const resizeFrameRef = useRef<number | null>(null);
@@ -592,7 +593,13 @@ export const CartesianPlot = memo(function CartesianPlot({
     // the boundary. This card reports the failure and stays alone in it.
     let plot: uPlot;
     try {
-      drawnRef.current = { source: chartFrame.data, aligned: !faceted, range: null, everySample: true };
+      drawnRef.current = {
+        source: chartFrame.data,
+        aligned: !faceted,
+        preserveSamples: renderedSeries.every((item) => !item.downsampled),
+        range: null,
+        everySample: true,
+      };
       plot = new uPlotConstructor(options, drawnData(drawnRef.current, null, measuredChartWidth(root), zoom), root);
     } catch (error) {
       setPlotLoadError(failureOf(error, "Plot Unavailable"));
@@ -807,6 +814,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     updateFrameRef.current = window.requestAnimationFrame(() => {
       updateFrameRef.current = null;
       drawnRef.current.source = chartFrame.data;
+      drawnRef.current.preserveSamples = renderedSeries.every((item) => !item.downsampled);
       const fullRange = () => drawnData(drawnRef.current, null, plot.over.clientWidth, zoom);
       const resetChanged = resetKeyRef.current !== resetKey;
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
@@ -838,7 +846,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       viewportModeRef.current = viewportMode;
       dataSignatureRef.current = dataSignature;
     });
-  }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale, zoom]);
+  }, [chartFrame, dataSignature, hasData, liveXRange, renderedSeries, resetKey, timeAxis, viewportMode, xScale, zoom]);
 
   const placeholder = displayError
     ? plotUnavailableText(displayError.message)
@@ -1152,7 +1160,7 @@ function isUsableSpan(min: number, max: number): boolean {
 export function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, columns: number, fitPixels: boolean): uPlot.AlignedData {
   const source = drawn.source ?? ([[]] as unknown as uPlot.AlignedData);
   drawn.range = range;
-  if (!drawn.aligned) {
+  if (!drawn.aligned || drawn.preserveSamples) {
     drawn.everySample = true;
     return source;
   }

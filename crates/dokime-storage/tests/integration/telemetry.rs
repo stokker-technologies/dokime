@@ -42,6 +42,7 @@ use super::fixture::{self, Row};
 
 use dokime_protocol::model;
 use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::Downsample;
 use dokime_protocol::model::FftDetrend;
 use dokime_protocol::model::FftWindow;
 use dokime_protocol::model::FieldReference;
@@ -191,6 +192,38 @@ fn cartesian_display_budget_counts_vertices_without_time_bucket_reduction() -> R
         assert_eq!(frame.point_count, limit as u64);
         assert_eq!(frame.series.len(), 3);
         assert_eq!(groups.iter().map(|(_, count)| count).sum::<u64>(), count);
+    }
+    Ok(())
+}
+
+#[test]
+fn time_series_preserves_all_samples_within_budget_for_every_technique() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    store.sample_batch("execution", &fixture::samples(41))?;
+    store.flush_samples()?;
+    for technique in [Downsample::Unspecified, Downsample::Auto, Downsample::Raw, Downsample::MinMax, Downsample::Lttb] {
+        for count in [1, 2, 41] {
+            for limit in [count, count + 39] {
+                let (column, summary, selected) = store.sampled_time_series_window(
+                    NumericWindow {
+                        bins: NonZeroUsize::new(1).unwrap(),
+                        ..numeric(count as u64)
+                    },
+                    technique,
+                    limit,
+                )?;
+                assert_eq!(selected, count as u64);
+                assert_eq!(summary.count, selected);
+                assert_eq!(
+                    column.y.iter().map(|point| point.value).collect::<Vec<_>>(),
+                    (0..count).map(|value| Some(value as f64)).collect::<Vec<_>>()
+                );
+                assert_eq!(column.x.len(), count);
+            }
+        }
     }
     Ok(())
 }
