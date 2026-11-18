@@ -48,6 +48,18 @@ failure, with guidance to check the host listener or export a new pairing.
 - **WHEN** the first endpoint answers with a different identity and the second proves the paired host identity
 - **THEN** the client closes the first channel and connects to the second endpoint
 
+### Requirement: Complete Pairing Export
+
+One-click pairing export SHALL write every reachable address of the host machine
+into the file's endpoint list, using the enabled listener's actual port and pinned
+TLS identity. The host SHALL supply the address list to exporters; a listener bind
+address alone does not enumerate the machine's reachable addresses.
+
+#### Scenario: Host Has Several Addresses
+
+- **WHEN** an operator exports access to a host with several reachable addresses
+- **THEN** the exported pairing contains every reachable address for clients to try in order
+
 ### Requirement: Clients Survive Connection Drops
 
 A client SHALL stay usable across a transient connection drop without surfacing an error to its caller.
