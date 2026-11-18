@@ -12,6 +12,8 @@
 # Standard Library Imports
 import json
 import os
+import re
+import tomllib
 from pathlib import Path
 
 # isort: split
@@ -40,28 +42,60 @@ def check(directory: Path, *, warn: bool = False) -> bool:
     """Check the Resolved Graph, Including Transitive Git Sources."""
     metadata = policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True)
     packages = json.loads(metadata)["packages"]
-    names = sorted({package["name"] for package in packages if (package.get("source") or "").startswith("git+")})
-    names = sorted(
-        set(names)
-        | {
-            dependency["name"]
-            for package in packages
-            for dependency in package.get("dependencies", [])
-            if (dependency.get("source") or "").startswith("git+")
-        }
-    )
+    git_packages = {package["name"] for package in packages if (package.get("source") or "").startswith("git+")}
+    git_dependencies = {
+        dependency["name"]
+        for package in packages
+        for dependency in package.get("dependencies", [])
+        if (dependency.get("source") or "").startswith("git+")
+    }
+    names = sorted(git_packages | git_dependencies | python_git_dependencies(directory))
     if not names:
         return True
-    message = "release requires registry dependencies; git dependencies: " + ", ".join(names)
+    message = "release requires registry dependencies; replace Git sources with published registry versions: " + ", ".join(names)
     if not warn:
         raise policy.ToolError(message)
-    # Cargo Cannot Package A Crate Whose Dependencies Resolve Only From Git, So Only That Step Is Skipped.
+    # Report Pending Registry Pins on Nightly.
     pending = "Stable Release Prerequisite Pending: " + message + "; Pin Published Registry Versions Before a Stable Release"
     print("::warning::" + pending + "; skipping the crate publication dry run on this non-stable channel")
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(summary).open("a", encoding="utf-8") as stream:
             stream.write("\n### Release Prerequisite Pending\n\n" + pending + "\n")
     return False
+
+
+def python_git_dependencies(directory: Path) -> set[str]:
+    """Find Declared and Locked Git Sources in Python Packages and Starters."""
+    roots = [directory, directory / "tools/python", directory / "sdk/python"]
+    roots.extend(path.parent for path in sorted((directory / "sdk/python/examples").glob("*/pyproject.toml")))
+    names: set[str] = set()
+    for root in roots:
+        manifest = root / "pyproject.toml"
+        if manifest.is_file():
+            document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+            project = document.get("project", {})
+            requirements = list(project.get("dependencies", []))
+            for group in project.get("optional-dependencies", {}).values():
+                requirements.extend(group)
+            for group in document.get("dependency-groups", {}).values():
+                requirements.extend(requirement for requirement in group if isinstance(requirement, str))
+            for requirement in requirements:
+                if "git+" in requirement:
+                    name = re.split(r"[\s\[<>=!~@;]", requirement, maxsplit=1)[0]
+                    names.add(f"{name} ({manifest.relative_to(directory).as_posix()})")
+            sources = document.get("tool", {}).get("uv", {}).get("sources", {})
+            for name, source in sources.items():
+                for entry in source if isinstance(source, list) else [source]:
+                    if "git" in entry:
+                        names.add(f"{name} ({manifest.relative_to(directory).as_posix()})")
+        lock = root / "uv.lock"
+        if not lock.is_file():
+            continue
+        document = tomllib.loads(lock.read_text(encoding="utf-8"))
+        for package in document.get("package", []):
+            if "git" in package.get("source", {}):
+                names.add(f"{package['name']} ({lock.relative_to(directory).as_posix()})")
+    return names
 
 
 # === Private Functions === #

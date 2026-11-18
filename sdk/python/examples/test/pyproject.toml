@@ -10,7 +10,7 @@
 name = "dokime-starter"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = ["dokime-sdk==0.1.5"]
+dependencies = ["dokime-sdk @ git+https://github.com/stokker-technologies/dokime@nightly#subdirectory=sdk/python"]
 
 [tool.uv]
 package = false

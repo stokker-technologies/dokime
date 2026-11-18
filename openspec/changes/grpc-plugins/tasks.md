@@ -52,6 +52,7 @@
 
 ## Locked Authoring Surface
 
+- [x] Python: Resolve Starter and Example SDK Dependencies from Nightly Git, Preserve Working-Tree Test Overrides and Reject Python Git Dependencies for Stable Releases.
 - [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
 - [x] Python: Keep Authoring Exports at the Root, Remove Duplicate Plugin Exports and Pass the Repository Public-Surface Check.
 - [x] Python: Pass Strict Installed-Wheel Stubs and Typed Authoring Consumers, Including Plain Payloads and Decorators.
