@@ -302,7 +302,7 @@ def main(arguments: list[str] | None = None) -> int:
         if not endpoint:
             raise policy.ToolError(f"Install the OBC Plugin: the Seeding Host Exited With {server.wait()}")
         subprocess.run(
-            [str(cli), "--credential-namespace", namespace, "--endpoint", endpoint, "plugin", "install", str(bundle)],
+            [str(cli), "--credential-namespace", namespace, "--endpoint", endpoint, "plugin", "install", str(bundle), "--trust"],
             cwd=root,
             env=environment,
             check=True,

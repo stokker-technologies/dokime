@@ -23,7 +23,8 @@ use std::{
 
 // Third Party Imports
 use tokio::io::AsyncReadExt;
-use tracing_subscriber::prelude::*;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, prelude::*};
 
 // Local Imports
 use crate::{Result, error::Error, settings::Settings};
@@ -80,8 +81,8 @@ pub(super) async fn start(
 ) -> Result<Server> {
     // Resolve Every Environment Read Before the Host Starts
     let environment = crate::environment::Environment::read(env_file)?;
-    let filter = tracing_subscriber::EnvFilter::builder()
-        .with_default_directive(tracing::level_filters::LevelFilter::INFO.into())
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
         .parse(environment.get("RUST_LOG").unwrap_or_default())
         .map_err(|error| Error::Invalid(format!("Configure Diagnostic Logging: {error}")))?;
     let endpoint = endpoint.ok_or_else(|| Error::Invalid("Supply --endpoint HOST:PORT or Configure endpoint".into()))?;

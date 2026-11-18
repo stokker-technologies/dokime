@@ -21,8 +21,10 @@ use std::path::{Path, PathBuf};
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
+use tonic::Status;
 
 // Local Imports
+use crate::{Result, settings::Settings};
 use dokime::FileMetadata;
 use dokime::client::PluginsCreateOptions;
 use dokime::client::plugin_placement::Kind;
@@ -31,7 +33,6 @@ use dokime::client::{
     PluginPlacement, PluginValue,
 };
 use dokime::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
-use tonic::Status;
 
 /* === Constants === */
 
@@ -60,13 +61,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: Settings) -> Result<()> {
     attach(&args.bundle, endpoint, &settings, Some(args.json)).await
 }
 
-pub(crate) async fn attach(
-    bundle: &Path, endpoint: Option<String>, settings: &crate::settings::Settings, output: Option<bool>,
-) -> crate::Result<()> {
+pub(crate) async fn attach(bundle: &Path, endpoint: Option<String>, settings: &Settings, output: Option<bool>) -> Result<()> {
     let manifest = super::bundle::inspect(bundle)?;
     let name = manifest["identity"]["name"].as_str().ok_or("Install Plugin: Missing Bundle Identity")?;
     let client = settings.sdk(endpoint).await?;
@@ -89,7 +88,7 @@ pub(crate) async fn attach(
         )
         .await?;
     let mut upload = created.upload.ok_or("Install Plugin: Missing Upload")?;
-    let work: crate::Result<_> = async {
+    let work: Result<_> = async {
         let maximum = created
             .chunk_bytes
             .min(created.message_bytes.saturating_sub(1024))

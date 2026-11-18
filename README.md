@@ -120,7 +120,9 @@ mise -C sdk/cpp run test
 
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
-managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
+managed `.dokime` bundle or add a remote plugin URL with `--trust`, materialize a case and run it.
+For development, `dokime dev --plugin <bundle-or-python-folder>` starts a disposable host,
+logs to the console, and removes its data root on exit. Python projects require `uv` on PATH.
 The [Execution Host Guide](docs/execution-host.md) lists the exact commands and
 configuration; the [Product Guide](docs/product-guide.md) explains the model.
 

@@ -18,13 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use tonic::Status;
 
 // Local Imports
+use crate::{Result, settings::Settings};
 use dokime::client::PluginsCreateOptions;
 use dokime::client::plugin_placement::Kind;
 use dokime::client::{PluginPlacement, PluginRemote, PluginValue};
 use dokime::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
-use tonic::Status;
 
 /* === Constants === */
 
@@ -53,13 +54,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: Settings) -> Result<()> {
     attach(args.url, endpoint, &settings, Some(args.json)).await
 }
 
-pub(crate) async fn attach(
-    url: String, endpoint: Option<String>, settings: &crate::settings::Settings, output: Option<bool>,
-) -> crate::Result<()> {
+pub(crate) async fn attach(url: String, endpoint: Option<String>, settings: &Settings, output: Option<bool>) -> Result<()> {
     let description = dokime_runtime::describe_plugin(&url, &settings.placement()).await?;
     let client = settings.sdk(endpoint).await?;
     let placement = PluginPlacement {

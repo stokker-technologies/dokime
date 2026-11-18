@@ -29,6 +29,8 @@ mod secrets;
 
 // Local Imports
 
+use crate::{Result, error::Error, settings::Settings};
+
 /* === Constants === */
 
 /* === Macros === */
@@ -55,7 +57,7 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 impl Command {
-    pub(super) fn require_trust(&self) -> crate::Result<()> {
+    pub(super) fn require_trust(&self) -> Result<()> {
         match self {
             Self::Add(args) => require_trust(args.trust),
             Self::Install(args) => require_trust(args.trust),
@@ -78,7 +80,7 @@ impl Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Settings) -> Result<()> {
     match command {
         Command::Remove(args) => remove::run(args, endpoint, settings).await,
         Command::Secrets(args) => secrets::run(args, endpoint, settings).await,
@@ -90,11 +92,9 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
     }
 }
 
-pub(super) fn require_trust(trust: bool) -> crate::Result<()> {
+pub(super) fn require_trust(trust: bool) -> Result<()> {
     if !trust {
-        return Err(crate::error::Error::Invalid(
-            "Installing Runs the Plugin's Code with the Host's Access; Review It and Pass --trust".into(),
-        ));
+        return Err(Error::Invalid("Installing Runs the Plugin's Code with the Host's Access; Review It and Pass --trust".into()));
     }
     Ok(())
 }
@@ -113,7 +113,10 @@ mod tests {
     async fn untrusted_install_and_add_refuse_before_io() {
         for arguments in [["dokime", "plugin", "install", "missing.dokime"], ["dokime", "plugin", "add", "invalid-url"]] {
             let cli = Cli::try_parse_from(arguments).unwrap();
-            let settings = Settings { remote: Some("missing.dokime-remote".into()), ..Settings::default() };
+            let settings = Settings {
+                remote: Some("missing.dokime-remote".into()),
+                ..Settings::default()
+            };
             let result = commands::run(cli.command, None, settings).await;
             assert!(matches!(result, Err(Error::Invalid(_))));
         }

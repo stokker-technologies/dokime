@@ -37,6 +37,7 @@ mod version;
 // Third Party Imports
 
 // Local Imports
+use crate::{Result, settings::Settings};
 
 /* === Constants === */
 
@@ -112,7 +113,7 @@ impl Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: Settings) -> Result<()> {
     if let Command::Plugin(command) = &command {
         command.require_trust()?;
     }

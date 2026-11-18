@@ -307,7 +307,7 @@ mod tests {
         let project = root.path().canonicalize()?;
         let uv = Path::new("fixture-uv");
         let command = python_command(root.path(), uv)?;
-        assert_eq!(command.get_program(), uv);
+        assert_eq!(command.get_program(), uv.as_os_str());
         assert_eq!(command.get_current_dir(), Some(project.as_path()));
         let arguments: Vec<_> = command.get_args().collect();
         assert_eq!(
