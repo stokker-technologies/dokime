@@ -116,7 +116,7 @@ impl PluginProcess {
         } else {
             None
         };
-        let launch = project.as_ref().and_then(|project| project.manifest.launch.as_deref());
+        let launch = project.as_ref().and_then(|project| project.manifest.scripts.launch.as_deref());
         let mut command = match &project {
             Some(project) => match launch {
                 Some(launch) => {
@@ -379,18 +379,18 @@ mod tests {
     #[test]
     fn manifest_command_preserves_arguments_directory_and_environment() -> Result<()> {
         let root = tempfile::tempdir()?;
-        fs::write(root.path().join("dokime.toml"), "launch = ['fixture', 'entry', 'argument with spaces']\n")?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch = ['fixture', 'entry', 'argument with spaces']\n")?;
         let project = PluginProject::read(root.path()).map_err(|source| Error::Invalid(source.to_string()))?;
-        let command = PluginProcess::command(&project, project.manifest.launch.as_deref().unwrap())?;
+        let command = PluginProcess::command(&project, project.manifest.scripts.launch.as_deref().unwrap())?;
         assert_eq!(command.get_program(), OsStr::new("fixture"));
         assert_eq!(command.get_current_dir(), Some(project.root.as_path()));
         let arguments: Vec<_> = command.get_args().collect();
         assert_eq!(arguments, [OsStr::new("entry"), OsStr::new("argument with spaces")]);
         assert!(command.get_envs().any(|(name, value)| name == "UV_PROJECT_ENVIRONMENT" && value.is_none()));
 
-        fs::write(root.path().join("dokime.toml"), "launch = ['./bin/interpreter', 'entry']\n")?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch = ['./bin/interpreter', 'entry']\n")?;
         let project = PluginProject::read(root.path()).map_err(|source| Error::Invalid(source.to_string()))?;
-        let command = PluginProcess::command(&project, project.manifest.launch.as_deref().unwrap())?;
+        let command = PluginProcess::command(&project, project.manifest.scripts.launch.as_deref().unwrap())?;
         assert_eq!(command.get_program(), project.root.join("bin/interpreter").as_os_str());
         Ok(())
     }
