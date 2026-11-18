@@ -178,15 +178,12 @@ export function useCycleCommands(cycleId: string) {
       mutationFn: (caseId: string) => deleteNativeTestCycleCases(session().identity, cycleId, [caseId]),
       onSettled: invalidateAll,
     }),
-    /* Saves the report Open Report would open, named after its node. */
+    /* Create One Frozen Report, Then Save Its Retained File. */
     downloadReport: useMutation({
       mutationFn: async ({ executionId, label }: { executionId: string | null; label: string }) =>
         downloadNativeReport(session().identity, reportSource(executionId), reportFilename(label)),
     }),
-    /* The report the cycle, or one execution, has now: the runtime renders
-       one from the run so far, reads the sealed one, or renders the sealed
-       one again when its file is gone. Opening it never fails for want of a
-       seal. */
+    /* Open the Retained Report; Missing Reports Name the Creation Action. */
     openReport: useMutation({
       mutationFn: (executionId: string | null) => openNativeReport(session().identity, reportSource(executionId)),
     }),

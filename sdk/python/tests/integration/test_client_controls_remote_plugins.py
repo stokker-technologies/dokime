@@ -11,8 +11,11 @@
 # === Imports === #
 
 import asyncio
+import json
 import unittest
 from collections.abc import AsyncIterator
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from grpc import StatusCode
 from grpc.aio import AioRpcError, ServicerContext, UsageError, server
@@ -45,6 +48,7 @@ from dokime.connection import connect
 class ClientStory(unittest.IsolatedAsyncioTestCase):
     async def test_create_list_delete_and_close(self) -> None:
         entries: dict[str, PluginEntry] = {}
+        pairing_key = "pair-key" * 4
         authorization: list[str | bytes | None] = []
         identities: list[str] = []
         watching = asyncio.Event()
@@ -71,7 +75,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
 
         class Status(StatusServicer):
             async def Get(self, request: StatusGetRequest, context: ServicerContext) -> StatusGetResponse:
-                if dict(context.invocation_metadata() or ()).get("authorization") != "Bearer test-key":
+                if dict(context.invocation_metadata() or ()).get("authorization") not in ("Bearer test-key", f"Bearer {pairing_key}"):
                     await context.abort(StatusCode.UNAUTHENTICATED, "Read Status: Supply Credentials")
                 return StatusGetResponse(status=HostStatus(identity=HostIdentity(host_id="bench"), available=True))
 
@@ -98,6 +102,33 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(host.stop, None)
         client = await connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="bench")
         self.addAsyncCleanup(client.close)
+
+        # Connect Through the Same Portable File the Desktop Exports.
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        pairing = Path(directory.name) / "operator.pair"
+        pairing.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "endpoints": [f"http://127.0.0.1:{port}"],
+                    "backend_identifier": "bench",
+                    "label": "Operator",
+                    "certificate_pem": None,
+                    "access_key": pairing_key,
+                }
+            ),
+            encoding="utf-8",
+        )
+        paired = await connect(pairing)
+        self.addAsyncCleanup(paired.close)
+        self.assertEqual((await paired.status.get()).status.identity.host_id, "bench")
+
+        # A File With Another Extension Is Not an Endpoint or a Pairing File.
+        unselected = pairing.with_suffix(".json")
+        unselected.write_bytes(pairing.read_bytes())
+        with self.assertRaises(ValueError):
+            await connect(unselected)
 
         # Refuse a Foreign Paired Host.
         with self.assertRaises(ValueError):

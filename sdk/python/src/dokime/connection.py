@@ -108,7 +108,7 @@ async def connect(
 ) -> ClientRoot:
     selected = str(target or os.environ.get("DOKIME_REMOTE", ""))
     if not selected:
-        raise ValueError("Connect: Name an Endpoint or Pairing File, or Set DOKIME_REMOTE")
+        raise ValueError("Connect: Name an Endpoint or .pair File, or Set DOKIME_REMOTE")
     if selected.endswith(".pair"):
         pairing = _pairing(Path(selected))
         certificate_pem = pairing["certificate_pem"]
@@ -126,7 +126,7 @@ async def connect(
         or endpoint.username
         or endpoint.password
     ):
-        raise ValueError("Connect: Supply an HTTP(S) Origin with an Explicit Port")
+        raise ValueError("Connect: Supply an HTTP(S) Origin with an Explicit Port or Select a .pair File")
     metadata = (("authorization", f"Bearer {access_key}"),) if access_key else ()
     interceptors = [_UnaryMetadata(metadata), _StreamMetadata(metadata)]
     if endpoint.scheme == "https":

@@ -80,14 +80,14 @@
 - [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
 - [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
-  - [ ] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate; the Two-Desktop Report-Delivery Contract Remains Unresolved.
+  - [ ] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate.
   - [ ] Linux: Complete the Same Ordered Native Proof After Authorized Delivery.
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
 - [x] Integration: Remove Plaintext Execution-ID Report Assertions Superseded by the Shared Protobuf Capture Renderer.
 - [x] Integration: Align Short Text Prompt Choice Archetypes Across Python, C# and C++ With the Rust SDK and Prove Native Evidence Parity.
 - [x] Integration: Make CLI Development Stories Headless and Remove Their Unreachable Sibling-Desktop Data-Root Overrides.
 - [x] Integration: Verify Manual Prompt Waiting and Answering in Both SDK Remote First-Hour CLI Journeys After the Dev Merge Without Changing Operation Policies.
-- [ ] Integration: Resolve Fresh Report Publication Versus Retained-Report Delivery in the Two-Desktop Story; Unchanged Report Data Currently Carries Different Notes Read Cuts, and Same-Identity `Reports.Create` Recollects Before Native Upload Replay and Can Conflict (`crates/dokime-operations/src/host/reports/create.rs`).
+- [x] Integration: Freeze Reports at Creation and Deliver Their Retained Bytes in Both Native Desktop Stories.
 - [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
 
 ## Plugin Project Manifests
@@ -109,6 +109,12 @@
 - [x] Update the Compiler-Record Story to Stage Real Executable Fixtures Before Manifest Bundling and Pass Tooling Integration Tests.
 - [x] Generate the Shared Report Template Before Independent Rust Fixture, Test-Archive and Lint Compilation; Propagate Generation Failures Before Compilation.
 - [x] Preserve Focused Native JUnit Reports Before Scratch Cleanup and Keep Cleanup Failures Visible.
+
+## Desktop Reports and Paired Python
+
+- [x] Share the Journey's Submit-and-Observe Report Save With Screenshots and Measure Thermal/OBC Creation, Transfer and Write.
+- [x] Keep Desktop and Python Remote Access Files at `.pair`; Prove the Python Client Reads the Portable File.
+- [ ] Add and Prove Python Drives a Paired Desktop Through the Real Remote Access Export Control and the Unmodified Starter.
 
 ## Single Plugin Paths
 

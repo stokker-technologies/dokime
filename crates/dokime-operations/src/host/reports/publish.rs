@@ -32,6 +32,7 @@ use dokime_protocol::host::ReportsPublishRequest;
 use dokime_protocol::host::ReportsPublishResponse;
 use dokime_protocol::host::report_subject::Kind;
 use dokime_storage::Report;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -69,6 +70,7 @@ pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result
             return Err(Error::Invalid("Publish Report: Keep Its Prepared Execution Subject".into()));
         }
         transfer::authorize(context, &file)?;
+        let retained = file.clone();
         let length = file.length;
         let seal = file.sha256.clone();
         let file = storage::FileReference::try_from(file).map_err(|cause| Error::Invalid(format!("Publish Report: {cause}")))?;
@@ -96,6 +98,9 @@ pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result
             seal,
         };
         let report = context.host.publish_report(prepared)?;
+        let key = format!("published-report/{}", report.identifier);
+        let scope = Scope::Execution(&report.execution).identifier()?;
+        administration::retain(context, &key, scope, &retained).await?;
         let cut = context.host.store().metadata(&report.execution)?;
         Ok(ReportsPublishResponse {
             report: Some(ReportMetadata {

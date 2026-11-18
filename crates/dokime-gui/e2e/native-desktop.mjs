@@ -21,7 +21,6 @@ import { parseArgs } from "node:util";
 
 import {
   answerPendingPrompts,
-  chooseNativeFile,
   obcExecutable,
   openNativeReport,
   pluginExecutable,
@@ -35,6 +34,7 @@ import {
   until,
 } from "./native-fixture.mjs";
 import { call, invoke } from "./native-rpc.mjs";
+import { printReportSaveTimings, saveReport } from "./report-save.mjs";
 
 /* === Re-Exports === */
 
@@ -247,38 +247,14 @@ async function exactBench() {
 async function reportsAndHistory() {
   const before = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(before.report.state, "REPORT_STATE_PENDING");
-  const status = await invoke(desktop, "desktop_session_status");
+  await desktop.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
   const path = join(work, "thermal-execution.html");
-  await desktop.execute(
-    `const pending = {done:false}; window.__storyPicker=pending;
-    window.__TAURI_INTERNALS__.invoke("desktop_artifact_deliver",arguments[0]).then(
-      value=>Object.assign(pending,{done:true,value}), failure=>Object.assign(pending,{done:true,failure}));`,
-    [
-      {
-        generation: status.connection.generation,
-        request: {
-          source: { kind: "execution_report", executionId },
-          kind: "html_report",
-          filename: "thermal-execution.html",
-          action: "save",
-        },
-      },
-    ],
-  );
-  const picker = { window: null };
-  await until(
-    "Save Execution Report",
-    async () => (await desktop.execute("return window.__storyPicker.done")) || chooseNativeFile(picker, path, "Save", desktop.process),
-  );
-  const saved = await until("Verified Execution Report", async () => {
-    const current = await desktop.execute("return window.__storyPicker");
-    return current.done ? current : null;
-  });
-  assert.equal(saved.failure, undefined, JSON.stringify(saved.failure));
-  assert.equal(saved.value.origin, "sealed");
-  const html = await readFile(saved.value.path, "utf8");
+  const saved = await saveReport(desktop, path, { label: "Thermal", hostLog: join(evidence, "backend.log") });
+  const after = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
+  assert.equal(after.report.state, "REPORT_STATE_READY");
+  const html = await readFile(saved.path, "utf8");
   await writeFile(join(evidence, "thermal-execution.html"), html);
-  const reader = await openNativeReport(saved.value.path);
+  const reader = await openNativeReport(saved.path);
   assert.ok(
     reader.headings.some((heading) => heading.includes("Thermal")),
     "The Reader Sees the Authored Subject Name",
@@ -448,6 +424,7 @@ try {
       results.push({ name: "Fixture Cleanup", seconds: 0, error });
     }
   }
+  await printReportSaveTimings();
   const failures = results.filter((result) => result.error).length;
   if (options.junit) {
     await mkdir(dirname(resolve(options.junit)), { recursive: true });

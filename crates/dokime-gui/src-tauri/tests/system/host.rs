@@ -761,6 +761,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             assert_eq!(history.epoch, execution);
             assert_eq!(position.sequence, document_cut.position);
             let file = prepared.file.ok_or("Prepare Report: Missing File Reference")?;
+            let retained = file.clone();
             let _: ReportsPublishResponse = session
                 .unary(
                     "/dokime.host.v1.Reports/Publish",
@@ -784,6 +785,19 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             let reference = report.file.ok_or("Read Report: Missing File Reference")?;
+            assert_eq!(reference, retained);
+            let repeated: ReportsGetResponse = session
+                .unary(
+                    "/dokime.host.v1.Reports/Get",
+                    ReportsGetRequest {
+                        subject: Some(ReportSubject {
+                            kind: Some(report_subject::Kind::Execution(execution.clone())),
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(repeated.file, Some(retained));
             let selected: FilesGetResponse =
                 session.unary("/dokime.host.v1.Files/Get", FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
             let mut bytes = Vec::new();
@@ -822,7 +836,10 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let exported = testing::save_verified(
                 active.clone(),
                 connected.generation,
-                testing::ArtifactSource::ExecutionReport { execution_id: execution },
+                testing::ArtifactSource::ExecutionReport {
+                    execution_id: execution,
+                    name: String::new(),
+                },
                 "native-export.html".into(),
                 async { Ok(Some((destination.clone(), false))) },
             )

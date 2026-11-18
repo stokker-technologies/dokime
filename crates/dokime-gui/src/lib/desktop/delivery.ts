@@ -53,8 +53,8 @@ export type ArtifactSource =
   | { kind: "execution_file"; executionId: string; relativePath: string }
   | { kind: "execution_evidence"; executionId: string }
   | { kind: "cycle_evidence"; cycleId: string }
-  | { kind: "cycle_report"; cycleId: string }
-  | { kind: "execution_report"; executionId: string };
+  | { kind: "cycle_report"; cycleId: string; name?: string }
+  | { kind: "execution_report"; executionId: string; name?: string };
 
 export type Delivered = {
   path: string;
