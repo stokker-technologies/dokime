@@ -13,8 +13,8 @@
  *
  * The card states one line about where its node stands and offers the
  * lifecycle actions that state admits, always in the same order in the same
- * slot. An execution that has not started offers Start and Cancel; one that
- * runs offers Pause or Resume and Stop; one whose last step has completed is
+ * slot. An execution that has not started offers Start when the host admits
+ * it; one that runs offers Pause or Resume and Stop; one whose last step has completed is
  * finalizing — it saves its evidence and offers nothing until it ends; an
  * ended one offers Re-Run. Stop is the only destructive action. The cycle
  * states the member running now and offers Seal Cycle while it is Active; it
@@ -100,9 +100,25 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
       ...(controls?.canStart ? ["Start" as const] : []),
       ...(controls?.canCancel ? ["Cancel" as const] : []),
     ];
-    return status === "created"
-      ? { actions, detail: null, line: "Queued · waits for the execution lane", phase: "queued" }
-      : { actions, detail: null, line: "Not started · waits for Start", phase: "unstarted" };
+    if (status === "created") {
+      return { actions, detail: null, line: "Queued · waits for the execution lane", phase: "queued" };
+    }
+    if (!controls) {
+      return {
+        actions,
+        detail: "The host has not reported execution controls. Reconnect to the host and reload this execution.",
+        line: "Not started · controls unavailable; reload this execution",
+        phase: "unstarted",
+      };
+    }
+    return {
+      actions,
+      detail: controls.canStart
+        ? null
+        : "Start requires unstarted, open plugin evidence without an active run. Select a new plugin execution to run it.",
+      line: controls.canStart ? "Not started · waits for Start" : "Not started · host refuses Start; select a new plugin execution",
+      phase: "unstarted",
+    };
   }
   if (isTerminalExecutionStatus(status)) {
     if (input.pluginAvailable === false) {
@@ -150,10 +166,18 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
  * stays saved either way, and the card states the cause beneath.
  */
 export function cycleControlState({ phase, running }: CycleControlInput): CycleControlState {
-  if (phase === "sealing") return { actions: [], line: "Sealing · saving evidence" };
-  if (phase === "seal_failed") return { actions: ["Retry Seal", "Archive"], line: "Seal failed · evidence kept" };
-  if (phase === "sealed") return { actions: [], line: "Sealed · evidence saved" };
-  if (!running) return { actions: ["Seal Cycle"], line: "Idle · no execution running" };
+  if (phase === "sealing") {
+    return { actions: [], line: "Sealing · saving evidence" };
+  }
+  if (phase === "seal_failed") {
+    return { actions: ["Retry Seal", "Archive"], line: "Seal failed · evidence kept" };
+  }
+  if (phase === "sealed") {
+    return { actions: [], line: "Sealed · evidence saved" };
+  }
+  if (!running) {
+    return { actions: ["Seal Cycle"], line: "Idle · no execution running" };
+  }
   return {
     actions: ["Seal Cycle"],
     line: running.step ? `Execution ${running.ordinal} · ${running.step}` : `Execution ${running.ordinal} running`,
@@ -167,11 +191,15 @@ export function cycleControlState({ phase, running }: CycleControlInput): CycleC
  */
 export function rerunNoticeLines({ skipped, droppedParameters }: RerunNotices): string[] {
   const reasons = new Map<string, string[]>();
-  for (const notice of skipped) reasons.set(notice.reason, [...(reasons.get(notice.reason) ?? []), notice.caseId]);
+  for (const notice of skipped) {
+    reasons.set(notice.reason, [...(reasons.get(notice.reason) ?? []), notice.caseId]);
+  }
   const lines = [...reasons].map(
     ([reason, ids]) => `${ids.length} ${ids.length === 1 ? "case" : "cases"} skipped: ${ids.join(", ")}, ${reason}`,
   );
-  for (const notice of droppedParameters) lines.push(`Parameters dropped from ${notice.caseId}: ${notice.reason}`);
+  for (const notice of droppedParameters) {
+    lines.push(`Parameters dropped from ${notice.caseId}: ${notice.reason}`);
+  }
   return lines;
 }
 

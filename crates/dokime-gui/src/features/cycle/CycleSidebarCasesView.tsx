@@ -91,7 +91,6 @@ import {
   executionStatusLabel,
   finishedCaseCount,
   isFollowing,
-  isPlannedExecution,
   rowOffersRunAgain,
   selectedCycleRow,
 } from "./cycle-workspace-model";
@@ -207,7 +206,9 @@ export function CycleSidebarCasesView({
     (event: KeyboardEvent<HTMLUListElement>) => {
       const tree = treeRef.current;
       const current = event.target instanceof HTMLElement ? event.target : null;
-      if (!tree || current?.getAttribute("role") !== "treeitem") return;
+      if (!tree || current?.getAttribute("role") !== "treeitem") {
+        return;
+      }
       const items = [...tree.querySelectorAll<HTMLElement>("[role=treeitem]")];
       const index = items.indexOf(current);
       const isCycle = current.dataset.level === "overview";
@@ -228,20 +229,27 @@ export function CycleSidebarCasesView({
         case "End":
           /* The last row may sit outside the rendered window; bring it in first. */
           event.preventDefault();
-          if (rows.length) rowWindow.focusIndex(rows.length - 1, (row) => row.focus());
-          else move(items.at(-1));
+          if (rows.length) {
+            rowWindow.focusIndex(rows.length - 1, (row) => row.focus());
+          } else {
+            move(items.at(-1));
+          }
           break;
         case "ArrowRight":
           if (isCycle && !expanded) {
             event.preventDefault();
             setExpanded(true);
-          } else if (isCycle) move(items[index + 1]);
+          } else if (isCycle) {
+            move(items[index + 1]);
+          }
           break;
         case "ArrowLeft":
           if (isCycle) {
             event.preventDefault();
             setExpanded(false);
-          } else move(items[0]);
+          } else {
+            move(items[0]);
+          }
           break;
         case "Enter":
         case " ":
@@ -347,14 +355,16 @@ export function CycleSidebarCasesView({
                         onRerun={() =>
                           report({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
                             const created = await liveActions(actions).rerunCase(row.case.caseId);
-                            if (created) select({ executionId: created });
+                            if (created) {
+                              select({ executionId: created });
+                            }
                           })
                         }
                         onRun={() =>
                           report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
                             const execution = row.execution;
-                            if (!execution || !isPlannedExecution(execution.status)) {
-                              throw new Error("No unstarted execution is available.");
+                            if (!execution?.controls?.canStart) {
+                              throw new Error("Reload execution controls or select a new plugin execution before starting.");
                             }
                             return liveActions(actions).startExecution(execution.test_execution_id);
                           })
@@ -398,9 +408,13 @@ export function CycleSidebarCasesView({
               onClick={() => {
                 const row = pendingDelete;
                 setPendingDelete(null);
-                if (!row) return;
+                if (!row) {
+                  return;
+                }
                 const selected = rows.find((candidate) => candidate.key === selectedKey);
-                if (selected?.case.caseId === row.case.caseId) select({ view: "cycle" });
+                if (selected?.case.caseId === row.case.caseId) {
+                  select({ view: "cycle" });
+                }
                 report({ done: "Case Deleted", failed: "The Case Could Not Be Deleted" }, () =>
                   liveActions(actions).deleteCase(row.case.caseId),
                 );
@@ -451,7 +465,6 @@ function ExecutionTreeRow({
   const actions = row.case.actions;
   const reason = caseActionTooltip(row.case);
   const deleteAllowed = actions === null || actions.delete;
-  const startAllowed = active && row.execution !== null && isPlannedExecution(row.execution.status);
   const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting for Input", tone: "warning" } : rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -532,9 +545,9 @@ function ExecutionTreeRow({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48" side="right">
               <DropdownMenuItem
-                disabled={!startAllowed}
+                disabled={!row.execution?.controls?.canStart}
                 onSelect={onRun}
-                title={startAllowed ? undefined : "Select an Unstarted Execution in an Active Cycle"}
+                title={row.execution?.controls?.canStart ? undefined : "Reload Execution Controls or Select a New Plugin Execution"}
               >
                 <Play />
                 Start Execution
@@ -609,7 +622,9 @@ function rowTone(selected: boolean): string {
 function useLongPress(onLongPress: () => void) {
   const timer = useRef<number | null>(null);
   const cancel = () => {
-    if (timer.current !== null) window.clearTimeout(timer.current);
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+    }
     timer.current = null;
   };
   return {
@@ -619,7 +634,9 @@ function useLongPress(onLongPress: () => void) {
     },
     onPointerCancel: cancel,
     onPointerDown: (event: { pointerType: string }) => {
-      if (event.pointerType !== "touch") return;
+      if (event.pointerType !== "touch") {
+        return;
+      }
       cancel();
       timer.current = window.setTimeout(onLongPress, LONG_PRESS_MS);
     },
@@ -704,6 +721,8 @@ function caseExecutionCount(rows: readonly CycleExecutionRow[], caseId: string):
 }
 
 function liveActions(actions: CycleSidebarActions | undefined): CycleSidebarActions {
-  if (!actions) throw new Error("Cycle commands require a live workspace.");
+  if (!actions) {
+    throw new Error("Cycle commands require a live workspace.");
+  }
   return actions;
 }

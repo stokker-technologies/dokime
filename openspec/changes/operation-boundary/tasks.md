@@ -53,6 +53,9 @@ with slices 3–5; sealed query/report readers must use the same evidence cut C.
 
 - [x] 2.5 Move execution-command receipt persistence, phase updates, reads and restart recovery to execution-scoped Harmos object operations; retain the original native mutation identity/input for receipt replay and refuse superseded command journals. Prove held command reads while native history is available, command reads after host restart, interruption of unfinished receipts and identical admission receipts after phase advancement/restart with `client_controls_execution_lifecycle`. This is the command journal sub-slice of 2.2; admission's execution-state read and the coupled execution/evidence state cutover stay open.
 
+- [ ] 2.6 Preserve host Start capabilities in desktop execution summaries. Use that capability alone for page and sidebar Start; show actionable refusal guidance when it is absent. Prove deterministic control projection and the native desktop page Start journey.
+- [ ] 2.7 Open execution progress watches only after admission and stop reconnecting on precondition refusal or terminal progress. Prove planned-to-running observation and refused-watch handling deterministically.
+
 ## 3. Intake, Evidence and Native Row Watches
 
 Harmos supplies **G2: columnar append/backend path** and **G3: compound-aware watches**

@@ -150,12 +150,15 @@ async function library() {
   cycle = await call(desktop, "Cycles", "Get", { name: cycleId }).then((reply) => reply.cycle);
   const detail = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(detail.summary.state, "EXECUTION_STATE_OPEN");
+  assert.equal(detail.controls.canStart, true);
   await desktop.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-select]`);
 }
 
 async function execute() {
-  await desktop.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-actions]`);
-  await desktop.clickNamed("menuitem", "Start Execution");
+  await until("Planned Execution Page Start", () =>
+    desktop.find("css selector", '[aria-label="Execution #1 Controls"] button[data-execution-action="Start"]:enabled'),
+  );
+  await desktop.clickCss('[aria-label="Execution #1 Controls"] button[data-execution-action="Start"]');
   await until("Live Operator Prompt", () => desktop.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
   assert.ok((await desktop.text()).includes("Door"));
   await answerPendingPrompts(desktop);
@@ -454,6 +457,8 @@ try {
   }
   if (failures) {
     process.exitCode = 1;
-  } else if (work) await rm(work, { recursive: true, force: true });
+  } else if (work) {
+    await rm(work, { recursive: true, force: true });
+  }
   process.stdout.write(`Native Desktop: ${results.length - failures} Passed; ${failures} Failed\n`);
 }

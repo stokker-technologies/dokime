@@ -332,7 +332,14 @@ test("Execution Controls", () => {
     assert.deepEqual(state.actions, ["Start", "Cancel"]);
     assert.doesNotMatch(state.line, /No step in progress/);
   }
-  assert.equal(executionControlState(input({ status: "planned", controls: running })).line, "Not started · waits for Start");
+  const startable = executionControlState(input({ status: "planned", controls: running }));
+  for (const controls of [undefined, { ...running, canStart: false }]) {
+    const state = executionControlState(input({ status: "planned", controls }));
+    assert.equal(state.phase, "unstarted");
+    assert.equal(state.actions.includes("Start"), false);
+    assert.notEqual(state.line, startable.line);
+    assert.ok(state.detail);
+  }
 
   // Stop Shows Only While an Attempt Runs, After Pause When It Pauses
   assert.deepEqual(executionControlState(input({ controls: running })).actions, ["Stop"]);

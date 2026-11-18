@@ -148,11 +148,6 @@ export function isFinishedCase(status: CaseState): boolean {
   return FINISHED_CASE_STATES.has(status);
 }
 
-/** Whether this attempt is a placeholder for a case the cycle has not run. */
-export function isPlannedExecution(status: TestExecution["status"]): boolean {
-  return status === "planned";
-}
-
 /** An attempt with nothing captured yet: planned, or queued and undispatched. */
 export function isUnstartedExecution(status: TestExecution["status"]): boolean {
   return status === "planned" || status === "created";
