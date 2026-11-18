@@ -20,6 +20,8 @@ is final, for executions and cycles alike.
 - Sealing a cycle seals its content, materializes one report covering every
   execution and one evidence archive that contains it, and retains both.
   Later downloads return the retained bytes.
+- A cycle can be sealed while some of its executions were never started; they
+  are sealed as not run. Only a running execution blocks the seal.
 - The cycle passes through its existing Sealing phase while that work runs
   and reports Seal Failed with the cause when it cannot complete.
 

@@ -44,10 +44,26 @@ archive containing that report, and retain both with the sealed cycle.
 - **WHEN** a cycle is sealed while one of its executions is running
 - **THEN** the seal is refused and names the running execution
 
+#### Scenario: Never-Started Execution
+
+- **WHEN** a cycle is sealed while one of its executions was never started
+- **THEN** the seal succeeds, that execution is sealed as not run and the report lists it as not run
+
 #### Scenario: Sealed Cycle Has Its Evidence
 
 - **WHEN** a cycle whose executions are all sealed is sealed
 - **THEN** its report and its evidence archive exist and the archive contains the report
+
+### Requirement: Never-Started Executions Do Not Block a Cycle Seal
+
+Sealing a cycle SHALL seal each of its never-started executions with the
+outcome not run. A not-run execution SHALL NOT be startable afterwards and
+SHALL NOT count as passed or failed.
+
+#### Scenario: Start After Cycle Seal
+
+- **WHEN** a client starts an execution that was sealed as not run
+- **THEN** the start is refused and names the sealed cycle
 
 ### Requirement: Retained Evidence Is Returned Unchanged
 

@@ -17,6 +17,7 @@
 - [ ] 3.3 Materialize the evidence archive containing that report during the same seal and retain it.
 - [ ] 3.4 Return the retained report and archive on every download; prove equal digests across two downloads.
 - [ ] 3.5 Refuse a cycle seal while an execution is running and name it.
+- [ ] 3.6 Seal never-started executions as not run during a cycle seal, list them as not run in the report, exclude them from pass and fail counts and refuse a later start.
 
 ## 4. Validation and Delivery
 
