@@ -97,7 +97,7 @@ jobs:
         - platform: any
           runner: ubuntu-22.04
           minutes: 120
-          work: Python
+          work: SDK / Python
           command: package -- --language python
           outputs: '[{"archive":"target/ci/package-{profile}-python-any.tar.zst","paths":["target/package/{profile}/any/python"]}]'
           bootstrap: '[]'
@@ -106,7 +106,7 @@ jobs:
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
-          work: Rust
+          work: Product
           command: package -- --language rust
           outputs: '[{"archive":"target/ci/package-{profile}-rust-{platform}.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
           bootstrap: '["mise run ci:prerequisites -- --gui-packages"]'
@@ -115,7 +115,7 @@ jobs:
         - platform: windows
           runner: windows-latest
           minutes: 120
-          work: Rust
+          work: Product
           command: package -- --language rust
           outputs: '[{"archive":"target/ci/package-{profile}-rust-{platform}.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
           bootstrap: '[]'
