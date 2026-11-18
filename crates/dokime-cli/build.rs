@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::{
     env, fs,
+    ops::RangeInclusive,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -28,7 +29,7 @@ use std::{
 
 /* === Constants === */
 
-const COMMIT_DIGITS: std::ops::RangeInclusive<usize> = 7..=64;
+const COMMIT_DIGITS: RangeInclusive<usize> = 7..=64;
 const UNKNOWN: &str = "unknown";
 
 /* === Macros === */
@@ -95,6 +96,9 @@ fn embed_examples() {
                     }
                     if !kind.is_file() {
                         panic!("Embed Example: Expected a Regular File at {}", path.display());
+                    }
+                    if language == "python" && entry.file_name() == "uv.lock" {
+                        continue;
                     }
                     let relative = path
                         .strip_prefix(&root)

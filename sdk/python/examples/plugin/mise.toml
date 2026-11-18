@@ -1,0 +1,19 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Prepare === #
+
+[tasks.build]
+description = "Install the Python Plugin"
+run = "uv sync"
+
+# === Dev === #
+
+[tasks.dev]
+description = "Serve the Remote Plugin"
+run = "uv run python plugin.py"

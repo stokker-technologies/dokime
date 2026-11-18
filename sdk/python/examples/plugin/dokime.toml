@@ -1,0 +1,10 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+build = ["uv", "sync"]
+launch = ["uv", "run", "python", "plugin.py", "--address", "127.0.0.1:0"]

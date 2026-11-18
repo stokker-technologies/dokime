@@ -564,7 +564,7 @@ Paths stay inside the project root. Native executable paths may omit the platfor
 suffix; Windows resolves the corresponding `.exe` when the unsuffixed file is absent.
 `dokime plugin bundle` builds the project and freezes its description, then packages
 the executable and assets or the launch project's inventory after applying `.gitignore`.
-Python launch projects include `pyproject.toml`, `uv.lock` and `plugin.py`; the host
+Python launch projects include `pyproject.toml`, a user-resolved `uv.lock` and `plugin.py`; the host
 runs their configured `uv` launch command. All four languages support managed bundles.
 
 ```sh
@@ -586,6 +586,14 @@ dokime proto export
   language uses the one `dokime` tool, and none but Rust needs Cargo.
 - `dokime` at `sdk/rust` holds Rust authoring and the client, with protocol-only
   product dependencies, so a plugin or client never compiles the host.
+- Owner decision (2026-11-18): Python starters do not embed `uv.lock` or ignore it.
+  The first `uv sync` resolves the dependency named by `pyproject.toml` and creates
+  the user's lock file, which belongs in their version control. In-repository
+  example locks are removed; repository tests install the working-tree SDK.
+- Every buildable starter folder, including both `plugin` and `test` (`Plugin`
+  and `Test` for C#), owns root `dokime.toml`, `mise.toml`, `.gitignore` and
+  `.gitattributes` files. The manifest builds and launches that folder's plugin;
+  tasks only name operations the folder supports.
 - A starter is an ordinary project in its language, with a mise task that
   wraps its build. `dokime new` fails for a language without an SDK and lists
   the supported ones.
