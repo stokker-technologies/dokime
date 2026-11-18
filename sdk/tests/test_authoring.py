@@ -73,6 +73,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     process.terminate()
                 await process.wait()
         expected = descriptions["python"]
+        self.assertEqual(expected["operations"], ["capture.cleanup", "capture.confirm", "capture.confirmed", "capture.materialize"])
         self.assertEqual(expected["records"], [("capture.confirmation", "google.protobuf.BoolValue")])
         self.assertEqual(expected["suites"], [("capture", [("capture", "capture.materialize", "", "capture.cleanup", [("capture.confirm", "capture.confirm")])])])
         for language, description in descriptions.items():

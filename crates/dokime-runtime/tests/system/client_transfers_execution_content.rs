@@ -331,7 +331,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 let mut progress = client.executions.progress.watch(id.clone()).await?;
                 let pending = client.prompts.list(id.clone(), true).await?;
                 let prompt = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-                client.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
+                client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
                 while progress.next().await?.is_some() {}
             }
 

@@ -78,7 +78,7 @@ fn main() -> Result<()> {
     let observer = Observer::new(&reading, read).every(std::time::Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
-        y: vec![FieldReference::new("execution.reading").field("value")],
+        y: vec![FieldReference::new("execution.capture.reading").field("value")],
         ..Default::default()
     };
     let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));

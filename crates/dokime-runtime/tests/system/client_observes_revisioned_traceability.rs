@@ -240,7 +240,7 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 .await?;
             assert_eq!(watch.next().await?.unwrap().snapshots.len(), 2);
             let prompt = host.prompts.list(name.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-            host.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
+            host.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
             loop {
                 let frame = watch.next().await?.ok_or("Watch Traceability: Missing Replacement")?;
                 if let Some(row) = frame.snapshots.iter().find(|row| row.entries[0].metadata.as_ref().unwrap().identifier == "serial") {

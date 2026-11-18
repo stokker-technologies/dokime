@@ -597,7 +597,7 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
                 for sample in &snapshot.samples {
                     assert_eq!(support::Reading::decode(sample.row.as_slice())?.value, value);
                 }
-                let records = snapshot.records("execution.attempt");
+                let records = snapshot.records("execution.capture.attempt");
                 assert_eq!(records.len(), 1);
                 let record = RecordsAppendRequest::decode(records[0].payload.as_slice())?;
                 let attempt = support::Attempt::decode(record.payload.as_slice())?;

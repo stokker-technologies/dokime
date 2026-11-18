@@ -889,6 +889,15 @@ exports with product authoring exports. Shared generation owns the remaining
 descriptor projections and excludes this root barrel from publication and drift
 validation; product generation checks validate it through its SDK owner.
 
+Rust runtime-defined plain operation calls remain an upstream decision: at the
+pinned carrier revision, `sdk/rust/src/message.rs:52` requires an
+`OperationRequest` with a static `ID`, and `sdk/rust/src/context.rs:223` accepts
+only that request type. Product `sdk/rust/src/context.rs:271` therefore cannot
+call a runtime-named `Operation` with primitive payload conversion. The carrier
+needs a typed call that accepts the operation declaration/identity as a value,
+while preserving requirement/fingerprint checks, scope, policy and cancellation;
+no product transport bypass or library change is introduced here.
+
 ### Authoring Adoption Owners
 
 - Rust: `sdk/rust/src/{lib.rs,context.rs,suite.rs,template.rs,plugin/}` and

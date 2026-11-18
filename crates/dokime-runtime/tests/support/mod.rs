@@ -245,7 +245,7 @@ pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> dok
         PromptsCreateResponse {
             prompt: prompt.prompt,
             accepted: true,
-            action: "continue".into(),
+            action: "0".into(),
             ..Default::default()
         },
     )

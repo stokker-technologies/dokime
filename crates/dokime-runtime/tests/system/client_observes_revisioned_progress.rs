@@ -147,7 +147,7 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 .await?;
             assert_eq!(first.value.as_ref().unwrap().completed, 1);
             let prompt = host.prompts.list(name.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-            host.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
+            host.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
             let mut finished = false;
             while let Some(response) = watch.next().await? {
                 finished |= response.finished;
