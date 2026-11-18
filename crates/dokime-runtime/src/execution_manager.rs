@@ -107,7 +107,8 @@ impl ExecutionManager {
         for identifier in store.identifiers()? {
             let snapshot = store.cut(&identifier)?;
             let is_run = snapshot.execution.origin.as_ref().is_some_and(|origin| matches!(origin.kind, Some(origin::Kind::PluginRun(_))));
-            if snapshot.state == ExecutionState::Open && is_run {
+            let started = snapshot.frontier != 0;
+            if snapshot.state == ExecutionState::Open && is_run && started {
                 store.close_streams(&identifier)?;
                 store.close(
                     &identifier,
@@ -406,7 +407,7 @@ mod tests {
     use dokime_protocol::host::execution_outcome::Attribution;
     use dokime_protocol::host::{ExecutionOutcome, UnevaluatedOutcome};
     use dokime_protocol::model::{Origin, PluginRun, Termination, origin};
-    use dokime_storage::{Execution, Store, storage_defaults};
+    use dokime_storage::{Evidence, Execution, ExecutionState, Store, storage_defaults};
     use tempfile::TempDir;
 
     fn manager() -> Result<(TempDir, ExecutionManager), Box<dyn Error>> {
@@ -443,6 +444,62 @@ mod tests {
             ..Default::default()
         })?;
         Ok((root, manager))
+    }
+
+    #[tokio::test]
+    async fn a_never_started_execution_remains_open_after_recovery() -> Result<(), Box<dyn Error>> {
+        // Stop the Owner Before Its Frozen Execution Has Run
+        let (_root, manager) = manager()?;
+        let before = manager.inner.store.cut("execution")?;
+        manager.shutdown().await?;
+
+        // Recover Without Manufacturing an Interrupted Outcome or Seal
+        let recovered = ExecutionManager::new(
+            manager.inner.store.clone(),
+            manager.inner.settings.clone(),
+            manager.inner.prompts.clone(),
+            manager.inner.changed.clone(),
+            manager.inner._root_lease.clone(),
+        )?;
+        let after = recovered.inner.store.cut("execution")?;
+        assert_eq!(after.state, ExecutionState::Open);
+        assert!(after.execution.outcome.is_none());
+        assert_eq!(after, before);
+        assert!(recovered.progress("execution").is_err());
+        recovered.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_started_execution_recovers_its_interrupted_sealed_outcome() -> Result<(), Box<dyn Error>> {
+        // Retain Evidence That the Execution Started Before Its Owner Stopped
+        let (_root, manager) = manager()?;
+        manager.inner.store.append(
+            "execution",
+            Evidence {
+                kind: "run:start".into(),
+                ..Default::default()
+            },
+        )?;
+        manager.shutdown().await?;
+
+        // Recover the Started Run With Its Interrupted Outcome
+        let recovered = ExecutionManager::new(
+            manager.inner.store.clone(),
+            manager.inner.settings.clone(),
+            manager.inner.prompts.clone(),
+            manager.inner.changed.clone(),
+            manager.inner._root_lease.clone(),
+        )?;
+        let cut = recovered.inner.store.cut("execution")?;
+        assert_eq!(cut.state, ExecutionState::Sealed);
+        let Some(Attribution::NotEvaluated(outcome)) = cut.execution.outcome.and_then(|outcome| outcome.attribution) else {
+            panic!("Recover Execution: Missing Interrupted Outcome");
+        };
+        assert_eq!(outcome.termination, Termination::Interrupted as i32);
+        assert!(recovered.progress("execution")?.borrow().finished);
+        recovered.shutdown().await?;
+        Ok(())
     }
 
     #[tokio::test]
