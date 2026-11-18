@@ -76,6 +76,7 @@ class HostFixtureTests(unittest.TestCase):
         try:
             with (
                 patch.object(desktop_fixtures.configuration, "ROOT", Path(temporary)),
+                patch.object(desktop_fixtures.paths, "target", return_value="windows-x86_64"),
                 patch.object(desktop_fixtures.subprocess, "run", side_effect=[subprocess.CompletedProcess(["mise"], 0), refusal]),
                 patch.object(desktop_fixtures.shutil, "copy2"),
                 patch.object(desktop_fixtures.sys, "stderr", new_callable=io.StringIO) as stderr,

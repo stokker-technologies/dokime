@@ -51,6 +51,38 @@ from .environment import Resource
 
 
 class DesktopBench(unittest.TestCase):
+    def test_storage_build_requires_the_report_before_compilation(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            directory = Path(temporary_directory.name)
+            template = directory / "target/generated/report/report.html"
+
+            def generate() -> None:
+                template.parent.mkdir(parents=True)
+                template.write_bytes(b"report template")
+
+            def compile(root: Path, extra: list[str], selection: tuple[str, ...]) -> Path:
+                self.assertEqual(template.read_bytes(), b"report template")
+                self.assertEqual(root, directory)
+                self.assertEqual(extra, ["--timings"])
+                self.assertEqual(selection, ("--package", "dokime-runtime", "--bench", "storage"))
+                return directory / "compiler.json"
+
+            with (
+                patch.object(dokime_tools.build.bench.Path, "cwd", return_value=directory),
+                patch.object(dokime_tools.build.bench.sys, "argv", ["bench", "--binary", "storage", "--", "--timings"]),
+                patch.object(dokime_tools.build.bench.generated, "prepare", side_effect=generate) as prepare,
+                patch.object(dokime_tools.build.bench, "build", side_effect=compile) as build,
+            ):
+                dokime_tools.build.bench.main()
+                template.unlink()
+                prepare.side_effect = ValueError("generation failed")
+                build.reset_mock()
+                self.assertRaises(ValueError, dokime_tools.build.bench.main)
+                build.assert_not_called()
+        finally:
+            temporary_directory.cleanup()
+
     def test_once_preserves_benchmark_selection_and_does_not_promote_baselines(self) -> None:
         with (
             patch.object(tasks.transport, "receive"),
@@ -65,8 +97,7 @@ class DesktopBench(unittest.TestCase):
                 self.assertEqual(command[command.index("--select") + 1], "window")
                 self.assertNotIn("--refresh-baseline", command)
             execute.reset_mock()
-            with self.assertRaises(SystemExit):
-                tasks.main(["bench", "--binary", "system-desktop", "--once", "--refresh-baseline"])
+            self.assertRaises(SystemExit, tasks.main, ["bench", "--binary", "system-desktop", "--once", "--refresh-baseline"])
             execute.assert_not_called()
 
     def test_desktop_build_embeds_its_surface_without_replacing_shipping_assets(self) -> None:
