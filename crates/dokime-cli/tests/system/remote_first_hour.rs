@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::env::{self, consts::EXE_SUFFIX};
+use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
 use std::fs;
 use std::process::Stdio;
@@ -77,14 +77,8 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     bundle
                 } else {
                     // Resolve the SDK Candidate Exported by This Worktree.
-                    let input = project.join("test");
-                    let profile = env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
-                    let wheel = super::root()
-                        .join("target/build")
-                        .join(profile)
-                        .join("any/python")
-                        .join(format!("dokime_sdk-{}-py3-none-any.whl", env!("CARGO_PKG_VERSION")));
-                    let source = serde_json::to_string(&wheel.to_string_lossy())?;
+                    let input = project.clone();
+                    let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
                     let manifest = input.join("pyproject.toml");
                     let contents = fs::read_to_string(&manifest)?;
                     fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n"))?;
@@ -125,7 +119,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         "--suite",
                         suite,
                         "--template",
-                        "capture",
+                        if language == "python" { "confirmation" } else { "capture" },
                         "--out",
                         cases.to_str().unwrap(),
                     ];

@@ -149,14 +149,14 @@ dokime --version
 
 ```sh
 dokime new my-project --lang python
-cd my-project/test
+cd my-project
 mise trust
 dokime dev --plugin .
 ```
 
-`dokime new` writes the `plugin` and `test` examples; `my-project/test` holds the suite,
-its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`.
-Neither Python starter embeds `uv.lock`. The first `uv sync` resolves the SDK
+`dokime new` writes one Python project with `dokime.toml` and the
+`src/my_project/` package, including its client and plugin modules. Rust, C# and C++
+retain separate plugin and test folders. The Python starter does not embed `uv.lock`. The first `uv sync` resolves the SDK
 dependency named in `pyproject.toml` and creates a lock file to commit with your project.
 `dokime dev` starts a disposable host
 with the plugin attached and prints its endpoint. Bundle the plugin for installation

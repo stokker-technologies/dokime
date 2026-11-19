@@ -7,7 +7,7 @@
 # ***
 
 [plugin]
-label = "Capture"
+label = "Starter Project"
 tags = ["example"]
 icon = "assets/icon.svg"
 dynamic = ["version", "description", "authors", "license", "repository"]
@@ -17,4 +17,4 @@ dokime = ">=0.1.5"
 
 [scripts]
 build = ["uv", "sync"]
-launch = ["uv", "run", "python", "plugin.py", "--address", "127.0.0.1:0"]
+launch = ["uv", "run", "python", "-m", "starter_project.plugin"]

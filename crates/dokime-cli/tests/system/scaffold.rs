@@ -49,12 +49,12 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
         tokio::time::timeout(super::HANG_GUARD, async {
             let directory = super::credentials::tempdir()?;
             for (language, examples, folders) in [
-                ("rust", "sdk/rust/examples", ["plugin", "test"]),
-                ("python", "sdk/python/examples", ["plugin", "test"]),
-                ("csharp", "sdk/csharp/examples", ["Plugin", "Test"]),
-                ("cpp", "sdk/cpp/examples", ["plugin", "test"]),
+                ("rust", "sdk/rust/examples", &["plugin", "test"][..]),
+                ("python", "sdk/python/examples/starter", &[""][..]),
+                ("csharp", "sdk/csharp/examples", &["Plugin", "Test"][..]),
+                ("cpp", "sdk/cpp/examples", &["plugin", "test"][..]),
             ] {
-                // Generate Both SDK Examples Without Running Their Journeys Twice
+                // Generate the Language-Specific Project Layout
                 let project = directory.path().join(language);
                 let mut arguments = vec!["new", project.to_str().unwrap(), "--lang", language];
                 if language == "cpp" {
@@ -68,7 +68,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                 super::run(&arguments).await?;
                 for folder in folders {
                     // Compare the Complete Created Inventory With the Tracked Starter Sources.
-                    let source = format!("{examples}/{folder}");
+                    let source = if folder.is_empty() { examples.to_owned() } else { format!("{examples}/{folder}") };
                     let output = Command::from(process::command("git"))
                         .arg("-C")
                         .arg(super::root())
@@ -86,15 +86,26 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                         if language == "python" && relative == "uv.lock" {
                             continue;
                         }
-                        expected.insert(relative.to_owned());
-                        let destination = project.join(folder).join(relative);
+                        let relative =
+                            if language == "python" { relative.replace("starter_project", language) } else { relative.to_owned() };
+                        expected.insert(relative.clone());
+                        let destination = project.join(folder).join(&relative);
                         if relative == "CMakePresets.json" {
                             let presets: Value = serde_json::from_slice(&fs::read(destination)?)?;
                             let coordinates = &presets["configurePresets"][0]["cacheVariables"];
                             assert_eq!(coordinates["DOKIME_SDK_URL"], arguments[5]);
                             assert_eq!(coordinates["DOKIME_SDK_SHA256"], arguments[7]);
                         } else {
-                            assert_eq!(fs::read(destination)?, fs::read(super::root().join(file))?);
+                            let bytes = fs::read(super::root().join(file))?;
+                            let expected = if language == "python" {
+                                match str::from_utf8(&bytes) {
+                                    Ok(text) => text.replace("starter_project", language).replace("starter-project", language).into_bytes(),
+                                    Err(_) => bytes,
+                                }
+                            } else {
+                                bytes
+                            };
+                            assert_eq!(fs::read(destination)?, expected);
                         }
                     }
                     assert!(!expected.is_empty());

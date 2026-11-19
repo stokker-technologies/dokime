@@ -69,65 +69,42 @@ fn embed_examples() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"));
     let repository = manifest.join("../..");
     let mut source = String::new();
-    for (name, language, examples) in
-        [("RUST", "rust", "examples"), ("PYTHON", "python", "examples"), ("CSHARP", "csharp", "examples"), ("CPP", "cpp", "examples")]
-    {
+    for (name, language, folders) in [
+        ("RUST", "rust", &["plugin", "test"][..]),
+        ("PYTHON", "python", &["starter"][..]),
+        ("CSHARP", "csharp", &["Plugin", "Test"][..]),
+        ("CPP", "cpp", &["plugin", "test"][..]),
+    ] {
         source.push_str(&format!("const {name}: &[(&str, &[u8])] = &[\n"));
-        for example in ["plugin", "test"] {
-            let folder = if language == "csharp" { if example == "plugin" { "Plugin" } else { "Test" } } else { example };
-            let root = repository.join("sdk").join(language).join(examples).join(folder);
-            println!("cargo:rerun-if-changed={}", root.display());
-            let mut pending = vec![root.clone()];
-            while let Some(directory) = pending.pop() {
-                let mut entries = fs::read_dir(&directory)
-                    .unwrap_or_else(|error| panic!("Embed {language} {example} Example: {error}"))
-                    .map(|entry| entry.expect("Read example entry"))
-                    .collect::<Vec<_>>();
-                entries.sort_by_key(|entry| entry.file_name());
-                for entry in entries {
-                    let path = entry.path();
-                    let kind = entry.file_type().expect("Read example file type");
-                    if kind.is_dir() {
-                        if language == "csharp" && path == root.join("assets/plugin") {
-                            continue;
-                        }
-                        let name = entry.file_name();
-                        if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__", "_input", "_output", "credentials"]
-                            .iter()
-                            .any(|excluded| name == *excluded)
-                        {
-                            pending.push(path);
-                        }
-                        continue;
-                    }
-                    if !kind.is_file() {
-                        panic!("Embed Example: Expected a Regular File at {}", path.display());
-                    }
-                    let filename = entry.file_name();
-                    let filename = filename.to_str().expect("Example filename is UTF-8");
-                    if (language == "python" && filename == "uv.lock")
-                        || filename == ".env"
-                        || (filename.starts_with(".env.") && filename != ".env.example")
-                        || matches!(filename, "credentials.json" | ".netrc" | ".pypirc" | "id_rsa" | "id_ed25519")
-                        || filename.ends_with(".key")
-                        || filename.ends_with(".pem")
-                        || filename.ends_with(".pair")
-                        || filename.ends_with(".pyc")
-                    {
-                        continue;
-                    }
-                    let relative = path
-                        .strip_prefix(&root)
-                        .expect("Example file remains below its root")
-                        .to_str()
-                        .expect("Example path is UTF-8")
-                        .replace('\\', "/");
-                    let destination = format!("{folder}/{relative}");
-                    source.push_str(&format!(
-                        "({destination:?}, include_bytes!({:?})),\n",
-                        path.canonicalize().expect("Resolve example file")
-                    ));
+        for folder in folders {
+            let root = format!("sdk/{language}/examples/{folder}");
+            println!("cargo:rerun-if-changed={}", repository.join(&root).display());
+            let files = git(&repository, &["ls-files", "-z", "--", &root])
+                .unwrap_or_else(|| panic!("Embed {language} Example: Run the Build From a Git Checkout"));
+            for file in files.split('\0').filter(|file| !file.is_empty()) {
+                let relative = file.strip_prefix(&format!("{root}/")).expect("Example file remains below its root");
+                let path = Path::new(relative);
+                let filename = path.file_name().and_then(|name| name.to_str()).expect("Example filename is UTF-8");
+                let excluded_directory = path.components().any(|component| {
+                    matches!(
+                        component.as_os_str().to_str(),
+                        Some("target" | "build" | "bin" | "obj" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials")
+                    )
+                });
+                if excluded_directory
+                    || (language == "csharp" && relative.starts_with("assets/plugin/"))
+                    || (language == "python" && filename == "uv.lock")
+                    || filename == ".env"
+                    || (filename.starts_with(".env.") && filename != ".env.example")
+                    || matches!(filename, "credentials.json" | ".netrc" | ".pypirc" | "id_rsa" | "id_ed25519")
+                    || [".key", ".pem", ".pair", ".pyc"].iter().any(|extension| filename.ends_with(extension))
+                {
+                    continue;
                 }
+                let path = repository.join(file);
+                assert!(fs::symlink_metadata(&path).expect("Read example file type").is_file(), "Embed Example: Use Regular Files");
+                let destination = if language == "python" { relative.to_owned() } else { format!("{folder}/{relative}") };
+                source.push_str(&format!("({destination:?}, include_bytes!({:?})),\n", path.canonicalize().expect("Resolve example file")));
             }
         }
         source.push_str("];\n");

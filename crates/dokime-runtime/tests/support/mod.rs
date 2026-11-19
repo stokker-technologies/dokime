@@ -29,9 +29,11 @@ use std::collections::HashMap;
 use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
 use std::path::PathBuf;
+use std::process::Stdio;
 
 // Third Party Imports
 use harmos_protocol::model::StorageTransferSettings;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::process::Command;
 
@@ -85,9 +87,6 @@ pub struct PythonPlugin {
 
 impl PythonPlugin {
     pub async fn start() -> Result<Self, Box<dyn Error>> {
-        use std::process::Stdio;
-        use tokio::io::AsyncBufReadExt;
-        use tokio::io::BufReader;
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/tests/fixtures/python/thermal/plugin.py");
         let mut child = Command::from(dokime_runtime::process::command(python()))
             .arg(script)

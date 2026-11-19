@@ -16,7 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{fs, path::PathBuf, time::Duration};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 // Third Party Imports
 use reqwest::Client;
@@ -36,6 +40,7 @@ include!(concat!(env!("OUT_DIR"), "/examples.rs"));
 /* === Structs === */
 
 #[derive(clap::Args)]
+#[command(about = "Create One Python Project, or Plugin and Test Folders for Rust, C# and C++")]
 pub(crate) struct Args {
     path: PathBuf,
 
@@ -72,6 +77,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
         Language::Csharp => CSHARP,
         Language::Cpp => CPP,
     };
+    let python = if matches!(args.lang, Language::Python) { Some(python_names(&args.path)?) } else { None };
     let mut presets = None;
     if matches!(args.lang, Language::Cpp) {
         let url = args.sdk_url.unwrap_or_else(|| {
@@ -107,7 +113,11 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
     fs::create_dir(&args.path)?;
     let result = (|| -> Result<()> {
         for (relative, bytes) in files {
-            let destination = args.path.join(relative);
+            let relative = match &python {
+                Some((_, package)) => relative.replace("starter_project", package),
+                None => (*relative).to_owned(),
+            };
+            let destination = args.path.join(&relative);
             fs::create_dir_all(destination.parent().unwrap())?;
             if relative.ends_with("/CMakePresets.json") {
                 let (url, digest) = presets.as_ref().ok_or("Create C++ Project: Missing SDK Coordinates")?;
@@ -115,6 +125,11 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
                 value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_URL"] = url.clone().into();
                 value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_SHA256"] = digest.clone().into();
                 fs::write(destination, serde_json::to_vec_pretty(&value)?)?;
+            } else if let Some((name, package)) = &python {
+                match str::from_utf8(bytes) {
+                    Ok(text) => fs::write(destination, text.replace("starter_project", package).replace("starter-project", name))?,
+                    Err(_) => fs::write(destination, bytes)?,
+                }
             } else {
                 fs::write(destination, bytes)?;
             }
@@ -131,27 +146,115 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
 
 /* === Private Functions === */
 
+fn python_names(path: &Path) -> Result<(String, String)> {
+    let name = path.file_name().and_then(|name| name.to_str()).ok_or("Create Python Project: Choose a UTF-8 Project Folder Name")?;
+    let package = name
+        .chars()
+        .flat_map(char::to_lowercase)
+        .map(|character| if character.is_ascii_alphanumeric() { character } else { '_' })
+        .collect::<String>();
+    if !package.bytes().any(|byte| byte.is_ascii_alphanumeric()) {
+        return Err("Create Python Project: Choose a Name With at Least One ASCII Letter".into());
+    }
+    if package.starts_with(|character: char| character.is_ascii_digit()) {
+        return Err("Create Python Project: Start the Name With a Letter or Underscore, Before Any Digits".into());
+    }
+    if matches!(
+        package.as_str(),
+        "and"
+            | "as"
+            | "assert"
+            | "async"
+            | "await"
+            | "break"
+            | "class"
+            | "continue"
+            | "def"
+            | "del"
+            | "elif"
+            | "else"
+            | "except"
+            | "finally"
+            | "for"
+            | "from"
+            | "global"
+            | "if"
+            | "import"
+            | "in"
+            | "is"
+            | "lambda"
+            | "nonlocal"
+            | "not"
+            | "or"
+            | "pass"
+            | "raise"
+            | "return"
+            | "try"
+            | "while"
+            | "with"
+            | "yield"
+    ) {
+        return Err(format!("Create Python Project: Choose a Name That Does Not Normalize to the Python Keyword {package}").into());
+    }
+    if package == "dokime_sdk" {
+        return Err("Create Python Project: Choose a Name Other Than dokime_sdk to Avoid Shadowing the SDK".into());
+    }
+    Ok((name.to_owned(), package))
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
-    use std::{error::Error, fs};
+    use std::{error::Error, fs, path::Path};
 
-    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, run};
+    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, python_names, run};
     use crate::settings::Settings;
 
     #[test]
     fn every_buildable_starter_embeds_project_configuration() {
         for (files, folders) in
-            [(RUST, ["plugin", "test"]), (PYTHON, ["plugin", "test"]), (CSHARP, ["Plugin", "Test"]), (CPP, ["plugin", "test"])]
+            [(RUST, &["plugin", "test"][..]), (PYTHON, &[""][..]), (CSHARP, &["Plugin", "Test"][..]), (CPP, &["plugin", "test"][..])]
         {
             for folder in folders {
                 for name in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
-                    let relative = format!("{folder}/{name}");
+                    let relative = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
                     assert!(files.iter().any(|(path, _)| *path == relative), "{relative}");
                 }
             }
         }
+    }
+
+    #[test]
+    fn python_project_names_are_safe_import_packages() {
+        assert_eq!(python_names(Path::new("My-Project")).unwrap(), ("My-Project".into(), "my_project".into()));
+        for name in ["---", "123", "1-name", "class", "await", "dokime-sdk", "DOKIME_SDK"] {
+            assert!(python_names(Path::new(name)).is_err(), "{name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn python_substitutes_package_paths_and_project_text() -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let project = directory.path().join("My-Project");
+        run(
+            Args {
+                path: project.clone(),
+                lang: Language::Python,
+                sdk_url: None,
+                sdk_sha256: None,
+            },
+            Settings::default(),
+        )
+        .await?;
+        let manifest = fs::read_to_string(project.join("pyproject.toml"))?;
+        assert!(manifest.contains("name = \"My-Project\""));
+        assert!(manifest.contains("module-name = \"my_project\""));
+        let launch = fs::read_to_string(project.join("dokime.toml"))?;
+        assert!(launch.contains("my_project.plugin"));
+        let plugin = fs::read_to_string(project.join("src/my_project/plugin/__init__.py"))?;
+        assert!(plugin.contains("from my_project.plugin."));
+        Ok(())
     }
 
     #[tokio::test]
@@ -166,17 +269,17 @@ mod tests {
         };
         run(args, Settings::default()).await?;
 
-        for folder in ["plugin", "test"] {
-            let root = project.join(folder);
-            assert!(root.join("pyproject.toml").is_file());
-            let mut pending = vec![root];
-            while let Some(directory) = pending.pop() {
-                for entry in fs::read_dir(directory)? {
-                    let entry = entry?;
-                    assert_ne!(entry.file_name(), "uv.lock", "{}", entry.path().display());
-                    if entry.file_type()?.is_dir() {
-                        pending.push(entry.path());
-                    }
+        assert!(project.join("pyproject.toml").is_file());
+        assert!(project.join("src/python/plugin/__main__.py").is_file());
+        assert!(!project.join("plugin").exists());
+        assert!(!project.join("test").exists());
+        let mut pending = vec![project];
+        while let Some(directory) = pending.pop() {
+            for entry in fs::read_dir(directory)? {
+                let entry = entry?;
+                assert_ne!(entry.file_name(), "uv.lock", "{}", entry.path().display());
+                if entry.file_type()?.is_dir() {
+                    pending.push(entry.path());
                 }
             }
         }

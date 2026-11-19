@@ -153,7 +153,7 @@
   - [x] Bundle Implicit Assets, Referenced Metadata and Required Launch Inputs; Preserve User Locks and Exclude Private Inputs.
   - [x] Migrate the Eight Starter Manifests and Shared Command-Line Fixture Consumers While Preserving Current Entrypoints and Build Commands.
   - [x] Supply Rust, C# and C++ Starter Native Metadata and Icons, Stage C# Publish Companions Under Assets and Migrate Runtime Manifest Consumers.
-  - [ ] Reconcile the Python Starter Source Inventory With Its Agreed Manifest Roots and Supply Native Metadata and Icons for That Inventory.
+  - [x] Reconcile the Python Starter Source Inventory With Its Agreed Manifest Roots and Supply Native Metadata and Icons for That Inventory.
   - [ ] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
   - [x] Complete Workspace Compilation, Packaging Units, Runtime Manifest Command Proof, Formatting, Repository Checks, Package Lints and Created Rust/C# Bundle/Inspect Proof.
   - [ ] Complete CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.

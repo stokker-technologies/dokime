@@ -16,11 +16,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::env;
 use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
@@ -245,12 +243,13 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 // Create and Serve the Pure Python Starter Remotely
                 let project = directory.path().join("first-python");
                 super::run(&["new", project.to_str().unwrap(), "--lang", "python"]).await?;
-                let python = env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
-                    super::root().join(if cfg!(target_os = "windows") { ".venv/Scripts/python.exe" } else { ".venv/bin/python" })
-                });
+                let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
+                let manifest = project.join("pyproject.toml");
+                let contents = fs::read_to_string(&manifest)?;
+                fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n"))?;
                 remote_plugin = Some(
-                    Command::from(process::command(python))
-                        .arg(project.join("test/plugin.py"))
+                    Command::from(process::command("uv"))
+                        .args(["run", "python", "-m", "first_python.plugin"])
                         .current_dir(&project)
                         .stdout(Stdio::piped())
                         .stderr(Stdio::inherit())
@@ -274,7 +273,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "capture",
+                    "confirmation",
                     "--out",
                     cases.to_str().unwrap(),
                     "--parameters",

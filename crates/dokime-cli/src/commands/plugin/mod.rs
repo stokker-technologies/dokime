@@ -171,7 +171,7 @@ mod tests {
     #[tokio::test]
     async fn created_starters_resolve_native_metadata_and_asset_inputs() -> Result<()> {
         let root = tempfile::tempdir()?;
-        for (language, folder) in [("python", "test"), ("rust", "test"), ("csharp", "Test"), ("cpp", "test")] {
+        for (language, folder) in [("python", ""), ("rust", "test"), ("csharp", "Test"), ("cpp", "test")] {
             let destination = root.path().join(language);
             let mut arguments =
                 vec!["dokime".into(), "new".into(), destination.to_string_lossy().into_owned(), "--lang".into(), language.into()];
@@ -180,7 +180,13 @@ mod tests {
             }
             let cli = Cli::try_parse_from(arguments).unwrap();
             commands::run(cli.command, None, Settings::default()).await?;
-            let folders = if folder == "Test" { ["Plugin", "Test"] } else { ["plugin", "test"] };
+            let folders: &[&str] = if folder.is_empty() {
+                &[""]
+            } else if folder == "Test" {
+                &["Plugin", "Test"]
+            } else {
+                &["plugin", "test"]
+            };
             for folder in folders {
                 let project = PluginProject::read(&destination.join(folder))?;
                 project.validate_inputs()?;
