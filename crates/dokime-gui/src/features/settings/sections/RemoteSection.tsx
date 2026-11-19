@@ -15,24 +15,25 @@
 
 // Standard Library Imports
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+// Third Party Imports
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-// Third Party Imports
+import { ErrorCard } from "@/components/ErrorCard";
 import { Button } from "@/components/ui/button";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { FirewallNotice } from "@/features/settings/sections/FirewallNotice";
 import { commitListener, type ListenerChange, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
+import { readNativeListener, updateNativeListener, regenerateNativeCertificate } from "@/lib/api/native-remote";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { failureOf } from "@/lib/notification-details";
 import { toast } from "@/lib/notifications";
-import { readNativeListener, updateNativeListener, regenerateNativeCertificate } from "@/lib/api/native-remote";
 
 /* === Re-Exports === */
 
@@ -45,7 +46,7 @@ import { readNativeListener, updateNativeListener, regenerateNativeCertificate }
 export function RemoteSection({ advanced = false }: { advanced?: boolean }) {
   const session = useNativeSessionOptional();
   const [preferencesPending, setPreferencesPending] = useState(false);
-  const canManage = session?.snapshot.connection.backend?.methods.includes("/harmos.host.v1.access.Listener/Get") ?? false;
+  const canManage = session?.snapshot.connection.backend?.methods.includes("/dokime.host.v1.access.Listener/Get") ?? false;
   if (!isTauriDesktop() || !session || !canManage) {
     return (
       <SettingsCard title="Remote Access">

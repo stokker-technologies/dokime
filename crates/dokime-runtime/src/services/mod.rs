@@ -434,3 +434,102 @@ async fn observe_plugins(
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::{error::Error, num::NonZeroUsize, sync::Arc, time::Duration};
+
+    use harmos_protocol::model::StorageTransferSettings;
+    use tonic::transport::Endpoint;
+
+    use super::{ClientSettings, WallClock, serve};
+    use crate::{CaptureSettings, HostSettings, PlacementSettings};
+    use dokime_client_internal::Client;
+    use dokime_test_support::credentials;
+
+    #[test]
+    fn client_wrapper_watches_settle_on_disconnect_and_host_stop() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            // Start an Isolated Host and Observe Every Relayed Watch Opening.
+            let root = credentials::tempdir()?;
+            let message_bytes = NonZeroUsize::new(4 * 1024 * 1024).unwrap();
+            let stream_window = NonZeroUsize::new(8).unwrap();
+            let server = serve(
+                "127.0.0.1:0".parse()?,
+                root.path(),
+                HostSettings {
+                    installation: None,
+                    placement: PlacementSettings {
+                        reconnect_delay: Duration::from_secs(1),
+                        stream_window,
+                        interval_window: crate::INTERVAL_WINDOW,
+                        interval_lag: crate::INTERVAL_LAG,
+                        message_bytes,
+                    },
+                    storage: dokime_storage::storage_defaults(),
+                    clock: Arc::new(WallClock),
+                    capture: CaptureSettings::default(),
+                    credentials: credentials::namespace(),
+                },
+                ClientSettings {
+                    read_timeout: crate::PLUGINS_TIMEOUT,
+                    mutation_timeout: crate::PLUGINS_TIMEOUT,
+                    watch_timeout: harmos_protocol::policy::UNBOUNDED,
+                    max_cases: 1000,
+                    page_items: 500,
+                    message_bytes: message_bytes.get(),
+                    stream_buffer: stream_window.get(),
+                },
+            )
+            .await?;
+            let watches = server.host.assembly.as_ref().unwrap().client_watches.clone();
+            let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
+            let client = Client::from_channel(
+                channel,
+                dokime_client_internal::ClientSettings {
+                    transfer: StorageTransferSettings { chunk_bytes: Some(1024) },
+                    retained_bytes: message_bytes,
+                    message_bytes,
+                    input_items: stream_window,
+                    input_bytes: message_bytes,
+                },
+            )?;
+            let mut status = client.status.watch().await?;
+            let mut logs = client.status.logs.watch(4096, 16).await?;
+            let mut traces = client.status.trace_events.watch(4096, 16).await?;
+            let mut plugins = client.plugins.watch().await?;
+            assert!(status.next().await?.is_some());
+            assert!(logs.next().await?.is_some());
+            assert!(traces.next().await?.is_some());
+            assert!(plugins.next().await?.is_some());
+            assert_eq!(watches.active.borrow().len(), 4);
+
+            // Dropping Every Client Observation Releases Its Transport Subscription.
+            drop((status, logs, traces, plugins));
+            watches.settle().await?;
+            assert!(watches.active.borrow().is_empty());
+
+            // Host Stop Ends All Four Watches Cleanly and Joins Their Native Children.
+            let mut status = client.status.watch().await?;
+            let mut logs = client.status.logs.watch(4096, 16).await?;
+            let mut traces = client.status.trace_events.watch(4096, 16).await?;
+            let mut plugins = client.plugins.watch().await?;
+            assert!(status.next().await?.is_some());
+            assert!(logs.next().await?.is_some());
+            assert!(traces.next().await?.is_some());
+            assert!(plugins.next().await?.is_some());
+            let drain = async {
+                while status.next().await?.is_some() {}
+                while logs.next().await?.is_some() {}
+                while traces.next().await?.is_some() {}
+                while plugins.next().await?.is_some() {}
+                Ok::<(), Box<dyn Error>>(())
+            };
+            let (closed, drained) = tokio::join!(server.close(), drain);
+            closed?;
+            drained?;
+            assert!(watches.active.borrow().is_empty());
+            Ok(())
+        }))
+    }
+}

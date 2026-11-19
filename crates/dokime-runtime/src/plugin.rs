@@ -31,7 +31,6 @@ use std::{
 
 // Third Party Imports
 use harmos_operations::plugins::Delete;
-use harmos_protocol::host::{PluginEntry, PluginState};
 use harmos_protocol::plugin::instance_client::InstanceClient;
 use harmos_protocol::plugin::{InstanceGetRequest, InstanceGetResponse, InstanceStopRequest};
 use harmos_runtime::bundle::validate_launch;
@@ -48,6 +47,7 @@ use tonic::transport::{Channel, Endpoint};
 // Local Imports
 use crate::{Error, Result};
 use dokime_packaging::project::PluginProject;
+use dokime_protocol::host::{PluginEntry, PluginState};
 use process::OwnedChild;
 
 /* === Constants === */
@@ -306,7 +306,7 @@ mod tests {
     use std::{collections::VecDeque, ffi::OsStr, fs, future};
 
     use dokime_packaging::project::PluginProject;
-    use harmos_protocol::host::{PluginEntry, PluginState};
+    use dokime_protocol::host::{PluginEntry, PluginState};
 
     use super::{PluginProcess, announced_endpoint, await_plugin_ready};
     use crate::{Error, Result};

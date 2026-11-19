@@ -194,6 +194,16 @@ pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFacto
 
 pub fn registration(settings: &ClientSettings) -> Result<Registration> {
     let factories: &[(Factory, Duration)] = &[
+        (factory::<crate::plugin_policy::Get>, settings.read_timeout),
+        (factory::<crate::plugin_policy::List>, settings.read_timeout),
+        (factory::<crate::plugin_policy::Watch>, settings.watch_timeout),
+        (factory::<crate::plugin_policy::Create>, settings.mutation_timeout),
+        (factory::<crate::plugin_policy::Set>, settings.mutation_timeout),
+        (factory::<crate::plugin_policy::Delete>, settings.mutation_timeout),
+        (factory::<crate::plugin_policy::Restart>, settings.mutation_timeout),
+        (factory::<crate::plugin_policy::Replace>, settings.mutation_timeout),
+        (factory::<crate::plugin_policy::SettingsList>, settings.read_timeout),
+        (factory::<crate::plugin_policy::SettingsSet>, settings.mutation_timeout),
         (factory::<crate::wrappers::ListenerGet>, settings.read_timeout),
         (factory::<crate::wrappers::ListenerSet>, settings.mutation_timeout),
         (factory::<crate::wrappers::PairingsCreate>, settings.mutation_timeout),

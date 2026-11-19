@@ -266,7 +266,7 @@ impl Host {
             |(context, plugins, name, _)| {
                 Box::pin(async move {
                     context.host.refresh_plugin_states().await?;
-                    Ok(lock(plugins)?.get(name).cloned())
+                    Ok(lock(plugins)?.get(name).cloned().map(dokime_operations::plugin_policy::entry))
                 })
             },
             |(_, _, _, watch)| Box::pin(async move { Ok(watch.next().await?.is_some()) }),

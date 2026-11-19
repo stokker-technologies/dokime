@@ -22,10 +22,10 @@ use std::sync::Arc;
 // Third Party Imports
 use harmos_operations::host::declarations;
 use harmos_runtime::operations::{
-    ExecutionContext, Grpc, HostContext, NativeOperation, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource, ServingError,
-    StreamSettings, Visibility, native_stream,
+    ExecutionContext, Grpc, HostContext, NativeOperation, NativeOutput, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource,
+    ServingError, StreamSettings, Visibility, native_stream,
 };
-use prost_reflect::ServiceDescriptor;
+use prost_reflect::{ReflectMessage, ServiceDescriptor};
 
 // Local Imports
 
@@ -74,38 +74,7 @@ macro_rules! watch {
             async fn run(
                 execution: ExecutionContext, request: Self::Request, output: &Self::Endpoints,
             ) -> Result<Self::Response, ServingError> {
-                let context = crate::native::context(&execution, Self::ID).map_err(crate::native::failure)?;
-                let settings = StreamSettings {
-                    items: NonZeroUsize::new(context.settings.stream_buffer).ok_or(ServingError::Catalog)?,
-                    bytes: NonZeroUsize::new(context.settings.message_bytes).ok_or(ServingError::Catalog)?,
-                };
-                let (send, receive) = native_stream(settings).map_err(|source| ServingError::Native(Arc::new(source)))?;
-                let host = execution.resource::<HostContext>().map_err(|_| ServingError::Catalog)?;
-                let mut invocation =
-                    Box::pin(host.for_call().submit::<$native>(request, send).map_err(|source| ServingError::Native(Arc::new(source)))?);
-                let mut forward = Box::pin(async {
-                    while let Some(item) = receive.recv().await {
-                        output.send((*item).clone()).await.map_err(|source| ServingError::Native(Arc::new(source)))?;
-                    }
-                    Ok::<(), ServingError>(())
-                });
-                let response = tokio::select! {
-                    result = &mut forward => {
-                        if let Err(source) = result {
-                            invocation.request_cancel();
-                            let _ = invocation.await;
-                            return Err(source);
-                        }
-                        invocation.await
-                    }
-                    result = &mut invocation => {
-                        // Drain the Native Operation's Last Frames Before Returning Its Final Status.
-                        forward.await?;
-                        result
-                    }
-                }
-                .map_err(|source| ServingError::Native(Arc::new(source)))?;
-                response.try_unwrap().map_err(|_| ServingError::Catalog)
+                forward::<$native, _>(execution, request, output, |response| response).await
             }
         }
     };
@@ -140,6 +109,65 @@ unary!(InvocationsCreate, declarations::lifecycle::Create, "dokime.host.v1", "In
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+pub(crate) async fn forward<O, T>(
+    execution: ExecutionContext, request: O::Request, output: &ProtobufOutput<T>, project: impl Fn(O::Response) -> T + Send + Sync,
+) -> Result<T, ServingError>
+where
+    O: NativeOperation<Endpoints = NativeOutput<<O as NativeOperation>::Response>>,
+    O::Response: Clone,
+    T: ReflectMessage + Default + Send + 'static,
+{
+    let context = crate::native::context(&execution, O::ID).map_err(crate::native::failure)?;
+    let settings = StreamSettings {
+        items: NonZeroUsize::new(context.settings.stream_buffer).ok_or(ServingError::Catalog)?,
+        bytes: NonZeroUsize::new(context.settings.message_bytes).ok_or(ServingError::Catalog)?,
+    };
+    let (send, receive) = native_stream(settings).map_err(|source| ServingError::Native(Arc::new(source)))?;
+    let host = execution.resource::<HostContext>().map_err(|_| ServingError::Catalog)?;
+    let mut invocation = Box::pin(host.for_call().submit::<O>(request, send).map_err(|source| ServingError::Native(Arc::new(source)))?);
+    let mut forward = Box::pin(async {
+        while let Some(item) = receive.recv().await {
+            output.send(project((*item).clone())).await.map_err(|source| ServingError::Native(Arc::new(source)))?;
+        }
+        Ok::<(), ServingError>(())
+    });
+    let mut changes = context.host.changes();
+    let stopped = async {
+        while !context.host.shutting_down() {
+            if changes.changed().await.is_err() {
+                break;
+            }
+        }
+    };
+    let response = tokio::select! {
+        _ = stopped => {
+            invocation.request_cancel();
+            let _ = invocation.await;
+            return Ok(T::default());
+        }
+        _ = execution.cancellation.cancelled() => {
+            invocation.request_cancel();
+            let _ = invocation.await;
+            return Err(ServingError::Catalog);
+        }
+        result = &mut forward => {
+            if let Err(source) = result {
+                invocation.request_cancel();
+                let _ = invocation.await;
+                return Err(source);
+            }
+            invocation.await
+        }
+        result = &mut invocation => {
+            // Drain the Native Operation's Last Frames Before Returning Its Final Status.
+            forward.await?;
+            result
+        }
+    }
+    .map_err(|source| ServingError::Native(Arc::new(source)))?;
+    response.try_unwrap().map(&project).map_err(|_| ServingError::Catalog)
+}
 
 /* === Tests === */
 

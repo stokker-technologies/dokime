@@ -87,6 +87,19 @@ const CLIENT_WRAPPERS: [&str; 15] = [
     "dokime.host.v1.Invocations/Create",
 ];
 
+const PLUGIN_ADMINISTRATION: [&str; 10] = [
+    "dokime.host.v1.Plugins/Get",
+    "dokime.host.v1.Plugins/List",
+    "dokime.host.v1.Plugins/Watch",
+    "dokime.host.v1.Plugins/Create",
+    "dokime.host.v1.Plugins/Set",
+    "dokime.host.v1.Plugins/Delete",
+    "dokime.host.v1.Plugins/Restart",
+    "dokime.host.v1.Plugins/Replace",
+    "dokime.host.v1.plugins.Settings/List",
+    "dokime.host.v1.plugins.Settings/Set",
+];
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -197,7 +210,7 @@ impl Instance for ScopeProbe {
                     ]);
                 }
                 cases.push(("dokime.host.v1.Settings/Get", SettingsGetRequest::default().encode_to_vec(), true, true));
-                cases.extend(CLIENT_WRAPPERS.map(|operation| (operation, Vec::new(), true, true)));
+                cases.extend(CLIENT_WRAPPERS.into_iter().chain(PLUGIN_ADMINISTRATION).map(|operation| (operation, Vec::new(), true, true)));
 
                 // Exercise Each Request Over the Real Plugin Child Carrier
                 let types = probe.description.declarations.as_ref().unwrap().types.as_ref().unwrap();
@@ -438,7 +451,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 "dokime.host.v1.executions.Progress/Get",
                 "dokime.host.v1.Settings/Get",
             ];
-            for id in required_operations.into_iter().chain(CLIENT_WRAPPERS) {
+            for id in required_operations.into_iter().chain(CLIENT_WRAPPERS).chain(PLUGIN_ADMINISTRATION) {
                 let contract = client.operations.get(id).await?.contract.ok_or("Discover Required Operation: Missing Contract")?;
                 host_contracts.push(contract);
             }
@@ -549,7 +562,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 completed.outcome
             );
             let results = observations.lock().unwrap().clone();
-            assert_eq!(results.len(), 16 + CLIENT_WRAPPERS.len(), "{results:?}");
+            assert_eq!(results.len(), 16 + CLIENT_WRAPPERS.len() + PLUGIN_ADMINISTRATION.len(), "{results:?}");
             for (operation, expected_refusal, refused) in results {
                 assert_eq!(refused, expected_refusal, "{operation}: Expected Refusal {expected_refusal}");
             }
