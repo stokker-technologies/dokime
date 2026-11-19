@@ -13,7 +13,7 @@
 ## 3. Cycle Seal
 
 - [x] 3.1 Verify what the evidence archive contains today (samples, records, files, notes, documents, report) and record any gap against full evidence here before implementing.
-- [ ] 3.2 Materialize the cycle report during seal under the Sealing phase and retain it; report Seal Failed with the cause and leave the cycle sealable.
+- [x] 3.2 Materialize the cycle report during seal under the Sealing phase and retain it; report Seal Failed with the cause and leave the cycle sealable.
 - [x] 3.3 Materialize the evidence archive containing that report during the same seal and retain it.
 - [x] 3.4 Return the retained report and archive on every download; prove equal digests across two downloads.
 - [x] 3.5 Refuse a cycle seal while an execution is running and name it.

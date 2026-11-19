@@ -19,6 +19,7 @@
 use std::{
     collections::HashMap,
     error::Error,
+    fs,
     io::{Cursor, Read},
 };
 
@@ -36,7 +37,9 @@ use super::{client_runs_thermal_suite_over_grpc::HostProcess, documents_and_repo
 use dokime::Client;
 use dokime::client::{self, ContentArtifactsCreateOptions};
 use dokime_protocol::host::evidence::{AnnotationOwner, AnnotationOwnerOwner, ExecutionNoteOwner, NoteWritable, annotation_owner_owner};
-use dokime_protocol::host::{CyclePhase, ExecutionState, evidence_subject, execution_outcome, report_subject};
+use dokime_protocol::host::{
+    CyclePhase, CycleSelection, CycleSummary, ExecutionState, evidence_subject, execution_outcome, report_subject,
+};
 use dokime_protocol::model::{ArtifactScope, Metadata, Termination};
 use dokime_runtime::PluginProcess;
 use dokime_storage::{CycleArchive, ExecutionArchive};
@@ -58,6 +61,22 @@ use dokime_storage::{CycleArchive, ExecutionArchive};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+async fn settlement(client: &Client, name: &str) -> Result<CycleSummary, Box<dyn Error>> {
+    let selection = CycleSelection {
+        cycle_ids: vec![name.into()],
+        ..Default::default()
+    };
+    let mut watch = client.cycles.watch(selection, Default::default(), Default::default()).await?;
+    while let Some(frame) = watch.next().await? {
+        assert!(frame.resync_required.is_none(), "{frame:?}");
+        let cycle = frame.cycles.into_iter().find(|cycle| cycle.cycle_id == name).ok_or("Watch Cycle: Return the Selected Cycle")?;
+        if cycle.sealed || cycle.phase == CyclePhase::SealFailed as i32 {
+            return Ok(cycle);
+        }
+    }
+    Err("Watch Cycle: Return Its Seal Settlement".into())
+}
 
 /* === Tests === */
 
@@ -98,10 +117,7 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             client.content.artifacts.create_with(file.clone(), "source.bin", "application/octet-stream", ContentArtifactsCreateOptions { scope: Some(scope.clone()), ..Default::default() }).await?;
 
             // Refuse Seal While Naming the Running Execution.
-            let refusal = match client.cycles.seal(name.clone()).await {
-                Err(source) => source,
-                Ok(mut completion) => completion.next().await.unwrap_err(),
-            };
+            let refusal = client.cycles.seal(name.clone()).await.unwrap_err();
             assert_eq!(refusal.code(), Code::FailedPrecondition);
             assert!(refusal.message().contains(&running));
             client.executions.cancel(running.clone()).await?;
@@ -125,12 +141,9 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let artifact = client.content.artifacts.create_with(file.clone(), "cycle.bin", "application/octet-stream", ContentArtifactsCreateOptions { scope: Some(scope.clone()), ..Default::default() }).await?.artifact.unwrap();
 
             // Observe Materialization Followed by Its Retained Completion.
-            let mut completion = client.cycles.seal(name.clone()).await?;
-            let mut phases = Vec::new();
-            let mut retained = None;
-            while let Some(frame) = completion.next().await? { let cycle = frame.cycle.unwrap(); phases.push(cycle.phase); retained = Some(cycle); }
-            assert_eq!(phases, [CyclePhase::Sealing as i32, CyclePhase::Sealed as i32]);
-            let retained = retained.unwrap();
+            let admission = client.cycles.seal(name.clone()).await?;
+            assert_eq!(admission.cycle.unwrap().phase, CyclePhase::Sealing as i32);
+            let retained = settlement(&client, &name).await?;
             assert!(retained.sealed);
             assert!(retained.seal_failure.is_none());
             assert_eq!(retained.result.as_ref().map(|result| (result.passed, result.failed)), Some((0, 0)));
@@ -194,9 +207,8 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
             assert_eq!(client.cycles.get(name.clone()).await?.cycle.unwrap().evidence_file, retained.evidence_file);
-            let mut replay = client.cycles.seal(name).await?;
-            assert_eq!(replay.next().await?.unwrap().cycle.unwrap().phase, CyclePhase::Sealed as i32);
-            assert!(replay.next().await?.is_none());
+            let replay = client.cycles.seal(name).await?;
+            assert_eq!(replay.cycle.unwrap().phase, CyclePhase::Sealed as i32);
             process.close().await?;
             plugin.close().await?;
             Ok(())
@@ -205,7 +217,73 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn cycle_seal_retries_materialization_failure() -> Result<(), Box<dyn Error>> {
+fn cycle_seal_retries_temporary_report_failure_in_same_host() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Start the Host with Its Own Temporary Report Directory.
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let temporary = support::tempdir()?;
+            let report_directory = temporary.path().join("reports");
+            fs::create_dir(&report_directory)?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let mut environment = credentials.environment.clone();
+            for key in ["TMP", "TEMP", "TMPDIR"] {
+                environment.push((key, report_directory.as_os_str().to_owned()));
+            }
+            let process = HostProcess::start_with_environment(root.path(), &environment).await?;
+            let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
+            let settings = support::settings();
+            let mut plugin = PluginProcess::start(&support::thermal_fixture()?, true, &settings.placement).await?;
+            let entry = client.plugins.create("thermal", client::PluginPlacement {
+                kind: Some(plugin_placement::Kind::Remote(client::PluginRemote { url: plugin.endpoint().into() })),
+            }, client::PluginValue { enabled: true }).await?.entry.unwrap();
+            support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
+            let cases = support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
+            let cycle = client.cycles.create(vec![cases[0].origin.clone().unwrap()], Metadata { label: "Report Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
+            let name = cycle.cycle_id;
+
+            // Obstruct Temporary HTML Creation, Leaving Durable Storage Writable.
+            fs::remove_dir(&report_directory)?;
+            fs::write(&report_directory, b"Obstruct Temporary Reports")?;
+            client.cycles.seal(name.clone()).await?;
+            let failed = settlement(&client, &name).await?;
+            assert_eq!(failed.phase, CyclePhase::SealFailed as i32);
+            assert!(!failed.sealed);
+            assert!(failed.seal_failure.as_ref().is_some_and(|cause| !cause.is_empty()));
+            let execution = client.executions.list(name.clone(), Default::default(), Default::default(), Default::default()).await?.executions.remove(0);
+            assert_eq!(execution.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
+            assert!(matches!(execution.outcome.as_ref().unwrap().attribution.as_ref(), Some(execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::NotRun as i32));
+            assert!(failed.report_file.is_none() && failed.evidence_file.is_none());
+            let database = Connection::open(root.path().join("storage.sqlite3"))?;
+            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%'", [], |row| row.get(0))?;
+            assert_eq!(count, 0);
+            let owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
+            client.evidence.notes.create(owner, NoteWritable { message: "repair-reviewed".into() }).await?;
+
+            // Restore the Report Directory and Seal in the Same Host.
+            fs::remove_file(&report_directory)?;
+            fs::create_dir(&report_directory)?;
+            client.cycles.seal(name.clone()).await?;
+            let sealed = settlement(&client, &name).await?;
+            assert!(sealed.sealed);
+            assert!(sealed.report_file.is_some() && sealed.evidence_file.is_some());
+            let after = client.executions.get(execution.summary.unwrap().execution_id).await?.execution.unwrap();
+            assert_eq!(after.outcome, execution.outcome);
+            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%'", [], |row| row.get(0))?;
+            assert_eq!(count, 2);
+            let reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            let archives: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'temporary-evidence/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            assert_eq!((reports, archives), (1, 1));
+            process.close().await?;
+            plugin.close().await?;
+            Ok(())
+        }).await?
+    }))
+}
+
+#[test]
+fn cycle_seal_retries_persistence_failure_after_reopening_host() -> Result<(), Box<dyn Error>> {
     support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Own an Empty Cycle and Its Native Storage Fault Independently of Retention Proof.
@@ -213,30 +291,45 @@ fn cycle_seal_retries_materialization_failure() -> Result<(), Box<dyn Error>> {
             let credential_root = support::tempdir()?;
             let credentials = support::CredentialStore::start(credential_root.path()).await?;
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let client = Client::from_channel(channel, support::client_settings())?;
-            let cycle = client.cycles.create(Vec::new(), Metadata { label: "Seal Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
+            let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
+            let cycle = client.cycles.create(Vec::new(), Metadata { label: "Persistence Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
             let name = cycle.cycle_id;
-            let cycle_owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
-            // Inject a Durable Publication Failure Without Timing or Deadline Changes.
+            let owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
+
+            // Fail the First Retained Report Write and Prove the Existing Fatal Latch.
             let database = Connection::open(root.path().join("storage.sqlite3"))?;
             database.execute_batch("CREATE TRIGGER refuse_seal_report BEFORE INSERT ON storage_files WHEN NEW.id LIKE 'prepared-report/cycle-seal/%' BEGIN SELECT RAISE(ABORT,'Injected Report Publication Failure'); END;")?;
-            let mut completion = client.cycles.seal(name.clone()).await?;
-            let mut phases = Vec::new();
-            while let Some(frame) = completion.next().await? { phases.push(frame.cycle.unwrap().phase); }
-            assert_eq!(phases, [CyclePhase::Sealing as i32, CyclePhase::SealFailed as i32]);
-            let failed = client.cycles.get(name.clone()).await?.cycle.unwrap();
-            assert!(!failed.sealed);
-            assert!(failed.seal_failure.is_some());
-            client.evidence.notes.create(cycle_owner.clone(), NoteWritable { message: "repair-reviewed".into() }).await?;
+            client.cycles.seal(name.clone()).await?;
+            // A Fatal Store Can Refuse Watch View Retention; Closing Joins Seal Work.
+            let selection = CycleSelection { cycle_ids: vec![name.clone()], ..Default::default() };
+            let observation = client.cycles.watch(selection, Default::default(), Default::default()).await;
+            if let Ok(mut watch) = observation {
+                while let Ok(Some(frame)) = watch.next().await {
+                    if frame.resync_required.is_some() || frame.cycles.iter().any(|cycle| cycle.phase == CyclePhase::SealFailed as i32) { break; }
+                }
+            }
             database.execute_batch("DROP TRIGGER refuse_seal_report;")?;
+            assert!(client.evidence.notes.create(owner, NoteWritable { message: "fatal-latch".into() }).await.is_err());
+            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%'", [], |row| row.get(0))?;
+            assert_eq!(count, 0);
+            process.close_after_failure().await?;
 
-            // Retry the Same Unsealed Cycle After Resolving Its Materialization Fault.
-            let mut completion = client.cycles.seal(name.clone()).await?;
-            let mut phases = Vec::new();
-            while let Some(frame) = completion.next().await? { phases.push(frame.cycle.unwrap().phase); }
-            assert_eq!(phases, [CyclePhase::Sealing as i32, CyclePhase::Sealed as i32]);
-            assert!(client.cycles.get(name).await?.cycle.unwrap().sealed);
+            // Reopening Preserves Seal Failed and Allows One Complete Retention.
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
+            let recovered = client.cycles.get(name.clone()).await?.cycle.unwrap();
+            assert_eq!(recovered.phase, CyclePhase::SealFailed as i32);
+            assert!(recovered.seal_failure.as_ref().unwrap().contains("Injected Report Publication Failure"));
+            assert!(!recovered.sealed && recovered.report_file.is_none() && recovered.evidence_file.is_none());
+            client.cycles.seal(name.clone()).await?;
+            let sealed = settlement(&client, &name).await?;
+            assert!(sealed.sealed);
+            assert!(sealed.report_file.is_some() && sealed.evidence_file.is_some());
+            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%'", [], |row| row.get(0))?;
+            assert_eq!(count, 2);
+            let reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            let archives: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'temporary-evidence/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            assert_eq!((reports, archives), (1, 1));
             process.close().await?;
             Ok(())
         }).await?

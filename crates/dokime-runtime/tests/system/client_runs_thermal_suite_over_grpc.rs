@@ -136,6 +136,11 @@ impl HostProcess {
         assert!(!self.child.wait().await?.success());
         Ok(())
     }
+    pub(super) async fn close_after_failure(mut self) -> Result<(), Box<dyn Error>> {
+        drop(self.child.stdin.take());
+        assert!(!self.child.wait().await?.success());
+        Ok(())
+    }
     pub(super) async fn close(mut self) -> Result<(), Box<dyn Error>> {
         drop(self.child.stdin.take());
         assert!(self.child.wait().await?.success());
