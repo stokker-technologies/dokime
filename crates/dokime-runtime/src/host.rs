@@ -118,6 +118,9 @@ impl Host {
         Ok(host)
     }
     fn open_store(root: &Path, settings: HostSettings) -> Result<Self> {
+        if settings.installation.as_ref().is_some_and(|directory| !directory.is_absolute()) {
+            return Err(Error::Invalid("Configure Installation Plugins: Supply an Absolute Installation Folder".into()));
+        }
         let root_error = |source| Error::RootIo { path: root.to_path_buf(), source };
         fs::create_dir_all(root).map_err(root_error)?;
         let lease =

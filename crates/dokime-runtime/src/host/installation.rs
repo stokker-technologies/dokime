@@ -78,11 +78,19 @@ impl Host {
 
     async fn reconcile_directory(&self, directory: &Path) -> Result<()> {
         let mut files = Vec::new();
+        let mut complete = true;
         match fs::read_dir(directory) {
             Ok(entries) => {
                 // Finish Enumeration Before Removing Anything; an Incomplete Scan Is Not a Removal.
                 for entry in entries {
-                    let path = entry?.path();
+                    let path = match entry {
+                        Ok(entry) => entry.path(),
+                        Err(error) => {
+                            complete = false;
+                            self.report_plugin_admission_failure(directory, error);
+                            continue;
+                        }
+                    };
                     if path.extension().is_some_and(|extension| extension == "dokime") {
                         files.push(path);
                     }
@@ -97,7 +105,9 @@ impl Host {
         for path in files {
             let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
                 // Do Not Interpret an Unreadable Filename as Removing a Previously Shipped Bundle.
-                return Err(Error::Invalid(format!("Read Installation Plugins {}: Use UTF-8 Bundle Filenames", directory.display())));
+                complete = false;
+                self.report_plugin_admission_failure(&path, "Use a UTF-8 Bundle Filename");
+                continue;
             };
             let filename = filename.as_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             let source = format!("{INSTALLATION_SOURCE}{filename}");
@@ -116,7 +126,7 @@ impl Host {
         for entry in entries {
             let Some(content) = installation_content(&entry) else { continue };
             let source = &content.metadata.as_ref().expect("installation metadata").media_type;
-            if present.contains(source) {
+            if !complete || present.contains(source) {
                 continue;
             }
             let result = self.remove_installation_plugin(&entry).await;
