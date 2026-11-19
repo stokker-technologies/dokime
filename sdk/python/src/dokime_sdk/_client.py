@@ -209,8 +209,8 @@ class Plugins:
                 "plugins.create",
                 self._client._transport.plugins.create(
                     plugin.identifier,
-                    client_types.PluginPlacement(remote=client_types.PluginRemote(url=f"http://{endpoint.address}")),
-                    client_types.PluginValue(enabled=True),
+                    client_types.host.PluginPlacement(remote=client_types.host.PluginRemote(url=f"http://{endpoint.address}")),
+                    client_types.host.PluginValue(enabled=True),
                     request_id=identity,
                 ),
                 identity,
@@ -280,7 +280,7 @@ class Plugins:
 
 class RegisteredPlugin:
     _client: Client
-    _entry: client_types.PluginEntry
+    _entry: client_types.host.PluginEntry
     _endpoint: Endpoint | None
     _unregister_id: str
     _detached: bool
@@ -291,13 +291,13 @@ class RegisteredPlugin:
 
     @classmethod
     def _bind(
-        cls, client: Client, entry: client_types.PluginEntry, endpoint: Endpoint | None = None, *, label: str | None = None
+        cls, client: Client, entry: client_types.host.PluginEntry, endpoint: Endpoint | None = None, *, label: str | None = None
     ) -> "RegisteredPlugin":
         self = object.__new__(cls)
         self._client = client
         if not entry.name:
             raise invalid("plugins.get", "The Host Returned No Plugin Entry Identity")
-        self._entry = client_types.PluginEntry.FromString(entry.SerializeToString())
+        self._entry = client_types.host.PluginEntry.FromString(entry.SerializeToString())
         self._endpoint = endpoint
         self._unregister_id = _identity(None)
         self._detached = False
@@ -319,7 +319,7 @@ class RegisteredPlugin:
 
     @property
     def state(self) -> str:
-        return client_types.PluginState.Name(self._entry.state).removeprefix("PLUGIN_STATE_").title()
+        return client_types.host.PluginState.Name(self._entry.state).removeprefix("PLUGIN_STATE_").title()
 
     def _check_failure(self, request_id: str) -> None:
         if self._entry.HasField("failure"):

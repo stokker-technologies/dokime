@@ -18,13 +18,13 @@ from collections.abc import AsyncIterator
 # Third Party Imports
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
-from harmos._wire.host.v1 import plugins_pb2
-from harmos._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Local Imports
 from dokime_sdk._connection import connect
 from dokime_sdk._errors import SdkError
 from dokime_sdk._plugin import Plugin
+from dokime_sdk._wire.host.v1 import plugins_pb2
+from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Type Checking Imports
 
