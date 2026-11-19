@@ -27,6 +27,10 @@ use std::{
 };
 
 // Third Party Imports
+use harmos::plugin;
+use prost_reflect::ReflectMessage;
+use prost_types::Timestamp;
+use uuid::Uuid;
 
 // Local Imports
 use crate::EvidenceStatisticsResponse;
@@ -45,8 +49,6 @@ use crate::{Error, Message, OperationRequest, Result, data, host, host::Wire};
 use crate::{ExecutionProgressValue, PageRequest, Severity};
 use crate::{Origin, Termination, TestCase, origin};
 use crate::{Payload, authoring::build_identifier, payload};
-use ::harmos::plugin;
-use uuid::Uuid;
 
 /* === Constants === */
 
@@ -94,10 +96,10 @@ pub(crate) struct EndExecution {
     execution: Arc<Execution>,
 }
 
-pub(crate) struct Watching<T: prost_reflect::ReflectMessage + Default + 'static> {
+pub(crate) struct Watching<T: ReflectMessage + Default + 'static> {
     incoming: plugin::Watching<Wire<T>>,
 }
-impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
+impl<T: ReflectMessage + Default + 'static> Watching<T> {
     pub(crate) async fn next(&mut self) -> Result<Option<T>> {
         Ok(self.incoming.next().await?.map(|value| value.0))
     }
@@ -349,7 +351,7 @@ impl Context {
         self.host().time.sleep(duration.try_into().map_err(|error| Error::Invalid(format!("Sleep: Invalid Duration: {error}")))?).await?;
         Ok(())
     }
-    pub async fn now(&self) -> Result<prost_types::Timestamp> {
+    pub async fn now(&self) -> Result<Timestamp> {
         self.host().time.get().await
     }
     pub async fn cancelled(&self) -> String {
@@ -548,7 +550,7 @@ impl Context {
         }
         Ok(reply.name)
     }
-    pub async fn confirm_effect(&self, ticket: &str, at: Option<prost_types::Timestamp>, restored: bool) -> Result<()> {
+    pub async fn confirm_effect(&self, ticket: &str, at: Option<Timestamp>, restored: bool) -> Result<()> {
         let host = self.host();
         let current = host.effects.get(ticket.into()).await?;
         host.effects

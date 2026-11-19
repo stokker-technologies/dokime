@@ -22,6 +22,9 @@ use std::{
 };
 
 // Third Party Imports
+use harmos::OperationPolicy;
+use harmos::Visibility;
+use harmos::plugin;
 
 // Local Imports
 use crate::plugin::{
@@ -40,9 +43,6 @@ use crate::{
     stream::{Registration, Sampler},
 };
 use crate::{Document, FileParameter, Metadata, Parameter, TestCase, TestCaseTemplate, Value};
-use harmos::OperationPolicy;
-use harmos::Visibility;
-use harmos::plugin;
 
 /* === Constants === */
 

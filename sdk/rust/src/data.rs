@@ -19,7 +19,7 @@
 use std::collections::HashMap;
 
 // Third Party Imports
-use prost_reflect::{DynamicMessage, Kind, ReflectMessage, Value as DynamicValue};
+use prost_reflect::{DynamicMessage, Kind, ReflectMessage};
 
 // Local Imports
 use crate::ExactNumber;
@@ -176,7 +176,7 @@ pub(crate) fn decode<T: Message>(values: &HashMap<String, Value>) -> Result<T> {
             let Some(value::Kind::List(list)) = &value.kind else {
                 return Err(invalid(format!("Expected List: {}", field.name())));
             };
-            DynamicValue::List(list.values.iter().map(|value| dynamic(&field.kind(), value)).collect::<Result<_>>()?)
+            prost_reflect::Value::List(list.values.iter().map(|value| dynamic(&field.kind(), value)).collect::<Result<_>>()?)
         } else {
             dynamic(&field.kind(), value)?
         };
@@ -198,7 +198,7 @@ pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<Parameter>> {
             let element_type = value_type(&field.kind())?;
             let value = if field.is_list() {
                 let value = message.get_field(&field);
-                let DynamicValue::List(list) = value.as_ref() else {
+                let prost_reflect::Value::List(list) = value.as_ref() else {
                     return Err(invalid("Invalid List Default"));
                 };
                 Value {
@@ -303,19 +303,18 @@ fn value_type(kind: &Kind) -> Result<ValueType> {
     })
 }
 
-pub(crate) fn scalar(value: &DynamicValue) -> Result<Value> {
-    use value::Kind as V;
+pub(crate) fn scalar(value: &prost_reflect::Value) -> Result<Value> {
     let kind = match value {
-        DynamicValue::Bool(value) => V::Boolean(*value),
-        DynamicValue::I32(value) => V::Integer(i64::from(*value)),
-        DynamicValue::I64(value) => V::Integer(*value),
-        DynamicValue::U32(value) => V::UnsignedInteger(u64::from(*value)),
-        DynamicValue::U64(value) => V::UnsignedInteger(*value),
-        DynamicValue::F32(value) if value.is_finite() => V::Number(f64::from(*value)),
-        DynamicValue::F64(value) if value.is_finite() => V::Number(*value),
-        DynamicValue::String(value) => V::Text(value.clone()),
-        DynamicValue::Bytes(value) => V::Data(value.to_vec()),
-        DynamicValue::Message(message) if message.descriptor().full_name() == "google.protobuf.Timestamp" => V::Datetime(
+        prost_reflect::Value::Bool(value) => value::Kind::Boolean(*value),
+        prost_reflect::Value::I32(value) => value::Kind::Integer(i64::from(*value)),
+        prost_reflect::Value::I64(value) => value::Kind::Integer(*value),
+        prost_reflect::Value::U32(value) => value::Kind::UnsignedInteger(u64::from(*value)),
+        prost_reflect::Value::U64(value) => value::Kind::UnsignedInteger(*value),
+        prost_reflect::Value::F32(value) if value.is_finite() => value::Kind::Number(f64::from(*value)),
+        prost_reflect::Value::F64(value) if value.is_finite() => value::Kind::Number(*value),
+        prost_reflect::Value::String(value) => value::Kind::Text(value.clone()),
+        prost_reflect::Value::Bytes(value) => value::Kind::Data(value.to_vec()),
+        prost_reflect::Value::Message(message) if message.descriptor().full_name() == "google.protobuf.Timestamp" => value::Kind::Datetime(
             <prost_types::Timestamp as prost::Message>::decode(prost::Message::encode_to_vec(message).as_slice()).map_err(invalid)?,
         ),
         _ => return Err(invalid("Unsupported or Nonfinite Default Value")),
@@ -323,22 +322,25 @@ pub(crate) fn scalar(value: &DynamicValue) -> Result<Value> {
     Ok(Value { kind: Some(kind) })
 }
 
-fn dynamic(kind: &Kind, value: &Value) -> Result<DynamicValue> {
-    use value::Kind as V;
+fn dynamic(kind: &Kind, value: &Value) -> Result<prost_reflect::Value> {
     Ok(match (kind, &value.kind) {
-        (Kind::Bool, Some(V::Boolean(value))) => DynamicValue::Bool(*value),
-        (Kind::String, Some(V::Text(value))) => DynamicValue::String(value.clone()),
-        (Kind::Bytes, Some(V::Data(value))) => DynamicValue::Bytes(value.clone().into()),
-        (Kind::Double, Some(V::Number(value))) if value.is_finite() => DynamicValue::F64(*value),
-        (Kind::Float, Some(V::Number(value))) if value.is_finite() && (*value as f32).is_finite() => DynamicValue::F32(*value as f32),
-        (Kind::Int32 | Kind::Sint32 | Kind::Sfixed32, Some(V::Integer(value))) => {
-            DynamicValue::I32(i32::try_from(*value).map_err(invalid)?)
+        (Kind::Bool, Some(value::Kind::Boolean(value))) => prost_reflect::Value::Bool(*value),
+        (Kind::String, Some(value::Kind::Text(value))) => prost_reflect::Value::String(value.clone()),
+        (Kind::Bytes, Some(value::Kind::Data(value))) => prost_reflect::Value::Bytes(value.clone().into()),
+        (Kind::Double, Some(value::Kind::Number(value))) if value.is_finite() => prost_reflect::Value::F64(*value),
+        (Kind::Float, Some(value::Kind::Number(value))) if value.is_finite() && (*value as f32).is_finite() => {
+            prost_reflect::Value::F32(*value as f32)
         }
-        (Kind::Int64 | Kind::Sint64 | Kind::Sfixed64, Some(V::Integer(value))) => DynamicValue::I64(*value),
-        (Kind::Uint32 | Kind::Fixed32, Some(V::UnsignedInteger(value))) => DynamicValue::U32(u32::try_from(*value).map_err(invalid)?),
-        (Kind::Uint64 | Kind::Fixed64, Some(V::UnsignedInteger(value))) => DynamicValue::U64(*value),
-        (Kind::Message(descriptor), Some(V::Datetime(value))) if descriptor.full_name() == "google.protobuf.Timestamp" => {
-            DynamicValue::Message(
+        (Kind::Int32 | Kind::Sint32 | Kind::Sfixed32, Some(value::Kind::Integer(value))) => {
+            prost_reflect::Value::I32(i32::try_from(*value).map_err(invalid)?)
+        }
+        (Kind::Int64 | Kind::Sint64 | Kind::Sfixed64, Some(value::Kind::Integer(value))) => prost_reflect::Value::I64(*value),
+        (Kind::Uint32 | Kind::Fixed32, Some(value::Kind::UnsignedInteger(value))) => {
+            prost_reflect::Value::U32(u32::try_from(*value).map_err(invalid)?)
+        }
+        (Kind::Uint64 | Kind::Fixed64, Some(value::Kind::UnsignedInteger(value))) => prost_reflect::Value::U64(*value),
+        (Kind::Message(descriptor), Some(value::Kind::Datetime(value))) if descriptor.full_name() == "google.protobuf.Timestamp" => {
+            prost_reflect::Value::Message(
                 DynamicMessage::decode(descriptor.clone(), prost::Message::encode_to_vec(value).as_slice()).map_err(invalid)?,
             )
         }

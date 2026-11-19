@@ -19,6 +19,7 @@
 use std::{io, result};
 
 // Third Party Imports
+use tonic::{Status, transport};
 
 // Local Imports
 
@@ -67,14 +68,14 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<tonic::Status> for Error {
-    fn from(error: tonic::Status) -> Self {
+impl From<Status> for Error {
+    fn from(error: Status) -> Self {
         Self::Harmos(error.into())
     }
 }
 
-impl From<tonic::transport::Error> for Error {
-    fn from(error: tonic::transport::Error) -> Self {
+impl From<transport::Error> for Error {
+    fn from(error: transport::Error) -> Self {
         Self::Harmos(error.into())
     }
 }

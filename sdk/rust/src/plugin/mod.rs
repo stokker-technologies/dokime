@@ -35,6 +35,7 @@ include!("host_exports.rs");
 use std::{any::Any, collections::HashSet, env, sync::Arc};
 
 // Third Party Imports
+use harmos::plugin;
 
 // Local Imports
 use crate::SecretDeclaration;
@@ -50,8 +51,6 @@ use crate::template::validate_names;
 use crate::testing::Selected;
 use crate::{Declarations, Error, Message, OperationRequest, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
-
-use harmos::plugin;
 
 /* === Constants === */
 

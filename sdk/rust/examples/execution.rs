@@ -38,6 +38,10 @@ use dokime::{Document, FieldReference, Severity, value::Kind};
 
 /* === Structs === */
 
+struct ExecutionPlugin;
+struct ExecutionSuite;
+struct CaptureTestTemplate;
+
 #[derive(dokime::Row)]
 #[dokime(package = "execution")]
 struct Reading {
@@ -86,8 +90,7 @@ fn main() -> Result<()> {
     let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
     let revision = env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
-    let template = Template::of::<()>()
-        .identifier("capture")
+    let template = Template::of::<CaptureTestTemplate>()
         .label("Execution Capture")
         .record(Record::<Attempt>::new("attempt", "Attempt"))
         .description(revision)
@@ -130,9 +133,7 @@ fn main() -> Result<()> {
         .document(document)
         .stream(reading)
         .observer(observer);
-    let plugin = Plugin::of::<()>("1.0.0")
-        .identifier("execution")
-        .suite(Suite::of::<()>().identifier("execution").label("Execution").template(template));
+    let plugin = Plugin::of::<ExecutionPlugin>("1.0.0").suite(Suite::of::<ExecutionSuite>().template(template));
     plugin.run()
 }
 

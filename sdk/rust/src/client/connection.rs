@@ -20,6 +20,7 @@ use std::{collections::HashSet, fs::File, io::Read, num::NonZeroUsize, time::Dur
 
 // Third Party Imports
 use serde::Deserialize;
+use serde_json::Value;
 use tonic::{
     codegen::http::Uri,
     metadata::MetadataMap,
@@ -99,7 +100,7 @@ pub async fn connect_with(settings: ConnectionSettings) -> Result<Client> {
         if bytes.len() > 1_048_576 {
             return Err(Error::Invalid("Read Pairing: Export a File Smaller Than 1 MiB".into()));
         }
-        let document: serde_json::Value =
+        let document: Value =
             serde_json::from_slice(&bytes).map_err(|error| Error::Invalid(format!("Read Pairing: Export a Version 1 Pairing: {error}")))?;
         if document.as_object().is_none_or(|value| value.len() != 6) {
             return Err(Error::Invalid("Read Pairing: Export All Six Version 1 Pairing Fields".into()));

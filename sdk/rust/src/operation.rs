@@ -19,14 +19,14 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 // Third Party Imports
+use harmos::OperationPolicy;
+use harmos::Visibility;
+use harmos::plugin;
 
 // Local Imports
 use crate::operations;
 use crate::templates::Context;
 use crate::{Error, Message, Payload, Result, context::Executions, stream::Registration};
-use harmos::OperationPolicy;
-use harmos::Visibility;
-use harmos::plugin;
 
 /* === Constants === */
 

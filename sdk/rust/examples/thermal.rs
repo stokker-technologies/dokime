@@ -35,6 +35,10 @@ use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotK
 
 /* === Structs === */
 
+struct ThermalPlugin;
+struct ThermalSuite;
+struct CycleTestTemplate;
+
 #[derive(dokime::Row)]
 #[dokime(package = "thermal")]
 struct Temperature {
@@ -98,8 +102,7 @@ fn main() -> Result<()> {
         unit: "°C".into(),
         ..Default::default()
     };
-    let template = Template::of::<()>()
-        .identifier("cycle")
+    let template = Template::of::<CycleTestTemplate>()
         .label("Thermal Cycle")
         .record(door)
         .parameters(Parameters { limit: 85.0 })
@@ -136,8 +139,7 @@ fn main() -> Result<()> {
                 ..Default::default()
             }),
         ));
-    let plugin =
-        Plugin::of::<()>("1.0.0").identifier("thermal").suite(Suite::of::<()>().identifier("thermal").label("Thermal").template(template));
+    let plugin = Plugin::of::<ThermalPlugin>("1.0.0").suite(Suite::of::<ThermalSuite>().template(template));
     plugin.run()
 }
 

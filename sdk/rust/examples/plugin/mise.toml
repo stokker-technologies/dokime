@@ -9,5 +9,5 @@ description = "Build the Plugin"
 usage = 'arg "[args]" var=#true'
 run = 'cargo build {% for arg in usage.args %}"{{arg}}" {% endfor %}'
 [tasks.dev]
-description = "Serve the Plugin Remotely"
-run = 'cargo run -- --remote'
+description = "Run the Plugin"
+run = 'cargo run'
