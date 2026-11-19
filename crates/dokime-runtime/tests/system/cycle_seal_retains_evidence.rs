@@ -335,3 +335,57 @@ fn cycle_seal_retries_persistence_failure_after_reopening_host() -> Result<(), B
         }).await?
     }))
 }
+
+#[test]
+fn cycle_seal_retires_report_after_archive_persistence_failure() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Own an Empty Cycle and Its Native Storage Fault Independently of Retention Proof.
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
+            let cycle = client.cycles.create(Vec::new(), Metadata { label: "Archive Persistence Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
+            let name = cycle.cycle_id;
+            let owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
+
+            // Fail Archive Publication After the Report Has Been Published.
+            let database = Connection::open(root.path().join("storage.sqlite3"))?;
+            database.execute_batch("CREATE TRIGGER refuse_seal_archive BEFORE INSERT ON storage_files WHEN NEW.id LIKE 'temporary-evidence/%' BEGIN SELECT RAISE(ABORT,'Injected Archive Publication Failure'); END;")?;
+            client.cycles.seal(name.clone()).await?;
+            // A Fatal Store Can Refuse Watch View Retention; Closing Joins Seal Work.
+            let selection = CycleSelection { cycle_ids: vec![name.clone()], ..Default::default() };
+            let observation = client.cycles.watch(selection, Default::default(), Default::default()).await;
+            if let Ok(mut watch) = observation {
+                while let Ok(Some(frame)) = watch.next().await {
+                    if frame.resync_required.is_some() || frame.cycles.iter().any(|cycle| cycle.phase == CyclePhase::SealFailed as i32) { break; }
+                }
+            }
+            database.execute_batch("DROP TRIGGER refuse_seal_archive;")?;
+            assert!(client.evidence.notes.create(owner, NoteWritable { message: "fatal-latch".into() }).await.is_err());
+            process.close_after_failure().await?;
+
+            // Reopening Preserves Seal Failed and Allows One Complete Retention.
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
+            let recovered = client.cycles.get(name.clone()).await?.cycle.unwrap();
+            assert_eq!(recovered.phase, CyclePhase::SealFailed as i32);
+            assert!(recovered.seal_failure.as_ref().unwrap().contains("Injected Archive Publication Failure"));
+            assert!(!recovered.sealed && recovered.report_file.is_none() && recovered.evidence_file.is_none());
+            let retained_reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL AND id NOT IN (SELECT id FROM deleted_files)", [], |row| row.get(0))?;
+            assert_eq!(retained_reports, 0, "A Failed Cycle Seal Must Retire Its Partial Report");
+            client.cycles.seal(name.clone()).await?;
+            let sealed = settlement(&client, &name).await?;
+            assert!(sealed.sealed);
+            assert!(sealed.report_file.is_some() && sealed.evidence_file.is_some());
+            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%'", [], |row| row.get(0))?;
+            assert_eq!(count, 2);
+            let reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            let archives: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'temporary-evidence/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            assert_eq!((reports, archives), (1, 1));
+            process.close().await?;
+            Ok(())
+        }).await?
+    }))
+}

@@ -66,3 +66,19 @@ Failed with the restart cause. The persistence story fails the first native
 report insertion, proves the latch still rejects writes after removal of the
 fault, reopens the host and seals successfully. Neither failure story leaves a
 retained report or archive, and each retry publishes exactly one of each.
+
+## Publication Ownership Needs an Owner Decision
+
+The current cycle materializer calls the independently publishing report
+preparation operation, then the independently publishing archive operation,
+then saves the cycle's final state. A persistence error at archive publication
+can therefore leave the earlier report live after reopening. The late-failure
+story records this counterexample. The two early-failure stories do not prove
+cleanup of this later publication boundary.
+
+The clean shape gives the cycle materialization attempt one publication and
+recovery owner for both files and the sealed state. Reusing report capture and
+archive construction should not independently publish partially completed
+cycle output. Choosing the native compound-publication boundary or an explicitly
+owned recoverable attempt belongs to the owner; no second cleanup registry is
+introduced here.
