@@ -55,7 +55,7 @@ identifier, not from the pack. That stays.
 The current command is `dokime installer package --manifest installer.toml --output dist`.
 `--artifacts <directory>` selects an extracted local distribution kit and prevents
 release acquisition, including for named plugins; local named plugins live under
-`plugins/<name>.dokime`. `--plugin <path>` is repeatable and accepts current gRPC
+`plugins/`. `--plugin <path>` is repeatable and accepts current gRPC
 `.dokime` bundles or plugin ZIP/TAR.GZ archives. `--format nsis,deb,rpm`, `--target`,
 `--sign` and `--json` retain their earlier command semantics.
 
@@ -80,7 +80,7 @@ version = "nightly" # Optional; exact release version or nightly; defaults to CL
 target = "x86_64-pc-windows-msvc" # Optional; defaults to the native target.
 
 [[plugin]] # Optional, repeatable; exactly one of name or path per entry.
-name = "example-pack" # Published bundle filename without .dokime.
+name = "example-pack" # Published bundle package identity.
 
 [[plugin]]
 path = "plugins/example-pack.dokime" # Relative to the organization pack folder.

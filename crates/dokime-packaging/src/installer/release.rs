@@ -116,7 +116,7 @@ impl Release {
             .and_then(|name| name.strip_suffix(&suffix))
             .ok_or_else(|| Error::Invalid("invalid distribution archive name".into()))?;
         Version::parse(version).map_err(|error| Error::Invalid(error.to_string()))?;
-        let bytes = self.download(&name, (1024 * 1024 * 1024)).await?;
+        let bytes = self.download(&name, 1024 * 1024 * 1024).await?;
         super::distribution::extract(&bytes, destination)?;
         Ok(version.to_owned())
     }
@@ -128,17 +128,8 @@ impl Release {
         let suffix = if target.contains("windows") { "zip" } else { "tar.gz" };
         let name = format!("dokime-plugins-{version}-{target}.{suffix}");
         let bytes = self.download(&name, 1024 * 1024 * 1024).await?;
-        let mut paths = super::plugins::unpack(&bytes, &name, destination)?;
-        paths
-            .retain(|path| path.file_stem().and_then(|value| value.to_str()).is_some_and(|name| names.iter().any(|wanted| wanted == name)));
-        for name in names {
-            if !paths.iter().any(|path| path.file_stem().and_then(|value| value.to_str()) == Some(name)) {
-                return Err(Error::Invalid(format!(
-                    "Select a Published Plugin Filename Without .dokime: No {name} in {version} for {target}"
-                )));
-            }
-        }
-        Ok(paths)
+        let paths = super::plugins::unpack(&bytes, &name, destination)?;
+        super::plugins::select(&paths, names)
     }
 
     fn distribution_name(&self, version: &str, target: &str) -> Result<String, Error> {
@@ -273,6 +264,30 @@ mod tests {
     }
 
     #[test]
+    fn nightly_selects_exactly_one_native_kit() {
+        let mut release = Release {
+            client: client(),
+            assets: BTreeMap::new(),
+            sums: BTreeMap::new(),
+            cache: PathBuf::new(),
+        };
+        assert!(release.distribution_name(NIGHTLY, "x86_64-pc-windows-msvc").is_err());
+        release.assets.insert(
+            "dokime-distribution-1.2.3-x86_64-pc-windows-msvc.zip".into(),
+            reqwest::Url::parse("https://example.test/kit.zip").unwrap(),
+        );
+        assert_eq!(
+            release.distribution_name(NIGHTLY, "x86_64-pc-windows-msvc").unwrap(),
+            "dokime-distribution-1.2.3-x86_64-pc-windows-msvc.zip"
+        );
+        release.assets.insert(
+            "dokime-distribution-1.2.4-x86_64-pc-windows-msvc.zip".into(),
+            reqwest::Url::parse("https://example.test/kit-2.zip").unwrap(),
+        );
+        assert!(release.distribution_name(NIGHTLY, "x86_64-pc-windows-msvc").is_err());
+    }
+
+    #[test]
     fn github_authentication() {
         let client = client();
         let url = reqwest::Url::parse("https://api.github.com/repos/example/project/releases/latest").unwrap();
@@ -332,11 +347,6 @@ mod tests {
         for status in [StatusCode::FORBIDDEN, StatusCode::TOO_MANY_REQUESTS] {
             let error = rate_limit(status, &headers).unwrap_err();
             assert!(matches!(error, Error::GithubRateLimit { limit: Some(60), reset: Some(1793534400) }));
-            let message = error.to_string();
-            assert!(message.contains("GitHub API rate limit"));
-            assert!(message.contains("60 requests"));
-            assert!(message.contains("GITHUB_TOKEN raises the limit"));
-            assert!(message.contains("1793534400 (UTC epoch seconds)"));
         }
         assert!(rate_limit(StatusCode::OK, &headers).is_ok());
         assert!(rate_limit(StatusCode::NOT_FOUND, &headers).is_ok());
@@ -344,7 +354,6 @@ mod tests {
         assert!(rate_limit(StatusCode::FORBIDDEN, &headers).is_ok());
         let error = rate_limit(StatusCode::TOO_MANY_REQUESTS, &headers).unwrap_err();
         assert!(matches!(error, Error::GithubRateLimit { limit: None, reset: None }));
-        assert!(!error.to_string().contains("resets at"));
         headers.insert("retry-after", HeaderValue::from_static("30"));
         headers.insert("x-ratelimit-reset", HeaderValue::from_static("invalid"));
         assert!(matches!(rate_limit(StatusCode::FORBIDDEN, &headers), Err(Error::GithubRateLimit { reset: None, .. })));

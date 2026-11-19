@@ -22,6 +22,7 @@ use std::{io, os::windows::ffi::OsStrExt, path::Path, ptr};
 
 // Third Party Imports
 use image::{DynamicImage, ImageFormat, imageops::FilterType};
+use tauri_utils::platform::WINDOWS_APP_ICON_RESOURCE_ID;
 use windows_sys::Win32::{
     Foundation::{FreeLibrary, HANDLE, HMODULE},
     System::LibraryLoader::{
@@ -40,7 +41,7 @@ const ICON: u16 = 3;
 const GROUP_ICON: u16 = 14;
 
 // Tauri Loads Its Default Window Icon From This Application Resource.
-const APPLICATION_ICON_ID: u16 = tauri_utils::platform::WINDOWS_APP_ICON_RESOURCE_ID;
+const APPLICATION_ICON_ID: u16 = WINDOWS_APP_ICON_RESOURCE_ID;
 
 /* === Macros === */
 
@@ -111,7 +112,7 @@ pub(super) fn icon(image: &DynamicImage) -> Result<Icon, Error> {
     for (index, size) in ICON_SIZES.into_iter().enumerate() {
         let frame = image.resize_exact(size, size, FilterType::Lanczos3).to_rgba8();
         let mut encoded = Cursor::new(Vec::new());
-        frame.write_to(&mut encoded, ImageFormat::Png).map_err(image_error)?;
+        frame.write_to(&mut encoded, ImageFormat::Png).map_err(|error| Error::Invalid(error.to_string()))?;
         let bytes = encoded.into_inner();
         group.extend_from_slice(&[size as u8, size as u8, 0, 0, 1, 0, 32, 0]);
         group.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
@@ -121,12 +122,12 @@ pub(super) fn icon(image: &DynamicImage) -> Result<Icon, Error> {
     Ok(Icon { group, frames })
 }
 
-pub(super) fn scratch() -> Result<tempfile::TempDir, Error> {
+pub(crate) fn scratch() -> Result<tempfile::TempDir, Error> {
     // Tauri Resources Use Relative Paths on Windows.
     Ok(tempfile::Builder::new().prefix("dokime-installer-").tempdir_in(env::current_dir()?)?)
 }
 
-pub(super) fn stage_executable(path: &Path, bytes: &[u8], image: Option<&image::DynamicImage>) -> Result<(), Error> {
+pub(crate) fn stage_executable(path: &Path, bytes: &[u8], image: Option<&image::DynamicImage>) -> Result<(), Error> {
     fs::write(path, bytes)?;
     if let Some(image) = image {
         let icon = icon(image)?;

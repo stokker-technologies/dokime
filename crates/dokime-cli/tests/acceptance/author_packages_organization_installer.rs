@@ -7,7 +7,7 @@
  * ***
  */
 
-// Package an Installer From a Local Kit
+// Package an Installer from a Local Kit
 
 /* === Modules === */
 
@@ -16,12 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use serde_json::json;
-use std::{error::Error, fs, process::Command, time::Duration};
+use std::{error::Error, fs, time::Duration};
 
 // Third Party Imports
+use serde_json::json;
+use tokio::process::Command;
 
 // Local Imports
+use dokime_runtime::process;
 
 /* === Constants === */
 
@@ -48,7 +50,7 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
     tokio::time::timeout(Duration::from_secs(600), async {
         // Discover Installer Packaging Without Connecting to a Host.
         let binary = env!("CARGO_BIN_EXE_dokime");
-        let help = Command::new(binary).args(["installer", "package", "--help"]).output()?;
+        let help = Command::from(process::command(binary)).args(["installer", "package", "--help"]).output().await?;
         assert!(help.status.success());
         // Author a Neutral Manifest and Supply a Local Kit; Never Consult Previous Releases.
         let root = tempfile::tempdir()?;
@@ -65,28 +67,30 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
             kit.join("distribution.json"),
             serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":dokime_packaging::bundle::native_target(),"files":{}}))?,
         )?;
-        let refused = Command::new(binary)
+        let refused = Command::from(process::command(binary))
             .args(["installer", "package", "--manifest"])
             .arg(&manifest)
             .arg("--artifacts")
             .arg(&kit)
             .arg("--output")
             .arg(&output)
-            .output()?;
+            .output()
+            .await?;
         assert!(!refused.status.success());
         assert!(!output.exists());
         let error = String::from_utf8(refused.stderr)?;
-        assert!(error.contains("required executable, license or organization"), "{error}");
+        assert!(error.contains("distribution"), "{error}");
         // Refuse Implicit Signing Before Attempting a Download.
-        let refused = Command::new(binary)
+        let refused = Command::from(process::command(binary))
             .args(["installer", "package", "--manifest"])
             .arg(&manifest)
             .arg("--sign")
             .arg("--output")
             .arg(&output)
-            .output()?;
+            .output()
+            .await?;
         assert!(!refused.status.success());
-        assert!(String::from_utf8(refused.stderr)?.contains("explicit signing configuration"));
+        assert!(String::from_utf8(refused.stderr)?.contains("--sign"));
         assert!(!output.exists());
         Ok(())
     })

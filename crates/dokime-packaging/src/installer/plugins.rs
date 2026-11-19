@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -96,6 +97,27 @@ pub(super) fn unpack(bytes: &[u8], name: &str, destination: &Path) -> Result<Vec
     }
     paths.sort();
     Ok(paths)
+}
+
+pub(super) fn select(paths: &[PathBuf], names: &[String]) -> Result<Vec<PathBuf>, Error> {
+    let mut packages = BTreeMap::new();
+    for path in paths {
+        let bytes = bounded(path, Limits::default().archive_bytes as u64)?;
+        let bundle = Bundle::inspect(&bytes, Limits::default())?;
+        let name = bundle.manifest().identity.name.clone();
+        if packages.insert(name.clone(), path.clone()).is_some() {
+            return Err(Error::Invalid(format!("Publish Each Plugin Package Once: {name}")));
+        }
+    }
+    names
+        .iter()
+        .map(|name| {
+            packages
+                .get(name)
+                .cloned()
+                .ok_or_else(|| Error::Invalid(format!("Select a Published Plugin Package Name; No {name} in the Plugin Archive")))
+        })
+        .collect()
 }
 
 pub(super) fn stage(paths: &[PathBuf], scratch: &Path, target: &str, version: &str) -> Result<BTreeMap<String, PathBuf>, Error> {

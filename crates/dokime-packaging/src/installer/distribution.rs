@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 use std::fs;
+use std::io;
 use std::io::Cursor;
 use std::str;
 use std::{
@@ -90,7 +91,7 @@ impl Identity {
 }
 
 pub fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 pub fn checksums(bytes: &[u8]) -> Result<BTreeMap<String, String>, Error> {
@@ -231,10 +232,6 @@ pub fn extract(bytes: &[u8], destination: &Path) -> Result<(), Error> {
 }
 
 /* === Private Functions === */
-
-pub(super) fn safe_identity(value: &str) -> bool {
-    !value.is_empty() && value.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
-}
 
 /* === Tests === */
 

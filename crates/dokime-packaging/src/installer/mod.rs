@@ -109,17 +109,18 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     manifest.dokime.version = Some(distribution.version.clone());
     native::validate_signing(&manifest, options.sign)?;
     let mut selected = options.plugins.clone();
-    if options.artifacts.is_some() {
-        for name in &names {
-            if !distribution::filename(name) {
-                return Err(Error::Invalid("Use a Plain Published Plugin Name".into()));
+    if options.artifacts.is_some() && !names.is_empty() {
+        let directory = source.join("plugins");
+        let mut paths = Vec::new();
+        for entry in
+            fs::read_dir(&directory).map_err(|error| Error::Invalid(format!("Add Requested .dokime Bundles to {directory:?}: {error}")))?
+        {
+            let path = entry?.path();
+            if path.extension().is_some_and(|extension| extension == "dokime") {
+                paths.push(path);
             }
-            let path = source.join("plugins").join(format!("{name}.dokime"));
-            if !path.is_file() {
-                return Err(Error::Invalid(format!("Add plugins/{name}.dokime to the Local Kit or Use [[plugin]] path")));
-            }
-            selected.push(path);
         }
+        selected.extend(plugins::select(&paths, &names)?);
     }
     selected.extend(manifest.plugin_paths(&source.join("organization"))?);
     if let Some(release) = release {

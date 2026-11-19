@@ -9,14 +9,38 @@
 
 // Validate Installer Organization Inputs
 
+/* === Modules === */
+
+/* === Re-Exports === */
+
 /* === Imports === */
-use super::{Error, distribution};
-use image::{ImageFormat, Rgb, RgbImage};
+
+// Standard Library Imports
+use std::env::consts::EXE_SUFFIX;
 use std::{collections::BTreeMap, fs, path::Path};
 
-use std::env::consts::EXE_SUFFIX;
+// Third Party Imports
+use image::{ImageFormat, Rgb, RgbImage};
+
+// Local Imports
+use super::{Error, distribution};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
 
 /* === Public Functions === */
+
 pub(super) fn kit(directory: &Path) -> Result<(), Error> {
     fs::create_dir_all(directory.join("bin"))?;
     fs::create_dir_all(directory.join("organization"))?;
@@ -57,3 +81,7 @@ pub(super) fn manifest() -> super::Manifest {
     ))
     .unwrap()
 }
+
+/* === Private Functions === */
+
+/* === Tests === */

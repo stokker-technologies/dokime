@@ -16,6 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_runtime::bundle;
 
 // Local Imports
 
@@ -67,8 +68,8 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<harmos_runtime::bundle::Error> for Error {
-    fn from(error: harmos_runtime::bundle::Error) -> Self {
+impl From<bundle::Error> for Error {
+    fn from(error: bundle::Error) -> Self {
         Self::Invalid(error.to_string())
     }
 }

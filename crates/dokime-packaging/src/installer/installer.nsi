@@ -10,6 +10,7 @@ SetCompressor /SOLID lzma
 !include FileFunc.nsh
 !include LogicLib.nsh
 !include x64.nsh
+!include "Win\RestartManager.nsh"
 !include "utils.nsh"
 !addplugindir "{{additional_plugins_path}}"
 !define PRODUCTNAME "{{product_name}}"
@@ -45,6 +46,9 @@ Var NoShortcutMode
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
+{{#each language_files}}
+!include "{{this}}"
+{{/each}}
 
 Function SkipIfPassive
   ${If} $PassiveMode = 1

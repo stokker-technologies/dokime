@@ -44,7 +44,7 @@ pub struct PackageArgs {
     #[arg(long)]
     artifacts: Option<PathBuf>,
 
-    #[arg(long = "plugin", value_name = "PATH", help = "Include An External Plugin Bundle Or Plugin Archive; Repeat For Each Path")]
+    #[arg(long = "plugin", value_name = "PATH", help = "Include an External Plugin Bundle or Plugin Archive; Repeat for Each Path")]
     plugins: Vec<PathBuf>,
 
     #[arg(long, default_value = "dist")]

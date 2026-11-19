@@ -24,6 +24,7 @@ use std::{
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
 use super::Error;
@@ -128,9 +129,7 @@ pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path,
     fs::write(package.with_extension("exe.sig"), format!("{signature}\n"))?;
     let filename =
         package.file_name().and_then(|s| s.to_str()).ok_or_else(|| Error::Invalid("installer output filename is invalid".into()))?;
-    let published = time::OffsetDateTime::now_utc()
-        .format(&time::format_description::well_known::Rfc3339)
-        .map_err(|e| Error::Invalid(e.to_string()))?;
+    let published = OffsetDateTime::now_utc().format(&Rfc3339).map_err(|e| Error::Invalid(e.to_string()))?;
     let url = format!("{}/{}", settings.artifact_base_url.trim_end_matches('/'), filename);
     let metadata = serde_json::json!({
         "version":manifest.installer.version,
@@ -186,7 +185,7 @@ fn authenticode_with_provider(path: &Path, provider: Option<&str>) -> Result<boo
     }
     let scratch = tempfile::tempdir()?;
     let script = scratch.path().join("authenticode.ps1");
-    fs::write(&script, include_str!("authenticode.ps1"))?;
+    fs::write(&script, include_str!("../../../../tools/powershell/authenticode.ps1"))?;
     let status = Command::new("pwsh")
         .args(["-NoProfile", "-NonInteractive", "-File"])
         .arg(&script)

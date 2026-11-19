@@ -17,6 +17,7 @@
 use std::{ffi::OsStr, path::Path};
 
 // Third Party Imports
+use spdx::{Expression, ParseMode};
 
 // Local Imports
 
@@ -24,9 +25,6 @@ use std::{ffi::OsStr, path::Path};
 
 // Dokime's Own License, Always Installed As `LICENSE`.
 pub const DOKIME: &str = "Apache-2.0";
-
-// Dokime's Copyright Holder, Named In Package Metadata And The Debian Copyright File.
-pub const DOKIME_HOLDER: &str = "Stokker Technologies";
 
 // Installed File Stem Of An Organization Pack's Additional Terms.
 const TERMS_STEM: &str = "EULA";
@@ -59,7 +57,16 @@ const COMMON_LICENSE: &str = "/usr/share/common-licenses/Apache-2.0";
 //
 // Identifiers Are Syntax-Checked Only, Not Matched Against The SPDX License List.
 pub fn validate(expression: &str) -> Result<(), String> {
-    spdx::Expression::parse(expression).map(|_| ()).map_err(|error| error.to_string())
+    Expression::parse_mode(
+        expression,
+        ParseMode {
+            allow_unknown: true,
+            allow_deprecated: true,
+            ..ParseMode::STRICT
+        },
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
 }
 
 // Returns The Native Package License: The Pack's Terms Added To Dokime's Apache-2.0.

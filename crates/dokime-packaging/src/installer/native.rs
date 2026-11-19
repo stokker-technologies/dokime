@@ -86,8 +86,7 @@ impl Staging {
 /* === Public Functions === */
 
 pub(super) fn prepare(
-    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, _output: &Path,
-    sign: bool,
+    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, sign: bool,
 ) -> Result<Settings, Error> {
     let identity = manifest.identity(&distribution.identity)?;
     let mut pack = resolve_organization(manifest, source)?;
@@ -290,7 +289,7 @@ pub(super) fn prepare(
             Format::Rpm => PackageType::Rpm,
         })
         .collect();
-    let package = package_settings(manifest, &identity, &label, windows);
+    let package = package_settings(manifest, &identity, &label, pack.organization_name().unwrap_or(&label), windows);
     let application_name = if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) };
     let command_name = if windows { "dokime".into() } else { identity.slug.clone() };
     let application = BundleBinary::new(application_name, true);
@@ -318,7 +317,7 @@ pub fn assemble(
     manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path,
     sign: bool,
 ) -> Result<Vec<PathBuf>, Error> {
-    let settings = prepare(manifest, distribution, source, plugins, scratch, output, sign)?;
+    let settings = prepare(manifest, distribution, source, plugins, scratch, sign)?;
     let bundles = tauri_bundler::bundle_project(&settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)
@@ -443,9 +442,11 @@ pub(crate) fn stage_copyright(
         Some(terms) => Some(terms_text(terms)?),
         None => None,
     };
-    let mut holders = vec![license::DOKIME_HOLDER];
+    let notice = fs::read_to_string(source.join("NOTICE"))?;
+    let holder = notice.lines().find_map(|line| line.strip_prefix("Copyright ")).unwrap_or("Dokime Contributors");
+    let mut holders = vec![holder];
     let organization = pack.organization_name().map(str::trim).filter(|name| !name.is_empty());
-    if let Some(name) = organization.filter(|name| *name != license::DOKIME_HOLDER) {
+    if let Some(name) = organization.filter(|name| *name != holder) {
         holders.push(name);
     }
 
@@ -471,7 +472,9 @@ fn terms_text(terms: &super::manifest::License) -> Result<(&str, String), Error>
     Ok((spdx, text))
 }
 
-fn package_settings(manifest: &Manifest, identity: &distribution::Identity, label: &str, windows: bool) -> PackageSettings {
+fn package_settings(
+    manifest: &Manifest, identity: &distribution::Identity, label: &str, publisher: &str, windows: bool,
+) -> PackageSettings {
     // Tauri Uses The Linux Product Name As The Native Package Name.
     // The Description Supplies DEB's Display Description And RPM's Summary.
     PackageSettings {
@@ -479,7 +482,7 @@ fn package_settings(manifest: &Manifest, identity: &distribution::Identity, labe
         version: manifest.installer.version.clone(),
         description: label.to_owned(),
         homepage: None,
-        authors: Some(vec![license::DOKIME_HOLDER.into()]),
+        authors: Some(vec![publisher.into()]),
         default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
     }
 }
@@ -733,7 +736,7 @@ mod tests {
         let original = fs::read(source.path().join(format!("bin/dokime-gui{}", EXE_SUFFIX)))?;
         // Prepare the Built-In Appearance Through the Native Tool Boundary.
         let staging = scratch()?;
-        let settings = prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), staging.path(), false)?;
+        let settings = prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), false)?;
         assert_eq!(settings.bundle_identifier(), "com.example.testhub");
         assert_eq!(settings.windows().nsis.as_ref().unwrap().install_mode, NSISInstallerMode::CurrentUser);
         assert!(staging.path().join("organization/default-only.css").is_file());
@@ -756,7 +759,7 @@ mod tests {
             file: Some(terms),
         });
         let staging = scratch()?;
-        prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), staging.path(), false)?;
+        prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), false)?;
         assert!(!staging.path().join("organization/default-only.css").exists());
         assert_eq!(fs::read(staging.path().join("terms/EULA.txt"))?, b"example terms");
         let appearance: toml::Value = toml::from_str(&fs::read_to_string(staging.path().join("organization/organization.toml"))?).unwrap();
