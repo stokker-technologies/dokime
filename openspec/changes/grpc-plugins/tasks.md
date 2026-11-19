@@ -174,7 +174,8 @@
   - [ ] Bind Bundle Upload After the Product Host Publishes Its Installation Contract and Regenerated Bindings; Shared Plugins/Create Currently Accepts Placements Rather Than Bundle Uploads.
   - [ ] Complete the Remaining Declaration/Context Capability Surface and Catalog Validation, Including Operation-Scoped Observers, Typed Query Values and Template Notes/Artifacts.
   - [ ] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Remove Generated Host/Transport Escape Hatches With the Production Consumer and Generator Owners.
-  - [ ] Resolve Duplicated SDK Harness and Product Execution Sequencing With the Owner; Both Still Gate Cleanup on Successful Initialization Despite the Locked Attempted-Initialization Contract.
+  - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
+  - [ ] Resolve Duplicated SDK Harness and Product Execution Sequencing With the Owner; Product Cleanup Still Requires Successful Initialization at `crates/dokime-runtime/src/execution.rs:643`.
   - [ ] Replace Both Rust Starter Roots With the Owner-Requested Single Two-Binary Project and Migrate CLI Embedding; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
   - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
   - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
