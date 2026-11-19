@@ -2084,6 +2084,156 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretRequirement").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SettingsListRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SettingsListRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SettingsListResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SettingsListResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SettingsSetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SettingsSetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SettingsSetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SettingsSetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsGetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsGetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsGetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsGetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsListRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsListRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsListResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsListResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsWatchRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsWatchRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsWatchResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsWatchResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsCreateRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsCreateRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsCreateResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsCreateResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsSetRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsSetRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsSetResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsSetResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsDeleteRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsDeleteRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsDeleteResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsDeleteResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsRestartRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsRestartRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsRestartResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsRestartResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsReplaceRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsReplaceRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginsReplaceResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginsReplaceResponse").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginValue {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginValue").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginDescription {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginDescription").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginRemote {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginRemote").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginManaged {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginManaged").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginGuest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginGuest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginPlacement {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginPlacement").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginProcess {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginProcess").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginEntry {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginEntry").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginSnapshot {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginSnapshot").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::PluginChange {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.PluginChange").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::PromptDefinitions {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.PromptDefinitions").expect("generated protocol descriptor")

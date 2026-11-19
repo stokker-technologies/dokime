@@ -82,6 +82,25 @@ use dokime_protocol::host::FilesReadResponse;
 use dokime_protocol::host::FilesWatchRequest;
 use dokime_protocol::host::FilesWatchResponse;
 use dokime_protocol::host::Output;
+use dokime_protocol::host::PluginEntry;
+use dokime_protocol::host::PluginPlacement;
+use dokime_protocol::host::PluginValue;
+use dokime_protocol::host::PluginsCreateRequest;
+use dokime_protocol::host::PluginsCreateResponse;
+use dokime_protocol::host::PluginsDeleteRequest;
+use dokime_protocol::host::PluginsDeleteResponse;
+use dokime_protocol::host::PluginsGetRequest;
+use dokime_protocol::host::PluginsGetResponse;
+use dokime_protocol::host::PluginsListRequest;
+use dokime_protocol::host::PluginsListResponse;
+use dokime_protocol::host::PluginsReplaceRequest;
+use dokime_protocol::host::PluginsReplaceResponse;
+use dokime_protocol::host::PluginsRestartRequest;
+use dokime_protocol::host::PluginsRestartResponse;
+use dokime_protocol::host::PluginsSetRequest;
+use dokime_protocol::host::PluginsSetResponse;
+use dokime_protocol::host::PluginsWatchRequest;
+use dokime_protocol::host::PluginsWatchResponse;
 use dokime_protocol::host::PromptDefinitionsGetRequest;
 use dokime_protocol::host::PromptDefinitionsGetResponse;
 use dokime_protocol::host::PromptDefinitionsListRequest;
@@ -220,6 +239,8 @@ use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsListResponse;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::plots::SnapshotsWatchResponse;
+use dokime_protocol::host::plugins::SettingsListRequest;
+use dokime_protocol::host::plugins::SettingsListResponse;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_protocol::host::prompts::AnswersCreateResponse;
 use dokime_protocol::host::storage::SourcesGetRequest;
@@ -271,6 +292,7 @@ use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::Position;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
+use harmos_protocol::model::SettingValues;
 use harmos_protocol::model::Upload;
 use prost_reflect::ReflectMessage;
 use tonic::codegen::http::uri::PathAndQuery;
@@ -1787,6 +1809,166 @@ impl Clone for PluginsSecretsListOptions {
         Self {
             name: self.name.clone(),
             at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsSettingsListOptions {
+    pub name: Option<String>,
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsSettingsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsSettingsSetOptions {
+    pub request_id: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsSettingsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsGetOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsListOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsWatchOptions {
+    pub name: Option<String>,
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsCreateOptions {
+    pub request_id: Option<String>,
+    pub origin: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            origin: self.origin.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsSetOptions {
+    pub context: CallOptions,
+}
+impl Clone for PluginsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsDeleteOptions {
+    pub context: CallOptions,
+}
+impl Clone for PluginsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsRestartOptions {
+    pub context: CallOptions,
+}
+impl Clone for PluginsRestartOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsReplaceOptions {
+    pub request_id: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsReplaceOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -4755,13 +4937,198 @@ impl PlotsSnapshots {
 }
 #[derive(Clone)]
 pub struct Plugins {
+    client: ClientTransport,
     pub secrets: PluginsSecrets,
+    pub settings: PluginsSettings,
 }
 impl Plugins {
     pub fn new(client: ClientTransport) -> Self {
         Self {
             secrets: PluginsSecrets::new(client.clone()),
+            settings: PluginsSettings::new(client.clone()),
+            client,
         }
+    }
+    pub async fn get(&self, name: impl Into<String>) -> Result<PluginsGetResponse, tonic::Status> {
+        self.get_with(name, PluginsGetOptions::default()).await
+    }
+    pub async fn get_with(&self, name: impl Into<String>, options: PluginsGetOptions) -> Result<PluginsGetResponse, tonic::Status> {
+        let value = PluginsGetRequest { name: name.into(), at: options.at };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsGetRequest, PluginsGetResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Get"),
+                request,
+                PluginsGetResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.get", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+    pub async fn list(&self) -> Result<PluginsListResponse, tonic::Status> {
+        self.list_with(PluginsListOptions::default()).await
+    }
+    pub async fn list_with(&self, options: PluginsListOptions) -> Result<PluginsListResponse, tonic::Status> {
+        let value = PluginsListRequest { at: options.at };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsListRequest, PluginsListResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/List"),
+                request,
+                PluginsListResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.list", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+    pub async fn watch(&self) -> Result<Watching<PluginsWatchResponse>, tonic::Status> {
+        self.watch_with(PluginsWatchOptions::default()).await
+    }
+    pub async fn watch_with(&self, options: PluginsWatchOptions) -> Result<Watching<PluginsWatchResponse>, tonic::Status> {
+        let value = PluginsWatchRequest { name: options.name, at: options.at };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .watch_known::<PluginsWatchRequest, PluginsWatchResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Watch"),
+                request,
+                PluginsWatchResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.watch", error))?;
+        let response = response.with_action("plugins.watch");
+        Ok(response)
+    }
+    pub async fn create(
+        &self, name: impl Into<String>, placement: PluginPlacement, value: PluginValue,
+    ) -> Result<PluginsCreateResponse, tonic::Status> {
+        self.create_with(name, placement, value, PluginsCreateOptions::default()).await
+    }
+    pub async fn create_with(
+        &self, name: impl Into<String>, placement: PluginPlacement, value: PluginValue, options: PluginsCreateOptions,
+    ) -> Result<PluginsCreateResponse, tonic::Status> {
+        let value = PluginsCreateRequest {
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => request_id()?,
+            },
+            name: name.into(),
+            placement: Some(placement),
+            value: Some(value),
+            origin: options.origin,
+        };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsCreateRequest, PluginsCreateResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Create"),
+                request,
+                PluginsCreateResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.create", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+    pub async fn set(
+        &self, name: impl Into<String>, value: PluginValue, expected_revision: Vec<u8>,
+    ) -> Result<PluginsSetResponse, tonic::Status> {
+        self.set_with(name, value, expected_revision, PluginsSetOptions::default()).await
+    }
+    pub async fn set_with(
+        &self, name: impl Into<String>, value: PluginValue, expected_revision: Vec<u8>, options: PluginsSetOptions,
+    ) -> Result<PluginsSetResponse, tonic::Status> {
+        let value = PluginsSetRequest {
+            name: name.into(),
+            value: Some(value),
+            expected_revision,
+        };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsSetRequest, PluginsSetResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Set"),
+                request,
+                PluginsSetResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.set", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+    pub async fn delete(&self, name: impl Into<String>, expected_revision: Vec<u8>) -> Result<Receipt, tonic::Status> {
+        self.delete_with(name, expected_revision, PluginsDeleteOptions::default()).await
+    }
+    pub async fn delete_with(
+        &self, name: impl Into<String>, expected_revision: Vec<u8>, options: PluginsDeleteOptions,
+    ) -> Result<Receipt, tonic::Status> {
+        let value = PluginsDeleteRequest { name: name.into(), expected_revision };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsDeleteRequest, PluginsDeleteResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Delete"),
+                request,
+                PluginsDeleteResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.delete", error))?;
+        let response = response.into_inner();
+        response.receipt.ok_or_else(|| tonic::Status::data_loss("Read Plugins.Delete: Missing Payload"))
+    }
+    pub async fn restart(&self, name: impl Into<String>, expected_revision: Vec<u8>) -> Result<PluginEntry, tonic::Status> {
+        self.restart_with(name, expected_revision, PluginsRestartOptions::default()).await
+    }
+    pub async fn restart_with(
+        &self, name: impl Into<String>, expected_revision: Vec<u8>, options: PluginsRestartOptions,
+    ) -> Result<PluginEntry, tonic::Status> {
+        let value = PluginsRestartRequest { name: name.into(), expected_revision };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsRestartRequest, PluginsRestartResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Restart"),
+                request,
+                PluginsRestartResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.restart", error))?;
+        let response = response.into_inner();
+        response.entry.ok_or_else(|| tonic::Status::data_loss("Read Plugins.Restart: Missing Payload"))
+    }
+    pub async fn replace(
+        &self, name: impl Into<String>, placement: PluginPlacement, expected_revision: Vec<u8>,
+    ) -> Result<PluginsReplaceResponse, tonic::Status> {
+        self.replace_with(name, placement, expected_revision, PluginsReplaceOptions::default()).await
+    }
+    pub async fn replace_with(
+        &self, name: impl Into<String>, placement: PluginPlacement, expected_revision: Vec<u8>, options: PluginsReplaceOptions,
+    ) -> Result<PluginsReplaceResponse, tonic::Status> {
+        let value = PluginsReplaceRequest {
+            name: name.into(),
+            placement: Some(placement),
+            expected_revision,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => request_id()?,
+            },
+        };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<PluginsReplaceRequest, PluginsReplaceResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Replace"),
+                request,
+                PluginsReplaceResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.replace", error))?;
+        let response = response.into_inner();
+        Ok(response)
     }
 }
 #[derive(Clone)]
@@ -4789,6 +5156,63 @@ impl PluginsSecrets {
             )
             .await
             .map_err(|error| action_error("plugins.secrets.list", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct PluginsSettings {
+    client: ClientTransport,
+}
+impl PluginsSettings {
+    pub fn new(client: ClientTransport) -> Self {
+        Self { client }
+    }
+    pub async fn list(&self) -> Result<SettingsListResponse, tonic::Status> {
+        self.list_with(PluginsSettingsListOptions::default()).await
+    }
+    pub async fn list_with(&self, options: PluginsSettingsListOptions) -> Result<SettingsListResponse, tonic::Status> {
+        let value = SettingsListRequest { name: options.name, at: options.at };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<SettingsListRequest, SettingsListResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.plugins.Settings/List"),
+                request,
+                SettingsListResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.settings.list", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+    pub async fn set(
+        &self, name: impl Into<String>, value: SettingValues, expected_revision: Vec<u8>,
+    ) -> Result<dokime_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
+        self.set_with(name, value, expected_revision, PluginsSettingsSetOptions::default()).await
+    }
+    pub async fn set_with(
+        &self, name: impl Into<String>, value: SettingValues, expected_revision: Vec<u8>, options: PluginsSettingsSetOptions,
+    ) -> Result<dokime_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
+        let value = dokime_protocol::host::plugins::SettingsSetRequest {
+            name: name.into(),
+            value: Some(value),
+            expected_revision,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => request_id()?,
+            },
+        };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<dokime_protocol::host::plugins::SettingsSetRequest, dokime_protocol::host::plugins::SettingsSetResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.plugins.Settings/Set"),
+                request,
+                dokime_protocol::host::plugins::SettingsSetResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("plugins.settings.set", error))?;
         let response = response.into_inner();
         Ok(response)
     }

@@ -298,6 +298,54 @@ any removed host routing identity. The three virtual-clock comparisons in
 SDK projections to Dokime as product policy over Harmos activation/storage calls.
 They are not wrappers around a Harmos registry or installation service.
 
+#### Product Plugin Policy Operations (2026-11-19)
+
+The owner requested the missing administration routes as part of this delivery.
+Plugin Boundary D1/D2/D4 supersedes generic payload reuse for administration:
+these declarations and their administration messages/resources are Dokime-owned,
+retaining the existing field numbers and SDK method names. Shared model values
+(read cuts, receipts, declarations, settings values and failures) remain Harmos
+payloads. The eight Plugins methods and two plugins.Settings methods below are
+CLIENTS only. Plugin own-settings reads remain the existing
+`harmos.plugin.v1.plugins.Settings/List` facility and the product kind resolver;
+there is no second plugin settings read route. Create retains optional `origin`
+(field 5); replacement preserves it. Application Settings.Get/Set/Schema is a
+separate existing product preference resource, unchanged by this inventory.
+
+| Product Service/Method | Audience | Request Message | Response Message | Authored Callers |
+| --- | --- | --- | --- | --- |
+| `dokime.host.v1.Plugins/Get` | CLIENTS | `dokime.host.v1.PluginsGetRequest` | `dokime.host.v1.PluginsGetResponse` | Desktop connection/host.rs; CLI plugin/{get,remove,mod}.rs; all four SDK registration/handle readiness and teardown; runtime/desktop support clients |
+| `dokime.host.v1.Plugins/List` | CLIENTS | `dokime.host.v1.PluginsListRequest` | `dokime.host.v1.PluginsListResponse` | Desktop generated dispatch and integration/rpc; CLI plugin/list.rs; Rust handle listing and generation fixture; C++ client-read/generation fixtures; runtime installation/support stories |
+| `dokime.host.v1.Plugins/Watch` | CLIENTS | `dokime.host.v1.PluginsWatchRequest` | `dokime.host.v1.PluginsWatchResponse` (stream) | Desktop connection/host.rs and tests/support/server.rs; CLI readiness in plugin/mod.rs; Rust/Python/C#/C++ registration; SDK authoring support clients |
+| `dokime.host.v1.Plugins/Create` | CLIENTS | `dokime.host.v1.PluginsCreateRequest` | `dokime.host.v1.PluginsCreateResponse` | Desktop connection/host.rs; CLI plugin/{register,install}.rs; all four SDK registration paths; runtime and SDK support clients |
+| `dokime.host.v1.Plugins/Set` | CLIENTS | `dokime.host.v1.PluginsSetRequest` | `dokime.host.v1.PluginsSetResponse` | Desktop generated dispatch; client_installs_and_removes_managed_plugins.rs enable/disable |
+| `dokime.host.v1.Plugins/Delete` | CLIENTS | `dokime.host.v1.PluginsDeleteRequest` | `dokime.host.v1.PluginsDeleteResponse` | Desktop capture support; CLI plugin/remove.rs; all four SDK registration teardown; runtime installation/support clients |
+| `dokime.host.v1.Plugins/Restart` | CLIENTS | `dokime.host.v1.PluginsRestartRequest` | `dokime.host.v1.PluginsRestartResponse` | Desktop generated dispatch; client_manages_plugin_entries.rs, client_browses_catalog.rs and client_reads_interrupted_execution.rs |
+| `dokime.host.v1.Plugins/Replace` | CLIENTS | `dokime.host.v1.PluginsReplaceRequest` | `dokime.host.v1.PluginsReplaceResponse` | Desktop generated dispatch; host/installation.rs startup replacement; client_installs_and_removes_managed_plugins.rs |
+| `dokime.host.v1.plugins.Settings/List` | CLIENTS | `dokime.host.v1.plugins.SettingsListRequest` | `dokime.host.v1.plugins.SettingsListResponse` | Desktop generated dispatch; client_edits_settings.rs reads/reopens; SDK plugin contexts use the separate own-settings facility |
+| `dokime.host.v1.plugins.Settings/Set` | CLIENTS | `dokime.host.v1.plugins.SettingsSetRequest` | `dokime.host.v1.plugins.SettingsSetResponse` | Desktop generated dispatch; client_edits_settings.rs complete conditional replacement/replay |
+
+This adds ten product policy operations beside the 15 generic wrappers, not ten
+facade-forwarding wrappers. `crates/dokime-client-internal/src/lib.rs` currently
+gets its plugin resources from the library Client; migrate it to these product
+resources. SDK registration owners are Rust `client/handles.rs`, Python
+`_client.py`, C# `Registration.cs` and C++ `src/handles.cpp`. Tests/support
+clients consume the same operations, not independent management services.
+
+The matching library host messages still exist at the pinned revision and are
+used by its in-process `harmos-operations/src/native/plugins` facade and runtime
+system fixtures. Product declarations do not restore their removed wire services.
+The product and library administration DTO families now overlap until the upstream
+ownership move completes; retain both pending the owner's deletion decision.
+Delete the obsolete upstream administration family/facade after migrating its
+runtime consumers, preserving the separate own-settings facility/resolver contract.
+
+Before this amendment Plugin Boundary assigned ownership and durable guarantees,
+but did not enumerate RPC names, caller audiences, message homes or the
+management-to-activation projection. This table locks names/audiences/message
+homes. Runtime policy, startup/storage integration and own-settings resolver
+implementation remain unchecked work; schema generation does not implement them.
+
 Decided by the owner on 2026-11-16: wrappers declare their audience with the `callers` option
 on their own methods, and plugins reach time and their own settings through the Harmos plugin
 protocol facilities and need no Dokime wrapper. A method no Dokime client calls is not wrapped. Each wrapper is a

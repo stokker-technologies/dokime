@@ -34,7 +34,8 @@ use prost_types::{Duration, Timestamp};
 use dokime_protocol::builders;
 use dokime_protocol::host::{
     CasesCreateRequest, CasesCreateResponse, EvaluatedOutcome, ExecutionDetail, ExecutionOutcome, ExecutionsGetResponse, PlannedCase,
-    RegisteredSelection, RegisteredSelectionParametersEntry, ResultStatus, SelectionPlan, SelectionValues, execution_outcome,
+    PluginPlacement, PluginRemote, PluginValue, PluginsCreateRequest, RegisteredSelection, RegisteredSelectionParametersEntry,
+    ResultStatus, SelectionPlan, SelectionValues, execution_outcome, plugin_placement,
 };
 use dokime_protocol::model::{
     BarArrangement, ContourRender, Document, FieldReference, GridAxisEntry, Origin, PlotKind, PluginRun, Reduction, Section, Step,
@@ -268,6 +269,44 @@ fn product_wrappers_reuse_library_payloads_with_client_admission() {
             assert!(method_callers(&method).is_err());
         }
     }
+}
+
+#[test]
+fn product_plugin_policy_owns_administration_payloads_and_preserves_origin() {
+    // Resolve Product Policy Without Reintroducing Library Administration Services.
+    let pool = dokime_protocol::descriptor_pool();
+    for (package, name, methods) in [
+        ("dokime.host.v1", "Plugins", vec!["Get", "List", "Watch", "Create", "Set", "Delete", "Restart", "Replace"]),
+        ("dokime.host.v1.plugins", "Settings", vec!["List", "Set"]),
+    ] {
+        let service = pool.get_service_by_name(&format!("{package}.{name}")).unwrap();
+        assert_eq!(service.methods().map(|method| method.name().to_owned()).collect::<Vec<_>>(), methods);
+        for method in service.methods() {
+            assert_eq!(method_callers(&method).unwrap(), Callers::Clients);
+            assert_eq!(method.input().full_name(), format!("{package}.{name}{}Request", method.name()));
+            assert_eq!(method.output().full_name(), format!("{package}.{name}{}Response", method.name()));
+            assert!(!method.is_client_streaming());
+            assert_eq!(method.is_server_streaming(), method.name() == "Watch");
+        }
+    }
+
+    // Preserve Optional Creation Provenance Through Typed and Reflected Decoding.
+    let request = PluginsCreateRequest {
+        request_id: "register-sample".into(),
+        name: "sample".into(),
+        placement: Some(PluginPlacement {
+            kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: "http://127.0.0.1:7001".into() })),
+        }),
+        value: Some(PluginValue { enabled: true }),
+        origin: Some("sample-registration".into()),
+    };
+    let method = pool.get_service_by_name("dokime.host.v1.Plugins").unwrap().methods().find(|method| method.name() == "Create").unwrap();
+    assert_eq!(method.input(), request.descriptor());
+    let reflected = DynamicMessage::decode(method.input(), request.encode_to_vec().as_slice()).unwrap();
+    assert_eq!(reflected.transcode_to::<PluginsCreateRequest>().unwrap(), request);
+    let absent = PluginsCreateRequest { origin: None, ..request };
+    let decoded = PluginsCreateRequest::decode(absent.encode_to_vec().as_slice()).unwrap();
+    assert_eq!(decoded.origin, None);
 }
 
 #[test]

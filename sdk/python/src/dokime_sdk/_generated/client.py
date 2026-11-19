@@ -40,9 +40,11 @@ from harmos._wire.model.v1.operation_pb2 import DiscoveredOperation
 from harmos._wire.model.v1.page_pb2 import PageRequest
 from harmos._wire.model.v1.position_pb2 import Position, ReadCut
 from harmos._wire.model.v1.receipt_pb2 import Receipt
+from harmos._wire.model.v1.setting_pb2 import SettingValues
 
 import dokime_sdk._wire.host.v1.plots.settings_pb2
 import dokime_sdk._wire.host.v1.plugins.secrets_pb2
+import dokime_sdk._wire.host.v1.plugins.settings_pb2
 import dokime_sdk._wire.host.v1.secrets_pb2
 import dokime_sdk._wire.host.v1.settings_pb2
 import dokime_sdk._wire.model.v1.metadata_pb2
@@ -252,6 +254,28 @@ from dokime_sdk._wire.host.v1.plots.snapshots_pb2 import (
     SnapshotsListResponse,
     SnapshotsWatchRequest,
     SnapshotsWatchResponse,
+)
+from dokime_sdk._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
+from dokime_sdk._wire.host.v1.plugins_pb2 import (
+    PluginEntry,
+    PluginPlacement,
+    PluginsCreateRequest,
+    PluginsCreateResponse,
+    PluginsDeleteRequest,
+    PluginsDeleteResponse,
+    PluginsGetRequest,
+    PluginsGetResponse,
+    PluginsListRequest,
+    PluginsListResponse,
+    PluginsReplaceRequest,
+    PluginsReplaceResponse,
+    PluginsRestartRequest,
+    PluginsRestartResponse,
+    PluginsSetRequest,
+    PluginsSetResponse,
+    PluginsWatchRequest,
+    PluginsWatchResponse,
+    PluginValue,
 )
 from dokime_sdk._wire.host.v1.prompt_definitions_pb2 import (
     PromptDefinitionsGetRequest,
@@ -1635,6 +1659,59 @@ class PluginsSecretsResource:
         return response
 
 
+class PluginsSettingsResource:
+    def __init__(self, channel: Channel) -> None:
+        self._channel = channel
+
+    async def list(
+        self,
+        *,
+        name: str | None = None,
+        at: ReadCut | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> SettingsListResponse:
+        request = SettingsListRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plugins.Settings/List",
+            request,
+            SettingsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.settings.list",
+        )
+        return response
+
+    async def set(
+        self,
+        name: str,
+        value: SettingValues,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetResponse:
+        request = dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetRequest(
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.plugins.Settings/Set",
+            request,
+            dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.settings.set",
+        )
+        return response
+
+
 class PromptsAnswersResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
@@ -2934,10 +3011,212 @@ class PluginsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
         self._resource_secrets = PluginsSecretsResource(channel)
+        self._resource_settings = PluginsSettingsResource(channel)
 
     @property
     def secrets(self) -> PluginsSecretsResource:
         return self._resource_secrets
+
+    @property
+    def settings(self) -> PluginsSettingsResource:
+        return self._resource_settings
+
+    async def get(
+        self,
+        name: str,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsGetResponse:
+        request = PluginsGetRequest(name=name, at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/Get",
+            request,
+            PluginsGetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.get",
+        )
+        return response
+
+    async def list(
+        self,
+        *,
+        at: ReadCut | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsListResponse:
+        request = PluginsListRequest(at=at)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/List",
+            request,
+            PluginsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.list",
+        )
+        return response
+
+    async def watch(
+        self,
+        *,
+        name: str | None = None,
+        at: ReadCut | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> AsyncGenerator[PluginsWatchResponse]:
+        request = PluginsWatchRequest(name=name, at=at)
+        call = stream(
+            self._channel,
+            "/dokime.host.v1.Plugins/Watch",
+            request,
+            PluginsWatchResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+        )
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("plugins.watch", error) from error
+        finally:
+            call.cancel()
+
+    async def create(
+        self,
+        name: str,
+        placement: PluginPlacement,
+        value: PluginValue,
+        *,
+        request_id: str | None = None,
+        origin: str | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsCreateResponse:
+        request = PluginsCreateRequest(
+            request_id=request_id if request_id is not None else str(uuid4()), name=name, placement=placement, value=value, origin=origin
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/Create",
+            request,
+            PluginsCreateResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.create",
+        )
+        return response
+
+    async def set(
+        self,
+        name: str,
+        value: PluginValue,
+        expected_revision: bytes,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsSetResponse:
+        request = PluginsSetRequest(name=name, value=value, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/Set",
+            request,
+            PluginsSetResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.set",
+        )
+        return response
+
+    async def delete(
+        self,
+        name: str,
+        expected_revision: bytes,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> Receipt:
+        request = PluginsDeleteRequest(name=name, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/Delete",
+            request,
+            PluginsDeleteResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.delete",
+        )
+        if not response.HasField("receipt"):
+            raise ValueError("Read Plugins.Delete: Missing Payload")
+        return response.receipt
+
+    async def restart(
+        self,
+        name: str,
+        expected_revision: bytes,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginEntry:
+        request = PluginsRestartRequest(name=name, expected_revision=expected_revision)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/Restart",
+            request,
+            PluginsRestartResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.restart",
+        )
+        if not response.HasField("entry"):
+            raise ValueError("Read Plugins.Restart: Missing Payload")
+        return response.entry
+
+    async def replace(
+        self,
+        name: str,
+        placement: PluginPlacement,
+        expected_revision: bytes,
+        *,
+        request_id: str | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> PluginsReplaceResponse:
+        request = PluginsReplaceRequest(
+            name=name,
+            placement=placement,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Plugins/Replace",
+            request,
+            PluginsReplaceResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="plugins.replace",
+        )
+        return response
 
 
 class PromptDefinitionsResource:

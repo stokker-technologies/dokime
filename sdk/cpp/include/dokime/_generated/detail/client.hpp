@@ -28,7 +28,9 @@
 #include "dokime/host/v1/operations.grpc.pb.h"
 #include "dokime/host/v1/plots/settings.grpc.pb.h"
 #include "dokime/host/v1/plots/snapshots.grpc.pb.h"
+#include "dokime/host/v1/plugins.grpc.pb.h"
 #include "dokime/host/v1/plugins/secrets.grpc.pb.h"
+#include "dokime/host/v1/plugins/settings.grpc.pb.h"
 #include "dokime/host/v1/prompt_definitions.grpc.pb.h"
 #include "dokime/host/v1/prompts.grpc.pb.h"
 #include "dokime/host/v1/prompts/answers.grpc.pb.h"
@@ -826,6 +828,96 @@ using ::dokime::host::v1::plugins::SecretsListResponse;
 }
 namespace dokime::host::plugins {
 using ::dokime::host::v1::plugins::Secrets;
+}
+namespace dokime::host::plugins {
+using ::dokime::host::v1::plugins::SettingsListRequest;
+}
+namespace dokime::host::plugins {
+using ::dokime::host::v1::plugins::SettingsListResponse;
+}
+namespace dokime::host::plugins {
+using ::dokime::host::v1::plugins::Settings;
+}
+namespace dokime::host::plugins {
+using ::dokime::host::v1::plugins::SettingsSetRequest;
+}
+namespace dokime::host::plugins {
+using ::dokime::host::v1::plugins::SettingsSetResponse;
+}
+namespace dokime::host::plugins {
+using ::dokime::host::v1::plugins::Settings;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsGetRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsGetResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsListRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsListResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsWatchRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsWatchResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsCreateRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsCreateResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsSetRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsSetResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsDeleteRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsDeleteResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsRestartRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsRestartResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsReplaceRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::PluginsReplaceResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Plugins;
 }
 namespace dokime::host {
 using ::dokime::host::v1::PromptDefinitionsGetRequest;

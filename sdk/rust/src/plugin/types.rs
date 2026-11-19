@@ -29,11 +29,17 @@ pub use harmos_protocol::host::InvocationsGetResponse;
 pub use harmos_protocol::host::InvocationsWatchResponse;
 pub use harmos_protocol::host::TimeGetResponse;
 pub use harmos_protocol::host::TimeSleepResponse;
-pub use harmos_protocol::host::plugins::SettingsListResponse;
 pub mod dokime {
     pub mod host {
         pub mod files {
             pub use crate::wire::host::files::CapturesStopResponse;
+        }
+    }
+}
+pub mod harmos {
+    pub mod host {
+        pub mod plugins {
+            pub use harmos_protocol::host::plugins::SettingsListResponse;
         }
     }
 }

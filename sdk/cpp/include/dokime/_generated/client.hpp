@@ -383,6 +383,46 @@ struct PluginsSecretsListOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
 };
+struct PluginsSettingsListOptions {
+  std::optional<std::string> name;
+  std::optional<::harmos::ReadCut> at;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsSettingsSetOptions {
+  std::optional<std::string> request_id;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsGetOptions {
+  std::optional<::harmos::ReadCut> at;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsListOptions {
+  std::optional<::harmos::ReadCut> at;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsWatchOptions {
+  std::optional<std::string> name;
+  std::optional<::harmos::ReadCut> at;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsCreateOptions {
+  std::optional<std::string> request_id;
+  std::optional<std::string> origin;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsSetOptions {
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsDeleteOptions {
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsRestartOptions {
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct PluginsReplaceOptions {
+  std::optional<std::string> request_id;
+  std::shared_ptr<grpc::ClientContext> context;
+};
 struct PromptDefinitionsGetOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
@@ -1466,6 +1506,42 @@ struct PluginsSecretsResource {
     return response;
   }
 };
+struct PluginsSettingsResource {
+  std::shared_ptr<grpc::Channel> channel;
+  explicit PluginsSettingsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
+  ::dokime::client::host::plugins::SettingsListResponse list(client::PluginsSettingsListOptions options = {}) {
+    detail::packages::dokime::host::plugins::SettingsListRequest request;
+    if (options.name) {
+      request.set_name(*options.name);
+    }
+    if (options.at) {
+      *request.mutable_at() = *options.at;
+    }
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::plugins::SettingsListResponse response;
+    const auto status = detail::packages::dokime::host::plugins::Settings::NewStub(channel)->List(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.settings.list", status, *context);
+    }
+    return response;
+  }
+  ::dokime::client::host::plugins::SettingsSetResponse set(const std::string &name, const ::harmos::SettingValues &value,
+                                                           const std::string &expected_revision,
+                                                           client::PluginsSettingsSetOptions options = {}) {
+    detail::packages::dokime::host::plugins::SettingsSetRequest request;
+    request.set_name(name);
+    *request.mutable_value() = value;
+    request.set_expected_revision(expected_revision);
+    request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::plugins::SettingsSetResponse response;
+    const auto status = detail::packages::dokime::host::plugins::Settings::NewStub(channel)->Set(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.settings.set", status, *context);
+    }
+    return response;
+  }
+};
 struct PromptsAnswersResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit PromptsAnswersResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
@@ -2310,8 +2386,139 @@ struct PlotsResource {
   explicit PlotsResource(std::shared_ptr<grpc::Channel> connection) : settings(connection), snapshots(connection) {}
 };
 struct PluginsResource {
+  std::shared_ptr<grpc::Channel> channel;
   PluginsSecretsResource secrets;
-  explicit PluginsResource(std::shared_ptr<grpc::Channel> connection) : secrets(connection) {}
+  PluginsSettingsResource settings;
+  explicit PluginsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection), secrets(connection), settings(connection) {}
+  ::dokime::client::host::PluginsGetResponse get(const std::string &name, client::PluginsGetOptions options = {}) {
+    detail::packages::dokime::host::PluginsGetRequest request;
+    request.set_name(name);
+    if (options.at) {
+      *request.mutable_at() = *options.at;
+    }
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsGetResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->Get(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.get", status, *context);
+    }
+    return response;
+  }
+  ::dokime::client::host::PluginsListResponse list(client::PluginsListOptions options = {}) {
+    detail::packages::dokime::host::PluginsListRequest request;
+    if (options.at) {
+      *request.mutable_at() = *options.at;
+    }
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsListResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->List(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.list", status, *context);
+    }
+    return response;
+  }
+  ::harmos::ClientStream<::dokime::client::host::PluginsWatchResponse> watch(client::PluginsWatchOptions options = {}) {
+    detail::packages::dokime::host::PluginsWatchRequest request;
+    if (options.name) {
+      request.set_name(*options.name);
+    }
+    if (options.at) {
+      *request.mutable_at() = *options.at;
+    }
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::PluginsWatchResponse>>(
+        detail::packages::dokime::host::Plugins::NewStub(channel)->Watch(context.get(), request));
+    return {context, [reader, context]() -> std::optional<::dokime::client::host::PluginsWatchResponse> {
+              detail::packages::dokime::host::PluginsWatchResponse response;
+              if (!reader->Read(&response)) {
+                const auto status = reader->Finish();
+                if (!status.ok()) {
+                  throw ::dokime::detail::rpc_error("plugins.watch", status, *context);
+                }
+                return {};
+              }
+              return response;
+            }};
+  }
+  ::dokime::client::host::PluginsCreateResponse create(const std::string &name, const ::dokime::client::host::PluginPlacement &placement,
+                                                       const ::dokime::client::host::PluginValue &value,
+                                                       client::PluginsCreateOptions options = {}) {
+    detail::packages::dokime::host::PluginsCreateRequest request;
+    request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
+    request.set_name(name);
+    *request.mutable_placement() = placement;
+    *request.mutable_value() = value;
+    if (options.origin) {
+      request.set_origin(*options.origin);
+    }
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsCreateResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->Create(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.create", status, *context);
+    }
+    return response;
+  }
+  ::dokime::client::host::PluginsSetResponse set(const std::string &name, const ::dokime::client::host::PluginValue &value,
+                                                 const std::string &expected_revision, client::PluginsSetOptions options = {}) {
+    detail::packages::dokime::host::PluginsSetRequest request;
+    request.set_name(name);
+    *request.mutable_value() = value;
+    request.set_expected_revision(expected_revision);
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsSetResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->Set(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.set", status, *context);
+    }
+    return response;
+  }
+  ::harmos::Receipt delete_(const std::string &name, const std::string &expected_revision, client::PluginsDeleteOptions options = {}) {
+    detail::packages::dokime::host::PluginsDeleteRequest request;
+    request.set_name(name);
+    request.set_expected_revision(expected_revision);
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsDeleteResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->Delete(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.delete", status, *context);
+    }
+    if (!response.has_receipt()) {
+      throw std::runtime_error("Read plugins.delete: Missing Payload");
+    }
+    return std::move(*response.mutable_receipt());
+  }
+  ::dokime::client::host::PluginEntry restart(const std::string &name, const std::string &expected_revision,
+                                              client::PluginsRestartOptions options = {}) {
+    detail::packages::dokime::host::PluginsRestartRequest request;
+    request.set_name(name);
+    request.set_expected_revision(expected_revision);
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsRestartResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->Restart(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.restart", status, *context);
+    }
+    if (!response.has_entry()) {
+      throw std::runtime_error("Read plugins.restart: Missing Payload");
+    }
+    return std::move(*response.mutable_entry());
+  }
+  ::dokime::client::host::PluginsReplaceResponse replace(const std::string &name, const ::dokime::client::host::PluginPlacement &placement,
+                                                         const std::string &expected_revision, client::PluginsReplaceOptions options = {}) {
+    detail::packages::dokime::host::PluginsReplaceRequest request;
+    request.set_name(name);
+    *request.mutable_placement() = placement;
+    request.set_expected_revision(expected_revision);
+    request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::PluginsReplaceResponse response;
+    const auto status = detail::packages::dokime::host::Plugins::NewStub(channel)->Replace(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("plugins.replace", status, *context);
+    }
+    return response;
+  }
 };
 struct PromptDefinitionsResource {
   std::shared_ptr<grpc::Channel> channel;

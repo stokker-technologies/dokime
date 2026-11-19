@@ -2725,10 +2725,219 @@ internal sealed class PlotsSnapshotsResource
 }
 internal sealed class PluginsResource
 {
+  private readonly CallInvoker invoker;
   public PluginsSecretsResource Secrets { get; }
+  public PluginsSettingsResource Settings { get; }
   public PluginsResource(CallInvoker invoker)
   {
+    this.invoker = invoker;
     Secrets = new PluginsSecretsResource(invoker);
+    Settings = new PluginsSettingsResource(invoker);
+  }
+  public async Task<global::Dokime.Clients.PluginsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsGetRequest
+    {
+      Name = name,
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Dokime.Clients.PluginsGetRequest, global::Dokime.Clients.PluginsGetResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Get",
+        Marshallers.Create<global::Dokime.Clients.PluginsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsGetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsGetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.get: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
+  public async Task<global::Dokime.Clients.PluginsListResponse> List(global::Harmos.ReadCut? at = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsListRequest
+    {
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Dokime.Clients.PluginsListRequest, global::Dokime.Clients.PluginsListResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "List",
+        Marshallers.Create<global::Dokime.Clients.PluginsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsListResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsListResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
+  public async IAsyncEnumerable<global::Dokime.Clients.PluginsWatchResponse> Watch(string? name = null, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  {
+    var request = new global::Dokime.Clients.PluginsWatchRequest
+    {
+    };
+    if (name is not null)
+    {
+      request.Name = name;
+    }
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Dokime.Clients.PluginsWatchRequest, global::Dokime.Clients.PluginsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Plugins", "Watch",
+        Marshallers.Create<global::Dokime.Clients.PluginsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsWatchResponse.Parser.ParseFrom(bytes)));
+    using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+    using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
+    while (true)
+    {
+      bool available;
+      try
+      {
+        available = await call.ResponseStream.MoveNext(linked.Token);
+      }
+      catch (RpcException error)
+      {
+        throw new RpcException(new Status(error.StatusCode, "Call plugins.watch: " + error.Status.Detail), error.Trailers);
+      }
+      if (!available)
+      {
+        yield break;
+      }
+      var response = call.ResponseStream.Current;
+      yield return response;
+    }
+  }
+  public async Task<global::Dokime.Clients.PluginsCreateResponse> Create(string name, global::Dokime.Clients.PluginPlacement placement, global::Dokime.Clients.PluginValue value, string? requestId = null, string? origin = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsCreateRequest
+    {
+      RequestId = requestId ?? Guid.NewGuid().ToString("N"),
+      Name = name,
+      Placement = placement,
+      Value = value,
+    };
+    if (origin is not null)
+    {
+      request.Origin = origin;
+    }
+    var method = new Method<global::Dokime.Clients.PluginsCreateRequest, global::Dokime.Clients.PluginsCreateResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Create",
+        Marshallers.Create<global::Dokime.Clients.PluginsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsCreateResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsCreateResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.create: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
+  public async Task<global::Dokime.Clients.PluginsSetResponse> Set(string name, global::Dokime.Clients.PluginValue value, ByteString expectedRevision, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsSetRequest
+    {
+      Name = name,
+      Value = value,
+      ExpectedRevision = expectedRevision,
+    };
+    var method = new Method<global::Dokime.Clients.PluginsSetRequest, global::Dokime.Clients.PluginsSetResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Set",
+        Marshallers.Create<global::Dokime.Clients.PluginsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsSetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsSetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.set: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
+  public async Task<global::Harmos.Receipt> Delete(string name, ByteString expectedRevision, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsDeleteRequest
+    {
+      Name = name,
+      ExpectedRevision = expectedRevision,
+    };
+    var method = new Method<global::Dokime.Clients.PluginsDeleteRequest, global::Dokime.Clients.PluginsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Delete",
+        Marshallers.Create<global::Dokime.Clients.PluginsDeleteRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsDeleteResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsDeleteResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsDeleteResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.delete: " + error.Status.Detail), error.Trailers);
+    }
+    return response.Receipt ?? throw new InvalidOperationException("Read Plugins.Delete: Missing Payload");
+  }
+  public async Task<global::Dokime.Clients.PluginEntry> Restart(string name, ByteString expectedRevision, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsRestartRequest
+    {
+      Name = name,
+      ExpectedRevision = expectedRevision,
+    };
+    var method = new Method<global::Dokime.Clients.PluginsRestartRequest, global::Dokime.Clients.PluginsRestartResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Restart",
+        Marshallers.Create<global::Dokime.Clients.PluginsRestartRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsRestartRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsRestartResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsRestartResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsRestartResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.restart: " + error.Status.Detail), error.Trailers);
+    }
+    return response.Entry ?? throw new InvalidOperationException("Read Plugins.Restart: Missing Payload");
+  }
+  public async Task<global::Dokime.Clients.PluginsReplaceResponse> Replace(string name, global::Dokime.Clients.PluginPlacement placement, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsReplaceRequest
+    {
+      Name = name,
+      Placement = placement,
+      ExpectedRevision = expectedRevision,
+      RequestId = requestId ?? Guid.NewGuid().ToString("N"),
+    };
+    var method = new Method<global::Dokime.Clients.PluginsReplaceRequest, global::Dokime.Clients.PluginsReplaceResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Replace",
+        Marshallers.Create<global::Dokime.Clients.PluginsReplaceRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsReplaceRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsReplaceResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsReplaceResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsReplaceResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.replace: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
 }
 internal sealed class PluginsSecretsResource
@@ -2763,6 +2972,66 @@ internal sealed class PluginsSecretsResource
     catch (RpcException error)
     {
       throw new RpcException(new Status(error.StatusCode, "Call plugins.secrets.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
+}
+internal sealed class PluginsSettingsResource
+{
+  private readonly CallInvoker invoker;
+  public PluginsSettingsResource(CallInvoker invoker)
+  {
+    this.invoker = invoker;
+  }
+  public async Task<global::Dokime.Clients.PluginsResources.SettingsListResponse> List(string? name = null, global::Harmos.ReadCut? at = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsResources.SettingsListRequest
+    {
+    };
+    if (name is not null)
+    {
+      request.Name = name;
+    }
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Dokime.Clients.PluginsResources.SettingsListRequest, global::Dokime.Clients.PluginsResources.SettingsListResponse>(MethodType.Unary, "dokime.host.v1.plugins.Settings", "List",
+        Marshallers.Create<global::Dokime.Clients.PluginsResources.SettingsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsResources.SettingsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsResources.SettingsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsResources.SettingsListResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsResources.SettingsListResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.settings.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
+  public async Task<global::Dokime.Clients.PluginsResources.SettingsSetResponse> Set(string name, global::Harmos.SettingValues value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.PluginsResources.SettingsSetRequest
+    {
+      Name = name,
+      Value = value,
+      ExpectedRevision = expectedRevision,
+      RequestId = requestId ?? Guid.NewGuid().ToString("N"),
+    };
+    var method = new Method<global::Dokime.Clients.PluginsResources.SettingsSetRequest, global::Dokime.Clients.PluginsResources.SettingsSetResponse>(MethodType.Unary, "dokime.host.v1.plugins.Settings", "Set",
+        Marshallers.Create<global::Dokime.Clients.PluginsResources.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsResources.SettingsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsResources.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsResources.SettingsSetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.PluginsResources.SettingsSetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call plugins.settings.set: " + error.Status.Detail), error.Trailers);
     }
     return response;
   }
