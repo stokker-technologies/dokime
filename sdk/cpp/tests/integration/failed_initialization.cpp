@@ -9,15 +9,24 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+#include <string>
+
+// Third Party Imports
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <google/protobuf/empty.pb.h>
+#include <google/protobuf/wrappers.pb.h>
+#include <grpc/event_engine/event_engine.h>
+
+// Local Imports
 #include "../support/plugin_host.hpp"
 #include "dokime/plugin.hpp"
 #include "dokime/plugin/v1/executions.pb.h"
 #include "dokime/plugin/v1/test_cases.pb.h"
-#include <catch2/catch_session.hpp>
-#include <catch2/catch_test_macros.hpp>
-#include <grpc/event_engine/event_engine.h>
 
 using dokime::Suites;
+using dokime::TERMINATION_FAILED;
 using dokime::plugin::v1::ExecutionsCleanupRequest;
 using dokime::plugin::v1::ExecutionsCleanupResponse;
 using dokime::plugin::v1::ExecutionsInitializeRequest;
@@ -25,7 +34,9 @@ using dokime::plugin::v1::ExecutionsInitializeResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
 using google::protobuf::BoolValue;
+using google::protobuf::Empty;
 using harmos::TransportError;
+using harmos::VISIBILITY_PROTECTED;
 using std::string;
 
 /* === Macros === */
@@ -52,6 +63,16 @@ TEST_CASE("Failed Initialization Retains Template State for Cleanup and Both Con
   // Read the Plugin Description.
   PluginHost host(address);
   const auto description = host.describe();
+  for (const auto &identifier : {description.id() + ".initialize", description.id() + ".finalize"}) {
+    bool found = false;
+    for (const auto &operation : description.declarations().operations())
+      if (operation.id() == identifier) {
+        REQUIRE(operation.visibility() == VISIBILITY_PROTECTED);
+        found = true;
+      }
+    REQUIRE(found);
+  }
+  host.invoke<Empty>(description.id() + ".initialize", Empty{});
   Suites suites;
   for (const auto &section : description.declarations().sections())
     if (section.type() == Suites::descriptor()->full_name())
@@ -78,7 +99,7 @@ TEST_CASE("Failed Initialization Retains Template State for Cleanup and Both Con
   // Clean Up the Same Instance With Its Termination.
   ExecutionsCleanupRequest cleanup;
   cleanup.set_execution("execution");
-  cleanup.set_termination(dokime::TERMINATION_FAILED);
+  cleanup.set_termination(TERMINATION_FAILED);
   *cleanup.mutable_test_case() = test_case;
   *cleanup.mutable_origin() = initialize.origin();
   REQUIRE_NOTHROW(host.invoke<ExecutionsCleanupResponse>(binding.cleanup(), cleanup, "execution"));
@@ -86,6 +107,9 @@ TEST_CASE("Failed Initialization Retains Template State for Cleanup and Both Con
   // Read Shared Plugin State Through an Ordinary Operation.
   const auto cleaned = host.invoke<BoolValue>("lifecycle.cleaned", BoolValue{});
   REQUIRE(cleaned.value());
+  host.invoke<Empty>(description.id() + ".finalize", Empty{});
+  const auto finalized = host.invoke<BoolValue>("lifecycle.finalized", BoolValue{});
+  REQUIRE(finalized.value());
   host.stop();
 }
 

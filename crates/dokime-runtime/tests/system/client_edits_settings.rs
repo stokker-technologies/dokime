@@ -30,7 +30,7 @@ use harmos_protocol::plugin::{
 };
 use prost_types::Timestamp;
 use tokio::net::TcpListener;
-use tokio_stream::{Empty, wrappers::TcpListenerStream};
+use tokio_stream::{Empty, Once, wrappers::TcpListenerStream};
 use tonic::{
     Code, Request, Response, Status, Streaming,
     transport::{Endpoint, Server},
@@ -66,7 +66,7 @@ impl Instance for SettingsPlugin {
     async fn get(&self, _: Request<InstanceGetRequest>) -> Result<Response<InstanceGetResponse>, Status> {
         Ok(Response::new(self.0.clone()))
     }
-    type InvokeStream = tokio_stream::Once<Result<InstanceInvokeResponse, Status>>;
+    type InvokeStream = Once<Result<InstanceInvokeResponse, Status>>;
     async fn invoke(&self, request: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
         let Some(instance_invoke_request::Frame::Request(request)) = request.into_inner().message().await?.and_then(|frame| frame.frame)
         else {

@@ -40,7 +40,8 @@ set(thermal_generated "${CMAKE_CURRENT_BINARY_DIR}/g")
 file(MAKE_DIRECTORY "${thermal_generated}")
 protobuf_generate(TARGET dokime_thermal_protocol LANGUAGE cpp
   PROTOS "${thermal}/thermal.proto" IMPORT_DIRS "${thermal}"
-  PROTOC_OUT_DIR "${thermal_generated}")
+  PROTOC_OUT_DIR "${thermal_generated}"
+  DEPENDENCIES protobuf::protoc "${CMAKE_CURRENT_SOURCE_DIR}/../vcpkg.json" "${thermal}/thermal.proto")
 target_include_directories(dokime_thermal_protocol SYSTEM PUBLIC "${thermal_generated}")
 target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Cpp)
 add_executable(dokime-system-suite "${thermal}/main.cpp")

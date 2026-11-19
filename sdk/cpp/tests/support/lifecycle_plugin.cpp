@@ -9,8 +9,13 @@
 
 /* === Imports === */
 
-#include "dokime/plugin.hpp"
+// Standard Library Imports
 #include <stdexcept>
+
+// Third Party Imports
+
+// Local Imports
+#include "dokime/plugin.hpp"
 
 using dokime::Plugin;
 using dokime::Suite;
@@ -52,10 +57,28 @@ public:
     suite(LifecycleSuite::definition());
     operation(
         dokime::operations::operation<bool, bool>("lifecycle.cleaned", Visibility::Public, [](dokime::operations::Context &context, bool) {
-          return context.plugin<LifecyclePlugin>().cleanups == 1;
+          const auto &plugin = context.plugin<LifecyclePlugin>();
+          return plugin.cleanups == 1 && plugin.initializations == 1 && plugin.finalizations == 0;
+        }));
+    operation(dokime::operations::operation<bool, bool>(
+        "lifecycle.finalized", Visibility::Public, [](dokime::operations::Context &context, bool) {
+          const auto &plugin = context.plugin<LifecyclePlugin>();
+          return plugin.cleanups == 1 && plugin.initializations == 1 && plugin.finalizations == 1;
         }));
   }
+  void initialize(dokime::operations::Context &context) override {
+    if (&context.plugin<LifecyclePlugin>() != this)
+      throw runtime_error("Initialize Fixture: Retain the Author Plugin");
+    ++initializations;
+  }
+  void finalize(dokime::operations::Context &context) override {
+    if (&context.plugin<LifecyclePlugin>() != this)
+      throw runtime_error("Finalize Fixture: Retain the Author Plugin");
+    ++finalizations;
+  }
   unsigned cleanups = 0;
+  unsigned initializations = 0;
+  unsigned finalizations = 0;
 };
 
 /* === Templates === */

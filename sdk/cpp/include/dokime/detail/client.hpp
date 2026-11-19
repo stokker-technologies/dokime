@@ -15,6 +15,7 @@
 #include <atomic>
 #include <mutex>
 #include <set>
+#include <string_view>
 #include <thread>
 
 // Third Party Imports
@@ -100,7 +101,7 @@ std::chrono::sys_time<std::chrono::nanoseconds> instant(const google::protobuf::
 google::protobuf::Timestamp timestamp(std::chrono::sys_time<std::chrono::nanoseconds> value);
 Scalar decode_scalar(const Value &value);
 Value encode_scalar(const Scalar &value);
-void validate_schema(const std::shared_ptr<ExecutionState> &execution, const std::string &identity, const std::string &message);
+void validate_schema(const std::shared_ptr<ExecutionState> &execution, const std::string &identity, std::string_view message);
 } // namespace dokime::detail
 
 /* === Templates === */

@@ -9,23 +9,33 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+#include <functional>
+#include <set>
+#include <string_view>
+
+// Third Party Imports
+#include "harmos/harmos.hpp"
+
+// Local Imports
 #include "dokime/detail/client.hpp"
 #include "dokime/detail/schemas.hpp"
-#include "harmos/harmos.hpp"
-#include <set>
 
 using dokime::client::ExecutionDetail;
+using dokime::client::ExecutionsGetOptions;
 using dokime::client::ExecutionsSchemasGetOptions;
 using dokime::detail::Transport;
 using google::protobuf::FileDescriptorSet;
 using grpc::ClientContext;
 
+using std::function;
 using std::invalid_argument;
 using std::make_shared;
 using std::runtime_error;
 using std::set;
 using std::shared_ptr;
 using std::string;
+using std::string_view;
 
 /* === Macros === */
 
@@ -50,7 +60,7 @@ string FrozenSchemaCache::message_name(const ExecutionDetail &detail, const stri
   throw runtime_error("Decode Evidence: Missing Frozen Binding");
 }
 shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(Transport &client, const ExecutionDetail &detail,
-                                                           const std::function<shared_ptr<ClientContext>()> &configure) {
+                                                           const function<shared_ptr<ClientContext>()> &configure) {
   if (!detail.has_schemas() || detail.schemas().digest().size() != 32)
     throw invalid_argument("Read Schemas: Supply a SHA-256 Digest");
   const auto &digest = detail.schemas().digest();
@@ -94,13 +104,13 @@ shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(Transport &client, co
   sets_.emplace(digest, types);
   return types;
 }
-void validate_schema(const shared_ptr<ExecutionState> &execution, const string &identity, const string &message) {
+void validate_schema(const shared_ptr<ExecutionState> &execution, const string &identity, string_view message) {
   auto &client = *execution->client;
   client.context();
   if (!client.schemas)
     client.schemas = make_shared<FrozenSchemaCache>();
   if (!execution->detail.has_schemas()) {
-    dokime::client::ExecutionsGetOptions options;
+    ExecutionsGetOptions options;
     options.context = client.context();
     execution->observe(client.transport->executions.get(execution->detail.summary().execution_id(), options).execution());
   }

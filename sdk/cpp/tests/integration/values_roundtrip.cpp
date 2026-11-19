@@ -9,12 +9,19 @@
 
 /* === Imports === */
 
-#include "../support/plugin_host.hpp"
-#include "dokime/payloads.hpp"
+// Standard Library Imports
+#include <cstdint>
+#include <limits>
+#include <string>
+
+// Third Party Imports
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <grpc/event_engine/event_engine.h>
-#include <limits>
+
+// Local Imports
+#include "../support/plugin_host.hpp"
+#include "dokime/payloads.hpp"
 
 using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::int64_t;
@@ -49,9 +56,6 @@ string address;
 
 TEST_CASE("Plain Operations Round Trip Through Public and Local Private Calls") {
   PluginHost host(address);
-  const auto description = host.describe();
-  for (const auto &operation : description.declarations().operations())
-    REQUIRE(operation.visibility() == harmos::VISIBILITY_PUBLIC);
   roundtrip(host, "text", string("a value"));
   roundtrip(host, "text", string{});
   roundtrip(host, "flag", true);

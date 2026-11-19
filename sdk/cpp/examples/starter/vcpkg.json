@@ -1,6 +1,6 @@
 {
   "name": "dokime-plugin",
-  "builtin-baseline": "ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0",
+  "builtin-baseline": "d015e31e90838a4c9dfa3eed45979bc70d9357fc",
   "version-string": "0.1.0",
   "dependencies": ["grpc", "protobuf", "openssl"]
 }

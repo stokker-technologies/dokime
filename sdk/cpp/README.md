@@ -170,7 +170,8 @@ mise -C sdk/cpp run test -- --preset tests
 mise -C sdk/cpp run consumer -- --preset tests
 ```
 
-These tasks use this checkout's `target/cp/` and Debug test preset. The tests cover
+Native dependency versions follow the pinned library's vcpkg baseline. These
+tasks use this checkout's `target/cp/` and Debug test preset. The tests cover
 class composition, independent binding, duplicate refusal, primitive conversion,
 dotenv parsing and managed/remote calls. The C++ thermal host fixture is the
 `dokime-system-suite` target. Native Windows and Linux proof are independent.
