@@ -207,6 +207,7 @@ fn corrupt_installation_bundle_reports_health_and_keeps_valid_bundles() -> Resul
             fs::write(&corrupt, b"corrupt archive")?;
             fs::write(plugins.join("z-valid.dokime"), shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
+            assert!(client.status.get().await?.status.unwrap().available);
             assert_eq!(inventory(&client).await?.len(), 1);
             let health = client.evidence.health_events.list(Default::default()).await?;
             assert_eq!(health.events.len(), 1);
@@ -418,6 +419,7 @@ fn failed_admission_does_not_block_other_installation_plugins() -> Result<(), Bo
             fs::write(&failed, shipped_bundle(&invalid, "com.example.testhub", "1.0.0")?)?;
             fs::write(plugins.join("z-valid.dokime"), shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
+            assert!(client.status.get().await?.status.unwrap().available);
             let entries = client.plugins.list().await?.entries;
             assert_eq!(entries.len(), 2);
             assert_eq!(entries.iter().find(|entry| entry.name == "example-pack").unwrap().state, PluginState::Ready as i32);

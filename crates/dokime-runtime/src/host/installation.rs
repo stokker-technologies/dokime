@@ -285,7 +285,11 @@ impl Host {
         let message = format!("Admit Installation Plugin {}: {reason}; Repair or Remove This Bundle and Restart the Host", path.display());
         tracing::error!(file = %path.display(), %message, "Installation Plugin Admission Failed");
         if let Ok(mut failures) = lock(&self.plugin_admission_failures) {
-            failures.push((format!("installation/{}", path.display()), message.clone()));
+            let name = format!("installation/{}", path.display());
+            match failures.iter_mut().find(|failure| failure.0 == name) {
+                Some(failure) => failure.1.push_str(&format!("; {message}")),
+                None => failures.push((name, message.clone())),
+            }
         }
         if let Some(assembly) = &self.assembly {
             let event = Event {

@@ -63,7 +63,7 @@ impl Contribution for Facts {
         }];
         for (name, reason) in host.plugin_admission_failures()? {
             components.push(HealthComponent {
-                name: format!("dokime.plugins.{name}"),
+                name: format!("dokime.installation.{name}"),
                 state: ComponentState::Degraded as i32,
                 reason,
             });
