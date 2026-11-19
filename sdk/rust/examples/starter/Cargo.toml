@@ -1,0 +1,104 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Workspace === #
+
+[workspace]
+
+# === Workspace Package === #
+
+# === Workspace Dependencies === #
+
+# === Package === #
+
+[package]
+name = "starter-project"
+version = "0.1.0"
+description = "Starter Project"
+authors = ["Your Name"]
+license = "Apache-2.0"
+repository = "https://github.com/your-organization/your-project"
+edition = "2024"
+publish = false
+
+# === Package Targets === #
+
+[lib]
+name = "starter_project"
+path = "src/lib.rs"
+
+[[bin]]
+name = "starter-project"
+path = "src/main.rs"
+
+[[bin]]
+name = "starter-project-client"
+path = "src/bin/client.rs"
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+dokime = "0.1.5"
+
+# Serialization
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+# Async
+
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

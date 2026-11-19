@@ -121,6 +121,8 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             str(project),
             "--lang",
             "python",
+            "--from",
+            str(repository),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=environment,
@@ -129,10 +131,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         output, _ = await asyncio.wait_for(process.communicate(), timeout)
         self.assertEqual(process.returncode, 0, output.decode())
 
-        # Resolve This Worktree's SDK Only in the Disposable Consumer.
-        manifest = project / "pyproject.toml"
-        source = json.dumps(str(repository / "sdk/python"))
-        manifest.write_text(manifest.read_text() + f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n")
+        # Check the Created Project Against Its Local SDK Dependency.
         for arguments in [
             ("sync", "--refresh-package", "dokime-sdk"),
             ("run", "ruff", "check"),

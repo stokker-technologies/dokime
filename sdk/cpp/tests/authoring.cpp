@@ -13,22 +13,22 @@
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 
+using dokime::Plugin;
 using dokime::PromptDefinitions;
 using dokime::RecordContracts;
+using dokime::Suite;
 using dokime::Suites;
-using dokime::plugin::Case;
-using dokime::plugin::Context;
-using dokime::plugin::Criterion;
-using dokime::plugin::Observer;
-using dokime::plugin::operation;
-using dokime::plugin::Plugin;
-using dokime::plugin::PromptDeclaration;
-using dokime::plugin::Record;
-using dokime::plugin::Step;
-using dokime::plugin::Stream;
-using dokime::plugin::Suite;
-using dokime::plugin::Template;
-using dokime::plugin::Visibility;
+using dokime::operations::operation;
+using dokime::operations::Visibility;
+using dokime::templates::Case;
+using dokime::templates::Context;
+using dokime::templates::Criterion;
+using dokime::templates::Observer;
+using dokime::templates::PromptDeclaration;
+using dokime::templates::Record;
+using dokime::templates::Step;
+using dokime::templates::Stream;
+using dokime::templates::Template;
 using harmos::Declarations;
 using std::int64_t;
 using std::invalid_argument;
@@ -46,7 +46,7 @@ using std::string;
 /* === Classes === */
 
 namespace {
-class HTTPAccuracySuite {
+class HTTPAccuracyTestTemplate : public dokime::templates::TestTemplate {
 public:
   inline static const Record<bool> accepted_reading{"accepted_reading", "Unrelated Label"};
   inline static const PromptDeclaration question{"operator_choice", "Proceed?", {"Yes", "No"}};
@@ -55,11 +55,12 @@ public:
   bool readingOK(Context &) {
     return true;
   }
-  static void declare(Template &value) {
+  static Template definition() {
+    auto value = Template::from<HTTPAccuracyTestTemplate>();
     value.record(accepted_reading);
     value.prompts.push_back(question);
-    value.steps.push_back(Step::method<&HTTPAccuracySuite::readVoltage>("Completely Different Label", {}, 2));
-    value.criteria.push_back(Criterion::method<&HTTPAccuracySuite::readingOK>("Another Label"));
+    value.steps.push_back(Step::method<&HTTPAccuracyTestTemplate::readVoltage>("Completely Different Label", {}, 2));
+    value.criteria.push_back(Criterion::method<&HTTPAccuracyTestTemplate::readingOK>("Another Label"));
     Observer<double> observer{temperature,
                               [](Context &) {
                                 return 20.0;
@@ -69,15 +70,18 @@ public:
                               {}};
     observer.interval.set_seconds(1);
     value.observer(observer);
+    return value;
   }
 };
-class VoltageTemplate {
+class VoltageTestTemplate : public dokime::templates::TestTemplate {
 public:
   inline static const Record<int64_t> reading{"reading", "Reading", "exact"};
   void read_voltage(Context &) {}
-  static void declare(Template &value) {
+  static Template definition() {
+    auto value = Template::from<VoltageTestTemplate>();
     value.record(reading);
-    value.steps.push_back(Step::method<&VoltageTemplate::read_voltage>("Read", "take"));
+    value.steps.push_back(Step::method<&VoltageTestTemplate::read_voltage>("Read", "take"));
+    return value;
   }
 };
 } // namespace
@@ -85,64 +89,54 @@ public:
 /* === Templates === */
 
 namespace {
-template <class T> T section(const Declarations &declarations) {
-  for (const auto &section : declarations.sections()) {
-    if (section.type() != T::descriptor()->full_name())
-      continue;
-    T value;
-    REQUIRE(value.ParseFromString(section.payload()));
-    return value;
-  }
-  throw invalid_argument("Read Declarations: Register the Requested Section");
-}
 template <class T> void roundtrip(const T &value) {
-  const auto bytes = dokime::plugin::detail::pack<T>(value).SerializeAsString();
-  const auto decoded = dokime::plugin::detail::decode<T>(bytes);
+  const auto bytes = dokime::templates::detail::pack<T>(value).SerializeAsString();
+  const auto decoded = dokime::templates::detail::decode<T>(bytes);
   REQUIRE(decoded == value);
 }
 } // namespace
 
 /* === Public Functions === */
 
-TEST_CASE("Code Names Qualify Every Template Member Independently of Labels") {
-  const Plugin plugin("naming", "1.0.0", {Suite::from<HTTPAccuracySuite>("Not an Identifier")});
-  const auto declarations = plugin.declarations();
-  const auto suites = section<Suites>(declarations);
-  const auto &value = suites.suites(0).templates(0);
-  REQUIRE(suites.suites(0).metadata().identifier() == "http_accuracy");
-  REQUIRE(value.metadata().identifier() == "http_accuracy");
-  REQUIRE(value.steps(0).metadata().identifier() == "http_accuracy.read_voltage");
-  REQUIRE(value.steps(0).operation() == "http_accuracy.read_voltage");
-  REQUIRE(section<RecordContracts>(declarations).records(0).metadata().identifier() == "http_accuracy.accepted_reading");
-  REQUIRE(section<RecordContracts>(declarations).records(0).message() == "google.protobuf.BoolValue");
-  const auto prompts = section<PromptDefinitions>(declarations);
-  REQUIRE(prompts.prompts(0).metadata().identifier() == "http_accuracy.operator_choice");
-  REQUIRE(prompts.prompts(0).owner_suite() == "http_accuracy");
-  REQUIRE(prompts.prompts(0).template_() == "http_accuracy");
-  REQUIRE(declarations.streams(0).id() == "http_accuracy.outlet_temperature");
-  bool retry = false;
-  bool criterion = false;
-  for (const auto &operation : declarations.operations()) {
-    REQUIRE(operation.visibility() == harmos::VISIBILITY_PROTECTED);
-    if (operation.id() == "http_accuracy.read_voltage")
-      retry = operation.policy().retries().total_attempts() == 3;
-    criterion = criterion || operation.id() == "http_accuracy.reading_ok";
+class AccuracySuite : public Suite {
+public:
+  static Suite definition() {
+    auto value = Suite::from<AccuracySuite>();
+    value.template_value(HTTPAccuracyTestTemplate::definition());
+    return value;
   }
-  REQUIRE(retry);
-  REQUIRE(criterion);
+};
+class ExamplePlugin : public Plugin {
+public:
+  ExamplePlugin() : Plugin(Plugin::from<ExamplePlugin>("1.0.0")) {
+    suite(AccuracySuite::definition());
+  }
+};
+
+TEST_CASE("Author Classes Describe Explicit Suite and Template Membership") {
+  const ExamplePlugin plugin;
+  const auto value = plugin.describe();
+  REQUIRE(value.identifier == "example");
+  REQUIRE(value.suites.at(0).identifier == "accuracy");
+  REQUIRE(value.suites.at(0).label == "Accuracy");
+  REQUIRE(value.suites.at(0).templates.at(0).identifier == "accuracy.http_accuracy");
+  REQUIRE(value.suites.at(0).templates.at(0).label == "HTTP Accuracy");
+  REQUIRE(value.suites.at(0).templates.at(0).steps.at(0).identifier == "accuracy.http_accuracy.read_voltage");
+  REQUIRE(value.records.at(0).identifier == "accuracy.http_accuracy.accepted_reading");
 }
 
 TEST_CASE("Member Spelling Variants Produce the Same Operation Identity") {
   for (const auto &name : {"ReadVoltage", "readVoltage", "read_voltage"}) {
-    Template value("VoltageTemplate");
+    Template value("VoltageTestTemplate");
     value.steps.push_back(Step(name, "Unrelated Label", [](Context &) {
     }));
     const Plugin plugin("names", "1.0.0", {{"accuracy", {value}}});
-    REQUIRE(section<Suites>(plugin.declarations()).suites(0).templates(0).steps(0).operation() == "accuracy.voltage.read_voltage");
+    REQUIRE(plugin.describe().suites.at(0).templates.at(0).steps.at(0).identifier == "accuracy.voltage.read_voltage");
   }
 }
 
 TEST_CASE("Structured Prompts Keep Fields Actions and Independent Template Bindings") {
+  REQUIRE_THROWS_AS(PromptDeclaration("question", "Proceed?", {"Yes", "Yes"}), invalid_argument);
   dokime::Prompt definition;
   auto *field = definition.add_fields();
   field->mutable_metadata()->set_identifier("reading");
@@ -151,34 +145,32 @@ TEST_CASE("Structured Prompts Keep Fields Actions and Independent Template Bindi
   definition.add_actions()->set_identifier("save");
   const PromptDeclaration question("question", definition);
   definition.clear_fields();
-  Template local("ReadingTemplate");
+  Template local("ReadingTestTemplate");
   local.prompts.push_back(question);
   const Plugin first("one", "1.0.0", {{"accuracy", {local}}});
   const Plugin second("two", "1.0.0", {{"production", {local}}});
-  const auto first_prompts = section<PromptDefinitions>(first.declarations());
-  const auto second_prompts = section<PromptDefinitions>(second.declarations());
-  const auto &bound = first_prompts.prompts(0);
+  const auto first_prompts = first.describe().prompts;
+  const auto second_prompts = second.describe().prompts;
+  const auto &bound = first_prompts.at(0);
   REQUIRE(bound.metadata().identifier() == "accuracy.reading.question");
   REQUIRE(bound.fields(0).required());
   REQUIRE(bound.fields(0).metadata().identifier() == "reading");
   REQUIRE(bound.actions(0).identifier() == "save");
-  REQUIRE(second_prompts.prompts(0).metadata().identifier() == "production.reading.question");
+  REQUIRE(second_prompts.at(0).metadata().identifier() == "production.reading.question");
   REQUIRE(question.value.metadata().identifier().empty());
 }
 
 TEST_CASE("Grouped Templates Bind Independently and Explicit Identifiers Win") {
-  const auto local = Template::from<VoltageTemplate>();
+  const auto local = VoltageTestTemplate::definition();
   const Plugin first("one", "1.0.0", {{"accuracy", {local}}});
   const Plugin second("two", "1.0.0", {{"production", {local}}});
-  const auto first_suites = section<Suites>(first.declarations());
-  REQUIRE(first_suites.suites(0).templates(0).metadata().identifier() == "accuracy.voltage");
-  REQUIRE(first_suites.suites(0).templates(0).steps(0).operation() == "accuracy.voltage.take");
-  REQUIRE(section<RecordContracts>(first.declarations()).records(0).metadata().identifier() == "accuracy.voltage.exact");
-  REQUIRE(section<RecordContracts>(second.declarations()).records(0).metadata().identifier() == "production.voltage.exact");
+  const auto first_suites = first.describe().suites;
+  REQUIRE(first_suites.at(0).templates.at(0).identifier == "accuracy.voltage");
+  REQUIRE(first_suites.at(0).templates.at(0).steps.at(0).identifier == "accuracy.voltage.take");
+  REQUIRE(first.describe().records.at(0).identifier == "accuracy.voltage.exact");
+  REQUIRE(second.describe().records.at(0).identifier == "production.voltage.exact");
   REQUIRE_FALSE(local.identifier.has_value());
-  REQUIRE(VoltageTemplate::reading.identifier == "exact");
-  const Plugin chosen("three", "1.0.0", {Suite::from<VoltageTemplate>("Ignored", "chosen")});
-  REQUIRE(section<Suites>(chosen.declarations()).suites(0).templates(0).metadata().identifier() == "chosen");
+  REQUIRE(VoltageTestTemplate::reading.identifier == "exact");
 }
 
 TEST_CASE("Duplicate Empty and Lifecycle Declaration Collisions Are Refused") {
@@ -197,13 +189,13 @@ TEST_CASE("Duplicate Empty and Lifecycle Declaration Collisions Are Refused") {
   Template lifecycle("Lifecycle");
   lifecycle.record(Record<bool>("cleanup"));
   REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {lifecycle}}}), invalid_argument);
-  const auto value = Template::from<VoltageTemplate>();
+  const auto value = VoltageTestTemplate::definition();
   REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {value, value}}}), invalid_argument);
   REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {value}, {}, ""}}), invalid_argument);
   REQUIRE_THROWS_AS(Plugin("invalid", "1.0.0", {{"suite", {value}}, {"suite", {value}}}), invalid_argument);
   Plugin recoverable("valid", "1.0.0");
   REQUIRE_THROWS_AS(recoverable.suite({"suite", {cross_kind}}), invalid_argument);
-  REQUIRE_NOTHROW(recoverable.suite({"suite", {value}}).declarations());
+  REQUIRE_NOTHROW(recoverable.suite({"suite", {value}}).describe());
 }
 
 TEST_CASE("Primitive Payloads Share Record and Operation Contracts") {
@@ -214,36 +206,36 @@ TEST_CASE("Primitive Payloads Share Record and Operation Contracts") {
   roundtrip(numeric_limits<int64_t>::max());
   roundtrip(2.125);
   roundtrip(17);
-  const auto large_integer = dokime::plugin::detail::pack<int64_t>(numeric_limits<int64_t>::max()).SerializeAsString();
-  REQUIRE_THROWS_AS(dokime::plugin::detail::decode<int>(large_integer), invalid_argument);
+  const auto large_integer = dokime::templates::detail::pack<int64_t>(numeric_limits<int64_t>::max()).SerializeAsString();
+  REQUIRE_THROWS_AS(dokime::templates::detail::decode<int>(large_integer), invalid_argument);
   google::protobuf::BoolValue structured;
   structured.set_value(true);
-  REQUIRE(dokime::plugin::detail::decode<google::protobuf::BoolValue>(structured.SerializeAsString()).value());
-  Template value("ValuesTemplate");
+  REQUIRE(dokime::templates::detail::decode<google::protobuf::BoolValue>(structured.SerializeAsString()).value());
+  Template value("ValuesTestTemplate");
   value.record(Record<string>("text")).record(Record<bool>("flag")).record(Record<int64_t>("count")).record(Record<double>("number"));
   Plugin plugin("values", "1.0.0", {{"values", {value}}});
-  plugin.operation(operation<string, string>("values.echo", Visibility::Public, [](Context &, string request) {
+  plugin.operation(operation<string, string>("values.echo", Visibility::Public, [](dokime::operations::Context &, string request) {
     return request;
   }));
-  plugin.operation(operation<bool, bool>("values.flag", Visibility::Public, [](Context &, bool request) {
+  plugin.operation(operation<bool, bool>("values.flag", Visibility::Public, [](dokime::operations::Context &, bool request) {
     return request;
   }));
-  plugin.operation(operation<int64_t, int64_t>("values.count", Visibility::Public, [](Context &, int64_t request) {
+  plugin.operation(operation<int64_t, int64_t>("values.count", Visibility::Public, [](dokime::operations::Context &, int64_t request) {
     return request;
   }));
-  plugin.operation(operation<double, double>("values.number", Visibility::Public, [](Context &, double request) {
+  plugin.operation(operation<double, double>("values.number", Visibility::Public, [](dokime::operations::Context &, double request) {
     return request;
   }));
-  const auto declarations = plugin.declarations();
-  const auto contracts = section<RecordContracts>(declarations);
+  const auto declarations = plugin.describe();
+  const auto &contracts = declarations.records;
   size_t matched = 0;
-  for (const auto &operation : declarations.operations()) {
-    if (operation.visibility() != harmos::VISIBILITY_PUBLIC)
+  for (const auto &operation : declarations.operations) {
+    if (operation.visibility != Visibility::Public)
       continue;
-    for (const auto &record : contracts.records()) {
-      if (record.message() != operation.request())
+    for (const auto &record : contracts) {
+      if (record.message != operation.request)
         continue;
-      REQUIRE(operation.response() == record.message());
+      REQUIRE(operation.response == record.message);
       ++matched;
     }
   }
@@ -256,7 +248,7 @@ TEST_CASE("Materialized Instances Share Qualification and Refuse Undeclared Hand
   const auto criterion = Criterion("AcceptVoltage", "Accept", [](Context &) {
     return true;
   });
-  auto bindings = make_shared<dokime::plugin::detail::Bindings>();
+  auto bindings = make_shared<dokime::templates::detail::Bindings>();
   bindings->template_id = "accuracy.voltage";
   bindings->identifiers.emplace(step.key, "accuracy.voltage.read_voltage");
   bindings->identifiers.emplace(criterion.key, "accuracy.voltage.accept_voltage");
@@ -274,6 +266,22 @@ TEST_CASE("Materialized Instances Share Qualification and Refuse Undeclared Hand
                                     }),
                                "Other"),
                     invalid_argument);
+}
+
+TEST_CASE("Retry Policies Require Positive Backoff Before Composition") {
+  auto echo = operation<string, string>("policy.echo", Visibility::Public, [](dokime::operations::Context &, string request) {
+    return request;
+  });
+  dokime::operations::OperationPolicy policy;
+  policy.attempts = 2;
+  REQUIRE_THROWS_AS(echo.policy(policy), invalid_argument);
+  policy.backoff = std::chrono::milliseconds(20);
+  policy.timeout = std::chrono::seconds(3);
+  echo.replay_safe().policy(policy);
+  Plugin plugin("policy", "1.0.0");
+  REQUIRE_NOTHROW(plugin.operation(echo));
+  policy.backoff = std::chrono::duration<double>(numeric_limits<double>::infinity());
+  REQUIRE_THROWS_AS(echo.policy(policy), invalid_argument);
 }
 
 /* === Private Functions === */

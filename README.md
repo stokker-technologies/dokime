@@ -48,8 +48,8 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 ### CLI
 
 `dokime` creates SDK projects, packages executable plugins and organization installers, hosts Dokime and
-controls a running host. `dokime new --lang python` embeds one Python project;
-the other languages embed their plugin and test projects. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
+controls a running host. Each language embeds one starter project containing
+its plugin and client programs. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
 
 #### Examples
 
@@ -105,7 +105,7 @@ mise -C sdk/rust run sdk:build
 mise -C sdk/rust run sdk:test
 ```
 
-The [plugin example](sdk/rust/examples/plugin/) uses the public `dokime` and
+The [starter](sdk/rust/examples/starter/) uses the public `dokime` and
 `dokime::plugin` barrels. `dokime::testing::Harness` runs a template under
 `cargo test` with no host and no hardware; see
 [Test Templates Without a Host](docs/rust-sdk.md#test-templates-without-a-host).
@@ -171,9 +171,12 @@ dokime dev --plugin .
 ```
 
 `dokime new` writes one Python project with `dokime.toml` and the
-`src/my_project/` package, including its client and plugin modules. Rust, C# and C++
-retain separate plugin and test folders. The Python starter does not embed `uv.lock`. The first `uv sync` resolves the SDK
+`src/my_project/` package, including its client and plugin modules. Rust, C# and
+C++ also use one project with plugin and client programs. The Python starter does not embed `uv.lock`. The first `uv sync` resolves the SDK
 dependency named in `pyproject.toml` and creates a lock file to commit with your project.
+`dokime new my-project --lang rust --from .` uses the current checkout's starter
+and a local SDK dependency. All four languages accept `--from` and
+`DOKIME_NEW_FROM`; the argument wins. A missing starter is an error.
 `dokime dev` starts a disposable host
 with the plugin attached and prints its endpoint. Bundle the plugin for installation
 with `dokime plugin bundle . --out ../my-project.dokime`.

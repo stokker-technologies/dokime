@@ -46,7 +46,7 @@ use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 
 // Local Imports
 use super::{WRITE_ROWS, aggregate, boundary, definition, publication, report, samples};
-use dokime::client::ExecutionOutcome;
+use dokime_client_internal::ExecutionOutcome;
 use dokime_protocol::builders::Plot;
 use dokime_protocol::host::documents_client::DocumentsClient;
 use dokime_protocol::host::evidence::RecordsAppendRequest;

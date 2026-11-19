@@ -261,10 +261,10 @@ class HostFixtureTests(unittest.TestCase):
                 )
                 for compiler_profile in ("debug", "release"):
                     directory = root / "target" / compiler_profile
-                    (directory / "examples").mkdir(parents=True)
+                    directory.mkdir(parents=True)
                     for name in names:
                         (directory / f"{name}{extension}").write_bytes(compiler_profile.encode())
-                    (directory / "examples" / f"content_fixture{extension}").write_bytes(compiler_profile.encode())
+                    (directory / f"content_fixture{extension}").write_bytes(compiler_profile.encode())
                 (root / "Cargo.toml").write_text(
                     '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n'
                 )

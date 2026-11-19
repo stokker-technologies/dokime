@@ -1,0 +1,6 @@
+/target/
+.env
+*.pair
+*.dokime
+_input/
+_output/

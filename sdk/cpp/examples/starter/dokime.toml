@@ -1,0 +1,24 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[plugin]
+label = "Starter Project"
+tags = ["example"]
+icon = "assets/icon.svg"
+version = "0.1.0"
+description = "Example Plugin"
+authors = [{ name = "Your Name" }]
+license = "Apache-2.0"
+repository = "https://github.com/your-organization/your-project"
+
+[compatibility]
+dokime = ">=0.1.5"
+
+[scripts]
+build = ["mise", "run", "build"]
+executable = "assets/plugin/dokime-plugin"

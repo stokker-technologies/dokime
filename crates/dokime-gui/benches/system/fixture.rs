@@ -29,12 +29,12 @@ use tokio_stream::StreamExt;
 
 // Local Imports
 
-use dokime_sdk::client::PluginPlacement;
-use dokime_sdk::client::PluginRemote;
-use dokime_sdk::client::PluginValue;
-use dokime_sdk::client::PluginsCreateOptions;
-use dokime_sdk::client::plugin_placement;
-use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::PluginsCreateOptions;
+use dokime_client_internal::plugin_placement;
+use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
 use dokime_protocol::host::CasesCreateRequest;
@@ -44,16 +44,17 @@ use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 
+use dokime_client_internal::CasesCreateResponse;
+use dokime_client_internal::CyclesCreateResponse;
+use dokime_client_internal::ExecutionsGetResponse;
+use dokime_client_internal::ExecutionsListResponse;
+use dokime_client_internal::RegisteredSelection;
+use dokime_client_internal::SelectionPlan;
+use dokime_client_internal::SnapshotsWatchResponse;
+use dokime_client_internal::{ClientSettings, PlotRequest};
 use dokime_sdk::StorageTransferSettings;
-use dokime_sdk::client::CasesCreateResponse;
-use dokime_sdk::client::CyclesCreateResponse;
-use dokime_sdk::client::ExecutionsGetResponse;
-use dokime_sdk::client::ExecutionsListResponse;
-use dokime_sdk::client::RegisteredSelection;
-use dokime_sdk::client::SelectionPlan;
-use dokime_sdk::client::SnapshotsWatchResponse;
-use dokime_sdk::client::{ClientSettings, PlotRequest};
 use dokime_sdk::model::Section;
+use dokime_sdk::templates::Context;
 use dokime_sdk::{Result, prelude::*};
 
 use dokime_sdk::{
@@ -330,7 +331,9 @@ impl Fixture {
 pub fn serve() -> Result<()> {
     let stream = Stream::<Row>::new("samples", "Pipeline Samples");
     let observer = Observer::new(&stream, observe).interval_setting("sample_interval");
-    let template = Template::new("capture", "Pipeline Capture")
+    let template = Template::of::<()>()
+        .identifier("capture")
+        .label("Pipeline Capture")
         .initialize(async |context: &Context| {
             context.set(History::default());
             let address = std::env::var("DOKIME_DESKTOP_BENCH_CONTROL")
@@ -346,7 +349,8 @@ pub fn serve() -> Result<()> {
         .observer(observer)
         .document(document(30))
         .document(document(100));
-    Plugin::new("desktop.benchmark", "1.0.0")
+    Plugin::of::<()>("1.0.0")
+        .identifier("desktop.benchmark")
         .setting(SettingDeclaration {
             name: "sample_interval".into(),
             title: "Sample Interval".into(),
@@ -358,9 +362,8 @@ pub fn serve() -> Result<()> {
                 })),
             }),
         })
-        .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
-        .remote()
-        .serve()
+        .suite(Suite::of::<()>().identifier("bench.pipeline").label("Pipeline Bench").template(template))
+        .run()
 }
 
 pub fn rows() -> usize {

@@ -32,8 +32,8 @@ use tonic::Status;
 // Local Imports
 
 use crate::{Result, settings::Settings};
-use dokime::Client;
-use dokime::client::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::Client;
+use dokime_client_internal::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 
@@ -184,34 +184,30 @@ mod tests {
     #[tokio::test]
     async fn created_starters_resolve_native_metadata_and_asset_inputs() -> Result<()> {
         let root = tempfile::tempdir()?;
-        for (language, folder) in [("python", ""), ("rust", "test"), ("csharp", "Test"), ("cpp", "test")] {
+        for language in ["python", "rust", "csharp", "cpp"] {
             let destination = root.path().join(language);
-            let mut arguments =
-                vec!["dokime".into(), "new".into(), destination.to_string_lossy().into_owned(), "--lang".into(), language.into()];
-            if language == "cpp" {
-                arguments.extend(["--sdk-url".into(), "fixture.tar.gz".into(), "--sdk-sha256".into(), "0".repeat(64)]);
-            }
+            let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
+            let arguments = vec![
+                "dokime".into(),
+                "new".into(),
+                destination.to_string_lossy().into_owned(),
+                "--lang".into(),
+                language.into(),
+                "--from".into(),
+                repository.to_string_lossy().into_owned(),
+            ];
             let cli = Cli::try_parse_from(arguments).unwrap();
             commands::run(cli.command, None, Settings::default()).await?;
-            let folders: &[&str] = if folder.is_empty() {
-                &[""]
-            } else if folder == "Test" {
-                &["Plugin", "Test"]
-            } else {
-                &["plugin", "test"]
-            };
-            for folder in folders {
-                let project = PluginProject::read(&destination.join(folder))?;
-                project.validate_inputs()?;
-                let metadata = project.resolve_metadata("")?;
-                assert!(metadata.version.is_some());
-                assert!(metadata.description.is_some());
-                assert!(!metadata.authors.unwrap_or_default().is_empty());
-                assert!(metadata.license.is_some());
-                assert!(metadata.repository.is_some());
-                let icon = metadata.icon.ok_or("Create Starter: Include Its Plugin Icon")?;
-                assert!(project.path(&icon)?.is_file());
-            }
+            let project = PluginProject::read(&destination)?;
+            project.validate_inputs()?;
+            let metadata = project.resolve_metadata("")?;
+            assert!(metadata.version.is_some());
+            assert!(metadata.description.is_some());
+            assert!(!metadata.authors.unwrap_or_default().is_empty());
+            assert!(metadata.license.is_some());
+            assert!(metadata.repository.is_some());
+            let icon = metadata.icon.ok_or("Create Starter: Include Its Plugin Icon")?;
+            assert!(project.path(&icon)?.is_file());
         }
         Ok(())
     }

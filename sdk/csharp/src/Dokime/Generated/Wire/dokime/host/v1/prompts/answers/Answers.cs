@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.PromptsResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/prompts/answers.proto</summary>
-  public static partial class AnswersReflection {
+  internal static partial class AnswersReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/prompts/answers.proto</summary>
@@ -406,7 +406,7 @@ namespace Dokime.Clients.PromptsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AnswersCreateResponse : pb::IMessage<AnswersCreateResponse>
+  internal sealed partial class AnswersCreateResponse : pb::IMessage<AnswersCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

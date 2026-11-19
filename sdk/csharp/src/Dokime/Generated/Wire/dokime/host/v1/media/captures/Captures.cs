@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.MediaResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/media/captures.proto</summary>
-  public static partial class CapturesReflection {
+  internal static partial class CapturesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/media/captures.proto</summary>
@@ -103,7 +103,7 @@ namespace Dokime.Clients.MediaResources;
 
   }
   #region Enums
-  public enum CaptureKind {
+  internal enum CaptureKind {
     [pbr::OriginalName("CAPTURE_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("CAPTURE_KIND_AUDIO")] Audio = 1,
     [pbr::OriginalName("CAPTURE_KIND_CAMERA")] Camera = 2,
@@ -653,7 +653,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturesCreateResponse : pb::IMessage<CapturesCreateResponse>
+  internal sealed partial class CapturesCreateResponse : pb::IMessage<CapturesCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1150,7 +1150,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturesGetResponse : pb::IMessage<CapturesGetResponse>
+  internal sealed partial class CapturesGetResponse : pb::IMessage<CapturesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1647,7 +1647,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturesWatchResponse : pb::IMessage<CapturesWatchResponse>
+  internal sealed partial class CapturesWatchResponse : pb::IMessage<CapturesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2218,7 +2218,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturesStopResponse : pb::IMessage<CapturesStopResponse>
+  internal sealed partial class CapturesStopResponse : pb::IMessage<CapturesStopResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2471,7 +2471,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordingAudio : pb::IMessage<RecordingAudio>
+  internal sealed partial class RecordingAudio : pb::IMessage<RecordingAudio>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2706,7 +2706,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordingProgress : pb::IMessage<RecordingProgress>
+  internal sealed partial class RecordingProgress : pb::IMessage<RecordingProgress>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2941,7 +2941,7 @@ namespace Dokime.Clients.MediaResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Capture : pb::IMessage<Capture>
+  internal sealed partial class Capture : pb::IMessage<Capture>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

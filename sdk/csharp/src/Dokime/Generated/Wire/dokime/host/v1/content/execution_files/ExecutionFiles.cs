@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.ContentResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/content/execution_files.proto</summary>
-  public static partial class ExecutionFilesReflection {
+  internal static partial class ExecutionFilesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/content/execution_files.proto</summary>
@@ -96,7 +96,7 @@ namespace Dokime.Clients.ContentResources;
 
   }
   #region Enums
-  public enum ExecutionFileKind {
+  internal enum ExecutionFileKind {
     [pbr::OriginalName("EXECUTION_FILE_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("EXECUTION_FILE_KIND_TEXT")] Text = 1,
     [pbr::OriginalName("EXECUTION_FILE_KIND_BINARY")] Binary = 2,
@@ -104,7 +104,7 @@ namespace Dokime.Clients.ContentResources;
     [pbr::OriginalName("EXECUTION_FILE_KIND_UNKNOWN")] Unknown = 4,
   }
 
-  public enum ExecutionFileState {
+  internal enum ExecutionFileState {
     [pbr::OriginalName("EXECUTION_FILE_STATE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("EXECUTION_FILE_STATE_STREAMING")] Streaming = 1,
     [pbr::OriginalName("EXECUTION_FILE_STATE_FINALIZED")] Finalized = 2,
@@ -396,7 +396,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ExecutionFilesGetResponse : pb::IMessage<ExecutionFilesGetResponse>
+  internal sealed partial class ExecutionFilesGetResponse : pb::IMessage<ExecutionFilesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -985,7 +985,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ExecutionFilesListResponse : pb::IMessage<ExecutionFilesListResponse>
+  internal sealed partial class ExecutionFilesListResponse : pb::IMessage<ExecutionFilesListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1545,7 +1545,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ExecutionFilesWatchResponse : pb::IMessage<ExecutionFilesWatchResponse>
+  internal sealed partial class ExecutionFilesWatchResponse : pb::IMessage<ExecutionFilesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1861,7 +1861,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ExecutionFileMetadata : pb::IMessage<ExecutionFileMetadata>
+  internal sealed partial class ExecutionFileMetadata : pb::IMessage<ExecutionFileMetadata>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

@@ -199,6 +199,7 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
     async def test_class_template_materialization_retry_and_artifacts_through_host(self) -> None:
         instances: list[list[int]] = []
         attempts: list[tuple[int, int]] = []
+        lifecycle: list[tuple[str, object]] = []
 
         class ChannelsTestTemplate(TestTemplate):
             parameters: ClassVar[list[ParameterDefinition]] = [
@@ -242,11 +243,18 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [ChannelsSuite]
 
+            async def initialize(self, ctx: dokime_sdk.operations.Context) -> None:
+                lifecycle.append(("initialize", ctx.plugin))
+
+            async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
+                lifecycle.append(("finalize", ctx.plugin))
+
         mechanical = Path(__file__).resolve().parents[2] / "tests/support/host.py"
         host = await runpy.run_path(str(mechanical))["Host"].start(self)
         client = cast(Client, host.client)
         author = ChannelsPlugin()
-        await client.plugins.register(author)
+        registered = await client.plugins.register(author)
+        self.assertEqual(lifecycle, [("initialize", author)])
         cases = await client.cases.materialize(ChannelsTestTemplate, parameters={"channels": [[2, 4]]})
         self.assertEqual(len(cases), 1)
         self.assertEqual(instances, [])
@@ -262,6 +270,8 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(instances, [[4, 16], [4, 16]])
         self.assertEqual(attempts, [(2, 1), (2, 2), (4, 1)] * 2)
         self.assertFalse(author._sessions)
+        await registered.unregister()
+        self.assertEqual(lifecycle, [("initialize", author), ("finalize", author)])
 
 
 # === Public Functions === #

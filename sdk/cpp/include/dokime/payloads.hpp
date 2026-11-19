@@ -28,7 +28,7 @@
 
 /* === Templates === */
 
-namespace dokime::plugin::detail {
+namespace dokime::templates::detail {
 template <class T> auto payload_message() {
   if constexpr (std::is_same_v<T, bool>)
     return google::protobuf::BoolValue{};
@@ -65,6 +65,6 @@ template <class T> T decode(const std::string &bytes) {
   const auto message = harmos::plugin::decode<decltype(payload_message<T>())>(bytes);
   return unpack<T>(message);
 }
-} // namespace dokime::plugin::detail
+} // namespace dokime::templates::detail
 
 /* === Public Declarations === */

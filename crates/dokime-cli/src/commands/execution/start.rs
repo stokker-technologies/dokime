@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{ExecutionMode, ExecutionsStartOptions};
+use dokime_client_internal::{ExecutionMode, ExecutionsStartOptions};
 
 /* === Constants === */
 

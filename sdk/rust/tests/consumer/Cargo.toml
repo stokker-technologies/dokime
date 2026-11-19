@@ -51,8 +51,8 @@ name = "dokime-rust-capture"
 path = "../fixtures/capture.rs"
 
 [[bin]]
-name = "dokime-rust-test"
-path = "../../examples/test/src/main.rs"
+name = "dokime-rust-history"
+path = "../fixtures/history.rs"
 
 [[bin]]
 name = "dokime-sdk-consumer"
@@ -60,11 +60,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "dokime-rust-plugin"
-path = "../../examples/plugin/src/main.rs"
-
-[[bin]]
-name = "dokime-rust-client"
-path = "../../examples/client/src/main.rs"
+path = "../fixtures/plugin.rs"
 
 # === Features === #
 
@@ -95,7 +91,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 # Concurrency
 
 # Async
-tokio = { version = "1.50.0", features = ["sync", "rt-multi-thread", "net", "time"] }
+tokio = { version = "1.50.0", features = ["macros", "sync", "rt-multi-thread", "net", "time"] }
 
 # Networking
 
@@ -112,10 +108,11 @@ tokio = { version = "1.50.0", features = ["sync", "rt-multi-thread", "net", "tim
 [dev-dependencies]
 # Local
 dokime-protocol = { path = "../../../../crates/dokime-protocol" }
+dokime-runtime = { path = "../../../../crates/dokime-runtime" }
 
 # Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45", default-features = false, features = [
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "ae58b0669fec82906248289cbb964e0f09b33081" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "ae58b0669fec82906248289cbb964e0f09b33081", default-features = false, features = [
   "grpc",
 ] }
 
@@ -154,14 +151,14 @@ tonic = { version = "0.14.8", features = ["codegen", "router", "transport"] }
 
 # === Target Dependencies === #
 
-[target.'cfg(windows)'.dev-dependencies]
+[target.'cfg(target_os = "windows")'.dev-dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 # === Test Targets === #
 
 [[test]]
 name = "capture"
-path = "../../examples/test/src/suite.rs"
+path = "src/capture.rs"
 
 [[test]]
 name = "integration"

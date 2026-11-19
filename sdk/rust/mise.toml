@@ -13,12 +13,18 @@ CARGO_TARGET_DIR = "{{config_root}}/../../target"
 
 [tasks."build"]
 description = "Build the Rust SDK and Sample Plugin"
-run = "cargo build --locked --manifest-path tests/consumer/Cargo.toml --package dokime-rust-stories --bins"
+dir = "../.."
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused build --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml --package dokime-rust-stories --bins"
 
 [tasks."test"]
 description = "Run Focused Rust SDK Journeys"
 usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integration" }'
-run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib --no-tests pass{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
+dir = "../.."
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused test --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
+
+[tasks."test:created"]
+description = "Run the Created Rust Project Against Prepared Product Bytes"
+run = "uv run --no-sync --project ../../tools/python python tools/test_created.py"
 
 [tasks."check"]
 description = "Prove Protocol-Only SDK Product Dependencies"
@@ -27,16 +33,17 @@ run = "python tools/dependency_tree.py"
 
 [tasks."prepare"]
 description = "Refresh the External SDK Consumer Lock"
-run = "cargo generate-lockfile --manifest-path tests/consumer/Cargo.toml"
+run = "cargo update --manifest-path tests/consumer/Cargo.toml --package dokime"
 
 [tasks.format]
 description = "Format Rust SDK Sources and Manifests"
 run = [
-  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs examples/execution.rs examples/client/src/main.rs examples/plugin/src/main.rs tests/integration/main.rs tests/consumer/src/main.rs tests/fixtures/resources.rs tests/fixtures/secrets.rs tests/fixtures/boundary.rs tests/fixtures/capture.rs examples/test/src/main.rs",
-  "taplo fmt --config ../../tools/config/taplo.toml --option column_width=140 Cargo.toml derive/Cargo.toml tests/consumer/Cargo.toml mise.toml examples/test/Cargo.toml examples/test/mise.toml examples/plugin/Cargo.toml examples/plugin/mise.toml examples/client/Cargo.toml examples/client/mise.toml",
+  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs examples/execution.rs examples/starter/src/lib.rs examples/starter/src/main.rs examples/starter/src/bin/client.rs examples/starter/tests/description.rs tests/integration/main.rs tests/consumer/src/main.rs tests/consumer/src/lib.rs tests/fixtures/resources.rs tests/fixtures/secrets.rs tests/fixtures/boundary.rs tests/fixtures/capture.rs tests/fixtures/history.rs tests/consumer/src/capture.rs tests/fixtures/plugin.rs",
+  "taplo fmt --config ../../tools/config/taplo.toml --option column_width=140 Cargo.toml derive/Cargo.toml tests/consumer/Cargo.toml mise.toml examples/starter/Cargo.toml examples/starter/mise.toml examples/starter/dokime.toml",
   "uv run --no-sync --project ../../tools/python ruff format tools",
 ]
 
 [tasks."lint"]
 description = "Lint the Focused Rust SDK and Stories"
-run = "cargo clippy --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"
+dir = "../.."
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.lint -- --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"

@@ -109,12 +109,26 @@ def environment() -> dict[str, str]:
                 "git",
                 "clone",
                 "--filter=blob:none",
-                "--single-branch",
-                "--branch",
-                "2025.06.13",
+                "--no-checkout",
+                "--depth",
+                "1",
                 "https://github.com/microsoft/vcpkg.git",
                 str(checkout),
             ],
+            check=True,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            creationflags=spawn_flags(),
+        )
+        subprocess.run(
+            ["git", "-C", str(checkout), "fetch", "--depth", "1", "origin", revision],
+            check=True,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            creationflags=spawn_flags(),
+        )
+        subprocess.run(
+            ["git", "-C", str(checkout), "checkout", "--detach", revision],
             check=True,
             stdout=sys.stdout,
             stderr=sys.stderr,
@@ -197,8 +211,15 @@ def main() -> None:
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
     elif options.action in ("check", "build"):
+        configure = ["cmake", "--preset", options.preset, f"-DPython3_EXECUTABLE={sys.executable}"]
+        cache = directory / "CMakeCache.txt"
+        if cache.is_file():
+            configured = cache.read_text(encoding="utf-8").replace("\\", "/").splitlines()
+            toolchain = f"Z_VCPKG_ROOT_DIR:INTERNAL={Path(child['VCPKG_ROOT']).as_posix()}"
+            if toolchain not in configured:
+                configure.insert(1, "--fresh")
         run(
-            ["cmake", "--preset", options.preset, f"-DPython3_EXECUTABLE={sys.executable}"],
+            configure,
             action="Configure C++ SDK",
             cwd=sdk,
             env=child,
@@ -243,9 +264,9 @@ def main() -> None:
                 "cmake",
                 "--fresh",
                 "--preset",
-                "release",
+                "development",
                 "-S",
-                str(options.source or sdk / "examples/test"),
+                str(options.source or sdk / "examples/starter"),
                 "-B",
                 str(consumer),
                 "-G",
@@ -256,7 +277,7 @@ def main() -> None:
                 "-DVCPKG_MANIFEST_INSTALL=OFF",
                 "-DCMAKE_BUILD_TYPE=Debug",
             ],
-            cwd=options.source or sdk / "examples/test",
+            cwd=options.source or sdk / "examples/starter",
             env=child,
             action="Configure Installed C++ Consumer",
             log=directory / "consumer-configure.log",

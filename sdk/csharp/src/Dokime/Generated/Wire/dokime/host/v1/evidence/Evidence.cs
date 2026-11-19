@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence.proto</summary>
-  public static partial class EvidenceReflection {
+  internal static partial class EvidenceReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence.proto</summary>
@@ -548,7 +548,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EvidenceStatisticsResponse : pb::IMessage<EvidenceStatisticsResponse>
+  internal sealed partial class EvidenceStatisticsResponse : pb::IMessage<EvidenceStatisticsResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1054,7 +1054,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EvidenceArchiveResponse : pb::IMessage<EvidenceArchiveResponse>
+  internal sealed partial class EvidenceArchiveResponse : pb::IMessage<EvidenceArchiveResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1307,7 +1307,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Statistics : pb::IMessage<Statistics>
+  internal sealed partial class Statistics : pb::IMessage<Statistics>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2002,7 +2002,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EvidenceSubject : pb::IMessage<EvidenceSubject>
+  internal sealed partial class EvidenceSubject : pb::IMessage<EvidenceSubject>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2298,7 +2298,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Output : pb::IMessage<Output>
+  internal sealed partial class Output : pb::IMessage<Output>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

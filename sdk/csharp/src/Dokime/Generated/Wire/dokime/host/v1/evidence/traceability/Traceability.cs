@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.EvidenceResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence/traceability.proto</summary>
-  public static partial class TraceabilityReflection {
+  internal static partial class TraceabilityReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence/traceability.proto</summary>
@@ -446,7 +446,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TraceabilityGetResponse : pb::IMessage<TraceabilityGetResponse>
+  internal sealed partial class TraceabilityGetResponse : pb::IMessage<TraceabilityGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1098,7 +1098,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TraceabilityWatchResponse : pb::IMessage<TraceabilityWatchResponse>
+  internal sealed partial class TraceabilityWatchResponse : pb::IMessage<TraceabilityWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1737,7 +1737,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TraceabilitySetResponse : pb::IMessage<TraceabilitySetResponse>
+  internal sealed partial class TraceabilitySetResponse : pb::IMessage<TraceabilitySetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2027,7 +2027,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TraceabilitySnapshot : pb::IMessage<TraceabilitySnapshot>
+  internal sealed partial class TraceabilitySnapshot : pb::IMessage<TraceabilitySnapshot>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

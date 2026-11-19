@@ -4,7 +4,7 @@ target_link_libraries(dokime-generation PRIVATE Dokime::Cpp)
 
 find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
-add_executable(dokime-builders builders.cpp)
+add_executable(dokime-builders builders.cpp configuration.cpp connection.cpp handles.cpp transfers.cpp)
 target_link_libraries(dokime-builders PRIVATE Dokime::Cpp Catch2::Catch2WithMain)
 add_test(NAME builders COMMAND dokime-builders)
 
@@ -17,8 +17,8 @@ add_test(NAME author_materializes_suite COMMAND dokime-authoring-journey)
 set_tests_properties(builders client_reads_backend author_materializes_suite PROPERTIES TIMEOUT 240)
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
-add_executable(dokime-story-plugin ../examples/test/main.cpp)
-target_link_libraries(dokime-story-plugin PRIVATE Dokime::Cpp)
+add_executable(dokime-story-plugin ../examples/starter/src/plugin/main.cpp)
+target_link_libraries(dokime-story-plugin PRIVATE starter-project)
 add_executable(dokime-plugin-journey integration/capture_roundtrip.cpp)
 target_link_libraries(dokime-plugin-journey PRIVATE Dokime::Cpp Catch2::Catch2)
 foreach(placement managed remote)
@@ -40,7 +40,8 @@ set(thermal_generated "${CMAKE_CURRENT_BINARY_DIR}/g")
 file(MAKE_DIRECTORY "${thermal_generated}")
 protobuf_generate(TARGET dokime_thermal_protocol LANGUAGE cpp
   PROTOS "${thermal}/thermal.proto" IMPORT_DIRS "${thermal}"
-  PROTOC_OUT_DIR "${thermal_generated}")
+  PROTOC_OUT_DIR "${thermal_generated}"
+  DEPENDENCIES protobuf::protoc "${CMAKE_CURRENT_SOURCE_DIR}/../vcpkg.json" "${thermal}/thermal.proto")
 target_include_directories(dokime_thermal_protocol SYSTEM PUBLIC "${thermal_generated}")
 target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Cpp)
 add_executable(dokime-system-suite "${thermal}/main.cpp")
@@ -54,3 +55,12 @@ add_test(NAME values_roundtrip
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/support/run_plugin.py"
     $<TARGET_FILE:dokime-value-plugin> $<TARGET_FILE:dokime-values-journey> managed)
 set_tests_properties(values_roundtrip PROPERTIES TIMEOUT 240)
+
+add_executable(dokime-lifecycle-plugin support/lifecycle_plugin.cpp)
+target_link_libraries(dokime-lifecycle-plugin PRIVATE Dokime::Cpp)
+add_executable(dokime-lifecycle-journey integration/failed_initialization.cpp)
+target_link_libraries(dokime-lifecycle-journey PRIVATE Dokime::Cpp Catch2::Catch2)
+add_test(NAME failed_initialization
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/support/run_plugin.py"
+    $<TARGET_FILE:dokime-lifecycle-plugin> $<TARGET_FILE:dokime-lifecycle-journey> managed)
+set_tests_properties(failed_initialization PROPERTIES TIMEOUT 240)

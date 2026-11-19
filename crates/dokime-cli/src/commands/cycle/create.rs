@@ -23,7 +23,7 @@ use prost::Message;
 
 // Local Imports
 use dokime::Metadata;
-use dokime::client::CyclesCreateOptions;
+use dokime_client_internal::CyclesCreateOptions;
 use dokime_protocol::host::CasesCreateResponse;
 
 /* === Constants === */

@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
-use dokime::client::ExecutionsCreateOptions;
+use dokime_client_internal::ExecutionsCreateOptions;
 use dokime_protocol::host::ExecutionsCreateRequest;
 
 /* === Constants === */

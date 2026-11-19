@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.EvidenceResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence/samples.proto</summary>
-  public static partial class SamplesReflection {
+  internal static partial class SamplesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence/samples.proto</summary>
@@ -681,7 +681,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SamplesListResponse : pb::IMessage<SamplesListResponse>
+  internal sealed partial class SamplesListResponse : pb::IMessage<SamplesListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1557,7 +1557,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SamplesWatchResponse : pb::IMessage<SamplesWatchResponse>
+  internal sealed partial class SamplesWatchResponse : pb::IMessage<SamplesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1919,7 +1919,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Bucket : pb::IMessage<Bucket>
+  internal sealed partial class Bucket : pb::IMessage<Bucket>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2374,7 +2374,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class BucketRequest : pb::IMessage<BucketRequest>
+  internal sealed partial class BucketRequest : pb::IMessage<BucketRequest>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2609,7 +2609,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class BucketValue : pb::IMessage<BucketValue>
+  internal sealed partial class BucketValue : pb::IMessage<BucketValue>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2978,7 +2978,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SampleRow : pb::IMessage<SampleRow>
+  internal sealed partial class SampleRow : pb::IMessage<SampleRow>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3272,7 +3272,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class StatisticValue : pb::IMessage<StatisticValue>
+  internal sealed partial class StatisticValue : pb::IMessage<StatisticValue>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3568,7 +3568,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TelemetrySample : pb::IMessage<TelemetrySample>
+  internal sealed partial class TelemetrySample : pb::IMessage<TelemetrySample>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

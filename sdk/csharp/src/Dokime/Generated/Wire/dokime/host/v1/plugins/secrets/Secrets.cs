@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.PluginsResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/plugins/secrets.proto</summary>
-  public static partial class SecretsReflection {
+  internal static partial class SecretsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/plugins/secrets.proto</summary>
@@ -311,7 +311,7 @@ namespace Dokime.Clients.PluginsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsListResponse : pb::IMessage<SecretsListResponse>
+  internal sealed partial class SecretsListResponse : pb::IMessage<SecretsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -544,7 +544,7 @@ namespace Dokime.Clients.PluginsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretRequirement : pb::IMessage<SecretRequirement>
+  internal sealed partial class SecretRequirement : pb::IMessage<SecretRequirement>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

@@ -21,7 +21,7 @@
 
 // Local Imports
 use dokime::Termination;
-use dokime::client::ResultStatus;
+use dokime_client_internal::ResultStatus;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::model::origin::Kind;
 use dokime_runtime::Host;

@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.EvidenceResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence/logs.proto</summary>
-  public static partial class LogsReflection {
+  internal static partial class LogsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence/logs.proto</summary>
@@ -405,7 +405,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class LogsAppendResponse : pb::IMessage<LogsAppendResponse>
+  internal sealed partial class LogsAppendResponse : pb::IMessage<LogsAppendResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

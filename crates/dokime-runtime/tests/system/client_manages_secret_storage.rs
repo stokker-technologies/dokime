@@ -20,14 +20,14 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::Client;
 use dokime::Metadata;
 use dokime::SecretWritable;
-use dokime::client::SecretImportAction;
-use dokime::client::SecretImportChoice;
-use dokime::client::SecretsDeleteOptions;
-use dokime::client::SecretsImportOptions;
-use dokime::client::SecretsSetOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::SecretImportAction;
+use dokime_client_internal::SecretImportChoice;
+use dokime_client_internal::SecretsDeleteOptions;
+use dokime_client_internal::SecretsImportOptions;
+use dokime_client_internal::SecretsSetOptions;
 use std::error::Error;
 use tonic::Code;
 use tonic::transport::Endpoint;

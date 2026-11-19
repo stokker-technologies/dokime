@@ -7,12 +7,12 @@
  * ***
  */
 
-using Dokime.Plugins;
+using Dokime.Templates;
 using Dokime;
 using Google.Protobuf;
 
 var input = Expressions.Field("scan", "temperature");
-var surface = Dokime.Plugins.Plots.Contour(input.Scale(2).Offset(-1))
+var surface = Dokime.Templates.Plots.Contour(input.Scale(2).Offset(-1))
     .WithX(Expressions.Field("scan", "position_x"))
     .WithY(Expressions.Field("scan", "position_y"))
     .WithLabel(new Metadata { Identifier = "temperature.map", Label = "Temperature Map" })
@@ -33,7 +33,7 @@ if (decoded.Sections[0].Cards[0].Plot.Y.Count != 1 ||
     decoded.Sections[0].Cards[0].Plot.ReferenceBands[0].Tolerance.Parameter != "tolerance")
   throw new InvalidOperationException("canonical contour operands were not copied");
 
-var grid = Dokime.Plugins.Plots.GridChart(Expressions.Field("scan", "value"))
+var grid = Dokime.Templates.Plots.GridChart(Expressions.Field("scan", "value"))
     .Row(Expressions.Field("scan", "row")).Column(Expressions.Field("scan", "column"))
     .Frame(Expressions.Field("scan", "timestamp"))
     .Rows([new GridAxisEntry { Key = "sensor", Label = "Sensor" }])
@@ -51,7 +51,7 @@ if (decodedParameter.Min != 0.0 || decodedParameter.Max != 300.0 || decodedParam
     !sweep.Expansion.Cartesian || sweep.Expression.Array.Values.Count != 2 ||
     ladder.Expression.Literal.List.Values[1].Number != 20.0 || ladder.MinItems != 1 || ladder.MaxItems != 8)
   throw new InvalidOperationException("Parameter Builders: Restore Types, Expansion and Bounds");
-var line = Dokime.Plugins.Plots.Line("voltage", "Voltage").WithUnit("V").WithY(Expressions.Field("samples", "voltage"));
+var line = Dokime.Templates.Plots.Line("voltage", "Voltage").WithUnit("V").WithY(Expressions.Field("samples", "voltage"));
 var card = Cards.Plot(line).Columns(6);
 line.Y.Clear();
 if (card.Plot.Y.Count != 1 || card.Layout.Columns != 6 || Cards.Records("records").Evidence != EvidenceCard.Records)

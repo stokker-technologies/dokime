@@ -9,9 +9,9 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-namespace Dokime;
+namespace Dokime.Transport;
 
-public sealed class Client : IDisposable
+internal sealed class Client : IDisposable
 {
   private GrpcChannel? ownedChannel;
   public AccessResource Access { get; }
@@ -81,7 +81,7 @@ public sealed class Client : IDisposable
   }
   public void Dispose() => ownedChannel?.Dispose();
 }
-public sealed class AccessResource
+internal sealed class AccessResource
 {
   public AccessCertificatesResource Certificates { get; }
   public AccessListenerResource Listener { get; }
@@ -93,7 +93,7 @@ public sealed class AccessResource
     Pairings = new AccessPairingsResource(invoker);
   }
 }
-public sealed class AccessCertificatesResource
+internal sealed class AccessCertificatesResource
 {
   private readonly CallInvoker invoker;
   public AccessCertificatesResource(CallInvoker invoker)
@@ -105,7 +105,7 @@ public sealed class AccessCertificatesResource
     return await new Harmos.Client(invoker).Access.Certificates.Create(context);
   }
 }
-public sealed class AccessListenerResource
+internal sealed class AccessListenerResource
 {
   private readonly CallInvoker invoker;
   public AccessListenerResource(CallInvoker invoker)
@@ -121,7 +121,7 @@ public sealed class AccessListenerResource
     return await new Harmos.Client(invoker).Access.Listener.Set(value, expectedRevision, context);
   }
 }
-public sealed class AccessPairingsResource
+internal sealed class AccessPairingsResource
 {
   private readonly CallInvoker invoker;
   public AccessPairingsResource(CallInvoker invoker)
@@ -141,7 +141,7 @@ public sealed class AccessPairingsResource
     return await new Harmos.Client(invoker).Access.Pairings.Delete(name, context);
   }
 }
-public sealed class AggregatesResource
+internal sealed class AggregatesResource
 {
   private readonly CallInvoker invoker;
   public AggregatesResource(CallInvoker invoker)
@@ -178,7 +178,7 @@ public sealed class AggregatesResource
     return response;
   }
 }
-public sealed class BackendResource
+internal sealed class BackendResource
 {
   private readonly CallInvoker invoker;
   public BackendOverviewResource Overview { get; }
@@ -212,7 +212,7 @@ public sealed class BackendResource
     return response;
   }
 }
-public sealed class BackendOverviewResource
+internal sealed class BackendOverviewResource
 {
   private readonly CallInvoker invoker;
   public BackendOverviewResource(CallInvoker invoker)
@@ -277,7 +277,7 @@ public sealed class BackendOverviewResource
     }
   }
 }
-public sealed class CasesResource
+internal sealed class CasesResource
 {
   private readonly CallInvoker invoker;
   public CasesResource(CallInvoker invoker)
@@ -442,7 +442,7 @@ public sealed class CasesResource
     return response;
   }
 }
-public sealed class ContentResource
+internal sealed class ContentResource
 {
   public ContentArtifactsResource Artifacts { get; }
   public ContentExecutionFilesResource ExecutionFiles { get; }
@@ -452,7 +452,7 @@ public sealed class ContentResource
     ExecutionFiles = new ContentExecutionFilesResource(invoker);
   }
 }
-public sealed class ContentArtifactsResource
+internal sealed class ContentArtifactsResource
 {
   private readonly CallInvoker invoker;
   public ContentArtifactsResource(CallInvoker invoker)
@@ -584,7 +584,7 @@ public sealed class ContentArtifactsResource
     }
   }
 }
-public sealed class ContentExecutionFilesResource
+internal sealed class ContentExecutionFilesResource
 {
   private readonly CallInvoker invoker;
   public ContentExecutionFilesResource(CallInvoker invoker)
@@ -685,7 +685,7 @@ public sealed class ContentExecutionFilesResource
     }
   }
 }
-public sealed class CyclesResource
+internal sealed class CyclesResource
 {
   private readonly CallInvoker invoker;
   public CyclesResource(CallInvoker invoker)
@@ -860,7 +860,7 @@ public sealed class CyclesResource
     return response;
   }
 }
-public sealed class DocumentsResource
+internal sealed class DocumentsResource
 {
   private readonly CallInvoker invoker;
   public DocumentsResource(CallInvoker invoker)
@@ -939,7 +939,7 @@ public sealed class DocumentsResource
     }
   }
 }
-public sealed class EvidenceResource
+internal sealed class EvidenceResource
 {
   private readonly CallInvoker invoker;
   public EvidenceHealthEventsResource HealthEvents { get; }
@@ -1016,7 +1016,7 @@ public sealed class EvidenceResource
     return response;
   }
 }
-public sealed class EvidenceHealthEventsResource
+internal sealed class EvidenceHealthEventsResource
 {
   private readonly CallInvoker invoker;
   public EvidenceHealthEventsResource(CallInvoker invoker)
@@ -1091,7 +1091,7 @@ public sealed class EvidenceHealthEventsResource
     }
   }
 }
-public sealed class EvidenceNotesResource
+internal sealed class EvidenceNotesResource
 {
   private readonly CallInvoker invoker;
   public EvidenceNotesResource(CallInvoker invoker)
@@ -1238,7 +1238,7 @@ public sealed class EvidenceNotesResource
     return response;
   }
 }
-public sealed class EvidenceRecordsResource
+internal sealed class EvidenceRecordsResource
 {
   private readonly CallInvoker invoker;
   public EvidenceRecordsResource(CallInvoker invoker)
@@ -1326,7 +1326,7 @@ public sealed class EvidenceRecordsResource
     }
   }
 }
-public sealed class EvidenceSamplesResource
+internal sealed class EvidenceSamplesResource
 {
   private readonly CallInvoker invoker;
   public EvidenceSamplesResource(CallInvoker invoker)
@@ -1417,7 +1417,7 @@ public sealed class EvidenceSamplesResource
     }
   }
 }
-public sealed class EvidenceTraceabilityResource
+internal sealed class EvidenceTraceabilityResource
 {
   private readonly CallInvoker invoker;
   public EvidenceTraceabilityResource(CallInvoker invoker)
@@ -1499,7 +1499,7 @@ public sealed class EvidenceTraceabilityResource
     }
   }
 }
-public sealed class ExecutionsResource
+internal sealed class ExecutionsResource
 {
   private readonly CallInvoker invoker;
   public ExecutionsCommandsResource Commands { get; }
@@ -1820,7 +1820,7 @@ public sealed class ExecutionsResource
     return response;
   }
 }
-public sealed class ExecutionsCommandsResource
+internal sealed class ExecutionsCommandsResource
 {
   private readonly CallInvoker invoker;
   public ExecutionsCommandsResource(CallInvoker invoker)
@@ -1882,7 +1882,7 @@ public sealed class ExecutionsCommandsResource
     return response;
   }
 }
-public sealed class ExecutionsProgressResource
+internal sealed class ExecutionsProgressResource
 {
   private readonly CallInvoker invoker;
   public ExecutionsProgressResource(CallInvoker invoker)
@@ -1952,7 +1952,7 @@ public sealed class ExecutionsProgressResource
     }
   }
 }
-public sealed class ExecutionsSchemasResource
+internal sealed class ExecutionsSchemasResource
 {
   private readonly CallInvoker invoker;
   public ExecutionsSchemasResource(CallInvoker invoker)
@@ -1989,7 +1989,7 @@ public sealed class ExecutionsSchemasResource
     return response;
   }
 }
-public sealed class FilesResource
+internal sealed class FilesResource
 {
   private readonly CallInvoker invoker;
   public FilesUploadsResource Uploads { get; }
@@ -2115,7 +2115,7 @@ public sealed class FilesResource
     return response.Receipt ?? throw new InvalidOperationException("Read Files.Delete: Missing Payload");
   }
 }
-public sealed class FilesUploadsResource
+internal sealed class FilesUploadsResource
 {
   private readonly CallInvoker invoker;
   public FilesUploadsResource(CallInvoker invoker)
@@ -2262,7 +2262,7 @@ public sealed class FilesUploadsResource
     return response;
   }
 }
-public sealed class InvocationsResource
+internal sealed class InvocationsResource
 {
   private readonly CallInvoker invoker;
   public InvocationsResource(CallInvoker invoker)
@@ -2286,7 +2286,7 @@ public sealed class InvocationsResource
     await foreach (var response in new Harmos.Client(invoker).Invocations.Watch(instance, context, cancellationToken)) { yield return response; }
   }
 }
-public sealed class MediaResource
+internal sealed class MediaResource
 {
   public MediaCapturesResource Captures { get; }
   public MediaResource(CallInvoker invoker)
@@ -2294,7 +2294,7 @@ public sealed class MediaResource
     Captures = new MediaCapturesResource(invoker);
   }
 }
-public sealed class MediaCapturesResource
+internal sealed class MediaCapturesResource
 {
   private readonly CallInvoker invoker;
   public MediaCapturesResource(CallInvoker invoker)
@@ -2423,7 +2423,7 @@ public sealed class MediaCapturesResource
     return response;
   }
 }
-public sealed class OperationsResource
+internal sealed class OperationsResource
 {
   private readonly CallInvoker invoker;
   public OperationsResource(CallInvoker invoker)
@@ -2439,7 +2439,7 @@ public sealed class OperationsResource
     return await new Harmos.Client(invoker).Operations.Get(id, context);
   }
 }
-public sealed class PlotsResource
+internal sealed class PlotsResource
 {
   public PlotsSettingsResource Settings { get; }
   public PlotsSnapshotsResource Snapshots { get; }
@@ -2449,7 +2449,7 @@ public sealed class PlotsResource
     Snapshots = new PlotsSnapshotsResource(invoker);
   }
 }
-public sealed class PlotsSettingsResource
+internal sealed class PlotsSettingsResource
 {
   private readonly CallInvoker invoker;
   public PlotsSettingsResource(CallInvoker invoker)
@@ -2510,7 +2510,7 @@ public sealed class PlotsSettingsResource
     return response;
   }
 }
-public sealed class PlotsSnapshotsResource
+internal sealed class PlotsSnapshotsResource
 {
   private readonly CallInvoker invoker;
   public PlotsSnapshotsResource(CallInvoker invoker)
@@ -2585,7 +2585,7 @@ public sealed class PlotsSnapshotsResource
     }
   }
 }
-public sealed class PluginsResource
+internal sealed class PluginsResource
 {
   private readonly CallInvoker invoker;
   public PluginsSecretsResource Secrets { get; }
@@ -2629,7 +2629,7 @@ public sealed class PluginsResource
     return await new Harmos.Client(invoker).Plugins.Replace(name, placement, expectedRevision, requestId, context);
   }
 }
-public sealed class PluginsSecretsResource
+internal sealed class PluginsSecretsResource
 {
   private readonly CallInvoker invoker;
   public PluginsSecretsResource(CallInvoker invoker)
@@ -2665,7 +2665,7 @@ public sealed class PluginsSecretsResource
     return response;
   }
 }
-public sealed class PluginsSettingsResource
+internal sealed class PluginsSettingsResource
 {
   private readonly CallInvoker invoker;
   public PluginsSettingsResource(CallInvoker invoker)
@@ -2681,7 +2681,7 @@ public sealed class PluginsSettingsResource
     return await new Harmos.Client(invoker).Plugins.Settings.Set(name, value, expectedRevision, requestId, context);
   }
 }
-public sealed class PromptDefinitionsResource
+internal sealed class PromptDefinitionsResource
 {
   private readonly CallInvoker invoker;
   public PromptDefinitionsResource(CallInvoker invoker)
@@ -2741,7 +2741,7 @@ public sealed class PromptDefinitionsResource
     return response;
   }
 }
-public sealed class PromptsResource
+internal sealed class PromptsResource
 {
   private readonly CallInvoker invoker;
   public PromptsAnswersResource Answers { get; }
@@ -2861,7 +2861,7 @@ public sealed class PromptsResource
     }
   }
 }
-public sealed class PromptsAnswersResource
+internal sealed class PromptsAnswersResource
 {
   private readonly CallInvoker invoker;
   public PromptsAnswersResource(CallInvoker invoker)
@@ -2894,7 +2894,7 @@ public sealed class PromptsAnswersResource
     return response;
   }
 }
-public sealed class RecordSchemasResource
+internal sealed class RecordSchemasResource
 {
   private readonly CallInvoker invoker;
   public RecordSchemasResource(CallInvoker invoker)
@@ -2954,7 +2954,7 @@ public sealed class RecordSchemasResource
     return response;
   }
 }
-public sealed class ReportsResource
+internal sealed class ReportsResource
 {
   private readonly CallInvoker invoker;
   public ReportsResource(CallInvoker invoker)
@@ -3035,7 +3035,7 @@ public sealed class ReportsResource
     return response;
   }
 }
-public sealed class SchemasResource
+internal sealed class SchemasResource
 {
   private readonly CallInvoker invoker;
   public SchemasResource(CallInvoker invoker)
@@ -3047,7 +3047,7 @@ public sealed class SchemasResource
     return await new Harmos.Client(invoker).Schemas.List(schema, context);
   }
 }
-public sealed class SecretsResource
+internal sealed class SecretsResource
 {
   private readonly CallInvoker invoker;
   public SecretsResource(CallInvoker invoker)
@@ -3235,7 +3235,7 @@ public sealed class SecretsResource
     return response;
   }
 }
-public sealed class SettingsResource
+internal sealed class SettingsResource
 {
   private readonly CallInvoker invoker;
   public SettingsResource(CallInvoker invoker)
@@ -3314,7 +3314,7 @@ public sealed class SettingsResource
     return response;
   }
 }
-public sealed class StatusResource
+internal sealed class StatusResource
 {
   private readonly CallInvoker invoker;
   public StatusDiagnosticsResource Diagnostics { get; }
@@ -3336,7 +3336,7 @@ public sealed class StatusResource
     await foreach (var response in new Harmos.Client(invoker).Status.Watch(at, context, cancellationToken)) { yield return response; }
   }
 }
-public sealed class StatusDiagnosticsResource
+internal sealed class StatusDiagnosticsResource
 {
   private readonly CallInvoker invoker;
   public StatusDiagnosticsResource(CallInvoker invoker)
@@ -3348,7 +3348,7 @@ public sealed class StatusDiagnosticsResource
     return await new Harmos.Client(invoker).Status.Diagnostics.Get(name, offset, maxBytes, context);
   }
 }
-public sealed class StatusLogsResource
+internal sealed class StatusLogsResource
 {
   private readonly CallInvoker invoker;
   public StatusLogsResource(CallInvoker invoker)
@@ -3364,7 +3364,7 @@ public sealed class StatusLogsResource
     await foreach (var response in new Harmos.Client(invoker).Status.Logs.Watch(maxBytes, maxEvents, at, context, cancellationToken)) { yield return response; }
   }
 }
-public sealed class StatusTraceEventsResource
+internal sealed class StatusTraceEventsResource
 {
   private readonly CallInvoker invoker;
   public StatusTraceEventsResource(CallInvoker invoker)
@@ -3380,7 +3380,7 @@ public sealed class StatusTraceEventsResource
     await foreach (var response in new Harmos.Client(invoker).Status.TraceEvents.Watch(maxBytes, maxEvents, at, context, cancellationToken)) { yield return response; }
   }
 }
-public sealed class StorageResource
+internal sealed class StorageResource
 {
   public StorageSourcesResource Sources { get; }
   public StorageResource(CallInvoker invoker)
@@ -3388,7 +3388,7 @@ public sealed class StorageResource
     Sources = new StorageSourcesResource(invoker);
   }
 }
-public sealed class StorageSourcesResource
+internal sealed class StorageSourcesResource
 {
   private readonly CallInvoker invoker;
   public StorageSourcesResource(CallInvoker invoker)
@@ -3443,7 +3443,7 @@ public sealed class StorageSourcesResource
     return response;
   }
 }
-public sealed class StreamSchemasResource
+internal sealed class StreamSchemasResource
 {
   private readonly CallInvoker invoker;
   public StreamSchemasResource(CallInvoker invoker)
@@ -3503,7 +3503,7 @@ public sealed class StreamSchemasResource
     return response;
   }
 }
-public sealed class StreamsResource
+internal sealed class StreamsResource
 {
   private readonly CallInvoker invoker;
   public StreamsResource(CallInvoker invoker)
@@ -3515,7 +3515,7 @@ public sealed class StreamsResource
     return await new Harmos.Client(invoker).Streams.List(schema, context);
   }
 }
-public sealed class SuitesResource
+internal sealed class SuitesResource
 {
   private readonly CallInvoker invoker;
   public SuitesResource(CallInvoker invoker)
@@ -3575,7 +3575,7 @@ public sealed class SuitesResource
     return response;
   }
 }
-public sealed class TimeResource
+internal sealed class TimeResource
 {
   private readonly CallInvoker invoker;
   public TimeResource(CallInvoker invoker)

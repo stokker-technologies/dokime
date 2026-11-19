@@ -1,113 +1,100 @@
 # Dokime C# SDK
 
-`Dokime` provides .NET 10 plugin authoring and clients. Authoring types live in
-`Dokime.Plugins`; plain operations and their visibility live in `Dokime.Authoring`.
+`Dokime` provides .NET 10 authoring and bound asynchronous clients.
+The public homes are `Dokime`, `Dokime.Operations` and `Dokime.Templates`.
 
-## Author a Suite
+## Author a Plugin
 
-```csharp
-using Dokime.Plugins;
+A `Plugin` subclass lists its suite types and annotated static operation delegates.
+A `Suite` subclass lists its `TestTemplate` types. Templates declare records,
+streams, observers, parameters and methods carrying `Step` or `Criterion` attributes.
+Both handler contexts expose the actual author plugin through `Plugin`;
+`Dokime.Templates.Context` adds execution evidence and lifecycle operations.
+Template `InitializeAsync` and `CleanupAsync` own execution lifetimes. A template that
+implements `IAsyncDisposable` is disposed after cleanup, including cleanup failure.
+Plugin classes may override `InitializeAsync(Dokime.Operations.Context, CancellationToken)`
+and `FinalizeAsync(Dokime.Operations.Context, CancellationToken)`. The SDK encodes
+protected `<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
+Serial admission and settings groups remain open.
 
-var plugin = new Plugin("example", "0.1.0", Suite.From<Capture>());
-await plugin.ServeAsync();
+Identifiers strip `Plugin`, `Suite` and `TestTemplate` suffixes and convert word
+boundaries to underscores. Templates are always qualified by their suite, and
+members by their template. Explicit `Identifier` overrides remain available.
+Labels derive independently from type names. Duplicate identifiers are refused.
+A short prompt uses `<suite>.<template>.question`; records acknowledge their ordinal.
+Retry policies require positive backoff.
 
-[SuiteAttribute("Capture")]
-public sealed class Capture
-{
-  public static readonly Record<bool> Confirmation = new("Confirmation");
-
-  [StepAttribute("Confirm")]
-  public async Task Confirm(Context context)
-  {
-    var answer = await context.PromptAsync("Continue?", choices: ["Yes", "No"]);
-    await context.RecordAsync(Confirmation, answer == "Yes");
-  }
-
-  [CriterionAttribute("Confirmed")]
-  public Task<bool> Confirmed(Context context) =>
-      context.Records(Confirmation, step: Confirm).LastAsync();
-}
-
-```
-
-Put the class in its own file and the entry point in `Program.cs` as in
-`examples/Test`. The entry point only starts the sidecar. `examples/Flow` starts
-that executable and drives its suite through a running host. `examples/Client`
-shows client inspection; `examples/Plugin` exposes a plain string operation:
+## Connect and Run
 
 ```csharp
-using Dokime.Authoring;
-using Dokime.Plugins;
+using Dokime;
 
-var echo = new Operation<string, string>("example.echo", Visibility.Public);
-var plugin = new Plugin("example.echo", "1.0.0")
-    .Operation(echo, (_, request) => Task.FromResult(request));
+var client = await Client.ConnectAsync();
+var cycle = await client.CycleAsync(label: "Capture");
+// Register your plugin, then materialize its declared template type.
+await cycle.SealAsync();
+var evidence = await cycle.EvidenceAsync();
+await client.CloseAsync();
 ```
 
-The short prompt call uses `<template>.question` in its request and definition.
+`ConnectionSettings` supplies `Remote`, `PluginAddress` and a `TimeSpan`
+`ConnectTimeout`. Addresses resolve from explicit settings, process environment,
+working-directory `.env`, then defaults. The shared variables are `DOKIME_REMOTE`
+and `DOKIME_PLUGIN_ADDRESS`; the latter defaults to `127.0.0.1:0`. A direct remote
+is an HTTP origin with an explicit port. Pairing files retain ordered endpoints,
+credentials, pinned HTTPS certificates and host identity.
 
-## Identifiers and Evidence
+`client.Plugins.RegisterAsync(plugin)` serves the plugin, adds its remote placement
+and watches until ready. `client.CloseAsync()` unregisters owned registrations and
+closes their endpoints. Transport failures become `SdkError` values retaining the
+host failure, cause chain and mutation request identity. Handles also implement `IAsyncDisposable` where applicable.
+`cycle.ExecutionAsync(testCase)` binds an execution; `RunAsync()` starts it and
+returns progress through the sealed terminal frame. `StartAsync`, `WatchAsync`,
+`StopAsync`, `CancelAsync` and `SealAsync` remain separate operations. Cancellation
+of observation releases the watch without cancelling a host execution. Seal returns
+an `Outcome`; cycle evidence returns verified archive bytes. Execution record and
+sample readers retain paging cuts and validate frozen payload schemas before decoding.
 
-`Suite.From<Capture>()` declares the single template `capture`, with members
-`capture.confirm`, `capture.confirmed` and `capture.confirmation`. Grouped templates
-use `new Suite("accuracy", "Accuracy", Template.From<VoltageTemplate>())`, giving
-`accuracy.voltage` and `accuracy.voltage.read_voltage` for `ReadVoltage`.
-Names come from types, fields and methods, independently of display labels.
-A trailing `Template` or `Suite` is removed from type names; word boundaries become
-underscores. An explicit `identifier` or attribute `Identifier` takes precedence.
-The plugin binds reusable templates without modifying their local declarations.
-Duplicate or empty identifiers are refused.
+The pinned host does not yet expose product managed-bundle upload, plugin note
+admission or scoped typed sample subscriptions. Those calls refuse with the required
+upstream action, matching the Python reference. Client invocation policy overrides
+also require a host contract. They are not claimed as working features.
 
-Declare records, streams and `PromptDeclaration` fields on the template class.
-`context.PromptAsync(text, choices)` or `context.PromptAsync(declaration)` returns
-the selected label. A `PromptDeclaration` can also own a structured `Dokime.Prompt`.
-`context.RecordAsync(declaration, value)` accepts plain values or protobuf rows;
-`context.Records(declaration, step: boundMethod).LastAsync()` decodes the last row
-and refuses empty evidence. `StatisticsAsync(stream, field, step)`
-uses the same qualified declaration selectors.
+## Starter
 
-Plain payloads share one conversion for records and operations: `bool` maps to
-BoolValue, `string` to StringValue, `int` and `long` to Int64Value, and `float` and
-`double` to DoubleValue. Structured protobuf rows retain their message type.
-Use `long` and `double` to match Python's integer and floating values exactly.
-C# `float` retains its original single precision before conversion.
+[`examples/Starter`](examples/Starter) is one solution:
 
-The SDK supplies host requirements when none are explicitly declared. Explicit
-`Requires` declarations remain available, and the host still enforces them.
-Policies and timeouts continue to come from operation declarations and settings.
-Template fluent composition remains available for parameters, documents,
-materialization, observers and execution-owned resources. Record and prompt
-registration belongs to the template; there is no plugin record list or raw
-section escape hatch. Generated protocol sources remain tracked.
+```text
+Example.slnx
+src/Example/                 Shared Plugin, Suites and Operations
+src/Example.Plugin/          Plugin Executable
+src/Example.Client/          Client Flow
+tests/Example.Tests/         Host-Free Description Test
+```
 
-Qualified identifiers change evidence identities. Select a fresh storage root
-for an incompatible development root; preserve the existing data.
+The plugin project supplies literal native metadata for `dokime.toml` dynamic
+fields. `mise run build` builds Debug outputs and stages plugin runtime companions
+under `assets/plugin`. `mise run test` describes the plugin without a host.
+`mise run dev` starts a disposable product host. With `DOKIME_REMOTE` configured,
+`mise run run` runs the client and saves evidence under `_output/`.
 
-## Build and Run
+## Develop the SDK
 
-```powershell
-$env:DOKIME_CSHARP_CONFIGURATION = 'Debug'
-mise -C sdk/csharp run build
-mise -C sdk/csharp run test
-mise -C sdk/csharp run package
-mise -C sdk/csharp run build:examples
-mise -C sdk/csharp run test:starter
+```sh
+DOKIME_CSHARP_CONFIGURATION=Debug mise -C sdk/csharp run build
+DOKIME_CSHARP_CONFIGURATION=Debug mise -C sdk/csharp run test
 mise -C sdk/csharp run format
 mise -C sdk/csharp run check
-mise run build:host-fixtures -- --language csharp
+mise -C sdk/csharp run generate -- --write
+mise -C sdk/csharp run check:generated
+mise -C sdk/csharp run test:created
 ```
 
-All compiler outputs stay under the worktree's `target/cs`. Omit the configuration
-environment variable to use the existing Release default. Packages and example
-builds consume the selected configuration. The standalone starter's `mise run dev`
-serves a remote plugin; managed launches receive the host-assigned address.
+`test:created` requires the prepared command-line binary and host fixtures. It
+creates a temporary consumer, points its SDK dependency at this worktree, bundles
+and develops it, answers its operator prompt through the CLI and checks sealed evidence.
 
-With a host already running, drive the built starter with:
-
-```powershell
-mise -C sdk/csharp exec -- dotnet ../../target/cs/bin/Flow/debug/dokime-example-flow.dll http://127.0.0.1:7000 ../../target/cs/bin/Test/debug/dokime-example-test.exe
-```
-
-Use the corresponding executable path on other platforms. The source guide is
-[the C# SDK guide](../../docs/sdk-csharp.md), and the reference suite is
-[`examples/Test/Capture.cs`](examples/Test/Capture.cs).
+Generated carriers remain tracked and are projected through the SDK generation
+task. They are implementation details; authored examples use product values and
+handles. See the [Architecture](../../docs/architecture.md) and
+[C# SDK Guide](../../docs/sdk-csharp.md) for the owning contracts.

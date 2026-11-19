@@ -7,14 +7,13 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Harmos;
 using Harmos.Plugins;
-using TransportPlugin = Harmos.Plugins.Plugin;
 
 namespace Stories.Support;
 
 // Test the Actual Internal Carrier Through Its Descriptors Without Exporting Wire Types.
 internal sealed class Wire(CallInvoker calls)
 {
-  private static readonly FileDescriptor Instance = (FileDescriptor)typeof(TransportPlugin).Assembly
+  private static readonly FileDescriptor Instance = (FileDescriptor)typeof(Harmos.Plugins.Plugin).Assembly
       .GetType("Harmos.Internal.Plugin.InstanceReflection", throwOnError: true)!
       .GetProperty("Descriptor")!.GetValue(null)!;
 

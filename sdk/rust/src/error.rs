@@ -16,11 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{io, result};
 
 // Third Party Imports
+use tonic::{Status, transport};
 
 // Local Imports
-use harmos::Error as HarmosError;
 
 /* === Constants === */
 
@@ -28,7 +29,7 @@ use harmos::Error as HarmosError;
 
 /* === Type Aliases === */
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 /* === Structs === */
 
@@ -40,7 +41,7 @@ pub enum Error {
     Invalid(String),
 
     #[error(transparent)]
-    Harmos(#[from] HarmosError),
+    Harmos(#[from] harmos::Error),
 }
 
 /* === Traits === */
@@ -51,7 +52,7 @@ impl Error {
     pub fn failure(
         classification: harmos::Classification, code: impl Into<String>, message: impl Into<String>, action: impl Into<String>,
     ) -> Self {
-        HarmosError::failure(classification, code, message, action).into()
+        harmos::Error::failure(classification, code, message, action).into()
     }
 }
 
@@ -61,25 +62,25 @@ impl From<harmos::Failure> for Error {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(error: std::io::Error) -> Self {
+impl From<io::Error> for Error {
+    fn from(error: io::Error) -> Self {
         Self::Harmos(error.into())
     }
 }
 
-impl From<tonic::Status> for Error {
-    fn from(error: tonic::Status) -> Self {
+impl From<Status> for Error {
+    fn from(error: Status) -> Self {
         Self::Harmos(error.into())
     }
 }
 
-impl From<tonic::transport::Error> for Error {
-    fn from(error: tonic::transport::Error) -> Self {
+impl From<transport::Error> for Error {
+    fn from(error: transport::Error) -> Self {
         Self::Harmos(error.into())
     }
 }
 
-impl From<Error> for HarmosError {
+impl From<Error> for harmos::Error {
     fn from(error: Error) -> Self {
         match error {
             Error::Invalid(message) => Self::Invalid(message),

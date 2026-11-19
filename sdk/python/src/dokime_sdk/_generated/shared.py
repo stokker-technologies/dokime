@@ -1,685 +1,4 @@
 # @generated from protocol descriptors; do not edit.
-from dokime_sdk._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse
-
-ArtifactsCreateResponse.__module__ = "dokime_sdk"
-ArtifactsCreateResponse.__qualname__ = "ArtifactsCreateResponse"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import CapturedErrorCause
-
-CapturedErrorCause.__module__ = "dokime_sdk"
-CapturedErrorCause.__qualname__ = "CapturedErrorCause"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import CapturedRecord
-
-CapturedRecord.__module__ = "dokime_sdk"
-CapturedRecord.__qualname__ = "CapturedRecord"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import CapturedRecordError
-
-CapturedRecordError.__module__ = "dokime_sdk"
-CapturedRecordError.__qualname__ = "CapturedRecordError"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import CapturedRecordSelection
-
-CapturedRecordSelection.__module__ = "dokime_sdk"
-CapturedRecordSelection.__qualname__ = "CapturedRecordSelection"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import CycleScope
-
-CycleScope.__module__ = "dokime_sdk"
-CycleScope.__qualname__ = "CycleScope"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import RecordScope
-
-RecordScope.__module__ = "dokime_sdk"
-RecordScope.__qualname__ = "RecordScope"
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import RecordsListResponse
-
-RecordsListResponse.__module__ = "dokime_sdk"
-RecordsListResponse.__qualname__ = "RecordsListResponse"
-from dokime_sdk._wire.host.v1.evidence.traceability_pb2 import TraceabilityGetResponse
-
-TraceabilityGetResponse.__module__ = "dokime_sdk"
-TraceabilityGetResponse.__qualname__ = "TraceabilityGetResponse"
-from dokime_sdk._wire.host.v1.evidence.traceability_pb2 import TraceabilitySnapshot
-
-TraceabilitySnapshot.__module__ = "dokime_sdk"
-TraceabilitySnapshot.__qualname__ = "TraceabilitySnapshot"
-from dokime_sdk._wire.host.v1.evidence_pb2 import EvidenceStatisticsResponse
-
-EvidenceStatisticsResponse.__module__ = "dokime_sdk"
-EvidenceStatisticsResponse.__qualname__ = "EvidenceStatisticsResponse"
-from dokime_sdk._wire.host.v1.evidence_pb2 import Output
-
-Output.__module__ = "dokime_sdk"
-Output.__qualname__ = "Output"
-from dokime_sdk._wire.host.v1.evidence_pb2 import Statistics
-
-Statistics.__module__ = "dokime_sdk"
-Statistics.__qualname__ = "Statistics"
-from dokime_sdk._wire.host.v1.executions.progress_pb2 import ProgressGetResponse
-
-ProgressGetResponse.__module__ = "dokime_sdk"
-ProgressGetResponse.__qualname__ = "ProgressGetResponse"
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import UploadsAppendResponse
-
-UploadsAppendResponse.__module__ = "dokime_sdk"
-UploadsAppendResponse.__qualname__ = "UploadsAppendResponse"
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import UploadsCreateResponse
-
-UploadsCreateResponse.__module__ = "dokime_sdk"
-UploadsCreateResponse.__qualname__ = "UploadsCreateResponse"
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import UploadsDeleteResponse
-
-UploadsDeleteResponse.__module__ = "dokime_sdk"
-UploadsDeleteResponse.__qualname__ = "UploadsDeleteResponse"
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import UploadsGetResponse
-
-UploadsGetResponse.__module__ = "dokime_sdk"
-UploadsGetResponse.__qualname__ = "UploadsGetResponse"
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import UploadsPublishResponse
-
-UploadsPublishResponse.__module__ = "dokime_sdk"
-UploadsPublishResponse.__qualname__ = "UploadsPublishResponse"
-from dokime_sdk._wire.host.v1.files.uploads_pb2 import UploadsResumeResponse
-
-UploadsResumeResponse.__module__ = "dokime_sdk"
-UploadsResumeResponse.__qualname__ = "UploadsResumeResponse"
-from dokime_sdk._wire.host.v1.files_pb2 import FileBatch
-
-FileBatch.__module__ = "dokime_sdk"
-FileBatch.__qualname__ = "FileBatch"
-from dokime_sdk._wire.host.v1.files_pb2 import FileCompletion
-
-FileCompletion.__module__ = "dokime_sdk"
-FileCompletion.__qualname__ = "FileCompletion"
-from dokime_sdk._wire.host.v1.files_pb2 import FilesDeleteResponse
-
-FilesDeleteResponse.__module__ = "dokime_sdk"
-FilesDeleteResponse.__qualname__ = "FilesDeleteResponse"
-from dokime_sdk._wire.host.v1.files_pb2 import FilesGetResponse
-
-FilesGetResponse.__module__ = "dokime_sdk"
-FilesGetResponse.__qualname__ = "FilesGetResponse"
-from dokime_sdk._wire.host.v1.files_pb2 import FilesReadResponse
-
-FilesReadResponse.__module__ = "dokime_sdk"
-FilesReadResponse.__qualname__ = "FilesReadResponse"
-from dokime_sdk._wire.host.v1.files_pb2 import FilesWatchResponse
-
-FilesWatchResponse.__module__ = "dokime_sdk"
-FilesWatchResponse.__qualname__ = "FilesWatchResponse"
-from dokime_sdk._wire.host.v1.record_schemas_pb2 import (
-    FIELD_TYPE_ARRAY,
-    FIELD_TYPE_BOOLEAN,
-    FIELD_TYPE_DATETIME,
-    FIELD_TYPE_FLOAT64,
-    FIELD_TYPE_INT64,
-    FIELD_TYPE_INTEGER,
-    FIELD_TYPE_OBJECT,
-    FIELD_TYPE_SEVERITY,
-    FIELD_TYPE_TEXT,
-    FIELD_TYPE_UINT64,
-    FIELD_TYPE_UNSPECIFIED,
-    Field,
-)
-
-Field.__module__ = "dokime_sdk"
-Field.__qualname__ = "Field"
-from dokime_sdk._wire.host.v1.record_schemas_pb2 import FieldType, Schema
-
-Schema.__module__ = "dokime_sdk"
-Schema.__qualname__ = "Schema"
-from dokime_sdk._wire.host.v1.secrets_pb2 import SecretWritable
-
-SecretWritable.__module__ = "dokime_sdk"
-SecretWritable.__qualname__ = "SecretWritable"
-from dokime_sdk._wire.host.v1.secrets_pb2 import SecretsGetResponse
-
-SecretsGetResponse.__module__ = "dokime_sdk"
-SecretsGetResponse.__qualname__ = "SecretsGetResponse"
-from dokime_sdk._wire.model.v1.documents_pb2 import Card
-
-Card.__module__ = "dokime_sdk"
-Card.__qualname__ = "Card"
-from dokime_sdk._wire.model.v1.documents_pb2 import CardLayout
-
-CardLayout.__module__ = "dokime_sdk"
-CardLayout.__qualname__ = "CardLayout"
-from dokime_sdk._wire.model.v1.documents_pb2 import Document
-
-Document.__module__ = "dokime_sdk"
-Document.__qualname__ = "Document"
-from dokime_sdk._wire.model.v1.documents_pb2 import (
-    EVIDENCE_CARD_ARTIFACTS,
-    EVIDENCE_CARD_CRITERIA,
-    EVIDENCE_CARD_HEALTH,
-    EVIDENCE_CARD_MEDIA,
-    EVIDENCE_CARD_NOTES,
-    EVIDENCE_CARD_RECORDS,
-    EVIDENCE_CARD_STEPS,
-    EVIDENCE_CARD_STREAM_CONTEXT,
-    EVIDENCE_CARD_TRACEABILITY,
-    EVIDENCE_CARD_UNSPECIFIED,
-    EvidenceCard,
-    SectionRepeat,
-)
-
-from ._exports.shared import model
-
-SectionRepeat.__module__ = "dokime_sdk"
-SectionRepeat.__qualname__ = "SectionRepeat"
-from dokime_sdk._wire.model.v1.documents_pb2 import Summary
-
-Summary.__module__ = "dokime_sdk"
-Summary.__qualname__ = "Summary"
-from dokime_sdk._wire.model.v1.documents_pb2 import SummaryTile
-
-SummaryTile.__module__ = "dokime_sdk"
-SummaryTile.__qualname__ = "SummaryTile"
-from dokime_sdk._wire.model.v1.documents_pb2 import Table
-
-Table.__module__ = "dokime_sdk"
-Table.__qualname__ = "Table"
-from dokime_sdk._wire.model.v1.documents_pb2 import TableRow
-
-TableRow.__module__ = "dokime_sdk"
-TableRow.__qualname__ = "TableRow"
-from dokime_sdk._wire.model.v1.evidence_pb2 import (
-    ARTIFACT_STATE_CANCELLED,
-    ARTIFACT_STATE_COMPLETE,
-    ARTIFACT_STATE_FAILED,
-    ARTIFACT_STATE_REJECTED,
-    ARTIFACT_STATE_UNSPECIFIED,
-    ArtifactMetadata,
-)
-
-ArtifactMetadata.__module__ = "dokime_sdk"
-ArtifactMetadata.__qualname__ = "ArtifactMetadata"
-from dokime_sdk._wire.model.v1.evidence_pb2 import ArtifactScope
-
-ArtifactScope.__module__ = "dokime_sdk"
-ArtifactScope.__qualname__ = "ArtifactScope"
-from dokime_sdk._wire.model.v1.evidence_pb2 import ArtifactState, EvidenceCondition
-
-EvidenceCondition.__module__ = "dokime_sdk"
-EvidenceCondition.__qualname__ = "EvidenceCondition"
-from dokime_sdk._wire.model.v1.evidence_pb2 import EvidenceConditions
-
-EvidenceConditions.__module__ = "dokime_sdk"
-EvidenceConditions.__qualname__ = "EvidenceConditions"
-from dokime_sdk._wire.model.v1.evidence_pb2 import EvidenceOrigin
-
-EvidenceOrigin.__module__ = "dokime_sdk"
-EvidenceOrigin.__qualname__ = "EvidenceOrigin"
-from dokime_sdk._wire.model.v1.evidence_pb2 import EvidenceOriginKind
-
-EvidenceOriginKind.__module__ = "dokime_sdk"
-EvidenceOriginKind.__qualname__ = "EvidenceOriginKind"
-from dokime_sdk._wire.model.v1.evidence_pb2 import EvidenceScope
-
-EvidenceScope.__module__ = "dokime_sdk"
-EvidenceScope.__qualname__ = "EvidenceScope"
-from dokime_sdk._wire.model.v1.evidence_pb2 import RecordMatch
-
-RecordMatch.__module__ = "dokime_sdk"
-RecordMatch.__qualname__ = "RecordMatch"
-from dokime_sdk._wire.model.v1.evidence_pb2 import (
-    SEVERITY_DEBUG,
-    SEVERITY_FAILURE,
-    SEVERITY_INFO,
-    SEVERITY_UNSPECIFIED,
-    SEVERITY_WARNING,
-    STREAM_MATCH_OPERATOR_EQ,
-    STREAM_MATCH_OPERATOR_EXISTS,
-    STREAM_MATCH_OPERATOR_GE,
-    STREAM_MATCH_OPERATOR_GT,
-    STREAM_MATCH_OPERATOR_LE,
-    STREAM_MATCH_OPERATOR_LT,
-    STREAM_MATCH_OPERATOR_UNSPECIFIED,
-    STREAM_MATCH_OPERATOR_WITHIN,
-    Severity,
-    StreamMatch,
-)
-
-StreamMatch.__module__ = "dokime_sdk"
-StreamMatch.__qualname__ = "StreamMatch"
-from dokime_sdk._wire.model.v1.evidence_pb2 import StreamMatchOperator
-from dokime_sdk._wire.model.v1.execution_pb2 import Criterion
-
-Criterion.__module__ = "dokime_sdk"
-Criterion.__qualname__ = "Criterion"
-from dokime_sdk._wire.model.v1.execution_pb2 import ExecutionProgressValue
-
-ExecutionProgressValue.__module__ = "dokime_sdk"
-ExecutionProgressValue.__qualname__ = "ExecutionProgressValue"
-from dokime_sdk._wire.model.v1.execution_pb2 import Import
-
-Import.__module__ = "dokime_sdk"
-Import.__qualname__ = "Import"
-from dokime_sdk._wire.model.v1.execution_pb2 import ImportSource
-
-ImportSource.__module__ = "dokime_sdk"
-ImportSource.__qualname__ = "ImportSource"
-from dokime_sdk._wire.model.v1.execution_pb2 import Origin
-
-Origin.__module__ = "dokime_sdk"
-Origin.__qualname__ = "Origin"
-from dokime_sdk._wire.model.v1.execution_pb2 import PluginRun
-
-PluginRun.__module__ = "dokime_sdk"
-PluginRun.__qualname__ = "PluginRun"
-from dokime_sdk._wire.model.v1.execution_pb2 import Step
-
-Step.__module__ = "dokime_sdk"
-Step.__qualname__ = "Step"
-from dokime_sdk._wire.model.v1.execution_pb2 import (
-    TERMINATION_CANCELLED,
-    TERMINATION_COMPLETED,
-    TERMINATION_FAILED,
-    TERMINATION_INTERRUPTED,
-    TERMINATION_NOT_RUN,
-    TERMINATION_UNSPECIFIED,
-    Termination,
-    TestCase,
-)
-
-TestCase.__module__ = "dokime_sdk"
-TestCase.__qualname__ = "TestCase"
-from dokime_sdk._wire.model.v1.expressions_pb2 import (
-    AGGREGATE_COUNT,
-    AGGREGATE_FIRST,
-    AGGREGATE_LAST,
-    AGGREGATE_MAX,
-    AGGREGATE_MEAN,
-    AGGREGATE_MEDIAN,
-    AGGREGATE_MIN,
-    AGGREGATE_PERCENTILE,
-    AGGREGATE_RMS,
-    AGGREGATE_STDDEV,
-    AGGREGATE_SUM,
-    AGGREGATE_UNSPECIFIED,
-    Aggregate,
-    AggregateExpression,
-)
-
-AggregateExpression.__module__ = "dokime_sdk"
-AggregateExpression.__qualname__ = "AggregateExpression"
-from dokime_sdk._wire.model.v1.expressions_pb2 import DataExpression
-
-DataExpression.__module__ = "dokime_sdk"
-DataExpression.__qualname__ = "DataExpression"
-from dokime_sdk._wire.model.v1.expressions_pb2 import DocumentFilter
-
-DocumentFilter.__module__ = "dokime_sdk"
-DocumentFilter.__qualname__ = "DocumentFilter"
-from dokime_sdk._wire.model.v1.expressions_pb2 import (
-    FILTER_OPERATOR_CONTAINS,
-    FILTER_OPERATOR_EQ,
-    FILTER_OPERATOR_EXISTS,
-    FILTER_OPERATOR_GE,
-    FILTER_OPERATOR_GT,
-    FILTER_OPERATOR_LE,
-    FILTER_OPERATOR_LT,
-    FILTER_OPERATOR_NE,
-    FILTER_OPERATOR_UNSPECIFIED,
-    FieldReference,
-)
-
-FieldReference.__module__ = "dokime_sdk"
-FieldReference.__qualname__ = "FieldReference"
-from dokime_sdk._wire.model.v1.expressions_pb2 import FilterOperator, TransformExpression
-
-TransformExpression.__module__ = "dokime_sdk"
-TransformExpression.__qualname__ = "TransformExpression"
-from dokime_sdk._wire.model.v1.files_pb2 import (
-    CAPTURE_GAP_REASON_REPLACED,
-    CAPTURE_GAP_REASON_RESUME_UNSUPPORTED,
-    CAPTURE_GAP_REASON_TRUNCATED,
-    CAPTURE_GAP_REASON_UNSPECIFIED,
-    CAPTURE_GAP_REASON_VANISHED,
-    CaptureGap,
-)
-
-CaptureGap.__module__ = "dokime_sdk"
-CaptureGap.__qualname__ = "CaptureGap"
-from dokime_sdk._wire.model.v1.files_pb2 import CapturedArtifact, CaptureGapReason
-
-CapturedArtifact.__module__ = "dokime_sdk"
-CapturedArtifact.__qualname__ = "CapturedArtifact"
-from dokime_sdk._wire.model.v1.files_pb2 import (
-    FILE_RULE_ACTION_EXCLUDE,
-    FILE_RULE_ACTION_INCLUDE,
-    FILE_RULE_ACTION_UNSPECIFIED,
-    FileLocation,
-)
-
-FileLocation.__module__ = "dokime_sdk"
-FileLocation.__qualname__ = "FileLocation"
-from dokime_sdk._wire.model.v1.files_pb2 import FileRule
-
-FileRule.__module__ = "dokime_sdk"
-FileRule.__qualname__ = "FileRule"
-from dokime_sdk._wire.model.v1.files_pb2 import FileRuleAction, FileSelection
-
-FileSelection.__module__ = "dokime_sdk"
-FileSelection.__qualname__ = "FileSelection"
-from dokime_sdk._wire.model.v1.files_pb2 import FileSource
-
-FileSource.__module__ = "dokime_sdk"
-FileSource.__qualname__ = "FileSource"
-from dokime_sdk._wire.model.v1.files_pb2 import FtpLocation
-
-FtpLocation.__module__ = "dokime_sdk"
-FtpLocation.__qualname__ = "FtpLocation"
-from dokime_sdk._wire.model.v1.metadata_pb2 import Metadata
-
-Metadata.__module__ = "dokime_sdk"
-Metadata.__qualname__ = "Metadata"
-from dokime_sdk._wire.model.v1.parameters_pb2 import (
-    DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL,
-    DYNAMIC_DEFAULT_KEY_OPERATOR_NAME,
-    DYNAMIC_DEFAULT_KEY_UNSPECIFIED,
-    DynamicDefault,
-)
-
-DynamicDefault.__module__ = "dokime_sdk"
-DynamicDefault.__qualname__ = "DynamicDefault"
-from dokime_sdk._wire.model.v1.parameters_pb2 import DynamicDefaultKey, FileParameter
-
-FileParameter.__module__ = "dokime_sdk"
-FileParameter.__qualname__ = "FileParameter"
-from dokime_sdk._wire.model.v1.parameters_pb2 import IntegerRange
-
-IntegerRange.__module__ = "dokime_sdk"
-IntegerRange.__qualname__ = "IntegerRange"
-from dokime_sdk._wire.model.v1.parameters_pb2 import LinearSpace
-
-LinearSpace.__module__ = "dokime_sdk"
-LinearSpace.__qualname__ = "LinearSpace"
-from dokime_sdk._wire.model.v1.parameters_pb2 import NumberRange
-
-NumberRange.__module__ = "dokime_sdk"
-NumberRange.__qualname__ = "NumberRange"
-from dokime_sdk._wire.model.v1.parameters_pb2 import (
-    PARAMETER_BINARY_OPERATOR_ADD,
-    PARAMETER_BINARY_OPERATOR_DIVIDE,
-    PARAMETER_BINARY_OPERATOR_MULTIPLY,
-    PARAMETER_BINARY_OPERATOR_SUBTRACT,
-    PARAMETER_BINARY_OPERATOR_UNSPECIFIED,
-    PARAMETER_UNARY_OPERATOR_NEGATE,
-    PARAMETER_UNARY_OPERATOR_UNSPECIFIED,
-    Parameter,
-)
-
-Parameter.__module__ = "dokime_sdk"
-Parameter.__qualname__ = "Parameter"
-from dokime_sdk._wire.model.v1.parameters_pb2 import ParameterBinary
-
-ParameterBinary.__module__ = "dokime_sdk"
-ParameterBinary.__qualname__ = "ParameterBinary"
-from dokime_sdk._wire.model.v1.parameters_pb2 import ParameterBinaryOperator, ParameterExpansion
-
-ParameterExpansion.__module__ = "dokime_sdk"
-ParameterExpansion.__qualname__ = "ParameterExpansion"
-from dokime_sdk._wire.model.v1.parameters_pb2 import ParameterExpression
-
-ParameterExpression.__module__ = "dokime_sdk"
-ParameterExpression.__qualname__ = "ParameterExpression"
-from dokime_sdk._wire.model.v1.parameters_pb2 import ParameterExpressions
-
-ParameterExpressions.__module__ = "dokime_sdk"
-ParameterExpressions.__qualname__ = "ParameterExpressions"
-from dokime_sdk._wire.model.v1.parameters_pb2 import ParameterUnary
-
-ParameterUnary.__module__ = "dokime_sdk"
-ParameterUnary.__qualname__ = "ParameterUnary"
-from dokime_sdk._wire.model.v1.parameters_pb2 import ParameterUnaryOperator
-from dokime_sdk._wire.model.v1.plots_pb2 import (
-    AXIS_SCALE_LINEAR,
-    AXIS_SCALE_LOG,
-    AXIS_SCALE_UNSPECIFIED,
-    BAR_ARRANGEMENT_GROUPED,
-    BAR_ARRANGEMENT_STACKED,
-    BAR_ARRANGEMENT_UNSPECIFIED,
-    CONTOUR_RENDER_BANDS,
-    CONTOUR_RENDER_CELLS,
-    CONTOUR_RENDER_UNSPECIFIED,
-    DOWNSAMPLE_AUTO,
-    DOWNSAMPLE_LTTB,
-    DOWNSAMPLE_MIN_MAX,
-    DOWNSAMPLE_RAW,
-    DOWNSAMPLE_UNSPECIFIED,
-    FFT_DETREND_MEAN,
-    FFT_DETREND_NONE,
-    FFT_DETREND_UNSPECIFIED,
-    FFT_WINDOW_HANN,
-    FFT_WINDOW_RECTANGULAR,
-    FFT_WINDOW_UNSPECIFIED,
-    FREQUENCY_LEVEL_UNIT_DB,
-    FREQUENCY_LEVEL_UNIT_DBM,
-    FREQUENCY_LEVEL_UNIT_DBU,
-    FREQUENCY_LEVEL_UNIT_LINEAR,
-    FREQUENCY_LEVEL_UNIT_UNSPECIFIED,
-    AxisScale,
-    BarArrangement,
-    ContourRender,
-    Downsample,
-    FftDetrend,
-    FftWindow,
-    FrequencyLevelUnit,
-    GridAxisEntry,
-)
-
-GridAxisEntry.__module__ = "dokime_sdk"
-GridAxisEntry.__qualname__ = "GridAxisEntry"
-from dokime_sdk._wire.model.v1.plots_pb2 import GridChart
-
-GridChart.__module__ = "dokime_sdk"
-GridChart.__qualname__ = "GridChart"
-from dokime_sdk._wire.model.v1.plots_pb2 import GridDefinition
-
-GridDefinition.__module__ = "dokime_sdk"
-GridDefinition.__qualname__ = "GridDefinition"
-from dokime_sdk._wire.model.v1.plots_pb2 import GridHighlight
-
-GridHighlight.__module__ = "dokime_sdk"
-GridHighlight.__qualname__ = "GridHighlight"
-from dokime_sdk._wire.model.v1.plots_pb2 import (
-    LINE_STYLE_LINE,
-    LINE_STYLE_LINE_POINTS,
-    LINE_STYLE_POINTS,
-    LINE_STYLE_STEP,
-    LINE_STYLE_UNSPECIFIED,
-    PLOT_KIND_BAR,
-    PLOT_KIND_BOX_PLOT,
-    PLOT_KIND_CONTOUR,
-    PLOT_KIND_FREQUENCY_SERIES,
-    PLOT_KIND_GRID_CHART,
-    PLOT_KIND_HISTOGRAM,
-    PLOT_KIND_PIE,
-    PLOT_KIND_TIME_SERIES,
-    PLOT_KIND_TRAJECTORY,
-    PLOT_KIND_UNSPECIFIED,
-    PLOT_KIND_XY,
-    PLOT_STYLE_LINE,
-    PLOT_STYLE_LINE_POINTS,
-    PLOT_STYLE_POINTS,
-    PLOT_STYLE_STEP,
-    PLOT_STYLE_UNSPECIFIED,
-    LineStyle,
-    Plot,
-)
-
-Plot.__module__ = "dokime_sdk"
-Plot.__qualname__ = "Plot"
-from dokime_sdk._wire.model.v1.plots_pb2 import PlotFftOptions
-
-PlotFftOptions.__module__ = "dokime_sdk"
-PlotFftOptions.__qualname__ = "PlotFftOptions"
-from dokime_sdk._wire.model.v1.plots_pb2 import PlotFilter
-
-PlotFilter.__module__ = "dokime_sdk"
-PlotFilter.__qualname__ = "PlotFilter"
-from dokime_sdk._wire.model.v1.plots_pb2 import PlotHistogramOptions
-
-PlotHistogramOptions.__module__ = "dokime_sdk"
-PlotHistogramOptions.__qualname__ = "PlotHistogramOptions"
-from dokime_sdk._wire.model.v1.plots_pb2 import PlotIntervalOptions
-
-PlotIntervalOptions.__module__ = "dokime_sdk"
-PlotIntervalOptions.__qualname__ = "PlotIntervalOptions"
-from dokime_sdk._wire.model.v1.plots_pb2 import (
-    REDUCTION_MAX,
-    REDUCTION_MEAN,
-    REDUCTION_MIN,
-    REDUCTION_UNSPECIFIED,
-    PlotKind,
-    PlotStyle,
-    Reduction,
-    ReferenceBand,
-)
-
-ReferenceBand.__module__ = "dokime_sdk"
-ReferenceBand.__qualname__ = "ReferenceBand"
-from dokime_sdk._wire.model.v1.plots_pb2 import ReferenceLine
-
-ReferenceLine.__module__ = "dokime_sdk"
-ReferenceLine.__qualname__ = "ReferenceLine"
-from dokime_sdk._wire.model.v1.plots_pb2 import XY_INTERVAL_SIGMA, XY_INTERVAL_UNSPECIFIED, XyInterval
-from dokime_sdk._wire.model.v1.prompts_pb2 import (
-    ANSWER_OPERATOR_AND,
-    ANSWER_OPERATOR_CONTAINS,
-    ANSWER_OPERATOR_ENDS_WITH,
-    ANSWER_OPERATOR_EQ,
-    ANSWER_OPERATOR_GE,
-    ANSWER_OPERATOR_GT,
-    ANSWER_OPERATOR_LE,
-    ANSWER_OPERATOR_LT,
-    ANSWER_OPERATOR_NE,
-    ANSWER_OPERATOR_OR,
-    ANSWER_OPERATOR_STARTS_WITH,
-    ANSWER_OPERATOR_UNSPECIFIED,
-    AnswerBinaryPredicate,
-)
-
-AnswerBinaryPredicate.__module__ = "dokime_sdk"
-AnswerBinaryPredicate.__qualname__ = "AnswerBinaryPredicate"
-from dokime_sdk._wire.model.v1.prompts_pb2 import AnswerOperator, AnswerPredicate
-
-AnswerPredicate.__module__ = "dokime_sdk"
-AnswerPredicate.__qualname__ = "AnswerPredicate"
-from dokime_sdk._wire.model.v1.prompts_pb2 import AnswerRule
-
-AnswerRule.__module__ = "dokime_sdk"
-AnswerRule.__qualname__ = "AnswerRule"
-from dokime_sdk._wire.model.v1.prompts_pb2 import (
-    PROMPT_ACTION_EMPHASIS_DANGER,
-    PROMPT_ACTION_EMPHASIS_PRIMARY,
-    PROMPT_ACTION_EMPHASIS_SECONDARY,
-    PROMPT_ACTION_EMPHASIS_UNSPECIFIED,
-    PROMPT_ARCHETYPE_CHOICE,
-    PROMPT_ARCHETYPE_CONFIRMATION,
-    PROMPT_ARCHETYPE_FORM,
-    PROMPT_ARCHETYPE_STATUS,
-    PROMPT_ARCHETYPE_UNSPECIFIED,
-    PROMPT_FIELD_KIND_BOOLEAN,
-    PROMPT_FIELD_KIND_CHOICE,
-    PROMPT_FIELD_KIND_FLOAT,
-    PROMPT_FIELD_KIND_INTEGER,
-    PROMPT_FIELD_KIND_TEXT,
-    PROMPT_FIELD_KIND_UNSPECIFIED,
-    Prompt,
-)
-
-Prompt.__module__ = "dokime_sdk"
-Prompt.__qualname__ = "Prompt"
-from dokime_sdk._wire.model.v1.prompts_pb2 import PromptAction
-
-PromptAction.__module__ = "dokime_sdk"
-PromptAction.__qualname__ = "PromptAction"
-from dokime_sdk._wire.model.v1.prompts_pb2 import PromptActionEmphasis, PromptArchetype, PromptDefinitions
-
-PromptDefinitions.__module__ = "dokime_sdk"
-PromptDefinitions.__qualname__ = "PromptDefinitions"
-from dokime_sdk._wire.model.v1.prompts_pb2 import PromptField
-
-PromptField.__module__ = "dokime_sdk"
-PromptField.__qualname__ = "PromptField"
-from dokime_sdk._wire.model.v1.prompts_pb2 import PromptFieldKind, PromptFieldValidation
-
-PromptFieldValidation.__module__ = "dokime_sdk"
-PromptFieldValidation.__qualname__ = "PromptFieldValidation"
-from dokime_sdk._wire.model.v1.prompts_pb2 import PromptValues
-
-PromptValues.__module__ = "dokime_sdk"
-PromptValues.__qualname__ = "PromptValues"
-from dokime_sdk._wire.model.v1.record_contracts_pb2 import Listeners
-
-Listeners.__module__ = "dokime_sdk"
-Listeners.__qualname__ = "Listeners"
-from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract
-
-RecordContract.__module__ = "dokime_sdk"
-RecordContract.__qualname__ = "RecordContract"
-from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContracts
-
-RecordContracts.__module__ = "dokime_sdk"
-RecordContracts.__qualname__ = "RecordContracts"
-from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordListener
-
-RecordListener.__module__ = "dokime_sdk"
-RecordListener.__qualname__ = "RecordListener"
-from dokime_sdk._wire.model.v1.scalar_pb2 import ExactNumber
-
-ExactNumber.__module__ = "dokime_sdk"
-ExactNumber.__qualname__ = "ExactNumber"
-from dokime_sdk._wire.model.v1.scalar_pb2 import MapValue
-
-MapValue.__module__ = "dokime_sdk"
-MapValue.__qualname__ = "MapValue"
-from dokime_sdk._wire.model.v1.scalar_pb2 import Null
-
-Null.__module__ = "dokime_sdk"
-Null.__qualname__ = "Null"
-from dokime_sdk._wire.model.v1.scalar_pb2 import (
-    VALUE_TYPE_BOOLEAN,
-    VALUE_TYPE_BYTES,
-    VALUE_TYPE_DATETIME,
-    VALUE_TYPE_INTEGER,
-    VALUE_TYPE_LIST,
-    VALUE_TYPE_NUMBER,
-    VALUE_TYPE_TEXT,
-    VALUE_TYPE_UNSIGNED_INTEGER,
-    VALUE_TYPE_UNSPECIFIED,
-    Value,
-)
-
-Value.__module__ = "dokime_sdk"
-Value.__qualname__ = "Value"
-from dokime_sdk._wire.model.v1.scalar_pb2 import ValueList
-
-ValueList.__module__ = "dokime_sdk"
-ValueList.__qualname__ = "ValueList"
-from dokime_sdk._wire.model.v1.scalar_pb2 import ValueType
-from dokime_sdk._wire.model.v1.secrets_pb2 import SecretDeclaration
-
-SecretDeclaration.__module__ = "dokime_sdk"
-SecretDeclaration.__qualname__ = "SecretDeclaration"
-from dokime_sdk._wire.model.v1.secrets_pb2 import SecretsDeclarations
-
-SecretsDeclarations.__module__ = "dokime_sdk"
-SecretsDeclarations.__qualname__ = "SecretsDeclarations"
-from dokime_sdk._wire.model.v1.suites_pb2 import Suite
-
-Suite.__module__ = "dokime_sdk"
-Suite.__qualname__ = "Suite"
-from dokime_sdk._wire.model.v1.suites_pb2 import Suites
-
-Suites.__module__ = "dokime_sdk"
-Suites.__qualname__ = "Suites"
-from dokime_sdk._wire.model.v1.suites_pb2 import TestCaseTemplate
-
-TestCaseTemplate.__module__ = "dokime_sdk"
-TestCaseTemplate.__qualname__ = "TestCaseTemplate"
-from dokime_sdk._wire.model.v1.traceability_pb2 import TraceabilityEntry
-
-TraceabilityEntry.__module__ = "dokime_sdk"
-TraceabilityEntry.__qualname__ = "TraceabilityEntry"
 from harmos._wire.host.v1.invocations_pb2 import InvocationsCancelResponse, InvocationsGetResponse, InvocationsWatchResponse
 from harmos._wire.host.v1.operations_pb2 import OperationsGetResponse, OperationsListResponse
 from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
@@ -735,7 +54,569 @@ from harmos._wire.model.v1.transfer_pb2 import (
     TransferFraming,
 )
 
-from ._exports.shared import harmos
+from dokime_sdk._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse
+from dokime_sdk._wire.host.v1.evidence.records_pb2 import (
+    CapturedErrorCause,
+    CapturedRecord,
+    CapturedRecordError,
+    CapturedRecordSelection,
+    CycleScope,
+    RecordScope,
+    RecordsListResponse,
+)
+from dokime_sdk._wire.host.v1.evidence.traceability_pb2 import TraceabilityGetResponse, TraceabilitySnapshot
+from dokime_sdk._wire.host.v1.evidence_pb2 import EvidenceStatisticsResponse, Output, Statistics
+from dokime_sdk._wire.host.v1.executions.progress_pb2 import ProgressGetResponse
+from dokime_sdk._wire.host.v1.files.uploads_pb2 import (
+    UploadsAppendResponse,
+    UploadsCreateResponse,
+    UploadsDeleteResponse,
+    UploadsGetResponse,
+    UploadsPublishResponse,
+    UploadsResumeResponse,
+)
+from dokime_sdk._wire.host.v1.files_pb2 import (
+    FileBatch,
+    FileCompletion,
+    FilesDeleteResponse,
+    FilesGetResponse,
+    FilesReadResponse,
+    FilesWatchResponse,
+)
+from dokime_sdk._wire.host.v1.record_schemas_pb2 import (
+    FIELD_TYPE_ARRAY,
+    FIELD_TYPE_BOOLEAN,
+    FIELD_TYPE_DATETIME,
+    FIELD_TYPE_FLOAT64,
+    FIELD_TYPE_INT64,
+    FIELD_TYPE_INTEGER,
+    FIELD_TYPE_OBJECT,
+    FIELD_TYPE_SEVERITY,
+    FIELD_TYPE_TEXT,
+    FIELD_TYPE_UINT64,
+    FIELD_TYPE_UNSPECIFIED,
+    Field,
+    FieldType,
+    Schema,
+)
+from dokime_sdk._wire.host.v1.secrets_pb2 import SecretsGetResponse, SecretWritable
+from dokime_sdk._wire.model.v1.documents_pb2 import (
+    EVIDENCE_CARD_ARTIFACTS,
+    EVIDENCE_CARD_CRITERIA,
+    EVIDENCE_CARD_HEALTH,
+    EVIDENCE_CARD_MEDIA,
+    EVIDENCE_CARD_NOTES,
+    EVIDENCE_CARD_RECORDS,
+    EVIDENCE_CARD_STEPS,
+    EVIDENCE_CARD_STREAM_CONTEXT,
+    EVIDENCE_CARD_TRACEABILITY,
+    EVIDENCE_CARD_UNSPECIFIED,
+    Card,
+    CardLayout,
+    Document,
+    EvidenceCard,
+    SectionRepeat,
+    Summary,
+    SummaryTile,
+    Table,
+    TableRow,
+)
+from dokime_sdk._wire.model.v1.evidence_pb2 import (
+    ARTIFACT_STATE_CANCELLED,
+    ARTIFACT_STATE_COMPLETE,
+    ARTIFACT_STATE_FAILED,
+    ARTIFACT_STATE_REJECTED,
+    ARTIFACT_STATE_UNSPECIFIED,
+    SEVERITY_DEBUG,
+    SEVERITY_FAILURE,
+    SEVERITY_INFO,
+    SEVERITY_UNSPECIFIED,
+    SEVERITY_WARNING,
+    STREAM_MATCH_OPERATOR_EQ,
+    STREAM_MATCH_OPERATOR_EXISTS,
+    STREAM_MATCH_OPERATOR_GE,
+    STREAM_MATCH_OPERATOR_GT,
+    STREAM_MATCH_OPERATOR_LE,
+    STREAM_MATCH_OPERATOR_LT,
+    STREAM_MATCH_OPERATOR_UNSPECIFIED,
+    STREAM_MATCH_OPERATOR_WITHIN,
+    ArtifactMetadata,
+    ArtifactScope,
+    ArtifactState,
+    EvidenceCondition,
+    EvidenceConditions,
+    EvidenceOrigin,
+    EvidenceOriginKind,
+    EvidenceScope,
+    RecordMatch,
+    Severity,
+    StreamMatch,
+    StreamMatchOperator,
+)
+from dokime_sdk._wire.model.v1.execution_pb2 import (
+    TERMINATION_CANCELLED,
+    TERMINATION_COMPLETED,
+    TERMINATION_FAILED,
+    TERMINATION_INTERRUPTED,
+    TERMINATION_NOT_RUN,
+    TERMINATION_UNSPECIFIED,
+    Criterion,
+    ExecutionProgressValue,
+    Import,
+    ImportSource,
+    Origin,
+    PluginRun,
+    Step,
+    Termination,
+    TestCase,
+)
+from dokime_sdk._wire.model.v1.expressions_pb2 import (
+    AGGREGATE_COUNT,
+    AGGREGATE_FIRST,
+    AGGREGATE_LAST,
+    AGGREGATE_MAX,
+    AGGREGATE_MEAN,
+    AGGREGATE_MEDIAN,
+    AGGREGATE_MIN,
+    AGGREGATE_PERCENTILE,
+    AGGREGATE_RMS,
+    AGGREGATE_STDDEV,
+    AGGREGATE_SUM,
+    AGGREGATE_UNSPECIFIED,
+    FILTER_OPERATOR_CONTAINS,
+    FILTER_OPERATOR_EQ,
+    FILTER_OPERATOR_EXISTS,
+    FILTER_OPERATOR_GE,
+    FILTER_OPERATOR_GT,
+    FILTER_OPERATOR_LE,
+    FILTER_OPERATOR_LT,
+    FILTER_OPERATOR_NE,
+    FILTER_OPERATOR_UNSPECIFIED,
+    Aggregate,
+    AggregateExpression,
+    DataExpression,
+    DocumentFilter,
+    FieldReference,
+    FilterOperator,
+    TransformExpression,
+)
+from dokime_sdk._wire.model.v1.files_pb2 import (
+    CAPTURE_GAP_REASON_REPLACED,
+    CAPTURE_GAP_REASON_RESUME_UNSUPPORTED,
+    CAPTURE_GAP_REASON_TRUNCATED,
+    CAPTURE_GAP_REASON_UNSPECIFIED,
+    CAPTURE_GAP_REASON_VANISHED,
+    FILE_RULE_ACTION_EXCLUDE,
+    FILE_RULE_ACTION_INCLUDE,
+    FILE_RULE_ACTION_UNSPECIFIED,
+    CapturedArtifact,
+    CaptureGap,
+    CaptureGapReason,
+    FileLocation,
+    FileRule,
+    FileRuleAction,
+    FileSelection,
+    FileSource,
+    FtpLocation,
+)
+from dokime_sdk._wire.model.v1.metadata_pb2 import Metadata
+from dokime_sdk._wire.model.v1.parameters_pb2 import (
+    DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL,
+    DYNAMIC_DEFAULT_KEY_OPERATOR_NAME,
+    DYNAMIC_DEFAULT_KEY_UNSPECIFIED,
+    PARAMETER_BINARY_OPERATOR_ADD,
+    PARAMETER_BINARY_OPERATOR_DIVIDE,
+    PARAMETER_BINARY_OPERATOR_MULTIPLY,
+    PARAMETER_BINARY_OPERATOR_SUBTRACT,
+    PARAMETER_BINARY_OPERATOR_UNSPECIFIED,
+    PARAMETER_UNARY_OPERATOR_NEGATE,
+    PARAMETER_UNARY_OPERATOR_UNSPECIFIED,
+    DynamicDefault,
+    DynamicDefaultKey,
+    FileParameter,
+    IntegerRange,
+    LinearSpace,
+    NumberRange,
+    Parameter,
+    ParameterBinary,
+    ParameterBinaryOperator,
+    ParameterExpansion,
+    ParameterExpression,
+    ParameterExpressions,
+    ParameterUnary,
+    ParameterUnaryOperator,
+)
+from dokime_sdk._wire.model.v1.plots_pb2 import (
+    AXIS_SCALE_LINEAR,
+    AXIS_SCALE_LOG,
+    AXIS_SCALE_UNSPECIFIED,
+    BAR_ARRANGEMENT_GROUPED,
+    BAR_ARRANGEMENT_STACKED,
+    BAR_ARRANGEMENT_UNSPECIFIED,
+    CONTOUR_RENDER_BANDS,
+    CONTOUR_RENDER_CELLS,
+    CONTOUR_RENDER_UNSPECIFIED,
+    DOWNSAMPLE_AUTO,
+    DOWNSAMPLE_LTTB,
+    DOWNSAMPLE_MIN_MAX,
+    DOWNSAMPLE_RAW,
+    DOWNSAMPLE_UNSPECIFIED,
+    FFT_DETREND_MEAN,
+    FFT_DETREND_NONE,
+    FFT_DETREND_UNSPECIFIED,
+    FFT_WINDOW_HANN,
+    FFT_WINDOW_RECTANGULAR,
+    FFT_WINDOW_UNSPECIFIED,
+    FREQUENCY_LEVEL_UNIT_DB,
+    FREQUENCY_LEVEL_UNIT_DBM,
+    FREQUENCY_LEVEL_UNIT_DBU,
+    FREQUENCY_LEVEL_UNIT_LINEAR,
+    FREQUENCY_LEVEL_UNIT_UNSPECIFIED,
+    LINE_STYLE_LINE,
+    LINE_STYLE_LINE_POINTS,
+    LINE_STYLE_POINTS,
+    LINE_STYLE_STEP,
+    LINE_STYLE_UNSPECIFIED,
+    PLOT_KIND_BAR,
+    PLOT_KIND_BOX_PLOT,
+    PLOT_KIND_CONTOUR,
+    PLOT_KIND_FREQUENCY_SERIES,
+    PLOT_KIND_GRID_CHART,
+    PLOT_KIND_HISTOGRAM,
+    PLOT_KIND_PIE,
+    PLOT_KIND_TIME_SERIES,
+    PLOT_KIND_TRAJECTORY,
+    PLOT_KIND_UNSPECIFIED,
+    PLOT_KIND_XY,
+    PLOT_STYLE_LINE,
+    PLOT_STYLE_LINE_POINTS,
+    PLOT_STYLE_POINTS,
+    PLOT_STYLE_STEP,
+    PLOT_STYLE_UNSPECIFIED,
+    REDUCTION_MAX,
+    REDUCTION_MEAN,
+    REDUCTION_MIN,
+    REDUCTION_UNSPECIFIED,
+    XY_INTERVAL_SIGMA,
+    XY_INTERVAL_UNSPECIFIED,
+    AxisScale,
+    BarArrangement,
+    ContourRender,
+    Downsample,
+    FftDetrend,
+    FftWindow,
+    FrequencyLevelUnit,
+    GridAxisEntry,
+    GridChart,
+    GridDefinition,
+    GridHighlight,
+    LineStyle,
+    Plot,
+    PlotFftOptions,
+    PlotFilter,
+    PlotHistogramOptions,
+    PlotIntervalOptions,
+    PlotKind,
+    PlotStyle,
+    Reduction,
+    ReferenceBand,
+    ReferenceLine,
+    XyInterval,
+)
+from dokime_sdk._wire.model.v1.prompts_pb2 import (
+    ANSWER_OPERATOR_AND,
+    ANSWER_OPERATOR_CONTAINS,
+    ANSWER_OPERATOR_ENDS_WITH,
+    ANSWER_OPERATOR_EQ,
+    ANSWER_OPERATOR_GE,
+    ANSWER_OPERATOR_GT,
+    ANSWER_OPERATOR_LE,
+    ANSWER_OPERATOR_LT,
+    ANSWER_OPERATOR_NE,
+    ANSWER_OPERATOR_OR,
+    ANSWER_OPERATOR_STARTS_WITH,
+    ANSWER_OPERATOR_UNSPECIFIED,
+    PROMPT_ACTION_EMPHASIS_DANGER,
+    PROMPT_ACTION_EMPHASIS_PRIMARY,
+    PROMPT_ACTION_EMPHASIS_SECONDARY,
+    PROMPT_ACTION_EMPHASIS_UNSPECIFIED,
+    PROMPT_ARCHETYPE_CHOICE,
+    PROMPT_ARCHETYPE_CONFIRMATION,
+    PROMPT_ARCHETYPE_FORM,
+    PROMPT_ARCHETYPE_STATUS,
+    PROMPT_ARCHETYPE_UNSPECIFIED,
+    PROMPT_FIELD_KIND_BOOLEAN,
+    PROMPT_FIELD_KIND_CHOICE,
+    PROMPT_FIELD_KIND_FLOAT,
+    PROMPT_FIELD_KIND_INTEGER,
+    PROMPT_FIELD_KIND_TEXT,
+    PROMPT_FIELD_KIND_UNSPECIFIED,
+    AnswerBinaryPredicate,
+    AnswerOperator,
+    AnswerPredicate,
+    AnswerRule,
+    Prompt,
+    PromptAction,
+    PromptActionEmphasis,
+    PromptArchetype,
+    PromptDefinitions,
+    PromptField,
+    PromptFieldKind,
+    PromptFieldValidation,
+    PromptValues,
+)
+from dokime_sdk._wire.model.v1.record_contracts_pb2 import Listeners, RecordContract, RecordContracts, RecordListener
+from dokime_sdk._wire.model.v1.scalar_pb2 import (
+    VALUE_TYPE_BOOLEAN,
+    VALUE_TYPE_BYTES,
+    VALUE_TYPE_DATETIME,
+    VALUE_TYPE_INTEGER,
+    VALUE_TYPE_LIST,
+    VALUE_TYPE_NUMBER,
+    VALUE_TYPE_TEXT,
+    VALUE_TYPE_UNSIGNED_INTEGER,
+    VALUE_TYPE_UNSPECIFIED,
+    ExactNumber,
+    MapValue,
+    Null,
+    Value,
+    ValueList,
+    ValueType,
+)
+from dokime_sdk._wire.model.v1.secrets_pb2 import SecretDeclaration, SecretsDeclarations
+from dokime_sdk._wire.model.v1.suites_pb2 import Suite, Suites, TestCaseTemplate
+from dokime_sdk._wire.model.v1.traceability_pb2 import TraceabilityEntry
+
+from ._exports.shared import harmos, model
+
+ArtifactsCreateResponse.__module__ = "dokime_sdk"
+ArtifactsCreateResponse.__qualname__ = "ArtifactsCreateResponse"
+CapturedErrorCause.__module__ = "dokime_sdk"
+CapturedErrorCause.__qualname__ = "CapturedErrorCause"
+CapturedRecord.__module__ = "dokime_sdk"
+CapturedRecord.__qualname__ = "CapturedRecord"
+CapturedRecordError.__module__ = "dokime_sdk"
+CapturedRecordError.__qualname__ = "CapturedRecordError"
+CapturedRecordSelection.__module__ = "dokime_sdk"
+CapturedRecordSelection.__qualname__ = "CapturedRecordSelection"
+CycleScope.__module__ = "dokime_sdk"
+CycleScope.__qualname__ = "CycleScope"
+RecordScope.__module__ = "dokime_sdk"
+RecordScope.__qualname__ = "RecordScope"
+RecordsListResponse.__module__ = "dokime_sdk"
+RecordsListResponse.__qualname__ = "RecordsListResponse"
+TraceabilityGetResponse.__module__ = "dokime_sdk"
+TraceabilityGetResponse.__qualname__ = "TraceabilityGetResponse"
+TraceabilitySnapshot.__module__ = "dokime_sdk"
+TraceabilitySnapshot.__qualname__ = "TraceabilitySnapshot"
+EvidenceStatisticsResponse.__module__ = "dokime_sdk"
+EvidenceStatisticsResponse.__qualname__ = "EvidenceStatisticsResponse"
+Output.__module__ = "dokime_sdk"
+Output.__qualname__ = "Output"
+Statistics.__module__ = "dokime_sdk"
+Statistics.__qualname__ = "Statistics"
+ProgressGetResponse.__module__ = "dokime_sdk"
+ProgressGetResponse.__qualname__ = "ProgressGetResponse"
+UploadsAppendResponse.__module__ = "dokime_sdk"
+UploadsAppendResponse.__qualname__ = "UploadsAppendResponse"
+UploadsCreateResponse.__module__ = "dokime_sdk"
+UploadsCreateResponse.__qualname__ = "UploadsCreateResponse"
+UploadsDeleteResponse.__module__ = "dokime_sdk"
+UploadsDeleteResponse.__qualname__ = "UploadsDeleteResponse"
+UploadsGetResponse.__module__ = "dokime_sdk"
+UploadsGetResponse.__qualname__ = "UploadsGetResponse"
+UploadsPublishResponse.__module__ = "dokime_sdk"
+UploadsPublishResponse.__qualname__ = "UploadsPublishResponse"
+UploadsResumeResponse.__module__ = "dokime_sdk"
+UploadsResumeResponse.__qualname__ = "UploadsResumeResponse"
+FileBatch.__module__ = "dokime_sdk"
+FileBatch.__qualname__ = "FileBatch"
+FileCompletion.__module__ = "dokime_sdk"
+FileCompletion.__qualname__ = "FileCompletion"
+FilesDeleteResponse.__module__ = "dokime_sdk"
+FilesDeleteResponse.__qualname__ = "FilesDeleteResponse"
+FilesGetResponse.__module__ = "dokime_sdk"
+FilesGetResponse.__qualname__ = "FilesGetResponse"
+FilesReadResponse.__module__ = "dokime_sdk"
+FilesReadResponse.__qualname__ = "FilesReadResponse"
+FilesWatchResponse.__module__ = "dokime_sdk"
+FilesWatchResponse.__qualname__ = "FilesWatchResponse"
+Field.__module__ = "dokime_sdk"
+Field.__qualname__ = "Field"
+Schema.__module__ = "dokime_sdk"
+Schema.__qualname__ = "Schema"
+SecretWritable.__module__ = "dokime_sdk"
+SecretWritable.__qualname__ = "SecretWritable"
+SecretsGetResponse.__module__ = "dokime_sdk"
+SecretsGetResponse.__qualname__ = "SecretsGetResponse"
+Card.__module__ = "dokime_sdk"
+Card.__qualname__ = "Card"
+CardLayout.__module__ = "dokime_sdk"
+CardLayout.__qualname__ = "CardLayout"
+Document.__module__ = "dokime_sdk"
+Document.__qualname__ = "Document"
+SectionRepeat.__module__ = "dokime_sdk"
+SectionRepeat.__qualname__ = "SectionRepeat"
+Summary.__module__ = "dokime_sdk"
+Summary.__qualname__ = "Summary"
+SummaryTile.__module__ = "dokime_sdk"
+SummaryTile.__qualname__ = "SummaryTile"
+Table.__module__ = "dokime_sdk"
+Table.__qualname__ = "Table"
+TableRow.__module__ = "dokime_sdk"
+TableRow.__qualname__ = "TableRow"
+ArtifactMetadata.__module__ = "dokime_sdk"
+ArtifactMetadata.__qualname__ = "ArtifactMetadata"
+ArtifactScope.__module__ = "dokime_sdk"
+ArtifactScope.__qualname__ = "ArtifactScope"
+EvidenceCondition.__module__ = "dokime_sdk"
+EvidenceCondition.__qualname__ = "EvidenceCondition"
+EvidenceConditions.__module__ = "dokime_sdk"
+EvidenceConditions.__qualname__ = "EvidenceConditions"
+EvidenceOrigin.__module__ = "dokime_sdk"
+EvidenceOrigin.__qualname__ = "EvidenceOrigin"
+EvidenceOriginKind.__module__ = "dokime_sdk"
+EvidenceOriginKind.__qualname__ = "EvidenceOriginKind"
+EvidenceScope.__module__ = "dokime_sdk"
+EvidenceScope.__qualname__ = "EvidenceScope"
+RecordMatch.__module__ = "dokime_sdk"
+RecordMatch.__qualname__ = "RecordMatch"
+StreamMatch.__module__ = "dokime_sdk"
+StreamMatch.__qualname__ = "StreamMatch"
+Criterion.__module__ = "dokime_sdk"
+Criterion.__qualname__ = "Criterion"
+ExecutionProgressValue.__module__ = "dokime_sdk"
+ExecutionProgressValue.__qualname__ = "ExecutionProgressValue"
+Import.__module__ = "dokime_sdk"
+Import.__qualname__ = "Import"
+ImportSource.__module__ = "dokime_sdk"
+ImportSource.__qualname__ = "ImportSource"
+Origin.__module__ = "dokime_sdk"
+Origin.__qualname__ = "Origin"
+PluginRun.__module__ = "dokime_sdk"
+PluginRun.__qualname__ = "PluginRun"
+Step.__module__ = "dokime_sdk"
+Step.__qualname__ = "Step"
+TestCase.__module__ = "dokime_sdk"
+TestCase.__qualname__ = "TestCase"
+AggregateExpression.__module__ = "dokime_sdk"
+AggregateExpression.__qualname__ = "AggregateExpression"
+DataExpression.__module__ = "dokime_sdk"
+DataExpression.__qualname__ = "DataExpression"
+DocumentFilter.__module__ = "dokime_sdk"
+DocumentFilter.__qualname__ = "DocumentFilter"
+FieldReference.__module__ = "dokime_sdk"
+FieldReference.__qualname__ = "FieldReference"
+TransformExpression.__module__ = "dokime_sdk"
+TransformExpression.__qualname__ = "TransformExpression"
+CaptureGap.__module__ = "dokime_sdk"
+CaptureGap.__qualname__ = "CaptureGap"
+CapturedArtifact.__module__ = "dokime_sdk"
+CapturedArtifact.__qualname__ = "CapturedArtifact"
+FileLocation.__module__ = "dokime_sdk"
+FileLocation.__qualname__ = "FileLocation"
+FileRule.__module__ = "dokime_sdk"
+FileRule.__qualname__ = "FileRule"
+FileSelection.__module__ = "dokime_sdk"
+FileSelection.__qualname__ = "FileSelection"
+FileSource.__module__ = "dokime_sdk"
+FileSource.__qualname__ = "FileSource"
+FtpLocation.__module__ = "dokime_sdk"
+FtpLocation.__qualname__ = "FtpLocation"
+Metadata.__module__ = "dokime_sdk"
+Metadata.__qualname__ = "Metadata"
+DynamicDefault.__module__ = "dokime_sdk"
+DynamicDefault.__qualname__ = "DynamicDefault"
+FileParameter.__module__ = "dokime_sdk"
+FileParameter.__qualname__ = "FileParameter"
+IntegerRange.__module__ = "dokime_sdk"
+IntegerRange.__qualname__ = "IntegerRange"
+LinearSpace.__module__ = "dokime_sdk"
+LinearSpace.__qualname__ = "LinearSpace"
+NumberRange.__module__ = "dokime_sdk"
+NumberRange.__qualname__ = "NumberRange"
+Parameter.__module__ = "dokime_sdk"
+Parameter.__qualname__ = "Parameter"
+ParameterBinary.__module__ = "dokime_sdk"
+ParameterBinary.__qualname__ = "ParameterBinary"
+ParameterExpansion.__module__ = "dokime_sdk"
+ParameterExpansion.__qualname__ = "ParameterExpansion"
+ParameterExpression.__module__ = "dokime_sdk"
+ParameterExpression.__qualname__ = "ParameterExpression"
+ParameterExpressions.__module__ = "dokime_sdk"
+ParameterExpressions.__qualname__ = "ParameterExpressions"
+ParameterUnary.__module__ = "dokime_sdk"
+ParameterUnary.__qualname__ = "ParameterUnary"
+GridAxisEntry.__module__ = "dokime_sdk"
+GridAxisEntry.__qualname__ = "GridAxisEntry"
+GridChart.__module__ = "dokime_sdk"
+GridChart.__qualname__ = "GridChart"
+GridDefinition.__module__ = "dokime_sdk"
+GridDefinition.__qualname__ = "GridDefinition"
+GridHighlight.__module__ = "dokime_sdk"
+GridHighlight.__qualname__ = "GridHighlight"
+Plot.__module__ = "dokime_sdk"
+Plot.__qualname__ = "Plot"
+PlotFftOptions.__module__ = "dokime_sdk"
+PlotFftOptions.__qualname__ = "PlotFftOptions"
+PlotFilter.__module__ = "dokime_sdk"
+PlotFilter.__qualname__ = "PlotFilter"
+PlotHistogramOptions.__module__ = "dokime_sdk"
+PlotHistogramOptions.__qualname__ = "PlotHistogramOptions"
+PlotIntervalOptions.__module__ = "dokime_sdk"
+PlotIntervalOptions.__qualname__ = "PlotIntervalOptions"
+ReferenceBand.__module__ = "dokime_sdk"
+ReferenceBand.__qualname__ = "ReferenceBand"
+ReferenceLine.__module__ = "dokime_sdk"
+ReferenceLine.__qualname__ = "ReferenceLine"
+AnswerBinaryPredicate.__module__ = "dokime_sdk"
+AnswerBinaryPredicate.__qualname__ = "AnswerBinaryPredicate"
+AnswerPredicate.__module__ = "dokime_sdk"
+AnswerPredicate.__qualname__ = "AnswerPredicate"
+AnswerRule.__module__ = "dokime_sdk"
+AnswerRule.__qualname__ = "AnswerRule"
+Prompt.__module__ = "dokime_sdk"
+Prompt.__qualname__ = "Prompt"
+PromptAction.__module__ = "dokime_sdk"
+PromptAction.__qualname__ = "PromptAction"
+PromptDefinitions.__module__ = "dokime_sdk"
+PromptDefinitions.__qualname__ = "PromptDefinitions"
+PromptField.__module__ = "dokime_sdk"
+PromptField.__qualname__ = "PromptField"
+PromptFieldValidation.__module__ = "dokime_sdk"
+PromptFieldValidation.__qualname__ = "PromptFieldValidation"
+PromptValues.__module__ = "dokime_sdk"
+PromptValues.__qualname__ = "PromptValues"
+Listeners.__module__ = "dokime_sdk"
+Listeners.__qualname__ = "Listeners"
+RecordContract.__module__ = "dokime_sdk"
+RecordContract.__qualname__ = "RecordContract"
+RecordContracts.__module__ = "dokime_sdk"
+RecordContracts.__qualname__ = "RecordContracts"
+RecordListener.__module__ = "dokime_sdk"
+RecordListener.__qualname__ = "RecordListener"
+ExactNumber.__module__ = "dokime_sdk"
+ExactNumber.__qualname__ = "ExactNumber"
+MapValue.__module__ = "dokime_sdk"
+MapValue.__qualname__ = "MapValue"
+Null.__module__ = "dokime_sdk"
+Null.__qualname__ = "Null"
+Value.__module__ = "dokime_sdk"
+Value.__qualname__ = "Value"
+ValueList.__module__ = "dokime_sdk"
+ValueList.__qualname__ = "ValueList"
+SecretDeclaration.__module__ = "dokime_sdk"
+SecretDeclaration.__qualname__ = "SecretDeclaration"
+SecretsDeclarations.__module__ = "dokime_sdk"
+SecretsDeclarations.__qualname__ = "SecretsDeclarations"
+Suite.__module__ = "dokime_sdk"
+Suite.__qualname__ = "Suite"
+Suites.__module__ = "dokime_sdk"
+Suites.__qualname__ = "Suites"
+TestCaseTemplate.__module__ = "dokime_sdk"
+TestCaseTemplate.__qualname__ = "TestCaseTemplate"
+TraceabilityEntry.__module__ = "dokime_sdk"
+TraceabilityEntry.__qualname__ = "TraceabilityEntry"
 
 __all__ = [
     "AGGREGATE_COUNT",

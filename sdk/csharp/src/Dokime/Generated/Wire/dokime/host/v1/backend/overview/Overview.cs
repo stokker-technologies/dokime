@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.BackendResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/backend/overview.proto</summary>
-  public static partial class OverviewReflection {
+  internal static partial class OverviewReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/backend/overview.proto</summary>
@@ -287,7 +287,7 @@ namespace Dokime.Clients.BackendResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class OverviewGetResponse : pb::IMessage<OverviewGetResponse>
+  internal sealed partial class OverviewGetResponse : pb::IMessage<OverviewGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -747,7 +747,7 @@ namespace Dokime.Clients.BackendResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class OverviewWatchResponse : pb::IMessage<OverviewWatchResponse>
+  internal sealed partial class OverviewWatchResponse : pb::IMessage<OverviewWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1083,7 +1083,7 @@ namespace Dokime.Clients.BackendResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EvidenceCounts : pb::IMessage<EvidenceCounts>
+  internal sealed partial class EvidenceCounts : pb::IMessage<EvidenceCounts>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1503,7 +1503,7 @@ namespace Dokime.Clients.BackendResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RuntimeShellSnapshot : pb::IMessage<RuntimeShellSnapshot>
+  internal sealed partial class RuntimeShellSnapshot : pb::IMessage<RuntimeShellSnapshot>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

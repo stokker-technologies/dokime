@@ -19,6 +19,7 @@ import io
 import json
 import os
 import random
+import re
 import shutil
 import sys
 import tarfile
@@ -326,18 +327,24 @@ def archive(directory: Path, source: Path) -> None:
         temporary_directory.cleanup()
 
 
-def generate(directory: Path) -> dict:
-    """Resolve Approved Licenses, Then Collect Actual Copyright and License Text."""
+def generate(directory: Path, *, strict: bool = True) -> dict:
+    """Collect Complete License Text, Reporting Unaccepted Licenses on Nightly."""
     output = directory / "target/notices"
     output.mkdir(parents=True, exist_ok=True)
-    document = sbom.exceptions(directory)
+    try:
+        document = sbom.exceptions(directory)
+    except policy.ToolError as error:
+        if strict:
+            raise
+        _warning(f"{error}; repair the exception register before a stable release")
+        document = {}
     metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True))
     packages = {(item["name"], item["version"]) for item in metadata["packages"]}
     licenses = {}
     for entry in document.get("license", []):
         if (entry["package"], entry["version"]) in packages:
             licenses.setdefault(entry["package"], set()).update(entry.get("accepted", [entry["license"]]))
-    for name in licenses:
+    for name in list(licenses):
         allowed = set()
         for allowed_item in document["license"]:
             if allowed_item["package"] != name:
@@ -345,29 +352,45 @@ def generate(directory: Path) -> dict:
             allowed.add(allowed_item["version"])
 
         if any(package == name and version not in allowed for package, version in packages):
-            raise policy.ToolError(f"Collect Third-Party Notices: license exception does not cover every resolved {name} version")
+            message = f"Collect Third-Party Notices: license exception does not cover every resolved {name} version"
+            if strict:
+                raise policy.ToolError(message)
+            _warning(message + "; review every resolved version before a stable release")
+            del licenses[name]
     license_policy = tomllib.loads((directory / "tools/config/deny.toml").read_text(encoding="utf-8"))
-    config = f"accepted = {json.dumps(license_policy['licenses']['allow'])}\n"
-    for name, accepted in sorted(licenses.items()):
-        config += f"\n[{json.dumps(name)}]\naccepted = {json.dumps(sorted(accepted))}\n"
+    accepted = license_policy["licenses"]["allow"]
     configured = output / "about.toml"
-    configured.write_text(config, encoding="utf-8", newline="\n")
-    policy.execute(
-        directory,
-        [
-            "cargo",
-            "about",
-            "generate",
-            "--locked",
-            "--workspace",
-            "--config",
-            str(configured),
-            "--format",
-            "json",
-            "--output-file",
-            str(output / "rust.json"),
-        ],
-    )
+    _configure(configured, accepted, licenses)
+    command = [
+        "cargo",
+        "about",
+        "--color",
+        "never",
+        "generate",
+        "--locked",
+        "--workspace",
+        "--config",
+        str(configured),
+        "--format",
+        "json",
+        "--output-file",
+        str(output / "rust.json"),
+    ]
+    try:
+        diagnostics = policy.execute(directory, command, capture=not strict)
+    except policy.ToolError as error:
+        if strict:
+            raise
+        findings = _findings(directory, str(error), metadata["packages"])
+        if not findings:
+            raise
+        for name, version, license_name in findings:
+            _warning(f"Unaccepted Rust License: {name} {version}: {license_name}; review the license policy before a stable release")
+            licenses.setdefault(name, set()).add(license_name)
+        _configure(configured, accepted, licenses)
+        diagnostics = policy.execute(directory, command, capture=True)
+    if diagnostics:
+        print(diagnostics, file=sys.stderr)
     policy.execute(
         directory,
         [
@@ -397,10 +420,8 @@ def generate(directory: Path) -> dict:
     shell_text, shell_count = shell_notices(shell)
     python_text, python_count = python_notices(tomllib.loads((directory / "uv.lock").read_text(encoding="utf-8")))
     text = (output / "rust.txt").read_text(encoding="utf-8") + "\n\n" + shell_text + "\n\n" + python_text + "\n"
-    destination = output
-    destination.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(directory / "NOTICE", destination / "NOTICE")
-    (destination / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8", newline="\n")
+    shutil.copyfile(directory / "NOTICE", output / "NOTICE")
+    (output / "THIRD-PARTY-NOTICES").write_text(text, encoding="utf-8", newline="\n")
     counts = {"rust": len(crates), "shell": shell_count, "python": python_count}
     (output / "counts.json").write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(counts))
@@ -414,7 +435,7 @@ def main() -> int:
     parser.add_argument("--target", default="native")
     options = parser.parse_args()
     directory = policy.root()
-    generate(directory)
+    generate(directory, strict=os.environ.get("RELEASE_CHANNEL") != "nightly")
     destination = options.stage
     if options.profile:
         target = paths.target() if options.target == "native" else options.target
@@ -425,6 +446,48 @@ def main() -> int:
 
 
 # === Private Functions === #
+
+
+def _configure(destination: Path, accepted: list[str], licenses: dict[str, set[str]]) -> None:
+    config = f"accepted = {json.dumps(accepted)}\n"
+    for name, allowed in sorted(licenses.items()):
+        config += f"\n[{json.dumps(name)}]\naccepted = {json.dumps(sorted(allowed))}\n"
+    destination.write_text(config, encoding="utf-8", newline="\n")
+
+
+def _findings(directory: Path, diagnostics: str, packages: list[dict]) -> list[tuple[str, str, str]]:
+    """Read Cargo About's Rejected Requirement Spans, Without Interpreting SPDX Expressions."""
+    manifests = {Path(item["manifest_path"]).resolve(): item for item in packages}
+    findings = set()
+    for block in re.split(r"(?m)^error: ", diagnostics)[1:]:
+        if not block.startswith("failed to satisfy license requirements\n"):
+            continue
+        location = re.search(r"(?m)^\s*┌─ (.+):\d+:\d+\s*$", block)
+        if location is None:
+            raise policy.ToolError("Collect Third-Party Notices: cannot identify rejected crate; inspect Cargo About diagnostics\n" + block)
+        manifest = (directory / location[1]).resolve()
+        package = manifests.get(manifest)
+        if package is None:
+            raise policy.ToolError(f"Collect Third-Party Notices: rejected crate is absent from Cargo metadata; inspect {manifest}")
+        requirements = set()
+        for source in re.finditer(r"(?m)^\s*\d+ │ (.*)\n\s*│ ([- ^]+)$", block):
+            for span in re.finditer(r"[-^]+", source[2]):
+                requirements.add(source[1][span.start() : span.end()])
+        if not requirements or "" in requirements:
+            raise policy.ToolError(
+                "Collect Third-Party Notices: cannot identify rejected license; inspect Cargo About diagnostics\n" + block
+            )
+        findings.update((package["name"], package["version"], requirement) for requirement in requirements)
+    return sorted(findings)
+
+
+def _warning(message: str) -> None:
+    annotation = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print("::warning::" + annotation, file=sys.stderr)
+    if destination := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(destination).open("a", encoding="utf-8") as stream:
+            stream.write("\n### Nightly Supply-Chain Warning\n\n" + message + "\n")
+
 
 # === Entry Point === #
 

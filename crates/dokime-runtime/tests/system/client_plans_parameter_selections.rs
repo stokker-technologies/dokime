@@ -21,20 +21,20 @@
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::Client;
 use dokime::Value;
-use dokime::client::CasesCreateOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
-use dokime::client::RegisteredSelection;
-use dokime::client::RegisteredSelectionParametersEntry;
-use dokime::client::SelectionPlan;
-use dokime::client::SelectionValues;
+use dokime_client_internal::CasesCreateOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::RegisteredSelection;
+use dokime_client_internal::RegisteredSelectionParametersEntry;
+use dokime_client_internal::SelectionPlan;
+use dokime_client_internal::SelectionValues;
 use dokime_protocol::host::CasesCreateRequest;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -76,7 +76,7 @@ fn client_plans_parameter_selections() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -91,7 +91,7 @@ fn client_plans_parameter_selections() -> Result<(), Box<dyn Error>> {
                 parameters: vec![RegisteredSelectionParametersEntry {
                     key: "limit".into(),
                     value: Some(SelectionValues {
-                        values: vec![Value { kind: Some(ValueKind::Number(80.0)) }, Value { kind: Some(ValueKind::Number(85.0)) }],
+                        values: vec![Value { kind: Some(value::Kind::Number(80.0)) }, Value { kind: Some(value::Kind::Number(85.0)) }],
                     }),
                 }],
                 ..Default::default()

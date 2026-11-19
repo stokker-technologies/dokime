@@ -23,9 +23,9 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime::Client;
 use dokime::FileReference;
-use dokime::client::{FilesGetOptions, FilesReadOptions};
+use dokime_client_internal::Client;
+use dokime_client_internal::{FilesGetOptions, FilesReadOptions};
 
 /* === Constants === */
 

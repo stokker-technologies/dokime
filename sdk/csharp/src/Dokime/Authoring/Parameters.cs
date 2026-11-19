@@ -9,7 +9,7 @@
 
 using Dokime;
 
-namespace Dokime.Plugins;
+namespace Dokime.Templates;
 
 public static class Parameters
 {

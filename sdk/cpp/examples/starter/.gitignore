@@ -1,0 +1,7 @@
+/build/
+/assets/plugin/
+.env
+*.pair
+*.dokime
+/_input/
+/_output/

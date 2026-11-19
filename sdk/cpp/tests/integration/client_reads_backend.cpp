@@ -12,6 +12,7 @@
 #include "../support/backend.hpp"
 #include "../support/check.hpp"
 #include "dokime/client.hpp"
+#include "dokime/detail/schemas.hpp"
 #include "dokime/host/v1/evidence.grpc.pb.h"
 #include "dokime/host/v1/executions/schemas.grpc.pb.h"
 #include "dokime/host/v1/plots/snapshots.grpc.pb.h"
@@ -21,14 +22,14 @@
 #include <google/protobuf/empty.pb.h>
 #include <google/protobuf/wrappers.pb.h>
 
-using dokime::Client;
 using dokime::EvidenceScope;
 using dokime::client::EvidenceStatisticsOptions;
 using dokime::client::ExecutionDetail;
-using dokime::client::FrozenSchemaCache;
 using dokime::client::PlotRequest;
 using dokime::client::StatusGetOptions;
 using dokime::client::StatusLogsWatchOptions;
+using dokime::detail::FrozenSchemaCache;
+using dokime::detail::Transport;
 using dokime::host::v1::EvidenceStatisticsRequest;
 using dokime::host::v1::EvidenceStatisticsResponse;
 using dokime::host::v1::executions::SchemasGetRequest;
@@ -123,7 +124,7 @@ public:
 
 /* === Entry Point === */
 
-TEST_CASE("Client Reads the Backend") {
+TEST_CASE("Transport Reads the Backend") {
   // Start a Backend in This Process.
   Backend backend;
   Plugins plugins;
@@ -143,7 +144,7 @@ TEST_CASE("Client Reads the Backend") {
   auto server = builder.BuildAndStart();
   check(bool(server), "Fake Backend Did Not Start");
   auto channel = server->InProcessChannel({});
-  Client client(channel);
+  Transport client(channel);
 
   // Pair and Read Its Identity Through the Generated Stub.
   StatusGetOptions authenticated;
@@ -170,7 +171,7 @@ TEST_CASE("Client Reads the Backend") {
   }
   check(refused, "Authentication Failure Was Hidden");
 
-  // Read a Product Registry Through Its Top-Level Client Root.
+  // Read a Product Registry Through Its Top-Level Transport Root.
   auto suite = client.suites.get("sample", "", 0);
   check(suite.value().metadata().identifier() == "sample", "Suite Registry Read Was Lost");
 
@@ -202,7 +203,7 @@ TEST_CASE("Client Reads the Backend") {
     refused = true;
   }
   check(refused, "Plugin Refusal Was Hidden");
-  // Read Exact Statistics and Plot Values Through the Generated Client.
+  // Read Exact Statistics and Plot Values Through the Generated Transport.
   EvidenceScope scope;
   scope.set_execution_id("execution");
   EvidenceStatisticsOptions statistics_options;
@@ -227,8 +228,10 @@ TEST_CASE("Client Reads the Backend") {
   ExecutionDetail detail;
   detail.mutable_summary()->set_execution_id("first");
   detail.mutable_schemas()->set_digest(harmos::plugin::detail::sha256(schema_service.types.SerializeAsString()));
-  const auto configure = [](ClientContext &context) {
-    context.AddMetadata("authorization", "Bearer test");
+  const auto configure = [] {
+    auto context = make_shared<ClientContext>();
+    context->AddMetadata("authorization", "Bearer test");
+    return context;
   };
   const auto types = schemas.get(client, detail, configure);
   check(types->file_size() == 2 && types->file(0).name() == "google/protobuf/wrappers.proto" &&

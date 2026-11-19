@@ -63,7 +63,7 @@ class ImpactTests(unittest.TestCase):
         cpp = {"check", "test", "build_docs"}
         cases = (
             (["README.md"], {"build_docs"}),
-            (["sdk/rust/examples/client/README.md"], {"build_docs"}),
+            (["sdk/rust/README.md"], {"build_docs"}),
             (["docs/assets/navigation.svg"], {"build_docs"}),
             (["openspec/changes/example/tasks.md", "openspec/config.yaml"], {"build_docs"}),
             (["site/pnpm-lock.yaml"], {"build_docs"}),

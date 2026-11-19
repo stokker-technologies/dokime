@@ -31,8 +31,9 @@ use tonic::transport::{Channel, Endpoint};
 
 // Local Imports
 use crate::{Result, commands::pairing, error::Error};
-use dokime::client::{self, CallOptions};
-use dokime::{Client, StorageTransferSettings};
+use dokime::StorageTransferSettings;
+use dokime_client_internal::CallOptions;
+use dokime_client_internal::Client;
 use dokime_runtime::{
     CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
@@ -192,8 +193,8 @@ impl Settings {
             stream_buffer: self.stream_buffer.get(),
         }
     }
-    pub fn client(&self) -> client::ClientSettings {
-        client::ClientSettings {
+    pub fn client(&self) -> dokime_client_internal::ClientSettings {
+        dokime_client_internal::ClientSettings {
             transfer: StorageTransferSettings::default(),
             retained_bytes: self.retained_bytes,
             message_bytes: self.message_bytes,

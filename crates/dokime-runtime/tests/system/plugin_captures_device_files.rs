@@ -26,17 +26,17 @@ use prost::Message;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime::Client;
 use dokime::RecordScope;
 use dokime::Termination;
 use dokime::Value;
-use dokime::client::EvidenceRecordsListOptions;
-use dokime::client::ExecutionsCancelOptions;
-use dokime::client::ExecutionsProgressWatchOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
 use dokime::record_scope;
+use dokime_client_internal::Client;
+use dokime_client_internal::EvidenceRecordsListOptions;
+use dokime_client_internal::ExecutionsCancelOptions;
+use dokime_client_internal::ExecutionsProgressWatchOptions;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::model::ArtifactScope;
 use dokime_protocol::model::value;

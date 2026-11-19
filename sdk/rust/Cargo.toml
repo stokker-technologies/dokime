@@ -46,6 +46,8 @@ uuid = { workspace = true }
 prost = { workspace = true, features = ["derive", "std"] }
 prost-reflect = { workspace = true }
 prost-types = { workspace = true, features = ["std"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Cryptography
 sha2 = { workspace = true }
@@ -59,9 +61,10 @@ sha2 = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true }
 
 # Networking
-tonic = { workspace = true, features = ["codegen", "transport"] }
+tonic = { workspace = true, features = ["codegen", "transport", "tls-ring"] }
 
 # Storage
 
