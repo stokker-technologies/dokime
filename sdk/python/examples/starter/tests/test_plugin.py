@@ -42,6 +42,8 @@ class PluginDescription(unittest.TestCase):
             operations,
             {
                 "example.echo",
+                "example.initialize",
+                "example.finalize",
                 "capture.confirmation.materialize",
                 "capture.confirmation.cleanup",
                 "capture.confirmation.confirm",
