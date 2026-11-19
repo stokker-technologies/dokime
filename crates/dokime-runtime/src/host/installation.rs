@@ -103,13 +103,13 @@ impl Host {
         let mut names = BTreeSet::new();
         let mut unverified = BTreeSet::new();
         for path in files {
-            let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+            let Some(filename) = path.file_name() else {
                 // Do Not Interpret an Unreadable Filename as Removing a Previously Shipped Bundle.
                 complete = false;
-                self.report_plugin_admission_failure(&path, "Use a UTF-8 Bundle Filename");
+                self.report_plugin_admission_failure(&path, "Select a Named Bundle File");
                 continue;
             };
-            let filename = filename.as_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            let filename = filename.as_encoded_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             let source = format!("{INSTALLATION_SOURCE}{filename}");
             let bundle = match read_bundle(&path) {
                 Ok(bundle) => bundle,
@@ -287,7 +287,10 @@ impl Host {
         if let Ok(mut failures) = lock(&self.plugin_admission_failures) {
             let name = format!("installation/{}", path.display());
             match failures.iter_mut().find(|failure| failure.0 == name) {
-                Some(failure) => failure.1.push_str(&format!("; {message}")),
+                Some(failure) => {
+                    failure.1.push_str("; ");
+                    failure.1.push_str(&message);
+                }
                 None => failures.push((name, message.clone())),
             }
         }
