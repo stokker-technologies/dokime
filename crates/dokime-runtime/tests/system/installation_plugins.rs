@@ -266,6 +266,18 @@ fn corrupt_update_preserves_the_previously_admitted_bundle() -> Result<(), Box<d
             assert_eq!(copies(root.path())?.len(), 1);
             assert_eq!(client.evidence.health_events.list(Default::default()).await?.events.len(), 1);
             server.close().await?;
+
+            // A Verified but Unlaunchable Replacement Also Rolls Back and Releases Its Candidate.
+            let invalid = installation.path().join(format!("example-pack{EXE_SUFFIX}"));
+            fs::write(&invalid, b"invalid native executable")?;
+            fs::write(&path, shipped_bundle(&invalid, "example-pack", "2.0.0")?)?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let retained = inventory(&client).await?.remove("example-pack").unwrap();
+            assert_eq!(retained.placement, original.placement);
+            assert_eq!(retained.revision, original.revision);
+            assert_eq!(copies(root.path())?.len(), 1);
+            assert_eq!(client.evidence.health_events.list(Default::default()).await?.events.len(), 1);
+            server.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })
         .await?

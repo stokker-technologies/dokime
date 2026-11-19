@@ -210,7 +210,7 @@ impl Host {
                 })
                 .await;
             if let Err(error) = result {
-                self.release_bundle(content).await?;
+                self.release_unretained_bundle(content).await?;
                 return Err(error.into());
             }
             if let Some(content) = installation_content(&entry) {
@@ -220,16 +220,7 @@ impl Host {
             let result = self.create_plugin(name.clone(), placement).await;
             if let Err(error) = result {
                 // Create Persists Failed Admissions Too; Keep Their Content and Registry Failure.
-                let retained = context
-                    .operations
-                    .call_protobuf::<List>(PluginsListRequest { at: None })
-                    .await?
-                    .entries
-                    .iter()
-                    .any(|entry| managed(entry).and_then(|managed| managed.content.as_ref()) == Some(&content));
-                if !retained {
-                    self.release_bundle(content).await?;
-                }
+                self.release_unretained_bundle(content).await?;
                 return Err(error);
             }
         }
@@ -259,6 +250,27 @@ impl Host {
             },
         )
         .await?;
+        Ok(())
+    }
+
+    async fn release_unretained_bundle(&self, file: FileReference) -> Result<()> {
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Release Plugin Bundle: Assemble the Host Context".into()))?;
+        let retained = context
+            .operations
+            .call_protobuf::<List>(PluginsListRequest { at: None })
+            .await?
+            .entries
+            .iter()
+            .any(|entry| managed(entry).and_then(|managed| managed.content.as_ref()) == Some(&file));
+        if !retained {
+            self.release_bundle(file).await?;
+        }
         Ok(())
     }
 
