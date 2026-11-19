@@ -20,7 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use super::support::{TestResult, plugin::Process};
+use super::support::{
+    TestResult,
+    plugin::{Placement, Process},
+};
 use dokime::Origin;
 use dokime::PluginRun;
 use dokime::Termination;
@@ -64,7 +67,7 @@ struct ResourceStateColumns {
 #[tokio::test]
 async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read() -> TestResult {
     // Materialize the Resource Fixture Without Allocating Its Device.
-    let mut process = Process::start("dokime-rust-resources").await?;
+    let mut process = Process::start("dokime-rust-resources", Placement::Managed).await?;
     let description = process.describe().await?;
     let request = TestCasesMaterializeRequest {
         template: "resources.case".into(),

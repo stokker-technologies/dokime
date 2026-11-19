@@ -32,7 +32,7 @@ include!("host_exports.rs");
 /* === Imports === */
 
 // Standard Library Imports
-use std::{any::Any, collections::HashSet, sync::Arc};
+use std::{any::Any, collections::HashSet, env, sync::Arc};
 
 // Third Party Imports
 
@@ -302,7 +302,11 @@ impl Plugin {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn run(self) -> Result<()> {
-        self.into_harmos()?.serve().map_err(Error::from)
+        // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
+        let managed = env::var_os("HARMOS_ADDRESS").is_some();
+        let plugin = self.into_harmos()?;
+        let plugin = if managed { plugin } else { plugin.remote() };
+        plugin.serve().map_err(Error::from)
     }
 }
 
