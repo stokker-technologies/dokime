@@ -125,7 +125,7 @@ pub(super) fn prepare(
         let installed = format!("{installed_resource_prefix}{file}");
         if !windows {
             linux_files.insert(PathBuf::from(format!("/{installed}")), destination.clone());
-            let launcher = if name == "dokime" { identity.slug.clone() } else { format!("{}-gui", identity.slug) };
+            let launcher = name;
             let script = format!("#!/bin/sh\nexec /usr/lib/{}/{file} \"$@\"\n", identity.slug);
             let path = bin_dir.join(launcher);
             super::stage_executable(&path, script.as_bytes(), None)?;
@@ -293,8 +293,8 @@ pub(super) fn prepare(
         })
         .collect();
     let package = package_settings(manifest, &identity, &label, pack.organization_name().unwrap_or(&label), windows);
-    let application_name = if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) };
-    let command_name = if windows { "dokime".into() } else { identity.slug.clone() };
+    let application_name = "dokime-gui".into();
+    let command_name = "dokime".into();
     let application = BundleBinary::new(application_name, true);
     let command = BundleBinary::new(command_name, false);
     let binaries = vec![application, command];
@@ -492,14 +492,14 @@ fn package_settings(
         description: label.to_owned(),
         homepage: None,
         authors: Some(vec![publisher.into()]),
-        default_run: Some(if windows { "dokime-gui".into() } else { format!("{}-gui", identity.slug) }),
+        default_run: Some("dokime-gui".into()),
     }
 }
 
 fn desktop_entry(identity: &distribution::Identity, label: &str) -> String {
     format!(
-        "[Desktop Entry]\nType=Application\nName={label}\nExec={}-gui\nIcon={}-gui\nCategories=Utility;\n",
-        identity.slug, identity.slug
+        "[Desktop Entry]\nType=Application\nName={label}\nExec=/usr/lib/{}/dokime-gui\nIcon=dokime-gui\nCategories=Utility;\n",
+        identity.slug
     )
 }
 
@@ -805,6 +805,19 @@ mod tests {
         assert!(hooks.contains("StrCpy $0 \"User\""));
         assert!(script.contains("InstallDir \"$LOCALAPPDATA\\${BUNDLEID}\""));
         assert!(script.contains("WriteRegStr HKCU"));
+    }
+
+    #[test]
+    fn native_distribution_names_preserve_toolchain_executables() {
+        let manifest = fixtures::manifest();
+        for identifier in ["com.example.testhub", "com.example.otherhub"] {
+            let identity = distribution::Identity::new(identifier.into()).unwrap();
+            let package = package_settings(&manifest, &identity, "Example Test Hub", "Example Test Hub", false);
+            assert_eq!(package.product_name, identifier.replace('.', "-"));
+            assert_eq!(package.default_run.as_deref(), Some("dokime-gui"));
+            let desktop = desktop_entry(&identity, "Example Test Hub");
+            assert!(desktop.contains(&format!("Exec=/usr/lib/{}/dokime-gui\n", identifier.replace('.', "-"))));
+        }
     }
 
     #[test]

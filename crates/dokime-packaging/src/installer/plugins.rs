@@ -222,7 +222,7 @@ mod tests {
         let path = root.path().join("example-pack.dokime");
         fs::write(&path, &bytes)?;
         let selected = select(slice::from_ref(&path), &["example-pack".into()])?;
-        assert_eq!(selected, [path.clone()]);
+        assert_eq!(selected.as_slice(), slice::from_ref(&path));
         assert!(select(slice::from_ref(&path), &["missing-example-pack".into()]).is_err());
         let staged = tempfile::tempdir()?;
         let result = stage(slice::from_ref(&path), staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION"))?;

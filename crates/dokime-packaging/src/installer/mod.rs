@@ -67,7 +67,9 @@ use std::{ffi::OsStr, process::Command};
 /* === Structs === */
 
 pub struct PackageOptions {
+    /// Constructs Tool Commands with the Product's Process Policy.
     pub command: fn(&OsStr) -> Command,
+
     pub artifacts: Option<PathBuf>,
     pub plugins: Vec<PathBuf>,
     pub output: PathBuf,

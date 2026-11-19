@@ -81,9 +81,7 @@ target = "x86_64-pc-windows-msvc" # Optional; defaults to the native target.
 
 [[plugin]] # Optional, repeatable; exactly one of name or path per entry.
 name = "example-pack" # Published bundle package identity.
-
-[[plugin]]
-path = "plugins/example-pack.dokime" # Relative to the organization pack folder.
+# path = "plugins/example-pack.dokime" # Alternative to name; relative to the pack folder.
 
 [license] # Optional; both keys required when present; adds to Apache-2.0.
 spdx = "LicenseRef-Example"
