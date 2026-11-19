@@ -188,6 +188,7 @@ impl Session {
             kind: Some(plugin_placement::Kind::Managed(PluginManaged { content: Some(file), sha256 })),
         };
         let options = PluginsCreateOptions {
+            origin: None,
             request_id: Some(format!("desktop-install-{name}")),
             context: self.call_options()?,
         };

@@ -245,3 +245,10 @@
 - [ ] Keep Unanswered Starter Prompts Pending Across the Host Mutation Deadline and Explicit Controlled-Clock Advancement; Answer Them to Seal Passed With Retained Evidence. Resolve the Clock Jump Versus Continuous Stream Conflict Without Relaxing Either Policy.
 - [x] Complete the Requested Native Windows Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff, the Library's Frozen Bundle Version Fix and Final Rust/TypeScript Lints.
 - [x] Rerun the Existing Scratch Python Project Against the Merged Host, Select Its Execution From CLI Summary JSON, Answer Through the CLI and Preserve Its Saved Archive Without Regenerating or Deleting Project Files.
+
+## Library Pin, Installer Feature and SDK Lanes
+
+- [x] Refresh Every Library Pin to `dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912`, Its Locks, Vendored Protocol Inputs and Generated Bindings; Adapt Existing Consumers and Prove the Focused SDK Tests and Runtime Test Compilation.
+- [ ] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
+- [ ] Expose Library-Owned Lane Declarations and Operation Assignment Through All Four Product SDKs; Prove Each Description and Preserve Library Validation.
+- [ ] Run the Requested Final Repository, Rust Lint, Release-Context Binding and Supply Checks Without Expanding Local Test Lanes.

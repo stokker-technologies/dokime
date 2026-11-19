@@ -2226,7 +2226,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2247,7 +2247,7 @@ dependencies = [
 [[package]]
 name = "harmos-domain"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "harmos-protocol",
  "harmos-sdk-derive",
@@ -2265,7 +2265,7 @@ dependencies = [
 [[package]]
 name = "harmos-operations"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -2291,7 +2291,7 @@ dependencies = [
 [[package]]
 name = "harmos-packaging"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -2309,7 +2309,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -2324,7 +2324,7 @@ dependencies = [
 [[package]]
 name = "harmos-query"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -2347,7 +2347,7 @@ dependencies = [
 [[package]]
 name = "harmos-runtime"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2388,7 +2388,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2400,7 +2400,7 @@ dependencies = [
 [[package]]
 name = "harmos-storage"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=ae58b0669fec82906248289cbb964e0f09b33081#ae58b0669fec82906248289cbb964e0f09b33081"
+source = "git+https://github.com/stokker-technologies/harmos?rev=dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912#dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
 dependencies = [
  "arrow-array",
  "arrow-data",
@@ -4323,7 +4323,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad9c5423459fa2f729b8d9235fab810aa29628b171467744fc86d21460ad70d"
 dependencies = [
  "anyhow",
- "itertools 0.15.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",

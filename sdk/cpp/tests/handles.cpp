@@ -60,7 +60,7 @@ public:
   Status Get(ServerContext *context, const dokime::host::v1::CasesGetRequest *request,
              dokime::host::v1::CasesGetResponse *response) override {
     if (request->name() == "missing") {
-      harmos::FailureValue failure;
+      harmos::model::Failure failure;
       failure.set_classification(harmos::CLASSIFICATION_REFUSED);
       failure.set_code("case_absent");
       failure.set_operation("cases.get");

@@ -521,6 +521,7 @@ struct PluginsWatchOptions {
 };
 struct PluginsCreateOptions {
   std::optional<std::string> request_id;
+  std::optional<std::string> origin;
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct PluginsSetOptions {
@@ -2537,6 +2538,9 @@ struct PluginsResource {
     request.set_name(name);
     *request.mutable_placement() = placement;
     *request.mutable_value() = value;
+    if (options.origin) {
+      request.set_origin(*options.origin);
+    }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     detail::packages::harmos::host::PluginsCreateResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Create(context.get(), request, &response);

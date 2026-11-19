@@ -177,6 +177,7 @@ pub use harmos_protocol::model::Grant;
 pub use harmos_protocol::model::Grpc;
 pub use harmos_protocol::model::History;
 pub use harmos_protocol::model::InstanceState;
+pub use harmos_protocol::model::LaneDeclaration;
 pub use harmos_protocol::model::MessageSettings;
 pub use harmos_protocol::model::OperationContract;
 pub use harmos_protocol::model::OperationPolicy;
@@ -198,6 +199,7 @@ pub use harmos_protocol::model::TransferFraming;
 pub use harmos_protocol::model::Upload;
 pub use harmos_protocol::model::UploadState;
 pub use harmos_protocol::model::Visibility;
+pub use harmos_protocol::model::lane_declaration;
 pub use harmos_protocol::model::setting_value;
 pub mod harmos {
     pub mod model {

@@ -76,7 +76,7 @@ public sealed class PluginCollection
     try
     {
       var placement = new PluginPlacement { Remote = new PluginRemote { Url = endpoint.Address } };
-      var reply = await client.Transport.Plugins.Create(plugin.Identifier, placement, new PluginValue { Enabled = true }, Client.Identity(requestId), client.Options(cancellationToken));
+      var reply = await client.Transport.Plugins.Create(plugin.Identifier, placement, new PluginValue { Enabled = true }, Client.Identity(requestId), context: client.Options(cancellationToken));
       registered = new RegisteredPlugin(client, this, reply.Entry, endpoint);
       Owned.Add(registered);
       registered.CheckFailure();
