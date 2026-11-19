@@ -56,7 +56,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
 
         client.on_prompt(answer)
         extension = ".exe" if os.name == "nt" else ""
-        configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release").lower()
+        configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release")
         locating = await asyncio.create_subprocess_exec(
             "mise",
             "-C",
@@ -72,7 +72,11 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         commands = {
             "python": [sys.executable, str(root / "sdk/tests/fixtures/python/capture/plugin.py")],
             "rust": [str(root / f"target/debug/dokime-rust-test{extension}"), "--remote"],
-            "csharp": [dotnet, str(root / f"target/cs/bin/Test/{configuration}/dokime-example-test.dll"), "--remote"],
+            "csharp": [
+                dotnet,
+                str(root / f"sdk/csharp/examples/Starter/src/Example.Plugin/bin/{configuration}/net10.0/Example.Plugin.dll"),
+                "--remote",
+            ],
             "cpp": [str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}"), "--address", "127.0.0.1:0"],
         }
         timeout = policy.load(root).deadline("integration")
@@ -116,6 +120,8 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 suite = suites.suites[0]
                 self.assertEqual(len(suite.templates), 1, language)
                 expected = "capture.confirmation" if language == "python" else "capture"
+                if language == "csharp":
+                    expected = "capture.confirmation"
                 self.assertEqual(suite.templates[0].metadata.identifier, expected, language)
                 record = records.records[0]
                 self.assertEqual(record.metadata.identifier, f"{expected}.confirmation", language)
