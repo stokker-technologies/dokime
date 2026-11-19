@@ -94,7 +94,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
             let key = format!("execution-evidence/{execution}/{}", crate::host::views::hex(&cut.seal));
             let (saved, revision) = crate::host::storage::administration::message::<FileReference>(context, &key).await?;
             let file = if revision.is_empty() {
-                let file = materialize(context, subject, None).await?;
+                let file = materialize(context, subject, None, None).await?;
                 crate::host::storage::administration::retain(
                     context,
                     &key,
@@ -115,10 +115,13 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
 }
 
 pub(crate) fn materialize(
-    context: &Context, subject: EvidenceSubject, report: Option<FileReference>,
+    context: &Context, subject: EvidenceSubject, report: Option<FileReference>, scope: Option<Identifier>,
 ) -> Pin<Box<dyn Future<Output = Result<FileReference>> + Send + '_>> {
     Box::pin(async move {
-        let scope = subject_scope(&subject)?;
+        let scope = match scope {
+            Some(scope) => scope,
+            None => subject_scope(&subject)?,
+        };
         let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
         let (store, _read_cancellation) = context.host.store().read_session()?;
         match subject.kind.as_ref() {
@@ -138,6 +141,7 @@ pub(crate) fn materialize(
                             request_id: format!("evidence-report/{execution}/{}", crate::host::views::hex(&store.cut(execution)?.seal)),
                             ..Default::default()
                         },
+                        None,
                     )
                     .await?
                     .file
@@ -404,27 +408,41 @@ async fn native_files(context: &Context, scope: Identifier) -> Result<Vec<Archiv
 }
 
 async fn native_file(context: &Context, reference: FileReference, at: Option<ReadCut>) -> Result<ArchivedNativeFile> {
-    let selected = storage::FileReference::try_from(reference.clone())
-        .map_err(|source| Error::Invalid(format!("Export Native File: Restore Its Reference: {source}")))?;
-    let mut output = NamedTempFile::new().map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
-    let mut offset = 0;
-    let max_bytes = crate::host::files::transfer::chunk_bytes(context).await? as u64;
-    while offset < reference.length {
-        let chunk = context
-            .storage::<GetFileBytes>(GetFileBytesRequest {
-                file: Some(selected.clone()),
-                offset,
-                max_bytes,
-                at: at.clone(),
-            })
-            .await?;
-        if chunk.data.is_empty() || chunk.data.len() as u64 > reference.length - offset {
-            return Err(Error::Precondition("Export Native File: Restore Its Complete Bounded Bytes".into()));
+    let snapshot = if at.is_none() { Some(context.storage::<CreateSnapshot>(CreateSnapshotRequest { at: None }).await?) } else { None };
+    let at = snapshot.as_ref().and_then(|snapshot| snapshot.resolved_at.clone()).or(at);
+    let result = async {
+        let selected = storage::FileReference::try_from(reference.clone())
+            .map_err(|source| Error::Invalid(format!("Export Native File: Restore Its Reference: {source}")))?;
+        let mut output = NamedTempFile::new().map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
+        let mut offset = 0;
+        let max_bytes = crate::host::files::transfer::chunk_bytes(context).await? as u64;
+        while offset < reference.length {
+            let chunk = context
+                .storage::<GetFileBytes>(GetFileBytesRequest {
+                    file: Some(selected.clone()),
+                    offset,
+                    max_bytes,
+                    at: at.clone(),
+                })
+                .await?;
+            if chunk.data.is_empty() || chunk.data.len() as u64 > reference.length - offset {
+                return Err(Error::Precondition("Export Native File: Restore Its Complete Bounded Bytes".into()));
+            }
+            output.write_all(&chunk.data).map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
+            offset += chunk.data.len() as u64;
         }
-        output.write_all(&chunk.data).map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
-        offset += chunk.data.len() as u64;
+        Ok(ArchivedNativeFile { reference, path: output.into_temp_path() })
     }
-    Ok(ArchivedNativeFile { reference, path: output.into_temp_path() })
+    .await;
+    let released = match snapshot {
+        Some(snapshot) => context.storage::<DeleteSnapshot>(DeleteSnapshotRequest { snapshot: snapshot.snapshot }).await.map(|_| ()),
+        None => Ok(()),
+    };
+    match (result, released) {
+        (Err(source), Err(cleanup)) => Err(Error::Invalid(format!("Export Native File: {source}; Release Its Snapshot: {cleanup}"))),
+        (Err(source), Ok(())) | (Ok(_), Err(source)) => Err(source),
+        (Ok(file), Ok(())) => Ok(file),
+    }
 }
 
 /* === Tests === */

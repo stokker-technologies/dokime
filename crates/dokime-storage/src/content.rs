@@ -133,7 +133,6 @@ impl Store {
         let options = archive_options(timestamp)?;
         let mut archive = ZipWriter::new_stream(output);
         let mut entries = Vec::new();
-        write_directory(&mut archive, "executions/", options.clone(), &mut entries)?;
         let count: i64 = self.lock()?.query_row("SELECT COUNT(*) FROM executions WHERE cycle=?1", [cycle], |row| row.get(0))?;
         let width = count.to_string().len().max(2);
         let mut after = 0i64;
@@ -169,7 +168,6 @@ impl Store {
             "notes": content.notes.iter().map(|note| project_message("dokime.host.v1.evidence.OperatorNote", &note.encode_to_vec())).collect::<Result<Vec<_>>>()?,
             "artifacts": content.artifacts.iter().map(|bytes| artifact_projection(&StoredArtifact::decode(bytes.as_slice())?)).collect::<Result<Vec<_>>>()?,
         });
-        write_directory(&mut archive, "data/", options.clone(), &mut entries)?;
         write_entry(&mut archive, "data/cycle.json", options.clone(), &serde_json::to_vec_pretty(&metadata)?, &mut entries)?;
         write_native_files(
             &mut archive,
@@ -217,12 +215,6 @@ impl Store {
             .ok_or(Error::Data("Export Execution: Restore Its Seal Timestamp or Select a Fresh Storage Root"))?;
         let options = archive_options(timestamp)?;
         let mut entries = Vec::new();
-        if !prefix.is_empty() {
-            write_directory(archive, prefix, options.clone(), &mut entries)?;
-        }
-        for directory in ["data/", "telemetry/", "files/", "artifacts/"] {
-            write_directory(archive, &format!("{prefix}{directory}"), options.clone(), &mut entries)?;
-        }
         for (kind, value) in evidence_projection(&metadata)? {
             let bytes = serde_json::to_vec_pretty(&value)?;
             write_entry(archive, &format!("{prefix}data/{kind}.json"), options.clone(), &bytes, &mut entries)?;
@@ -359,14 +351,6 @@ fn write_file<W: Write + Seek>(
     Ok(serde_json::json!({"path":member,"size":size,"sha256":hex(&digest)}))
 }
 
-fn write_directory<W: Write + Seek>(
-    archive: &mut ZipWriter<W>, member: &str, options: FullFileOptions<'static, 'static>, entries: &mut Vec<serde_json::Value>,
-) -> Result<()> {
-    archive.add_directory(member, options.unix_permissions(0o755))?;
-    entries.push(serde_json::json!({"path":member,"size":0,"sha256":hex(&Sha256::digest([]))}));
-    Ok(())
-}
-
 fn write_entry<W: Write + Seek>(
     archive: &mut ZipWriter<W>, member: &str, options: FullFileOptions<'static, 'static>, bytes: &[u8],
     entries: &mut Vec<serde_json::Value>,
@@ -428,9 +412,28 @@ fn archive_options(timestamp: &Timestamp) -> Result<FullFileOptions<'static, 'st
 fn evidence_projection(archive: &ArchivedExecution) -> Result<BTreeMap<String, serde_json::Value>> {
     let execution = &archive.execution;
     let mut kinds = BTreeMap::<String, Vec<serde_json::Value>>::new();
-    for kind in
-        ["steps", "records", "criteria", "prompts", "notes", "parameters", "outcome", "artifacts", "files", "other", "execution", "reports"]
-    {
+    for kind in [
+        "steps",
+        "records",
+        "criteria",
+        "prompts",
+        "notes",
+        "parameters",
+        "outcome",
+        "artifacts",
+        "files",
+        "execution",
+        "execution-failures",
+        "stream-failures",
+        "cleanup-failures",
+        "reports",
+        "logs",
+        "progress",
+        "traceability",
+        "capture-gaps",
+        "statistics",
+        "documents",
+    ] {
         kinds.insert(kind.into(), Vec::new());
     }
     let mut catalog = project_message("harmos.model.v1.Declarations", &execution.catalog)?;
@@ -462,11 +465,16 @@ fn evidence_projection(archive: &ArchivedExecution) -> Result<BTreeMap<String, s
             "prompt" => ("prompts", Some("dokime.host.v1.PromptsCreateRequest")),
             "answer" => ("prompts", Some("dokime.host.v1.PromptsCreateResponse")),
             "client:answer" => ("prompts", Some("dokime.host.v1.PromptsCreateResponse")),
-            "log" => ("other", Some("dokime.host.v1.evidence.LogsAppendRequest")),
-            "progress" => ("other", Some("dokime.model.v1.ExecutionProgressValue")),
-            "traceability" => ("other", Some("dokime.model.v1.TraceabilityEntry")),
-            "capture:gap" => ("other", Some("dokime.model.v1.CaptureGap")),
-            _ => ("other", None),
+            "log" => ("logs", Some("dokime.host.v1.evidence.LogsAppendRequest")),
+            "progress" => ("progress", Some("dokime.model.v1.ExecutionProgressValue")),
+            "traceability" => ("traceability", Some("dokime.model.v1.TraceabilityEntry")),
+            "capture:gap" => ("capture-gaps", Some("dokime.model.v1.CaptureGap")),
+            "read:statistics" => ("statistics", None),
+            "document:part" => ("documents", Some("dokime.host.v1.DocumentsAppendPartsRequest")),
+            "execution:failure" => ("execution-failures", None),
+            "streams:failure" => ("stream-failures", None),
+            "cleanup:failure" => ("cleanup-failures", None),
+            kind => return Err(Error::Invalid(format!("Export Evidence: Add a Named JSON Projection for Evidence Kind {kind}"))),
         };
         let mut payload = match message {
             Some(message) => project_message(message, &evidence.payload)?,
@@ -754,28 +762,34 @@ mod tests {
         let mut archive = ZipArchive::new(Cursor::new(&outputs[0]))?;
         let data = [
             "artifacts",
+            "capture-gaps",
+            "cleanup-failures",
             "criteria",
+            "documents",
             "execution",
+            "execution-failures",
             "files",
+            "logs",
             "notes",
-            "other",
             "outcome",
             "parameters",
+            "progress",
             "prompts",
             "records",
             "reports",
+            "statistics",
             "steps",
+            "stream-failures",
+            "traceability",
         ];
-        let mut expected = vec!["executions/".to_owned()];
+        let mut expected = Vec::new();
         for index in 1..=3 {
             let prefix = format!("executions/{index:02} Confirmation [°C]/");
-            expected.push(prefix.clone());
-            expected.extend(["data/", "telemetry/", "files/", "artifacts/"].iter().map(|directory| format!("{prefix}{directory}")));
             expected.extend(data.iter().map(|kind| format!("{prefix}data/{kind}.json")));
             expected.push(format!("{prefix}report.html"));
             expected.push(format!("{prefix}manifest.json"));
         }
-        expected.extend(["data/".into(), "data/cycle.json".into(), "report.html".into(), "manifest.json".into()]);
+        expected.extend(["data/cycle.json".into(), "report.html".into(), "manifest.json".into()]);
         assert_eq!(archive.file_names().collect::<result::Result<Vec<_>, _>>()?, expected.iter().map(String::as_str).collect::<Vec<_>>());
         for name in &expected {
             let mut entry = archive.by_name(name)?;

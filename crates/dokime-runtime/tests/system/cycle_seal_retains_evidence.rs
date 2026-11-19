@@ -341,7 +341,17 @@ fn cycle_seal_retires_report_after_archive_persistence_failure() -> Result<(), B
             let name = cycle.cycle_id;
             let owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
 
-            // Fail Archive Publication After the Report Has Been Published.
+            // Preserve an Independent On-Demand Report Across Failed Seal Recovery.
+            let subject = client::ReportSubject { kind: Some(report_subject::Kind::Cycle(name.clone())) };
+            let independent = client.reports.create(subject.clone(), "").await?.file.unwrap();
+            let mut independent_bytes = Vec::new();
+            while (independent_bytes.len() as u64) < independent.length {
+                let part = client.files.read(independent.clone(), independent_bytes.len() as u64, 1024).await?;
+                assert!(!part.data.is_empty());
+                independent_bytes.extend(part.data);
+            }
+
+            // Fail Archive Publication After the Attempt Report Has Been Materialized.
             let database = Connection::open(root.path().join("storage.sqlite3"))?;
             database.execute_batch("CREATE TRIGGER refuse_seal_archive BEFORE INSERT ON storage_files WHEN NEW.id LIKE 'temporary-evidence/%' BEGIN SELECT RAISE(ABORT,'Injected Archive Publication Failure'); END;")?;
             client.cycles.seal(name.clone()).await?;
@@ -366,14 +376,27 @@ fn cycle_seal_retires_report_after_archive_persistence_failure() -> Result<(), B
             assert!(!recovered.sealed && recovered.report_file.is_none() && recovered.evidence_file.is_none());
             let retained_reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL AND id NOT IN (SELECT id FROM deleted_files)", [], |row| row.get(0))?;
             assert_eq!(retained_reports, 0, "A Failed Cycle Seal Must Retire Its Partial Report");
+            let restored = client.reports.get(subject, independent.metadata.as_ref().unwrap().id.clone()).await?.file.unwrap();
+            assert_eq!(restored, independent);
+            let mut restored_bytes = Vec::new();
+            while (restored_bytes.len() as u64) < restored.length {
+                let part = client.files.read(restored.clone(), restored_bytes.len() as u64, 1024).await?;
+                assert!(!part.data.is_empty());
+                restored_bytes.extend(part.data);
+            }
+            assert_eq!(restored_bytes, independent_bytes);
+            let chunks: i64 = database.query_row("SELECT COUNT(*) FROM storage_file_chunks WHERE id IN (SELECT id FROM storage_files WHERE scope=?1)", [format!("cycle-seal/{name}")], |row| row.get(0))?;
+            assert_eq!(chunks, 0);
+            let objects: i64 = database.query_row("SELECT COUNT(*) FROM storage_rows WHERE scope=?1", [format!("cycle-seal/{name}")], |row| row.get(0))?;
+            assert_eq!(objects, 0);
             client.cycles.seal(name.clone()).await?;
             let sealed = settlement(&client, &name).await?;
             assert!(sealed.sealed);
             assert!(sealed.report_file.is_some() && sealed.evidence_file.is_some());
-            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%'", [], |row| row.get(0))?;
+            let count: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE (id LIKE 'prepared-report/cycle-seal/%' OR id LIKE 'temporary-evidence/%') AND id NOT IN (SELECT id FROM deleted_files)", [], |row| row.get(0))?;
             assert_eq!(count, 2);
-            let reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
-            let archives: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'temporary-evidence/%' AND finished IS NOT NULL", [], |row| row.get(0))?;
+            let reports: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'prepared-report/cycle-seal/%' AND finished IS NOT NULL AND id NOT IN (SELECT id FROM deleted_files)", [], |row| row.get(0))?;
+            let archives: i64 = database.query_row("SELECT COUNT(*) FROM storage_files WHERE id LIKE 'temporary-evidence/%' AND finished IS NOT NULL AND id NOT IN (SELECT id FROM deleted_files)", [], |row| row.get(0))?;
             assert_eq!((reports, archives), (1, 1));
             process.close().await?;
             Ok(())

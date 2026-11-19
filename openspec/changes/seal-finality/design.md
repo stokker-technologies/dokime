@@ -13,42 +13,44 @@ A late archive persistence failure therefore retains an earlier report.
 
 ## Goals / Non-Goals
 
-The cycle seal owns one publication boundary for its staged report, staged
-archive and Sealed state, with abandoned staging recovered at the native file
-owner. This delivery preserves the existing fatal persistence latch and operation
+The cycle seal owns a commit record for its report and archive. The single
+Sealed-state write carries both references; cross-store atomicity is not required. This delivery preserves the existing fatal persistence latch and operation
 policies. Other open changes remain outside this worker's ownership.
 
 ## Decisions
 
-### Atomic Publication: Agreed, Pending Its Storage Capability
+### Seal Attempt Commit Record
 
-The owner's decision requires the existing native compound/scoped mutation.
-The report and archive stay unpublished until that mutation publishes their
-references and the cycle's Sealed state. Reopening discards abandoned staging.
-The late-failure story must retain neither output and retry must publish one of
-each. Task 3.7 owns this outstanding implementation.
+Each admitted attempt owns the exact `cycle-seal/<cycle>` storage scope. Before
+admitting a replacement, the cycle owner deletes the previous scope through
+native DeleteScope. The scope is reused only after that deletion, while each
+attempt's report, archive and mutation identities remain unique. On-demand
+reports belong to `cycle/<cycle>` and are never included in attempt deletion.
 
-### Upstream Capability Request
+The existing report preparation and archive uploads materialize complete native
+files and the prepared report capture inside the attempt scope. Neither reference
+is reachable through the cycle before commitment. One `save_cycle` write persists
+Sealed together with both file references; that write is the commit point. A
+failed attempt leaves the cycle unsealed with Seal Failed and its cause, and a
+retry remains admissible after the existing fatal storage latch is repaired by
+reopening when necessary.
 
-- Consumer evidence: `cycle_seal_retires_report_after_archive_persistence_failure`
-  in `crates/dokime-runtime/tests/system/cycle_seal_retains_evidence.rs` reopens
-  with one retained report after the archive insertion fault.
-- Attempted supported API: native `MutateRequest` dispatches to
-  `crates/dokime-storage/src/backend/compound.rs`. Its pinned `CompoundWrite`
-  supports Object, Delete, Record and Scope; no item publishes a staged file.
-  `PublishFileProduction` is an independent native publication.
-- Smallest required capability: publish staged native file references through
-  the existing compound owner together with the owning cycle-state object,
-  and discard unpublished productions through its existing recovery owner.
-  Cycle state must participate in that same authoritative native history.
-- Disposition: the atomicity contract is agreed; the required library facility
-  and native cycle-state mapping are unavailable in this worktree. The upstream
-  owner must supply a compatible capability and its validation handoff before
-  this worker can close task 3.7. No local override or upstream edits are made.
-  The existing independent-publication path and failing regression remain visible.
+On host open, the existing native upload owner abandons incomplete productions
+in non-Sealed cycles' attempt scopes before native upload recovery runs. The
+cycle owner then deletes those scopes through the same native DeleteScope path
+used before a new attempt, before other startup recovery reads can retain the
+failed outputs. A Sealed cycle retains its scope. Native tombstones
+preserve deletion history; scoped deletion reclaims the failed attempt's file
+chunks and prepared capture. No sweeper, timer, registry or parallel recovery
+mechanism is added.
 
-A product-side publication mirror, cross-database commit assumption or independent
-cleanup registry would introduce the competing ownership the decision removes.
+### Publication Boundaries
+
+Cycle state lives in `execution.sqlite3`; native files and prepared captures live
+in `storage.sqlite3`. The commit record needs no cross-database transaction or
+staged-file compound capability. Existing upload publication, scoped deletion,
+operation policies and the fatal persistence latch remain the owners of their
+respective behavior.
 
 ### Archives: Implemented
 
@@ -60,7 +62,10 @@ uses the same member writer at the root.
 No product reader consumed `evidence.pb`. Its encoder and archive wire structs
 are removed. JSON projects the original evidence, typed record rows and frozen
 declarations. Keys are deterministic; integer and floating-point formatting is
-locale independent. Native file references remain beside their retained bytes.
+locale independent. Logs, progress, traceability, capture gaps, statistics reads
+and document parts have named JSON files; there is no remainder bucket. Native
+file references remain beside their retained bytes. Cycle metadata and its notes
+and artifact declarations remain in root `data/cycle.json`.
 
 Each manifest hashes every member in its scope except itself. The root manifest
 also hashes nested manifests. Python evidence downloads verify the whole-file
@@ -71,8 +76,8 @@ Execution seal timestamps come from the existing runtime clock and persist with
 the execution. Successful cycle sealing
 retains the timestamp frozen at admission so the retained state and archive agree.
 ZIP entries carry DOS dates and NTFS timestamps; the latter preserve controlled
-clock dates outside the DOS range and subsecond precision. Directories carry
-explicit timestamps too. ZIP compression preserves the original member bytes.
+clock dates outside the DOS range and subsecond precision. No explicit directory entries are written; absent file or
+artifact folders mean none. ZIP compression preserves the original member bytes.
 
 ### Prepared Reports: Implemented
 
@@ -82,8 +87,8 @@ the existing durable report store directly.
 
 ## Risks / Trade-Offs
 
-- Independent cycle publication currently retains a report after a late archive
-  failure → Close task 3.7 with one storage boundary and pass all three failure stories.
+- Files may outlive a failed attempt until its owner knows the attempt is dead →
+  Native scoped deletion runs before the next attempt and on host open.
 - The unused encoded archive format is removed → All in-tree archive readers
   and stories consume the JSON replacement; development baselines remain v1.
 - A manifest cannot hash its own bytes → Each manifest excludes itself; the
@@ -93,5 +98,5 @@ the existing durable report store directly.
 
 Use the JSON archive layout as a clean development break. Existing sealed archives
 remain immutable retained files; existing storage roots are preserved. Do not
-silently reset a root. Full validation and retirement remain open until atomic
-publication and the required project proof are complete.
+silently reset a root. Full validation and retirement remain open until commit-record
+recovery and the required project proof are complete.

@@ -80,13 +80,13 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
                 receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
             });
         }
-        prepare(context, request).await
+        prepare(context, request, None).await
     })
     .await
 }
 
 pub(crate) fn prepare(
-    context: &Context, request: ReportsCreateRequest,
+    context: &Context, request: ReportsCreateRequest, scope: Option<Identifier>,
 ) -> Pin<Box<dyn Future<Output = Result<ReportsCreateResponse>> + Send + '_>> {
     Box::pin(async move {
         let started = Instant::now();
@@ -102,8 +102,12 @@ pub(crate) fn prepare(
         }
         let (mut prepared, rendered) = render(context, &request).await?;
         let metadata = rendered.reference.metadata.as_ref().unwrap();
-        let scope =
-            Identifier::new(metadata.scope.clone().unwrap()).map_err(|source| Error::Invalid(format!("Create Report: {source}")))?;
+        let scope = match scope {
+            Some(scope) => scope,
+            None => {
+                Identifier::new(metadata.scope.clone().unwrap()).map_err(|source| Error::Invalid(format!("Create Report: {source}")))?
+            }
+        };
         let length = rendered.reference.length;
         let digest = rendered.reference.sha256;
         let retained =

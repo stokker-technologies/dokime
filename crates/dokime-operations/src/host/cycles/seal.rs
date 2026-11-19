@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_operations::storage::{CompoundOutcome, DeleteScope, DeleteScopeRequest};
 use harmos_protocol::model::FileReference;
 
 // Local Imports
@@ -27,6 +28,7 @@ use dokime_protocol::host::CyclesSealRequest;
 use dokime_protocol::host::CyclesSealResponse;
 use dokime_protocol::host::{CycleSummary, EvidenceSubject, ReportSubject, ReportsCreateRequest, evidence_subject, report_subject};
 use dokime_storage::ExecutionState;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -66,6 +68,8 @@ pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Cyc
                 return Err(Error::Precondition(format!("Seal Cycle {}: Wait for Running Execution {execution} to Seal", request.name)));
             }
         }
+        // Retire the Previous Attempt Before Admitting Its Replacement.
+        cleanup(context, &request.name).await?;
         cycle.phase = CyclePhase::Sealing as i32;
         cycle.seal_failure = None;
         cycle.updated_at = Some(crate::host::projection::timestamp(context.host.now_ns()));
@@ -93,6 +97,7 @@ pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Cyc
                         cycle.updated_at = Some(crate::host::projection::timestamp(work.host.now_ns()));
                     }
                 }
+                // Commit Both Retained References With the Sealed State in One Write.
                 // Successful Publication Retains the Seal Timestamp Frozen at Admission.
                 work.host.store().save_cycle(&cycle)?;
                 work.host.signal_change();
@@ -115,7 +120,31 @@ pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Cyc
     response(context, first, &request.request_id)
 }
 
+pub async fn recover(context: &Context) -> Result<()> {
+    for cycle in context.host.store().client_cycles()? {
+        if !cycle.sealed {
+            cleanup(context, &cycle.cycle_id).await?;
+        }
+    }
+    Ok(())
+}
+
 /* === Private Functions === */
+
+async fn cleanup(context: &Context, name: &str) -> Result<()> {
+    let request_id = uuid::Uuid::now_v7().to_string();
+    let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
+    let response = context
+        .storage::<DeleteScope>(DeleteScopeRequest {
+            mutation: Some(mutation),
+            scope: Scope::CycleSeal(name).identifier()?,
+        })
+        .await?;
+    if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
+        return Err(Error::Conflict(format!("Retire Cycle {name} Seal Attempt: Reopen the Host Before Retrying Seal")));
+    }
+    Ok(())
+}
 
 fn response(context: &Context, cycle: CycleSummary, request: &str) -> Result<CyclesSealResponse> {
     let mut receipt = crate::host::views::receipt(context, request)?;
@@ -128,6 +157,7 @@ fn response(context: &Context, cycle: CycleSummary, request: &str) -> Result<Cyc
 }
 
 async fn materialize(context: &Context, name: &str) -> Result<(FileReference, FileReference)> {
+    let scope = Scope::CycleSeal(name).identifier()?;
     {
         let _guard = context.administration.lock().await;
         for row in crate::host::execution_state::snapshots(context, name)? {
@@ -149,6 +179,7 @@ async fn materialize(context: &Context, name: &str) -> Result<(FileReference, Fi
             request_id: format!("cycle-seal/{name}/{}", uuid::Uuid::now_v7()),
             ..Default::default()
         },
+        Some(scope.clone()),
     )
     .await?;
     let file = report.file.ok_or_else(|| Error::Precondition("Seal Cycle: Restore Its Materialized Report".into()))?;
@@ -158,6 +189,7 @@ async fn materialize(context: &Context, name: &str) -> Result<(FileReference, Fi
             kind: Some(evidence_subject::Kind::Cycle(name.into())),
         },
         Some(file.clone()),
+        Some(scope),
     )
     .await?;
     Ok((file, archive))

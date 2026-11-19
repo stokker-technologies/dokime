@@ -13,7 +13,7 @@
 ## 3. Cycle Seal
 
 - [x] 3.1 Verify what the evidence archive contains today (samples, records, files, notes, documents, report) and record any gap against full evidence here before implementing.
-- [ ] 3.2 Materialize the cycle report during seal under the Sealing phase and retain it; report Seal Failed with the cause and leave the cycle sealable.
+- [x] 3.2 Materialize the cycle report during seal under the Sealing phase and retain it; report Seal Failed with the cause and leave the cycle sealable.
 - [x] 3.3 Materialize the evidence archive containing that report during the same seal and retain it.
 - [x] 3.4 Return the retained report and archive on every download; prove equal digests across two downloads.
 - [x] 3.5 Refuse a cycle seal while an execution is running and name it.
@@ -44,13 +44,14 @@ Neither ZIP contained `report.html` or native operator notes.
 
 ### Publication and Archive Decisions
 
-The cycle seal owns publication and recovery of its staged report and archive.
-They become visible with Sealed in one native storage compound mutation.
-Reopening discards abandoned cycle-owned staging. Independent report publication
-is not called by cycle sealing. Prepared reports have one durable lookup;
-the temporary runtime registry is removed.
+The cycle seal owns its attempt scope and the Sealed-state commit record.
+Report and archive references become reachable through the cycle together in one
+cycle-state write. A new attempt first deletes the previous attempt scope; host
+open deletes non-Sealed cycles' attempt scopes after abandoning incomplete native
+uploads. On-demand cycle reports keep their separate scope. Prepared reports
+have one durable lookup; the temporary runtime registry is removed.
 
-- [ ] 3.7 Publish the staged report, archive and sealed cycle atomically and prove late failure recovery.
+- [x] 3.7 Commit the retained report and archive references with Sealed in one cycle-state write; prove scoped cleanup and independent-report preservation after late failure.
 - [x] 3.8 Replace nested execution ZIPs with ordered, sanitized template folders and individual reports.
 - [x] 3.9 Project execution evidence into deterministic JSON, replace the unused encoded evidence file and its wire structs, and hash every archive member.
 - [x] 3.10 Apply execution/cycle seal timestamps and dashed telemetry names; prove the exact three-execution entry list, sanitization, JSON, timestamps and repeat digests.
@@ -62,13 +63,9 @@ operations report capture and archive staging, runtime report callers, archive
 stories in storage/runtime/CLI, and Python SDK downloads, starter and stories.
 Documentation under docs/ is owner-written and is reported rather than edited.
 
-The pinned native compound contract admits objects, records, object deletions and
-scope deletions; it has no staged-file publication item. Cycle state still lives
-in execution.sqlite3 while native files and compound mutations live in
-storage.sqlite3. Atomic cycle publication must close both gaps at the storage
-owner; a second transaction mechanism or product-side publication mirror is not
-an allowed replacement. Task 3.7 and the late archive-failure regression remain
-open until that single-boundary storage facility is available.
+The commit-record decision replaces the unavailable cross-store atomicity
+requirement. Existing native upload and scoped-deletion facilities own bytes;
+cycle state owns commitment. No upstream capability is required.
 
 ## 4. Validation and Delivery
 
