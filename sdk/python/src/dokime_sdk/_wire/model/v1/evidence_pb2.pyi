@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
@@ -56,8 +59,9 @@ ARTIFACT_STATE_CANCELLED: ArtifactState
 ARTIFACT_STATE_REJECTED: ArtifactState
 ARTIFACT_STATE_FAILED: ArtifactState
 
-class EvidenceCondition(_message.Message):
-    __slots__ = ("record", "stream", "all", "any")
+@final
+class EvidenceCondition(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RECORD_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     ALL_FIELD_NUMBER: _ClassVar[int]
@@ -68,16 +72,19 @@ class EvidenceCondition(_message.Message):
     any: EvidenceConditions
     def __init__(self, record: _Optional[_Union[RecordMatch, _Mapping]] = ..., stream: _Optional[_Union[StreamMatch, _Mapping]] = ..., all: _Optional[_Union[EvidenceConditions, _Mapping]] = ..., any: _Optional[_Union[EvidenceConditions, _Mapping]] = ...) -> None: ...
 
-class EvidenceConditions(_message.Message):
-    __slots__ = ("conditions",)
+@final
+class EvidenceConditions(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     conditions: _containers.RepeatedCompositeFieldContainer[EvidenceCondition]
     def __init__(self, conditions: _Optional[_Iterable[_Union[EvidenceCondition, _Mapping]]] = ...) -> None: ...
 
-class RecordMatch(_message.Message):
-    __slots__ = ("kind", "fields")
-    class FieldsEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class RecordMatch(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class FieldsEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -89,8 +96,9 @@ class RecordMatch(_message.Message):
     fields: _containers.MessageMap[str, _scalar_pb2.Value]
     def __init__(self, kind: _Optional[str] = ..., fields: _Optional[_Mapping[str, _scalar_pb2.Value]] = ...) -> None: ...
 
-class StreamMatch(_message.Message):
-    __slots__ = ("stream", "field", "operator", "target", "tolerance")
+@final
+class StreamMatch(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STREAM_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
@@ -103,8 +111,9 @@ class StreamMatch(_message.Message):
     tolerance: float
     def __init__(self, stream: _Optional[str] = ..., field: _Optional[str] = ..., operator: _Optional[_Union[StreamMatchOperator, str]] = ..., target: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., tolerance: _Optional[float] = ...) -> None: ...
 
-class ArtifactMetadata(_message.Message):
-    __slots__ = ("artifact_id", "upload_id", "scope", "filename", "content_type", "size_bytes", "sha256", "state", "created_at", "error")
+@final
+class ArtifactMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ARTIFACT_ID_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_ID_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -127,8 +136,9 @@ class ArtifactMetadata(_message.Message):
     error: str
     def __init__(self, artifact_id: _Optional[str] = ..., upload_id: _Optional[str] = ..., scope: _Optional[_Union[ArtifactScope, _Mapping]] = ..., filename: _Optional[str] = ..., content_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., state: _Optional[_Union[ArtifactState, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., error: _Optional[str] = ...) -> None: ...
 
-class ArtifactScope(_message.Message):
-    __slots__ = ("cycle_id", "case_id", "execution_id")
+@final
+class ArtifactScope(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -137,14 +147,16 @@ class ArtifactScope(_message.Message):
     execution_id: str
     def __init__(self, cycle_id: _Optional[str] = ..., case_id: _Optional[str] = ..., execution_id: _Optional[str] = ...) -> None: ...
 
-class EvidenceOrigin(_message.Message):
-    __slots__ = ("kind",)
+@final
+class EvidenceOrigin(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: EvidenceOriginKind
     def __init__(self, kind: _Optional[_Union[EvidenceOriginKind, _Mapping]] = ...) -> None: ...
 
-class EvidenceOriginKind(_message.Message):
-    __slots__ = ("default", "initialization", "step_attempt_id", "cleanup")
+@final
+class EvidenceOriginKind(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DEFAULT_FIELD_NUMBER: _ClassVar[int]
     INITIALIZATION_FIELD_NUMBER: _ClassVar[int]
     STEP_ATTEMPT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -155,8 +167,9 @@ class EvidenceOriginKind(_message.Message):
     cleanup: bool
     def __init__(self, default: _Optional[bool] = ..., initialization: _Optional[bool] = ..., step_attempt_id: _Optional[str] = ..., cleanup: _Optional[bool] = ...) -> None: ...
 
-class EvidenceScope(_message.Message):
-    __slots__ = ("session_id", "cycle_id", "case_id", "execution_id", "step_id", "criterion_id", "template_id", "suite_id", "origin")
+@final
+class EvidenceScope(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -177,8 +190,9 @@ class EvidenceScope(_message.Message):
     origin: EvidenceOrigin
     def __init__(self, session_id: _Optional[str] = ..., cycle_id: _Optional[str] = ..., case_id: _Optional[str] = ..., execution_id: _Optional[str] = ..., step_id: _Optional[str] = ..., criterion_id: _Optional[str] = ..., template_id: _Optional[str] = ..., suite_id: _Optional[str] = ..., origin: _Optional[_Union[EvidenceOrigin, _Mapping]] = ...) -> None: ...
 
-class Window(_message.Message):
-    __slots__ = ("start", "end")
+@final
+class Window(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     START_FIELD_NUMBER: _ClassVar[int]
     END_FIELD_NUMBER: _ClassVar[int]
     start: _timestamp_pb2.Timestamp

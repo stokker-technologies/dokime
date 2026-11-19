@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
 from google.protobuf import descriptor as _descriptor
@@ -7,8 +10,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class TraceabilityEntry(_message.Message):
-    __slots__ = ("metadata", "value", "source", "unit")
+@final
+class TraceabilityEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]

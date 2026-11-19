@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import documents_pb2 as _documents_pb2
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
@@ -10,14 +13,16 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class Suites(_message.Message):
-    __slots__ = ("suites",)
+@final
+class Suites(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SUITES_FIELD_NUMBER: _ClassVar[int]
     suites: _containers.RepeatedCompositeFieldContainer[Suite]
     def __init__(self, suites: _Optional[_Iterable[_Union[Suite, _Mapping]]] = ...) -> None: ...
 
-class Suite(_message.Message):
-    __slots__ = ("metadata", "templates", "tags", "parameter_groups")
+@final
+class Suite(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TEMPLATES_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
@@ -28,8 +33,9 @@ class Suite(_message.Message):
     parameter_groups: _containers.RepeatedCompositeFieldContainer[_metadata_pb2.Metadata]
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., templates: _Optional[_Iterable[_Union[TestCaseTemplate, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., parameter_groups: _Optional[_Iterable[_Union[_metadata_pb2.Metadata, _Mapping]]] = ...) -> None: ...
 
-class TestCaseTemplate(_message.Message):
-    __slots__ = ("metadata", "parameters", "files", "documents", "tags", "materialize", "initialize", "cleanup", "parameter_groups", "steps")
+@final
+class TestCaseTemplate(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     FILES_FIELD_NUMBER: _ClassVar[int]

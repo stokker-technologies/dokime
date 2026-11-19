@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import file_pb2 as _file_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
@@ -9,16 +12,18 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class UploadsCreateRequest(_message.Message):
-    __slots__ = ("metadata", "request_id")
+@final
+class UploadsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     metadata: _file_pb2.FileMetadata
     request_id: str
     def __init__(self, metadata: _Optional[_Union[_file_pb2.FileMetadata, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class UploadsCreateResponse(_message.Message):
-    __slots__ = ("upload", "receipt", "chunk_bytes", "message_bytes")
+@final
+class UploadsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -29,16 +34,18 @@ class UploadsCreateResponse(_message.Message):
     message_bytes: int
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ..., chunk_bytes: _Optional[int] = ..., message_bytes: _Optional[int] = ...) -> None: ...
 
-class UploadsGetRequest(_message.Message):
-    __slots__ = ("upload", "at")
+@final
+class UploadsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
     at: _position_pb2.ReadCut
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class UploadsGetResponse(_message.Message):
-    __slots__ = ("upload", "chunk_bytes", "message_bytes", "resolved_at")
+@final
+class UploadsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -49,16 +56,18 @@ class UploadsGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., chunk_bytes: _Optional[int] = ..., message_bytes: _Optional[int] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class UploadsResumeRequest(_message.Message):
-    __slots__ = ("upload", "request_id")
+@final
+class UploadsResumeRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
     request_id: str
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class UploadsResumeResponse(_message.Message):
-    __slots__ = ("upload", "receipt", "chunk_bytes", "message_bytes")
+@final
+class UploadsResumeResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -69,8 +78,9 @@ class UploadsResumeResponse(_message.Message):
     message_bytes: int
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ..., chunk_bytes: _Optional[int] = ..., message_bytes: _Optional[int] = ...) -> None: ...
 
-class UploadsAppendRequest(_message.Message):
-    __slots__ = ("upload", "offset", "data", "request_id")
+@final
+class UploadsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     DATA_FIELD_NUMBER: _ClassVar[int]
@@ -81,16 +91,18 @@ class UploadsAppendRequest(_message.Message):
     request_id: str
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., offset: _Optional[int] = ..., data: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class UploadsAppendResponse(_message.Message):
-    __slots__ = ("upload", "receipt")
+@final
+class UploadsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
     receipt: _receipt_pb2.Receipt
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class UploadsPublishRequest(_message.Message):
-    __slots__ = ("upload", "length", "sha256", "request_id")
+@final
+class UploadsPublishRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     LENGTH_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
@@ -101,24 +113,27 @@ class UploadsPublishRequest(_message.Message):
     request_id: str
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., length: _Optional[int] = ..., sha256: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class UploadsPublishResponse(_message.Message):
-    __slots__ = ("upload", "receipt")
+@final
+class UploadsPublishResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.FileReference
     receipt: _receipt_pb2.Receipt
     def __init__(self, upload: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class UploadsDeleteRequest(_message.Message):
-    __slots__ = ("upload", "request_id")
+@final
+class UploadsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
     request_id: str
     def __init__(self, upload: _Optional[_Union[_file_pb2.Upload, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class UploadsDeleteResponse(_message.Message):
-    __slots__ = ("upload", "receipt")
+@final
+class UploadsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload

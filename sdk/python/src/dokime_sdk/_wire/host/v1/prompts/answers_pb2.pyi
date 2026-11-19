@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.host.v1 import prompts_pb2 as _prompts_pb2
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -9,8 +12,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class AnswersCreateRequest(_message.Message):
-    __slots__ = ("parent", "action", "values", "accepted", "request_id")
+@final
+class AnswersCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
@@ -23,8 +27,9 @@ class AnswersCreateRequest(_message.Message):
     request_id: str
     def __init__(self, parent: _Optional[str] = ..., action: _Optional[str] = ..., values: _Optional[_Union[_scalar_pb2.MapValue, _Mapping]] = ..., accepted: _Optional[bool] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class AnswersCreateResponse(_message.Message):
-    __slots__ = ("answer", "receipt")
+@final
+class AnswersCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ANSWER_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     answer: _prompts_pb2.PromptResponse

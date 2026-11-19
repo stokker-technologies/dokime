@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -55,8 +58,9 @@ FILTER_OPERATOR_LE: FilterOperator
 FILTER_OPERATOR_CONTAINS: FilterOperator
 FILTER_OPERATOR_EXISTS: FilterOperator
 
-class DataExpression(_message.Message):
-    __slots__ = ("label", "stream", "record", "parameter", "dimension", "artifact", "aggregate", "transform", "literal")
+@final
+class DataExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LABEL_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     RECORD_FIELD_NUMBER: _ClassVar[int]
@@ -77,16 +81,18 @@ class DataExpression(_message.Message):
     literal: _scalar_pb2.Value
     def __init__(self, label: _Optional[str] = ..., stream: _Optional[_Union[FieldReference, _Mapping]] = ..., record: _Optional[_Union[FieldReference, _Mapping]] = ..., parameter: _Optional[str] = ..., dimension: _Optional[str] = ..., artifact: _Optional[str] = ..., aggregate: _Optional[_Union[AggregateExpression, _Mapping]] = ..., transform: _Optional[_Union[TransformExpression, _Mapping]] = ..., literal: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ...) -> None: ...
 
-class FieldReference(_message.Message):
-    __slots__ = ("identifier", "field")
+@final
+class FieldReference(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     identifier: str
     field: str
     def __init__(self, identifier: _Optional[str] = ..., field: _Optional[str] = ...) -> None: ...
 
-class AggregateExpression(_message.Message):
-    __slots__ = ("input", "kind", "percentile")
+@final
+class AggregateExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     INPUT_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PERCENTILE_FIELD_NUMBER: _ClassVar[int]
@@ -95,8 +101,9 @@ class AggregateExpression(_message.Message):
     percentile: float
     def __init__(self, input: _Optional[_Union[DataExpression, _Mapping]] = ..., kind: _Optional[_Union[Aggregate, str]] = ..., percentile: _Optional[float] = ...) -> None: ...
 
-class TransformExpression(_message.Message):
-    __slots__ = ("input", "detail", "time_between", "per_case", "scale", "offset")
+@final
+class TransformExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     INPUT_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     TIME_BETWEEN_FIELD_NUMBER: _ClassVar[int]
@@ -111,8 +118,9 @@ class TransformExpression(_message.Message):
     offset: float
     def __init__(self, input: _Optional[_Union[DataExpression, _Mapping]] = ..., detail: _Optional[str] = ..., time_between: _Optional[str] = ..., per_case: _Optional[bool] = ..., scale: _Optional[float] = ..., offset: _Optional[float] = ...) -> None: ...
 
-class DocumentFilter(_message.Message):
-    __slots__ = ("expression", "operator", "value")
+@final
+class DocumentFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]

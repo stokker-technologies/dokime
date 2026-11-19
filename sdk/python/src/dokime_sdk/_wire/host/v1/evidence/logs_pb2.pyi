@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -11,8 +14,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class LogsAppendRequest(_message.Message):
-    __slots__ = ("execution", "severity", "message", "at", "request_id")
+@final
+class LogsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     SEVERITY_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -25,8 +29,9 @@ class LogsAppendRequest(_message.Message):
     request_id: str
     def __init__(self, execution: _Optional[str] = ..., severity: _Optional[_Union[_evidence_pb2.Severity, str]] = ..., message: _Optional[str] = ..., at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class LogsAppendResponse(_message.Message):
-    __slots__ = ("receipt",)
+@final
+class LogsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
     def __init__(self, receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...

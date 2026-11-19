@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.host.v1 import record_schemas_pb2 as _record_schemas_pb2
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
 from dokime_sdk._wire.model.v1 import expressions_pb2 as _expressions_pb2
@@ -40,8 +43,9 @@ PLOT_STREAM_KIND_DELTA: PlotStreamKind
 PLOT_STREAM_KIND_STATISTICS: PlotStreamKind
 PLOT_STREAM_KIND_ERROR: PlotStreamKind
 
-class SnapshotsListRequest(_message.Message):
-    __slots__ = ("requests", "at", "page")
+@final
+class SnapshotsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REQUESTS_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -50,8 +54,9 @@ class SnapshotsListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, requests: _Optional[_Iterable[_Union[PlotRequest, _Mapping]]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class SnapshotsListResponse(_message.Message):
-    __slots__ = ("envelopes", "resolved_at", "next_page_token")
+@final
+class SnapshotsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ENVELOPES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -60,8 +65,9 @@ class SnapshotsListResponse(_message.Message):
     next_page_token: str
     def __init__(self, envelopes: _Optional[_Iterable[_Union[PlotEnvelope, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class SnapshotsWatchRequest(_message.Message):
-    __slots__ = ("requests", "at", "page")
+@final
+class SnapshotsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REQUESTS_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -70,8 +76,9 @@ class SnapshotsWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, requests: _Optional[_Iterable[_Union[PlotRequest, _Mapping]]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class SnapshotsWatchResponse(_message.Message):
-    __slots__ = ("updates", "resolved_at", "opening", "resync_required")
+@final
+class SnapshotsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UPDATES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -82,8 +89,9 @@ class SnapshotsWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, updates: _Optional[_Iterable[_Union[PlotStreamUpdate, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class ContourGrid(_message.Message):
-    __slots__ = ("columns", "rows", "x_edges", "y_edges", "values", "valid")
+@final
+class ContourGrid(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     X_EDGES_FIELD_NUMBER: _ClassVar[int]
@@ -98,8 +106,9 @@ class ContourGrid(_message.Message):
     valid: _containers.RepeatedScalarFieldContainer[bool]
     def __init__(self, columns: _Optional[int] = ..., rows: _Optional[int] = ..., x_edges: _Optional[_Iterable[float]] = ..., y_edges: _Optional[_Iterable[float]] = ..., values: _Optional[_Iterable[float]] = ..., valid: _Optional[_Iterable[bool]] = ...) -> None: ...
 
-class GridCell(_message.Message):
-    __slots__ = ("row", "column", "label")
+@final
+class GridCell(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -108,8 +117,9 @@ class GridCell(_message.Message):
     label: str
     def __init__(self, row: _Optional[int] = ..., column: _Optional[int] = ..., label: _Optional[str] = ...) -> None: ...
 
-class GridFrame(_message.Message):
-    __slots__ = ("instant", "values", "valid", "highlights")
+@final
+class GridFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     INSTANT_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     VALID_FIELD_NUMBER: _ClassVar[int]
@@ -120,8 +130,9 @@ class GridFrame(_message.Message):
     highlights: _containers.RepeatedCompositeFieldContainer[GridCell]
     def __init__(self, instant: _Optional[str] = ..., values: _Optional[_Iterable[float]] = ..., valid: _Optional[_Iterable[bool]] = ..., highlights: _Optional[_Iterable[_Union[GridCell, _Mapping]]] = ...) -> None: ...
 
-class GridFrames(_message.Message):
-    __slots__ = ("rows", "columns", "frames", "summary_label")
+@final
+class GridFrames(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROWS_FIELD_NUMBER: _ClassVar[int]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     FRAMES_FIELD_NUMBER: _ClassVar[int]
@@ -132,26 +143,30 @@ class GridFrames(_message.Message):
     summary_label: str
     def __init__(self, rows: _Optional[_Iterable[_Union[_plots_pb2.GridAxisEntry, _Mapping]]] = ..., columns: _Optional[_Iterable[_Union[_plots_pb2.GridAxisEntry, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[GridFrame, _Mapping]]] = ..., summary_label: _Optional[str] = ...) -> None: ...
 
-class NullableNumber(_message.Message):
-    __slots__ = ("value",)
+@final
+class NullableNumber(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: float
     def __init__(self, value: _Optional[float] = ...) -> None: ...
 
-class PlotAnalysis(_message.Message):
-    __slots__ = ("result",)
+@final
+class PlotAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RESULT_FIELD_NUMBER: _ClassVar[int]
     result: PlotAnalysisResult
     def __init__(self, result: _Optional[_Union[PlotAnalysisResult, _Mapping]] = ...) -> None: ...
 
-class PlotAnalysisError(_message.Message):
-    __slots__ = ("message",)
+@final
+class PlotAnalysisError(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     message: str
     def __init__(self, message: _Optional[str] = ...) -> None: ...
 
-class PlotAnalysisResult(_message.Message):
-    __slots__ = ("contour", "grid_chart", "histogram", "box_plot", "sigma_interval", "error")
+@final
+class PlotAnalysisResult(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CONTOUR_FIELD_NUMBER: _ClassVar[int]
     GRID_CHART_FIELD_NUMBER: _ClassVar[int]
     HISTOGRAM_FIELD_NUMBER: _ClassVar[int]
@@ -166,8 +181,9 @@ class PlotAnalysisResult(_message.Message):
     error: PlotAnalysisError
     def __init__(self, contour: _Optional[_Union[ContourGrid, _Mapping]] = ..., grid_chart: _Optional[_Union[GridFrames, _Mapping]] = ..., histogram: _Optional[_Union[PlotHistogramAnalysis, _Mapping]] = ..., box_plot: _Optional[_Union[PlotBoxSummaryAnalysis, _Mapping]] = ..., sigma_interval: _Optional[_Union[PlotSigmaIntervalAnalysis, _Mapping]] = ..., error: _Optional[_Union[PlotAnalysisError, _Mapping]] = ...) -> None: ...
 
-class PlotBoxSummary(_message.Message):
-    __slots__ = ("key", "count", "min", "q1", "median", "q3", "max", "lower_whisker", "upper_whisker", "outliers", "label")
+@final
+class PlotBoxSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
@@ -192,16 +208,18 @@ class PlotBoxSummary(_message.Message):
     label: str
     def __init__(self, key: _Optional[str] = ..., count: _Optional[int] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., q1: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., q3: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., lower_whisker: _Optional[float] = ..., upper_whisker: _Optional[float] = ..., outliers: _Optional[_Iterable[float]] = ..., label: _Optional[str] = ...) -> None: ...
 
-class PlotBoxSummaryAnalysis(_message.Message):
-    __slots__ = ("series", "total")
+@final
+class PlotBoxSummaryAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SERIES_FIELD_NUMBER: _ClassVar[int]
     TOTAL_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[PlotBoxSummary]
     total: int
     def __init__(self, series: _Optional[_Iterable[_Union[PlotBoxSummary, _Mapping]]] = ..., total: _Optional[int] = ...) -> None: ...
 
-class PlotColumn(_message.Message):
-    __slots__ = ("instants", "x", "y", "z", "totals")
+@final
+class PlotColumn(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     INSTANTS_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
@@ -214,16 +232,18 @@ class PlotColumn(_message.Message):
     totals: _containers.RepeatedCompositeFieldContainer[_scalar_pb2.Value]
     def __init__(self, instants: _Optional[_Iterable[str]] = ..., x: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ..., y: _Optional[_Iterable[_Union[NullableNumber, _Mapping]]] = ..., z: _Optional[_Iterable[_Union[NullableNumber, _Mapping]]] = ..., totals: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ...) -> None: ...
 
-class PlotDomain(_message.Message):
-    __slots__ = ("min", "max")
+@final
+class PlotDomain(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
     min: float
     max: float
     def __init__(self, min: _Optional[float] = ..., max: _Optional[float] = ...) -> None: ...
 
-class PlotEnvelope(_message.Message):
-    __slots__ = ("plot_id", "revision", "epoch", "selection", "payload", "diagnostics", "warnings")
+@final
+class PlotEnvelope(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
@@ -240,8 +260,9 @@ class PlotEnvelope(_message.Message):
     warnings: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, plot_id: _Optional[str] = ..., revision: _Optional[int] = ..., epoch: _Optional[str] = ..., selection: _Optional[str] = ..., payload: _Optional[_Union[PlotPayload, _Mapping]] = ..., diagnostics: _Optional[_Union[PlotPayloadDiagnostics, _Mapping]] = ..., warnings: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class PlotFrame(_message.Message):
-    __slots__ = ("mode", "time", "series", "x_domain", "y_domain", "point_count", "signature")
+@final
+class PlotFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MODE_FIELD_NUMBER: _ClassVar[int]
     TIME_FIELD_NUMBER: _ClassVar[int]
     SERIES_FIELD_NUMBER: _ClassVar[int]
@@ -258,14 +279,16 @@ class PlotFrame(_message.Message):
     signature: str
     def __init__(self, mode: _Optional[_Union[PlotCartesianMode, str]] = ..., time: _Optional[_Iterable[float]] = ..., series: _Optional[_Iterable[_Union[PlotColumn, _Mapping]]] = ..., x_domain: _Optional[_Union[PlotDomain, _Mapping]] = ..., y_domain: _Optional[_Union[PlotDomain, _Mapping]] = ..., point_count: _Optional[int] = ..., signature: _Optional[str] = ...) -> None: ...
 
-class PlotHistogramAnalysis(_message.Message):
-    __slots__ = ("series",)
+@final
+class PlotHistogramAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SERIES_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[PlotHistogramSeries]
     def __init__(self, series: _Optional[_Iterable[_Union[PlotHistogramSeries, _Mapping]]] = ...) -> None: ...
 
-class PlotHistogramBin(_message.Message):
-    __slots__ = ("lower", "upper", "count")
+@final
+class PlotHistogramBin(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LOWER_FIELD_NUMBER: _ClassVar[int]
     UPPER_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -274,8 +297,9 @@ class PlotHistogramBin(_message.Message):
     count: int
     def __init__(self, lower: _Optional[float] = ..., upper: _Optional[float] = ..., count: _Optional[int] = ...) -> None: ...
 
-class PlotHistogramSeries(_message.Message):
-    __slots__ = ("key", "bins", "count", "statistics")
+@final
+class PlotHistogramSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     BINS_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -286,8 +310,9 @@ class PlotHistogramSeries(_message.Message):
     statistics: PlotHistogramStatistics
     def __init__(self, key: _Optional[str] = ..., bins: _Optional[_Iterable[_Union[PlotHistogramBin, _Mapping]]] = ..., count: _Optional[int] = ..., statistics: _Optional[_Union[PlotHistogramStatistics, _Mapping]] = ...) -> None: ...
 
-class PlotHistogramStatistics(_message.Message):
-    __slots__ = ("mean", "median", "std", "rms", "min", "max")
+@final
+class PlotHistogramStatistics(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MEAN_FIELD_NUMBER: _ClassVar[int]
     MEDIAN_FIELD_NUMBER: _ClassVar[int]
     STD_FIELD_NUMBER: _ClassVar[int]
@@ -302,8 +327,9 @@ class PlotHistogramStatistics(_message.Message):
     max: _scalar_pb2.Value
     def __init__(self, mean: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., std: _Optional[float] = ..., rms: _Optional[float] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ...) -> None: ...
 
-class PlotMarker(_message.Message):
-    __slots__ = ("x", "label", "record_type", "color")
+@final
+class PlotMarker(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     X_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
@@ -314,8 +340,9 @@ class PlotMarker(_message.Message):
     color: str
     def __init__(self, x: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., label: _Optional[str] = ..., record_type: _Optional[str] = ..., color: _Optional[str] = ...) -> None: ...
 
-class PlotPayload(_message.Message):
-    __slots__ = ("stream", "x_key", "series_by", "context", "series", "frame", "markers", "max_points", "window_s", "generated_at", "x_format", "run_started_at", "cycle_started_at", "analysis", "summaries", "bucket_width_s", "bucket_window", "replaced_buckets")
+@final
+class PlotPayload(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STREAM_FIELD_NUMBER: _ClassVar[int]
     X_KEY_FIELD_NUMBER: _ClassVar[int]
     SERIES_BY_FIELD_NUMBER: _ClassVar[int]
@@ -354,8 +381,9 @@ class PlotPayload(_message.Message):
     replaced_buckets: _containers.RepeatedScalarFieldContainer[float]
     def __init__(self, stream: _Optional[str] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., context: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., series: _Optional[_Iterable[_Union[PlotSeries, _Mapping]]] = ..., frame: _Optional[_Union[PlotFrame, _Mapping]] = ..., markers: _Optional[_Iterable[_Union[PlotMarker, _Mapping]]] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., generated_at: _Optional[str] = ..., x_format: _Optional[_Union[_record_schemas_pb2.ValueFormat, _Mapping]] = ..., run_started_at: _Optional[str] = ..., cycle_started_at: _Optional[str] = ..., analysis: _Optional[_Union[PlotAnalysis, _Mapping]] = ..., summaries: _Optional[_Iterable[_Union[PlotSeriesSummary, _Mapping]]] = ..., bucket_width_s: _Optional[float] = ..., bucket_window: _Optional[_Union[PlotWindow, _Mapping]] = ..., replaced_buckets: _Optional[_Iterable[float]] = ...) -> None: ...
 
-class PlotPayloadDiagnostics(_message.Message):
-    __slots__ = ("examined_rows", "resolution_nanos", "series_count", "point_count", "raw_point_count", "downsampled", "max_points", "window_s")
+@final
+class PlotPayloadDiagnostics(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXAMINED_ROWS_FIELD_NUMBER: _ClassVar[int]
     RESOLUTION_NANOS_FIELD_NUMBER: _ClassVar[int]
     SERIES_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -374,8 +402,9 @@ class PlotPayloadDiagnostics(_message.Message):
     window_s: float
     def __init__(self, examined_rows: _Optional[int] = ..., resolution_nanos: _Optional[int] = ..., series_count: _Optional[int] = ..., point_count: _Optional[int] = ..., raw_point_count: _Optional[int] = ..., downsampled: _Optional[bool] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ...) -> None: ...
 
-class PlotSeries(_message.Message):
-    __slots__ = ("key", "label", "unit", "raw_points", "downsampled", "format")
+@final
+class PlotSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
@@ -390,8 +419,9 @@ class PlotSeries(_message.Message):
     format: _record_schemas_pb2.ValueFormat
     def __init__(self, key: _Optional[str] = ..., label: _Optional[str] = ..., unit: _Optional[str] = ..., raw_points: _Optional[int] = ..., downsampled: _Optional[bool] = ..., format: _Optional[_Union[_record_schemas_pb2.ValueFormat, _Mapping]] = ...) -> None: ...
 
-class PlotSeriesSummary(_message.Message):
-    __slots__ = ("series_id", "count", "min", "max", "mean", "median", "std", "rms", "window")
+@final
+class PlotSeriesSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SERIES_ID_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
@@ -412,8 +442,9 @@ class PlotSeriesSummary(_message.Message):
     window: PlotWindow
     def __init__(self, series_id: _Optional[str] = ..., count: _Optional[int] = ..., min: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., max: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., mean: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., median: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., std: _Optional[float] = ..., rms: _Optional[float] = ..., window: _Optional[_Union[PlotWindow, _Mapping]] = ...) -> None: ...
 
-class PlotSigmaBin(_message.Message):
-    __slots__ = ("x", "count", "mean", "lower", "upper")
+@final
+class PlotSigmaBin(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     X_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MEAN_FIELD_NUMBER: _ClassVar[int]
@@ -426,14 +457,16 @@ class PlotSigmaBin(_message.Message):
     upper: float
     def __init__(self, x: _Optional[float] = ..., count: _Optional[int] = ..., mean: _Optional[float] = ..., lower: _Optional[float] = ..., upper: _Optional[float] = ...) -> None: ...
 
-class PlotSigmaIntervalAnalysis(_message.Message):
-    __slots__ = ("series",)
+@final
+class PlotSigmaIntervalAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SERIES_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[PlotSigmaSeries]
     def __init__(self, series: _Optional[_Iterable[_Union[PlotSigmaSeries, _Mapping]]] = ...) -> None: ...
 
-class PlotSigmaSeries(_message.Message):
-    __slots__ = ("key", "bins", "raw_points")
+@final
+class PlotSigmaSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     BINS_FIELD_NUMBER: _ClassVar[int]
     RAW_POINTS_FIELD_NUMBER: _ClassVar[int]
@@ -442,16 +475,18 @@ class PlotSigmaSeries(_message.Message):
     raw_points: int
     def __init__(self, key: _Optional[str] = ..., bins: _Optional[_Iterable[_Union[PlotSigmaBin, _Mapping]]] = ..., raw_points: _Optional[int] = ...) -> None: ...
 
-class PlotStreamUpdate(_message.Message):
-    __slots__ = ("kind", "envelope")
+@final
+class PlotStreamUpdate(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KIND_FIELD_NUMBER: _ClassVar[int]
     ENVELOPE_FIELD_NUMBER: _ClassVar[int]
     kind: PlotStreamKind
     envelope: PlotEnvelope
     def __init__(self, kind: _Optional[_Union[PlotStreamKind, str]] = ..., envelope: _Optional[_Union[PlotEnvelope, _Mapping]] = ...) -> None: ...
 
-class PlotRequest(_message.Message):
-    __slots__ = ("arrangement", "pareto", "hole", "xy_interval", "grid", "reduction", "render", "y_viewport", "panel_height", "plot_id", "plot_type", "style", "x_scale", "y_scale", "stream", "y_keys", "marker_record_types", "filters", "x_key", "series_by", "x_expression", "y_expressions", "series_by_expression", "z_stream", "z_field", "unit", "max_points", "window_s", "scope", "technique", "z_expression", "fft", "interval", "histogram", "summary_window", "viewport", "panel_width", "at")
+@final
+class PlotRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ARRANGEMENT_FIELD_NUMBER: _ClassVar[int]
     PARETO_FIELD_NUMBER: _ClassVar[int]
     HOLE_FIELD_NUMBER: _ClassVar[int]
@@ -530,8 +565,9 @@ class PlotRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, arrangement: _Optional[_Union[_plots_pb2.BarArrangement, str]] = ..., pareto: _Optional[bool] = ..., hole: _Optional[float] = ..., xy_interval: _Optional[_Union[_plots_pb2.XyInterval, str]] = ..., grid: _Optional[_Union[_plots_pb2.GridDefinition, _Mapping]] = ..., reduction: _Optional[_Union[_plots_pb2.Reduction, str]] = ..., render: _Optional[_Union[_plots_pb2.ContourRender, str]] = ..., y_viewport: _Optional[_Union[PlotWindow, _Mapping]] = ..., panel_height: _Optional[int] = ..., plot_id: _Optional[str] = ..., plot_type: _Optional[_Union[_plots_pb2.PlotKind, str]] = ..., style: _Optional[_Union[_plots_pb2.LineStyle, str]] = ..., x_scale: _Optional[_Union[_plots_pb2.AxisScale, str]] = ..., y_scale: _Optional[_Union[_plots_pb2.AxisScale, str]] = ..., stream: _Optional[str] = ..., y_keys: _Optional[_Iterable[str]] = ..., marker_record_types: _Optional[_Iterable[str]] = ..., filters: _Optional[_Iterable[_Union[_plots_pb2.PlotFilter, _Mapping]]] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., x_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., y_expressions: _Optional[_Iterable[_Union[_expressions_pb2.DataExpression, _Mapping]]] = ..., series_by_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., z_stream: _Optional[str] = ..., z_field: _Optional[str] = ..., unit: _Optional[str] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., technique: _Optional[_Union[_plots_pb2.Downsample, str]] = ..., z_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., fft: _Optional[_Union[_plots_pb2.PlotFftOptions, _Mapping]] = ..., interval: _Optional[_Union[_plots_pb2.PlotIntervalOptions, _Mapping]] = ..., histogram: _Optional[_Union[_plots_pb2.PlotHistogramOptions, _Mapping]] = ..., summary_window: _Optional[_Union[PlotWindow, _Mapping]] = ..., viewport: _Optional[_Union[PlotWindow, _Mapping]] = ..., panel_width: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class PlotWindow(_message.Message):
-    __slots__ = ("to",)
+@final
+class PlotWindow(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FROM_FIELD_NUMBER: _ClassVar[int]
     TO_FIELD_NUMBER: _ClassVar[int]
     to: float

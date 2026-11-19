@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.host.v1 import cycles_pb2 as _cycles_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -11,28 +14,32 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class OverviewGetRequest(_message.Message):
-    __slots__ = ("at",)
+@final
+class OverviewGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class OverviewGetResponse(_message.Message):
-    __slots__ = ("overview", "resolved_at")
+@final
+class OverviewGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OVERVIEW_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     overview: RuntimeShellSnapshot
     resolved_at: _position_pb2.ReadCut
     def __init__(self, overview: _Optional[_Union[RuntimeShellSnapshot, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class OverviewWatchRequest(_message.Message):
-    __slots__ = ("at",)
+@final
+class OverviewWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class OverviewWatchResponse(_message.Message):
-    __slots__ = ("overview", "resolved_at", "opening", "resync_required")
+@final
+class OverviewWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OVERVIEW_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -43,8 +50,9 @@ class OverviewWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, overview: _Optional[_Union[RuntimeShellSnapshot, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class EvidenceCounts(_message.Message):
-    __slots__ = ("records", "telemetry", "prompts", "artifacts", "health", "traceability", "notes")
+@final
+class EvidenceCounts(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
@@ -61,8 +69,9 @@ class EvidenceCounts(_message.Message):
     notes: int
     def __init__(self, records: _Optional[int] = ..., telemetry: _Optional[int] = ..., prompts: _Optional[int] = ..., artifacts: _Optional[int] = ..., health: _Optional[int] = ..., traceability: _Optional[int] = ..., notes: _Optional[int] = ...) -> None: ...
 
-class RuntimeShellSnapshot(_message.Message):
-    __slots__ = ("session_id", "revision", "shutting_down", "hub_metadata", "test_suite_count", "cycle_summaries", "evidence_counts", "observed_cursor", "next_after_cycle_id")
+@final
+class RuntimeShellSnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     SHUTTING_DOWN_FIELD_NUMBER: _ClassVar[int]

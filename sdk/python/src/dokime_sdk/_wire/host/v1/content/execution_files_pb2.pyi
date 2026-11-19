@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
@@ -39,8 +42,9 @@ EXECUTION_FILE_STATE_STREAMING: ExecutionFileState
 EXECUTION_FILE_STATE_FINALIZED: ExecutionFileState
 EXECUTION_FILE_STATE_INTERRUPTED: ExecutionFileState
 
-class ExecutionFilesGetRequest(_message.Message):
-    __slots__ = ("parent", "name", "at")
+@final
+class ExecutionFilesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -49,8 +53,9 @@ class ExecutionFilesGetRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, parent: _Optional[str] = ..., name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ExecutionFilesGetResponse(_message.Message):
-    __slots__ = ("metadata", "file", "resolved_at")
+@final
+class ExecutionFilesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -59,8 +64,9 @@ class ExecutionFilesGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, metadata: _Optional[_Union[ExecutionFileMetadata, _Mapping]] = ..., file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ExecutionFilesListRequest(_message.Message):
-    __slots__ = ("parent", "at", "page")
+@final
+class ExecutionFilesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -69,8 +75,9 @@ class ExecutionFilesListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, parent: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class ExecutionFilesListResponse(_message.Message):
-    __slots__ = ("files", "resolved_at", "next_page_token")
+@final
+class ExecutionFilesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FILES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -79,8 +86,9 @@ class ExecutionFilesListResponse(_message.Message):
     next_page_token: str
     def __init__(self, files: _Optional[_Iterable[_Union[ExecutionFileMetadata, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class ExecutionFilesWatchRequest(_message.Message):
-    __slots__ = ("parent", "at", "page")
+@final
+class ExecutionFilesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -89,8 +97,9 @@ class ExecutionFilesWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, parent: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class ExecutionFilesWatchResponse(_message.Message):
-    __slots__ = ("files", "resolved_at", "opening", "resync_required")
+@final
+class ExecutionFilesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FILES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -101,8 +110,9 @@ class ExecutionFilesWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, files: _Optional[_Iterable[_Union[ExecutionFileMetadata, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class ExecutionFileMetadata(_message.Message):
-    __slots__ = ("relative_path", "content_type", "kind", "state", "size_bytes", "created_at")
+@final
+class ExecutionFileMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RELATIVE_PATH_FIELD_NUMBER: _ClassVar[int]
     CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]

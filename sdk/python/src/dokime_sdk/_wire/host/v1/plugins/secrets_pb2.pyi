@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import secrets_pb2 as _secrets_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
@@ -9,24 +12,27 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class SecretsListRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class SecretsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class SecretsListResponse(_message.Message):
-    __slots__ = ("secrets", "resolved_at")
+@final
+class SecretsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SECRETS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     secrets: _containers.RepeatedCompositeFieldContainer[SecretRequirement]
     resolved_at: _position_pb2.ReadCut
     def __init__(self, secrets: _Optional[_Iterable[_Union[SecretRequirement, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class SecretRequirement(_message.Message):
-    __slots__ = ("declaration", "available")
+@final
+class SecretRequirement(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DECLARATION_FIELD_NUMBER: _ClassVar[int]
     AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     declaration: _secrets_pb2.SecretDeclaration

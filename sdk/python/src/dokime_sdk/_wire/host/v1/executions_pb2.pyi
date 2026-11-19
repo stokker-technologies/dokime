@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.host.v1 import cycles_pb2 as _cycles_pb2
@@ -148,16 +151,18 @@ EXECUTION_STATE_OPEN: ExecutionState
 EXECUTION_STATE_CLOSED: ExecutionState
 EXECUTION_STATE_SEALED: ExecutionState
 
-class ExecutionsGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class ExecutionsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ExecutionsGetResponse(_message.Message):
-    __slots__ = ("value", "revision", "execution", "progress", "resolved_at")
+@final
+class ExecutionsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
@@ -170,8 +175,9 @@ class ExecutionsGetResponse(_message.Message):
     resolved_at: _position_pb2.Position
     def __init__(self, value: _Optional[_Union[ExecutionWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., execution: _Optional[_Union[ExecutionDetail, _Mapping]] = ..., progress: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ExecutionsSetRequest(_message.Message):
-    __slots__ = ("name", "value", "expected_revision", "request_id")
+@final
+class ExecutionsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -182,8 +188,9 @@ class ExecutionsSetRequest(_message.Message):
     request_id: str
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[ExecutionWritable, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionsSetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class ExecutionsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -192,8 +199,9 @@ class ExecutionsSetResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, value: _Optional[_Union[ExecutionWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsListRequest(_message.Message):
-    __slots__ = ("parent", "selection", "filter", "order", "at", "page")
+@final
+class ExecutionsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
@@ -208,8 +216,9 @@ class ExecutionsListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, parent: _Optional[str] = ..., selection: _Optional[_Union[ExecutionSelection, _Mapping]] = ..., filter: _Optional[_Union[ExecutionFilter, _Mapping]] = ..., order: _Optional[_Union[ExecutionOrder, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class ExecutionsListResponse(_message.Message):
-    __slots__ = ("executions", "outcome_counts", "resolved_at", "next_page_token")
+@final
+class ExecutionsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     OUTCOME_COUNTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -220,8 +229,9 @@ class ExecutionsListResponse(_message.Message):
     next_page_token: str
     def __init__(self, executions: _Optional[_Iterable[_Union[ExecutionDetail, _Mapping]]] = ..., outcome_counts: _Optional[_Union[ExecutionOutcomeCounts, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class ExecutionsWatchRequest(_message.Message):
-    __slots__ = ("parent", "selection", "filter", "order", "at", "page")
+@final
+class ExecutionsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
@@ -236,8 +246,9 @@ class ExecutionsWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, parent: _Optional[str] = ..., selection: _Optional[_Union[ExecutionSelection, _Mapping]] = ..., filter: _Optional[_Union[ExecutionFilter, _Mapping]] = ..., order: _Optional[_Union[ExecutionOrder, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class ExecutionsWatchResponse(_message.Message):
-    __slots__ = ("executions", "outcome_counts", "resolved_at", "opening", "resync_required")
+@final
+class ExecutionsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     OUTCOME_COUNTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -250,8 +261,9 @@ class ExecutionsWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, executions: _Optional[_Iterable[_Union[ExecutionDetail, _Mapping]]] = ..., outcome_counts: _Optional[_Union[ExecutionOutcomeCounts, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class ExecutionsCreateRequest(_message.Message):
-    __slots__ = ("parent", "executions", "request_id")
+@final
+class ExecutionsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -260,16 +272,18 @@ class ExecutionsCreateRequest(_message.Message):
     request_id: str
     def __init__(self, parent: _Optional[str] = ..., executions: _Optional[_Iterable[_Union[ExecutionBinding, _Mapping]]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionsCreateResponse(_message.Message):
-    __slots__ = ("executions", "receipt")
+@final
+class ExecutionsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     executions: _containers.RepeatedCompositeFieldContainer[ExecutionDetail]
     receipt: _receipt_pb2.Receipt
     def __init__(self, executions: _Optional[_Iterable[_Union[ExecutionDetail, _Mapping]]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsStartRequest(_message.Message):
-    __slots__ = ("name", "request_id", "mode")
+@final
+class ExecutionsStartRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
@@ -278,80 +292,90 @@ class ExecutionsStartRequest(_message.Message):
     mode: ExecutionMode
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ..., mode: _Optional[_Union[ExecutionMode, str]] = ...) -> None: ...
 
-class ExecutionsStartResponse(_message.Message):
-    __slots__ = ("execution", "receipt")
+@final
+class ExecutionsStartResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
     receipt: _receipt_pb2.Receipt
     def __init__(self, execution: _Optional[_Union[ExecutionDetail, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsStopRequest(_message.Message):
-    __slots__ = ("name", "request_id")
+@final
+class ExecutionsStopRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
     request_id: str
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionsStopResponse(_message.Message):
-    __slots__ = ("execution", "receipt")
+@final
+class ExecutionsStopResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
     receipt: _receipt_pb2.Receipt
     def __init__(self, execution: _Optional[_Union[ExecutionDetail, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsCancelRequest(_message.Message):
-    __slots__ = ("name", "request_id")
+@final
+class ExecutionsCancelRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
     request_id: str
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionsCancelResponse(_message.Message):
-    __slots__ = ("execution", "receipt")
+@final
+class ExecutionsCancelResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
     receipt: _receipt_pb2.Receipt
     def __init__(self, execution: _Optional[_Union[ExecutionDetail, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsSealRequest(_message.Message):
-    __slots__ = ("name", "request_id")
+@final
+class ExecutionsSealRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
     request_id: str
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionsSealResponse(_message.Message):
-    __slots__ = ("outcome", "receipt")
+@final
+class ExecutionsSealResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OUTCOME_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     outcome: ExecutionOutcome
     receipt: _receipt_pb2.Receipt
     def __init__(self, outcome: _Optional[_Union[ExecutionOutcome, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsDeleteRequest(_message.Message):
-    __slots__ = ("name", "request_id")
+@final
+class ExecutionsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
     request_id: str
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionsDeleteResponse(_message.Message):
-    __slots__ = ("execution", "receipt")
+@final
+class ExecutionsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
     receipt: _receipt_pb2.Receipt
     def __init__(self, execution: _Optional[_Union[ExecutionDetail, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionsParametersRequest(_message.Message):
-    __slots__ = ("name", "set", "at")
+@final
+class ExecutionsParametersRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     SET_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -360,32 +384,36 @@ class ExecutionsParametersRequest(_message.Message):
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., set: _Optional[_Union[ExecutionParameterSet, str]] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ExecutionsParametersResponse(_message.Message):
-    __slots__ = ("parameters", "resolved_at")
+@final
+class ExecutionsParametersResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     parameters: _containers.RepeatedCompositeFieldContainer[MaterializedParameter]
     resolved_at: _position_pb2.Position
     def __init__(self, parameters: _Optional[_Iterable[_Union[MaterializedParameter, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ExecutionsStepsRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class ExecutionsStepsRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ExecutionsStepsResponse(_message.Message):
-    __slots__ = ("steps", "resolved_at")
+@final
+class ExecutionsStepsResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STEPS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     steps: _containers.RepeatedCompositeFieldContainer[ExecutionStep]
     resolved_at: _position_pb2.Position
     def __init__(self, steps: _Optional[_Iterable[_Union[ExecutionStep, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class FrozenSchemas(_message.Message):
-    __slots__ = ("digest", "records", "streams")
+@final
+class FrozenSchemas(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DIGEST_FIELD_NUMBER: _ClassVar[int]
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     STREAMS_FIELD_NUMBER: _ClassVar[int]
@@ -394,8 +422,9 @@ class FrozenSchemas(_message.Message):
     streams: _containers.RepeatedCompositeFieldContainer[_record_schemas_pb2.TelemetrySchema]
     def __init__(self, digest: _Optional[bytes] = ..., records: _Optional[_Iterable[_Union[_record_schemas_pb2.RecordSchema, _Mapping]]] = ..., streams: _Optional[_Iterable[_Union[_record_schemas_pb2.TelemetrySchema, _Mapping]]] = ...) -> None: ...
 
-class Diagnostic(_message.Message):
-    __slots__ = ("message", "chain", "location", "span_trace", "backtrace")
+@final
+class Diagnostic(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     CHAIN_FIELD_NUMBER: _ClassVar[int]
     LOCATION_FIELD_NUMBER: _ClassVar[int]
@@ -408,16 +437,18 @@ class Diagnostic(_message.Message):
     backtrace: str
     def __init__(self, message: _Optional[str] = ..., chain: _Optional[_Iterable[str]] = ..., location: _Optional[str] = ..., span_trace: _Optional[_Iterable[str]] = ..., backtrace: _Optional[str] = ...) -> None: ...
 
-class ExecutionBinding(_message.Message):
-    __slots__ = ("execution_id", "case_id")
+@final
+class ExecutionBinding(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     execution_id: str
     case_id: str
     def __init__(self, execution_id: _Optional[str] = ..., case_id: _Optional[str] = ...) -> None: ...
 
-class ExecutionControls(_message.Message):
-    __slots__ = ("request_id", "paused", "stop_requested", "can_pause", "can_resume", "can_stop", "mode", "can_start", "can_rerun", "can_cancel", "can_inspect", "can_export")
+@final
+class ExecutionControls(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
     STOP_REQUESTED_FIELD_NUMBER: _ClassVar[int]
@@ -444,8 +475,9 @@ class ExecutionControls(_message.Message):
     can_export: bool
     def __init__(self, request_id: _Optional[str] = ..., paused: _Optional[bool] = ..., stop_requested: _Optional[bool] = ..., can_pause: _Optional[bool] = ..., can_resume: _Optional[bool] = ..., can_stop: _Optional[bool] = ..., mode: _Optional[_Union[ExecutionMode, str]] = ..., can_start: _Optional[bool] = ..., can_rerun: _Optional[bool] = ..., can_cancel: _Optional[bool] = ..., can_inspect: _Optional[bool] = ..., can_export: _Optional[bool] = ...) -> None: ...
 
-class ExecutionOutcomeCounts(_message.Message):
-    __slots__ = ("evaluated_count", "not_evaluated_count", "declared_count", "result_status")
+@final
+class ExecutionOutcomeCounts(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EVALUATED_COUNT_FIELD_NUMBER: _ClassVar[int]
     NOT_EVALUATED_COUNT_FIELD_NUMBER: _ClassVar[int]
     DECLARED_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -456,8 +488,9 @@ class ExecutionOutcomeCounts(_message.Message):
     result_status: _cycles_pb2.ResultStatus
     def __init__(self, evaluated_count: _Optional[int] = ..., not_evaluated_count: _Optional[int] = ..., declared_count: _Optional[int] = ..., result_status: _Optional[_Union[_cycles_pb2.ResultStatus, str]] = ...) -> None: ...
 
-class ExecutionDetail(_message.Message):
-    __slots__ = ("progress", "resolved_at", "cycle_counts", "seal", "report", "summary", "cycle_id", "scope", "admitted_suite", "admitted_template", "started_at", "finished_at", "input_parameter_count", "output_parameter_count", "step_count", "controls", "origin", "outcome", "schemas", "live_state")
+@final
+class ExecutionDetail(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROGRESS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_COUNTS_FIELD_NUMBER: _ClassVar[int]
@@ -500,8 +533,9 @@ class ExecutionDetail(_message.Message):
     live_state: LiveExecutionState
     def __init__(self, progress: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., cycle_counts: _Optional[_Union[ExecutionOutcomeCounts, _Mapping]] = ..., seal: _Optional[bytes] = ..., report: _Optional[_Union[ReportStatus, _Mapping]] = ..., summary: _Optional[_Union[ExecutionSummary, _Mapping]] = ..., cycle_id: _Optional[str] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., admitted_suite: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., admitted_template: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., finished_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., input_parameter_count: _Optional[int] = ..., output_parameter_count: _Optional[int] = ..., step_count: _Optional[int] = ..., controls: _Optional[_Union[ExecutionControls, _Mapping]] = ..., origin: _Optional[_Union[_execution_pb2.Origin, _Mapping]] = ..., outcome: _Optional[_Union[ExecutionOutcome, _Mapping]] = ..., schemas: _Optional[_Union[FrozenSchemas, _Mapping]] = ..., live_state: _Optional[_Union[LiveExecutionState, str]] = ...) -> None: ...
 
-class ExecutionFilter(_message.Message):
-    __slots__ = ("text", "statuses", "template_ids", "cycle_ids", "started_after", "started_before", "archive")
+@final
+class ExecutionFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TEXT_FIELD_NUMBER: _ClassVar[int]
     STATUSES_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_IDS_FIELD_NUMBER: _ClassVar[int]
@@ -518,16 +552,18 @@ class ExecutionFilter(_message.Message):
     archive: _cycles_pb2.ArchiveScope
     def __init__(self, text: _Optional[str] = ..., statuses: _Optional[_Iterable[_Union[ExecutionState, str]]] = ..., template_ids: _Optional[_Iterable[str]] = ..., cycle_ids: _Optional[_Iterable[str]] = ..., started_after: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., started_before: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., archive: _Optional[_Union[_cycles_pb2.ArchiveScope, str]] = ...) -> None: ...
 
-class ExecutionOrder(_message.Message):
-    __slots__ = ("key", "descending")
+@final
+class ExecutionOrder(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     DESCENDING_FIELD_NUMBER: _ClassVar[int]
     key: ExecutionOrderKey
     descending: bool
     def __init__(self, key: _Optional[_Union[ExecutionOrderKey, str]] = ..., descending: _Optional[bool] = ...) -> None: ...
 
-class ExecutionSelection(_message.Message):
-    __slots__ = ("template_ids", "cycle_ids", "statuses", "started_at", "archive")
+@final
+class ExecutionSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TEMPLATE_IDS_FIELD_NUMBER: _ClassVar[int]
     CYCLE_IDS_FIELD_NUMBER: _ClassVar[int]
     STATUSES_FIELD_NUMBER: _ClassVar[int]
@@ -540,8 +576,9 @@ class ExecutionSelection(_message.Message):
     archive: _cycles_pb2.ArchiveScope
     def __init__(self, template_ids: _Optional[_Iterable[str]] = ..., cycle_ids: _Optional[_Iterable[str]] = ..., statuses: _Optional[_Iterable[_Union[ExecutionState, str]]] = ..., started_at: _Optional[_Union[_evidence_pb2.Window, _Mapping]] = ..., archive: _Optional[_Union[_cycles_pb2.ArchiveScope, str]] = ...) -> None: ...
 
-class ExecutionStep(_message.Message):
-    __slots__ = ("step_id", "metadata", "status", "started_at", "finished_at", "measurement_count", "criterion_count", "ordinal", "detail", "criteria")
+@final
+class ExecutionStep(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STEP_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -564,8 +601,9 @@ class ExecutionStep(_message.Message):
     criteria: _containers.RepeatedCompositeFieldContainer[StepCriterion]
     def __init__(self, step_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., status: _Optional[_Union[StepStatus, str]] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., finished_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., measurement_count: _Optional[int] = ..., criterion_count: _Optional[int] = ..., ordinal: _Optional[int] = ..., detail: _Optional[_Union[Diagnostic, _Mapping]] = ..., criteria: _Optional[_Iterable[_Union[StepCriterion, _Mapping]]] = ...) -> None: ...
 
-class ExecutionSummary(_message.Message):
-    __slots__ = ("controls", "execution_id", "case_id", "ordinal", "archived", "state", "outcome")
+@final
+class ExecutionSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CONTROLS_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -582,8 +620,9 @@ class ExecutionSummary(_message.Message):
     outcome: ExecutionOutcome
     def __init__(self, controls: _Optional[_Union[ExecutionControls, _Mapping]] = ..., execution_id: _Optional[str] = ..., case_id: _Optional[str] = ..., ordinal: _Optional[int] = ..., archived: _Optional[bool] = ..., state: _Optional[_Union[ExecutionState, str]] = ..., outcome: _Optional[_Union[ExecutionOutcome, _Mapping]] = ...) -> None: ...
 
-class MaterializedParameter(_message.Message):
-    __slots__ = ("name", "metadata", "group_id", "source", "value", "unit")
+@final
+class MaterializedParameter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     GROUP_ID_FIELD_NUMBER: _ClassVar[int]
@@ -598,16 +637,18 @@ class MaterializedParameter(_message.Message):
     unit: _record_schemas_pb2.MeasurementUnit
     def __init__(self, name: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., group_id: _Optional[str] = ..., source: _Optional[_Union[ParameterSource, str]] = ..., value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., unit: _Optional[_Union[_record_schemas_pb2.MeasurementUnit, _Mapping]] = ...) -> None: ...
 
-class ReportStatus(_message.Message):
-    __slots__ = ("state", "failure")
+@final
+class ReportStatus(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STATE_FIELD_NUMBER: _ClassVar[int]
     FAILURE_FIELD_NUMBER: _ClassVar[int]
     state: ReportState
     failure: str
     def __init__(self, state: _Optional[_Union[ReportState, str]] = ..., failure: _Optional[str] = ...) -> None: ...
 
-class StepCriterion(_message.Message):
-    __slots__ = ("criterion_id", "metadata", "status", "observed", "message", "ordinal")
+@final
+class StepCriterion(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CRITERION_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -622,8 +663,9 @@ class StepCriterion(_message.Message):
     ordinal: int
     def __init__(self, criterion_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., status: _Optional[_Union[CriterionStatus, str]] = ..., observed: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., message: _Optional[str] = ..., ordinal: _Optional[int] = ...) -> None: ...
 
-class ExecutionWritable(_message.Message):
-    __slots__ = ("label", "paused", "archived")
+@final
+class ExecutionWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LABEL_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
@@ -632,8 +674,9 @@ class ExecutionWritable(_message.Message):
     archived: bool
     def __init__(self, label: _Optional[str] = ..., paused: _Optional[bool] = ..., archived: _Optional[bool] = ...) -> None: ...
 
-class ExecutionOutcome(_message.Message):
-    __slots__ = ("not_evaluated", "evaluated", "declared")
+@final
+class ExecutionOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NOT_EVALUATED_FIELD_NUMBER: _ClassVar[int]
     EVALUATED_FIELD_NUMBER: _ClassVar[int]
     DECLARED_FIELD_NUMBER: _ClassVar[int]
@@ -642,24 +685,27 @@ class ExecutionOutcome(_message.Message):
     declared: DeclaredOutcome
     def __init__(self, not_evaluated: _Optional[_Union[UnevaluatedOutcome, _Mapping]] = ..., evaluated: _Optional[_Union[EvaluatedOutcome, _Mapping]] = ..., declared: _Optional[_Union[DeclaredOutcome, _Mapping]] = ...) -> None: ...
 
-class UnevaluatedOutcome(_message.Message):
-    __slots__ = ("termination", "reason")
+@final
+class UnevaluatedOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TERMINATION_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     termination: _execution_pb2.Termination
     reason: str
     def __init__(self, termination: _Optional[_Union[_execution_pb2.Termination, str]] = ..., reason: _Optional[str] = ...) -> None: ...
 
-class EvaluatedOutcome(_message.Message):
-    __slots__ = ("status", "reason")
+@final
+class EvaluatedOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STATUS_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     status: _cycles_pb2.ResultStatus
     reason: str
     def __init__(self, status: _Optional[_Union[_cycles_pb2.ResultStatus, str]] = ..., reason: _Optional[str] = ...) -> None: ...
 
-class DeclaredOutcome(_message.Message):
-    __slots__ = ("status", "reason", "importer")
+@final
+class DeclaredOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STATUS_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     IMPORTER_FIELD_NUMBER: _ClassVar[int]

@@ -15,6 +15,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,114 @@ from grpc_tools import protoc
 # === Public Exports === #
 
 # === Constants === #
+
+ROOT_EXPORTS = {
+    "_authoring": ["Suite"],
+    "_plugin": ["Plugin"],
+    "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
+    "_connection": ["connect"],
+    "_errors": ["Failure", "SdkError"],
+    "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
+}
+
+PUBLIC_HOMES = {
+    "": frozenset(name for names in ROOT_EXPORTS.values() for name in names),
+    # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
+    "operations": frozenset(
+        [
+            "BoundOperation",
+            "Context",
+            "FailureError",
+            "Operation",
+            "OperationPolicy",
+            "Payload",
+            "RetryPolicy",
+            "SecretDeclaration",
+            "SettingDeclaration",
+            "SettingValue",
+            "StreamSubscription",
+            "Visibility",
+            "operation",
+        ]
+    ),
+    "templates": frozenset(
+        [
+            "Aggregate",
+            "AxisScale",
+            "BarArrangement",
+            "CaptureGap",
+            "CaptureMode",
+            "CaptureResult",
+            "CapturedArtifact",
+            "Card",
+            "Context",
+            "ContourRender",
+            "DataExpression",
+            "Document",
+            "Environment",
+            "Expression",
+            "FileLocation",
+            "FileParameter",
+            "FileRule",
+            "FileRuleAction",
+            "FileSelection",
+            "FileSource",
+            "FtpLocation",
+            "GridAxisEntry",
+            "GridHighlight",
+            "LineField",
+            "LineMarker",
+            "LineMatcher",
+            "Materialization",
+            "MirrorCapture",
+            "Parameter",
+            "ParameterDefinition",
+            "Plot",
+            "PlotStyle",
+            "Prompt",
+            "PromptDeclaration",
+            "Record",
+            "RecordRow",
+            "RecordsQuery",
+            "Reduction",
+            "ReferenceBand",
+            "ReferenceLine",
+            "SampleRow",
+            "SamplesQuery",
+            "Section",
+            "Severity",
+            "Statistics",
+            "Stream",
+            "StreamCapture",
+            "Summary",
+            "Termination",
+            "TestTemplate",
+            "Window",
+            "XyInterval",
+            "bar",
+            "box_plot",
+            "contour",
+            "criterion",
+            "field",
+            "frequency_series",
+            "grid_chart",
+            "histogram",
+            "materialize",
+            "observer",
+            "pie",
+            "plot_card",
+            "prompt",
+            "record",
+            "records_card",
+            "step",
+            "stream",
+            "time_series",
+            "trajectory",
+            "window_observer",
+            "xy",
+        ]
+    ),
+}
 
 # === Types === #
 
@@ -78,6 +187,16 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                 if not check:
                     target.parent.mkdir(parents=True, exist_ok=True)
                 text = path.read_text(encoding="utf-8")
+                if path.suffix == ".pyi":
+                    # Match the Runtime Message Metaclass, Finality and Empty Slots.
+                    text = (
+                        "from google.protobuf.internal.python_message import GeneratedProtocolMessageType\nfrom typing import final\n\n"
+                    ) + text
+                    text = re.sub(
+                        r"(?m)^( *)class (\w+)\(_message.Message\):\n +__slots__ = [^\n]+\n",
+                        r"\1@final\n\1class \2(_message.Message, metaclass=GeneratedProtocolMessageType):\n\1    __slots__ = ()\n",
+                        text,
+                    )
                 for owner in ("dokime", "harmos"):
                     package = python_package if owner == "dokime" else owner
                     for executor in ("model", "host", "plugin"):
@@ -114,19 +233,17 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                     raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
             else:
                 (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
+        # Retire the Shared Generator's Public Transport Facade.
+        facade = source / "client.py"
+        if check and facade.exists():
+            raise ValueError("Check Python Exports: Retire client.py With mise -C sdk/python run generate")
+        if not check:
+            facade.unlink(missing_ok=True)
         # Generate the Closed Product Root; Operations and Templates Own Their Contexts.
-        homes = {
-            "_authoring": ["Suite"],
-            "_plugin": ["Plugin"],
-            "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
-            "_connection": ["connect"],
-            "_errors": ["Failure", "SdkError"],
-            "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
-        }
         lines = ["# @generated from the product public-home inventory; do not edit."]
-        lines.extend(f"from . import {module}" for module in homes)
+        lines.extend(f"from . import {module}" for module in ROOT_EXPORTS)
         lines.append("")
-        for module, names in homes.items():
+        for module, names in ROOT_EXPORTS.items():
             lines.extend(f"{name} = {module}.{name}" for name in names)
         barrel = output / "__init__.py"
         barrel.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

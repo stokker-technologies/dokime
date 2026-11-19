@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import expressions_pb2 as _expressions_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
@@ -150,8 +153,9 @@ LINE_STYLE_POINTS: LineStyle
 LINE_STYLE_LINE_POINTS: LineStyle
 LINE_STYLE_STEP: LineStyle
 
-class Plot(_message.Message):
-    __slots__ = ("metadata", "kind", "x", "y", "z", "series_by", "filters", "unit", "marker_records", "histogram_bins", "sample_rate_hz", "display_points", "reference_lines", "reference_bands", "arrangement", "pareto", "hole", "interval", "reduction", "render", "grid", "style", "x_scale", "y_scale", "input_samples")
+@final
+class Plot(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
@@ -204,8 +208,9 @@ class Plot(_message.Message):
     input_samples: int
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., kind: _Optional[_Union[PlotKind, str]] = ..., x: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., y: _Optional[_Iterable[_Union[_expressions_pb2.DataExpression, _Mapping]]] = ..., z: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., series_by: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_expressions_pb2.DocumentFilter, _Mapping]]] = ..., unit: _Optional[str] = ..., marker_records: _Optional[_Iterable[str]] = ..., histogram_bins: _Optional[int] = ..., sample_rate_hz: _Optional[float] = ..., display_points: _Optional[int] = ..., reference_lines: _Optional[_Iterable[_Union[ReferenceLine, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[ReferenceBand, _Mapping]]] = ..., arrangement: _Optional[_Union[BarArrangement, str]] = ..., pareto: _Optional[bool] = ..., hole: _Optional[float] = ..., interval: _Optional[_Union[XyInterval, str]] = ..., reduction: _Optional[_Union[Reduction, str]] = ..., render: _Optional[_Union[ContourRender, str]] = ..., grid: _Optional[_Union[GridChart, _Mapping]] = ..., style: _Optional[_Union[PlotStyle, str]] = ..., x_scale: _Optional[_Union[AxisScale, str]] = ..., y_scale: _Optional[_Union[AxisScale, str]] = ..., input_samples: _Optional[int] = ...) -> None: ...
 
-class GridAxisEntry(_message.Message):
-    __slots__ = ("key", "label", "order", "group")
+@final
+class GridAxisEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -216,8 +221,9 @@ class GridAxisEntry(_message.Message):
     group: str
     def __init__(self, key: _Optional[str] = ..., label: _Optional[str] = ..., order: _Optional[int] = ..., group: _Optional[str] = ...) -> None: ...
 
-class GridHighlight(_message.Message):
-    __slots__ = ("row", "column", "label")
+@final
+class GridHighlight(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -226,8 +232,9 @@ class GridHighlight(_message.Message):
     label: str
     def __init__(self, row: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., column: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., label: _Optional[str] = ...) -> None: ...
 
-class GridChart(_message.Message):
-    __slots__ = ("row", "column", "frame", "rows", "columns", "highlights", "summary_label")
+@final
+class GridChart(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     FRAME_FIELD_NUMBER: _ClassVar[int]
@@ -244,8 +251,9 @@ class GridChart(_message.Message):
     summary_label: str
     def __init__(self, row: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., column: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., frame: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., rows: _Optional[_Iterable[_Union[GridAxisEntry, _Mapping]]] = ..., columns: _Optional[_Iterable[_Union[GridAxisEntry, _Mapping]]] = ..., highlights: _Optional[_Iterable[_Union[GridHighlight, _Mapping]]] = ..., summary_label: _Optional[str] = ...) -> None: ...
 
-class ReferenceLine(_message.Message):
-    __slots__ = ("value", "label", "color")
+@final
+class ReferenceLine(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
@@ -254,8 +262,9 @@ class ReferenceLine(_message.Message):
     color: str
     def __init__(self, value: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., label: _Optional[str] = ..., color: _Optional[str] = ...) -> None: ...
 
-class ReferenceBand(_message.Message):
-    __slots__ = ("min", "max", "label", "color", "center", "tolerance")
+@final
+class ReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -270,8 +279,9 @@ class ReferenceBand(_message.Message):
     tolerance: _expressions_pb2.DataExpression
     def __init__(self, min: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., max: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., label: _Optional[str] = ..., color: _Optional[str] = ..., center: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., tolerance: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ...) -> None: ...
 
-class GridDefinition(_message.Message):
-    __slots__ = ("row", "column", "frame", "rows", "columns", "highlights", "summary_label")
+@final
+class GridDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     FRAME_FIELD_NUMBER: _ClassVar[int]
@@ -288,8 +298,9 @@ class GridDefinition(_message.Message):
     summary_label: str
     def __init__(self, row: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., column: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., frame: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., rows: _Optional[_Iterable[_Union[GridAxisEntry, _Mapping]]] = ..., columns: _Optional[_Iterable[_Union[GridAxisEntry, _Mapping]]] = ..., highlights: _Optional[_Iterable[_Union[GridHighlight, _Mapping]]] = ..., summary_label: _Optional[str] = ...) -> None: ...
 
-class PlotFftOptions(_message.Message):
-    __slots__ = ("sample_rate_hz", "window", "detrend", "level_unit", "include_dc", "min_frequency_hz", "max_frequency_hz", "input_samples")
+@final
+class PlotFftOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SAMPLE_RATE_HZ_FIELD_NUMBER: _ClassVar[int]
     WINDOW_FIELD_NUMBER: _ClassVar[int]
     DETREND_FIELD_NUMBER: _ClassVar[int]
@@ -308,8 +319,9 @@ class PlotFftOptions(_message.Message):
     input_samples: int
     def __init__(self, sample_rate_hz: _Optional[float] = ..., window: _Optional[_Union[FftWindow, str]] = ..., detrend: _Optional[_Union[FftDetrend, str]] = ..., level_unit: _Optional[_Union[FrequencyLevelUnit, str]] = ..., include_dc: _Optional[bool] = ..., min_frequency_hz: _Optional[float] = ..., max_frequency_hz: _Optional[float] = ..., input_samples: _Optional[int] = ...) -> None: ...
 
-class PlotFilter(_message.Message):
-    __slots__ = ("expression", "operator", "value")
+@final
+class PlotFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -318,16 +330,18 @@ class PlotFilter(_message.Message):
     value: _scalar_pb2.Value
     def __init__(self, expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., operator: _Optional[_Union[_expressions_pb2.FilterOperator, str]] = ..., value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ...) -> None: ...
 
-class PlotHistogramOptions(_message.Message):
-    __slots__ = ("bins", "unit")
+@final
+class PlotHistogramOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BINS_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
     bins: int
     unit: str
     def __init__(self, bins: _Optional[int] = ..., unit: _Optional[str] = ...) -> None: ...
 
-class PlotIntervalOptions(_message.Message):
-    __slots__ = ("bin_width", "sigma", "clip_to_observed")
+@final
+class PlotIntervalOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BIN_WIDTH_FIELD_NUMBER: _ClassVar[int]
     SIGMA_FIELD_NUMBER: _ClassVar[int]
     CLIP_TO_OBSERVED_FIELD_NUMBER: _ClassVar[int]

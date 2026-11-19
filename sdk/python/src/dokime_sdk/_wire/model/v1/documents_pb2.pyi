@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import expressions_pb2 as _expressions_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime_sdk._wire.model.v1 import plots_pb2 as _plots_pb2
@@ -34,16 +37,18 @@ EVIDENCE_CARD_MEDIA: EvidenceCard
 EVIDENCE_CARD_HEALTH: EvidenceCard
 EVIDENCE_CARD_STREAM_CONTEXT: EvidenceCard
 
-class Document(_message.Message):
-    __slots__ = ("metadata", "sections")
+@final
+class Document(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     SECTIONS_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
     sections: _containers.RepeatedCompositeFieldContainer[Section]
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., sections: _Optional[_Iterable[_Union[Section, _Mapping]]] = ...) -> None: ...
 
-class Section(_message.Message):
-    __slots__ = ("metadata", "cards", "sections", "repeat")
+@final
+class Section(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     CARDS_FIELD_NUMBER: _ClassVar[int]
     SECTIONS_FIELD_NUMBER: _ClassVar[int]
@@ -54,8 +59,9 @@ class Section(_message.Message):
     repeat: SectionRepeat
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., cards: _Optional[_Iterable[_Union[Card, _Mapping]]] = ..., sections: _Optional[_Iterable[_Union[Section, _Mapping]]] = ..., repeat: _Optional[_Union[SectionRepeat, _Mapping]] = ...) -> None: ...
 
-class SectionRepeat(_message.Message):
-    __slots__ = ("value", "label_template", "order_by")
+@final
+class SectionRepeat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
     ORDER_BY_FIELD_NUMBER: _ClassVar[int]
@@ -64,8 +70,9 @@ class SectionRepeat(_message.Message):
     order_by: _expressions_pb2.DataExpression
     def __init__(self, value: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., label_template: _Optional[str] = ..., order_by: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ...) -> None: ...
 
-class Card(_message.Message):
-    __slots__ = ("metadata", "markdown", "plot", "table", "evidence", "summary", "layout", "filters")
+@final
+class Card(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     MARKDOWN_FIELD_NUMBER: _ClassVar[int]
     PLOT_FIELD_NUMBER: _ClassVar[int]
@@ -84,8 +91,9 @@ class Card(_message.Message):
     filters: _containers.RepeatedCompositeFieldContainer[_expressions_pb2.DocumentFilter]
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., markdown: _Optional[str] = ..., plot: _Optional[_Union[_plots_pb2.Plot, _Mapping]] = ..., table: _Optional[_Union[Table, _Mapping]] = ..., evidence: _Optional[_Union[EvidenceCard, str]] = ..., summary: _Optional[_Union[Summary, _Mapping]] = ..., layout: _Optional[_Union[CardLayout, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_expressions_pb2.DocumentFilter, _Mapping]]] = ...) -> None: ...
 
-class CardLayout(_message.Message):
-    __slots__ = ("columns", "rows", "order")
+@final
+class CardLayout(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -94,16 +102,19 @@ class CardLayout(_message.Message):
     order: int
     def __init__(self, columns: _Optional[int] = ..., rows: _Optional[int] = ..., order: _Optional[int] = ...) -> None: ...
 
-class Table(_message.Message):
-    __slots__ = ("rows",)
+@final
+class Table(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROWS_FIELD_NUMBER: _ClassVar[int]
     rows: _containers.RepeatedCompositeFieldContainer[TableRow]
     def __init__(self, rows: _Optional[_Iterable[_Union[TableRow, _Mapping]]] = ...) -> None: ...
 
-class TableRow(_message.Message):
-    __slots__ = ("cells",)
-    class CellsEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class TableRow(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class CellsEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -113,14 +124,16 @@ class TableRow(_message.Message):
     cells: _containers.MessageMap[str, _scalar_pb2.Value]
     def __init__(self, cells: _Optional[_Mapping[str, _scalar_pb2.Value]] = ...) -> None: ...
 
-class Summary(_message.Message):
-    __slots__ = ("tiles",)
+@final
+class Summary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TILES_FIELD_NUMBER: _ClassVar[int]
     tiles: _containers.RepeatedCompositeFieldContainer[SummaryTile]
     def __init__(self, tiles: _Optional[_Iterable[_Union[SummaryTile, _Mapping]]] = ...) -> None: ...
 
-class SummaryTile(_message.Message):
-    __slots__ = ("metadata", "value", "unit")
+@final
+class SummaryTile(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]

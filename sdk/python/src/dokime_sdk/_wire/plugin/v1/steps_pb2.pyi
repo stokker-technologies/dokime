@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -6,8 +9,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class StepsExecuteRequest(_message.Message):
-    __slots__ = ("execution", "step", "test_case", "origin")
+@final
+class StepsExecuteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
@@ -18,6 +22,7 @@ class StepsExecuteRequest(_message.Message):
     origin: _execution_pb2.Origin
     def __init__(self, execution: _Optional[str] = ..., step: _Optional[str] = ..., test_case: _Optional[_Union[_execution_pb2.TestCase, _Mapping]] = ..., origin: _Optional[_Union[_execution_pb2.Origin, _Mapping]] = ...) -> None: ...
 
-class StepsExecuteResponse(_message.Message):
+@final
+class StepsExecuteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__ = ()
     def __init__(self) -> None: ...

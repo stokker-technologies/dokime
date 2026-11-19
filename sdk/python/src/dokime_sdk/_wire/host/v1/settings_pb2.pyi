@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import plots_pb2 as _plots_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
@@ -65,14 +68,16 @@ THEME_MODE_SYSTEM: ThemeMode
 THEME_MODE_LIGHT: ThemeMode
 THEME_MODE_DARK: ThemeMode
 
-class SettingsGetRequest(_message.Message):
-    __slots__ = ("at",)
+@final
+class SettingsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class SettingsGetResponse(_message.Message):
-    __slots__ = ("value", "revision", "resolved_at")
+@final
+class SettingsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -81,8 +86,9 @@ class SettingsGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, value: _Optional[_Union[ApplicationSettings, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class SettingsSetRequest(_message.Message):
-    __slots__ = ("value", "expected_revision", "request_id")
+@final
+class SettingsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -91,8 +97,9 @@ class SettingsSetRequest(_message.Message):
     request_id: str
     def __init__(self, value: _Optional[_Union[ApplicationSettings, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class SettingsSetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class SettingsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -101,22 +108,25 @@ class SettingsSetResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, value: _Optional[_Union[ApplicationSettings, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class SettingsSchemaRequest(_message.Message):
-    __slots__ = ("at",)
+@final
+class SettingsSchemaRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class SettingsSchemaResponse(_message.Message):
-    __slots__ = ("schema", "resolved_at")
+@final
+class SettingsSchemaResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     schema: SettingsFrame
     resolved_at: _position_pb2.ReadCut
     def __init__(self, schema: _Optional[_Union[SettingsFrame, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ApplicationAppearance(_message.Message):
-    __slots__ = ("theme_mode", "theme_family", "density")
+@final
+class ApplicationAppearance(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     THEME_MODE_FIELD_NUMBER: _ClassVar[int]
     THEME_FAMILY_FIELD_NUMBER: _ClassVar[int]
     DENSITY_FIELD_NUMBER: _ClassVar[int]
@@ -125,8 +135,9 @@ class ApplicationAppearance(_message.Message):
     density: Density
     def __init__(self, theme_mode: _Optional[_Union[ThemeMode, str]] = ..., theme_family: _Optional[str] = ..., density: _Optional[_Union[Density, str]] = ...) -> None: ...
 
-class ApplicationSettings(_message.Message):
-    __slots__ = ("appearance", "report", "client", "telemetry", "listener")
+@final
+class ApplicationSettings(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     APPEARANCE_FIELD_NUMBER: _ClassVar[int]
     REPORT_FIELD_NUMBER: _ClassVar[int]
     CLIENT_FIELD_NUMBER: _ClassVar[int]
@@ -139,8 +150,9 @@ class ApplicationSettings(_message.Message):
     listener: RemoteListenerSettings
     def __init__(self, appearance: _Optional[_Union[ApplicationAppearance, _Mapping]] = ..., report: _Optional[_Union[ReportDefaults, _Mapping]] = ..., client: _Optional[_Union[ClientPreferences, _Mapping]] = ..., telemetry: _Optional[_Union[TelemetryPreferences, _Mapping]] = ..., listener: _Optional[_Union[RemoteListenerSettings, _Mapping]] = ...) -> None: ...
 
-class BootstrapPaths(_message.Message):
-    __slots__ = ("application", "storage", "plugins", "logs")
+@final
+class BootstrapPaths(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     APPLICATION_FIELD_NUMBER: _ClassVar[int]
     STORAGE_FIELD_NUMBER: _ClassVar[int]
     PLUGINS_FIELD_NUMBER: _ClassVar[int]
@@ -151,28 +163,32 @@ class BootstrapPaths(_message.Message):
     logs: str
     def __init__(self, application: _Optional[str] = ..., storage: _Optional[str] = ..., plugins: _Optional[str] = ..., logs: _Optional[str] = ...) -> None: ...
 
-class CachedRefresh(_message.Message):
-    __slots__ = ("max_age_ms",)
+@final
+class CachedRefresh(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MAX_AGE_MS_FIELD_NUMBER: _ClassVar[int]
     max_age_ms: int
     def __init__(self, max_age_ms: _Optional[int] = ...) -> None: ...
 
-class ClientPreferences(_message.Message):
-    __slots__ = ("connect_timeout_ms", "request_timeout_ms")
+@final
+class ClientPreferences(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CONNECT_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
     connect_timeout_ms: int
     request_timeout_ms: int
     def __init__(self, connect_timeout_ms: _Optional[int] = ..., request_timeout_ms: _Optional[int] = ...) -> None: ...
 
-class HostCardBlock(_message.Message):
-    __slots__ = ("kind",)
+@final
+class HostCardBlock(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: HostCardBlockKind
     def __init__(self, kind: _Optional[_Union[HostCardBlockKind, _Mapping]] = ...) -> None: ...
 
-class HostCardBlockKind(_message.Message):
-    __slots__ = ("text", "status", "key_value_list", "metrics")
+@final
+class HostCardBlockKind(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TEXT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     KEY_VALUE_LIST_FIELD_NUMBER: _ClassVar[int]
@@ -183,14 +199,16 @@ class HostCardBlockKind(_message.Message):
     metrics: HostCardMetrics
     def __init__(self, text: _Optional[str] = ..., status: _Optional[_Union[HostCardStatus, _Mapping]] = ..., key_value_list: _Optional[_Union[HostCardKeyValueList, _Mapping]] = ..., metrics: _Optional[_Union[HostCardMetrics, _Mapping]] = ...) -> None: ...
 
-class HostCardBody(_message.Message):
-    __slots__ = ("blocks",)
+@final
+class HostCardBody(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BLOCKS_FIELD_NUMBER: _ClassVar[int]
     blocks: _containers.RepeatedCompositeFieldContainer[HostCardBlock]
     def __init__(self, blocks: _Optional[_Iterable[_Union[HostCardBlock, _Mapping]]] = ...) -> None: ...
 
-class HostCardKeyValue(_message.Message):
-    __slots__ = ("label", "value", "detail")
+@final
+class HostCardKeyValue(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LABEL_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
@@ -199,14 +217,16 @@ class HostCardKeyValue(_message.Message):
     detail: str
     def __init__(self, label: _Optional[str] = ..., value: _Optional[str] = ..., detail: _Optional[str] = ...) -> None: ...
 
-class HostCardKeyValueList(_message.Message):
-    __slots__ = ("items",)
+@final
+class HostCardKeyValueList(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ITEMS_FIELD_NUMBER: _ClassVar[int]
     items: _containers.RepeatedCompositeFieldContainer[HostCardKeyValue]
     def __init__(self, items: _Optional[_Iterable[_Union[HostCardKeyValue, _Mapping]]] = ...) -> None: ...
 
-class HostCardMetric(_message.Message):
-    __slots__ = ("label", "value", "unit", "trend")
+@final
+class HostCardMetric(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LABEL_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
@@ -217,14 +237,16 @@ class HostCardMetric(_message.Message):
     trend: str
     def __init__(self, label: _Optional[str] = ..., value: _Optional[str] = ..., unit: _Optional[str] = ..., trend: _Optional[str] = ...) -> None: ...
 
-class HostCardMetrics(_message.Message):
-    __slots__ = ("items",)
+@final
+class HostCardMetrics(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ITEMS_FIELD_NUMBER: _ClassVar[int]
     items: _containers.RepeatedCompositeFieldContainer[HostCardMetric]
     def __init__(self, items: _Optional[_Iterable[_Union[HostCardMetric, _Mapping]]] = ...) -> None: ...
 
-class HostCardStatus(_message.Message):
-    __slots__ = ("label", "tone", "detail")
+@final
+class HostCardStatus(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LABEL_FIELD_NUMBER: _ClassVar[int]
     TONE_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
@@ -233,16 +255,19 @@ class HostCardStatus(_message.Message):
     detail: str
     def __init__(self, label: _Optional[str] = ..., tone: _Optional[_Union[HostCardTone, str]] = ..., detail: _Optional[str] = ...) -> None: ...
 
-class ManualRefresh(_message.Message):
+@final
+class ManualRefresh(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class OnDemandRefresh(_message.Message):
+@final
+class OnDemandRefresh(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class RemoteListenerSettings(_message.Message):
-    __slots__ = ("enabled", "address", "tls_enabled", "authentication_enabled", "certificate_names")
+@final
+class RemoteListenerSettings(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     ADDRESS_FIELD_NUMBER: _ClassVar[int]
     TLS_ENABLED_FIELD_NUMBER: _ClassVar[int]
@@ -255,8 +280,9 @@ class RemoteListenerSettings(_message.Message):
     certificate_names: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, enabled: _Optional[bool] = ..., address: _Optional[str] = ..., tls_enabled: _Optional[bool] = ..., authentication_enabled: _Optional[bool] = ..., certificate_names: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class ReportDefaults(_message.Message):
-    __slots__ = ("source_bytes", "value_depth", "table_rows", "plot_points", "plot_downsample")
+@final
+class ReportDefaults(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SOURCE_BYTES_FIELD_NUMBER: _ClassVar[int]
     VALUE_DEPTH_FIELD_NUMBER: _ClassVar[int]
     TABLE_ROWS_FIELD_NUMBER: _ClassVar[int]
@@ -269,8 +295,9 @@ class ReportDefaults(_message.Message):
     plot_downsample: _plots_pb2.Downsample
     def __init__(self, source_bytes: _Optional[int] = ..., value_depth: _Optional[int] = ..., table_rows: _Optional[int] = ..., plot_points: _Optional[int] = ..., plot_downsample: _Optional[_Union[_plots_pb2.Downsample, str]] = ...) -> None: ...
 
-class SettingsCard(_message.Message):
-    __slots__ = ("plugin_id", "card_id", "section_id", "label", "description", "body", "refresh", "state", "order")
+@final
+class SettingsCard(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     SECTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -291,14 +318,16 @@ class SettingsCard(_message.Message):
     order: int
     def __init__(self, plugin_id: _Optional[str] = ..., card_id: _Optional[str] = ..., section_id: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ..., body: _Optional[_Union[HostCardBody, _Mapping]] = ..., refresh: _Optional[_Union[SettingsCardRefreshPolicy, _Mapping]] = ..., state: _Optional[_Union[SettingsCardState, str]] = ..., order: _Optional[int] = ...) -> None: ...
 
-class SettingsCardRefreshPolicy(_message.Message):
-    __slots__ = ("policy",)
+@final
+class SettingsCardRefreshPolicy(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     POLICY_FIELD_NUMBER: _ClassVar[int]
     policy: SettingsCardRefreshPolicyPolicy
     def __init__(self, policy: _Optional[_Union[SettingsCardRefreshPolicyPolicy, _Mapping]] = ...) -> None: ...
 
-class SettingsCardRefreshPolicyPolicy(_message.Message):
-    __slots__ = ("manual", "cached", "on_demand")
+@final
+class SettingsCardRefreshPolicyPolicy(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MANUAL_FIELD_NUMBER: _ClassVar[int]
     CACHED_FIELD_NUMBER: _ClassVar[int]
     ON_DEMAND_FIELD_NUMBER: _ClassVar[int]
@@ -307,8 +336,9 @@ class SettingsCardRefreshPolicyPolicy(_message.Message):
     on_demand: OnDemandRefresh
     def __init__(self, manual: _Optional[_Union[ManualRefresh, _Mapping]] = ..., cached: _Optional[_Union[CachedRefresh, _Mapping]] = ..., on_demand: _Optional[_Union[OnDemandRefresh, _Mapping]] = ...) -> None: ...
 
-class SettingsFrame(_message.Message):
-    __slots__ = ("bootstrap_paths", "sections", "cards")
+@final
+class SettingsFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BOOTSTRAP_PATHS_FIELD_NUMBER: _ClassVar[int]
     SECTIONS_FIELD_NUMBER: _ClassVar[int]
     CARDS_FIELD_NUMBER: _ClassVar[int]
@@ -317,8 +347,9 @@ class SettingsFrame(_message.Message):
     cards: _containers.RepeatedCompositeFieldContainer[SettingsCard]
     def __init__(self, bootstrap_paths: _Optional[_Union[BootstrapPaths, _Mapping]] = ..., sections: _Optional[_Iterable[_Union[SettingsSection, _Mapping]]] = ..., cards: _Optional[_Iterable[_Union[SettingsCard, _Mapping]]] = ...) -> None: ...
 
-class SettingsSection(_message.Message):
-    __slots__ = ("section_id", "label", "description", "owner", "order")
+@final
+class SettingsSection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SECTION_ID_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
@@ -331,16 +362,18 @@ class SettingsSection(_message.Message):
     order: int
     def __init__(self, section_id: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ..., owner: _Optional[_Union[SettingsSectionOwner, _Mapping]] = ..., order: _Optional[int] = ...) -> None: ...
 
-class SettingsSectionOwner(_message.Message):
-    __slots__ = ("app", "installed_plugin_id")
+@final
+class SettingsSectionOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     APP_FIELD_NUMBER: _ClassVar[int]
     INSTALLED_PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     app: bool
     installed_plugin_id: str
     def __init__(self, app: _Optional[bool] = ..., installed_plugin_id: _Optional[str] = ...) -> None: ...
 
-class TelemetryPreferences(_message.Message):
-    __slots__ = ("interval_ms",)
+@final
+class TelemetryPreferences(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
     interval_ms: int
     def __init__(self, interval_ms: _Optional[int] = ...) -> None: ...

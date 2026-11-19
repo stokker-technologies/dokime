@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
@@ -169,8 +172,9 @@ UNIT_FAMILY_VOLTAGE: UnitFamily
 UNIT_FAMILY_RATIO: UnitFamily
 UNIT_FAMILY_CUSTOM: UnitFamily
 
-class RecordSchemasGetRequest(_message.Message):
-    __slots__ = ("name", "parent", "schema_version", "at")
+@final
+class RecordSchemasGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -181,32 +185,36 @@ class RecordSchemasGetRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., parent: _Optional[str] = ..., schema_version: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class RecordSchemasGetResponse(_message.Message):
-    __slots__ = ("value", "resolved_at")
+@final
+class RecordSchemasGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     value: RecordSchema
     resolved_at: _position_pb2.ReadCut
     def __init__(self, value: _Optional[_Union[RecordSchema, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class RecordSchemasListRequest(_message.Message):
-    __slots__ = ("parent", "at")
+@final
+class RecordSchemasListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     parent: str
     at: _position_pb2.ReadCut
     def __init__(self, parent: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class RecordSchemasListResponse(_message.Message):
-    __slots__ = ("values", "resolved_at")
+@final
+class RecordSchemasListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[RecordSchema]
     resolved_at: _position_pb2.ReadCut
     def __init__(self, values: _Optional[_Iterable[_Union[RecordSchema, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class Field(_message.Message):
-    __slots__ = ("id", "value_type", "nullable", "unit")
+@final
+class Field(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ID_FIELD_NUMBER: _ClassVar[int]
     VALUE_TYPE_FIELD_NUMBER: _ClassVar[int]
     NULLABLE_FIELD_NUMBER: _ClassVar[int]
@@ -217,16 +225,18 @@ class Field(_message.Message):
     unit: str
     def __init__(self, id: _Optional[str] = ..., value_type: _Optional[_Union[FieldType, str]] = ..., nullable: _Optional[bool] = ..., unit: _Optional[str] = ...) -> None: ...
 
-class RecordDisplay(_message.Message):
-    __slots__ = ("icon", "tone")
+@final
+class RecordDisplay(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ICON_FIELD_NUMBER: _ClassVar[int]
     TONE_FIELD_NUMBER: _ClassVar[int]
     icon: RecordIcon
     tone: RecordTone
     def __init__(self, icon: _Optional[_Union[RecordIcon, str]] = ..., tone: _Optional[_Union[RecordTone, str]] = ...) -> None: ...
 
-class RecordField(_message.Message):
-    __slots__ = ("metadata", "value_type", "required", "nullable", "unit", "choices", "default_value", "format")
+@final
+class RecordField(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_TYPE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
@@ -245,8 +255,9 @@ class RecordField(_message.Message):
     format: ValueFormat
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., value_type: _Optional[_Union[_scalar_pb2.ValueType, str]] = ..., required: _Optional[bool] = ..., nullable: _Optional[bool] = ..., unit: _Optional[_Union[MeasurementUnit, _Mapping]] = ..., choices: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ..., default_value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., format: _Optional[_Union[ValueFormat, _Mapping]] = ...) -> None: ...
 
-class RecordSchema(_message.Message):
-    __slots__ = ("record_type", "schema_version", "metadata", "template_identifier", "owner_suite_id", "default_severity", "fields", "validation_mode", "allow_extra_fields", "display", "message_name")
+@final
+class RecordSchema(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -271,8 +282,9 @@ class RecordSchema(_message.Message):
     message_name: str
     def __init__(self, record_type: _Optional[str] = ..., schema_version: _Optional[int] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., template_identifier: _Optional[str] = ..., owner_suite_id: _Optional[str] = ..., default_severity: _Optional[_Union[_evidence_pb2.Severity, str]] = ..., fields: _Optional[_Iterable[_Union[RecordField, _Mapping]]] = ..., validation_mode: _Optional[_Union[ValidationMode, str]] = ..., allow_extra_fields: _Optional[bool] = ..., display: _Optional[_Union[RecordDisplay, _Mapping]] = ..., message_name: _Optional[str] = ...) -> None: ...
 
-class Schema(_message.Message):
-    __slots__ = ("identity", "versions", "fields")
+@final
+class Schema(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     IDENTITY_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
     FIELDS_FIELD_NUMBER: _ClassVar[int]
@@ -281,8 +293,9 @@ class Schema(_message.Message):
     fields: _containers.RepeatedCompositeFieldContainer[Field]
     def __init__(self, identity: _Optional[str] = ..., versions: _Optional[_Iterable[int]] = ..., fields: _Optional[_Iterable[_Union[Field, _Mapping]]] = ...) -> None: ...
 
-class TelemetryColumn(_message.Message):
-    __slots__ = ("metadata", "value_type", "role", "unit", "display_unit", "required", "nullable", "default_value", "format")
+@final
+class TelemetryColumn(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_TYPE_FIELD_NUMBER: _ClassVar[int]
     ROLE_FIELD_NUMBER: _ClassVar[int]
@@ -303,8 +316,9 @@ class TelemetryColumn(_message.Message):
     format: ValueFormat
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., value_type: _Optional[_Union[_scalar_pb2.ValueType, str]] = ..., role: _Optional[_Union[TelemetryRole, str]] = ..., unit: _Optional[_Union[MeasurementUnit, _Mapping]] = ..., display_unit: _Optional[str] = ..., required: _Optional[bool] = ..., nullable: _Optional[bool] = ..., default_value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., format: _Optional[_Union[ValueFormat, _Mapping]] = ...) -> None: ...
 
-class TelemetrySchema(_message.Message):
-    __slots__ = ("stream", "schema_version", "storage_schema", "metadata", "template_identifier", "owner_suite_id", "columns", "default_x", "allow_extra_fields", "scalar", "validation_mode", "foreign", "message_name")
+@final
+class TelemetrySchema(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STREAM_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     STORAGE_SCHEMA_FIELD_NUMBER: _ClassVar[int]
@@ -333,32 +347,37 @@ class TelemetrySchema(_message.Message):
     message_name: str
     def __init__(self, stream: _Optional[str] = ..., schema_version: _Optional[int] = ..., storage_schema: _Optional[_Union[Schema, _Mapping]] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., template_identifier: _Optional[str] = ..., owner_suite_id: _Optional[str] = ..., columns: _Optional[_Iterable[_Union[TelemetryColumn, _Mapping]]] = ..., default_x: _Optional[str] = ..., allow_extra_fields: _Optional[bool] = ..., scalar: _Optional[bool] = ..., validation_mode: _Optional[_Union[ValidationMode, str]] = ..., foreign: _Optional[bool] = ..., message_name: _Optional[str] = ...) -> None: ...
 
-class AbsoluteTimeFormat(_message.Message):
-    __slots__ = ("pattern",)
+@final
+class AbsoluteTimeFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     pattern: str
     def __init__(self, pattern: _Optional[str] = ...) -> None: ...
 
-class ElapsedFormat(_message.Message):
-    __slots__ = ("unit",)
+@final
+class ElapsedFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     UNIT_FIELD_NUMBER: _ClassVar[int]
     unit: ElapsedUnit
     def __init__(self, unit: _Optional[_Union[ElapsedUnit, str]] = ...) -> None: ...
 
-class EngineeringFormat(_message.Message):
-    __slots__ = ("significant_digits",)
+@final
+class EngineeringFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
     significant_digits: int
     def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
 
-class FixedFormat(_message.Message):
-    __slots__ = ("decimals",)
+@final
+class FixedFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DECIMALS_FIELD_NUMBER: _ClassVar[int]
     decimals: int
     def __init__(self, decimals: _Optional[int] = ...) -> None: ...
 
-class MeasurementUnit(_message.Message):
-    __slots__ = ("metadata", "family", "symbol")
+@final
+class MeasurementUnit(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FAMILY_FIELD_NUMBER: _ClassVar[int]
     SYMBOL_FIELD_NUMBER: _ClassVar[int]
@@ -367,32 +386,37 @@ class MeasurementUnit(_message.Message):
     symbol: str
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., family: _Optional[_Union[UnitFamily, str]] = ..., symbol: _Optional[str] = ...) -> None: ...
 
-class NormalFormat(_message.Message):
-    __slots__ = ("max_fraction_digits",)
+@final
+class NormalFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MAX_FRACTION_DIGITS_FIELD_NUMBER: _ClassVar[int]
     max_fraction_digits: int
     def __init__(self, max_fraction_digits: _Optional[int] = ...) -> None: ...
 
-class ScientificFormat(_message.Message):
-    __slots__ = ("significant_digits",)
+@final
+class ScientificFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
     significant_digits: int
     def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
 
-class SiPrefixFormat(_message.Message):
-    __slots__ = ("significant_digits",)
+@final
+class SiPrefixFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
     significant_digits: int
     def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
 
-class ValueFormat(_message.Message):
-    __slots__ = ("kind",)
+@final
+class ValueFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: ValueFormatKind
     def __init__(self, kind: _Optional[_Union[ValueFormatKind, _Mapping]] = ...) -> None: ...
 
-class ValueFormatKind(_message.Message):
-    __slots__ = ("normal", "fixed", "scientific", "engineering", "si_prefix", "absolute_time", "elapsed_since_run", "elapsed_since_cycle")
+@final
+class ValueFormatKind(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NORMAL_FIELD_NUMBER: _ClassVar[int]
     FIXED_FIELD_NUMBER: _ClassVar[int]
     SCIENTIFIC_FIELD_NUMBER: _ClassVar[int]

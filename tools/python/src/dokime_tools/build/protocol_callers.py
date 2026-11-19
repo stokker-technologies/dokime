@@ -14,6 +14,7 @@
 # Standard Library Imports
 import ast
 import re
+import runpy
 import shutil
 import subprocess
 import tempfile
@@ -32,130 +33,6 @@ from ..process import spawn_flags
 # === Public Exports === #
 
 # === Constants === #
-
-PYTHON_PUBLIC_HOMES = {
-    "": frozenset(
-        [
-            "Artifact",
-            "Case",
-            "Cases",
-            "Client",
-            "Cycle",
-            "Cycles",
-            "Execution",
-            "Executions",
-            "Failure",
-            "Note",
-            "Outcome",
-            "Plugin",
-            "Plugins",
-            "Progress",
-            "PromptAnswer",
-            "PromptQuestion",
-            "RegisteredPlugin",
-            "ResultStatus",
-            "Scalar",
-            "SdkError",
-            "Suite",
-            "connect",
-        ]
-    ),
-    # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
-    "operations": frozenset(
-        [
-            "BoundOperation",
-            "Context",
-            "FailureError",
-            "Operation",
-            "OperationPolicy",
-            "Payload",
-            "RetryPolicy",
-            "SecretDeclaration",
-            "SettingDeclaration",
-            "SettingValue",
-            "StreamSubscription",
-            "Visibility",
-            "operation",
-        ]
-    ),
-    "templates": frozenset(
-        [
-            "Aggregate",
-            "AxisScale",
-            "BarArrangement",
-            "CaptureGap",
-            "CaptureMode",
-            "CaptureResult",
-            "CapturedArtifact",
-            "Card",
-            "Context",
-            "ContourRender",
-            "DataExpression",
-            "Document",
-            "Environment",
-            "Expression",
-            "FileLocation",
-            "FileParameter",
-            "FileRule",
-            "FileRuleAction",
-            "FileSelection",
-            "FileSource",
-            "FtpLocation",
-            "GridAxisEntry",
-            "GridHighlight",
-            "LineField",
-            "LineMarker",
-            "LineMatcher",
-            "Materialization",
-            "MirrorCapture",
-            "Parameter",
-            "ParameterDefinition",
-            "Plot",
-            "PlotStyle",
-            "Prompt",
-            "PromptDeclaration",
-            "Record",
-            "RecordRow",
-            "RecordsQuery",
-            "Reduction",
-            "ReferenceBand",
-            "ReferenceLine",
-            "SampleRow",
-            "SamplesQuery",
-            "Section",
-            "Severity",
-            "Statistics",
-            "Stream",
-            "StreamCapture",
-            "Summary",
-            "Termination",
-            "TestTemplate",
-            "Window",
-            "XyInterval",
-            "bar",
-            "box_plot",
-            "contour",
-            "criterion",
-            "field",
-            "frequency_series",
-            "grid_chart",
-            "histogram",
-            "materialize",
-            "observer",
-            "pie",
-            "plot_card",
-            "prompt",
-            "record",
-            "records_card",
-            "step",
-            "stream",
-            "time_series",
-            "trajectory",
-            "window_observer",
-            "xy",
-        ]
-    ),
-}
 
 
 # === Types === #
@@ -224,7 +101,8 @@ def check_public_surfaces(root: Path) -> None:
             if any(name.split(".")[0] == "dokime" for name in imports):
                 findings.append(f"{path.relative_to(root)}:{node.lineno}: Replace the Retired Python Import with dokime_sdk")
     package = root / "sdk/python/src/dokime_sdk"
-    for module, expected in PYTHON_PUBLIC_HOMES.items():
+    homes = runpy.run_path(str(root / "sdk/python/tools/generate.py"))["PUBLIC_HOMES"]
+    for module, expected in homes.items():
         relative = f"{module}/__init__.py" if module == "templates" else f"{module}.py" if module else "__init__.py"
         path = package / relative
         if not path.is_file():

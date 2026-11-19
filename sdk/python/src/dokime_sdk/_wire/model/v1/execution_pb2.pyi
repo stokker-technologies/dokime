@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
@@ -25,10 +28,12 @@ TERMINATION_FAILED: Termination
 TERMINATION_CANCELLED: Termination
 TERMINATION_INTERRUPTED: Termination
 
-class TestCase(_message.Message):
-    __slots__ = ("parameters", "steps", "criteria", "streams")
-    class ParametersEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class TestCase(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class ParametersEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -44,15 +49,17 @@ class TestCase(_message.Message):
     streams: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, parameters: _Optional[_Mapping[str, _scalar_pb2.Value]] = ..., steps: _Optional[_Iterable[_Union[Step, _Mapping]]] = ..., criteria: _Optional[_Iterable[_Union[Criterion, _Mapping]]] = ..., streams: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class Origin(_message.Message):
-    __slots__ = ("plugin_run",)
+@final
+class Origin(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PLUGIN_RUN_FIELD_NUMBER: _ClassVar[int]
     IMPORT_FIELD_NUMBER: _ClassVar[int]
     plugin_run: PluginRun
     def __init__(self, plugin_run: _Optional[_Union[PluginRun, _Mapping]] = ..., **kwargs) -> None: ...
 
-class PluginRun(_message.Message):
-    __slots__ = ("test_case", "plugin", "template", "digest", "started_at")
+@final
+class PluginRun(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
     PLUGIN_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_FIELD_NUMBER: _ClassVar[int]
@@ -65,8 +72,9 @@ class PluginRun(_message.Message):
     started_at: _timestamp_pb2.Timestamp
     def __init__(self, test_case: _Optional[_Union[TestCase, _Mapping]] = ..., plugin: _Optional[str] = ..., template: _Optional[str] = ..., digest: _Optional[bytes] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
-class Import(_message.Message):
-    __slots__ = ("metadata", "sources", "importer", "sdk_version", "processing", "imported_at", "key", "predecessor")
+@final
+class Import(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     SOURCES_FIELD_NUMBER: _ClassVar[int]
     IMPORTER_FIELD_NUMBER: _ClassVar[int]
@@ -85,8 +93,9 @@ class Import(_message.Message):
     predecessor: str
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., sources: _Optional[_Iterable[_Union[ImportSource, _Mapping]]] = ..., importer: _Optional[str] = ..., sdk_version: _Optional[str] = ..., processing: _Optional[str] = ..., imported_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., key: _Optional[str] = ..., predecessor: _Optional[str] = ...) -> None: ...
 
-class ImportSource(_message.Message):
-    __slots__ = ("name", "sha256", "attached")
+@final
+class ImportSource(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
     ATTACHED_FIELD_NUMBER: _ClassVar[int]
@@ -95,8 +104,9 @@ class ImportSource(_message.Message):
     attached: bool
     def __init__(self, name: _Optional[str] = ..., sha256: _Optional[bytes] = ..., attached: _Optional[bool] = ...) -> None: ...
 
-class Step(_message.Message):
-    __slots__ = ("metadata", "operation", "repeatable")
+@final
+class Step(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     OPERATION_FIELD_NUMBER: _ClassVar[int]
     REPEATABLE_FIELD_NUMBER: _ClassVar[int]
@@ -105,16 +115,18 @@ class Step(_message.Message):
     repeatable: bool
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., operation: _Optional[str] = ..., repeatable: _Optional[bool] = ...) -> None: ...
 
-class Criterion(_message.Message):
-    __slots__ = ("metadata", "operation")
+@final
+class Criterion(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     OPERATION_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
     operation: str
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., operation: _Optional[str] = ...) -> None: ...
 
-class ExecutionProgressValue(_message.Message):
-    __slots__ = ("completed", "total", "label")
+@final
+class ExecutionProgressValue(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     COMPLETED_FIELD_NUMBER: _ClassVar[int]
     TOTAL_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]

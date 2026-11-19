@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.host.v1.plots import snapshots_pb2 as _snapshots_pb2
 from dokime_sdk._wire.host.v1 import record_schemas_pb2 as _record_schemas_pb2
 from dokime_sdk._wire.model.v1 import documents_pb2 as _documents_pb2
@@ -131,8 +134,9 @@ PLOT_AXIS_KIND_UNSPECIFIED: PlotAxisKind
 PLOT_AXIS_KIND_WALL_TIME: PlotAxisKind
 PLOT_AXIS_KIND_ELAPSED: PlotAxisKind
 
-class DocumentsGetRequest(_message.Message):
-    __slots__ = ("scope", "document_id", "structure_only", "card_ids", "page_token", "max_bytes", "max_frames", "at")
+@final
+class DocumentsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     STRUCTURE_ONLY_FIELD_NUMBER: _ClassVar[int]
@@ -151,8 +155,9 @@ class DocumentsGetRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, scope: _Optional[_Union[DocumentScope, _Mapping]] = ..., document_id: _Optional[str] = ..., structure_only: _Optional[bool] = ..., card_ids: _Optional[_Iterable[str]] = ..., page_token: _Optional[str] = ..., max_bytes: _Optional[int] = ..., max_frames: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class DocumentsGetResponse(_message.Message):
-    __slots__ = ("frames", "next_page_token", "resolved_at")
+@final
+class DocumentsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FRAMES_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -161,8 +166,9 @@ class DocumentsGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, frames: _Optional[_Iterable[_Union[DocumentFrame, _Mapping]]] = ..., next_page_token: _Optional[str] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class DocumentsWatchRequest(_message.Message):
-    __slots__ = ("scope", "document_id", "structure_only", "card_ids", "page_token", "max_bytes", "max_frames", "at")
+@final
+class DocumentsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     STRUCTURE_ONLY_FIELD_NUMBER: _ClassVar[int]
@@ -181,8 +187,9 @@ class DocumentsWatchRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, scope: _Optional[_Union[DocumentScope, _Mapping]] = ..., document_id: _Optional[str] = ..., structure_only: _Optional[bool] = ..., card_ids: _Optional[_Iterable[str]] = ..., page_token: _Optional[str] = ..., max_bytes: _Optional[int] = ..., max_frames: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class DocumentsWatchResponse(_message.Message):
-    __slots__ = ("frames", "resolved_at", "opening", "resync_required")
+@final
+class DocumentsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FRAMES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -193,8 +200,9 @@ class DocumentsWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, frames: _Optional[_Iterable[_Union[DocumentFrame, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class DocumentsAppendPartsRequest(_message.Message):
-    __slots__ = ("execution", "document", "section", "subsection", "card", "request_id")
+@final
+class DocumentsAppendPartsRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_FIELD_NUMBER: _ClassVar[int]
     SECTION_FIELD_NUMBER: _ClassVar[int]
@@ -209,14 +217,16 @@ class DocumentsAppendPartsRequest(_message.Message):
     request_id: str
     def __init__(self, execution: _Optional[str] = ..., document: _Optional[str] = ..., section: _Optional[str] = ..., subsection: _Optional[_Union[_documents_pb2.Section, _Mapping]] = ..., card: _Optional[_Union[_documents_pb2.Card, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class DocumentsAppendPartsResponse(_message.Message):
-    __slots__ = ("receipt",)
+@final
+class DocumentsAppendPartsResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
     def __init__(self, receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class DocumentBinding(_message.Message):
-    __slots__ = ("source_id", "metadata", "result")
+@final
+class DocumentBinding(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SOURCE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     RESULT_FIELD_NUMBER: _ClassVar[int]
@@ -225,8 +235,9 @@ class DocumentBinding(_message.Message):
     result: DocumentBindingResult
     def __init__(self, source_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., result: _Optional[_Union[DocumentBindingResult, _Mapping]] = ...) -> None: ...
 
-class DocumentBindingResult(_message.Message):
-    __slots__ = ("literal", "summary", "plot", "pending", "failure")
+@final
+class DocumentBindingResult(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
     PLOT_FIELD_NUMBER: _ClassVar[int]
@@ -239,8 +250,9 @@ class DocumentBindingResult(_message.Message):
     failure: DocumentCardFailure
     def __init__(self, literal: _Optional[bool] = ..., summary: _Optional[_Union[DocumentSummary, _Mapping]] = ..., plot: _Optional[_Union[DocumentPlotDefinition, _Mapping]] = ..., pending: _Optional[bool] = ..., failure: _Optional[_Union[DocumentCardFailure, _Mapping]] = ...) -> None: ...
 
-class DocumentCard(_message.Message):
-    __slots__ = ("metadata", "filters", "body")
+@final
+class DocumentCard(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FILTERS_FIELD_NUMBER: _ClassVar[int]
     BODY_FIELD_NUMBER: _ClassVar[int]
@@ -249,8 +261,9 @@ class DocumentCard(_message.Message):
     body: DocumentCardBody
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_plots_pb2.PlotFilter, _Mapping]]] = ..., body: _Optional[_Union[DocumentCardBody, _Mapping]] = ...) -> None: ...
 
-class DocumentCardBody(_message.Message):
-    __slots__ = ("markdown", "table", "summary", "owner")
+@final
+class DocumentCardBody(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MARKDOWN_FIELD_NUMBER: _ClassVar[int]
     TABLE_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
@@ -261,8 +274,9 @@ class DocumentCardBody(_message.Message):
     owner: DocumentOwnerReference
     def __init__(self, markdown: _Optional[str] = ..., table: _Optional[_Union[DocumentTable, _Mapping]] = ..., summary: _Optional[_Union[DocumentSummary, _Mapping]] = ..., owner: _Optional[_Union[DocumentOwnerReference, _Mapping]] = ...) -> None: ...
 
-class DocumentCardBudget(_message.Message):
-    __slots__ = ("name", "limit", "reached", "card_id")
+@final
+class DocumentCardBudget(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     LIMIT_FIELD_NUMBER: _ClassVar[int]
     REACHED_FIELD_NUMBER: _ClassVar[int]
@@ -273,8 +287,9 @@ class DocumentCardBudget(_message.Message):
     card_id: str
     def __init__(self, name: _Optional[str] = ..., limit: _Optional[int] = ..., reached: _Optional[int] = ..., card_id: _Optional[str] = ...) -> None: ...
 
-class DocumentCardFailure(_message.Message):
-    __slots__ = ("code", "message", "budget")
+@final
+class DocumentCardFailure(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CODE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     BUDGET_FIELD_NUMBER: _ClassVar[int]
@@ -283,8 +298,9 @@ class DocumentCardFailure(_message.Message):
     budget: DocumentCardBudget
     def __init__(self, code: _Optional[str] = ..., message: _Optional[str] = ..., budget: _Optional[_Union[DocumentCardBudget, _Mapping]] = ...) -> None: ...
 
-class DocumentCompletion(_message.Message):
-    __slots__ = ("frame_count", "card_count", "layout_node_count", "binding_count", "repeat_count", "section_count", "partial")
+@final
+class DocumentCompletion(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FRAME_COUNT_FIELD_NUMBER: _ClassVar[int]
     CARD_COUNT_FIELD_NUMBER: _ClassVar[int]
     LAYOUT_NODE_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -301,8 +317,9 @@ class DocumentCompletion(_message.Message):
     partial: bool
     def __init__(self, frame_count: _Optional[int] = ..., card_count: _Optional[int] = ..., layout_node_count: _Optional[int] = ..., binding_count: _Optional[int] = ..., repeat_count: _Optional[int] = ..., section_count: _Optional[int] = ..., partial: _Optional[bool] = ...) -> None: ...
 
-class DocumentEvidenceCut(_message.Message):
-    __slots__ = ("cut", "telemetry", "cacheable")
+@final
+class DocumentEvidenceCut(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CUT_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     CACHEABLE_FIELD_NUMBER: _ClassVar[int]
@@ -311,14 +328,16 @@ class DocumentEvidenceCut(_message.Message):
     cacheable: bool
     def __init__(self, cut: _Optional[_Union[DocumentTelemetryCut, _Mapping]] = ..., telemetry: _Optional[bool] = ..., cacheable: _Optional[bool] = ...) -> None: ...
 
-class DocumentFrame(_message.Message):
-    __slots__ = ("frame",)
+@final
+class DocumentFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FRAME_FIELD_NUMBER: _ClassVar[int]
     frame: DocumentFrameFrame
     def __init__(self, frame: _Optional[_Union[DocumentFrameFrame, _Mapping]] = ...) -> None: ...
 
-class DocumentFrameFrame(_message.Message):
-    __slots__ = ("header", "layout_node", "card", "table_row", "summary_group", "summary_tile", "warning", "completion", "group_definition", "tile_definition", "binding", "repeat_selection", "repeat_instance", "section_identity", "structure_complete", "card_complete", "expansion_complete", "evidence_cut", "section_removal", "artifact_cut", "page")
+@final
+class DocumentFrameFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     HEADER_FIELD_NUMBER: _ClassVar[int]
     LAYOUT_NODE_FIELD_NUMBER: _ClassVar[int]
     CARD_FIELD_NUMBER: _ClassVar[int]
@@ -363,8 +382,9 @@ class DocumentFrameFrame(_message.Message):
     page: DocumentPage
     def __init__(self, header: _Optional[_Union[DocumentHeader, _Mapping]] = ..., layout_node: _Optional[_Union[DocumentLayoutNode, _Mapping]] = ..., card: _Optional[_Union[DocumentCard, _Mapping]] = ..., table_row: _Optional[_Union[DocumentTableRow, _Mapping]] = ..., summary_group: _Optional[_Union[DocumentSummaryGroup, _Mapping]] = ..., summary_tile: _Optional[_Union[DocumentSummaryTile, _Mapping]] = ..., warning: _Optional[_Union[DocumentWarning, _Mapping]] = ..., completion: _Optional[_Union[DocumentCompletion, _Mapping]] = ..., group_definition: _Optional[_Union[DocumentSummaryGroupDefinition, _Mapping]] = ..., tile_definition: _Optional[_Union[DocumentSummaryTileDefinition, _Mapping]] = ..., binding: _Optional[_Union[DocumentBinding, _Mapping]] = ..., repeat_selection: _Optional[_Union[DocumentRepeatSelection, _Mapping]] = ..., repeat_instance: _Optional[_Union[DocumentRepeatInstance, _Mapping]] = ..., section_identity: _Optional[_Union[DocumentSectionIdentity, _Mapping]] = ..., structure_complete: _Optional[_Union[DocumentCompletion, _Mapping]] = ..., card_complete: _Optional[str] = ..., expansion_complete: _Optional[bool] = ..., evidence_cut: _Optional[_Union[DocumentEvidenceCut, _Mapping]] = ..., section_removal: _Optional[str] = ..., artifact_cut: _Optional[str] = ..., page: _Optional[_Union[DocumentPage, _Mapping]] = ...) -> None: ...
 
-class DocumentFrontiers(_message.Message):
-    __slots__ = ("process_epoch", "state_revision", "telemetry", "artifacts_sha256", "evidence")
+@final
+class DocumentFrontiers(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROCESS_EPOCH_FIELD_NUMBER: _ClassVar[int]
     STATE_REVISION_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
@@ -377,8 +397,9 @@ class DocumentFrontiers(_message.Message):
     evidence: DocumentTelemetryCut
     def __init__(self, process_epoch: _Optional[str] = ..., state_revision: _Optional[int] = ..., telemetry: _Optional[_Union[DocumentTelemetryCut, _Mapping]] = ..., artifacts_sha256: _Optional[str] = ..., evidence: _Optional[_Union[DocumentTelemetryCut, _Mapping]] = ...) -> None: ...
 
-class DocumentHeader(_message.Message):
-    __slots__ = ("document_id", "metadata", "scope", "frontiers")
+@final
+class DocumentHeader(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -389,8 +410,9 @@ class DocumentHeader(_message.Message):
     frontiers: DocumentFrontiers
     def __init__(self, document_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., frontiers: _Optional[_Union[DocumentFrontiers, _Mapping]] = ...) -> None: ...
 
-class DocumentLayoutNode(_message.Message):
-    __slots__ = ("ordinal", "parent_ordinal", "node")
+@final
+class DocumentLayoutNode(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     PARENT_ORDINAL_FIELD_NUMBER: _ClassVar[int]
     NODE_FIELD_NUMBER: _ClassVar[int]
@@ -399,16 +421,18 @@ class DocumentLayoutNode(_message.Message):
     node: DocumentLayoutNodeNode
     def __init__(self, ordinal: _Optional[int] = ..., parent_ordinal: _Optional[int] = ..., node: _Optional[_Union[DocumentLayoutNodeNode, _Mapping]] = ...) -> None: ...
 
-class DocumentLayoutNodeNode(_message.Message):
-    __slots__ = ("section", "placement")
+@final
+class DocumentLayoutNodeNode(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SECTION_FIELD_NUMBER: _ClassVar[int]
     PLACEMENT_FIELD_NUMBER: _ClassVar[int]
     section: DocumentSection
     placement: DocumentPlacement
     def __init__(self, section: _Optional[_Union[DocumentSection, _Mapping]] = ..., placement: _Optional[_Union[DocumentPlacement, _Mapping]] = ...) -> None: ...
 
-class DocumentOwnerReference(_message.Message):
-    __slots__ = ("kind", "plot_id", "plot")
+@final
+class DocumentOwnerReference(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KIND_FIELD_NUMBER: _ClassVar[int]
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
     PLOT_FIELD_NUMBER: _ClassVar[int]
@@ -417,16 +441,18 @@ class DocumentOwnerReference(_message.Message):
     plot: DocumentPlotDefinition
     def __init__(self, kind: _Optional[_Union[DocumentCardKind, str]] = ..., plot_id: _Optional[str] = ..., plot: _Optional[_Union[DocumentPlotDefinition, _Mapping]] = ...) -> None: ...
 
-class DocumentPage(_message.Message):
-    __slots__ = ("current", "next")
+@final
+class DocumentPage(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CURRENT_FIELD_NUMBER: _ClassVar[int]
     NEXT_FIELD_NUMBER: _ClassVar[int]
     current: str
     next: str
     def __init__(self, current: _Optional[str] = ..., next: _Optional[str] = ...) -> None: ...
 
-class DocumentPlacement(_message.Message):
-    __slots__ = ("card_id", "column_span", "row_span", "order", "density", "rail")
+@final
+class DocumentPlacement(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     COLUMN_SPAN_FIELD_NUMBER: _ClassVar[int]
     ROW_SPAN_FIELD_NUMBER: _ClassVar[int]
@@ -441,8 +467,9 @@ class DocumentPlacement(_message.Message):
     rail: DocumentRail
     def __init__(self, card_id: _Optional[str] = ..., column_span: _Optional[_Union[DocumentSpan, _Mapping]] = ..., row_span: _Optional[int] = ..., order: _Optional[int] = ..., density: _Optional[_Union[DocumentDensity, str]] = ..., rail: _Optional[_Union[DocumentRail, str]] = ...) -> None: ...
 
-class DocumentPlotDefinition(_message.Message):
-    __slots__ = ("metadata", "request", "presentation", "z_expression")
+@final
+class DocumentPlotDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     PRESENTATION_FIELD_NUMBER: _ClassVar[int]
@@ -453,8 +480,9 @@ class DocumentPlotDefinition(_message.Message):
     z_expression: _expressions_pb2.DataExpression
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., request: _Optional[_Union[_snapshots_pb2.PlotRequest, _Mapping]] = ..., presentation: _Optional[_Union[PlotPresentation, _Mapping]] = ..., z_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ...) -> None: ...
 
-class DocumentRepeat(_message.Message):
-    __slots__ = ("value", "label_template", "id_template", "order_by", "filters")
+@final
+class DocumentRepeat(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
     ID_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
@@ -467,8 +495,9 @@ class DocumentRepeat(_message.Message):
     filters: _containers.RepeatedCompositeFieldContainer[_plots_pb2.PlotFilter]
     def __init__(self, value: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., label_template: _Optional[str] = ..., id_template: _Optional[str] = ..., order_by: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_plots_pb2.PlotFilter, _Mapping]]] = ...) -> None: ...
 
-class DocumentRepeatInstance(_message.Message):
-    __slots__ = ("selection_id", "ordinal", "suffix", "node_id", "filter")
+@final
+class DocumentRepeatInstance(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SELECTION_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     SUFFIX_FIELD_NUMBER: _ClassVar[int]
@@ -481,8 +510,9 @@ class DocumentRepeatInstance(_message.Message):
     filter: _plots_pb2.PlotFilter
     def __init__(self, selection_id: _Optional[str] = ..., ordinal: _Optional[int] = ..., suffix: _Optional[str] = ..., node_id: _Optional[str] = ..., filter: _Optional[_Union[_plots_pb2.PlotFilter, _Mapping]] = ...) -> None: ...
 
-class DocumentRepeatSelection(_message.Message):
-    __slots__ = ("node_id", "instance_count", "pending")
+@final
+class DocumentRepeatSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     INSTANCE_COUNT_FIELD_NUMBER: _ClassVar[int]
     PENDING_FIELD_NUMBER: _ClassVar[int]
@@ -491,8 +521,9 @@ class DocumentRepeatSelection(_message.Message):
     pending: bool
     def __init__(self, node_id: _Optional[str] = ..., instance_count: _Optional[int] = ..., pending: _Optional[bool] = ...) -> None: ...
 
-class DocumentSection(_message.Message):
-    __slots__ = ("node_id", "metadata", "repeat")
+@final
+class DocumentSection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REPEAT_FIELD_NUMBER: _ClassVar[int]
@@ -501,8 +532,9 @@ class DocumentSection(_message.Message):
     repeat: DocumentRepeat
     def __init__(self, node_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., repeat: _Optional[_Union[DocumentRepeat, _Mapping]] = ...) -> None: ...
 
-class DocumentSectionIdentity(_message.Message):
-    __slots__ = ("node_id", "metadata", "unavailable")
+@final
+class DocumentSectionIdentity(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     UNAVAILABLE_FIELD_NUMBER: _ClassVar[int]
@@ -511,8 +543,9 @@ class DocumentSectionIdentity(_message.Message):
     unavailable: str
     def __init__(self, node_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., unavailable: _Optional[str] = ...) -> None: ...
 
-class DocumentSpan(_message.Message):
-    __slots__ = ("base", "sm", "md", "lg", "xl")
+@final
+class DocumentSpan(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BASE_FIELD_NUMBER: _ClassVar[int]
     SM_FIELD_NUMBER: _ClassVar[int]
     MD_FIELD_NUMBER: _ClassVar[int]
@@ -525,14 +558,16 @@ class DocumentSpan(_message.Message):
     xl: int
     def __init__(self, base: _Optional[int] = ..., sm: _Optional[int] = ..., md: _Optional[int] = ..., lg: _Optional[int] = ..., xl: _Optional[int] = ...) -> None: ...
 
-class DocumentSummary(_message.Message):
-    __slots__ = ("group_count",)
+@final
+class DocumentSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     GROUP_COUNT_FIELD_NUMBER: _ClassVar[int]
     group_count: int
     def __init__(self, group_count: _Optional[int] = ...) -> None: ...
 
-class DocumentSummaryCondition(_message.Message):
-    __slots__ = ("operator", "value", "state")
+@final
+class DocumentSummaryCondition(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
@@ -541,8 +576,9 @@ class DocumentSummaryCondition(_message.Message):
     state: DocumentSummaryState
     def __init__(self, operator: _Optional[_Union[_expressions_pb2.FilterOperator, str]] = ..., value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., state: _Optional[_Union[DocumentSummaryState, str]] = ...) -> None: ...
 
-class DocumentSummaryGroup(_message.Message):
-    __slots__ = ("card_id", "ordinal", "metadata", "tile_count")
+@final
+class DocumentSummaryGroup(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -553,8 +589,9 @@ class DocumentSummaryGroup(_message.Message):
     tile_count: int
     def __init__(self, card_id: _Optional[str] = ..., ordinal: _Optional[int] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., tile_count: _Optional[int] = ...) -> None: ...
 
-class DocumentSummaryGroupDefinition(_message.Message):
-    __slots__ = ("card_id", "ordinal", "metadata", "tile_count")
+@final
+class DocumentSummaryGroupDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -565,8 +602,9 @@ class DocumentSummaryGroupDefinition(_message.Message):
     tile_count: int
     def __init__(self, card_id: _Optional[str] = ..., ordinal: _Optional[int] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., tile_count: _Optional[int] = ...) -> None: ...
 
-class DocumentSummaryTile(_message.Message):
-    __slots__ = ("card_id", "group_ordinal", "ordinal", "metadata", "value", "stat", "format", "presentation", "unit", "state", "unavailable")
+@final
+class DocumentSummaryTile(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     GROUP_ORDINAL_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
@@ -591,8 +629,9 @@ class DocumentSummaryTile(_message.Message):
     unavailable: str
     def __init__(self, card_id: _Optional[str] = ..., group_ordinal: _Optional[int] = ..., ordinal: _Optional[int] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., stat: _Optional[_Union[DocumentSummaryStat, str]] = ..., format: _Optional[_Union[DocumentSummaryFormat, str]] = ..., presentation: _Optional[_Union[DocumentSummaryPresentation, str]] = ..., unit: _Optional[str] = ..., state: _Optional[_Union[DocumentSummaryState, str]] = ..., unavailable: _Optional[str] = ...) -> None: ...
 
-class DocumentSummaryTileDefinition(_message.Message):
-    __slots__ = ("card_id", "group_ordinal", "ordinal", "metadata", "value", "filters", "stat", "format", "presentation", "unit", "conditions")
+@final
+class DocumentSummaryTileDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     GROUP_ORDINAL_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
@@ -617,14 +656,16 @@ class DocumentSummaryTileDefinition(_message.Message):
     conditions: _containers.RepeatedCompositeFieldContainer[DocumentSummaryCondition]
     def __init__(self, card_id: _Optional[str] = ..., group_ordinal: _Optional[int] = ..., ordinal: _Optional[int] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., value: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_plots_pb2.PlotFilter, _Mapping]]] = ..., stat: _Optional[_Union[DocumentSummaryStat, str]] = ..., format: _Optional[_Union[DocumentSummaryFormat, str]] = ..., presentation: _Optional[_Union[DocumentSummaryPresentation, str]] = ..., unit: _Optional[str] = ..., conditions: _Optional[_Iterable[_Union[DocumentSummaryCondition, _Mapping]]] = ...) -> None: ...
 
-class DocumentTable(_message.Message):
-    __slots__ = ("row_count",)
+@final
+class DocumentTable(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROW_COUNT_FIELD_NUMBER: _ClassVar[int]
     row_count: int
     def __init__(self, row_count: _Optional[int] = ...) -> None: ...
 
-class DocumentTableRow(_message.Message):
-    __slots__ = ("card_id", "ordinal", "values")
+@final
+class DocumentTableRow(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
@@ -633,8 +674,9 @@ class DocumentTableRow(_message.Message):
     values: _documents_pb2.TableRow
     def __init__(self, card_id: _Optional[str] = ..., ordinal: _Optional[int] = ..., values: _Optional[_Union[_documents_pb2.TableRow, _Mapping]] = ...) -> None: ...
 
-class DocumentTelemetryCut(_message.Message):
-    __slots__ = ("store", "epoch", "position")
+@final
+class DocumentTelemetryCut(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STORE_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
     POSITION_FIELD_NUMBER: _ClassVar[int]
@@ -643,16 +685,18 @@ class DocumentTelemetryCut(_message.Message):
     position: int
     def __init__(self, store: _Optional[str] = ..., epoch: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
-class DocumentWarning(_message.Message):
-    __slots__ = ("code", "message")
+@final
+class DocumentWarning(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CODE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     code: str
     message: str
     def __init__(self, code: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
-class PlotPresentation(_message.Message):
-    __slots__ = ("style", "fft", "interval", "histogram", "reference_lines", "reference_bands", "x_format", "y_format", "x_axis", "x_axis_unit", "scale")
+@final
+class PlotPresentation(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STYLE_FIELD_NUMBER: _ClassVar[int]
     FFT_FIELD_NUMBER: _ClassVar[int]
     INTERVAL_FIELD_NUMBER: _ClassVar[int]
@@ -677,8 +721,9 @@ class PlotPresentation(_message.Message):
     scale: float
     def __init__(self, style: _Optional[_Union[_plots_pb2.LineStyle, str]] = ..., fft: _Optional[_Union[_plots_pb2.PlotFftOptions, _Mapping]] = ..., interval: _Optional[_Union[_plots_pb2.PlotIntervalOptions, _Mapping]] = ..., histogram: _Optional[_Union[_plots_pb2.PlotHistogramOptions, _Mapping]] = ..., reference_lines: _Optional[_Iterable[_Union[PlotReferenceLine, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[PlotReferenceBand, _Mapping]]] = ..., x_format: _Optional[_Union[_record_schemas_pb2.ValueFormat, _Mapping]] = ..., y_format: _Optional[_Union[_record_schemas_pb2.ValueFormat, _Mapping]] = ..., x_axis: _Optional[_Union[PlotAxisKind, str]] = ..., x_axis_unit: _Optional[str] = ..., scale: _Optional[float] = ...) -> None: ...
 
-class PlotReferenceBand(_message.Message):
-    __slots__ = ("min", "max", "label", "color", "center", "tolerance")
+@final
+class PlotReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -693,8 +738,9 @@ class PlotReferenceBand(_message.Message):
     tolerance: PlotReferenceValue
     def __init__(self, min: _Optional[_Union[PlotReferenceValue, _Mapping]] = ..., max: _Optional[_Union[PlotReferenceValue, _Mapping]] = ..., label: _Optional[str] = ..., color: _Optional[str] = ..., center: _Optional[_Union[PlotReferenceValue, _Mapping]] = ..., tolerance: _Optional[_Union[PlotReferenceValue, _Mapping]] = ...) -> None: ...
 
-class PlotReferenceLine(_message.Message):
-    __slots__ = ("value", "label", "color")
+@final
+class PlotReferenceLine(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
@@ -703,16 +749,18 @@ class PlotReferenceLine(_message.Message):
     color: str
     def __init__(self, value: _Optional[_Union[PlotReferenceValue, _Mapping]] = ..., label: _Optional[str] = ..., color: _Optional[str] = ...) -> None: ...
 
-class PlotReferenceValue(_message.Message):
-    __slots__ = ("constant", "expression")
+@final
+class PlotReferenceValue(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CONSTANT_FIELD_NUMBER: _ClassVar[int]
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     constant: float
     expression: _expressions_pb2.DataExpression
     def __init__(self, constant: _Optional[float] = ..., expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ...) -> None: ...
 
-class DocumentScope(_message.Message):
-    __slots__ = ("cycle_id", "execution_id")
+@final
+class DocumentScope(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str

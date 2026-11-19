@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
@@ -76,14 +79,16 @@ ANSWER_OPERATOR_CONTAINS: AnswerOperator
 ANSWER_OPERATOR_STARTS_WITH: AnswerOperator
 ANSWER_OPERATOR_ENDS_WITH: AnswerOperator
 
-class PromptDefinitions(_message.Message):
-    __slots__ = ("prompts",)
+@final
+class PromptDefinitions(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
     prompts: _containers.RepeatedCompositeFieldContainer[Prompt]
     def __init__(self, prompts: _Optional[_Iterable[_Union[Prompt, _Mapping]]] = ...) -> None: ...
 
-class Prompt(_message.Message):
-    __slots__ = ("metadata", "message", "fields", "actions", "archetype", "rules", "condition", "owner_suite", "template", "examples", "level")
+@final
+class Prompt(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     FIELDS_FIELD_NUMBER: _ClassVar[int]
@@ -108,10 +113,12 @@ class Prompt(_message.Message):
     level: _evidence_pb2.Severity
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., message: _Optional[str] = ..., fields: _Optional[_Iterable[_Union[PromptField, _Mapping]]] = ..., actions: _Optional[_Iterable[_Union[PromptAction, _Mapping]]] = ..., archetype: _Optional[_Union[PromptArchetype, str]] = ..., rules: _Optional[_Iterable[_Union[AnswerRule, _Mapping]]] = ..., condition: _Optional[_Union[_evidence_pb2.EvidenceCondition, _Mapping]] = ..., owner_suite: _Optional[str] = ..., template: _Optional[str] = ..., examples: _Optional[_Iterable[_Union[PromptValues, _Mapping]]] = ..., level: _Optional[_Union[_evidence_pb2.Severity, str]] = ...) -> None: ...
 
-class PromptValues(_message.Message):
-    __slots__ = ("values",)
-    class ValuesEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class PromptValues(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -121,8 +128,9 @@ class PromptValues(_message.Message):
     values: _containers.MessageMap[str, _scalar_pb2.Value]
     def __init__(self, values: _Optional[_Mapping[str, _scalar_pb2.Value]] = ...) -> None: ...
 
-class PromptField(_message.Message):
-    __slots__ = ("metadata", "type", "required", "multiple", "default_value", "choices", "validation", "kind")
+@final
+class PromptField(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
@@ -141,8 +149,9 @@ class PromptField(_message.Message):
     kind: PromptFieldKind
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., type: _Optional[_Union[_scalar_pb2.ValueType, str]] = ..., required: _Optional[bool] = ..., multiple: _Optional[bool] = ..., default_value: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., choices: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ..., validation: _Optional[_Union[PromptFieldValidation, _Mapping]] = ..., kind: _Optional[_Union[PromptFieldKind, str]] = ...) -> None: ...
 
-class PromptFieldValidation(_message.Message):
-    __slots__ = ("min_length", "max_length", "pattern", "minimum", "maximum", "min_items", "max_items")
+@final
+class PromptFieldValidation(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MIN_LENGTH_FIELD_NUMBER: _ClassVar[int]
     MAX_LENGTH_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
@@ -159,8 +168,9 @@ class PromptFieldValidation(_message.Message):
     max_items: int
     def __init__(self, min_length: _Optional[int] = ..., max_length: _Optional[int] = ..., pattern: _Optional[str] = ..., minimum: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., maximum: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., min_items: _Optional[int] = ..., max_items: _Optional[int] = ...) -> None: ...
 
-class PromptAction(_message.Message):
-    __slots__ = ("identifier", "label", "emphasis", "requires_condition")
+@final
+class PromptAction(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     EMPHASIS_FIELD_NUMBER: _ClassVar[int]
@@ -171,16 +181,18 @@ class PromptAction(_message.Message):
     requires_condition: bool
     def __init__(self, identifier: _Optional[str] = ..., label: _Optional[str] = ..., emphasis: _Optional[_Union[PromptActionEmphasis, str]] = ..., requires_condition: _Optional[bool] = ...) -> None: ...
 
-class AnswerRule(_message.Message):
-    __slots__ = ("predicate", "message")
+@final
+class AnswerRule(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PREDICATE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     predicate: AnswerPredicate
     message: str
     def __init__(self, predicate: _Optional[_Union[AnswerPredicate, _Mapping]] = ..., message: _Optional[str] = ...) -> None: ...
 
-class AnswerPredicate(_message.Message):
-    __slots__ = ("literal", "field", "binary")
+@final
+class AnswerPredicate(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     NOT_FIELD_NUMBER: _ClassVar[int]
@@ -190,8 +202,9 @@ class AnswerPredicate(_message.Message):
     binary: AnswerBinaryPredicate
     def __init__(self, literal: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., field: _Optional[str] = ..., binary: _Optional[_Union[AnswerBinaryPredicate, _Mapping]] = ..., **kwargs) -> None: ...
 
-class AnswerBinaryPredicate(_message.Message):
-    __slots__ = ("operator", "left", "right")
+@final
+class AnswerBinaryPredicate(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]

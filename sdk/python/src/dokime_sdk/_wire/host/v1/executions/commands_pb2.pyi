@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
@@ -42,8 +45,9 @@ EXECUTION_COMMAND_PHASE_REFUSED: ExecutionCommandPhase
 EXECUTION_COMMAND_PHASE_FAILED: ExecutionCommandPhase
 EXECUTION_COMMAND_PHASE_INTERRUPTED: ExecutionCommandPhase
 
-class CommandsGetRequest(_message.Message):
-    __slots__ = ("name", "parent", "at")
+@final
+class CommandsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -52,16 +56,18 @@ class CommandsGetRequest(_message.Message):
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., parent: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class CommandsGetResponse(_message.Message):
-    __slots__ = ("command", "resolved_at")
+@final
+class CommandsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     command: ExecutionCommandReceipt
     resolved_at: _position_pb2.Position
     def __init__(self, command: _Optional[_Union[ExecutionCommandReceipt, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class CommandsCreateRequest(_message.Message):
-    __slots__ = ("parent", "request_id", "command_id", "action", "step_id")
+@final
+class CommandsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
@@ -74,16 +80,18 @@ class CommandsCreateRequest(_message.Message):
     step_id: str
     def __init__(self, parent: _Optional[str] = ..., request_id: _Optional[str] = ..., command_id: _Optional[str] = ..., action: _Optional[_Union[ExecutionCommandAction, str]] = ..., step_id: _Optional[str] = ...) -> None: ...
 
-class CommandsCreateResponse(_message.Message):
-    __slots__ = ("command", "receipt")
+@final
+class CommandsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     command: ExecutionCommandReceipt
     receipt: _receipt_pb2.Receipt
     def __init__(self, command: _Optional[_Union[ExecutionCommandReceipt, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ExecutionCommandReceipt(_message.Message):
-    __slots__ = ("request_id", "command_id", "execution_id", "action", "step_id", "phase", "attempt_id", "accepted_at", "updated_at", "detail")
+@final
+class ExecutionCommandReceipt(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]

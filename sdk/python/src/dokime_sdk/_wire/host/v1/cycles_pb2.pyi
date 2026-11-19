@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -89,16 +92,18 @@ RESULT_STATUS_FAILED: ResultStatus
 RESULT_STATUS_BLOCKED: ResultStatus
 RESULT_STATUS_CANCELLED: ResultStatus
 
-class CyclesGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class CyclesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class CyclesGetResponse(_message.Message):
-    __slots__ = ("value", "revision", "cycle", "resolved_at")
+@final
+class CyclesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
@@ -109,8 +114,9 @@ class CyclesGetResponse(_message.Message):
     resolved_at: _position_pb2.Position
     def __init__(self, value: _Optional[_Union[CycleWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., cycle: _Optional[_Union[CycleSummary, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class CyclesSetRequest(_message.Message):
-    __slots__ = ("name", "value", "expected_revision", "request_id")
+@final
+class CyclesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -121,8 +127,9 @@ class CyclesSetRequest(_message.Message):
     request_id: str
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[CycleWritable, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class CyclesSetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class CyclesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -131,8 +138,9 @@ class CyclesSetResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, value: _Optional[_Union[CycleWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class CyclesListRequest(_message.Message):
-    __slots__ = ("selection", "filter", "order", "at", "page")
+@final
+class CyclesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -145,8 +153,9 @@ class CyclesListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, selection: _Optional[_Union[CycleSelection, _Mapping]] = ..., filter: _Optional[_Union[CycleFilter, _Mapping]] = ..., order: _Optional[_Union[CycleOrder, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class CyclesListResponse(_message.Message):
-    __slots__ = ("cycles", "resolved_at", "next_page_token")
+@final
+class CyclesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -155,8 +164,9 @@ class CyclesListResponse(_message.Message):
     next_page_token: str
     def __init__(self, cycles: _Optional[_Iterable[_Union[CycleSummary, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class CyclesWatchRequest(_message.Message):
-    __slots__ = ("selection", "filter", "order", "at", "page")
+@final
+class CyclesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -169,8 +179,9 @@ class CyclesWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, selection: _Optional[_Union[CycleSelection, _Mapping]] = ..., filter: _Optional[_Union[CycleFilter, _Mapping]] = ..., order: _Optional[_Union[CycleOrder, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class CyclesWatchResponse(_message.Message):
-    __slots__ = ("cycles", "resolved_at", "opening", "resync_required")
+@final
+class CyclesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -181,8 +192,9 @@ class CyclesWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, cycles: _Optional[_Iterable[_Union[CycleSummary, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class CyclesCreateRequest(_message.Message):
-    __slots__ = ("origins", "metadata", "continue_automatically", "source_cycle", "request_id")
+@final
+class CyclesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ORIGINS_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     CONTINUE_AUTOMATICALLY_FIELD_NUMBER: _ClassVar[int]
@@ -195,8 +207,9 @@ class CyclesCreateRequest(_message.Message):
     request_id: str
     def __init__(self, origins: _Optional[_Iterable[_Union[_execution_pb2.Origin, _Mapping]]] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., continue_automatically: _Optional[bool] = ..., source_cycle: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class CyclesCreateResponse(_message.Message):
-    __slots__ = ("cycle", "skipped", "dropped_parameters", "receipt")
+@final
+class CyclesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     SKIPPED_FIELD_NUMBER: _ClassVar[int]
     DROPPED_PARAMETERS_FIELD_NUMBER: _ClassVar[int]
@@ -207,24 +220,27 @@ class CyclesCreateResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, cycle: _Optional[_Union[CycleSummary, _Mapping]] = ..., skipped: _Optional[_Iterable[_Union[RerunCaseNotice, _Mapping]]] = ..., dropped_parameters: _Optional[_Iterable[_Union[RerunCaseNotice, _Mapping]]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class CyclesSealRequest(_message.Message):
-    __slots__ = ("name", "request_id")
+@final
+class CyclesSealRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
     request_id: str
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class CyclesSealResponse(_message.Message):
-    __slots__ = ("seal", "receipt")
+@final
+class CyclesSealResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SEAL_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     seal: bytes
     receipt: _receipt_pb2.Receipt
     def __init__(self, seal: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class CycleFilter(_message.Message):
-    __slots__ = ("text", "statuses", "created_after", "created_before", "archive")
+@final
+class CycleFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TEXT_FIELD_NUMBER: _ClassVar[int]
     STATUSES_FIELD_NUMBER: _ClassVar[int]
     CREATED_AFTER_FIELD_NUMBER: _ClassVar[int]
@@ -237,16 +253,18 @@ class CycleFilter(_message.Message):
     archive: ArchiveScope
     def __init__(self, text: _Optional[str] = ..., statuses: _Optional[_Iterable[_Union[CycleStatus, str]]] = ..., created_after: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., created_before: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., archive: _Optional[_Union[ArchiveScope, str]] = ...) -> None: ...
 
-class CycleOrder(_message.Message):
-    __slots__ = ("key", "descending")
+@final
+class CycleOrder(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     DESCENDING_FIELD_NUMBER: _ClassVar[int]
     key: CycleOrderKey
     descending: bool
     def __init__(self, key: _Optional[_Union[CycleOrderKey, str]] = ..., descending: _Optional[bool] = ...) -> None: ...
 
-class CycleSelection(_message.Message):
-    __slots__ = ("cycle_ids", "phases", "created_at", "archive", "statuses")
+@final
+class CycleSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_IDS_FIELD_NUMBER: _ClassVar[int]
     PHASES_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -259,8 +277,9 @@ class CycleSelection(_message.Message):
     statuses: _containers.RepeatedScalarFieldContainer[CycleStatus]
     def __init__(self, cycle_ids: _Optional[_Iterable[str]] = ..., phases: _Optional[_Iterable[_Union[CyclePhase, str]]] = ..., created_at: _Optional[_Union[_evidence_pb2.Window, _Mapping]] = ..., archive: _Optional[_Union[ArchiveScope, str]] = ..., statuses: _Optional[_Iterable[_Union[CycleStatus, str]]] = ...) -> None: ...
 
-class RerunCaseNotice(_message.Message):
-    __slots__ = ("case_id", "suite_id", "reason")
+@final
+class RerunCaseNotice(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
@@ -269,8 +288,9 @@ class RerunCaseNotice(_message.Message):
     reason: str
     def __init__(self, case_id: _Optional[str] = ..., suite_id: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
 
-class CycleWritable(_message.Message):
-    __slots__ = ("label", "paused", "archived", "continue_automatically")
+@final
+class CycleWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LABEL_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
@@ -281,8 +301,9 @@ class CycleWritable(_message.Message):
     continue_automatically: bool
     def __init__(self, label: _Optional[str] = ..., paused: _Optional[bool] = ..., archived: _Optional[bool] = ..., continue_automatically: _Optional[bool] = ...) -> None: ...
 
-class CycleSummary(_message.Message):
-    __slots__ = ("cycle_id", "metadata", "phase", "status", "case_count", "execution_count", "continue_automatically", "observed_cursor", "created_at", "started_at", "updated_at", "result", "archived", "sealed", "running_count", "queued_count", "seal_failure", "rerun_of")
+@final
+class CycleSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PHASE_FIELD_NUMBER: _ClassVar[int]
@@ -321,8 +342,9 @@ class CycleSummary(_message.Message):
     rerun_of: str
     def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., phase: _Optional[_Union[CyclePhase, str]] = ..., status: _Optional[_Union[CycleStatus, str]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_automatically: _Optional[bool] = ..., observed_cursor: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., result: _Optional[_Union[ResultSummary, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., running_count: _Optional[int] = ..., queued_count: _Optional[int] = ..., seal_failure: _Optional[str] = ..., rerun_of: _Optional[str] = ...) -> None: ...
 
-class ResultSummary(_message.Message):
-    __slots__ = ("status", "passed", "failed", "blocked", "skipped", "declared", "not_evaluated")
+@final
+class ResultSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     STATUS_FIELD_NUMBER: _ClassVar[int]
     PASSED_FIELD_NUMBER: _ClassVar[int]
     FAILED_FIELD_NUMBER: _ClassVar[int]

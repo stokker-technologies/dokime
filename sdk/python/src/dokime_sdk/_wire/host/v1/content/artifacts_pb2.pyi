@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -14,16 +17,18 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class ArtifactsGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class ArtifactsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ArtifactsGetResponse(_message.Message):
-    __slots__ = ("metadata", "file", "resolved_at")
+@final
+class ArtifactsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -32,8 +37,9 @@ class ArtifactsGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, metadata: _Optional[_Union[_evidence_pb2.ArtifactMetadata, _Mapping]] = ..., file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ArtifactsCreateRequest(_message.Message):
-    __slots__ = ("file", "scope", "filename", "content_type", "request_id", "metadata")
+@final
+class ArtifactsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FILE_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     FILENAME_FIELD_NUMBER: _ClassVar[int]
@@ -48,16 +54,18 @@ class ArtifactsCreateRequest(_message.Message):
     metadata: _metadata_pb2.Metadata
     def __init__(self, file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., scope: _Optional[_Union[_evidence_pb2.ArtifactScope, _Mapping]] = ..., filename: _Optional[str] = ..., content_type: _Optional[str] = ..., request_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ...) -> None: ...
 
-class ArtifactsCreateResponse(_message.Message):
-    __slots__ = ("artifact", "receipt")
+@final
+class ArtifactsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     artifact: _evidence_pb2.ArtifactMetadata
     receipt: _receipt_pb2.Receipt
     def __init__(self, artifact: _Optional[_Union[_evidence_pb2.ArtifactMetadata, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ArtifactsListRequest(_message.Message):
-    __slots__ = ("scope", "at", "page")
+@final
+class ArtifactsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -66,8 +74,9 @@ class ArtifactsListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.ArtifactScope, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class ArtifactsListResponse(_message.Message):
-    __slots__ = ("artifacts", "resolved_at", "next_page_token")
+@final
+class ArtifactsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -76,8 +85,9 @@ class ArtifactsListResponse(_message.Message):
     next_page_token: str
     def __init__(self, artifacts: _Optional[_Iterable[_Union[_evidence_pb2.ArtifactMetadata, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class ArtifactsWatchRequest(_message.Message):
-    __slots__ = ("scope", "at", "page")
+@final
+class ArtifactsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -86,8 +96,9 @@ class ArtifactsWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.ArtifactScope, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class ArtifactsWatchResponse(_message.Message):
-    __slots__ = ("artifacts", "resolved_at", "opening", "resync_required")
+@final
+class ArtifactsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]

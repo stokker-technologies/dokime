@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.host.v1 import record_schemas_pb2 as _record_schemas_pb2
@@ -17,8 +20,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class SamplesListRequest(_message.Message):
-    __slots__ = ("scope", "streams", "versions", "fields", "sources", "signals", "between", "bucket", "latest", "at", "page")
+@final
+class SamplesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     STREAMS_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -43,8 +47,9 @@ class SamplesListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., streams: _Optional[_Iterable[str]] = ..., versions: _Optional[_Iterable[int]] = ..., fields: _Optional[_Iterable[str]] = ..., sources: _Optional[_Iterable[str]] = ..., signals: _Optional[_Iterable[str]] = ..., between: _Optional[_Union[_evidence_pb2.Window, _Mapping]] = ..., bucket: _Optional[_Union[BucketRequest, _Mapping]] = ..., latest: _Optional[bool] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class SamplesListResponse(_message.Message):
-    __slots__ = ("samples", "schema", "resolved_at", "next_page_token")
+@final
+class SamplesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SAMPLES_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -55,8 +60,9 @@ class SamplesListResponse(_message.Message):
     next_page_token: str
     def __init__(self, samples: _Optional[_Iterable[_Union[SampleRow, _Mapping]]] = ..., schema: _Optional[_Union[_record_schemas_pb2.Schema, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class SamplesWatchRequest(_message.Message):
-    __slots__ = ("scope", "streams", "versions", "fields", "sources", "signals", "between", "bucket", "latest", "at", "page")
+@final
+class SamplesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     STREAMS_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -81,8 +87,9 @@ class SamplesWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., streams: _Optional[_Iterable[str]] = ..., versions: _Optional[_Iterable[int]] = ..., fields: _Optional[_Iterable[str]] = ..., sources: _Optional[_Iterable[str]] = ..., signals: _Optional[_Iterable[str]] = ..., between: _Optional[_Union[_evidence_pb2.Window, _Mapping]] = ..., bucket: _Optional[_Union[BucketRequest, _Mapping]] = ..., latest: _Optional[bool] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class SamplesWatchResponse(_message.Message):
-    __slots__ = ("samples", "schema", "resolved_at", "opening", "resync_required")
+@final
+class SamplesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SAMPLES_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -95,8 +102,9 @@ class SamplesWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, samples: _Optional[_Iterable[_Union[SampleRow, _Mapping]]] = ..., schema: _Optional[_Union[_record_schemas_pb2.Schema, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class Bucket(_message.Message):
-    __slots__ = ("start", "end", "execution_id", "stream", "source", "versions", "sample_count", "fields")
+@final
+class Bucket(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     START_FIELD_NUMBER: _ClassVar[int]
     END_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -115,16 +123,18 @@ class Bucket(_message.Message):
     fields: _containers.RepeatedCompositeFieldContainer[BucketValue]
     def __init__(self, start: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., end: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., execution_id: _Optional[str] = ..., stream: _Optional[str] = ..., source: _Optional[str] = ..., versions: _Optional[_Iterable[int]] = ..., sample_count: _Optional[int] = ..., fields: _Optional[_Iterable[_Union[BucketValue, _Mapping]]] = ...) -> None: ...
 
-class BucketRequest(_message.Message):
-    __slots__ = ("every_nanos", "aggregate")
+@final
+class BucketRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EVERY_NANOS_FIELD_NUMBER: _ClassVar[int]
     AGGREGATE_FIELD_NUMBER: _ClassVar[int]
     every_nanos: int
     aggregate: _expressions_pb2.Aggregate
     def __init__(self, every_nanos: _Optional[int] = ..., aggregate: _Optional[_Union[_expressions_pb2.Aggregate, str]] = ...) -> None: ...
 
-class BucketValue(_message.Message):
-    __slots__ = ("field", "count", "value", "unit", "reducer")
+@final
+class BucketValue(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FIELD_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -137,24 +147,27 @@ class BucketValue(_message.Message):
     reducer: _expressions_pb2.Aggregate
     def __init__(self, field: _Optional[str] = ..., count: _Optional[int] = ..., value: _Optional[_Union[StatisticValue, _Mapping]] = ..., unit: _Optional[str] = ..., reducer: _Optional[_Union[_expressions_pb2.Aggregate, str]] = ...) -> None: ...
 
-class SampleRow(_message.Message):
-    __slots__ = ("raw", "bucket")
+@final
+class SampleRow(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RAW_FIELD_NUMBER: _ClassVar[int]
     BUCKET_FIELD_NUMBER: _ClassVar[int]
     raw: TelemetrySample
     bucket: Bucket
     def __init__(self, raw: _Optional[_Union[TelemetrySample, _Mapping]] = ..., bucket: _Optional[_Union[Bucket, _Mapping]] = ...) -> None: ...
 
-class StatisticValue(_message.Message):
-    __slots__ = ("count", "number")
+@final
+class StatisticValue(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     COUNT_FIELD_NUMBER: _ClassVar[int]
     NUMBER_FIELD_NUMBER: _ClassVar[int]
     count: int
     number: float
     def __init__(self, count: _Optional[int] = ..., number: _Optional[float] = ...) -> None: ...
 
-class TelemetrySample(_message.Message):
-    __slots__ = ("payload", "sample_id", "stream", "schema_version", "sequence", "timestamp", "received_at", "source", "scope", "values", "summary", "metadata")
+@final
+class TelemetrySample(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     SAMPLE_ID_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]

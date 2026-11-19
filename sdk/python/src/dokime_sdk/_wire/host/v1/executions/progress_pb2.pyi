@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.host.v1 import executions_pb2 as _executions_pb2
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -10,16 +13,18 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class ProgressGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class ProgressGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ProgressGetResponse(_message.Message):
-    __slots__ = ("value", "revision", "resolved_at")
+@final
+class ProgressGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -28,16 +33,18 @@ class ProgressGetResponse(_message.Message):
     resolved_at: _position_pb2.Position
     def __init__(self, value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ProgressWatchRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class ProgressWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class ProgressWatchResponse(_message.Message):
-    __slots__ = ("value", "revision", "resolved_at", "phase", "finished", "sealed", "outcome")
+@final
+class ProgressWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -54,8 +61,9 @@ class ProgressWatchResponse(_message.Message):
     outcome: _executions_pb2.ExecutionOutcome
     def __init__(self, value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., phase: _Optional[str] = ..., finished: _Optional[bool] = ..., sealed: _Optional[bool] = ..., outcome: _Optional[_Union[_executions_pb2.ExecutionOutcome, _Mapping]] = ...) -> None: ...
 
-class ProgressSetRequest(_message.Message):
-    __slots__ = ("name", "value", "expected_revision", "request_id")
+@final
+class ProgressSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -66,8 +74,9 @@ class ProgressSetRequest(_message.Message):
     request_id: str
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ProgressSetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class ProgressSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]

@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.host.v1 import record_schemas_pb2 as _record_schemas_pb2
 from google.protobuf import descriptor_pb2 as _descriptor_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -11,8 +14,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class SchemasGetRequest(_message.Message):
-    __slots__ = ("name", "at", "page")
+@final
+class SchemasGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -21,8 +25,9 @@ class SchemasGetRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class SchemasGetResponse(_message.Message):
-    __slots__ = ("digest", "types", "records", "streams", "resolved_at", "next_page_token")
+@final
+class SchemasGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DIGEST_FIELD_NUMBER: _ClassVar[int]
     TYPES_FIELD_NUMBER: _ClassVar[int]
     RECORDS_FIELD_NUMBER: _ClassVar[int]

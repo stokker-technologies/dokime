@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
@@ -31,8 +34,9 @@ VALUE_TYPE_BYTES: ValueType
 VALUE_TYPE_LIST: ValueType
 VALUE_TYPE_DATETIME: ValueType
 
-class Value(_message.Message):
-    __slots__ = ("null", "boolean", "integer", "unsigned_integer", "number", "text", "data", "list", "datetime", "exact")
+@final
+class Value(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NULL_FIELD_NUMBER: _ClassVar[int]
     BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     INTEGER_FIELD_NUMBER: _ClassVar[int]
@@ -55,8 +59,9 @@ class Value(_message.Message):
     exact: ExactNumber
     def __init__(self, null: _Optional[_Union[Null, _Mapping]] = ..., boolean: _Optional[bool] = ..., integer: _Optional[int] = ..., unsigned_integer: _Optional[int] = ..., number: _Optional[float] = ..., text: _Optional[str] = ..., data: _Optional[bytes] = ..., list: _Optional[_Union[ValueList, _Mapping]] = ..., datetime: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exact: _Optional[_Union[ExactNumber, _Mapping]] = ...) -> None: ...
 
-class ExactNumber(_message.Message):
-    __slots__ = ("negative", "numerator", "denominator")
+@final
+class ExactNumber(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NEGATIVE_FIELD_NUMBER: _ClassVar[int]
     NUMERATOR_FIELD_NUMBER: _ClassVar[int]
     DENOMINATOR_FIELD_NUMBER: _ClassVar[int]
@@ -65,20 +70,24 @@ class ExactNumber(_message.Message):
     denominator: str
     def __init__(self, negative: _Optional[bool] = ..., numerator: _Optional[str] = ..., denominator: _Optional[str] = ...) -> None: ...
 
-class Null(_message.Message):
+@final
+class Null(_message.Message, metaclass=GeneratedProtocolMessageType):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class ValueList(_message.Message):
-    __slots__ = ("values",)
+@final
+class ValueList(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUES_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[Value]
     def __init__(self, values: _Optional[_Iterable[_Union[Value, _Mapping]]] = ...) -> None: ...
 
-class MapValue(_message.Message):
-    __slots__ = ("values",)
-    class ValuesEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class MapValue(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str

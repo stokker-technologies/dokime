@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -32,24 +35,27 @@ PROMPT_KIND_CHOICE: PromptKind
 PROMPT_KIND_STATUS: PromptKind
 PROMPT_KIND_VERIFICATION: PromptKind
 
-class PromptsGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class PromptsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class PromptsGetResponse(_message.Message):
-    __slots__ = ("prompt", "resolved_at")
+@final
+class PromptsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     prompt: PromptView
     resolved_at: _position_pb2.ReadCut
     def __init__(self, prompt: _Optional[_Union[PromptView, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class PromptsListRequest(_message.Message):
-    __slots__ = ("parent", "cycle_id", "execution_id", "pending_only", "at", "page")
+@final
+class PromptsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -64,8 +70,9 @@ class PromptsListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, parent: _Optional[str] = ..., cycle_id: _Optional[str] = ..., execution_id: _Optional[str] = ..., pending_only: _Optional[bool] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class PromptsListResponse(_message.Message):
-    __slots__ = ("prompts", "resolved_at", "next_page_token")
+@final
+class PromptsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -74,8 +81,9 @@ class PromptsListResponse(_message.Message):
     next_page_token: str
     def __init__(self, prompts: _Optional[_Iterable[_Union[PromptView, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class PromptsWatchRequest(_message.Message):
-    __slots__ = ("parent", "cycle_id", "execution_id", "pending_only", "at", "page")
+@final
+class PromptsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PARENT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -90,8 +98,9 @@ class PromptsWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, parent: _Optional[str] = ..., cycle_id: _Optional[str] = ..., execution_id: _Optional[str] = ..., pending_only: _Optional[bool] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class PromptsWatchResponse(_message.Message):
-    __slots__ = ("prompts", "resolved_at", "opening", "resync_required")
+@final
+class PromptsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -102,10 +111,12 @@ class PromptsWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, prompts: _Optional[_Iterable[_Union[PromptView, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class PromptsCreateRequest(_message.Message):
-    __slots__ = ("prompt", "prompt_type", "values", "definition")
-    class ValuesEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class PromptsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -121,10 +132,12 @@ class PromptsCreateRequest(_message.Message):
     definition: _prompts_pb2.Prompt
     def __init__(self, prompt: _Optional[str] = ..., prompt_type: _Optional[str] = ..., values: _Optional[_Mapping[str, _scalar_pb2.Value]] = ..., definition: _Optional[_Union[_prompts_pb2.Prompt, _Mapping]] = ...) -> None: ...
 
-class PromptsCreateResponse(_message.Message):
-    __slots__ = ("prompt", "action", "values", "responder", "submitted_at", "accepted")
-    class ValuesEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class PromptsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -144,8 +157,9 @@ class PromptsCreateResponse(_message.Message):
     accepted: bool
     def __init__(self, prompt: _Optional[str] = ..., action: _Optional[str] = ..., values: _Optional[_Mapping[str, _scalar_pb2.Value]] = ..., responder: _Optional[str] = ..., submitted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., accepted: _Optional[bool] = ...) -> None: ...
 
-class PromptInstance(_message.Message):
-    __slots__ = ("prompt_id", "definition", "kind", "values", "scope", "created_at")
+@final
+class PromptInstance(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPT_ID_FIELD_NUMBER: _ClassVar[int]
     DEFINITION_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
@@ -160,8 +174,9 @@ class PromptInstance(_message.Message):
     created_at: _timestamp_pb2.Timestamp
     def __init__(self, prompt_id: _Optional[str] = ..., definition: _Optional[_Union[_prompts_pb2.Prompt, _Mapping]] = ..., kind: _Optional[_Union[PromptKind, str]] = ..., values: _Optional[_Union[_scalar_pb2.MapValue, _Mapping]] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
-class PromptView(_message.Message):
-    __slots__ = ("prompt", "response", "observed_cursor")
+@final
+class PromptView(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     RESPONSE_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_CURSOR_FIELD_NUMBER: _ClassVar[int]
@@ -170,8 +185,9 @@ class PromptView(_message.Message):
     observed_cursor: _position_pb2.ReadCut
     def __init__(self, prompt: _Optional[_Union[PromptInstance, _Mapping]] = ..., response: _Optional[_Union[PromptResponse, _Mapping]] = ..., observed_cursor: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class PromptResponse(_message.Message):
-    __slots__ = ("prompt_id", "action", "responder", "submitted_at", "values", "accepted")
+@final
+class PromptResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PROMPT_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     RESPONDER_FIELD_NUMBER: _ClassVar[int]

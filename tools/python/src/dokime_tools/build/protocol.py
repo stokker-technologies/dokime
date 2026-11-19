@@ -71,7 +71,11 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
     try:
         sdk.generate(root=output, descriptors=descriptors, configuration=configuration)
-        barrels = {Path("sdk/python/src/dokime_sdk/__init__.py"), Path("sdk/python/src/dokime_sdk/plugin/__init__.py")}
+        barrels = {
+            Path("sdk/python/src/dokime_sdk/__init__.py"),
+            Path("sdk/python/src/dokime_sdk/client.py"),
+            Path("sdk/python/src/dokime_sdk/plugin/__init__.py"),
+        }
         expected = sdk.inventory(output, configuration) - barrels
         existing = sdk.inventory(root, configuration) - barrels
         if language == "python":

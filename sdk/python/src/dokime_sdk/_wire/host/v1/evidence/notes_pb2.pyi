@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -15,16 +18,18 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class NotesGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class NotesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class NotesGetResponse(_message.Message):
-    __slots__ = ("value", "revision", "note", "resolved_at")
+@final
+class NotesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     NOTE_FIELD_NUMBER: _ClassVar[int]
@@ -35,8 +40,9 @@ class NotesGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, value: _Optional[_Union[NoteWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., note: _Optional[_Union[OperatorNote, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class NotesSetRequest(_message.Message):
-    __slots__ = ("name", "value", "expected_revision", "request_id")
+@final
+class NotesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -47,8 +53,9 @@ class NotesSetRequest(_message.Message):
     request_id: str
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[NoteWritable, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class NotesSetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class NotesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -57,8 +64,9 @@ class NotesSetResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, value: _Optional[_Union[NoteWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class NotesListRequest(_message.Message):
-    __slots__ = ("selection", "at", "page")
+@final
+class NotesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -67,8 +75,9 @@ class NotesListRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, selection: _Optional[_Union[AnnotationSelection, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class NotesListResponse(_message.Message):
-    __slots__ = ("notes", "resolved_at", "next_page_token")
+@final
+class NotesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NOTES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -77,8 +86,9 @@ class NotesListResponse(_message.Message):
     next_page_token: str
     def __init__(self, notes: _Optional[_Iterable[_Union[OperatorNote, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ...) -> None: ...
 
-class NotesWatchRequest(_message.Message):
-    __slots__ = ("selection", "at", "page")
+@final
+class NotesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -87,8 +97,9 @@ class NotesWatchRequest(_message.Message):
     page: _page_pb2.PageRequest
     def __init__(self, selection: _Optional[_Union[AnnotationSelection, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ...) -> None: ...
 
-class NotesWatchResponse(_message.Message):
-    __slots__ = ("notes", "resolved_at", "opening", "resync_required")
+@final
+class NotesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NOTES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -99,8 +110,9 @@ class NotesWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, notes: _Optional[_Iterable[_Union[OperatorNote, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class NotesCreateRequest(_message.Message):
-    __slots__ = ("owner", "value", "request_id")
+@final
+class NotesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OWNER_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -109,8 +121,9 @@ class NotesCreateRequest(_message.Message):
     request_id: str
     def __init__(self, owner: _Optional[_Union[AnnotationOwner, _Mapping]] = ..., value: _Optional[_Union[NoteWritable, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class NotesCreateResponse(_message.Message):
-    __slots__ = ("note", "revision", "receipt")
+@final
+class NotesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NOTE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -119,8 +132,9 @@ class NotesCreateResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, note: _Optional[_Union[OperatorNote, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class OperatorNote(_message.Message):
-    __slots__ = ("note_id", "scope", "author", "message", "created_at")
+@final
+class OperatorNote(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NOTE_ID_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     AUTHOR_FIELD_NUMBER: _ClassVar[int]
@@ -133,20 +147,23 @@ class OperatorNote(_message.Message):
     created_at: _timestamp_pb2.Timestamp
     def __init__(self, note_id: _Optional[str] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., author: _Optional[str] = ..., message: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
-class NoteWritable(_message.Message):
-    __slots__ = ("message",)
+@final
+class NoteWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     message: str
     def __init__(self, message: _Optional[str] = ...) -> None: ...
 
-class AnnotationOwner(_message.Message):
-    __slots__ = ("owner",)
+@final
+class AnnotationOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OWNER_FIELD_NUMBER: _ClassVar[int]
     owner: AnnotationOwnerOwner
     def __init__(self, owner: _Optional[_Union[AnnotationOwnerOwner, _Mapping]] = ...) -> None: ...
 
-class AnnotationOwnerOwner(_message.Message):
-    __slots__ = ("cycle_id", "planned_case", "execution")
+@final
+class AnnotationOwnerOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     PLANNED_CASE_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
@@ -155,24 +172,27 @@ class AnnotationOwnerOwner(_message.Message):
     execution: ExecutionNoteOwner
     def __init__(self, cycle_id: _Optional[str] = ..., planned_case: _Optional[_Union[PlannedCaseNoteOwner, _Mapping]] = ..., execution: _Optional[_Union[ExecutionNoteOwner, _Mapping]] = ...) -> None: ...
 
-class AnnotationSelection(_message.Message):
-    __slots__ = ("owner", "include_context")
+@final
+class AnnotationSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OWNER_FIELD_NUMBER: _ClassVar[int]
     INCLUDE_CONTEXT_FIELD_NUMBER: _ClassVar[int]
     owner: AnnotationOwner
     include_context: bool
     def __init__(self, owner: _Optional[_Union[AnnotationOwner, _Mapping]] = ..., include_context: _Optional[bool] = ...) -> None: ...
 
-class ExecutionNoteOwner(_message.Message):
-    __slots__ = ("cycle_id", "execution_id")
+@final
+class ExecutionNoteOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
     execution_id: str
     def __init__(self, cycle_id: _Optional[str] = ..., execution_id: _Optional[str] = ...) -> None: ...
 
-class PlannedCaseNoteOwner(_message.Message):
-    __slots__ = ("cycle_id", "case_id")
+@final
+class PlannedCaseNoteOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str

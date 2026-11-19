@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
 from google.protobuf.internal import containers as _containers
@@ -38,8 +41,9 @@ PARAMETER_BINARY_OPERATOR_SUBTRACT: ParameterBinaryOperator
 PARAMETER_BINARY_OPERATOR_MULTIPLY: ParameterBinaryOperator
 PARAMETER_BINARY_OPERATOR_DIVIDE: ParameterBinaryOperator
 
-class Parameter(_message.Message):
-    __slots__ = ("metadata", "type", "unit", "required", "group", "expression", "choices", "min", "max", "expansion", "element_type", "min_items", "max_items", "runtime_writable")
+@final
+class Parameter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
@@ -70,8 +74,9 @@ class Parameter(_message.Message):
     runtime_writable: bool
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., type: _Optional[_Union[_scalar_pb2.ValueType, str]] = ..., unit: _Optional[str] = ..., required: _Optional[bool] = ..., group: _Optional[str] = ..., expression: _Optional[_Union[ParameterExpression, _Mapping]] = ..., choices: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., expansion: _Optional[_Union[ParameterExpansion, _Mapping]] = ..., element_type: _Optional[_Union[_scalar_pb2.ValueType, str]] = ..., min_items: _Optional[int] = ..., max_items: _Optional[int] = ..., runtime_writable: _Optional[bool] = ...) -> None: ...
 
-class ParameterExpansion(_message.Message):
-    __slots__ = ("single", "cartesian", "zip")
+@final
+class ParameterExpansion(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SINGLE_FIELD_NUMBER: _ClassVar[int]
     CARTESIAN_FIELD_NUMBER: _ClassVar[int]
     ZIP_FIELD_NUMBER: _ClassVar[int]
@@ -80,8 +85,9 @@ class ParameterExpansion(_message.Message):
     zip: str
     def __init__(self, single: _Optional[bool] = ..., cartesian: _Optional[bool] = ..., zip: _Optional[str] = ...) -> None: ...
 
-class ParameterExpression(_message.Message):
-    __slots__ = ("literal", "array", "range", "arange", "linspace", "reference", "dynamic_default", "unary", "binary")
+@final
+class ParameterExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     ARRAY_FIELD_NUMBER: _ClassVar[int]
     RANGE_FIELD_NUMBER: _ClassVar[int]
@@ -102,14 +108,16 @@ class ParameterExpression(_message.Message):
     binary: ParameterBinary
     def __init__(self, literal: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., array: _Optional[_Union[ParameterExpressions, _Mapping]] = ..., range: _Optional[_Union[IntegerRange, _Mapping]] = ..., arange: _Optional[_Union[NumberRange, _Mapping]] = ..., linspace: _Optional[_Union[LinearSpace, _Mapping]] = ..., reference: _Optional[str] = ..., dynamic_default: _Optional[_Union[DynamicDefault, _Mapping]] = ..., unary: _Optional[_Union[ParameterUnary, _Mapping]] = ..., binary: _Optional[_Union[ParameterBinary, _Mapping]] = ...) -> None: ...
 
-class ParameterExpressions(_message.Message):
-    __slots__ = ("values",)
+@final
+class ParameterExpressions(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUES_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[ParameterExpression]
     def __init__(self, values: _Optional[_Iterable[_Union[ParameterExpression, _Mapping]]] = ...) -> None: ...
 
-class IntegerRange(_message.Message):
-    __slots__ = ("start", "stop", "step")
+@final
+class IntegerRange(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     START_FIELD_NUMBER: _ClassVar[int]
     STOP_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
@@ -118,8 +126,9 @@ class IntegerRange(_message.Message):
     step: int
     def __init__(self, start: _Optional[int] = ..., stop: _Optional[int] = ..., step: _Optional[int] = ...) -> None: ...
 
-class NumberRange(_message.Message):
-    __slots__ = ("start", "stop", "step")
+@final
+class NumberRange(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     START_FIELD_NUMBER: _ClassVar[int]
     STOP_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
@@ -128,8 +137,9 @@ class NumberRange(_message.Message):
     step: float
     def __init__(self, start: _Optional[float] = ..., stop: _Optional[float] = ..., step: _Optional[float] = ...) -> None: ...
 
-class LinearSpace(_message.Message):
-    __slots__ = ("start", "stop", "count")
+@final
+class LinearSpace(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     START_FIELD_NUMBER: _ClassVar[int]
     STOP_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -138,24 +148,27 @@ class LinearSpace(_message.Message):
     count: int
     def __init__(self, start: _Optional[float] = ..., stop: _Optional[float] = ..., count: _Optional[int] = ...) -> None: ...
 
-class DynamicDefault(_message.Message):
-    __slots__ = ("key", "fallback")
+@final
+class DynamicDefault(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KEY_FIELD_NUMBER: _ClassVar[int]
     FALLBACK_FIELD_NUMBER: _ClassVar[int]
     key: DynamicDefaultKey
     fallback: ParameterExpression
     def __init__(self, key: _Optional[_Union[DynamicDefaultKey, str]] = ..., fallback: _Optional[_Union[ParameterExpression, _Mapping]] = ...) -> None: ...
 
-class ParameterUnary(_message.Message):
-    __slots__ = ("operator", "value")
+@final
+class ParameterUnary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     operator: ParameterUnaryOperator
     value: ParameterExpression
     def __init__(self, operator: _Optional[_Union[ParameterUnaryOperator, str]] = ..., value: _Optional[_Union[ParameterExpression, _Mapping]] = ...) -> None: ...
 
-class ParameterBinary(_message.Message):
-    __slots__ = ("operator", "left", "right")
+@final
+class ParameterBinary(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -164,8 +177,9 @@ class ParameterBinary(_message.Message):
     right: ParameterExpression
     def __init__(self, operator: _Optional[_Union[ParameterBinaryOperator, str]] = ..., left: _Optional[_Union[ParameterExpression, _Mapping]] = ..., right: _Optional[_Union[ParameterExpression, _Mapping]] = ...) -> None: ...
 
-class FileParameter(_message.Message):
-    __slots__ = ("metadata", "default_value", "required", "media_types")
+@final
+class FileParameter(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     METADATA_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]

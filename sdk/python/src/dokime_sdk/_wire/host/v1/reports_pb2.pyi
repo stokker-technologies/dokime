@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.host.v1 import backend_pb2 as _backend_pb2
@@ -40,8 +43,9 @@ REPORT_ORIGIN_UNSPECIFIED: ReportOrigin
 REPORT_ORIGIN_SEALED: ReportOrigin
 REPORT_ORIGIN_CURRENT: ReportOrigin
 
-class ReportsGetRequest(_message.Message):
-    __slots__ = ("subject", "name", "at")
+@final
+class ReportsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -50,8 +54,9 @@ class ReportsGetRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, subject: _Optional[_Union[ReportSubject, _Mapping]] = ..., name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ReportsGetResponse(_message.Message):
-    __slots__ = ("report", "file", "resolved_at")
+@final
+class ReportsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REPORT_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -60,8 +65,9 @@ class ReportsGetResponse(_message.Message):
     resolved_at: _position_pb2.ReadCut
     def __init__(self, report: _Optional[_Union[ReportMetadata, _Mapping]] = ..., file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class ReportsCreateRequest(_message.Message):
-    __slots__ = ("subject", "document_id", "request_id")
+@final
+class ReportsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -70,8 +76,9 @@ class ReportsCreateRequest(_message.Message):
     request_id: str
     def __init__(self, subject: _Optional[_Union[ReportSubject, _Mapping]] = ..., document_id: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ReportsCreateResponse(_message.Message):
-    __slots__ = ("report", "file", "resolved_at", "receipt")
+@final
+class ReportsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REPORT_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -82,8 +89,9 @@ class ReportsCreateResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, report: _Optional[_Union[ReportMetadata, _Mapping]] = ..., file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ReportsPublishRequest(_message.Message):
-    __slots__ = ("name", "subject", "expected_revision", "request_id")
+@final
+class ReportsPublishRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -94,8 +102,9 @@ class ReportsPublishRequest(_message.Message):
     request_id: str
     def __init__(self, name: _Optional[str] = ..., subject: _Optional[_Union[ReportSubject, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class ReportsPublishResponse(_message.Message):
-    __slots__ = ("report", "seal", "receipt")
+@final
+class ReportsPublishResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REPORT_FIELD_NUMBER: _ClassVar[int]
     SEAL_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -104,8 +113,9 @@ class ReportsPublishResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, report: _Optional[_Union[ReportMetadata, _Mapping]] = ..., seal: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class ReportMetadata(_message.Message):
-    __slots__ = ("test_cycle_id", "test_execution_id", "identifier", "metadata", "generated_at", "origin", "warnings")
+@final
+class ReportMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     TEST_CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     TEST_EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
@@ -122,16 +132,18 @@ class ReportMetadata(_message.Message):
     warnings: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, test_cycle_id: _Optional[str] = ..., test_execution_id: _Optional[str] = ..., identifier: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., generated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., origin: _Optional[_Union[ReportOrigin, str]] = ..., warnings: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class ReportSubject(_message.Message):
-    __slots__ = ("execution", "cycle")
+@final
+class ReportSubject(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     execution: str
     cycle: str
     def __init__(self, execution: _Optional[str] = ..., cycle: _Optional[str] = ...) -> None: ...
 
-class ReportCapture(_message.Message):
-    __slots__ = ("report", "cycle", "cases", "executions", "document", "appearance", "notes", "health", "records", "artifacts", "files", "suites", "overview")
+@final
+class ReportCapture(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REPORT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     CASES_FIELD_NUMBER: _ClassVar[int]
@@ -160,16 +172,18 @@ class ReportCapture(_message.Message):
     overview: _overview_pb2.OverviewGetResponse
     def __init__(self, report: _Optional[_Union[ReportMetadata, _Mapping]] = ..., cycle: _Optional[_Union[_cycles_pb2.CyclesGetResponse, _Mapping]] = ..., cases: _Optional[_Iterable[_Union[ReportCase, _Mapping]]] = ..., executions: _Optional[_Iterable[_Union[ReportExecution, _Mapping]]] = ..., document: _Optional[_Union[_documents_pb2.DocumentsGetResponse, _Mapping]] = ..., appearance: _Optional[_Union[_backend_pb2.BackendAppearanceResponse, _Mapping]] = ..., notes: _Optional[_Iterable[_Union[_notes_pb2.NotesListResponse, _Mapping]]] = ..., health: _Optional[_Iterable[_Union[_health_events_pb2.HealthEventsListResponse, _Mapping]]] = ..., records: _Optional[_Iterable[_Union[_records_pb2.RecordsListResponse, _Mapping]]] = ..., artifacts: _Optional[_Iterable[_Union[_artifacts_pb2.ArtifactsGetResponse, _Mapping]]] = ..., files: _Optional[_Iterable[_Union[ReportFile, _Mapping]]] = ..., suites: _Optional[_Iterable[_Union[_suites_pb2.SuitesGetResponse, _Mapping]]] = ..., overview: _Optional[_Union[_overview_pb2.OverviewGetResponse, _Mapping]] = ...) -> None: ...
 
-class ReportCase(_message.Message):
-    __slots__ = ("detail", "parameters")
+@final
+class ReportCase(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     detail: _cases_pb2.CasesGetResponse
     parameters: _cases_pb2.CasesParametersResponse
     def __init__(self, detail: _Optional[_Union[_cases_pb2.CasesGetResponse, _Mapping]] = ..., parameters: _Optional[_Union[_cases_pb2.CasesParametersResponse, _Mapping]] = ...) -> None: ...
 
-class ReportExecution(_message.Message):
-    __slots__ = ("detail", "inputs", "outputs", "steps", "document", "plots", "traceability", "files", "schemas")
+@final
+class ReportExecution(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     INPUTS_FIELD_NUMBER: _ClassVar[int]
     OUTPUTS_FIELD_NUMBER: _ClassVar[int]
@@ -190,8 +204,9 @@ class ReportExecution(_message.Message):
     schemas: _containers.RepeatedCompositeFieldContainer[_schemas_pb2.SchemasGetResponse]
     def __init__(self, detail: _Optional[_Union[_executions_pb2.ExecutionsGetResponse, _Mapping]] = ..., inputs: _Optional[_Union[_executions_pb2.ExecutionsParametersResponse, _Mapping]] = ..., outputs: _Optional[_Union[_executions_pb2.ExecutionsParametersResponse, _Mapping]] = ..., steps: _Optional[_Union[_executions_pb2.ExecutionsStepsResponse, _Mapping]] = ..., document: _Optional[_Union[_documents_pb2.DocumentsGetResponse, _Mapping]] = ..., plots: _Optional[_Union[_snapshots_pb2.SnapshotsListResponse, _Mapping]] = ..., traceability: _Optional[_Iterable[_Union[_traceability_pb2.TraceabilityGetResponse, _Mapping]]] = ..., files: _Optional[_Iterable[_Union[_execution_files_pb2.ExecutionFilesGetResponse, _Mapping]]] = ..., schemas: _Optional[_Iterable[_Union[_schemas_pb2.SchemasGetResponse, _Mapping]]] = ...) -> None: ...
 
-class ReportFile(_message.Message):
-    __slots__ = ("file", "reads")
+@final
+class ReportFile(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FILE_FIELD_NUMBER: _ClassVar[int]
     READS_FIELD_NUMBER: _ClassVar[int]
     file: _file_pb2.FileReference

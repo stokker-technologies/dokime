@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import failure_pb2 as _failure_pb2
@@ -26,8 +29,9 @@ CAPTURE_KIND_PHOTO: CaptureKind
 CAPTURE_KIND_SCREEN: CaptureKind
 CAPTURE_KIND_SCREENSHOT: CaptureKind
 
-class CapturesCreateRequest(_message.Message):
-    __slots__ = ("scope", "kind", "input", "camera", "display", "audio", "maximum_seconds", "request_id")
+@final
+class CapturesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
@@ -46,40 +50,45 @@ class CapturesCreateRequest(_message.Message):
     request_id: str
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.ArtifactScope, _Mapping]] = ..., kind: _Optional[_Union[CaptureKind, str]] = ..., input: _Optional[int] = ..., camera: _Optional[int] = ..., display: _Optional[int] = ..., audio: _Optional[_Union[RecordingAudio, _Mapping]] = ..., maximum_seconds: _Optional[int] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class CapturesCreateResponse(_message.Message):
-    __slots__ = ("capture", "receipt")
+@final
+class CapturesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     capture: Capture
     receipt: _receipt_pb2.Receipt
     def __init__(self, capture: _Optional[_Union[Capture, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class CapturesGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class CapturesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class CapturesGetResponse(_message.Message):
-    __slots__ = ("capture", "resolved_at")
+@final
+class CapturesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     capture: Capture
     resolved_at: _position_pb2.ReadCut
     def __init__(self, capture: _Optional[_Union[Capture, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class CapturesWatchRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class CapturesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.ReadCut
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class CapturesWatchResponse(_message.Message):
-    __slots__ = ("capture", "resolved_at", "opening", "resync_required")
+@final
+class CapturesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -90,40 +99,45 @@ class CapturesWatchResponse(_message.Message):
     resync_required: _failure_pb2.Failure
     def __init__(self, capture: _Optional[_Union[Capture, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
 
-class CapturesStopRequest(_message.Message):
-    __slots__ = ("name", "request_id")
+@final
+class CapturesStopRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
     request_id: str
     def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class CapturesStopResponse(_message.Message):
-    __slots__ = ("capture", "receipt")
+@final
+class CapturesStopResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     capture: Capture
     receipt: _receipt_pb2.Receipt
     def __init__(self, capture: _Optional[_Union[Capture, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class RecordingAudio(_message.Message):
-    __slots__ = ("microphone", "system")
+@final
+class RecordingAudio(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     MICROPHONE_FIELD_NUMBER: _ClassVar[int]
     SYSTEM_FIELD_NUMBER: _ClassVar[int]
     microphone: bool
     system: bool
     def __init__(self, microphone: _Optional[bool] = ..., system: _Optional[bool] = ...) -> None: ...
 
-class RecordingProgress(_message.Message):
-    __slots__ = ("elapsed_ms", "size_bytes")
+@final
+class RecordingProgress(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ELAPSED_MS_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
     elapsed_ms: int
     size_bytes: int
     def __init__(self, elapsed_ms: _Optional[int] = ..., size_bytes: _Optional[int] = ...) -> None: ...
 
-class Capture(_message.Message):
-    __slots__ = ("name", "kind", "progress", "artifact", "finished", "failure")
+@final
+class Capture(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PROGRESS_FIELD_NUMBER: _ClassVar[int]

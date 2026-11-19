@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
@@ -11,8 +14,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class EffectsCreateRequest(_message.Message):
-    __slots__ = ("resource", "inverse_operation", "inverse", "description", "request_id")
+@final
+class EffectsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     RESOURCE_FIELD_NUMBER: _ClassVar[int]
     INVERSE_OPERATION_FIELD_NUMBER: _ClassVar[int]
     INVERSE_FIELD_NUMBER: _ClassVar[int]
@@ -25,8 +29,9 @@ class EffectsCreateRequest(_message.Message):
     request_id: str
     def __init__(self, resource: _Optional[str] = ..., inverse_operation: _Optional[str] = ..., inverse: _Optional[bytes] = ..., description: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class EffectsCreateResponse(_message.Message):
-    __slots__ = ("name", "value", "revision", "receipt")
+@final
+class EffectsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -37,16 +42,18 @@ class EffectsCreateResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[EffectWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class EffectsGetRequest(_message.Message):
-    __slots__ = ("name", "at")
+@final
+class EffectsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
     at: _position_pb2.Position
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class EffectsGetResponse(_message.Message):
-    __slots__ = ("value", "revision", "resolved_at")
+@final
+class EffectsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -55,8 +62,9 @@ class EffectsGetResponse(_message.Message):
     resolved_at: _position_pb2.Position
     def __init__(self, value: _Optional[_Union[EffectWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class EffectsSetRequest(_message.Message):
-    __slots__ = ("name", "value", "expected_revision", "request_id")
+@final
+class EffectsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -67,8 +75,9 @@ class EffectsSetRequest(_message.Message):
     request_id: str
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[EffectWritable, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ...) -> None: ...
 
-class EffectsSetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class EffectsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -77,8 +86,9 @@ class EffectsSetResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, value: _Optional[_Union[EffectWritable, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class EffectWritable(_message.Message):
-    __slots__ = ("applied_at", "restored")
+@final
+class EffectWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     APPLIED_AT_FIELD_NUMBER: _ClassVar[int]
     RESTORED_FIELD_NUMBER: _ClassVar[int]
     applied_at: _timestamp_pb2.Timestamp

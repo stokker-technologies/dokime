@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 import datetime
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -16,8 +19,9 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class TraceabilityGetRequest(_message.Message):
-    __slots__ = ("scope", "page", "at", "entry")
+@final
+class TraceabilityGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -28,8 +32,9 @@ class TraceabilityGetRequest(_message.Message):
     entry: str
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., entry: _Optional[str] = ...) -> None: ...
 
-class TraceabilityGetResponse(_message.Message):
-    __slots__ = ("snapshots", "resolved_at", "next_page_token", "value", "revision")
+@final
+class TraceabilityGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SNAPSHOTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -42,8 +47,9 @@ class TraceabilityGetResponse(_message.Message):
     revision: bytes
     def __init__(self, snapshots: _Optional[_Iterable[_Union[TraceabilitySnapshot, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., next_page_token: _Optional[str] = ..., value: _Optional[_Union[_traceability_pb2.TraceabilityEntry, _Mapping]] = ..., revision: _Optional[bytes] = ...) -> None: ...
 
-class TraceabilityWatchRequest(_message.Message):
-    __slots__ = ("scope", "page", "at")
+@final
+class TraceabilityWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -52,8 +58,9 @@ class TraceabilityWatchRequest(_message.Message):
     at: _position_pb2.ReadCut
     def __init__(self, scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., page: _Optional[_Union[_page_pb2.PageRequest, _Mapping]] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class TraceabilityWatchResponse(_message.Message):
-    __slots__ = ("snapshots", "resolved_at", "opening")
+@final
+class TraceabilityWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     SNAPSHOTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -62,8 +69,9 @@ class TraceabilityWatchResponse(_message.Message):
     opening: bool
     def __init__(self, snapshots: _Optional[_Iterable[_Union[TraceabilitySnapshot, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ...) -> None: ...
 
-class TraceabilitySetRequest(_message.Message):
-    __slots__ = ("name", "value", "expected_revision", "request_id", "entry")
+@final
+class TraceabilitySetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -76,8 +84,9 @@ class TraceabilitySetRequest(_message.Message):
     entry: str
     def __init__(self, name: _Optional[str] = ..., value: _Optional[_Union[_traceability_pb2.TraceabilityEntry, _Mapping]] = ..., expected_revision: _Optional[bytes] = ..., request_id: _Optional[str] = ..., entry: _Optional[str] = ...) -> None: ...
 
-class TraceabilitySetResponse(_message.Message):
-    __slots__ = ("value", "revision", "receipt")
+@final
+class TraceabilitySetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -86,8 +95,9 @@ class TraceabilitySetResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, value: _Optional[_Union[_traceability_pb2.TraceabilityEntry, _Mapping]] = ..., revision: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
-class TraceabilitySnapshot(_message.Message):
-    __slots__ = ("revision", "resolved_at", "traceability_id", "scope", "created_at", "entries", "metadata")
+@final
+class TraceabilitySnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     TRACEABILITY_ID_FIELD_NUMBER: _ClassVar[int]

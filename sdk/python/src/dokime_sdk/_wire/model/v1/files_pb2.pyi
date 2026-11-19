@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -29,8 +32,9 @@ CAPTURE_GAP_REASON_REPLACED: CaptureGapReason
 CAPTURE_GAP_REASON_VANISHED: CaptureGapReason
 CAPTURE_GAP_REASON_RESUME_UNSUPPORTED: CaptureGapReason
 
-class FileSource(_message.Message):
-    __slots__ = ("file", "tree", "newest")
+@final
+class FileSource(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     FILE_FIELD_NUMBER: _ClassVar[int]
     TREE_FIELD_NUMBER: _ClassVar[int]
     NEWEST_FIELD_NUMBER: _ClassVar[int]
@@ -39,48 +43,54 @@ class FileSource(_message.Message):
     newest: FileSelection
     def __init__(self, file: _Optional[_Union[FileLocation, _Mapping]] = ..., tree: _Optional[_Union[FileSelection, _Mapping]] = ..., newest: _Optional[_Union[FileSelection, _Mapping]] = ...) -> None: ...
 
-class FileLocation(_message.Message):
-    __slots__ = ("local", "ftp")
+@final
+class FileLocation(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     LOCAL_FIELD_NUMBER: _ClassVar[int]
     FTP_FIELD_NUMBER: _ClassVar[int]
     local: str
     ftp: FtpLocation
     def __init__(self, local: _Optional[str] = ..., ftp: _Optional[_Union[FtpLocation, _Mapping]] = ...) -> None: ...
 
-class FtpLocation(_message.Message):
-    __slots__ = ("url", "secret_id")
+@final
+class FtpLocation(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     URL_FIELD_NUMBER: _ClassVar[int]
     SECRET_ID_FIELD_NUMBER: _ClassVar[int]
     url: str
     secret_id: str
     def __init__(self, url: _Optional[str] = ..., secret_id: _Optional[str] = ...) -> None: ...
 
-class FileSelection(_message.Message):
-    __slots__ = ("root", "rules")
+@final
+class FileSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ROOT_FIELD_NUMBER: _ClassVar[int]
     RULES_FIELD_NUMBER: _ClassVar[int]
     root: FileLocation
     rules: _containers.RepeatedCompositeFieldContainer[FileRule]
     def __init__(self, root: _Optional[_Union[FileLocation, _Mapping]] = ..., rules: _Optional[_Iterable[_Union[FileRule, _Mapping]]] = ...) -> None: ...
 
-class FileRule(_message.Message):
-    __slots__ = ("glob", "action")
+@final
+class FileRule(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     GLOB_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     glob: str
     action: FileRuleAction
     def __init__(self, glob: _Optional[str] = ..., action: _Optional[_Union[FileRuleAction, str]] = ...) -> None: ...
 
-class CapturedArtifact(_message.Message):
-    __slots__ = ("artifact", "size_bytes")
+@final
+class CapturedArtifact(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
     artifact: str
     size_bytes: int
     def __init__(self, artifact: _Optional[str] = ..., size_bytes: _Optional[int] = ...) -> None: ...
 
-class CaptureGap(_message.Message):
-    __slots__ = ("path", "offset", "reason")
+@final
+class CaptureGap(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PATH_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]

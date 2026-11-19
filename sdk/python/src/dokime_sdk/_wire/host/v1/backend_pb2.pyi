@@ -1,3 +1,6 @@
+from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from typing import final
+
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import file_pb2 as _file_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
@@ -51,28 +54,32 @@ APPEARANCE_FAILURE_KIND_TOO_LARGE: AppearanceFailureKind
 APPEARANCE_FAILURE_KIND_INVALID_REFERENCE: AppearanceFailureKind
 APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE: AppearanceFailureKind
 
-class BackendAppearanceRequest(_message.Message):
-    __slots__ = ("at",)
+@final
+class BackendAppearanceRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class BackendAppearanceResponse(_message.Message):
-    __slots__ = ("appearance", "resolved_at")
+@final
+class BackendAppearanceResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     APPEARANCE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     appearance: AppearanceSnapshot
     resolved_at: _position_pb2.ReadCut
     def __init__(self, appearance: _Optional[_Union[AppearanceSnapshot, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
-class BackendEnvironmentRequest(_message.Message):
-    __slots__ = ("at",)
+@final
+class BackendEnvironmentRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.Position
     def __init__(self, at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class BackendEnvironmentResponse(_message.Message):
-    __slots__ = ("backend_pid", "in_step", "resolved_at")
+@final
+class BackendEnvironmentResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BACKEND_PID_FIELD_NUMBER: _ClassVar[int]
     IN_STEP_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -81,8 +88,9 @@ class BackendEnvironmentResponse(_message.Message):
     resolved_at: _position_pb2.Position
     def __init__(self, backend_pid: _Optional[int] = ..., in_step: _Optional[bool] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
-class AppearanceSnapshot(_message.Message):
-    __slots__ = ("app_name", "organization", "title_template", "logos", "themes", "active_theme", "theme_family_locked", "mode_policy", "mode_locked", "source_plugin_id")
+@final
+class AppearanceSnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     APP_NAME_FIELD_NUMBER: _ClassVar[int]
     ORGANIZATION_FIELD_NUMBER: _ClassVar[int]
     TITLE_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
@@ -105,8 +113,9 @@ class AppearanceSnapshot(_message.Message):
     source_plugin_id: str
     def __init__(self, app_name: _Optional[str] = ..., organization: _Optional[_Union[OrganizationIdentity, _Mapping]] = ..., title_template: _Optional[str] = ..., logos: _Optional[_Iterable[_Union[AppearanceLogo, _Mapping]]] = ..., themes: _Optional[_Iterable[_Union[ThemeFamily, _Mapping]]] = ..., active_theme: _Optional[str] = ..., theme_family_locked: _Optional[bool] = ..., mode_policy: _Optional[_Union[ThemeModePolicy, str]] = ..., mode_locked: _Optional[bool] = ..., source_plugin_id: _Optional[str] = ...) -> None: ...
 
-class OrganizationIdentity(_message.Message):
-    __slots__ = ("name", "unit", "website")
+@final
+class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     NAME_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
     WEBSITE_FIELD_NUMBER: _ClassVar[int]
@@ -115,8 +124,9 @@ class OrganizationIdentity(_message.Message):
     website: str
     def __init__(self, name: _Optional[str] = ..., unit: _Optional[str] = ..., website: _Optional[str] = ...) -> None: ...
 
-class AppearanceLogo(_message.Message):
-    __slots__ = ("variant", "asset", "alt")
+@final
+class AppearanceLogo(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     VARIANT_FIELD_NUMBER: _ClassVar[int]
     ASSET_FIELD_NUMBER: _ClassVar[int]
     ALT_FIELD_NUMBER: _ClassVar[int]
@@ -125,10 +135,12 @@ class AppearanceLogo(_message.Message):
     alt: str
     def __init__(self, variant: _Optional[_Union[LogoVariant, str]] = ..., asset: _Optional[_Union[AppearanceAssetMetadata, _Mapping]] = ..., alt: _Optional[str] = ...) -> None: ...
 
-class ThemeFamily(_message.Message):
-    __slots__ = ("plugin_id", "theme_id", "label", "description", "stylesheet", "variables", "corner_radii", "light", "dark")
-    class VariablesEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class VariablesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -154,8 +166,9 @@ class ThemeFamily(_message.Message):
     dark: ThemeVariant
     def __init__(self, plugin_id: _Optional[str] = ..., theme_id: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ..., stylesheet: _Optional[str] = ..., variables: _Optional[_Mapping[str, str]] = ..., corner_radii: _Optional[_Union[ThemeCornerRadii, _Mapping]] = ..., light: _Optional[_Union[ThemeVariant, _Mapping]] = ..., dark: _Optional[_Union[ThemeVariant, _Mapping]] = ...) -> None: ...
 
-class ThemeCornerRadii(_message.Message):
-    __slots__ = ("base", "sm", "md", "lg", "xl", "two_xl", "three_xl", "four_xl")
+@final
+class ThemeCornerRadii(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     BASE_FIELD_NUMBER: _ClassVar[int]
     SM_FIELD_NUMBER: _ClassVar[int]
     MD_FIELD_NUMBER: _ClassVar[int]
@@ -174,10 +187,12 @@ class ThemeCornerRadii(_message.Message):
     four_xl: str
     def __init__(self, base: _Optional[str] = ..., sm: _Optional[str] = ..., md: _Optional[str] = ..., lg: _Optional[str] = ..., xl: _Optional[str] = ..., two_xl: _Optional[str] = ..., three_xl: _Optional[str] = ..., four_xl: _Optional[str] = ...) -> None: ...
 
-class ThemeVariant(_message.Message):
-    __slots__ = ("variables", "plot_palette")
-    class VariablesEntry(_message.Message):
-        __slots__ = ("key", "value")
+@final
+class ThemeVariant(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
+    @final
+    class VariablesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
+        __slots__ = ()
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -189,14 +204,16 @@ class ThemeVariant(_message.Message):
     plot_palette: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, variables: _Optional[_Mapping[str, str]] = ..., plot_palette: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class AppearanceFailure(_message.Message):
-    __slots__ = ("kind",)
+@final
+class AppearanceFailure(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: AppearanceFailureKind
     def __init__(self, kind: _Optional[_Union[AppearanceFailureKind, str]] = ...) -> None: ...
 
-class AppearanceAssetReference(_message.Message):
-    __slots__ = ("plugin_id", "asset_id", "sha256")
+@final
+class AppearanceAssetReference(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
@@ -205,8 +222,9 @@ class AppearanceAssetReference(_message.Message):
     sha256: str
     def __init__(self, plugin_id: _Optional[str] = ..., asset_id: _Optional[str] = ..., sha256: _Optional[str] = ...) -> None: ...
 
-class AppearanceAssetMetadata(_message.Message):
-    __slots__ = ("reference", "content_type", "size_bytes", "file")
+@final
+class AppearanceAssetMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__ = ()
     REFERENCE_FIELD_NUMBER: _ClassVar[int]
     CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
