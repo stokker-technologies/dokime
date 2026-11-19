@@ -553,6 +553,20 @@ backend selection passes 18 tests, including this equivalence story. A full scan
 projects 72 revision payload rows; each matching prefix projects 12 and an absent
 prefix projects zero. Entries, page-position progression and the issued cut agree.
 
+### Payload Storage Overlap for Owner Review
+
+`crates/dokime-storage/src/backend/rows.rs::{append_object_revisions,append_records}`
+and `backend/objects.rs::exchange` persist complete encoded envelopes in
+`storage_rows.data`, while `backend/columns.rs::store` also persists their payloads
+in Arrow chunks. `StorageBackend::{get_object,list_object_revisions,list_records}`
+read the SQL envelopes; `StorageBackend::list_column_rows` reads the Arrow copy.
+Replay comparison in `rows.rs::insert` and object-history retention also consume the
+SQL envelope. Prefer deleting the SQL payload copies after migrating those readers,
+replay and retention to one Arrow payload owner, proving original-byte identity and
+preserving the existing SQL identity/key metadata. Keep both until the owner decides;
+this prefix repair reads only SQL key metadata when pruning and introduces no new
+payload store or reader.
+
 ### Populated Release Measurement Baseline
 
 The report benchmark now prepares 306 native plot views and their cut indexes
