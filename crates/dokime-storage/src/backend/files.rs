@@ -440,6 +440,149 @@ mod tests {
     use super::*;
     use harmos_storage::execution::Execution;
     use harmos_storage::{FileSession, Identifier};
+    use sha2::digest::common::hazmat::SerializableState;
+    use tokio::sync::Barrier;
+
+    fn checkpoint(file: &StagedFile, metadata: FileMetadata, payload: &[u8]) -> FileCheckpoint {
+        let mut hash = Sha256::new();
+        hash.update(payload);
+        FileCheckpoint {
+            metadata,
+            session: FileSession {
+                history: file.history.clone(),
+                id: file.id.clone(),
+                generation: 1,
+            },
+            length: payload.len() as u64,
+            hash_format: 1,
+            hash_state: hash.serialize().to_vec(),
+        }
+    }
+
+    #[tokio::test]
+    async fn checkpoint_batch_survives_another_upload_being_abandoned() {
+        // Capture Both Productions Before One Upload Is Abandoned.
+        let directory = tempfile::tempdir().unwrap();
+        let history = StoreHistory {
+            store: Identifier::new("store").unwrap(),
+            epoch: Identifier::new("epoch").unwrap(),
+        };
+        let settings = BackendSettings {
+            chunk_rows: NonZeroUsize::new(4).unwrap(),
+            chunk_bytes: NonZeroUsize::new(4096).unwrap(),
+        };
+        let backend = Backend::new(directory.path().join("uploads.sqlite"), history, settings, Execution::default()).unwrap();
+        backend.create_session().await.unwrap();
+        let metadata = FileMetadata {
+            id: Identifier::new("discarded-upload").unwrap(),
+            scope: None,
+            media_type: "application/octet-stream".into(),
+            expected_length: None,
+            expected_sha256: None,
+        };
+        let discarded = backend.create_file_production(&metadata).await.unwrap();
+        backend.append_file_bytes(&discarded, 0, FileChunk::new(b"discarded".to_vec())).await.unwrap();
+        let stale = checkpoint(&discarded, metadata.clone(), b"discarded");
+        let metadata = FileMetadata {
+            id: Identifier::new("retained-view").unwrap(),
+            ..metadata
+        };
+        let retained = backend.create_file_production(&metadata).await.unwrap();
+        backend.append_file_bytes(&retained, 0, FileChunk::new(b"retained".to_vec())).await.unwrap();
+        let current = checkpoint(&retained, metadata, b"retained");
+        let boundary = Barrier::new(2);
+
+        // Let Abandonment Commit Before the Captured Batch Reaches the Backend.
+        let abandon = async {
+            backend.delete_file_production(&discarded).await.unwrap();
+            boundary.wait().await;
+        };
+        let persist = async {
+            boundary.wait().await;
+            backend.set_file_production_checkpoints(StorageBatch::new(vec![stale, current.clone()])).await.unwrap();
+        };
+        tokio::join!(abandon, persist);
+
+        // Preserve the Other Upload Without Resurrecting the Abandoned One.
+        let recovered = backend
+            .list_file_production_checkpoints(ReadLimits {
+                rows: NonZeroUsize::new(4).unwrap(),
+                bytes: NonZeroUsize::new(4096).unwrap(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(recovered, vec![current]);
+        assert_eq!(backend.get_file_production(&discarded).await.unwrap().phase, FilePhase::Abandoned);
+        backend.delete_session().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn concurrent_checkpoint_snapshots_keep_the_longest_durable_prefix() {
+        // Capture Two Prefixes of One Production.
+        let directory = tempfile::tempdir().unwrap();
+        let history = StoreHistory {
+            store: Identifier::new("store").unwrap(),
+            epoch: Identifier::new("epoch").unwrap(),
+        };
+        let settings = BackendSettings {
+            chunk_rows: NonZeroUsize::new(4).unwrap(),
+            chunk_bytes: NonZeroUsize::new(4096).unwrap(),
+        };
+        let backend = Backend::new(directory.path().join("uploads.sqlite"), history, settings, Execution::default()).unwrap();
+        backend.create_session().await.unwrap();
+        let metadata = FileMetadata {
+            id: Identifier::new("view").unwrap(),
+            scope: None,
+            media_type: "application/octet-stream".into(),
+            expected_length: None,
+            expected_sha256: None,
+        };
+        let file = backend.create_file_production(&metadata).await.unwrap();
+        backend.append_file_bytes(&file, 0, FileChunk::new(b"abc".to_vec())).await.unwrap();
+        let older = checkpoint(&file, metadata.clone(), b"abc");
+
+        // Refuse a Checkpoint Beyond the Native Bytes Without Advancing Durability.
+        let beyond = checkpoint(&file, metadata.clone(), b"abcdef");
+        let error = backend.set_file_production_checkpoints(StorageBatch::new(vec![beyond])).await.unwrap_err();
+        assert!(matches!(error, Error::Backend { kind: BackendFailure::Conflict, .. }));
+        assert!(error.to_string().contains(file.id.as_str()));
+
+        // Append the Remaining Bytes Before Capturing the Newer Snapshot.
+        backend.append_file_bytes(&file, 3, FileChunk::new(b"def".to_vec())).await.unwrap();
+        let newer = checkpoint(&file, metadata.clone(), b"abcdef");
+        let boundary = Barrier::new(2);
+
+        // Persist the Newer Snapshot Before the Older Captured Snapshot.
+        let first = async {
+            backend.set_file_production_checkpoints(StorageBatch::new(vec![newer.clone()])).await.unwrap();
+            boundary.wait().await;
+        };
+        let second = async {
+            boundary.wait().await;
+            backend.set_file_production_checkpoints(StorageBatch::new(vec![older.clone()])).await.unwrap();
+        };
+        tokio::join!(first, second);
+
+        // Reject a Different Hash at the Same Durable Length.
+        let differing = checkpoint(&file, metadata, b"ABCDEF");
+        assert!(backend.set_file_production_checkpoints(StorageBatch::new(vec![differing])).await.is_err());
+        let recovered = backend
+            .list_file_production_checkpoints(ReadLimits {
+                rows: NonZeroUsize::new(4).unwrap(),
+                bytes: NonZeroUsize::new(4096).unwrap(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(recovered, vec![newer]);
+        assert_eq!(backend.get_file_production_bytes(&file, 0, NonZeroUsize::new(6).unwrap()).await.unwrap(), b"abcdef");
+
+        // Reject an Old Writer After Resume Advances the Fence.
+        backend.set_file_writer_generation(&file, 1, 2).await.unwrap();
+        let error = backend.set_file_production_checkpoints(StorageBatch::new(vec![older])).await.unwrap_err();
+        assert!(matches!(error, Error::Backend { kind: BackendFailure::Conflict, .. }));
+        assert!(error.to_string().contains(file.id.as_str()));
+        backend.delete_session().await.unwrap();
+    }
 
     #[tokio::test]
     async fn resumable_upload_reopens_at_the_checkpoint_and_fences_abandoned_writers() {
@@ -467,7 +610,6 @@ mod tests {
         backend.append_file_bytes(&file, 0, FileChunk::new(b"abcdef".to_vec())).await.unwrap();
         let mut hash = Sha256::new();
         hash.update(b"abc");
-        use sha2::digest::common::hazmat::SerializableState;
         let checkpoint = FileCheckpoint {
             metadata,
             session: FileSession {
