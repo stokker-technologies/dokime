@@ -309,7 +309,7 @@ impl Plugins {
             .create_with(
                 &identifier,
                 placement,
-                super::PluginValue { enabled: true, ..Default::default() },
+                super::PluginValue { enabled: true },
                 super::PluginsCreateOptions {
                     request_id: Some(request_id),
                     context: self.client.context.clone(),
@@ -543,7 +543,6 @@ impl Cases {
                 CasesCreateOptions {
                     request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;

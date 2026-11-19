@@ -86,7 +86,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
 
                 // Preserve the Existing Project on a Repeated Invocation.
                 fs::write(project.join("owned.txt"), b"retained work")?;
-                let output = super::command().args(&arguments).output().await?;
+                let output = super::command().args(arguments).output().await?;
                 assert!(!output.status.success());
                 assert_eq!(fs::read(project.join("owned.txt"))?, b"retained work");
             }

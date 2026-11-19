@@ -85,7 +85,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
     if matches!(args.lang, Language::Csharp) {
         return csharp_project(&args.path, files, checkout.as_deref());
     }
-    let python = if matches!(args.lang, Language::Python | Language::Rust) { Some(python_names(&args.path)?) } else { None };
+    let names = if matches!(args.lang, Language::Python | Language::Rust) { Some(project_names(&args.path, args.lang)?) } else { None };
     let mut presets = None;
     if matches!(args.lang, Language::Cpp) && checkout.is_none() {
         let url = args.sdk_url.unwrap_or_else(|| {
@@ -121,7 +121,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
     fs::create_dir(&args.path)?;
     let result = (|| -> Result<()> {
         for (relative, bytes) in &files {
-            let relative = match &python {
+            let relative = match &names {
                 Some((_, package)) => relative.replace("starter_project", package),
                 None => relative.to_owned(),
             };
@@ -133,7 +133,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
                 value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_URL"] = url.clone().into();
                 value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_SHA256"] = digest.clone().into();
                 fs::write(destination, serde_json::to_vec_pretty(&value)?)?;
-            } else if let Some((name, package)) = &python {
+            } else if let Some((name, package)) = &names {
                 match str::from_utf8(bytes) {
                     Ok(text) => fs::write(
                         destination,
@@ -142,7 +142,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
                             &relative,
                             text.replace("starter_project", package)
                                 .replace("starter-project", name)
-                                .replace("Starter Project", &python_title(name)),
+                                .replace("Starter Project", &project_title(name)),
                             checkout.as_deref(),
                         )?,
                     )?,
@@ -336,7 +336,7 @@ fn csharp_project(directory: &Path, files: Vec<(String, Vec<u8>)>, checkout: Opt
                     local_dependency(
                         Language::Csharp,
                         &relative,
-                        text.replace("Example", &namespace).replace("Starter Project", &python_title(name)),
+                        text.replace("Example", &namespace).replace("Starter Project", &project_title(name)),
                         checkout,
                     )?,
                 )?,
@@ -353,7 +353,7 @@ fn csharp_project(directory: &Path, files: Vec<(String, Vec<u8>)>, checkout: Opt
     Ok(())
 }
 
-fn python_title(name: &str) -> String {
+fn project_title(name: &str) -> String {
     let words = name.split(|character: char| !character.is_alphanumeric()).filter(|word| !word.is_empty()).collect::<Vec<_>>();
     words
         .iter()
@@ -397,58 +397,128 @@ fn python_title(name: &str) -> String {
         .join(" ")
 }
 
-fn python_names(path: &Path) -> Result<(String, String)> {
-    let name = path.file_name().and_then(|name| name.to_str()).ok_or("Create Python Project: Choose a UTF-8 Project Folder Name")?;
+fn project_names(path: &Path, language: Language) -> Result<(String, String)> {
+    let label = match language {
+        Language::Rust => "Rust",
+        Language::Python => "Python",
+        Language::Csharp => "C#",
+        Language::Cpp => "C++",
+    };
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("Create {label} Project: Choose a UTF-8 Project Folder Name"))?;
+    if matches!(language, Language::Rust) && !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')) {
+        return Err("Create Rust Project: Choose an ASCII Package Name Containing Only Letters, Digits, Hyphens and Underscores".into());
+    }
     let package = name
         .chars()
         .flat_map(char::to_lowercase)
         .map(|character| if character.is_ascii_alphanumeric() { character } else { '_' })
         .collect::<String>();
     if !package.bytes().any(|byte| byte.is_ascii_alphanumeric()) {
-        return Err("Create Python Project: Choose a Name With at Least One ASCII Letter".into());
+        return Err(format!("Create {label} Project: Choose a Name With at Least One ASCII Letter").into());
     }
     if package.starts_with(|character: char| character.is_ascii_digit()) {
-        return Err("Create Python Project: Start the Name With a Letter or Underscore, Before Any Digits".into());
+        return Err(format!("Create {label} Project: Start the Name With a Letter or Underscore, Before Any Digits").into());
     }
-    if matches!(
-        package.as_str(),
-        "and"
-            | "as"
-            | "assert"
-            | "async"
-            | "await"
-            | "break"
-            | "class"
-            | "continue"
-            | "def"
-            | "del"
-            | "elif"
-            | "else"
-            | "except"
-            | "finally"
-            | "for"
-            | "from"
-            | "global"
-            | "if"
-            | "import"
-            | "in"
-            | "is"
-            | "lambda"
-            | "nonlocal"
-            | "not"
-            | "or"
-            | "pass"
-            | "raise"
-            | "return"
-            | "try"
-            | "while"
-            | "with"
-            | "yield"
-    ) {
-        return Err(format!("Create Python Project: Choose a Name That Does Not Normalize to the Python Keyword {package}").into());
+    let keyword = if matches!(language, Language::Rust) {
+        matches!(
+            package.as_str(),
+            "as" | "async"
+                | "await"
+                | "break"
+                | "const"
+                | "continue"
+                | "crate"
+                | "dyn"
+                | "else"
+                | "enum"
+                | "extern"
+                | "false"
+                | "fn"
+                | "for"
+                | "if"
+                | "impl"
+                | "in"
+                | "let"
+                | "loop"
+                | "match"
+                | "mod"
+                | "move"
+                | "mut"
+                | "pub"
+                | "ref"
+                | "return"
+                | "self"
+                | "static"
+                | "struct"
+                | "super"
+                | "trait"
+                | "true"
+                | "type"
+                | "unsafe"
+                | "use"
+                | "where"
+                | "while"
+                | "abstract"
+                | "become"
+                | "box"
+                | "do"
+                | "final"
+                | "gen"
+                | "macro"
+                | "override"
+                | "priv"
+                | "try"
+                | "typeof"
+                | "unsized"
+                | "virtual"
+                | "yield"
+        )
+    } else {
+        matches!(
+            package.as_str(),
+            "and"
+                | "as"
+                | "assert"
+                | "async"
+                | "await"
+                | "break"
+                | "class"
+                | "continue"
+                | "def"
+                | "del"
+                | "elif"
+                | "else"
+                | "except"
+                | "finally"
+                | "for"
+                | "from"
+                | "global"
+                | "if"
+                | "import"
+                | "in"
+                | "is"
+                | "lambda"
+                | "nonlocal"
+                | "not"
+                | "or"
+                | "pass"
+                | "raise"
+                | "return"
+                | "try"
+                | "while"
+                | "with"
+                | "yield"
+        )
+    };
+    if keyword {
+        return Err(format!("Create {label} Project: Choose a Name That Does Not Normalize to the {label} Keyword {package}").into());
     }
-    if package == "dokime_sdk" {
-        return Err("Create Python Project: Choose a Name Other Than dokime_sdk to Avoid Shadowing the SDK".into());
+    let dependency = if matches!(language, Language::Rust) { "dokime" } else { "dokime_sdk" };
+    if package == dependency {
+        return Err(format!("Create {label} Project: Choose a Name Other Than {dependency} to Avoid Shadowing the SDK").into());
     }
     Ok((name.to_owned(), package))
 }
@@ -459,7 +529,7 @@ fn python_names(path: &Path) -> Result<(String, String)> {
 mod tests {
     use std::{error::Error, fs, path::Path};
 
-    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, python_names, python_title, run};
+    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, project_names, project_title, run};
     use crate::settings::Settings;
 
     #[test]
@@ -538,17 +608,26 @@ mod tests {
 
     #[test]
     fn python_display_titles_follow_project_names() {
-        assert_eq!(python_title("my-project"), "My Project");
-        assert_eq!(python_title("number-of-rows"), "Number of Rows");
-        assert_eq!(python_title("the-test-and-the-result"), "The Test and the Result");
-        assert_eq!(python_title("read_it_in"), "Read It In");
+        assert_eq!(project_title("my-project"), "My Project");
+        assert_eq!(project_title("number-of-rows"), "Number of Rows");
+        assert_eq!(project_title("the-test-and-the-result"), "The Test and the Result");
+        assert_eq!(project_title("read_it_in"), "Read It In");
     }
 
     #[test]
     fn python_project_names_are_safe_import_packages() {
-        assert_eq!(python_names(Path::new("My-Project")).unwrap(), ("My-Project".into(), "my_project".into()));
+        assert_eq!(project_names(Path::new("My-Project"), Language::Python).unwrap(), ("My-Project".into(), "my_project".into()));
         for name in ["---", "123", "1-name", "class", "await", "dokime-sdk", "DOKIME_SDK"] {
-            assert!(python_names(Path::new(name)).is_err(), "{name}");
+            assert!(project_names(Path::new(name), Language::Python).is_err(), "{name}");
+        }
+    }
+
+    #[test]
+    fn rust_project_names_follow_rust_identifiers() {
+        assert_eq!(project_names(Path::new("class"), Language::Rust).unwrap(), ("class".into(), "class".into()));
+        assert_eq!(project_names(Path::new("My-Project"), Language::Rust).unwrap(), ("My-Project".into(), "my_project".into()));
+        for name in ["type", "match", "gen", "Self", "dokime", "my project", "name!"] {
+            assert!(project_names(Path::new(name), Language::Rust).is_err(), "{name}");
         }
     }
 

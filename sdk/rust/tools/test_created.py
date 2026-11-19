@@ -24,10 +24,15 @@ from pathlib import Path
 from typing import Protocol, cast
 from zipfile import ZipFile
 
+# isort: split
+
 # Third Party Imports
 from dokime_sdk import Client, ResultStatus
 
+# isort: split
+
 # Local Imports
+import dokime_tools.test.execution
 from dokime_tools.build.cargo import compiler_environment
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
@@ -107,35 +112,23 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(_close, process)
         output, _ = await asyncio.wait_for(process.communicate(), timeout)
         self.assertEqual(process.returncode, 0, output.decode())
-        process = await asyncio.create_subprocess_exec(
-            "mise",
-            "-C",
-            str(project),
-            "run",
-            "build",
-            env=environment,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            creationflags=spawn_flags(),
+        status = await asyncio.to_thread(
+            dokime_tools.test.execution.execute,
+            ["mise", "-C", str(project), "run", "build"],
+            project,
+            environment,
+            timeout_s=timeout,
         )
-        self.addAsyncCleanup(_close, process)
-        output, _ = await asyncio.wait_for(process.communicate(), timeout)
-        self.assertEqual(process.returncode, 0, output.decode())
+        self.assertEqual(status, 0)
 
-        process = await asyncio.create_subprocess_exec(
-            "mise",
-            "-C",
-            str(project),
-            "run",
-            "test",
-            env=environment,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            creationflags=spawn_flags(),
+        status = await asyncio.to_thread(
+            dokime_tools.test.execution.execute,
+            ["mise", "-C", str(project), "run", "test"],
+            project,
+            environment,
+            timeout_s=timeout,
         )
-        self.addAsyncCleanup(_close, process)
-        output, _ = await asyncio.wait_for(process.communicate(), timeout)
-        self.assertEqual(process.returncode, 0, output.decode())
+        self.assertEqual(status, 0)
 
         # Stage the Built Plugin at the Manifest Path; Compiler Outputs Stay in the Checkout Target.
         executable = project / "target/debug" / f"created-starter{suffix}"

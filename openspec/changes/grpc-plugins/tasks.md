@@ -189,12 +189,15 @@
   - [x] Prove Failed/Cancelled Product Initialization Cleanup Exactly Once With the Deterministic Runtime Story.
   - [x] Prove the Created Rust and C# Starters Through Build, Bundle, Inspect, Headless Development and Unmodified Client Runs; Prove Python Creation and Shared Four-Language Capture.
   - [ ] Complete CLI Units/Stories, SDK Units/Integrations, Generated Checking, Repository Checking, Formatting, Scoped/Workspace Compilation and Final Rust Lint on This Candidate.
+    - [ ] Resolve Product Protocol-Fixture Ownership for `crates/dokime-runtime/examples/content_fixture.rs`: Preserve Trusted-Plugin Stale-Revision, Replay and Upload-Writer Fence Probes Without Restoring Public SDK Host Escapes. The Native Context Surface Does Not Expose Those Wire Probes; All-Target Rust Lint Remains Blocked on This Owner Decision.
+    - [x] Validate Rust Project Names Against Rust Keywords and SDK Shadowing, and Run Created-Project Compiler Processes Through the Existing Owned Process-Tree Runner Without Changing Deadlines.
+    - [x] Migrate Runtime and Desktop Benchmark Source Consumers to Marker Constructors, Native Template Contexts, Standard Plugin Run and the Unpublished Product Client; Typecheck Them in the Dev Profile Without Building or Running Benchmarks.
   - [x] Preserve Separate SDK Harness and Product Execution Sequencing Per the Owner Decision; Run Product Cleanup After Attempted Initialization, Including Failure and Cancellation.
   - [x] Replace the Three Rust Example Roots With One Two-Binary Starter, Migrate Their Consumers and Embed That Starter With Project Name Substitution; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
   - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
   - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
     - [x] Refresh the Root Cargo Lock and Validate the Consumer Lock; Build the Native Windows Product Host/CLI and Prove Shared Capture in All Four Languages, Including Rust Frozen Typed Record Reads and Verified Execution/Cycle ZIP Downloads.
-    - [x] Pass Native Windows SDK Units (16), SDK Integration/Capture Tests (14), Formatting, Scoped All-Target Compilation, Generated-Surface Checking, Repository Checking and Scoped Rust Lint.
+    - [x] Pass Native Windows SDK Units (17), SDK Integration/Capture Tests (12), CLI Units (20), CLI Stories (12), Formatting, Scoped/Workspace Compilation, Generated-Surface Checking and Repository Checking; Keep Final All-Target Rust Lint Open Above.
 
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
