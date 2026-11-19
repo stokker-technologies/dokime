@@ -7,6 +7,13 @@ Imports, Options, Services, Requests and Responses, Resources and Enums, includi
 empty sections. Nested resources use
 subfolders. There is no client or plugin/host protocol directory.
 
+Product wrappers expose only client-used library host operations. They declare
+their own services and explicit CLIENTS audience and reuse the library's unchanged
+request/response messages. No library host gRPC service is composed onto the wire.
+Plugin Time, Invocations, Operations and own-settings facilities use the library's
+plugin protocol identities. Generator projections derive from the embedded
+descriptors and declared audiences; there is no composition file.
+
 Every host RPC declares harmos.model.v1.callers as CLIENTS, PLUGINS or ALL.
 Product plugin executor methods omit the callers option: their Protected bindings
 are host-only and have no application client/context projection. Visibility, grants and trusted scope remain separate
@@ -30,7 +37,7 @@ surface independently; its Python story consumes the current wheel built by
 [Execution Host](../docs/execution-host.md#final-library-definition-contract)
 contains the complete identity/caller/type mapping and consumer work lists.
 [Architecture](../docs/architecture.md#final-library-assembly-and-storage-contract)
-owns assembly, narrowing, backend methods and the query merge. Definition proof
+owns assembly, admission, backend methods and the query merge. Definition proof
 does not establish consumer compilation or runtime behavior. Development schemas
 remain at baseline v1; incompatible storage is refused, never reset implicitly.
 

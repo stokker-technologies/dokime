@@ -39,20 +39,15 @@ function clientMethods(descriptors) {
   const registry = createFileRegistry(descriptors);
   const callers = registry.getExtension("harmos.model.v1.callers");
   if (!callers) throw new Error("Read Desktop Callers: Missing Required Caller Declaration");
-  const composition = readFileSync(join(root, "protocol/composition.toml"), "utf8");
-  const narrowed = new Map([...composition.matchAll(/^"([^"\n]+)"\s*=\s*"(CLIENTS|PLUGINS|ALL)"/gm)].map((match) => [match[1], match[2]]));
   const methods = [];
   for (const file of descriptors.file) {
-    if (!/^(dokime|harmos)\.host\.v1(?:\.|$)/.test(file.package)) continue;
+    if (!/^dokime\.host\.v1(?:\.|$)/.test(file.package)) continue;
     for (const service of file.service) {
       for (const method of service.method) {
         const identity = `${file.package}.${service.name}/${method.name}`;
         const declared = method.options ? getExtension(method.options, callers) : 0;
         if (![1, 2, 3].includes(declared)) throw new Error(`Read Desktop Callers: ${identity} Has No Caller Audience`);
-        const audience = narrowed.get(identity);
-        const effective = audience === "CLIENTS" ? 1 : audience === "PLUGINS" ? 2 : audience === "ALL" ? 3 : declared;
-        if ((effective & declared) !== effective) throw new Error(`Compose Desktop Callers: ${identity} Widens Its Audience`);
-        if (effective & 1) methods.push({ file, service, method });
+        if (declared & 1) methods.push({ file, service, method });
       }
     }
   }

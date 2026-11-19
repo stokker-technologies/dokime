@@ -7,7 +7,7 @@
 # ***
 
 
-"""Generate or Check Protocol Bindings and Composed SDK Roots"""
+"""Generate or Check Protocol Bindings and Product SDK Roots"""
 
 # === Imports === #
 
@@ -54,7 +54,6 @@ def configuration(root: Path) -> Configuration:
         csharp_tools=root / "target/cs/packages/grpc.tools/2.76.0/tools",
         rustfmt=root / "rustfmt.toml",
         python_style=root / "sdk/python/ruff.toml",
-        client_required_fields={"harmos.host.v1.plugins.SettingsListRequest": {"name"}},
         rust_selectors={
             "dokime.host.v1.DocumentsGetRequest": {"scope", "document_id"},
             "dokime.host.v1.DocumentsWatchRequest": {"scope", "document_id"},
@@ -89,9 +88,7 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
         # Keep Generated Host Calls Behind the Product Contexts.
         rust = output / "sdk/rust/src/plugin"
         host = rust / "host.rs"
-        host.write_text(
-            host.read_text().replace("pub fn host(", "pub(crate) fn host(").replace("pub fn requires_host(", "pub(crate) fn requires_host(")
-        )
+        host.write_text(host.read_text().replace("pub fn host(", "pub(crate) fn host("), newline="\n")
         exports = rust / "host_exports.rs"
         exports.write_text(
             exports.read_text().replace(

@@ -31,7 +31,7 @@ operator questions, retries, cancellation, cleanup and report publication.
 - Scoped records, typed Arrow stream files, frozen schemas and sealed evidence.
 - Operator prompts, interactive execution controls and explicit cleanup.
 - Bounded plot/document reads and self-contained reports retained with sealed cycles.
-- Authenticated remote access through the composed library Access services.
+- Authenticated remote access through the product Access services.
 
 ## Interfaces
 

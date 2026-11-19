@@ -25,7 +25,6 @@ use std::path::Path;
 use harmos_protocol::model::{Callers, Declarations, OperationContract, OperationPolicy, Visibility};
 use harmos_protocol::plugin::InstanceGetResponse;
 use harmos_protocol::schema::method_callers;
-use heck::AsSnakeCase;
 use prost::Message;
 use prost_reflect::{DynamicMessage, ReflectMessage};
 use prost_types::{Duration, Timestamp};
@@ -226,52 +225,45 @@ fn typed_plot_builders_produce_canonical_document_messages() {
 }
 
 #[test]
-fn descriptors_separate_executors_and_admit_declared_callers() {
-    // Discover Real Services on Both Executors and Keep Values Service-Free.
+fn product_wrappers_reuse_library_payloads_with_client_admission() {
     let pool = dokime_protocol::descriptor_pool();
-    let mut host_methods = Vec::new();
-    let mut plugin_methods = Vec::new();
-    for service in pool.services().filter(|service| service.package_name().starts_with("dokime.")) {
-        let host = service.package_name().starts_with("dokime.host.v1");
-        let plugin = service.package_name() == "dokime.plugin.v1";
-        assert!(host || plugin);
-        assert_eq!(service.parent_file().services().count(), 1);
-        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", AsSnakeCase(service.name())));
+    let wrappers = [
+        ("access", "Listener", vec!["Get", "Set"]),
+        ("access", "Pairings", vec!["Create", "List", "Delete"]),
+        ("access", "Certificates", vec!["Create"]),
+        ("", "Status", vec!["Get", "Watch"]),
+        ("status", "Logs", vec!["Watch"]),
+        ("status", "TraceEvents", vec!["List", "Watch"]),
+        ("status", "Diagnostics", vec!["Get"]),
+        ("", "Operations", vec!["List", "Get"]),
+        ("", "Invocations", vec!["Create"]),
+    ];
+    for (resource, name, methods) in wrappers {
+        let suffix = if resource.is_empty() { String::new() } else { format!(".{resource}") };
+        let package = format!("dokime.host.v1{suffix}");
+        let service = pool.get_service_by_name(&format!("{package}.{name}")).unwrap();
+        let actual = service.methods().map(|method| method.name().to_owned()).collect::<Vec<_>>();
+        assert_eq!(actual, methods);
         for method in service.methods() {
-            assert_eq!(method.input().name(), format!("{}{}Request", service.name(), method.name()));
-            assert_eq!(method.output().name(), format!("{}{}Response", service.name(), method.name()));
+            assert_eq!(method_callers(&method).unwrap(), Callers::Clients);
+            let payload_package = format!("harmos.host.v1{suffix}");
+            assert_eq!(method.input().full_name(), format!("{payload_package}.{name}{}Request", method.name()));
+            assert_eq!(method.output().full_name(), format!("{payload_package}.{name}{}Response", method.name()));
             assert!(!method.is_client_streaming());
             assert_eq!(method.is_server_streaming(), method.name() == "Watch");
-            if plugin {
-                assert!(method_callers(&method).is_err());
-                plugin_methods.push(method);
-                continue;
-            }
-            let callers = method_callers(&method).unwrap();
-            assert!(matches!(callers, Callers::Clients | Callers::Plugins | Callers::All));
-            if matches!(method.name(), "Get" | "List" | "Read" | "Watch" | "Statistics" | "Archive") {
-                assert!(method.input().get_field_by_name("at").unwrap().supports_presence());
-                assert!(method.output().get_field_by_name("resolved_at").is_some());
-            }
-            if method.name() == "Set" {
-                assert!(method.input().get_field_by_name("expected_revision").is_some());
-                assert!(method.input().get_field_by_name("request_id").is_some());
-                assert!(method.output().get_field_by_name("receipt").is_some());
-                if let Some(get) = service.methods().find(|candidate| candidate.name() == "Get") {
-                    assert_eq!(
-                        get.output().get_field_by_name("value").unwrap().kind(),
-                        method.input().get_field_by_name("value").unwrap().kind()
-                    );
-                    assert!(get.output().get_field_by_name("revision").is_some());
-                }
-            }
-            host_methods.push(method);
+            let request = DynamicMessage::new(method.input());
+            let encoded = request.encode_to_vec();
+            assert_eq!(DynamicMessage::decode(method.input(), encoded.as_slice()).unwrap(), request);
         }
     }
-    assert!(!host_methods.is_empty());
-    assert!(!plugin_methods.is_empty());
-    for file in pool.files().filter(|file| file.package_name() == "dokime.model.v1") {
-        assert_eq!(file.services().count(), 0);
+    assert!(pool.services().all(|service| !service.package_name().starts_with("harmos.host.v1")));
+    for name in ["Time", "Schemas", "Streams"] {
+        assert!(pool.get_service_by_name(&format!("dokime.host.v1.{name}")).is_none());
+    }
+    for service in pool.services().filter(|service| service.package_name() == "dokime.plugin.v1") {
+        for method in service.methods() {
+            assert!(method_callers(&method).is_err());
+        }
     }
 }
 

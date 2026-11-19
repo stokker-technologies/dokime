@@ -73,10 +73,11 @@ def project(output: Path) -> None:
     text = source.read_text().replace("namespace dokime::plugin {", "namespace dokime::templates {")
     text = text.replace("} // namespace dokime::plugin", "} // namespace dokime::templates")
     text = text.replace(
-        "Plugin &Plugin::requires_operation(HostOperation operation) {",
+        "Registrar &Registrar::add(HostOperation operation) {",
         "} // namespace dokime::templates\nnamespace dokime {\n"
-        "Plugin &Plugin::requires_operation(templates::HostOperation operation) {\n  using templates::HostOperation;\n"
-        "  using ::harmos::VISIBILITY_PUBLIC;\n  using ::harmos::plugin::Operation;",
+        "Registrar &Registrar::add(templates::HostOperation operation) {\n  using templates::HostOperation;\n"
+        "  using ::harmos::VISIBILITY_PUBLIC;\n  using ::harmos::plugin::Operation;\n"
+        "  using ::harmos::plugin::Dependency;",
     )
     closing = text.rfind("} // namespace dokime::templates")
     text = text[:closing] + text[closing:].replace("} // namespace dokime::templates", "} // namespace dokime", 1)

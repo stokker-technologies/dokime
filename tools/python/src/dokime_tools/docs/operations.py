@@ -14,7 +14,6 @@
 import re
 import shutil
 import tempfile
-import tomllib
 from pathlib import Path
 
 # isort: split
@@ -83,8 +82,6 @@ def generate(directory: Path) -> Path:
     finally:
         scratch_directory.cleanup()
     callers = caller_options(descriptors)
-    composition = tomllib.loads((directory / "protocol/composition.toml").read_text(encoding="utf-8"))
-    callers.update(composition.get("callers", {}))
     packages: dict[str, list[FileDescriptorProto]] = {}
     for file in sorted(descriptors.file, key=lambda item: item.name):
         if not file.package.startswith("google."):
@@ -169,8 +166,8 @@ def overview(ordered: list[str], packages: dict[str, list[FileDescriptorProto]])
     lines = _frontmatter("Overview", "Protocol packages, their services and their operations.", 0)
     lines += [
         "Each page lists one protocol package: its services with every operation, the callers each",
-        "operation admits, and the messages and enums it exchanges. Plugin packages hold the operations",
-        "the host invokes on a plugin.",
+        "operation admits, and the messages and enums it exchanges. Product plugin packages hold the operations",
+        "the host invokes on a plugin; library plugin facilities are admitted plugin-to-host child calls.",
         "",
         "| Package | Services | Operations | Messages |",
         "| --- | ---: | ---: | ---: |",
