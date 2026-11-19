@@ -45,7 +45,7 @@ parser.add_argument("--configuration", choices=("Debug", "Release"), default="Re
 parser.add_argument("--refresh-lock", action="store_true")
 arguments = parser.parse_args()
 
-revision: str = "aa9f5612efeea8f38bdd01c06b81f688ad11660f"
+revision: str = "5c7670942f3e2d144fc1637ca8c27c136fd9f09d"
 version: str = f"0.1.0-dev.{revision[:12]}"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"

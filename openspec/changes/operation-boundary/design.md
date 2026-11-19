@@ -246,7 +246,7 @@ after callers stop using `harmos_protocol::host` paths; Harmos payload values th
 ### D6. Product Wrappers and Composition Removal (Agreed, 2026-11-19)
 
 The client inventory below is locked for the main-line pin
-`aa9f5612efeea8f38bdd01c06b81f688ad11660f`. Declarations live under
+`5c7670942f3e2d144fc1637ca8c27c136fd9f09d`. Declarations live under
 `proto/dokime/host/v1`; each wrapper retains its existing SDK resource and method
 name, declares CLIENTS explicitly and reuses the unchanged library messages.
 The handler registration uses `ProtobufOperation::service()` with the product
