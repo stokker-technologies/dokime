@@ -208,7 +208,7 @@ class Plugins:
             reply = await call(
                 "plugins.create",
                 self._client._transport.plugins.create(
-                    plugin._identifier,
+                    plugin.identifier,
                     client_types.PluginPlacement(remote=client_types.PluginRemote(url=f"http://{endpoint.address}")),
                     client_types.PluginValue(enabled=True),
                     request_id=identity,
@@ -251,7 +251,7 @@ class Plugins:
                     await entry.unregister()
                 else:
                     try:
-                        lookup_reply = await self._client._transport.plugins.get(plugin._identifier)
+                        lookup_reply = await self._client._transport.plugins.get(plugin.identifier)
                     except AioRpcError as lookup:
                         if lookup.code() != StatusCode.NOT_FOUND:
                             error.add_note(f"Read Failed Registration Entry: {lookup}")

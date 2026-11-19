@@ -73,7 +73,7 @@ class _Session:
 
 
 class Plugin:
-    identifier: ClassVar[str | None] = None
+    identifier: str
     label: ClassVar[str | None] = None
     version: ClassVar[str | None] = None
     suites: ClassVar[Sequence[type[Suite]]] = ()
@@ -82,7 +82,7 @@ class Plugin:
     secrets: ClassVar[Sequence[dokime_sdk.operations.SecretDeclaration]] = ()
 
     def __init__(self) -> None:
-        self._identifier = build_identifier(type(self).__name__, self.identifier, class_name=True)
+        self.identifier = build_identifier(type(self).__name__, getattr(type(self), "identifier", None), class_name=True)
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
         self._suites = tuple(bind_suite(item) for item in tuple(self.suites))
@@ -136,7 +136,7 @@ class Plugin:
                 continue
             if not isinstance(method, FunctionType):
                 raise TypeError("Declare Plugin Stream: Decorate a Plain Method")
-            identity = build_identifier(name, declaration.identifier, prefix=self._identifier)
+            identity = build_identifier(name, declaration.identifier, prefix=self.identifier)
             if identity in self._streams.values():
                 raise ValueError("Build Plugin: Give Every Plugin Stream a Unique Identifier")
             self._streams[id(method)] = identity
@@ -164,7 +164,7 @@ class Plugin:
             contributions.append(SecretsDeclarations(secrets=[item._definition() for item in self._secrets]))
         self._plugin = harmos.plugin.Plugin(
             adapter,
-            id=self._identifier,
+            id=self.identifier,
             version=self._version,
             requires=self._requires,
             sections=contributions,

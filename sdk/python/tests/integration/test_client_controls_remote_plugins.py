@@ -114,14 +114,16 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
 
     async def test_register_waits_for_ready_then_close_unregisters_only_owned_entries(self) -> None:
         class ExamplePlugin(Plugin):
-            identifier = "example"
             version = "1.0.0"
 
-        registration = asyncio.create_task(self.client.plugins.register(ExamplePlugin(), address="127.0.0.1:0", request_id="register"))
+        plugin = ExamplePlugin()
+        self.assertEqual(plugin.identifier, "example")
+        registration = asyncio.create_task(self.client.plugins.register(plugin, address="127.0.0.1:0", request_id="register"))
         await self.observing.wait()
         self.assertFalse(registration.done())
         self.ready.set()
         registered = await registration
+        self.assertEqual(plugin.identifier, registered.identifier)
         self.assertEqual((registered.identifier, registered.version, registered.state), ("example", "1.0.0", "Ready"))
         self.entries["other"] = plugins_pb2.PluginEntry(name="other", revision=b"other", state="PLUGIN_STATE_READY")
         await self.client.plugins.get("other")

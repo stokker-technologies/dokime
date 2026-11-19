@@ -15,6 +15,9 @@ The operation and template modules each own a distinct `Context`. Import a
 context from its module when authoring that kind of handler. Plugin handlers
 reach shared plugin state through `ctx.plugin`.
 
+`ExamplePlugin().identifier` is `example` before and after registration. A class
+`identifier` overrides the class-derived identity.
+
 ## Starter
 
 [The starter](examples/starter/) contains one uv project with an installed
@@ -37,8 +40,12 @@ overrides that metadata. Source-only plugins must declare a class version.
 The package module connects to the host,
 registers the plugin, creates a cycle, materializes its template classes and runs
 each execution. It prints progress and sealed outcomes, seals the cycle and
-writes its evidence archive under `_output/`. Answer operator questions in the
-desktop. `mise run test` checks the declared suites, template, steps, criterion
+writes its evidence archive under `_output/`. Operator questions remain pending
+until answered or the execution is stopped. Answer them in the desktop or with
+`dokime execution prompt answer EXECUTION --action 0 --accepted`.
+`dokime execution list --json` lists all cycles; each execution ID is at
+`executions[i].summary.execution_id`. Add `--cycle CYCLE` to narrow the list.
+`mise run test` checks the declared suites, template, steps, criterion
 and operations without starting a product host.
 
 Set `DOKIME_REMOTE` to an HTTP origin or `.pair` file in the process environment

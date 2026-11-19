@@ -258,7 +258,7 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
         (factory::<host::prompt_definitions::get::Operation>, settings.read_timeout),
         (factory::<host::prompt_definitions::list::Operation>, settings.read_timeout),
         (factory::<host::prompts::answers::create::Operation>, settings.mutation_timeout),
-        (factory::<host::prompts::create::Operation>, settings.mutation_timeout),
+        (factory::<host::prompts::create::Operation>, host::prompts::create::Operation::POLICY.timeout),
         (factory::<host::prompts::get::Operation>, settings.read_timeout),
         (factory::<host::prompts::list::Operation>, settings.read_timeout),
         (factory::<host::record_schemas::get::Operation>, settings.read_timeout),

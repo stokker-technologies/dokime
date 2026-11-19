@@ -94,8 +94,8 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.operation for item in case.steps], ["channels.channels.measure"] * 2)
         handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
         for execution in ("first", "second"):
-            origin = {"plugin_run": {"plugin": author._identifier, "template": template.identifier, "test_case": case}}
-            transport = plugin.Context(Request(scope=execution, attempt=1), author._identifier, {})
+            origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
+            transport = plugin.Context(Request(scope=execution, attempt=1), author.identifier, {})
             for name, arguments in (
                 ("setup", {}),
                 ("measure", {"step": "channels.channels.channel_2"}),
@@ -134,7 +134,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         definition, handler, observing = author._plugin._registrations()[1][0]
         self.assertTrue(observing)
         self.assertEqual(definition.id, "observer.reading")
-        transport = plugin.Context(Request(attempt=1), author._identifier, {})
+        transport = plugin.Context(Request(attempt=1), author.identifier, {})
         for expected in (1, 2):
             result = await cast(Any, handler)(transport)
             self.assertEqual(result.value, expected)
@@ -173,8 +173,8 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             author.failure_type = failure
             template = author._suites[0].templates[0]
             case = template.build({}).message
-            origin = {"plugin_run": {"plugin": author._identifier, "template": template.identifier, "test_case": case}}
-            transport = plugin.Context(Request(scope="execution", attempt=1), author._identifier, {})
+            origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
+            transport = plugin.Context(Request(scope="execution", attempt=1), author.identifier, {})
             handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
             definition, handler = handlers["partial.partial.setup"]
             request = cast(Any, definition.request)(execution="execution", test_case=case, origin=origin)

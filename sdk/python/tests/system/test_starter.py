@@ -176,6 +176,25 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
                     next_frame.cancel()
                     await asyncio.gather(next_frame, return_exceptions=True)
                 await watch.aclose()
+
+            # List Client-Created Executions Through the Operator Command.
+            listed = await asyncio.create_subprocess_exec(
+                str(binary),
+                "--endpoint",
+                host.endpoint,
+                "execution",
+                "list",
+                "--json",
+                env=environment,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                creationflags=flags,
+            )
+            output, _ = await asyncio.wait_for(listed.communicate(), timeout)
+            self.assertEqual(listed.returncode, 0, output.decode())
+            rows = json.loads(output)["executions"]
+            self.assertIn(execution_id, [row["summary"]["execution_id"] for row in rows])
+
             answer = await asyncio.create_subprocess_exec(
                 str(binary),
                 "--endpoint",

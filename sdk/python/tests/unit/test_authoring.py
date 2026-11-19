@@ -99,7 +99,7 @@ class AuthoringStory(unittest.TestCase):
     def test_classes_bind_members_without_mutating_declarations(self) -> None:
         plugin = ExamplePlugin()
         template = plugin._suites[0].templates[0]
-        self.assertEqual(plugin._identifier, "example")
+        self.assertEqual(plugin.identifier, "example")
         self.assertEqual(template.identifier, "capture.confirmation")
         self.assertEqual(template.resolve(ConfirmationTestTemplate.confirmation), "capture.confirmation.confirmation")
         self.assertEqual(template.resolve(ConfirmationTestTemplate().confirm), "capture.confirmation.confirm")
@@ -135,7 +135,7 @@ class AuthoringStory(unittest.TestCase):
         plugin = HTTPPlugin()
         bound = plugin._suites[0]
         template = bound.templates[0]
-        self.assertEqual(plugin._identifier, "http")
+        self.assertEqual(plugin.identifier, "http")
         self.assertEqual(bound.identifier, "http_accuracy")
         self.assertEqual(bound.label, "HTTP Accuracy")
         self.assertEqual(template.identifier, "http_accuracy.read_http_voltage")

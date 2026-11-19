@@ -198,7 +198,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(channel.close)
         template = plugin._suites[0].templates[0]
         case = template.build({}).message
-        origin = {"plugin_run": {"plugin": plugin._identifier, "template": template.identifier, "test_case": case}}
+        origin = {"plugin_run": {"plugin": plugin.identifier, "template": template.identifier, "test_case": case}}
         invoke = channel.stream_stream(
             "/harmos.plugin.v1.Instance/Invoke",
             request_serializer=InstanceInvokeRequest.SerializeToString,
@@ -298,7 +298,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         )
         template = plugin._suites[0].templates[0]
         case = template.build({}).message
-        origin = {"plugin_run": {"plugin": plugin._identifier, "template": template.identifier, "test_case": case}}
+        origin = {"plugin_run": {"plugin": plugin.identifier, "template": template.identifier, "test_case": case}}
         definitions = {item.id: item for item, _ in plugin._plugin._registrations()[0]}
         requests: list[tuple[str, Message]] = [
             (
