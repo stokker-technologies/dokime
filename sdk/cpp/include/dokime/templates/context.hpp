@@ -13,6 +13,7 @@
 
 #include "dokime/declarations.hpp"
 #include "dokime/operations.hpp"
+#include "dokime/values.hpp"
 #include <mutex>
 #include <optional>
 #include <typeindex>
@@ -29,7 +30,19 @@
 
 /* === Public Declarations === */
 
+namespace dokime::detail {
+std::string mutation_identity(std::optional<std::string> request_id);
+}
+
 namespace dokime::templates {
+struct Environment {
+  std::uint32_t backend_pid;
+  bool in_step;
+};
+struct CaptureResult {
+  std::vector<CapturedArtifact> artifacts;
+  std::vector<CaptureGap> gaps;
+};
 class Context;
 struct Step;
 struct Criterion;
@@ -111,17 +124,27 @@ public:
     declaration.key = detail::Member<Method>::key;
     return resolve(declaration);
   }
-  void log(std::string text, Severity severity = SEVERITY_INFO);
-  void progress(std::uint64_t completed, std::uint64_t total, std::string label = {});
-  void traceability(std::string identifier, Value value, std::string label = {}, std::string source = {}, std::string unit = {});
-  void document(std::string document, model::Section part, std::string section = {});
-  void document(std::string document, Card part, std::string section = {});
+  void log(std::string text, Severity severity = SEVERITY_INFO, std::optional<std::string> request_id = {});
+  void progress(std::uint64_t completed, std::uint64_t total, std::string label = {}, std::optional<std::string> request_id = {});
+  void traceability(std::string identifier, Value value, std::string label = {}, std::string source = {}, std::string unit = {},
+                    std::optional<std::string> request_id = {});
+  void document(std::string document, model::Section part, std::string section = {}, std::optional<std::string> request_id = {});
+  void document(std::string document, Card part, std::string section = {}, std::optional<std::string> request_id = {});
   std::string prepare_effect(std::string resource, std::string inverse_operation, const google::protobuf::Message &inverse,
-                             std::string description = {});
-  void confirm_effect(std::string ticket, std::optional<std::chrono::system_clock::time_point> at = {}, bool restored = false);
+                             std::string description = {}, std::optional<std::string> request_id = {});
+  void confirm_effect(std::string ticket, std::optional<std::chrono::system_clock::time_point> at = {}, bool restored = false,
+                      std::optional<std::string> request_id = {});
+  Artifact artifact(const std::string &name, const std::vector<std::uint8_t> &data, const std::string &mime = "application/octet-stream",
+                    std::optional<std::string> request_id = {});
+  CaptureResult capture(const FileSource &source, const std::string &output);
+  std::uint64_t start_capture(const FileSource &source, const std::string &output, const plugin::CaptureMode &mode);
+  CaptureResult stop_capture(std::uint64_t capture_id);
+  Environment environment();
   std::string prompt(std::string text, std::vector<std::string> choices = {});
+  std::string prompt(Prompt definition);
   std::string prompt(const PromptDeclaration &declaration);
-  template <class T> std::uint64_t record(const Record<T> &declaration, const std::type_identity_t<T> &value);
+  template <class T>
+  std::uint64_t record(const Record<T> &declaration, const std::type_identity_t<T> &value, std::optional<std::string> request_id = {});
   template <class T> class RecordsQuery {
   public:
     RecordsQuery(Context &context, const Record<T> &declaration, std::string step)
@@ -225,10 +248,13 @@ WindowObserver<T, C> WindowObserver<T, C>::method(Stream<T> stream, google::prot
           {},
           {}};
 }
-template <class T> std::uint64_t Context::record(const Record<T> &declaration, const std::type_identity_t<T> &value) {
+template <class T>
+std::uint64_t Context::record(const Record<T> &declaration, const std::type_identity_t<T> &value, std::optional<std::string> request_id) {
   const auto kind = resolve(declaration);
   const auto message = detail::pack<T>(value);
-  return host().evidence.records.append(execution(), kind, message.SerializeAsString(), transport_.now()).ordinal();
+  HostEvidenceRecordsAppendOptions options;
+  options.request_id = dokime::detail::mutation_identity(std::move(request_id));
+  return host().evidence.records.append(execution(), kind, message.SerializeAsString(), transport_.now(), options).ordinal();
 }
 template <class T> T Context::RecordsQuery<T>::last() {
   const auto response = context_.host().evidence.records.list(context_.resolve(declaration_), {}, {}, step_, {});

@@ -9,37 +9,23 @@
 
 /* === Imports === */
 
-#include "dokime/client.hpp"
+#include "dokime/detail/client.hpp"
+#include "dokime/detail/schemas.hpp"
 #include "harmos/harmos.hpp"
-#include <fstream>
-#include <limits>
-#include <openssl/evp.h>
-#include <random>
 #include <set>
-#include <sstream>
 
+using dokime::client::ExecutionDetail;
+using dokime::client::ExecutionsSchemasGetOptions;
 using dokime::detail::Transport;
 using google::protobuf::FileDescriptorSet;
 using grpc::ClientContext;
-using harmos::FileMetadata;
-using harmos::FileReference;
 
-using std::current_exception;
-using std::ifstream;
 using std::invalid_argument;
 using std::make_shared;
-using std::numeric_limits;
-using std::ostringstream;
-using std::rethrow_exception;
 using std::runtime_error;
 using std::set;
 using std::shared_ptr;
-using std::streamsize;
 using std::string;
-using std::throw_with_nested;
-using std::to_string;
-using std::unique_ptr;
-using std::filesystem::path;
 
 /* === Macros === */
 
@@ -53,86 +39,7 @@ using std::filesystem::path;
 
 /* === Public Functions === */
 
-namespace dokime::client {
-FileReference upload(Transport &client, const path &path, const std::function<void(ClientContext &)> &configure) {
-  ifstream source(path, std::ios::binary);
-  if (!source)
-    throw runtime_error("Upload File: Open Its Path");
-  std::random_device random;
-  ostringstream identity;
-  for (int index = 0; index < 4; ++index)
-    identity << std::hex << random();
-  const auto request_id = identity.str();
-  FileMetadata metadata;
-  metadata.set_expected_length(std::filesystem::file_size(path));
-  FilesUploadsCreateOptions opening;
-  opening.request_id = request_id + "/create";
-  opening.context = make_shared<ClientContext>();
-  if (configure)
-    configure(*opening.context);
-  auto created = client.files.uploads.create(metadata, opening);
-  if (!created.has_upload())
-    throw runtime_error("Upload File: Missing Upload");
-  auto upload = created.upload();
-  try {
-    if (!created.chunk_bytes() || created.chunk_bytes() >= created.message_bytes() ||
-        created.chunk_bytes() > static_cast<uint64_t>(numeric_limits<streamsize>::max()))
-      throw runtime_error("Upload File: Invalid Transfer Limits");
-    unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> digest(EVP_MD_CTX_new(), EVP_MD_CTX_free);
-    if (!digest || EVP_DigestInit_ex(digest.get(), EVP_sha256(), nullptr) != 1)
-      throw runtime_error("Upload File: Initialize SHA-256");
-    string buffer(created.chunk_bytes(), '\0');
-    uint64_t offset = 0;
-    while (source) {
-      source.read(buffer.data(), static_cast<streamsize>(buffer.size()));
-      const auto size = source.gcount();
-      if (!size)
-        break;
-      FilesUploadsAppendOptions append;
-      append.request_id = request_id + "/append/" + to_string(offset);
-      append.context = make_shared<ClientContext>();
-      if (configure)
-        configure(*append.context);
-      const auto reply = client.files.uploads.append(upload, offset, string(buffer.data(), static_cast<size_t>(size)), append);
-      offset += static_cast<uint64_t>(size);
-      if (!reply.has_upload() || reply.upload().accepted_length() != offset)
-        throw runtime_error("Upload File: Invalid Accepted Offset");
-      upload = reply.upload();
-      if (EVP_DigestUpdate(digest.get(), buffer.data(), static_cast<size_t>(size)) != 1)
-        throw runtime_error("Upload File: Hash Its Chunk");
-    }
-    if (!source.eof())
-      throw runtime_error("Upload File: Read Its Path");
-    unsigned char bytes[EVP_MAX_MD_SIZE];
-    unsigned int length = 0;
-    if (EVP_DigestFinal_ex(digest.get(), bytes, &length) != 1)
-      throw runtime_error("Upload File: Finish SHA-256");
-    const string checksum(reinterpret_cast<const char *>(bytes), length);
-    FilesUploadsPublishOptions publish;
-    publish.request_id = request_id + "/publish";
-    publish.context = make_shared<ClientContext>();
-    if (configure)
-      configure(*publish.context);
-    const auto reply = client.files.uploads.publish(upload, offset, checksum, publish);
-    if (!reply.has_upload() || reply.upload().length() != offset || reply.upload().sha256() != checksum)
-      throw runtime_error("Upload File: Published Length or SHA-256 Changed");
-    return reply.upload();
-  } catch (...) {
-    const auto cause = current_exception();
-    FilesUploadsDeleteOptions abandon;
-    abandon.request_id = request_id + "/abandon";
-    abandon.context = make_shared<ClientContext>();
-    if (configure)
-      configure(*abandon.context);
-    try {
-      client.files.uploads.delete_(upload, abandon);
-    } catch (...) {
-      throw_with_nested(runtime_error("Upload File: Abandon Failed Upload"));
-    }
-    rethrow_exception(cause);
-  }
-}
-
+namespace dokime::detail {
 string FrozenSchemaCache::message_name(const ExecutionDetail &detail, const string &identity) {
   for (const auto &record : detail.schemas().records())
     if (record.record_type() == identity && !record.message_name().empty())
@@ -143,7 +50,7 @@ string FrozenSchemaCache::message_name(const ExecutionDetail &detail, const stri
   throw runtime_error("Decode Evidence: Missing Frozen Binding");
 }
 shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(Transport &client, const ExecutionDetail &detail,
-                                                           const std::function<void(ClientContext &)> &configure) {
+                                                           const std::function<shared_ptr<ClientContext>()> &configure) {
   if (!detail.has_schemas() || detail.schemas().digest().size() != 32)
     throw invalid_argument("Read Schemas: Supply a SHA-256 Digest");
   const auto &digest = detail.schemas().digest();
@@ -159,9 +66,7 @@ shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(Transport &client, co
   auto types = make_shared<FileDescriptorSet>();
   set<string> tokens;
   while (true) {
-    request.context = make_shared<ClientContext>();
-    if (configure)
-      configure(*request.context);
+    request.context = configure ? configure() : make_shared<ClientContext>();
     const auto page = client.executions.schemas.get(detail.summary().execution_id(), request);
     if (page.digest() != digest || !page.has_resolved_at() ||
         (request.at.has_value() && page.resolved_at().SerializeAsString() != request.at->SerializeAsString()))
@@ -189,7 +94,25 @@ shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(Transport &client, co
   sets_.emplace(digest, types);
   return types;
 }
-} // namespace dokime::client
+void validate_schema(const shared_ptr<ExecutionState> &execution, const string &identity, const string &message) {
+  auto &client = *execution->client;
+  client.context();
+  if (!client.schemas)
+    client.schemas = make_shared<FrozenSchemaCache>();
+  if (!execution->detail.has_schemas()) {
+    dokime::client::ExecutionsGetOptions options;
+    options.context = client.context();
+    execution->observe(client.transport->executions.get(execution->detail.summary().execution_id(), options).execution());
+  }
+  const auto configure = [&] {
+    return client.context();
+  };
+  client.schemas->get(*client.transport, execution->detail, configure);
+  const auto binding = FrozenSchemaCache::message_name(execution->detail, identity);
+  if (binding != message)
+    throw invalid_argument("Decode Evidence: Select a Row Type Matching the Frozen Message Binding");
+}
+} // namespace dokime::detail
 
 /* === Private Functions === */
 

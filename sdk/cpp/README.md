@@ -75,6 +75,9 @@ typed operation calls, host-clock sleep and time, cancellation, declared secrets
 and saved settings. Only `dokime::templates::Context` provides execution identity,
 parameters, prompts, records, statistics, progress, logs, traceability, documents
 and effects. Carrier contexts and the untyped host dispatcher are private.
+Template contexts also capture files, manage continuous capture, publish artifacts
+and read the host process environment. Artifact uploads share the client's fenced
+transfer implementation.
 
 Template records use primitive C++ values or generated message values.
 `ctx.record` returns the acknowledged ordinal. `ctx.records(record).last()`
@@ -102,6 +105,53 @@ in the process environment, the working-directory `.env`, then `127.0.0.1:0`.
 Managed launch coordinates are private host input and take precedence internally.
 An explicitly empty address is an error. The SDK parses UTF-8 dotenv assignments,
 quotes and the shared escape grammar without modifying the process environment.
+
+`connect(ConnectionSettings)` resolves `remote`, `DOKIME_REMOTE`, then the
+working-directory `.env`. It accepts a direct HTTP origin with an explicit port or
+a version 1 `.pair` file. Pairing endpoints are attempted in order, each within the
+connection budget, retaining certificate pinning, credentials and host identity.
+
+## Bound Client Handles
+
+```cpp
+#include <dokime/client.hpp>
+
+auto client = dokime::connect();
+auto cases = client.cases().materialize("capture.confirmation", "example", "capture");
+auto cycle = client.cycle("Capture");
+for (const auto &test_case : cases) {
+  auto execution = cycle.execution(test_case);
+  auto progress = execution.run();
+  while (const auto update = progress.next()) {
+    // Observe Until the Host Seals the Execution.
+  }
+  const auto outcome = execution.seal();
+}
+cycle.seal();
+const auto archive = cycle.evidence();
+client.close();
+```
+
+The plugin must already be registered on the host. The pinned carrier provides
+only blocking `serve`; owned object registration requires an upstream addressable,
+closeable listener. Managed bundle installation, typed stream subscription,
+plugin notes and client invocation policy overrides require their upstream host
+or carrier contracts.
+
+`run()` starts on the first `next()`. `watch()` reattaches without starting work;
+closing or destroying either progress stream releases only observation. Explicit
+`stop()` and `cancel()` retain their host meanings. `seal()` returns the stable
+product outcome. Lookups preserve cycle/case bindings and refuse foreign cases.
+Finite resource lists and typed record/sample readers retain their first read cut.
+Record queries provide `read`, `pages`, `count` and `last`; sample queries provide
+`collect` and on-demand `pages`, with field and time selections. Frozen schema bindings are
+verified and shared by the client.
+
+Cycle/execution notes and artifacts return product values. Evidence downloads
+verify retained length and SHA-256. `on_prompt` installs one optional answer
+handler; close releases its observation and the channel. Explicit close reports
+handler failures; destructors release resources without throwing. `Error` retains
+structured host failure classification, code, cause, details and diagnostics.
 
 ## Build and Test
 

@@ -4,7 +4,7 @@ target_link_libraries(dokime-generation PRIVATE Dokime::Cpp)
 
 find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
-add_executable(dokime-builders builders.cpp configuration.cpp)
+add_executable(dokime-builders builders.cpp configuration.cpp connection.cpp handles.cpp transfers.cpp)
 target_link_libraries(dokime-builders PRIVATE Dokime::Cpp Catch2::Catch2WithMain)
 add_test(NAME builders COMMAND dokime-builders)
 

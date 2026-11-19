@@ -10,6 +10,7 @@
 /* === Imports === */
 
 #include "dokime/templates/context.hpp"
+#include "dokime/detail/transfers.hpp"
 
 using std::invalid_argument;
 using std::lock_guard;
@@ -37,6 +38,55 @@ using std::chrono::system_clock;
 /* === Public Functions === */
 
 namespace dokime::templates {
+Artifact Context::artifact(const string &name, const vector<std::uint8_t> &data, const string &mime, optional<string> request_id) {
+  const auto identity = dokime::detail::mutation_identity(move(request_id));
+  auto resources = host();
+  dokime::detail::UploadOperations uploads{[&](const harmos::FileMetadata &metadata, const string &id) {
+                                             HostFilesUploadsCreateOptions options;
+                                             options.request_id = id;
+                                             return resources.files.uploads.create(metadata, options);
+                                           },
+                                           [&](const harmos::Upload &upload, std::uint64_t offset, const string &chunk, const string &id) {
+                                             HostFilesUploadsAppendOptions options;
+                                             options.request_id = id;
+                                             return resources.files.uploads.append(upload, offset, chunk, options);
+                                           },
+                                           [&](const harmos::Upload &upload, std::uint64_t length, const string &digest, const string &id) {
+                                             HostFilesUploadsPublishOptions options;
+                                             options.request_id = id;
+                                             return resources.files.uploads.publish(upload, length, digest, options);
+                                           },
+                                           [&](const harmos::Upload &upload, const string &id) {
+                                             HostFilesUploadsDeleteOptions options;
+                                             options.request_id = id;
+                                             resources.files.uploads.delete_(upload, options);
+                                           }};
+  harmos::FileMetadata metadata;
+  metadata.set_scope("execution/" + execution());
+  metadata.set_media_type(mime);
+  metadata.set_expected_length(data.size());
+  const auto file = dokime::detail::upload_bytes(uploads, data, metadata, identity);
+  HostContentArtifactsCreateOptions options;
+  options.scope.emplace().set_execution_id(execution());
+  options.request_id = identity + "/attach";
+  const auto result = resources.content.artifacts.create(file, name, mime, options);
+  return dokime::detail::artifact_value(result.artifact());
+}
+CaptureResult Context::capture(const FileSource &source, const string &output) {
+  const auto result = host().files.capture(source, output);
+  return {{result.artifacts().begin(), result.artifacts().end()}, {result.gaps().begin(), result.gaps().end()}};
+}
+std::uint64_t Context::start_capture(const FileSource &source, const string &output, const plugin::CaptureMode &mode) {
+  return host().files.captures.start(source, output, mode);
+}
+CaptureResult Context::stop_capture(std::uint64_t capture_id) {
+  const auto result = host().files.captures.stop(capture_id);
+  return {{result.artifacts().begin(), result.artifacts().end()}, {result.gaps().begin(), result.gaps().end()}};
+}
+Environment Context::environment() {
+  const auto result = host().backend.environment();
+  return {result.backend_pid(), result.in_step()};
+}
 shared_ptr<detail::Resources> detail::Executions::open(const string &execution) {
   lock_guard lock(mutex);
   auto &resources = values[execution];
@@ -60,18 +110,22 @@ Context::Context(harmos::plugin::Context &transport, TestCase test_case, string 
     : operations::Context(transport, move(plugin)), test_case_(move(test_case)), item_(move(item)), resources_(move(resources)),
       bindings_(move(bindings)) {}
 
-void Context::log(string text, Severity severity) {
-  host().evidence.logs.append(execution(), severity, text, transport_.now());
+void Context::log(string text, Severity severity, optional<string> request_id) {
+  HostEvidenceLogsAppendOptions options;
+  options.request_id = dokime::detail::mutation_identity(move(request_id));
+  host().evidence.logs.append(execution(), severity, text, transport_.now(), options);
 }
-void Context::progress(std::uint64_t completed, std::uint64_t total, string label) {
+void Context::progress(std::uint64_t completed, std::uint64_t total, string label, optional<string> request_id) {
   const auto current = host().executions.progress.get();
   ExecutionProgressValue value;
   value.set_completed(completed);
   value.set_total(total);
   value.set_label(move(label));
-  host().executions.progress.set(value, current.revision());
+  HostExecutionsProgressSetOptions options;
+  options.request_id = dokime::detail::mutation_identity(move(request_id));
+  host().executions.progress.set(value, current.revision(), options);
 }
-void Context::traceability(string identifier, Value value, string label, string source, string unit) {
+void Context::traceability(string identifier, Value value, string label, string source, string unit, optional<string> request_id) {
   HostEvidenceTraceabilityGetOptions options;
   options.entry = identifier;
   const auto current = host().evidence.traceability.get(options);
@@ -81,22 +135,29 @@ void Context::traceability(string identifier, Value value, string label, string 
   *entry.mutable_value() = move(value);
   entry.set_source(move(source));
   entry.set_unit(move(unit));
-  host().evidence.traceability.set(entry, current.revision(), identifier);
+  HostEvidenceTraceabilitySetOptions replacing;
+  replacing.request_id = dokime::detail::mutation_identity(move(request_id));
+  host().evidence.traceability.set(entry, current.revision(), identifier, replacing);
 }
-void Context::document(string document, model::Section part, string section) {
+void Context::document(string document, model::Section part, string section, optional<string> request_id) {
   HostDocumentsAppendPartsOptions options;
+  options.request_id = dokime::detail::mutation_identity(move(request_id));
   options.subsection = move(part);
   host().documents.append_parts(execution(), document, section, move(options));
 }
-void Context::document(string document, Card part, string section) {
+void Context::document(string document, Card part, string section, optional<string> request_id) {
   HostDocumentsAppendPartsOptions options;
+  options.request_id = dokime::detail::mutation_identity(move(request_id));
   options.card = move(part);
   host().documents.append_parts(execution(), document, section, move(options));
 }
-string Context::prepare_effect(string resource, string inverse_operation, const google::protobuf::Message &inverse, string description) {
-  return host().effects.create(resource, inverse_operation, inverse.SerializeAsString(), description).name();
+string Context::prepare_effect(string resource, string inverse_operation, const google::protobuf::Message &inverse, string description,
+                               optional<string> request_id) {
+  HostEffectsCreateOptions options;
+  options.request_id = dokime::detail::mutation_identity(move(request_id));
+  return host().effects.create(resource, inverse_operation, inverse.SerializeAsString(), description, options).name();
 }
-void Context::confirm_effect(string ticket, optional<system_clock::time_point> at, bool restored) {
+void Context::confirm_effect(string ticket, optional<system_clock::time_point> at, bool restored, optional<string> request_id) {
   const auto current = host().effects.get(ticket);
   auto value = current.value();
   const auto applied = at ? *at : now();
@@ -105,7 +166,9 @@ void Context::confirm_effect(string ticket, optional<system_clock::time_point> a
   value.mutable_applied_at()->set_seconds(elapsed / 1000000000);
   value.mutable_applied_at()->set_nanos(static_cast<int>(elapsed % 1000000000));
   value.set_restored(restored);
-  host().effects.set(ticket, value, current.revision());
+  HostEffectsSetOptions options;
+  options.request_id = dokime::detail::mutation_identity(move(request_id));
+  host().effects.set(ticket, value, current.revision(), options);
 }
 
 string Context::resolve(const Declaration &declaration) const {
@@ -129,11 +192,14 @@ string Context::ask(Prompt definition, string identity, string prompt_type) {
 }
 string Context::prompt(string text, vector<string> choices) {
   PromptDeclaration declaration("question", move(text), move(choices));
+  return prompt(move(declaration.value));
+}
+string Context::prompt(Prompt definition) {
   if (!bindings_)
     throw invalid_argument("Create Prompt: Call From a Template Operation");
   const auto identity = build_identifier("question", {}, bindings_->template_id);
-  declaration.value.mutable_metadata()->set_identifier(identity);
-  return ask(move(declaration.value), identity, {});
+  definition.mutable_metadata()->set_identifier(identity);
+  return ask(move(definition), identity, {});
 }
 string Context::prompt(const PromptDeclaration &declaration) {
   const auto identity = resolve(declaration);

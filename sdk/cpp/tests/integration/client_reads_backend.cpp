@@ -12,6 +12,7 @@
 #include "../support/backend.hpp"
 #include "../support/check.hpp"
 #include "dokime/client.hpp"
+#include "dokime/detail/schemas.hpp"
 #include "dokime/host/v1/evidence.grpc.pb.h"
 #include "dokime/host/v1/executions/schemas.grpc.pb.h"
 #include "dokime/host/v1/plots/snapshots.grpc.pb.h"
@@ -24,10 +25,10 @@
 using dokime::EvidenceScope;
 using dokime::client::EvidenceStatisticsOptions;
 using dokime::client::ExecutionDetail;
-using dokime::client::FrozenSchemaCache;
 using dokime::client::PlotRequest;
 using dokime::client::StatusGetOptions;
 using dokime::client::StatusLogsWatchOptions;
+using dokime::detail::FrozenSchemaCache;
 using dokime::detail::Transport;
 using dokime::host::v1::EvidenceStatisticsRequest;
 using dokime::host::v1::EvidenceStatisticsResponse;
@@ -227,8 +228,10 @@ TEST_CASE("Transport Reads the Backend") {
   ExecutionDetail detail;
   detail.mutable_summary()->set_execution_id("first");
   detail.mutable_schemas()->set_digest(harmos::plugin::detail::sha256(schema_service.types.SerializeAsString()));
-  const auto configure = [](ClientContext &context) {
-    context.AddMetadata("authorization", "Bearer test");
+  const auto configure = [] {
+    auto context = make_shared<ClientContext>();
+    context->AddMetadata("authorization", "Bearer test");
+    return context;
   };
   const auto types = schemas.get(client, detail, configure);
   check(types->file_size() == 2 && types->file(0).name() == "google/protobuf/wrappers.proto" &&

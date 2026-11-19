@@ -13,6 +13,7 @@
 
 # Standard Library Imports
 import argparse
+import re
 import shutil
 import subprocess
 import tempfile
@@ -50,6 +51,13 @@ def project(output: Path) -> None:
     text = text.replace("explicit Client(", "explicit Transport(").replace("static Client connect(", "static Transport connect(")
     text = text.replace("return Client(grpc::", "return Transport(grpc::")
     text = text.replace("} // namespace dokime", "} // namespace detail\n} // namespace dokime")
+    text = text.replace('#include "detail/client.hpp"', '#include "detail/client.hpp"\n#include "dokime/errors.hpp"')
+    text = text.replace("[reader]", "[reader, context]")
+    text = re.sub(
+        r'throw std::runtime_error\("(?:Call|Read) ([^:]+): " \+ status.error_message\(\)\);',
+        r'throw ::dokime::detail::rpc_error("\1", status, *context);',
+        text,
+    )
     client.write_text(text, newline="\n")
 
     messages = output / "sdk/cpp/include/dokime/messages.hpp"

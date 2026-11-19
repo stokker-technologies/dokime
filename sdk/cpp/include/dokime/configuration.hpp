@@ -29,6 +29,9 @@ namespace dokime {
 struct ConnectionSettings {
   std::optional<std::string> remote;
   std::chrono::duration<double> connect_timeout{30};
+  std::optional<std::string> certificate_pem;
+  std::optional<std::string> access_key;
+  std::optional<std::string> expected_backend_id;
 };
 namespace detail::configuration {
 std::map<std::string, std::string> parse(const std::string &content, const std::filesystem::path &path);

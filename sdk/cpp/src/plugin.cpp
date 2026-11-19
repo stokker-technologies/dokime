@@ -202,8 +202,6 @@ Case &Case::criterion(const Criterion &criterion, string label, optional<string>
 } // namespace dokime::templates
 namespace dokime {
 using templates::build_identifier;
-using templates::Case;
-using templates::Context;
 using templates::Declaration;
 using templates::HostOperation;
 using templates::metadata;
@@ -226,7 +224,7 @@ templates::Context Plugin::execution_context(harmos::plugin::Context &transport,
     lock_guard lock(resources->mutex);
     resources->test_case = request.test_case();
   }
-  return Context(transport, request.test_case(), move(item), move(resources), move(bindings), move(plugin));
+  return templates::Context(transport, request.test_case(), move(item), move(resources), move(bindings), move(plugin));
 }
 Plugin::Plugin(string identifier, string version, vector<Suite> suites)
     : identifier_(identifier), version_(version), plugin_(make_shared<dokime::detail::PluginState>()),
@@ -384,7 +382,7 @@ Plugin &Plugin::suite(Suite suite) {
           auto result = test_case;
           *result.mutable_parameters() = request.parameters();
           if (materialize) {
-            Case custom(bindings, steps, criteria);
+            templates::Case custom(bindings, steps, criteria);
             *custom.message.mutable_parameters() = request.parameters();
             *custom.message.mutable_streams() = result.streams();
             materialize(custom, request.parameters());
@@ -430,6 +428,15 @@ Plugin &Plugin::suite(Suite suite) {
   return *this;
 }
 Plugin &Plugin::context_operations() {
+  requires_operation(HostOperation::BackendEnvironment);
+  requires_operation(HostOperation::ContentArtifactsCreate);
+  requires_operation(HostOperation::FilesUploadsCreate);
+  requires_operation(HostOperation::FilesUploadsAppend);
+  requires_operation(HostOperation::FilesUploadsPublish);
+  requires_operation(HostOperation::FilesUploadsDelete);
+  requires_operation(HostOperation::FilesCapture);
+  requires_operation(HostOperation::FilesCapturesStart);
+  requires_operation(HostOperation::FilesCapturesStop);
   requires_operation(HostOperation::PromptsCreate);
   requires_operation(HostOperation::PluginsSettingsList);
   requires_operation(HostOperation::SecretsGet);

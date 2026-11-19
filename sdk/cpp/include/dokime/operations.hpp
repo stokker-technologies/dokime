@@ -27,6 +27,7 @@
 
 namespace dokime {
 class Plugin;
+class Client;
 namespace detail {
 struct PluginState {
   Plugin *plugin = nullptr;
@@ -104,6 +105,7 @@ public:
 
 private:
   friend class dokime::Plugin;
+  friend class dokime::Client;
   template <class A, class B> friend class BoundOperation;
   std::string identifier_;
   Visibility visibility_;
@@ -138,19 +140,23 @@ private:
 };
 template <class Q, class R> class BoundOperation {
 public:
-  BoundOperation(Context &context, OperationValue<Q, R> operation) : context_(context), operation_(std::move(operation)) {}
+  BoundOperation(Context &context, OperationValue<Q, R> operation)
+      : invoke_([context, operation](const Q &request, std::optional<OperationPolicy> policy) mutable {
+          auto selected = operation;
+          if (policy)
+            selected.policy(std::move(*policy));
+          const auto native = selected.native(context.plugin_);
+          const auto result = context.transport_.call(native, templates::detail::pack<Q>(request)).get();
+          return templates::detail::unpack<R>(result);
+        }) {}
   R operator()(const Q &request, std::optional<OperationPolicy> policy = {}) {
-    auto selected = operation_;
-    if (policy)
-      selected.policy(std::move(*policy));
-    const auto native = selected.native(context_.plugin_);
-    const auto result = context_.transport_.call(native, templates::detail::pack<Q>(request)).get();
-    return templates::detail::unpack<R>(result);
+    return invoke_(request, std::move(policy));
   }
 
 private:
-  Context context_;
-  OperationValue<Q, R> operation_;
+  friend class dokime::Client;
+  explicit BoundOperation(std::function<R(const Q &, std::optional<OperationPolicy>)> invoke) : invoke_(std::move(invoke)) {}
+  std::function<R(const Q &, std::optional<OperationPolicy>)> invoke_;
 };
 template <class Q, class R> auto operation(std::string identifier, Visibility visibility, std::function<R(Context &, Q)> handler = {}) {
   return OperationValue<Q, R>(std::move(identifier), visibility, std::move(handler));
