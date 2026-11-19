@@ -6,12 +6,12 @@
         "type": "Direct",
         "requested": "[0.1.0-dev, 0.1.0-dev]",
         "resolved": "0.1.0-dev",
-        "contentHash": "/L0l0jbxO6kqrik6wpqnujejq3XWVpNe1cnsCRduCas3cQbHe09FriVcuKcm1J0euGioNmUR3uhb9VkGpZnD6g==",
+        "contentHash": "QL8vh8limjW1gS9m6U3MxgMxh3F0J9bUl3lVq3czTx8s503GL0KUfwkxn6zV+3U6HEfZtgZf4VwFRF274CgwWg==",
         "dependencies": {
           "Google.Protobuf": "3.36.2",
           "Grpc.AspNetCore": "2.76.0",
           "Grpc.Net.Client": "2.76.0",
-          "Harmos": "0.1.0-dev.e0f4e77860ec"
+          "Harmos": "0.1.0-dev.504877e36bf4"
         }
       },
       "Grpc.Tools": {
@@ -61,8 +61,8 @@
       },
       "Harmos": {
         "type": "Transitive",
-        "resolved": "0.1.0-dev.e0f4e77860ec",
-        "contentHash": "8zIbbPyhZQbGWEp6cS6CUvn23GUphngpGhCXNex8IVSvRTuqK5of0jBOlSGOljtGRTFr6fsFeymrp3BRQbcrzQ==",
+        "resolved": "0.1.0-dev.504877e36bf4",
+        "contentHash": "eH9uct/pAlLPA32H+rlUjsGS9d38liR2bw6sSXQKTkD17kMQsEKAvU0ScvHAfu0Rn6Odf2LTJuDGC3oqSbBThw==",
         "dependencies": {
           "Google.Protobuf": "3.36.2",
           "Grpc.AspNetCore": "2.76.0",
