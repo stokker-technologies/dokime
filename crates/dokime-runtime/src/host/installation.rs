@@ -206,8 +206,14 @@ impl Host {
                 })
                 .await;
             if let Err(error) = result {
-                self.release_unretained_bundle(content).await?;
-                return Err(error.into());
+                let run = error.into();
+                if let Err(close) = self.release_unretained_bundle(content).await {
+                    return Err(Error::Unsettled {
+                        run: Box::new(run),
+                        close: Box::new(close),
+                    });
+                }
+                return Err(run);
             }
             if let Some(content) = installation_content(&entry) {
                 self.release_bundle(content.clone()).await?;
@@ -216,7 +222,12 @@ impl Host {
             let result = self.create_plugin(name.clone(), placement).await;
             if let Err(error) = result {
                 // Create Persists Failed Admissions Too; Keep Their Content and Registry Failure.
-                self.release_unretained_bundle(content).await?;
+                if let Err(close) = self.release_unretained_bundle(content).await {
+                    return Err(Error::Unsettled {
+                        run: Box::new(error),
+                        close: Box::new(close),
+                    });
+                }
                 return Err(error);
             }
         }
