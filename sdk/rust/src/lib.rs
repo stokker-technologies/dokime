@@ -19,10 +19,13 @@ mod wire {
 
 mod authoring;
 pub mod client;
+mod configuration;
 mod context;
 mod data;
 mod error;
+pub mod operations;
 mod payload;
+pub mod templates;
 #[rustfmt::skip]
 mod host;
 mod message;
@@ -35,21 +38,27 @@ mod stream;
 mod suite;
 mod template;
 pub mod testing;
+mod transfers;
 
 /* === Re-Exports === */
 
-pub use ::harmos::OperationRequest;
-pub use client::{Client, ClientSettings};
-pub use context::Context;
+use ::harmos::OperationRequest;
+pub use ::harmos::plugin::Lane;
+pub use client::{
+    Attribution, Case, Client, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect, connect_with,
+};
+pub use client::{RegisteredPlugin, ResultStatus};
+use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
 pub use error::{Error, Result};
 pub use exports::*;
 pub use payload::Payload;
 
-use plugin::Plugin;
+pub use plugin::Plugin;
 use record::Record;
 use stream::{Observer, Stream};
+pub use suite::Suite;
 
 /* === Imports === */
 

@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -34,6 +34,7 @@ use criterion::BenchmarkId;
 use criterion::Criterion;
 use criterion::SamplingMode;
 use criterion::Throughput;
+use harmos_protocol::model::Declarations;
 use prost::Message;
 use prost_types::DescriptorProto;
 use prost_types::FieldDescriptorProto;
@@ -62,8 +63,8 @@ use dokime::Origin;
 use dokime::Summary;
 use dokime::SummaryTile;
 use dokime::Termination;
-use dokime::client::ExecutionOutcome;
 use dokime::model::Section;
+use dokime_client_internal::ExecutionOutcome;
 use dokime_operations::host::documents::{expansion, plot};
 use dokime_operations::host::plots::snapshots::list;
 use dokime_protocol::builders::Plot;
@@ -75,7 +76,6 @@ use dokime_storage::Execution;
 use dokime_storage::NumericWindow;
 use dokime_storage::Sample;
 use dokime_storage::Store;
-use harmos_protocol::model::Declarations;
 use harmos_protocol::model::StreamDeclaration;
 
 /* === Constants === */
@@ -419,7 +419,7 @@ fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
     }
 }
 fn main() {
-    if env::args().any(|argument| argument == "--remote") {
+    if env::var_os("DOKIME_PLUGIN_ADDRESS").is_some() {
         if windows::selected() {
             windows::serve().unwrap();
         } else {

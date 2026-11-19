@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,9 +23,9 @@ from unittest.mock import patch
 # Third Party Imports
 from grpc import ChannelConnectivity, StatusCode
 from grpc.aio import Channel, ServicerContext, UnaryStreamClientInterceptor, UnaryUnaryClientInterceptor, insecure_channel, server
-from harmos import FailureValue
 from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse
 from harmos._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
+from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._connection import connect
@@ -65,7 +65,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(listener.close)
         return f"http://127.0.0.1:{listener.getsockname()[1]}"
 
-    async def listening(self, identity: str, failure: FailureValue | None = None) -> str:
+    async def listening(self, identity: str, failure: Failure | None = None) -> str:
         class Status(StatusServicer):
             async def Get(self, request: StatusGetRequest, context: ServicerContext) -> StatusGetResponse:
                 if failure is not None:
@@ -142,7 +142,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
 
     async def test_connection_failure_preserves_the_remote_classification_and_cause(self) -> None:
-        remote = FailureValue(
+        remote = Failure(
             classification="CLASSIFICATION_REFUSED",
             code="access",
             action="Export a New Pairing",

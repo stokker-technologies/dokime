@@ -22,7 +22,7 @@ use std::num::NonZeroU32;
 
 // Local Imports
 use dokime::PageRequest;
-use dokime::client::ExecutionsListOptions;
+use dokime_client_internal::ExecutionsListOptions;
 
 /* === Constants === */
 

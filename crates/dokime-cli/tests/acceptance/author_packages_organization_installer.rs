@@ -16,13 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{error::Error, fs, time::Duration};
+use std::{env, error::Error, fs, path::PathBuf, time::Duration};
 
 // Third Party Imports
 use serde_json::json;
-use tokio::process::Command;
+use tokio::{process::Command, time};
 
 // Local Imports
+use dokime_packaging::bundle;
 use dokime_runtime::process;
 
 /* === Constants === */
@@ -47,10 +48,11 @@ use dokime_runtime::process;
 
 #[tokio::test]
 async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> {
-    tokio::time::timeout(Duration::from_secs(600), async {
+    time::timeout(Duration::from_secs(600), async {
         // Discover Installer Packaging Without Connecting to a Host.
-        let binary = env!("CARGO_BIN_EXE_dokime");
-        let help = Command::from(process::command(binary))
+        let binary =
+            env::var_os("NEXTEST_BIN_EXE_dokime").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_dokime")));
+        let help = Command::from(process::command(&binary))
             .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
             .kill_on_drop(true)
             .args(["installer", "package", "--help"])
@@ -70,9 +72,9 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
         // Refuse an Incomplete Kit Before Native Tool Invocation or Output Publication.
         fs::write(
             kit.join("distribution.json"),
-            serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":dokime_packaging::bundle::native_target(),"files":{}}))?,
+            serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":bundle::native_target(),"files":{}}))?,
         )?;
-        let refused = Command::from(process::command(binary))
+        let refused = Command::from(process::command(&binary))
             .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
             .kill_on_drop(true)
             .args(["installer", "package", "--manifest"])
@@ -88,7 +90,7 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
         let error = String::from_utf8(refused.stderr)?;
         assert!(error.contains("distribution"), "{error}");
         // Refuse Implicit Signing Before Attempting a Download.
-        let refused = Command::from(process::command(binary))
+        let refused = Command::from(process::command(&binary))
             .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
             .kill_on_drop(true)
             .args(["installer", "package", "--manifest"])

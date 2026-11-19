@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.FilesResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/files/captures.proto</summary>
-  public static partial class CapturesReflection {
+  internal static partial class CapturesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/files/captures.proto</summary>
@@ -367,7 +367,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturesStartResponse : pb::IMessage<CapturesStartResponse>
+  internal sealed partial class CapturesStartResponse : pb::IMessage<CapturesStartResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -763,7 +763,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturesStopResponse : pb::IMessage<CapturesStopResponse>
+  internal sealed partial class CapturesStopResponse : pb::IMessage<CapturesStopResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -976,7 +976,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CaptureMode : pb::IMessage<CaptureMode>
+  internal sealed partial class CaptureMode : pb::IMessage<CaptureMode>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1270,7 +1270,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class StreamCapture : pb::IMessage<StreamCapture>
+  internal sealed partial class StreamCapture : pb::IMessage<StreamCapture>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1483,7 +1483,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class MirrorCapture : pb::IMessage<MirrorCapture>
+  internal sealed partial class MirrorCapture : pb::IMessage<MirrorCapture>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1698,7 +1698,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class LineMatcher : pb::IMessage<LineMatcher>
+  internal sealed partial class LineMatcher : pb::IMessage<LineMatcher>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1959,7 +1959,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class LineField : pb::IMessage<LineField>
+  internal sealed partial class LineField : pb::IMessage<LineField>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2194,7 +2194,7 @@ namespace Dokime.Clients.FilesResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class LineMarker : pb::IMessage<LineMarker>
+  internal sealed partial class LineMarker : pb::IMessage<LineMarker>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

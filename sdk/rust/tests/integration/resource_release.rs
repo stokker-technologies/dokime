@@ -20,7 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use super::support::{TestResult, plugin::Process, resources::ResourceState};
+use super::support::{
+    TestResult,
+    plugin::{Placement, Process},
+};
 use dokime::Origin;
 use dokime::PluginRun;
 use dokime::Termination;
@@ -31,6 +34,7 @@ use dokime::plugin::ExecutionsInitializeRequest;
 use dokime::plugin::ExecutionsInitializeResponse;
 use dokime::plugin::TestCasesMaterializeRequest;
 use dokime::plugin::TestCasesMaterializeResponse;
+use dokime_rust_stories::ResourceState;
 use harmos_protocol::plugin::Window;
 
 /* === Constants === */
@@ -63,7 +67,7 @@ struct ResourceStateColumns {
 #[tokio::test]
 async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read() -> TestResult {
     // Materialize the Resource Fixture Without Allocating Its Device.
-    let mut process = Process::start("dokime-rust-resources", false).await?;
+    let mut process = Process::start("dokime-rust-resources", Placement::Managed).await?;
     let description = process.describe().await?;
     let request = TestCasesMaterializeRequest {
         template: "resources.case".into(),
@@ -131,7 +135,7 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
     assert_eq!(state.dropped, 1);
     drop(grants);
     assert!(samples.message().await?.is_none());
-    process.stop(false).await?;
+    process.stop().await?;
     Ok(())
 }
 

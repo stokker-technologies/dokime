@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{ArchiveScope, CycleFilter, CyclePhase, CycleSelection, CyclesSealOptions, CyclesWatchOptions};
+use dokime_client_internal::{ArchiveScope, CycleFilter, CyclePhase, CycleSelection, CyclesSealOptions, CyclesWatchOptions};
 
 /* === Constants === */
 

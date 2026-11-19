@@ -13,14 +13,14 @@
 
 # Standard Library Imports
 import hashlib
-import io
 import json
 import tarfile
-import tempfile
-import unittest
-import zipfile
+from io import BytesIO
 from pathlib import Path
-from unittest import mock
+from tarfile import TarInfo
+from tempfile import TemporaryDirectory
+from unittest import TestCase, mock
+from zipfile import ZipFile
 
 # isort: split
 
@@ -32,6 +32,7 @@ from unittest import mock
 import dokime_tools.package.run
 from dokime_tools import policy
 from dokime_tools.build import wheel
+from dokime_tools.policy import ToolError
 from dokime_tools.release import (
     registry,
 )
@@ -50,15 +51,15 @@ from .release_downloads_fixtures import SETTINGS
 # === Classes === #
 
 
-class PythonPackagingTests(unittest.TestCase):
+class PythonPackagingTests(TestCase):
     def fixture(self, root: Path) -> Path:
         proto = root / "proto/dokime/host/v1/service.proto"
         proto.parent.mkdir(parents=True)
         proto.write_bytes(b'syntax = "proto3";')
         output = root / "target/build/dev/any/python"
-        output.mkdir(parents=True)
+        output.mkdir(parents=True, exist_ok=True)
         (output / ".gitignore").write_text("*")
-        archive = zipfile.ZipFile(output / "dokime_sdk-0.1.3-py3-none-any.whl", "w")
+        archive = ZipFile(output / "dokime_sdk-0.1.3-py3-none-any.whl", "w")
         try:
             archive.writestr("dokime_sdk-0.1.3.dist-info/METADATA", "Name: dokime-sdk\nVersion: 0.1.3\n")
             archive.writestr("dokime_sdk-0.1.3.dist-info/WHEEL", "Root-Is-Purelib: true\nTag: py3-none-any\n")
@@ -72,13 +73,31 @@ class PythonPackagingTests(unittest.TestCase):
         finally:
             archive.close()
         with tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz") as archive:
-            member = tarfile.TarInfo("dokime_sdk-0.1.3/proto/dokime/host/v1/service.proto")
+            member = TarInfo("dokime_sdk-0.1.3/proto/dokime/host/v1/service.proto")
             member.size = len(proto.read_bytes())
-            archive.addfile(member, io.BytesIO(proto.read_bytes()))
+            archive.addfile(member, BytesIO(proto.read_bytes()))
         return output
 
+    def test_build_rejects_stale_protocol_sources(self) -> None:
+        temporary_directory = TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name)
+
+            def build_distributions(*args: object, **kwargs: object) -> None:
+                self.fixture(root)
+                (root / "proto/dokime/host/v1/service.proto").write_bytes(b"changed")
+
+            with (
+                mock.patch.object(wheel.subprocess, "run", side_effect=build_distributions),
+                mock.patch.object(wheel.policy, "config", return_value={"version": {"value": "0.1.3"}}),
+                self.assertRaises(ToolError),
+            ):
+                wheel.build(root, "dev")
+        finally:
+            temporary_directory.cleanup()
+
     def test_package_copies_shared_pair_without_rebuilding(self) -> None:
-        temporary_directory = tempfile.TemporaryDirectory()
+        temporary_directory = TemporaryDirectory()
         temporary = temporary_directory.name
         try:
             root = Path(temporary).resolve()
@@ -99,14 +118,14 @@ class PythonPackagingTests(unittest.TestCase):
 
     def test_rejects_native_missing_and_stale_protocol_wheels(self) -> None:
         for invalid in ("native", "missing", "stale", "identity", "tag", "source"):
-            temporary_directory = tempfile.TemporaryDirectory()
+            temporary_directory = TemporaryDirectory()
             temporary = temporary_directory.name
             try:
                 with self.subTest(invalid=invalid):
                     root = Path(temporary)
                     output = self.fixture(root)
                     source = output / "dokime_sdk-0.1.3-py3-none-any.whl"
-                    archive = zipfile.ZipFile(source)
+                    archive = ZipFile(source)
                     try:
                         contents = {name: archive.read(name) for name in archive.namelist()}
                     finally:
@@ -122,37 +141,34 @@ class PythonPackagingTests(unittest.TestCase):
                     elif invalid == "tag":
                         contents["dokime_sdk-0.1.3.dist-info/WHEEL"] = b"Root-Is-Purelib: false\nTag: cp313-abi3-win_amd64\n"
                     else:
-                        try:
-                            pass
-                        finally:
-                            tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz").close()
-                    archive = zipfile.ZipFile(source, "w")
+                        tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz").close()
+                    archive = ZipFile(source, "w")
                     try:
                         for name, content in contents.items():
                             archive.writestr(name, content)
                     finally:
                         archive.close()
-                    with self.assertRaises((policy.ToolError, KeyError)):
+                    with self.assertRaises((ToolError, KeyError)):
                         wheel.verify(root, output, "0.1.3")
             finally:
                 temporary_directory.cleanup()
 
     def test_rejects_wrong_version_and_extra_distribution(self) -> None:
-        temporary_directory = tempfile.TemporaryDirectory()
+        temporary_directory = TemporaryDirectory()
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
             output = self.fixture(root)
-            with self.assertRaises(policy.ToolError):
+            with self.assertRaises(ToolError):
                 wheel.distributions(root, output, "0.2.0")
             (output / "dokime-0.1.3-cp313-abi3-win_amd64.whl").write_bytes(b"old")
-            with self.assertRaises(policy.ToolError):
+            with self.assertRaises(ToolError):
                 wheel.distributions(root, output, "0.1.3")
         finally:
             temporary_directory.cleanup()
 
     def test_registry_uploads_pair_once_for_all_targets(self) -> None:
-        temporary_directory = tempfile.TemporaryDirectory()
+        temporary_directory = TemporaryDirectory()
         temporary = temporary_directory.name
         try:
             root = Path(temporary)

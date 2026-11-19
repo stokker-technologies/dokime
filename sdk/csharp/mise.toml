@@ -41,8 +41,9 @@ run = [
 
 [tasks."generate"]
 description = "Verify Frozen C# Generation"
+usage = 'flag "--write"'
 depends = ["prepare:protocol"]
-run = ['uv run --no-sync --project ../../tools/python python tools/generate.py']
+run = ['uv run --no-sync --project ../../tools/python python tools/generate.py{% if usage.write %} --write{% endif %}']
 
 [tasks."build"]
 description = "Build the C# Solution or a Selected Project"
@@ -86,10 +87,11 @@ run = [
 [tasks."build:starter"]
 hide = true
 description = "Build the NuGet Consumer"
-usage = 'flag "--project <project>" default="examples/Test/Test.csproj"'
+usage = 'flag "--project <project>" default="examples/Starter/Example.slnx"'
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore "{{usage.project}}" --configfile NuGet.Config --packages ../../target/cs/packages --force-evaluate',
   '"{{tools.dotnet.path}}/dotnet" build "{{usage.project}}" --configuration {{vars.configuration}} --no-restore',
+  '{% if usage.project == "examples/Starter/Example.slnx" %}"{{tools.dotnet.path}}/dotnet" publish examples/Starter/src/Example.Plugin/Example.Plugin.csproj --configuration {{vars.configuration}} --no-build --output examples/Starter/assets/plugin{% endif %}',
 ]
 
 [tasks."build:system"]
@@ -116,17 +118,17 @@ run = 'python tools/prepare_reference.py'
 [tasks."build:examples"]
 hide = true
 description = "Build the Installed NuGet Examples"
-run = [
-  { task = "build:starter --project examples/Client/Client.csproj" },
-  { task = "build:starter --project examples/Flow/Flow.csproj" },
-  { task = "build:starter --project examples/Plugin/Plugin.csproj" },
-  { task = "build:starter --project examples/Test/Test.csproj" },
-]
+run = [{ task = "build:starter --project examples/Starter/Example.slnx" }]
 
 [tasks."test:starter"]
 hide = true
 description = "Test the Packaged Starter"
 run = ['python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Starter"']
+
+[tasks."test:created"]
+hide = true
+description = "Run the Created C# Project Against Prepared Product Bytes"
+run = 'uv run --no-sync --project ../../tools/python python tools/test_created.py'
 
 [tasks."test:conformance"]
 hide = true
@@ -138,9 +140,7 @@ hide = true
 description = "Clean C# Compiler Outputs"
 run = [
   '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration {{vars.configuration}}',
-  '"{{tools.dotnet.path}}/dotnet" clean examples/Test/Test.csproj --configuration {{vars.configuration}}',
-  '"{{tools.dotnet.path}}/dotnet" clean examples/Client/Client.csproj --configuration {{vars.configuration}}',
-  '"{{tools.dotnet.path}}/dotnet" clean examples/Plugin/Plugin.csproj --configuration {{vars.configuration}}',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Starter/Example.slnx --configuration {{vars.configuration}}',
   '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration {{vars.configuration}}',
 ]
 

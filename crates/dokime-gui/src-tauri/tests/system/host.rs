@@ -16,32 +16,58 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeSet, env, error::Error, fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, env, fs};
+use std::{error::Error, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
-use harmos_protocol::model::{self, Declarations, StreamDeclaration};
+use harmos_protocol::model;
+use harmos_protocol::model::{Declarations, StreamDeclaration};
 use prost::Message;
-use prost_types::FileDescriptorSet;
+use prost_types::{FileDescriptorSet, Timestamp};
 use sha2::{Digest, Sha256};
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 use tonic::Code;
 
 // Local Imports
-
-use dokime_sdk::client::DocumentScope;
-use dokime_sdk::client::PluginPlacement;
-use dokime_sdk::client::PluginRemote;
-use dokime_sdk::client::PluginValue;
-use dokime_sdk::client::PluginsCreateOptions;
-use dokime_sdk::client::plugin_placement;
-use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
-
+use dokime_client_internal::AnswersCreateResponse;
+use dokime_client_internal::CasesCreateResponse;
+use dokime_client_internal::CyclesCreateResponse;
+use dokime_client_internal::DocumentScope;
+use dokime_client_internal::DocumentsGetResponse;
+use dokime_client_internal::ExecutionOutcome;
+use dokime_client_internal::ExecutionState;
+use dokime_client_internal::ExecutionsGetResponse;
+use dokime_client_internal::ExecutionsListResponse;
+use dokime_client_internal::OverviewGetResponse;
+use dokime_client_internal::PlotRequest;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::PluginsCreateOptions;
+use dokime_client_internal::ProgressWatchResponse;
+use dokime_client_internal::PromptsListResponse;
+use dokime_client_internal::RegisteredSelection;
+use dokime_client_internal::ReportSubject;
+use dokime_client_internal::ReportsCreateResponse;
+use dokime_client_internal::ReportsGetResponse;
+use dokime_client_internal::ReportsPublishResponse;
+use dokime_client_internal::SamplesListResponse;
+use dokime_client_internal::SelectionPlan;
+use dokime_client_internal::SnapshotsListResponse;
+use dokime_client_internal::SnapshotsWatchResponse;
+use dokime_client_internal::SuitesGetResponse;
+use dokime_client_internal::SuitesListResponse;
+use dokime_client_internal::document_binding_result;
+use dokime_client_internal::document_frame_frame;
+use dokime_client_internal::plugin_placement;
+use dokime_client_internal::report_subject;
+use dokime_client_internal::{ClientSettings, FrozenSchemaCache};
+use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 use dokime_gui::connection::host::{self, Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::{test_support, testing};
-use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::DocumentsGetRequest;
@@ -65,10 +91,8 @@ use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_protocol::host::{DocumentsWatchRequest, DocumentsWatchResponse};
-use dokime_runtime::{
-    CaptureSettings, ControlledClock, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, PluginProcess, services,
-    storage_defaults,
-};
+use dokime_protocol::model::Suite;
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 use dokime_sdk::CapturedRecordSelection;
 use dokime_sdk::Downsample;
 use dokime_sdk::EvidenceScope;
@@ -79,40 +103,12 @@ use dokime_sdk::Import;
 use dokime_sdk::Metadata;
 use dokime_sdk::Origin;
 use dokime_sdk::RecordsListResponse;
-use dokime_sdk::Termination;
-use dokime_sdk::client::AnswersCreateResponse;
-use dokime_sdk::client::CasesCreateResponse;
-use dokime_sdk::client::CyclesCreateResponse;
-use dokime_sdk::client::DocumentsGetResponse;
-use dokime_sdk::client::ExecutionOutcome;
-use dokime_sdk::client::ExecutionState;
-use dokime_sdk::client::ExecutionsGetResponse;
-use dokime_sdk::client::ExecutionsListResponse;
-use dokime_sdk::client::OverviewGetResponse;
-use dokime_sdk::client::PlotRequest;
-use dokime_sdk::client::ProgressWatchResponse;
-use dokime_sdk::client::PromptsListResponse;
-use dokime_sdk::client::RegisteredSelection;
-use dokime_sdk::client::ReportSubject;
-use dokime_sdk::client::ReportsCreateResponse;
-use dokime_sdk::client::ReportsGetResponse;
-use dokime_sdk::client::ReportsPublishResponse;
-use dokime_sdk::client::SamplesListResponse;
-use dokime_sdk::client::SelectionPlan;
-use dokime_sdk::client::SnapshotsListResponse;
-use dokime_sdk::client::SnapshotsWatchResponse;
-use dokime_sdk::client::SuitesGetResponse;
-use dokime_sdk::client::SuitesListResponse;
-use dokime_sdk::client::document_frame_frame;
-use dokime_sdk::client::report_subject;
-use dokime_sdk::value;
-use dokime_sdk::{card, origin};
-
 use dokime_sdk::StorageTransferSettings;
-use dokime_sdk::client::document_binding_result;
-use dokime_sdk::client::{ClientSettings, FrozenSchemaCache};
+use dokime_sdk::Termination;
 use dokime_sdk::model::Section;
-use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Suite, Suites, TestCaseTemplate};
+use dokime_sdk::value;
+use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Suites, TestCaseTemplate};
+use dokime_sdk::{card, origin};
 use dokime_storage::{Execution, Sample, Store};
 
 /* === Constants === */
@@ -136,16 +132,15 @@ use dokime_storage::{Execution, Sample, Store};
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
-            installation: None,
             credentials: test_support::credentials(),
-            capture: CaptureSettings::default(),
+            capture: dokime_runtime::CaptureSettings::default(),
             clock: Arc::new(ControlledClock::new(0)),
             storage: storage_defaults(),
             placement: PlacementSettings {
                 reconnect_delay: Duration::from_millis(25),
                 stream_window: NonZeroUsize::new(8).unwrap(),
-                interval_window: INTERVAL_WINDOW,
-                interval_lag: INTERVAL_LAG,
+                interval_window: dokime_runtime::INTERVAL_WINDOW,
+                interval_lag: dokime_runtime::INTERVAL_LAG,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             },
         },
@@ -215,7 +210,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             ..Default::default()
         };
         let catalog = Declarations {
-            types: Some(FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?),
+            types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
             streams: vec![StreamDeclaration {
                 id: "wave".into(),
                 row: "dokime.host.v1.plots.PlotDomain".into(),
@@ -262,7 +257,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
         store.sample_batch("long", &samples)?;
         store.close_streams("long")?;
         store.close("long", Termination::Completed, ExecutionOutcome::default())?;
-        store.seal("long", Default::default())?;
+        store.seal("long", Timestamp::default())?;
         drop(store);
 
         // Assemble the Entire Document Without Rendering Invisible Plot Payloads.

@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.PlotsResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/plots/snapshots.proto</summary>
-  public static partial class SnapshotsReflection {
+  internal static partial class SnapshotsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/plots/snapshots.proto</summary>
@@ -282,13 +282,13 @@ namespace Dokime.Clients.PlotsResources;
 
   }
   #region Enums
-  public enum PlotCartesianMode {
+  internal enum PlotCartesianMode {
     [pbr::OriginalName("PLOT_CARTESIAN_MODE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("PLOT_CARTESIAN_MODE_ALIGNED")] Aligned = 1,
     [pbr::OriginalName("PLOT_CARTESIAN_MODE_FACETED")] Faceted = 2,
   }
 
-  public enum PlotStreamKind {
+  internal enum PlotStreamKind {
     [pbr::OriginalName("PLOT_STREAM_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("PLOT_STREAM_KIND_SNAPSHOT")] Snapshot = 1,
     [pbr::OriginalName("PLOT_STREAM_KIND_REPLACE")] Replace = 2,
@@ -580,7 +580,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SnapshotsListResponse : pb::IMessage<SnapshotsListResponse>
+  internal sealed partial class SnapshotsListResponse : pb::IMessage<SnapshotsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1129,7 +1129,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SnapshotsWatchResponse : pb::IMessage<SnapshotsWatchResponse>
+  internal sealed partial class SnapshotsWatchResponse : pb::IMessage<SnapshotsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1445,7 +1445,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ContourGrid : pb::IMessage<ContourGrid>
+  internal sealed partial class ContourGrid : pb::IMessage<ContourGrid>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1792,7 +1792,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class GridCell : pb::IMessage<GridCell>
+  internal sealed partial class GridCell : pb::IMessage<GridCell>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2064,7 +2064,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class GridFrame : pb::IMessage<GridFrame>
+  internal sealed partial class GridFrame : pb::IMessage<GridFrame>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2344,7 +2344,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class GridFrames : pb::IMessage<GridFrames>
+  internal sealed partial class GridFrames : pb::IMessage<GridFrames>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2620,7 +2620,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NullableNumber : pb::IMessage<NullableNumber>
+  internal sealed partial class NullableNumber : pb::IMessage<NullableNumber>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2835,7 +2835,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotAnalysis : pb::IMessage<PlotAnalysis>
+  internal sealed partial class PlotAnalysis : pb::IMessage<PlotAnalysis>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3042,7 +3042,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotAnalysisError : pb::IMessage<PlotAnalysisError>
+  internal sealed partial class PlotAnalysisError : pb::IMessage<PlotAnalysisError>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3240,7 +3240,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotAnalysisResult : pb::IMessage<PlotAnalysisResult>
+  internal sealed partial class PlotAnalysisResult : pb::IMessage<PlotAnalysisResult>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3746,7 +3746,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotBoxSummary : pb::IMessage<PlotBoxSummary>
+  internal sealed partial class PlotBoxSummary : pb::IMessage<PlotBoxSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4350,7 +4350,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotBoxSummaryAnalysis : pb::IMessage<PlotBoxSummaryAnalysis>
+  internal sealed partial class PlotBoxSummaryAnalysis : pb::IMessage<PlotBoxSummaryAnalysis>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4574,7 +4574,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotColumn : pb::IMessage<PlotColumn>
+  internal sealed partial class PlotColumn : pb::IMessage<PlotColumn>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4865,7 +4865,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotDomain : pb::IMessage<PlotDomain>
+  internal sealed partial class PlotDomain : pb::IMessage<PlotDomain>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5100,7 +5100,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotEnvelope : pb::IMessage<PlotEnvelope>
+  internal sealed partial class PlotEnvelope : pb::IMessage<PlotEnvelope>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5527,7 +5527,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotFrame : pb::IMessage<PlotFrame>
+  internal sealed partial class PlotFrame : pb::IMessage<PlotFrame>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5962,7 +5962,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotHistogramAnalysis : pb::IMessage<PlotHistogramAnalysis>
+  internal sealed partial class PlotHistogramAnalysis : pb::IMessage<PlotHistogramAnalysis>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6149,7 +6149,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotHistogramBin : pb::IMessage<PlotHistogramBin>
+  internal sealed partial class PlotHistogramBin : pb::IMessage<PlotHistogramBin>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6421,7 +6421,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotHistogramSeries : pb::IMessage<PlotHistogramSeries>
+  internal sealed partial class PlotHistogramSeries : pb::IMessage<PlotHistogramSeries>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6728,7 +6728,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotHistogramStatistics : pb::IMessage<PlotHistogramStatistics>
+  internal sealed partial class PlotHistogramStatistics : pb::IMessage<PlotHistogramStatistics>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7147,7 +7147,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotMarker : pb::IMessage<PlotMarker>
+  internal sealed partial class PlotMarker : pb::IMessage<PlotMarker>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7465,7 +7465,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotPayload : pb::IMessage<PlotPayload>
+  internal sealed partial class PlotPayload : pb::IMessage<PlotPayload>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -8369,7 +8369,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotPayloadDiagnostics : pb::IMessage<PlotPayloadDiagnostics>
+  internal sealed partial class PlotPayloadDiagnostics : pb::IMessage<PlotPayloadDiagnostics>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -8843,7 +8843,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotSeries : pb::IMessage<PlotSeries>
+  internal sealed partial class PlotSeries : pb::IMessage<PlotSeries>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -9249,7 +9249,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotSeriesSummary : pb::IMessage<PlotSeriesSummary>
+  internal sealed partial class PlotSeriesSummary : pb::IMessage<PlotSeriesSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -9820,7 +9820,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotSigmaBin : pb::IMessage<PlotSigmaBin>
+  internal sealed partial class PlotSigmaBin : pb::IMessage<PlotSigmaBin>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10166,7 +10166,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotSigmaIntervalAnalysis : pb::IMessage<PlotSigmaIntervalAnalysis>
+  internal sealed partial class PlotSigmaIntervalAnalysis : pb::IMessage<PlotSigmaIntervalAnalysis>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10353,7 +10353,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotSigmaSeries : pb::IMessage<PlotSigmaSeries>
+  internal sealed partial class PlotSigmaSeries : pb::IMessage<PlotSigmaSeries>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10614,7 +10614,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotStreamUpdate : pb::IMessage<PlotStreamUpdate>
+  internal sealed partial class PlotStreamUpdate : pb::IMessage<PlotStreamUpdate>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10858,7 +10858,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotRequest : pb::IMessage<PlotRequest>
+  internal sealed partial class PlotRequest : pb::IMessage<PlotRequest>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -12695,7 +12695,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotWindow : pb::IMessage<PlotWindow>
+  internal sealed partial class PlotWindow : pb::IMessage<PlotWindow>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

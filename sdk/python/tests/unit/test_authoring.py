@@ -24,7 +24,7 @@ from unittest.mock import Mock, patch
 # Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
-from dokime_sdk import Plugin, Scalar, Suite
+from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, Visibility, operation
 from dokime_sdk.templates import Document, Materialization, Section, TestTemplate, criterion, materialize, record, step
 
@@ -62,6 +62,31 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_lanes_preserve_declarations_and_operation_assignments(self) -> None:
+        instrument = Lane("instrument", serial=True)
+
+        @operation("example.measure", lane=instrument)
+        async def measure(ctx: dokime_sdk.operations.Context, value: float) -> float:
+            return value
+
+        class LanePlugin(Plugin):
+            version = "1.0.0"
+            lanes = [instrument]
+            operations = [measure]
+
+        declarations = LanePlugin().declarations()
+        self.assertEqual(len(declarations.lanes), 1)
+        self.assertEqual(declarations.lanes[0].name, "instrument")
+        self.assertTrue(declarations.lanes[0].serial)
+        selected = next(item for item in declarations.operations if item.id == "example.measure")
+        self.assertEqual(selected.lane, "instrument")
+
+        class MissingLanePlugin(Plugin):
+            version = "1.0.0"
+            operations = [measure]
+
+        self.assertRaises(ValueError, MissingLanePlugin)
+
     def test_plugin_version_uses_owning_editable_metadata_or_explicit_override(self) -> None:
         class InstalledPlugin(Plugin):
             pass

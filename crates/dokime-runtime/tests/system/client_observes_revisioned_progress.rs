@@ -29,18 +29,18 @@ use tonic::transport::Endpoint;
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
-use dokime::Client;
 use dokime::MapValue;
 use dokime::Metadata;
-use dokime::client::CyclesCreateOptions;
-use dokime::client::ExecutionsGetOptions;
-use dokime::client::ExecutionsListOptions;
-use dokime::client::ExecutionsProgressGetOptions;
-use dokime::client::ExecutionsProgressWatchOptions;
-use dokime::client::ExecutionsSealOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
+use dokime_client_internal::Client;
+use dokime_client_internal::CyclesCreateOptions;
+use dokime_client_internal::ExecutionsGetOptions;
+use dokime_client_internal::ExecutionsListOptions;
+use dokime_client_internal::ExecutionsProgressGetOptions;
+use dokime_client_internal::ExecutionsProgressWatchOptions;
+use dokime_client_internal::ExecutionsSealOptions;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_runtime::PluginProcess;
 

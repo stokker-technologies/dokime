@@ -17,7 +17,9 @@
 
 // Standard Library Imports
 use std::{
+    any::Any,
     collections::HashMap,
+    fmt, mem, process,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -107,6 +109,7 @@ pub struct Sample<T> {
 
 pub(crate) struct Selected {
     pub plugin: String,
+    pub state: Arc<dyn Any + Send + Sync>,
     pub template: Parts,
     pub prompts: Vec<crate::wire::model::Prompt>,
     pub requirements: Vec<&'static str>,
@@ -136,6 +139,7 @@ struct Sampled {
 }
 
 struct Memory {
+    plugin_state: Arc<dyn Any + Send + Sync>,
     me: Weak<Memory>,
     execution: Arc<Execution>,
     requirements: Vec<&'static str>,
@@ -210,6 +214,7 @@ impl Harness {
     pub async fn run(self) -> Result<Report> {
         let Selected {
             plugin,
+            state: plugin_state,
             template,
             prompts,
             requirements,
@@ -273,6 +278,7 @@ impl Harness {
         let due_ns = observers.iter().map(|(_, interval_ns)| self.origin_ns.saturating_add(*interval_ns)).collect();
         let sequences = vec![0; observers.len()];
         let host = Arc::new_cyclic(|me| Memory {
+            plugin_state,
             me: me.clone(),
             execution: execution.clone(),
             requirements,
@@ -343,9 +349,15 @@ impl Harness {
                 }
             }
         }
-        let mut termination = if failure.is_none() { Termination::Completed } else { Termination::Failed };
-        // Cleanup Runs Once Initialization Succeeded, With the Execution's Termination.
-        if initialized && let Some(cleanup) = &cleanup {
+        let mut termination = match &failure {
+            None => Termination::Completed,
+            Some(Error::Harmos(harmos::Error::Failure(failure))) if failure.classification == Classification::Cancelled as i32 => {
+                Termination::Cancelled
+            }
+            Some(_) => Termination::Failed,
+        };
+        // Cleanup Follows Attempted Initialization and Retains Its Partial State.
+        if let Some(cleanup) = &cleanup {
             let context = host.context("", 1).with_termination(termination as i32)?;
             if let Err(error) = cleanup.execute(&context).await {
                 termination = Termination::Interrupted;
@@ -353,7 +365,7 @@ impl Harness {
             }
         }
         execution.clear()?;
-        let state = std::mem::take(&mut *host.state.lock().map_err(|_| poisoned())?);
+        let state = mem::take(&mut *host.state.lock().map_err(|_| poisoned())?);
         Ok(Report {
             termination,
             failure,
@@ -413,8 +425,8 @@ impl Report {
     }
 }
 
-impl std::fmt::Debug for Report {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Report {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("Report")
             .field("termination", &self.termination)
@@ -435,7 +447,7 @@ impl Memory {
             state.step = step.into();
         }
         let host: Arc<dyn LocalHost> = self.me.upgrade().expect("Testing Host Outlives Its Contexts");
-        Context::local(Local { host, scope: EXECUTION.into(), attempt }, self.execution.clone())
+        Context::local(Local { host, scope: EXECUTION.into(), attempt }, self.execution.clone(), self.plugin_state.clone())
     }
 
     // Advance Virtual Time; Before the Wait Settles, Each Observer Answers One Window of Every Sample Due by Its End.
@@ -467,6 +479,7 @@ impl Memory {
                     attempt: 1,
                 },
                 self.execution.clone(),
+                self.plugin_state.clone(),
             );
             let window = Window {
                 start: timestamp(first),
@@ -510,7 +523,7 @@ impl Memory {
                 BackendEnvironmentRequest::decode(request.as_slice()).map_err(decode)?;
                 let in_step = !self.state.lock().map_err(|_| poisoned())?.step.is_empty();
                 Ok(BackendEnvironmentResponse {
-                    backend_pid: std::process::id(),
+                    backend_pid: process::id(),
                     in_step,
                     resolved_at: None,
                 }
@@ -765,7 +778,7 @@ fn timestamp_ns(at: &Timestamp) -> i64 {
     at.seconds.saturating_mul(1_000_000_000).saturating_add(i64::from(at.nanos))
 }
 
-fn decode(error: impl std::fmt::Display) -> Error {
+fn decode(error: impl fmt::Display) -> Error {
     Error::Invalid(format!("Testing Host: {error}"))
 }
 
@@ -774,3 +787,44 @@ fn poisoned() -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use super::Harness;
+    use crate::templates::{Context, Step, Template};
+    use crate::{Classification, Error, Plugin, Result, Suite, Termination};
+
+    #[tokio::test]
+    async fn failed_and_cancelled_initialization_clean_up_partial_state_once() -> Result<()> {
+        for cancelled in [false, true] {
+            let observed = Arc::new(Mutex::new(Vec::new()));
+            let cleanup_observed = observed.clone();
+            let template = Template::of::<()>()
+                .identifier("partial")
+                .initialize(async move |context: &Context| {
+                    context.set(37_u32);
+                    if cancelled {
+                        return Err(Error::failure(Classification::Cancelled, "cancelled", "Initialization Cancelled", "Run Again"));
+                    }
+                    Err(Error::Invalid("Initialize: Connect the Device".into()))
+                })
+                .step(
+                    Step::new("Unreachable", async |_: &Context| panic!("A Failed Initialization Cannot Run Steps"))
+                        .identifier("unreachable"),
+                )
+                .cleanup(async move |context: &Context| {
+                    cleanup_observed.lock().unwrap().push((*context.get::<u32>()?, context.termination()));
+                    Ok(())
+                });
+            let plugin = Plugin::of::<()>("1.0.0").suite(Suite::of::<()>().identifier("fixture").template(template));
+            let report = Harness::new(plugin, "fixture.partial").run().await?;
+            let termination = if cancelled { Termination::Cancelled } else { Termination::Failed };
+            assert_eq!(report.termination(), termination);
+            assert!(report.failure().is_some());
+            assert_eq!(*observed.lock().unwrap(), [(37, Some(termination))]);
+        }
+        Ok(())
+    }
+}

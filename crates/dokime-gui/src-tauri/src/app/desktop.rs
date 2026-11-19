@@ -41,7 +41,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
 use crate::rpc::protocol;
-use dokime_sdk::client::AccessListenerGetOptions;
+use dokime_client_internal::AccessListenerGetOptions;
 
 /* === Constants === */
 
@@ -327,7 +327,7 @@ pub async fn desktop_pairing_create(
 pub async fn create_remote_access(
     client: &crate::connection::host::Session, label: String, enable: bool,
 ) -> Result<crate::connection::host::Pairing, crate::Error> {
-    use dokime_sdk::client::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions};
+    use dokime_client_internal::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions};
     if enable {
         let current =
             client.execute(client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? })).await?;

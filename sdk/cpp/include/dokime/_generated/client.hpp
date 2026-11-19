@@ -1,6 +1,7 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
 #include "detail/client.hpp"
+#include "dokime/errors.hpp"
 #include "dokime/messages.hpp"
 #include "harmos/client_transport.hpp"
 #include "harmos/messages.hpp"
@@ -520,6 +521,7 @@ struct PluginsWatchOptions {
 };
 struct PluginsCreateOptions {
   std::optional<std::string> request_id;
+  std::optional<std::string> origin;
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct PluginsSetOptions {
@@ -587,7 +589,7 @@ struct AccessCertificatesResource {
     detail::packages::harmos::host::access::CertificatesCreateResponse response;
     const auto status = detail::packages::harmos::host::access::Certificates::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call access.certificates.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("access.certificates.create", status, *context);
     }
     return response.certificate_pem();
   }
@@ -601,7 +603,7 @@ struct AccessListenerResource {
     detail::packages::harmos::host::access::ListenerGetResponse response;
     const auto status = detail::packages::harmos::host::access::Listener::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call access.listener.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("access.listener.get", status, *context);
     }
     return response;
   }
@@ -614,7 +616,7 @@ struct AccessListenerResource {
     detail::packages::harmos::host::access::ListenerSetResponse response;
     const auto status = detail::packages::harmos::host::access::Listener::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call access.listener.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("access.listener.set", status, *context);
     }
     return response;
   }
@@ -629,7 +631,7 @@ struct AccessPairingsResource {
     detail::packages::harmos::host::access::PairingsCreateResponse response;
     const auto status = detail::packages::harmos::host::access::Pairings::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call access.pairings.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("access.pairings.create", status, *context);
     }
     return response;
   }
@@ -642,7 +644,7 @@ struct AccessPairingsResource {
     detail::packages::harmos::host::access::PairingsListResponse response;
     const auto status = detail::packages::harmos::host::access::Pairings::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call access.pairings.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("access.pairings.list", status, *context);
     }
     return response;
   }
@@ -653,7 +655,7 @@ struct AccessPairingsResource {
     detail::packages::harmos::host::access::PairingsDeleteResponse response;
     const auto status = detail::packages::harmos::host::access::Pairings::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call access.pairings.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("access.pairings.delete", status, *context);
     }
     return response;
   }
@@ -670,7 +672,7 @@ struct BackendOverviewResource {
     detail::packages::dokime::host::backend::OverviewGetResponse response;
     const auto status = detail::packages::dokime::host::backend::Overview::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call backend.overview.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("backend.overview.get", status, *context);
     }
     return response;
   }
@@ -682,12 +684,12 @@ struct BackendOverviewResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::backend::OverviewWatchResponse>>(
         detail::packages::dokime::host::backend::Overview::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::OverviewWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::OverviewWatchResponse> {
               detail::packages::dokime::host::backend::OverviewWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read backend.overview.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("backend.overview.watch", status, *context);
                 }
                 return {};
               }
@@ -708,7 +710,7 @@ struct ContentArtifactsResource {
     detail::packages::dokime::host::content::ArtifactsGetResponse response;
     const auto status = detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call content.artifacts.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("content.artifacts.get", status, *context);
     }
     return response;
   }
@@ -729,7 +731,7 @@ struct ContentArtifactsResource {
     detail::packages::dokime::host::content::ArtifactsCreateResponse response;
     const auto status = detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call content.artifacts.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("content.artifacts.create", status, *context);
     }
     return response;
   }
@@ -746,7 +748,7 @@ struct ContentArtifactsResource {
     detail::packages::dokime::host::content::ArtifactsListResponse response;
     const auto status = detail::packages::dokime::host::content::Artifacts::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call content.artifacts.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("content.artifacts.list", status, *context);
     }
     return response;
   }
@@ -763,12 +765,12 @@ struct ContentArtifactsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::content::ArtifactsWatchResponse>>(
         detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ArtifactsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::ArtifactsWatchResponse> {
               detail::packages::dokime::host::content::ArtifactsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read content.artifacts.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("content.artifacts.watch", status, *context);
                 }
                 return {};
               }
@@ -791,7 +793,7 @@ struct ContentExecutionFilesResource {
     detail::packages::dokime::host::content::ExecutionFilesGetResponse response;
     const auto status = detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call content.execution_files.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("content.execution_files.get", status, *context);
     }
     return response;
   }
@@ -808,7 +810,7 @@ struct ContentExecutionFilesResource {
     detail::packages::dokime::host::content::ExecutionFilesListResponse response;
     const auto status = detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call content.execution_files.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("content.execution_files.list", status, *context);
     }
     return response;
   }
@@ -825,12 +827,12 @@ struct ContentExecutionFilesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::content::ExecutionFilesWatchResponse>>(
         detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ExecutionFilesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::ExecutionFilesWatchResponse> {
               detail::packages::dokime::host::content::ExecutionFilesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read content.execution_files.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("content.execution_files.watch", status, *context);
                 }
                 return {};
               }
@@ -855,7 +857,7 @@ struct EvidenceHealthEventsResource {
     detail::packages::dokime::host::evidence::HealthEventsListResponse response;
     const auto status = detail::packages::dokime::host::evidence::HealthEvents::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.health_events.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.health_events.list", status, *context);
     }
     return response;
   }
@@ -872,12 +874,12 @@ struct EvidenceHealthEventsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::HealthEventsWatchResponse>>(
         detail::packages::dokime::host::evidence::HealthEvents::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::HealthEventsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::HealthEventsWatchResponse> {
               detail::packages::dokime::host::evidence::HealthEventsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read evidence.health_events.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("evidence.health_events.watch", status, *context);
                 }
                 return {};
               }
@@ -898,7 +900,7 @@ struct EvidenceNotesResource {
     detail::packages::dokime::host::evidence::NotesGetResponse response;
     const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.notes.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.notes.get", status, *context);
     }
     return response;
   }
@@ -913,7 +915,7 @@ struct EvidenceNotesResource {
     detail::packages::dokime::host::evidence::NotesSetResponse response;
     const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.notes.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.notes.set", status, *context);
     }
     return response;
   }
@@ -931,7 +933,7 @@ struct EvidenceNotesResource {
     detail::packages::dokime::host::evidence::NotesListResponse response;
     const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.notes.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.notes.list", status, *context);
     }
     return response;
   }
@@ -948,12 +950,12 @@ struct EvidenceNotesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::NotesWatchResponse>>(
         detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::NotesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::NotesWatchResponse> {
               detail::packages::dokime::host::evidence::NotesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read evidence.notes.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("evidence.notes.watch", status, *context);
                 }
                 return {};
               }
@@ -970,7 +972,7 @@ struct EvidenceNotesResource {
     detail::packages::dokime::host::evidence::NotesCreateResponse response;
     const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.notes.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.notes.create", status, *context);
     }
     return response;
   }
@@ -1000,7 +1002,7 @@ struct EvidenceRecordsResource {
     detail::packages::dokime::host::evidence::RecordsListResponse response;
     const auto status = detail::packages::dokime::host::evidence::Records::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.records.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.records.list", status, *context);
     }
     return response;
   }
@@ -1025,12 +1027,12 @@ struct EvidenceRecordsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::RecordsWatchResponse>>(
         detail::packages::dokime::host::evidence::Records::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::RecordsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::RecordsWatchResponse> {
               detail::packages::dokime::host::evidence::RecordsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read evidence.records.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("evidence.records.watch", status, *context);
                 }
                 return {};
               }
@@ -1066,7 +1068,7 @@ struct EvidenceSamplesResource {
     detail::packages::dokime::host::evidence::SamplesListResponse response;
     const auto status = detail::packages::dokime::host::evidence::Samples::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.samples.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.samples.list", status, *context);
     }
     return response;
   }
@@ -1094,12 +1096,12 @@ struct EvidenceSamplesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::SamplesWatchResponse>>(
         detail::packages::dokime::host::evidence::Samples::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::SamplesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::SamplesWatchResponse> {
               detail::packages::dokime::host::evidence::SamplesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read evidence.samples.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("evidence.samples.watch", status, *context);
                 }
                 return {};
               }
@@ -1128,7 +1130,7 @@ struct EvidenceTraceabilityResource {
     detail::packages::dokime::host::evidence::TraceabilityGetResponse response;
     const auto status = detail::packages::dokime::host::evidence::Traceability::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.traceability.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.traceability.get", status, *context);
     }
     return response;
   }
@@ -1145,12 +1147,12 @@ struct EvidenceTraceabilityResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::TraceabilityWatchResponse>>(
         detail::packages::dokime::host::evidence::Traceability::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::TraceabilityWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::TraceabilityWatchResponse> {
               detail::packages::dokime::host::evidence::TraceabilityWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read evidence.traceability.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("evidence.traceability.watch", status, *context);
                 }
                 return {};
               }
@@ -1173,7 +1175,7 @@ struct ExecutionsCommandsResource {
     detail::packages::dokime::host::executions::CommandsGetResponse response;
     const auto status = detail::packages::dokime::host::executions::Commands::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.commands.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.commands.get", status, *context);
     }
     return response;
   }
@@ -1192,7 +1194,7 @@ struct ExecutionsCommandsResource {
     detail::packages::dokime::host::executions::CommandsCreateResponse response;
     const auto status = detail::packages::dokime::host::executions::Commands::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.commands.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.commands.create", status, *context);
     }
     return response;
   }
@@ -1212,7 +1214,7 @@ struct ExecutionsProgressResource {
     detail::packages::dokime::host::executions::ProgressGetResponse response;
     const auto status = detail::packages::dokime::host::executions::Progress::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.progress.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.progress.get", status, *context);
     }
     return response;
   }
@@ -1226,12 +1228,12 @@ struct ExecutionsProgressResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::executions::ProgressWatchResponse>>(
         detail::packages::dokime::host::executions::Progress::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ProgressWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::ProgressWatchResponse> {
               detail::packages::dokime::host::executions::ProgressWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read executions.progress.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("executions.progress.watch", status, *context);
                 }
                 return {};
               }
@@ -1255,7 +1257,7 @@ struct ExecutionsSchemasResource {
     detail::packages::dokime::host::executions::SchemasGetResponse response;
     const auto status = detail::packages::dokime::host::executions::Schemas::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.schemas.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.schemas.get", status, *context);
     }
     return response;
   }
@@ -1271,7 +1273,7 @@ struct FilesUploadsResource {
     detail::packages::dokime::host::files::UploadsCreateResponse response;
     const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.uploads.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.uploads.create", status, *context);
     }
     return response;
   }
@@ -1285,7 +1287,7 @@ struct FilesUploadsResource {
     detail::packages::dokime::host::files::UploadsGetResponse response;
     const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.uploads.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.uploads.get", status, *context);
     }
     return response;
   }
@@ -1297,7 +1299,7 @@ struct FilesUploadsResource {
     detail::packages::dokime::host::files::UploadsResumeResponse response;
     const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Resume(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.uploads.resume: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.uploads.resume", status, *context);
     }
     return response;
   }
@@ -1312,7 +1314,7 @@ struct FilesUploadsResource {
     detail::packages::dokime::host::files::UploadsAppendResponse response;
     const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Append(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.uploads.append: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.uploads.append", status, *context);
     }
     return response;
   }
@@ -1327,7 +1329,7 @@ struct FilesUploadsResource {
     detail::packages::dokime::host::files::UploadsPublishResponse response;
     const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Publish(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.uploads.publish: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.uploads.publish", status, *context);
     }
     return response;
   }
@@ -1339,7 +1341,7 @@ struct FilesUploadsResource {
     detail::packages::dokime::host::files::UploadsDeleteResponse response;
     const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.uploads.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.uploads.delete", status, *context);
     }
     return response;
   }
@@ -1371,7 +1373,7 @@ struct MediaCapturesResource {
     detail::packages::dokime::host::media::CapturesCreateResponse response;
     const auto status = detail::packages::dokime::host::media::Captures::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call media.captures.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("media.captures.create", status, *context);
     }
     return response;
   }
@@ -1385,7 +1387,7 @@ struct MediaCapturesResource {
     detail::packages::dokime::host::media::CapturesGetResponse response;
     const auto status = detail::packages::dokime::host::media::Captures::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call media.captures.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("media.captures.get", status, *context);
     }
     return response;
   }
@@ -1399,12 +1401,12 @@ struct MediaCapturesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::media::CapturesWatchResponse>>(
         detail::packages::dokime::host::media::Captures::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::CapturesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::CapturesWatchResponse> {
               detail::packages::dokime::host::media::CapturesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read media.captures.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("media.captures.watch", status, *context);
                 }
                 return {};
               }
@@ -1419,7 +1421,7 @@ struct MediaCapturesResource {
     detail::packages::dokime::host::media::CapturesStopResponse response;
     const auto status = detail::packages::dokime::host::media::Captures::NewStub(channel)->Stop(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call media.captures.stop: " + status.error_message());
+      throw ::dokime::detail::rpc_error("media.captures.stop", status, *context);
     }
     return response;
   }
@@ -1440,7 +1442,7 @@ struct PlotsSettingsResource {
     detail::packages::dokime::host::plots::SettingsGetResponse response;
     const auto status = detail::packages::dokime::host::plots::Settings::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plots.settings.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plots.settings.get", status, *context);
     }
     return response;
   }
@@ -1459,7 +1461,7 @@ struct PlotsSettingsResource {
     detail::packages::dokime::host::plots::SettingsSetResponse response;
     const auto status = detail::packages::dokime::host::plots::Settings::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plots.settings.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plots.settings.set", status, *context);
     }
     return response;
   }
@@ -1481,7 +1483,7 @@ struct PlotsSnapshotsResource {
     detail::packages::dokime::host::plots::SnapshotsListResponse response;
     const auto status = detail::packages::dokime::host::plots::Snapshots::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plots.snapshots.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plots.snapshots.list", status, *context);
     }
     return response;
   }
@@ -1498,12 +1500,12 @@ struct PlotsSnapshotsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::plots::SnapshotsWatchResponse>>(
         detail::packages::dokime::host::plots::Snapshots::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::SnapshotsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::SnapshotsWatchResponse> {
               detail::packages::dokime::host::plots::SnapshotsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read plots.snapshots.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("plots.snapshots.watch", status, *context);
                 }
                 return {};
               }
@@ -1526,7 +1528,7 @@ struct PluginsSecretsResource {
     detail::packages::dokime::host::plugins::SecretsListResponse response;
     const auto status = detail::packages::dokime::host::plugins::Secrets::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.secrets.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.secrets.list", status, *context);
     }
     return response;
   }
@@ -1544,7 +1546,7 @@ struct PluginsSettingsResource {
     detail::packages::harmos::host::plugins::SettingsListResponse response;
     const auto status = detail::packages::harmos::host::plugins::Settings::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.settings.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.settings.list", status, *context);
     }
     return response;
   }
@@ -1559,7 +1561,7 @@ struct PluginsSettingsResource {
     detail::packages::harmos::host::plugins::SettingsSetResponse response;
     const auto status = detail::packages::harmos::host::plugins::Settings::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.settings.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.settings.set", status, *context);
     }
     return response;
   }
@@ -1579,7 +1581,7 @@ struct PromptsAnswersResource {
     detail::packages::dokime::host::prompts::AnswersCreateResponse response;
     const auto status = detail::packages::dokime::host::prompts::Answers::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call prompts.answers.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("prompts.answers.create", status, *context);
     }
     return response;
   }
@@ -1597,7 +1599,7 @@ struct StatusDiagnosticsResource {
     detail::packages::harmos::host::status::DiagnosticsGetResponse response;
     const auto status = detail::packages::harmos::host::status::Diagnostics::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call status.diagnostics.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("status.diagnostics.get", status, *context);
     }
     return response;
   }
@@ -1617,7 +1619,7 @@ struct StatusLogsResource {
     detail::packages::harmos::host::status::LogsListResponse response;
     const auto status = detail::packages::harmos::host::status::Logs::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call status.logs.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("status.logs.list", status, *context);
     }
     return response;
   }
@@ -1632,12 +1634,12 @@ struct StatusLogsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::status::LogsWatchResponse>>(
         detail::packages::harmos::host::status::Logs::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::harmos::client::LogsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::harmos::client::LogsWatchResponse> {
               detail::packages::harmos::host::status::LogsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read status.logs.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("status.logs.watch", status, *context);
                 }
                 return {};
               }
@@ -1660,7 +1662,7 @@ struct StatusTraceEventsResource {
     detail::packages::harmos::host::status::TraceEventsListResponse response;
     const auto status = detail::packages::harmos::host::status::TraceEvents::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call status.trace_events.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("status.trace_events.list", status, *context);
     }
     return response;
   }
@@ -1675,12 +1677,12 @@ struct StatusTraceEventsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::status::TraceEventsWatchResponse>>(
         detail::packages::harmos::host::status::TraceEvents::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::harmos::client::TraceEventsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::harmos::client::TraceEventsWatchResponse> {
               detail::packages::harmos::host::status::TraceEventsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read status.trace_events.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("status.trace_events.watch", status, *context);
                 }
                 return {};
               }
@@ -1700,7 +1702,7 @@ struct StorageSourcesResource {
     detail::packages::dokime::host::storage::SourcesGetResponse response;
     const auto status = detail::packages::dokime::host::storage::Sources::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call storage.sources.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("storage.sources.get", status, *context);
     }
     return response;
   }
@@ -1714,7 +1716,7 @@ struct StorageSourcesResource {
     detail::packages::dokime::host::storage::SourcesSetResponse response;
     const auto status = detail::packages::dokime::host::storage::Sources::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call storage.sources.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("storage.sources.set", status, *context);
     }
     return response;
   }
@@ -1747,7 +1749,7 @@ struct AggregatesResource {
     detail::packages::dokime::host::AggregatesGetResponse response;
     const auto status = detail::packages::dokime::host::Aggregates::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call aggregates.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("aggregates.get", status, *context);
     }
     return response;
   }
@@ -1765,7 +1767,7 @@ struct BackendResource {
     detail::packages::dokime::host::BackendAppearanceResponse response;
     const auto status = detail::packages::dokime::host::Backend::NewStub(channel)->Appearance(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call backend.appearance: " + status.error_message());
+      throw ::dokime::detail::rpc_error("backend.appearance", status, *context);
     }
     return response;
   }
@@ -1783,7 +1785,7 @@ struct CasesResource {
     detail::packages::dokime::host::CasesCreateResponse response;
     const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cases.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cases.create", status, *context);
     }
     return response;
   }
@@ -1798,7 +1800,7 @@ struct CasesResource {
     detail::packages::dokime::host::CasesGetResponse response;
     const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cases.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cases.get", status, *context);
     }
     return response;
   }
@@ -1812,7 +1814,7 @@ struct CasesResource {
     detail::packages::dokime::host::CasesListResponse response;
     const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cases.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cases.list", status, *context);
     }
     return response;
   }
@@ -1825,12 +1827,12 @@ struct CasesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::CasesWatchResponse>>(
         detail::packages::dokime::host::Cases::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::CasesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::CasesWatchResponse> {
               detail::packages::dokime::host::CasesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read cases.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("cases.watch", status, *context);
                 }
                 return {};
               }
@@ -1846,7 +1848,7 @@ struct CasesResource {
     detail::packages::dokime::host::CasesDeleteResponse response;
     const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cases.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cases.delete", status, *context);
     }
     if (!response.has_receipt()) {
       throw std::runtime_error("Read cases.delete: Missing Payload");
@@ -1865,7 +1867,7 @@ struct CasesResource {
     detail::packages::dokime::host::CasesParametersResponse response;
     const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Parameters(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cases.parameters: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cases.parameters", status, *context);
     }
     return response;
   }
@@ -1888,7 +1890,7 @@ struct CyclesResource {
     detail::packages::dokime::host::CyclesGetResponse response;
     const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cycles.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cycles.get", status, *context);
     }
     return response;
   }
@@ -1903,7 +1905,7 @@ struct CyclesResource {
     detail::packages::dokime::host::CyclesSetResponse response;
     const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cycles.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cycles.set", status, *context);
     }
     return response;
   }
@@ -1923,7 +1925,7 @@ struct CyclesResource {
     detail::packages::dokime::host::CyclesListResponse response;
     const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cycles.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cycles.list", status, *context);
     }
     return response;
   }
@@ -1944,12 +1946,12 @@ struct CyclesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::CyclesWatchResponse>>(
         detail::packages::dokime::host::Cycles::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::CyclesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::CyclesWatchResponse> {
               detail::packages::dokime::host::CyclesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read cycles.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("cycles.watch", status, *context);
                 }
                 return {};
               }
@@ -1969,7 +1971,7 @@ struct CyclesResource {
     detail::packages::dokime::host::CyclesCreateResponse response;
     const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cycles.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cycles.create", status, *context);
     }
     return response;
   }
@@ -1981,7 +1983,7 @@ struct CyclesResource {
     detail::packages::dokime::host::CyclesSealResponse response;
     const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Seal(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call cycles.seal: " + status.error_message());
+      throw ::dokime::detail::rpc_error("cycles.seal", status, *context);
     }
     return response;
   }
@@ -2008,7 +2010,7 @@ struct DocumentsResource {
     detail::packages::dokime::host::DocumentsGetResponse response;
     const auto status = detail::packages::dokime::host::Documents::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call documents.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("documents.get", status, *context);
     }
     return response;
   }
@@ -2030,12 +2032,12 @@ struct DocumentsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::DocumentsWatchResponse>>(
         detail::packages::dokime::host::Documents::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::DocumentsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::DocumentsWatchResponse> {
               detail::packages::dokime::host::DocumentsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read documents.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("documents.watch", status, *context);
                 }
                 return {};
               }
@@ -2074,7 +2076,7 @@ struct EvidenceResource {
     detail::packages::dokime::host::EvidenceStatisticsResponse response;
     const auto status = detail::packages::dokime::host::Evidence::NewStub(channel)->Statistics(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.statistics: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.statistics", status, *context);
     }
     return response;
   }
@@ -2089,7 +2091,7 @@ struct EvidenceResource {
     detail::packages::dokime::host::EvidenceArchiveResponse response;
     const auto status = detail::packages::dokime::host::Evidence::NewStub(channel)->Archive(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call evidence.archive: " + status.error_message());
+      throw ::dokime::detail::rpc_error("evidence.archive", status, *context);
     }
     return response;
   }
@@ -2111,7 +2113,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsGetResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.get", status, *context);
     }
     return response;
   }
@@ -2126,7 +2128,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsSetResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.set", status, *context);
     }
     return response;
   }
@@ -2148,7 +2150,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsListResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.list", status, *context);
     }
     return response;
   }
@@ -2169,12 +2171,12 @@ struct ExecutionsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::ExecutionsWatchResponse>>(
         detail::packages::dokime::host::Executions::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ExecutionsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::ExecutionsWatchResponse> {
               detail::packages::dokime::host::ExecutionsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read executions.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("executions.watch", status, *context);
                 }
                 return {};
               }
@@ -2192,7 +2194,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsCreateResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.create", status, *context);
     }
     return response;
   }
@@ -2206,7 +2208,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsStartResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Start(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.start: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.start", status, *context);
     }
     return response;
   }
@@ -2218,7 +2220,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsStopResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Stop(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.stop: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.stop", status, *context);
     }
     return response;
   }
@@ -2230,7 +2232,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsCancelResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Cancel(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.cancel: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.cancel", status, *context);
     }
     return response;
   }
@@ -2242,7 +2244,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsSealResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Seal(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.seal: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.seal", status, *context);
     }
     return response;
   }
@@ -2254,7 +2256,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsDeleteResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.delete", status, *context);
     }
     return response;
   }
@@ -2271,7 +2273,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsParametersResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Parameters(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.parameters: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.parameters", status, *context);
     }
     return response;
   }
@@ -2285,7 +2287,7 @@ struct ExecutionsResource {
     detail::packages::dokime::host::ExecutionsStepsResponse response;
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Steps(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call executions.steps: " + status.error_message());
+      throw ::dokime::detail::rpc_error("executions.steps", status, *context);
     }
     return response;
   }
@@ -2304,7 +2306,7 @@ struct FilesResource {
     detail::packages::dokime::host::FilesGetResponse response;
     const auto status = detail::packages::dokime::host::Files::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.get", status, *context);
     }
     return response;
   }
@@ -2321,7 +2323,7 @@ struct FilesResource {
     detail::packages::dokime::host::FilesReadResponse response;
     const auto status = detail::packages::dokime::host::Files::NewStub(channel)->Read(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.read: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.read", status, *context);
     }
     return response;
   }
@@ -2340,12 +2342,12 @@ struct FilesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::FilesWatchResponse>>(
         detail::packages::dokime::host::Files::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::FilesWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::FilesWatchResponse> {
               detail::packages::dokime::host::FilesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read files.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("files.watch", status, *context);
                 }
                 return {};
               }
@@ -2360,7 +2362,7 @@ struct FilesResource {
     detail::packages::dokime::host::FilesDeleteResponse response;
     const auto status = detail::packages::dokime::host::Files::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call files.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("files.delete", status, *context);
     }
     if (!response.has_receipt()) {
       throw std::runtime_error("Read files.delete: Missing Payload");
@@ -2381,7 +2383,7 @@ struct InvocationsResource {
     detail::packages::harmos::host::InvocationsCreateResponse response;
     const auto status = detail::packages::harmos::host::Invocations::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call invocations.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("invocations.create", status, *context);
     }
     return response.payload();
   }
@@ -2392,7 +2394,7 @@ struct InvocationsResource {
     detail::packages::harmos::host::InvocationsGetResponse response;
     const auto status = detail::packages::harmos::host::Invocations::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call invocations.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("invocations.get", status, *context);
     }
     if (!response.has_invocation()) {
       throw std::runtime_error("Read invocations.get: Missing Payload");
@@ -2407,7 +2409,7 @@ struct InvocationsResource {
     detail::packages::harmos::host::InvocationsCancelResponse response;
     const auto status = detail::packages::harmos::host::Invocations::NewStub(channel)->Cancel(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call invocations.cancel: " + status.error_message());
+      throw ::dokime::detail::rpc_error("invocations.cancel", status, *context);
     }
     if (!response.has_invocation()) {
       throw std::runtime_error("Read invocations.cancel: Missing Payload");
@@ -2420,12 +2422,12 @@ struct InvocationsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::InvocationsWatchResponse>>(
         detail::packages::harmos::host::Invocations::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::harmos::InstanceState> {
+    return {context, [reader, context]() -> std::optional<::harmos::InstanceState> {
               detail::packages::harmos::host::InvocationsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read invocations.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("invocations.watch", status, *context);
                 }
                 return {};
               }
@@ -2449,7 +2451,7 @@ struct OperationsResource {
     detail::packages::harmos::host::OperationsListResponse response;
     const auto status = detail::packages::harmos::host::Operations::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call operations.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("operations.list", status, *context);
     }
     return std::vector<::harmos::DiscoveredOperation>(response.operations().begin(), response.operations().end());
   }
@@ -2460,7 +2462,7 @@ struct OperationsResource {
     detail::packages::harmos::host::OperationsGetResponse response;
     const auto status = detail::packages::harmos::host::Operations::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call operations.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("operations.get", status, *context);
     }
     if (!response.has_operation()) {
       throw std::runtime_error("Read operations.get: Missing Payload");
@@ -2489,7 +2491,7 @@ struct PluginsResource {
     detail::packages::harmos::host::PluginsGetResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.get", status, *context);
     }
     return response;
   }
@@ -2502,7 +2504,7 @@ struct PluginsResource {
     detail::packages::harmos::host::PluginsListResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.list", status, *context);
     }
     return response;
   }
@@ -2517,12 +2519,12 @@ struct PluginsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::PluginsWatchResponse>>(
         detail::packages::harmos::host::Plugins::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::harmos::client::PluginsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::harmos::client::PluginsWatchResponse> {
               detail::packages::harmos::host::PluginsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read plugins.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("plugins.watch", status, *context);
                 }
                 return {};
               }
@@ -2536,11 +2538,14 @@ struct PluginsResource {
     request.set_name(name);
     *request.mutable_placement() = placement;
     *request.mutable_value() = value;
+    if (options.origin) {
+      request.set_origin(*options.origin);
+    }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     detail::packages::harmos::host::PluginsCreateResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.create", status, *context);
     }
     return response;
   }
@@ -2554,7 +2559,7 @@ struct PluginsResource {
     detail::packages::harmos::host::PluginsSetResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.set", status, *context);
     }
     return response;
   }
@@ -2566,7 +2571,7 @@ struct PluginsResource {
     detail::packages::harmos::host::PluginsDeleteResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.delete", status, *context);
     }
     if (!response.has_receipt()) {
       throw std::runtime_error("Read plugins.delete: Missing Payload");
@@ -2582,7 +2587,7 @@ struct PluginsResource {
     detail::packages::harmos::host::PluginsRestartResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Restart(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.restart: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.restart", status, *context);
     }
     if (!response.has_entry()) {
       throw std::runtime_error("Read plugins.restart: Missing Payload");
@@ -2600,7 +2605,7 @@ struct PluginsResource {
     detail::packages::harmos::host::PluginsReplaceResponse response;
     const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Replace(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call plugins.replace: " + status.error_message());
+      throw ::dokime::detail::rpc_error("plugins.replace", status, *context);
     }
     return response;
   }
@@ -2622,7 +2627,7 @@ struct PromptDefinitionsResource {
     detail::packages::dokime::host::PromptDefinitionsGetResponse response;
     const auto status = detail::packages::dokime::host::PromptDefinitions::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call prompt_definitions.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("prompt_definitions.get", status, *context);
     }
     return response;
   }
@@ -2636,7 +2641,7 @@ struct PromptDefinitionsResource {
     detail::packages::dokime::host::PromptDefinitionsListResponse response;
     const auto status = detail::packages::dokime::host::PromptDefinitions::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call prompt_definitions.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("prompt_definitions.list", status, *context);
     }
     return response;
   }
@@ -2655,7 +2660,7 @@ struct PromptsResource {
     detail::packages::dokime::host::PromptsGetResponse response;
     const auto status = detail::packages::dokime::host::Prompts::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call prompts.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("prompts.get", status, *context);
     }
     return response;
   }
@@ -2679,7 +2684,7 @@ struct PromptsResource {
     detail::packages::dokime::host::PromptsListResponse response;
     const auto status = detail::packages::dokime::host::Prompts::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call prompts.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("prompts.list", status, *context);
     }
     return response;
   }
@@ -2703,12 +2708,12 @@ struct PromptsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::PromptsWatchResponse>>(
         detail::packages::dokime::host::Prompts::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::PromptsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::PromptsWatchResponse> {
               detail::packages::dokime::host::PromptsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read prompts.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("prompts.watch", status, *context);
                 }
                 return {};
               }
@@ -2732,7 +2737,7 @@ struct RecordSchemasResource {
     detail::packages::dokime::host::RecordSchemasGetResponse response;
     const auto status = detail::packages::dokime::host::RecordSchemas::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call record_schemas.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("record_schemas.get", status, *context);
     }
     return response;
   }
@@ -2746,7 +2751,7 @@ struct RecordSchemasResource {
     detail::packages::dokime::host::RecordSchemasListResponse response;
     const auto status = detail::packages::dokime::host::RecordSchemas::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call record_schemas.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("record_schemas.list", status, *context);
     }
     return response;
   }
@@ -2766,7 +2771,7 @@ struct ReportsResource {
     detail::packages::dokime::host::ReportsGetResponse response;
     const auto status = detail::packages::dokime::host::Reports::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call reports.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("reports.get", status, *context);
     }
     return response;
   }
@@ -2780,7 +2785,7 @@ struct ReportsResource {
     detail::packages::dokime::host::ReportsCreateResponse response;
     const auto status = detail::packages::dokime::host::Reports::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call reports.create: " + status.error_message());
+      throw ::dokime::detail::rpc_error("reports.create", status, *context);
     }
     return response;
   }
@@ -2795,7 +2800,7 @@ struct ReportsResource {
     detail::packages::dokime::host::ReportsPublishResponse response;
     const auto status = detail::packages::dokime::host::Reports::NewStub(channel)->Publish(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call reports.publish: " + status.error_message());
+      throw ::dokime::detail::rpc_error("reports.publish", status, *context);
     }
     return response;
   }
@@ -2812,7 +2817,7 @@ struct SchemasResource {
     detail::packages::harmos::host::SchemasListResponse response;
     const auto status = detail::packages::harmos::host::Schemas::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call schemas.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("schemas.list", status, *context);
     }
     return std::vector<::harmos::client::SchemaDescription>(response.schemas().begin(), response.schemas().end());
   }
@@ -2830,7 +2835,7 @@ struct SecretsResource {
     detail::packages::dokime::host::SecretsGetResponse response;
     const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call secrets.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("secrets.get", status, *context);
     }
     return response;
   }
@@ -2845,7 +2850,7 @@ struct SecretsResource {
     detail::packages::dokime::host::SecretsSetResponse response;
     const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call secrets.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("secrets.set", status, *context);
     }
     return response;
   }
@@ -2858,7 +2863,7 @@ struct SecretsResource {
     detail::packages::dokime::host::SecretsListResponse response;
     const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call secrets.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("secrets.list", status, *context);
     }
     return response;
   }
@@ -2870,12 +2875,12 @@ struct SecretsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::SecretsWatchResponse>>(
         detail::packages::dokime::host::Secrets::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::SecretsWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::dokime::client::SecretsWatchResponse> {
               detail::packages::dokime::host::SecretsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read secrets.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("secrets.watch", status, *context);
                 }
                 return {};
               }
@@ -2892,7 +2897,7 @@ struct SecretsResource {
     detail::packages::dokime::host::SecretsDeleteResponse response;
     const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call secrets.delete: " + status.error_message());
+      throw ::dokime::detail::rpc_error("secrets.delete", status, *context);
     }
     return response;
   }
@@ -2908,7 +2913,7 @@ struct SecretsResource {
     detail::packages::dokime::host::SecretsExportResponse response;
     const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Export(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call secrets.export: " + status.error_message());
+      throw ::dokime::detail::rpc_error("secrets.export", status, *context);
     }
     return response;
   }
@@ -2925,7 +2930,7 @@ struct SecretsResource {
     detail::packages::dokime::host::SecretsImportResponse response;
     const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Import(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call secrets.import: " + status.error_message());
+      throw ::dokime::detail::rpc_error("secrets.import", status, *context);
     }
     return response;
   }
@@ -2942,7 +2947,7 @@ struct SettingsResource {
     detail::packages::dokime::host::SettingsGetResponse response;
     const auto status = detail::packages::dokime::host::Settings::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call settings.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("settings.get", status, *context);
     }
     return response;
   }
@@ -2956,7 +2961,7 @@ struct SettingsResource {
     detail::packages::dokime::host::SettingsSetResponse response;
     const auto status = detail::packages::dokime::host::Settings::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call settings.set: " + status.error_message());
+      throw ::dokime::detail::rpc_error("settings.set", status, *context);
     }
     return response;
   }
@@ -2969,7 +2974,7 @@ struct SettingsResource {
     detail::packages::dokime::host::SettingsSchemaResponse response;
     const auto status = detail::packages::dokime::host::Settings::NewStub(channel)->Schema(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call settings.schema: " + status.error_message());
+      throw ::dokime::detail::rpc_error("settings.schema", status, *context);
     }
     return response;
   }
@@ -2987,7 +2992,7 @@ struct StatusResource {
     detail::packages::harmos::host::StatusGetResponse response;
     const auto status = detail::packages::harmos::host::Status::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call status.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("status.get", status, *context);
     }
     return response;
   }
@@ -2999,12 +3004,12 @@ struct StatusResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::StatusWatchResponse>>(
         detail::packages::harmos::host::Status::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::harmos::client::StatusWatchResponse> {
+    return {context, [reader, context]() -> std::optional<::harmos::client::StatusWatchResponse> {
               detail::packages::harmos::host::StatusWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
-                  throw std::runtime_error("Read status.watch: " + status.error_message());
+                  throw ::dokime::detail::rpc_error("status.watch", status, *context);
                 }
                 return {};
               }
@@ -3032,7 +3037,7 @@ struct StreamSchemasResource {
     detail::packages::dokime::host::StreamSchemasGetResponse response;
     const auto status = detail::packages::dokime::host::StreamSchemas::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call stream_schemas.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("stream_schemas.get", status, *context);
     }
     return response;
   }
@@ -3046,7 +3051,7 @@ struct StreamSchemasResource {
     detail::packages::dokime::host::StreamSchemasListResponse response;
     const auto status = detail::packages::dokime::host::StreamSchemas::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call stream_schemas.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("stream_schemas.list", status, *context);
     }
     return response;
   }
@@ -3063,7 +3068,7 @@ struct StreamsResource {
     detail::packages::harmos::host::StreamsListResponse response;
     const auto status = detail::packages::harmos::host::Streams::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call streams.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("streams.list", status, *context);
     }
     return std::vector<::harmos::client::StreamIdentity>(response.streams().begin(), response.streams().end());
   }
@@ -3084,7 +3089,7 @@ struct SuitesResource {
     detail::packages::dokime::host::SuitesGetResponse response;
     const auto status = detail::packages::dokime::host::Suites::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call suites.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("suites.get", status, *context);
     }
     return response;
   }
@@ -3098,7 +3103,7 @@ struct SuitesResource {
     detail::packages::dokime::host::SuitesListResponse response;
     const auto status = detail::packages::dokime::host::Suites::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call suites.list: " + status.error_message());
+      throw ::dokime::detail::rpc_error("suites.list", status, *context);
     }
     return response;
   }
@@ -3112,7 +3117,7 @@ struct TimeResource {
     detail::packages::harmos::host::TimeGetResponse response;
     const auto status = detail::packages::harmos::host::Time::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call time.get: " + status.error_message());
+      throw ::dokime::detail::rpc_error("time.get", status, *context);
     }
     if (!response.has_now()) {
       throw std::runtime_error("Read time.get: Missing Payload");
@@ -3126,12 +3131,13 @@ struct TimeResource {
     detail::packages::harmos::host::TimeSleepResponse response;
     const auto status = detail::packages::harmos::host::Time::NewStub(channel)->Sleep(context.get(), request, &response);
     if (!status.ok()) {
-      throw std::runtime_error("Call time.sleep: " + status.error_message());
+      throw ::dokime::detail::rpc_error("time.sleep", status, *context);
     }
     return response;
   }
 };
-struct Client {
+namespace detail {
+struct Transport {
   AccessResource access;
   AggregatesResource aggregates;
   BackendResource backend;
@@ -3160,15 +3166,15 @@ struct Client {
   StreamsResource streams;
   SuitesResource suites;
   TimeResource time;
-  explicit Client(std::shared_ptr<grpc::Channel> channel_value)
+  explicit Transport(std::shared_ptr<grpc::Channel> channel_value)
       : access(channel_value), aggregates(channel_value), backend(channel_value), cases(channel_value), content(channel_value),
         cycles(channel_value), documents(channel_value), evidence(channel_value), executions(channel_value), files(channel_value),
         invocations(channel_value), media(channel_value), operations(channel_value), plots(channel_value), plugins(channel_value),
         prompt_definitions(channel_value), prompts(channel_value), record_schemas(channel_value), reports(channel_value),
         schemas(channel_value), secrets(channel_value), settings(channel_value), status(channel_value), storage(channel_value),
         stream_schemas(channel_value), streams(channel_value), suites(channel_value), time(channel_value) {}
-  static Client connect(std::string address, const ::harmos::StorageTransferSettings &transfer = {},
-                        std::optional<int> message_bytes = {}) {
+  static Transport connect(std::string address, const ::harmos::StorageTransferSettings &transfer = {},
+                           std::optional<int> message_bytes = {}) {
     const auto maximum = ::harmos::transfer_message_bytes(transfer, message_bytes);
     grpc::ChannelArguments arguments;
     arguments.SetMaxSendMessageSize(maximum);
@@ -3176,7 +3182,8 @@ struct Client {
     if (address.starts_with("http://")) {
       address.erase(0, 7);
     }
-    return Client(grpc::CreateCustomChannel(address, grpc::InsecureChannelCredentials(), arguments));
+    return Transport(grpc::CreateCustomChannel(address, grpc::InsecureChannelCredentials(), arguments));
   }
 };
+} // namespace detail
 } // namespace dokime

@@ -3,6 +3,10 @@
 `dokime-sdk` provides typed plugin declarations and async clients for a running
 Dokime host. It requires Python 3.13 or later. Resources close explicitly.
 
+## Operation Lanes
+
+`Lane` is re-exported by `dokime_sdk`. Declare `instrument = Lane("instrument", serial=True)`, list it in the plugin class's `lanes = [instrument]`, and select it with `@operation("example.measure", lane=instrument)`. `Lane("workers", concurrent=4)` bounds concurrency; `Lane("independent")` is unbounded. The library validates declarations and rejects an operation whose lane the plugin does not declare.
+
 ## Public Homes
 
 ```python
@@ -98,3 +102,11 @@ and tracked. Regenerate through the generation tasks; never edit them by hand.
 Repository host stories live in `tests/system/`; their shared host support lives
 in `tests/support/`. They require prepared host fixtures and are not shipped in
 the starter. Installed-wheel and cross-language stories remain repository proof.
+
+## Plugin Lifecycle
+
+Override `async def initialize(self, ctx: dokime_sdk.operations.Context) -> None`
+and `async def finalize(self, ctx: dokime_sdk.operations.Context) -> None` on the
+plugin class. The SDK encodes protected `<plugin>.initialize` and
+`<plugin>.finalize` operations with empty payloads. Both contexts expose the author
+instance through `ctx.plugin`; template initialize/cleanup retain execution scope.

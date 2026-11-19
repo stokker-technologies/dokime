@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/cycles.proto</summary>
-  public static partial class CyclesReflection {
+  internal static partial class CyclesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/cycles.proto</summary>
@@ -166,7 +166,7 @@ namespace Dokime.Clients;
             "bFJlc3BvbnNlIgTI8xgBQhGqAg5Eb2tpbWUuQ2xpZW50c2IGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.EvidenceReflection.Descriptor, global::Dokime.ExecutionReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Google.Protobuf.WellKnownTypes.TimestampReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FailureReflection.Descriptor, global::Harmos.FileReflection.Descriptor, global::Harmos.PageReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
-          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Clients.CycleOrderKey), typeof(global::Dokime.Clients.ArchiveScope), typeof(global::Dokime.Clients.CyclePhase), typeof(global::Dokime.Clients.CycleStatus), typeof(global::Dokime.Clients.ResultStatus), }, null, new pbr::GeneratedClrTypeInfo[] {
+          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Clients.CycleOrderKey), typeof(global::Dokime.Clients.ArchiveScope), typeof(global::Dokime.Clients.CyclePhase), typeof(global::Dokime.Clients.CycleStatus), typeof(global::Dokime.ResultStatus), }, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CyclesGetRequest), global::Dokime.Clients.CyclesGetRequest.Parser, new[]{ "Name", "At" }, new[]{ "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CyclesGetResponse), global::Dokime.Clients.CyclesGetResponse.Parser, new[]{ "Value", "Revision", "Cycle", "ResolvedAt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CyclesSetRequest), global::Dokime.Clients.CyclesSetRequest.Parser, new[]{ "Name", "Value", "ExpectedRevision", "RequestId" }, null, null, null, null),
@@ -192,21 +192,21 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum CycleOrderKey {
+  internal enum CycleOrderKey {
     [pbr::OriginalName("CYCLE_ORDER_KEY_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("CYCLE_ORDER_KEY_UPDATED_AT")] UpdatedAt = 1,
     [pbr::OriginalName("CYCLE_ORDER_KEY_CREATED_AT")] CreatedAt = 2,
     [pbr::OriginalName("CYCLE_ORDER_KEY_LABEL")] Label = 3,
   }
 
-  public enum ArchiveScope {
+  internal enum ArchiveScope {
     [pbr::OriginalName("ARCHIVE_SCOPE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("ARCHIVE_SCOPE_UNARCHIVED")] Unarchived = 1,
     [pbr::OriginalName("ARCHIVE_SCOPE_ARCHIVED")] Archived = 2,
     [pbr::OriginalName("ARCHIVE_SCOPE_ALL")] All = 3,
   }
 
-  public enum CyclePhase {
+  internal enum CyclePhase {
     [pbr::OriginalName("CYCLE_PHASE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("CYCLE_PHASE_ACTIVE")] Active = 1,
     [pbr::OriginalName("CYCLE_PHASE_SEALING")] Sealing = 2,
@@ -214,7 +214,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("CYCLE_PHASE_SEAL_FAILED")] SealFailed = 4,
   }
 
-  public enum CycleStatus {
+  internal enum CycleStatus {
     [pbr::OriginalName("CYCLE_STATUS_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("CYCLE_STATUS_READY")] Ready = 1,
     [pbr::OriginalName("CYCLE_STATUS_RUNNING")] Running = 2,
@@ -226,14 +226,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("CYCLE_STATUS_STOPPED")] Stopped = 8,
   }
 
-  public enum ResultStatus {
-    [pbr::OriginalName("RESULT_STATUS_UNSPECIFIED")] Unspecified = 0,
-    [pbr::OriginalName("RESULT_STATUS_PENDING")] Pending = 1,
-    [pbr::OriginalName("RESULT_STATUS_PASSED")] Passed = 2,
-    [pbr::OriginalName("RESULT_STATUS_FAILED")] Failed = 3,
-    [pbr::OriginalName("RESULT_STATUS_BLOCKED")] Blocked = 4,
-    [pbr::OriginalName("RESULT_STATUS_CANCELLED")] Cancelled = 5,
-  }
+
 
   #endregion
 
@@ -483,7 +476,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CyclesGetResponse : pb::IMessage<CyclesGetResponse>
+  internal sealed partial class CyclesGetResponse : pb::IMessage<CyclesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1137,7 +1130,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CyclesSetResponse : pb::IMessage<CyclesSetResponse>
+  internal sealed partial class CyclesSetResponse : pb::IMessage<CyclesSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1818,7 +1811,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CyclesListResponse : pb::IMessage<CyclesListResponse>
+  internal sealed partial class CyclesListResponse : pb::IMessage<CyclesListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2479,7 +2472,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CyclesWatchResponse : pb::IMessage<CyclesWatchResponse>
+  internal sealed partial class CyclesWatchResponse : pb::IMessage<CyclesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3139,7 +3132,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CyclesCreateResponse : pb::IMessage<CyclesCreateResponse>
+  internal sealed partial class CyclesCreateResponse : pb::IMessage<CyclesCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3679,7 +3672,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CyclesSealResponse : pb::IMessage<CyclesSealResponse>
+  internal sealed partial class CyclesSealResponse : pb::IMessage<CyclesSealResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3969,7 +3962,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CycleFilter : pb::IMessage<CycleFilter>
+  internal sealed partial class CycleFilter : pb::IMessage<CycleFilter>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4341,7 +4334,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CycleOrder : pb::IMessage<CycleOrder>
+  internal sealed partial class CycleOrder : pb::IMessage<CycleOrder>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4576,7 +4569,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CycleSelection : pb::IMessage<CycleSelection>
+  internal sealed partial class CycleSelection : pb::IMessage<CycleSelection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4919,7 +4912,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RerunCaseNotice : pb::IMessage<RerunCaseNotice>
+  internal sealed partial class RerunCaseNotice : pb::IMessage<RerunCaseNotice>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5191,7 +5184,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CycleWritable : pb::IMessage<CycleWritable>
+  internal sealed partial class CycleWritable : pb::IMessage<CycleWritable>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5500,7 +5493,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CycleSummary : pb::IMessage<CycleSummary>
+  internal sealed partial class CycleSummary : pb::IMessage<CycleSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6501,7 +6494,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ResultSummary : pb::IMessage<ResultSummary>
+  internal sealed partial class ResultSummary : pb::IMessage<ResultSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6553,10 +6546,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "status" field.</summary>
     public const int StatusFieldNumber = 1;
-    private global::Dokime.Clients.ResultStatus status_ = global::Dokime.Clients.ResultStatus.Unspecified;
+    private global::Dokime.ResultStatus status_ = global::Dokime.ResultStatus.Unspecified;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.Clients.ResultStatus Status {
+    public global::Dokime.ResultStatus Status {
       get { return status_; }
       set {
         status_ = value;
@@ -6664,7 +6657,7 @@ namespace Dokime.Clients;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override int GetHashCode() {
       int hash = 1;
-      if (Status != global::Dokime.Clients.ResultStatus.Unspecified) hash ^= Status.GetHashCode();
+      if (Status != global::Dokime.ResultStatus.Unspecified) hash ^= Status.GetHashCode();
       if (Passed != 0) hash ^= Passed.GetHashCode();
       if (Failed != 0) hash ^= Failed.GetHashCode();
       if (Blocked != 0) hash ^= Blocked.GetHashCode();
@@ -6689,7 +6682,7 @@ namespace Dokime.Clients;
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      if (Status != global::Dokime.Clients.ResultStatus.Unspecified) {
+      if (Status != global::Dokime.ResultStatus.Unspecified) {
         output.WriteRawTag(8);
         output.WriteEnum((int) Status);
       }
@@ -6727,7 +6720,7 @@ namespace Dokime.Clients;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Status != global::Dokime.Clients.ResultStatus.Unspecified) {
+      if (Status != global::Dokime.ResultStatus.Unspecified) {
         output.WriteRawTag(8);
         output.WriteEnum((int) Status);
       }
@@ -6765,7 +6758,7 @@ namespace Dokime.Clients;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int CalculateSize() {
       int size = 0;
-      if (Status != global::Dokime.Clients.ResultStatus.Unspecified) {
+      if (Status != global::Dokime.ResultStatus.Unspecified) {
         size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) Status);
       }
       if (Passed != 0) {
@@ -6798,7 +6791,7 @@ namespace Dokime.Clients;
       if (other == null) {
         return;
       }
-      if (other.Status != global::Dokime.Clients.ResultStatus.Unspecified) {
+      if (other.Status != global::Dokime.ResultStatus.Unspecified) {
         Status = other.Status;
       }
       if (other.Passed != 0) {
@@ -6839,7 +6832,7 @@ namespace Dokime.Clients;
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
           case 8: {
-            Status = (global::Dokime.Clients.ResultStatus) input.ReadEnum();
+            Status = (global::Dokime.ResultStatus) input.ReadEnum();
             break;
           }
           case 16: {
@@ -6886,7 +6879,7 @@ namespace Dokime.Clients;
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
           case 8: {
-            Status = (global::Dokime.Clients.ResultStatus) input.ReadEnum();
+            Status = (global::Dokime.ResultStatus) input.ReadEnum();
             break;
           }
           case 16: {

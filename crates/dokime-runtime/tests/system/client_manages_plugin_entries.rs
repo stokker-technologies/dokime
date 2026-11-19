@@ -17,10 +17,10 @@
 
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
-use dokime::Client;
-use dokime::client::PluginsListOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::PluginsListOptions;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginState, PluginValue};
 use std::error::Error;
 use tonic::transport::Endpoint;
@@ -58,7 +58,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
             let placement = PluginPlacement {
-                kind: Some(PlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let entry = client.plugins.create("thermal", placement.clone(), PluginValue { enabled: true }).await?.entry.unwrap();
             let entry = super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
@@ -68,7 +68,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             let admitted = client.plugins.list().await?;
             assert_eq!(admitted.entries, vec![entry.clone()]);
             let invalid = PluginPlacement {
-                kind: Some(PlacementKind::Remote(PluginRemote { url: "not a URL".into() })),
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: "not a URL".into() })),
             };
             assert!(client.plugins.create("invalid", invalid, PluginValue { enabled: true }).await.is_err());
             process.close().await?;

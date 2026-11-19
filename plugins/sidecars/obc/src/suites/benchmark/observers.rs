@@ -23,7 +23,8 @@
 use crate::device::{Bench, Supply};
 use crate::records::charger;
 use crate::{settings, suites};
-use dokime::plugin::{Context, Criterion, Observer, Step, Stream, Template, Window};
+use dokime::plugin::{Criterion, Observer, Step, Stream, Template, Window};
+use dokime::templates::Context;
 use dokime::{Document, Parameter, Result};
 
 /* === Constants === */
@@ -60,7 +61,9 @@ pub fn template() -> Template {
     let samples = Stream::<Computation>::new("samples", "Heavy Observer Output");
     let observer = Observer::window(&samples, compute).interval_setting(settings::SAMPLE_INTERVAL);
     charger::catalog(
-        Template::new("observers", "Heavy Observers")
+        Template::of::<()>()
+            .identifier("observers")
+            .label("Heavy Observers")
             .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))
             .parameter(Parameter::count("iterations", "Iterations per Sample").default(4096_u64).range(1.0..=65536.0))
             .initialize(initialize)
@@ -81,7 +84,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     suites::wait(ctx, &bench, samples).await
 }
 async fn captured(ctx: &Context) -> Result<bool> {
-    Ok(ctx.statistics("samples", "value", "").await?.statistics.is_some_and(|statistics| statistics.count > 0))
+    Ok(ctx.statistics("samples", "value", "").await?.is_some_and(|statistics| statistics.count > 0))
 }
 async fn cleanup(ctx: &Context) -> Result<()> {
     ctx.get::<Bench>()?.stop();

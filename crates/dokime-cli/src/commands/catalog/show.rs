@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::SuitesGetOptions;
+use dokime_client_internal::SuitesGetOptions;
 
 /* === Constants === */
 

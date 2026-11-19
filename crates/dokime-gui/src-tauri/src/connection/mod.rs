@@ -31,7 +31,7 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use dokime_sdk::client::ClientPreferences;
+use dokime_client_internal::ClientPreferences;
 
 /* === Constants === */
 

@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/files.proto</summary>
-  public static partial class FilesReflection {
+  internal static partial class FilesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/files.proto</summary>
@@ -350,7 +350,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FilesGetResponse : pb::IMessage<FilesGetResponse>
+  internal sealed partial class FilesGetResponse : pb::IMessage<FilesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1004,7 +1004,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FilesReadResponse : pb::IMessage<FilesReadResponse>
+  internal sealed partial class FilesReadResponse : pb::IMessage<FilesReadResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1699,7 +1699,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FilesWatchResponse : pb::IMessage<FilesWatchResponse>
+  internal sealed partial class FilesWatchResponse : pb::IMessage<FilesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2242,7 +2242,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FilesDeleteResponse : pb::IMessage<FilesDeleteResponse>
+  internal sealed partial class FilesDeleteResponse : pb::IMessage<FilesDeleteResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2693,7 +2693,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FilesCaptureResponse : pb::IMessage<FilesCaptureResponse>
+  internal sealed partial class FilesCaptureResponse : pb::IMessage<FilesCaptureResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2906,7 +2906,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FileBatch : pb::IMessage<FileBatch>
+  internal sealed partial class FileBatch : pb::IMessage<FileBatch>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3141,7 +3141,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FileCompletion : pb::IMessage<FileCompletion>
+  internal sealed partial class FileCompletion : pb::IMessage<FileCompletion>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

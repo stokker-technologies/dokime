@@ -9,7 +9,7 @@
 
 using Dokime;
 
-namespace Dokime.Plugins;
+namespace Dokime.Templates;
 
 // Each Convenience Produces A Canonical Message And Copies Its Operands.
 public static class Plots

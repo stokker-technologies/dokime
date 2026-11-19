@@ -36,7 +36,7 @@ from grpc_tools import protoc
 
 ROOT_EXPORTS = {
     "_authoring": ["Suite"],
-    "_plugin": ["Plugin"],
+    "_plugin": ["Lane", "Plugin"],
     "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
     "_connection": ["connect"],
     "_errors": ["Failure", "SdkError"],

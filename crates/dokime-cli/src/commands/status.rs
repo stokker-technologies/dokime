@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::StatusGetOptions;
+use dokime_client_internal::StatusGetOptions;
 
 /* === Constants === */
 
@@ -46,7 +46,7 @@ pub(crate) struct Args {
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let channel = settings.channel(endpoint).await?;
-    let client = dokime::Client::from_channel(channel, settings.client())?;
+    let client = dokime_client_internal::Client::from_channel(channel, settings.client())?;
     let value = client.status.get_with(StatusGetOptions { context: settings.context()? }).await?;
     crate::output::print(&value, args.json)
 }

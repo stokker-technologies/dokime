@@ -9,6 +9,8 @@
 
 #include "dokime/parameters.hpp"
 #include "dokime/plots.hpp"
+#include "dokime/plugin.hpp"
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 using dokime::CONTOUR_RENDER_BANDS;
 using dokime::Document;
@@ -16,6 +18,8 @@ using dokime::Metadata;
 using dokime::REDUCTION_MAX;
 using dokime::REDUCTION_MEAN;
 using dokime::ReferenceBand;
+using std::find_if;
+using std::invalid_argument;
 
 TEST_CASE("Documents Preserve Composed Plot Operands") {
   using namespace dokime::authoring;
@@ -82,4 +86,28 @@ TEST_CASE("Parameter Builders Preserve Types Expansion and Bounds") {
   REQUIRE(card.plot().y_size() == 1);
   REQUIRE(card.layout().columns() == 6);
   REQUIRE(dokime::authoring::records_card("records").evidence() == dokime::EVIDENCE_CARD_RECORDS);
+}
+
+TEST_CASE("Lanes Preserve Declarations and Operation Assignments", "[builders]") {
+  const auto instrument = dokime::Lane::serial("instrument");
+  auto operation = dokime::operations::operation<double, double>("example.measure", dokime::operations::Visibility::Public,
+                                                                 [](dokime::operations::Context &, double value) {
+                                                                   return value;
+                                                                 });
+  operation.lane(instrument);
+  dokime::Plugin plugin("example", "1.0.0");
+  plugin.lane(instrument).operation(operation);
+  const auto description = plugin.describe();
+  REQUIRE(description.lanes.size() == 1);
+  REQUIRE(description.lanes[0].name() == "instrument");
+  REQUIRE(description.lanes[0].serial());
+  const auto selected = find_if(description.operations.begin(), description.operations.end(), [](const auto &value) {
+    return value.identifier == "example.measure";
+  });
+  REQUIRE(selected != description.operations.end());
+  REQUIRE(selected->lane == "instrument");
+
+  dokime::Plugin missing("missing", "1.0.0");
+  missing.operation(operation);
+  REQUIRE_THROWS_AS(missing.describe(), invalid_argument);
 }

@@ -168,6 +168,7 @@ class Operation[Q: Payload, R: Payload]:
     policy: OperationPolicy | None = None
     description: str = ""
     replay_safe: bool = False
+    lane: plugin.Lane | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.visibility, Visibility):
@@ -190,6 +191,7 @@ class Operation[Q: Payload, R: Payload]:
             self.policy._definition() if self.policy is not None else None,
             self.description,
             self.replay_safe,
+            lane=self.lane,
         )
 
 
@@ -199,10 +201,11 @@ class Operation[Q: Payload, R: Payload]:
 def operation[F: Callable[..., object]](
     identifier: str | None = None,
     *,
-    visibility: Visibility,
+    visibility: Visibility = Visibility.PUBLIC,
     policy: OperationPolicy | None = None,
     description: str = "",
     replay_safe: bool = False,
+    lane: plugin.Lane | None = None,
 ) -> Callable[[F], F]:
     def decorate(handler: F) -> F:
         if not isinstance(handler, FunctionType) or not inspect.iscoroutinefunction(handler):
@@ -224,6 +227,7 @@ def operation[F: Callable[..., object]](
             policy,
             description,
             replay_safe,
+            lane,
         )
         vars(handler)["__dokime_operation__"] = definition
         return handler
@@ -243,7 +247,7 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
                 result = await result
             return pack(definition.response, cast(Payload, result))
         except _errors.SdkError as error:
-            raise harmos.Failure(_failure(error.failure)) from error
+            raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
 
     return plugin.operation(
         transport.id,
@@ -253,24 +257,11 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
         policy=transport.policy,
         description=transport.description,
         replay_safe=transport.replay_safe,
+        lane=transport.lane,
     )(execute)
 
 
 # === Private Functions === #
-
-
-def _failure(value: _errors.Failure) -> harmos.FailureValue:
-    return harmos.FailureValue(
-        classification="CLASSIFICATION_" + value.classification.upper().replace(" ", "_"),
-        code=value.code,
-        message=value.message,
-        action=value.action,
-        operation=value.operation,
-        plugin=value.plugin,
-        cause=_failure(value.cause) if value.cause is not None else None,
-        details=dict(value.details),
-        diagnostics=value.diagnostics,
-    )
 
 
 # === Entry Point === #

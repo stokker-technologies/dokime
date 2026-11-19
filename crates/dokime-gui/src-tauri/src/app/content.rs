@@ -27,17 +27,17 @@ use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
 
 // Local Imports
-use dokime_sdk::client::{
+use dokime_client_internal::{
     ContentArtifactsGetOptions, ContentExecutionFilesGetOptions, EvidenceArchiveOptions, FilesGetOptions, FilesReadOptions,
     ReportsGetOptions,
 };
 
 use super::desktop::ArtifactSource;
 use crate::connection::{SessionLease, host};
-use dokime_sdk::client::EvidenceSubject;
-use dokime_sdk::client::ReportOrigin;
-use dokime_sdk::client::ReportSubject;
-use dokime_sdk::client::{evidence_subject, report_subject};
+use dokime_client_internal::EvidenceSubject;
+use dokime_client_internal::ReportOrigin;
+use dokime_client_internal::ReportSubject;
+use dokime_client_internal::{evidence_subject, report_subject};
 
 /* === Constants === */
 

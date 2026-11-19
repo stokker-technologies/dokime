@@ -18,31 +18,49 @@
 // Standard Library Imports
 use std::{
     any::{self, Any, TypeId},
-    collections::HashMap,
-    future, mem,
+    collections::{HashMap, HashSet},
+    future,
+    io::Cursor,
+    mem,
     num::NonZeroUsize,
+    ops::Deref,
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 
 // Third Party Imports
+use harmos::plugin;
+use prost_reflect::ReflectMessage;
+use prost_types::Timestamp;
 
 // Local Imports
-use crate::EvidenceStatisticsResponse;
 use crate::OperationPolicy;
 use crate::Record;
 use crate::RecordsListResponse;
+use crate::client::{ArtifactCreateOptions, mutations};
 use crate::operation::FutureResult;
-use crate::plugin::RecordsAppendResponse;
+use crate::plugin::{CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
+use crate::plugin::{
+    HostEffectsCreateOptions, HostEffectsSetOptions, HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions,
+};
+use crate::templates::{CaptureResult, Environment};
+use crate::templates::{
+    DocumentAppendOptions, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions,
+    TraceabilitySetOptions,
+};
+use crate::{FileSource, Metadata, TraceabilityEntry};
+
 use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
-use crate::{Error, Message, OperationRequest, Result, data, host, host::Wire};
+use crate::{
+    ArtifactMetadata,
+    transfers::{self, Uploads},
+};
+use crate::{Error, Message, Result, data, host, host::Wire};
 use crate::{ExecutionProgressValue, PageRequest, Severity};
 use crate::{Origin, Termination, TestCase, origin};
 use crate::{Payload, authoring::build_identifier, payload};
-use ::harmos::plugin;
-use uuid::Uuid;
 
 /* === Constants === */
 
@@ -51,9 +69,14 @@ use uuid::Uuid;
 /* === Type Aliases === */
 
 type Resources = Mutex<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>;
-pub(crate) type Executions = Arc<Mutex<HashMap<String, Arc<Execution>>>>;
-
 /* === Structs === */
+
+#[derive(Clone)]
+pub(crate) struct Executions {
+    store: Arc<Mutex<HashMap<String, Arc<Execution>>>>,
+    state: Arc<dyn Any + Send + Sync>,
+    secrets: Arc<HashSet<String>>,
+}
 
 // One operation's host channel and the resources shared by its execution.
 #[derive(Clone)]
@@ -61,6 +84,8 @@ pub struct Context {
     transport: Transport,
     execution: Arc<Execution>,
     termination: Option<Termination>,
+    state: Arc<dyn Any + Send + Sync>,
+    secrets: Arc<HashSet<String>>,
 }
 
 // An In-Process Host Answering Encoded Requests by Operation Identity.
@@ -83,10 +108,10 @@ pub(crate) struct EndExecution {
     execution: Arc<Execution>,
 }
 
-pub(crate) struct Watching<T: prost_reflect::ReflectMessage + Default + 'static> {
+pub(crate) struct Watching<T: ReflectMessage + Default + 'static> {
     incoming: plugin::Watching<Wire<T>>,
 }
-impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
+impl<T: ReflectMessage + Default + 'static> Watching<T> {
     pub(crate) async fn next(&mut self) -> Result<Option<T>> {
         Ok(self.incoming.next().await?.map(|value| value.0))
     }
@@ -114,6 +139,22 @@ pub(crate) trait LocalHost: Send + Sync {
 }
 
 /* === Implementations === */
+
+impl Executions {
+    pub(crate) fn new(state: Arc<dyn Any + Send + Sync>, secrets: HashSet<String>) -> Self {
+        Self {
+            store: Arc::new(Mutex::new(HashMap::new())),
+            state,
+            secrets: Arc::new(secrets),
+        }
+    }
+}
+impl Deref for Executions {
+    type Target = Mutex<HashMap<String, Arc<Execution>>>;
+    fn deref(&self) -> &Self::Target {
+        &self.store
+    }
+}
 
 impl Execution {
     pub(crate) fn new(test_case: TestCase, origin: Origin) -> Arc<Self> {
@@ -146,6 +187,8 @@ impl Context {
         if run.template != template || run.plugin.is_empty() || run.test_case.as_ref() != Some(&test_case) {
             return Err(Error::Invalid("Execution Origin Requires an Entry and Matching Template and Test Case".into()));
         }
+        let state = executions.state.clone();
+        let secrets = executions.secrets.clone();
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.entry(identifier.into()).or_insert_with(|| {
             Arc::new(Execution {
@@ -165,10 +208,14 @@ impl Context {
             transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
+            state,
+            secrets,
         })
     }
 
     pub(crate) fn invocation(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
+        let state = executions.state.clone();
+        let secrets = executions.secrets.clone();
         let executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.get(transport.scope().unwrap_or_default()).cloned().unwrap_or_else(|| {
             Arc::new(Execution {
@@ -181,10 +228,14 @@ impl Context {
             transport: Transport::Harmos(Box::new(transport.clone())),
             execution,
             termination: None,
+            state,
+            secrets,
         })
     }
 
     pub(crate) fn publication(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
+        let state = executions.state.clone();
+        let secrets = executions.secrets.clone();
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         if transport.scope().is_err() {
             executions.entry(String::new()).or_insert_with(|| {
@@ -202,17 +253,32 @@ impl Context {
             transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
+            state,
+            secrets,
         })
     }
 
-    pub(crate) fn local(local: Local, execution: Arc<Execution>) -> Self {
+    pub(crate) fn local(local: Local, execution: Arc<Execution>, state: Arc<dyn Any + Send + Sync>) -> Self {
         Self {
             transport: Transport::Local(Arc::new(local)),
             execution,
             termination: None,
+            state,
+            secrets: Arc::new(HashSet::new()),
         }
     }
 
+    pub fn plugin<T: Send + Sync + 'static>(&self) -> Result<&T> {
+        self.state
+            .downcast_ref()
+            .ok_or_else(|| Error::Invalid(format!("Read Plugin State: Supply {} With Plugin::state", any::type_name::<T>())))
+    }
+    pub async fn secret(&self, identifier: &str) -> Result<Vec<u8>> {
+        if !self.secrets.contains(identifier) {
+            return Err(Error::Invalid(format!("Read Secret: Declare {identifier} on the Plugin")));
+        }
+        Ok(self.host().secrets.get(identifier.into()).await?.secret)
+    }
     pub fn execution_id(&self) -> &str {
         match &self.transport {
             Transport::Harmos(transport) => transport.scope().unwrap_or_default(),
@@ -267,14 +333,6 @@ impl Context {
         T::from_value(value).map_err(|error| Error::Invalid(format!("Parameter {identifier}: {error}")))
     }
 
-    // Route a typed operation to the host; its requirement must be declared on Plugin.
-    pub async fn operation<Q: OperationRequest>(&self, request: Q) -> Result<Q::Response> {
-        match &self.transport {
-            Transport::Harmos(transport) => transport.call(request).await.map_err(Error::from),
-            Transport::Local(_) => Err(unsimulated(Q::ID)),
-        }
-    }
-
     pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
         match &self.transport {
             Transport::Harmos(transport) => Ok(transport.call_with(Wire(request), policy).await?.0),
@@ -289,7 +347,12 @@ impl Context {
             Transport::Harmos(transport) => Ok(Watching {
                 incoming: transport.watch(Wire(request), max_item_bytes).await?,
             }),
-            Transport::Local(_) => Err(unsimulated(Q::ID)),
+            Transport::Local(_) => Err(Error::failure(
+                harmos::Classification::Refused,
+                "testing_host_unsupported",
+                format!("Testing Host: {} Is Not Simulated", Q::ID),
+                "Exercise This Operation Against a Real Host",
+            )),
         }
     }
 
@@ -297,7 +360,7 @@ impl Context {
         self.host().time.sleep(duration.try_into().map_err(|error| Error::Invalid(format!("Sleep: Invalid Duration: {error}")))?).await?;
         Ok(())
     }
-    pub async fn now(&self) -> Result<prost_types::Timestamp> {
+    pub async fn now(&self) -> Result<Timestamp> {
         self.host().time.get().await
     }
     pub async fn cancelled(&self) -> String {
@@ -308,9 +371,45 @@ impl Context {
         }
     }
 
-    pub async fn typed_settings<T: Message>(&self) -> Result<T> {
+    pub async fn settings<T: Message>(&self) -> Result<T> {
         let response = self.host().plugins.settings.list().await?;
         crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
+    }
+
+    pub async fn setting(&self, identifier: &str) -> Result<crate::SettingValue> {
+        let response = self.host().plugins.settings.list().await?;
+        response
+            .value
+            .and_then(|mut settings| settings.values.remove(identifier))
+            .ok_or_else(|| Error::Invalid(format!("Read Setting: Declare and Configure {identifier}")))
+    }
+
+    pub async fn prompt_answer(
+        &self, prompt: impl Into<Prompt>, values: HashMap<String, crate::Value>,
+    ) -> Result<crate::templates::PromptAnswer> {
+        let prompt = prompt.into();
+        let mut definition = prompt.definition;
+        let metadata = definition.metadata.as_mut().expect("Prompt Metadata");
+        metadata.identifier = self.resolve(&metadata.identifier)?;
+        let identifier = metadata.identifier.clone();
+        let answer = self
+            .host()
+            .prompts
+            .create_with(
+                identifier.clone(),
+                if prompt.declared { identifier } else { String::new() },
+                values,
+                HostPromptsCreateOptions {
+                    definition: if prompt.declared { None } else { Some(definition) },
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(crate::templates::PromptAnswer {
+            accepted: answer.accepted,
+            action: answer.action,
+            values: answer.values,
+        })
     }
 
     pub fn resolve(&self, local: &str) -> Result<String> {
@@ -325,6 +424,9 @@ impl Context {
 
     pub async fn prompt(&self, question: impl Into<Prompt>, choices: &[&str]) -> Result<String> {
         let mut prompt = question.into();
+        if choices.iter().collect::<HashSet<_>>().len() != choices.len() {
+            return Err(Error::Invalid("Create Prompt: Supply Distinct Operator Choice Labels".into()));
+        }
         if !choices.is_empty() {
             prompt.definition.actions.clear();
             for (index, label) in choices.iter().enumerate() {
@@ -355,7 +457,10 @@ impl Context {
             .ok_or_else(|| Error::Invalid("Read Prompt Answer: Choose One of the Declared Actions".into()))
     }
 
-    pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<RecordsAppendResponse> {
+    pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<u64> {
+        self.record_with(record, value, RecordAppendOptions::default()).await
+    }
+    pub async fn record_with<T: Payload>(&self, record: &Record<T>, value: T, options: RecordAppendOptions) -> Result<u64> {
         let kind = self.resolve(record.identifier())?;
         self.call_with(
             RecordsAppendRequest {
@@ -363,11 +468,12 @@ impl Context {
                 kind,
                 payload: prost::Message::encode_to_vec(&value.into_message()),
                 source_at: None,
-                request_id: Uuid::now_v7().to_string(),
+                request_id: mutations::request_id(options.request_id)?,
             },
             None,
         )
         .await
+        .map(|reply| reply.ordinal)
     }
 
     pub fn records<'a, T: Payload>(&'a self, record: &'a Record<T>) -> RecordsQuery<'a, T> {
@@ -380,40 +486,245 @@ impl Context {
 
     pub async fn statistics(
         &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>,
-    ) -> Result<EvidenceStatisticsResponse> {
+    ) -> Result<Option<crate::Statistics>> {
+        Ok(self.statistics_with(stream, field, step, crate::templates::StatisticsReadOptions::default()).await?.value)
+    }
+
+    pub async fn statistics_with(
+        &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>, options: crate::templates::StatisticsReadOptions,
+    ) -> Result<crate::templates::StatisticsSnapshot> {
         let step = step.into();
-        self.call_with(
-            EvidenceStatisticsRequest {
-                stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
-                    stream.as_ref().into()
-                } else {
-                    self.resolve(stream.as_ref())?
+        let response = self
+            .call_with(
+                EvidenceStatisticsRequest {
+                    stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
+                        stream.as_ref().into()
+                    } else {
+                        self.resolve(stream.as_ref())?
+                    },
+                    field: field.into(),
+                    at: options.at,
+                    step: if step.is_empty() { step } else { self.resolve(&step)? },
+                    ..Default::default()
                 },
-                field: field.into(),
-                step: if step.is_empty() { step } else { self.resolve(&step)? },
-                ..Default::default()
-            },
-            None,
-        )
-        .await
+                None,
+            )
+            .await?;
+        Ok(crate::templates::StatisticsSnapshot {
+            value: response.statistics,
+            at: response.resolved_at,
+        })
     }
     pub async fn progress(&self, completed: u64, total: u64, label: impl Into<String>) -> Result<()> {
+        self.progress_with(completed, total, label, ProgressSetOptions::default()).await
+    }
+    pub async fn progress_with(&self, completed: u64, total: u64, label: impl Into<String>, options: ProgressSetOptions) -> Result<()> {
         let current = self.host().executions.progress.get().await?;
-        self.host().executions.progress.set(ExecutionProgressValue { completed, total, label: label.into() }, current.revision).await?;
+        self.host()
+            .executions
+            .progress
+            .set_with(
+                ExecutionProgressValue { completed, total, label: label.into() },
+                current.revision,
+                HostExecutionsProgressSetOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
+            .await?;
         Ok(())
     }
     pub async fn log(&self, severity: Severity, message: impl Into<String>) -> Result<()> {
+        self.log_with(severity, message, LogAppendOptions::default()).await
+    }
+    pub async fn log_with(&self, severity: Severity, message: impl Into<String>, options: LogAppendOptions) -> Result<()> {
         self.call_with(
             LogsAppendRequest {
                 execution: self.execution_id().into(),
                 severity: severity as i32,
                 message: message.into(),
                 at: None,
-                request_id: Uuid::now_v7().to_string(),
+                request_id: mutations::request_id(options.request_id)?,
             },
             None,
         )
         .await?;
+        Ok(())
+    }
+
+    pub async fn capture(&self, source: FileSource, output: impl Into<String>) -> Result<CaptureResult> {
+        let reply = self.host().files.capture(source, output.into()).await?;
+        Ok(CaptureResult {
+            artifacts: reply.artifacts,
+            gaps: reply.gaps,
+        })
+    }
+    pub async fn artifact(&self, name: &str, data: Vec<u8>, mime: &str) -> Result<ArtifactMetadata> {
+        self.artifact_with(name, data, mime, ArtifactCreateOptions::default()).await
+    }
+    pub async fn artifact_with(&self, name: &str, data: Vec<u8>, mime: &str, options: ArtifactCreateOptions) -> Result<ArtifactMetadata> {
+        let request_id = mutations::request_id(options.request_id)?;
+        let length = data.len() as u64;
+        let file = transfers::upload(Uploads::Template(self), Cursor::new(data), length, &request_id).await?;
+        let reply = self
+            .host()
+            .content
+            .artifacts
+            .create_with(
+                file,
+                name.into(),
+                mime.into(),
+                HostContentArtifactsCreateOptions {
+                    request_id: Some(format!("{request_id}/attach")),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        reply.artifact.ok_or_else(|| Error::Invalid("Attach Artifact: Return Its Acknowledged Metadata".into()))
+    }
+    pub async fn start_capture(&self, source: FileSource, output: impl Into<String>, mode: CaptureMode) -> Result<u64> {
+        self.host().files.captures.start(source, output.into(), mode).await
+    }
+    pub async fn stop_capture(&self, capture_id: u64) -> Result<CaptureResult> {
+        let reply = self.host().files.captures.stop(capture_id).await?;
+        Ok(CaptureResult {
+            artifacts: reply.artifacts,
+            gaps: reply.gaps,
+        })
+    }
+    pub async fn environment(&self) -> Result<Environment> {
+        let reply = self.host().backend.environment().await?;
+        Ok(Environment {
+            backend_pid: reply.backend_pid,
+            in_step: reply.in_step,
+        })
+    }
+    pub async fn traceability(
+        &self, identifier: impl Into<String>, value: crate::Value, label: impl Into<String>, source: impl Into<String>,
+        unit: impl Into<String>,
+    ) -> Result<()> {
+        self.traceability_with(
+            identifier,
+            value,
+            TraceabilitySetOptions {
+                label: label.into(),
+                source: source.into(),
+                unit: unit.into(),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+    pub async fn traceability_with(
+        &self, identifier: impl Into<String>, value: crate::Value, options: TraceabilitySetOptions,
+    ) -> Result<()> {
+        let identifier = identifier.into();
+        let host = self.host();
+        let current = host
+            .evidence
+            .traceability
+            .get_with(HostEvidenceTraceabilityGetOptions {
+                entry: Some(identifier.clone()),
+                ..Default::default()
+            })
+            .await?;
+        let entry = TraceabilityEntry {
+            metadata: Some(Metadata {
+                identifier: identifier.clone(),
+                label: options.label,
+                ..Default::default()
+            }),
+            value: Some(value),
+            source: options.source,
+            unit: options.unit,
+        };
+        host.evidence
+            .traceability
+            .set_with(
+                entry,
+                current.revision,
+                identifier,
+                HostEvidenceTraceabilitySetOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(())
+    }
+    pub async fn document(
+        &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
+    ) -> Result<()> {
+        self.document_with(document, part, section, DocumentAppendOptions::default()).await
+    }
+    pub async fn document_with(
+        &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
+        mutation: DocumentAppendOptions,
+    ) -> Result<()> {
+        let mut options = HostDocumentsAppendPartsOptions {
+            request_id: Some(mutations::request_id(mutation.request_id)?),
+            ..Default::default()
+        };
+        match part {
+            crate::templates::DocumentPart::Section(value) => options.subsection = Some(*value),
+            crate::templates::DocumentPart::Card(value) => options.card = Some(*value),
+        }
+        self.host().documents.append_parts_with(self.execution_id().into(), document.into(), section.into(), options).await?;
+        Ok(())
+    }
+    pub async fn prepare_effect<T: Message>(
+        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
+    ) -> Result<String> {
+        self.prepare_effect_with(resource, inverse_operation, inverse, description, EffectCreateOptions::default()).await
+    }
+    pub async fn prepare_effect_with<T: Message>(
+        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
+        options: EffectCreateOptions,
+    ) -> Result<String> {
+        let reply = self
+            .host()
+            .effects
+            .create_with(
+                resource.into(),
+                inverse_operation.into(),
+                prost::Message::encode_to_vec(&inverse),
+                description.into(),
+                HostEffectsCreateOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        if reply.name.is_empty() {
+            return Err(Error::Invalid("Prepare Effect: Return Its Recovery Ticket Before Applying the Effect".into()));
+        }
+        Ok(reply.name)
+    }
+    pub async fn confirm_effect(&self, ticket: &str, at: Option<Timestamp>, restored: bool) -> Result<()> {
+        self.confirm_effect_with(ticket, at, restored, EffectConfirmOptions::default()).await
+    }
+    pub async fn confirm_effect_with(
+        &self, ticket: &str, at: Option<Timestamp>, restored: bool, options: EffectConfirmOptions,
+    ) -> Result<()> {
+        let host = self.host();
+        let current = host.effects.get(ticket.into()).await?;
+        host.effects
+            .set_with(
+                ticket.into(),
+                crate::plugin::EffectWritable {
+                    applied_at: Some(match at {
+                        Some(at) => at,
+                        None => self.now().await?,
+                    }),
+                    restored,
+                },
+                current.revision,
+                HostEffectsSetOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
+            .await?;
         Ok(())
     }
 
@@ -432,7 +743,7 @@ impl<T: Payload> RecordsQuery<'_, T> {
         self
     }
 
-    pub async fn list(&self, limit: u32) -> Result<RecordsListResponse> {
+    async fn read(&self, limit: u32) -> Result<RecordsListResponse> {
         let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
         self.context
             .call_with(
@@ -448,8 +759,55 @@ impl<T: Payload> RecordsQuery<'_, T> {
     }
 
     pub async fn last(&self) -> Result<T> {
-        let record = self.list(1).await?.last.ok_or_else(|| Error::Invalid("Read Record: Capture a Value Before Reading It".into()))?;
+        let record = self.read(1).await?.last.ok_or_else(|| Error::Invalid("Read Record: Capture a Value Before Reading It".into()))?;
         payload::decode(&record.payload)
+    }
+
+    pub async fn count(&self) -> Result<u64> {
+        Ok(self.read(1).await?.count)
+    }
+
+    pub async fn last_or_none(&self) -> Result<Option<T>> {
+        self.read(1).await?.last.map(|record| payload::decode(&record.payload)).transpose()
+    }
+
+    pub async fn rows(&self) -> Result<Vec<crate::templates::RecordRow<T>>> {
+        let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
+        let mut paging = crate::client::queries::Paging::default();
+        let mut rows = Vec::new();
+        loop {
+            let page = self
+                .context
+                .call_with(
+                    RecordsListRequest {
+                        record_type: self.context.resolve(self.record.identifier())?,
+                        step: step.clone(),
+                        at: paging.at.clone(),
+                        page: Some(PageRequest {
+                            page_token: paging.token.clone(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await?;
+            for record in page.records {
+                rows.push(crate::templates::RecordRow {
+                    identifier: record.record_id,
+                    ordinal: record.sequence,
+                    timestamp: record.timestamp,
+                    value: payload::decode(&record.payload)?,
+                });
+            }
+            if !paging.advance(page.resolved_at, page.next_page_token)? {
+                return Ok(rows);
+            }
+        }
+    }
+
+    pub async fn all(&self) -> Result<Vec<T>> {
+        Ok(self.rows().await?.into_iter().map(|row| row.value).collect())
     }
 }
 
@@ -481,13 +839,132 @@ pub(crate) fn clear(executions: &Executions) -> Result<()> {
 
 /* === Private Functions === */
 
-fn unsimulated(operation: &str) -> Error {
-    Error::failure(
-        harmos::Classification::Refused,
-        "testing_host_unsupported",
-        format!("Testing Host: {operation} Is Not Simulated"),
-        "Exercise This Operation Against a Real Host",
-    )
-}
-
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use prost::Message;
+    use prost_types::Timestamp;
+
+    use super::{Context, Execution, Local, LocalHost};
+    use crate::operation::FutureResult;
+    use crate::templates::{
+        DocumentAppendOptions, DocumentPart, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions,
+        RecordAppendOptions, TraceabilitySetOptions,
+    };
+    use crate::wire::host::evidence::{
+        LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, TraceabilityGetResponse,
+        TraceabilitySetRequest, TraceabilitySetResponse,
+    };
+    use crate::wire::host::executions::{ProgressGetResponse, ProgressSetRequest, ProgressSetResponse};
+    use crate::wire::host::{
+        DocumentsAppendPartsRequest, DocumentsAppendPartsResponse, EffectsCreateRequest, EffectsCreateResponse, EffectsGetResponse,
+        EffectsSetRequest, EffectsSetResponse,
+    };
+    use crate::{Error, Origin, PluginRun, Record, Result, Severity, TestCase, Value, origin};
+
+    #[derive(Default)]
+    struct Host(Mutex<Vec<String>>);
+
+    impl LocalHost for Host {
+        fn call<'a>(&'a self, operation: &'static str, request: Vec<u8>) -> FutureResult<'a, Vec<u8>> {
+            Box::pin(async move {
+                let decode = |error| Error::Invalid(format!("Decode Context Fixture: {error}"));
+                let (identity, response) = match operation {
+                    "dokime.host.v1.evidence.Records/Append" => {
+                        let request = RecordsAppendRequest::decode(request.as_slice()).map_err(decode)?;
+                        assert_eq!(request.execution, "execution");
+                        (request.request_id, RecordsAppendResponse { ordinal: 1, ..Default::default() }.encode_to_vec())
+                    }
+                    "dokime.host.v1.executions.Progress/Get" => return Ok(ProgressGetResponse::default().encode_to_vec()),
+                    "dokime.host.v1.executions.Progress/Set" => {
+                        let request = ProgressSetRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, ProgressSetResponse::default().encode_to_vec())
+                    }
+                    "dokime.host.v1.evidence.Logs/Append" => {
+                        let request = LogsAppendRequest::decode(request.as_slice()).map_err(decode)?;
+                        assert_eq!(request.execution, "execution");
+                        (request.request_id, LogsAppendResponse::default().encode_to_vec())
+                    }
+                    "dokime.host.v1.evidence.Traceability/Get" => return Ok(TraceabilityGetResponse::default().encode_to_vec()),
+                    "dokime.host.v1.evidence.Traceability/Set" => {
+                        let request = TraceabilitySetRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, TraceabilitySetResponse::default().encode_to_vec())
+                    }
+                    "dokime.host.v1.Documents/AppendParts" => {
+                        let request = DocumentsAppendPartsRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, DocumentsAppendPartsResponse { receipt: Some(Default::default()) }.encode_to_vec())
+                    }
+                    "dokime.host.v1.Effects/Create" => {
+                        let request = EffectsCreateRequest::decode(request.as_slice()).map_err(decode)?;
+                        (
+                            request.request_id,
+                            EffectsCreateResponse {
+                                name: "ticket".into(),
+                                ..Default::default()
+                            }
+                            .encode_to_vec(),
+                        )
+                    }
+                    "dokime.host.v1.Effects/Get" => return Ok(EffectsGetResponse::default().encode_to_vec()),
+                    "dokime.host.v1.Effects/Set" => {
+                        let request = EffectsSetRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, EffectsSetResponse::default().encode_to_vec())
+                    }
+                    _ => panic!("Unexpected Context Operation: {operation}"),
+                };
+                self.0.lock().unwrap().push(identity);
+                Ok(response)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn context_mutations_preserve_explicit_request_identities() -> Result<()> {
+        let host = Arc::new(Host::default());
+        let origin = Origin {
+            kind: Some(origin::Kind::PluginRun(PluginRun {
+                template: "capture.confirmation".into(),
+                ..Default::default()
+            })),
+        };
+        let context = Context::local(
+            Local {
+                host: host.clone(),
+                scope: "execution".into(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), origin),
+            Arc::new(()),
+        );
+
+        context
+            .record_with(&Record::<bool>::new("result", "Result"), true, RecordAppendOptions { request_id: Some("record".into()) })
+            .await?;
+        context.progress_with(1, 2, "", ProgressSetOptions { request_id: Some("progress".into()) }).await?;
+        context.log_with(Severity::Info, "", LogAppendOptions { request_id: Some("log".into()) }).await?;
+        context
+            .traceability_with(
+                "serial",
+                Value::default(),
+                TraceabilitySetOptions {
+                    request_id: Some("traceability".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        context
+            .document_with("report", DocumentPart::Card(Box::default()), "", DocumentAppendOptions { request_id: Some("document".into()) })
+            .await?;
+        let ticket = context
+            .prepare_effect_with("relay", "relay.restore", (), "", EffectCreateOptions { request_id: Some("prepare".into()) })
+            .await?;
+        context
+            .confirm_effect_with(&ticket, Some(Timestamp::default()), false, EffectConfirmOptions { request_id: Some("confirm".into()) })
+            .await?;
+        assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document", "prepare", "confirm"]);
+        Ok(())
+    }
+}

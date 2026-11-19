@@ -47,6 +47,7 @@ mod execution_isolation;
 mod execution_outcomes;
 mod failed_worker_settles_its_samples;
 mod installation_plugins;
+mod initialization_cleanup;
 mod manager_lifecycles;
 #[cfg(target_os = "windows")]
 mod owned_processes;

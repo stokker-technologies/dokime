@@ -46,7 +46,7 @@ pub fn catalog(mut plugin: Plugin) -> Result<Plugin> {
     for operation in manual.operations() {
         plugin = plugin.operation(operation);
     }
-    Ok(plugin.on_stop(move || manual.power_down()))
+    Ok(plugin.state(manual))
 }
 
 /* === Private Functions === */

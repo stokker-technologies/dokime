@@ -26,13 +26,14 @@ use crate::prompts::inspection::{CHECK, inspect};
 use crate::records::charger::{self, Completed, Started};
 use crate::streams::measurement;
 use crate::suites::{self, parameters, read_supply, supply, timing};
-use dokime::plugin::{Context, Criterion, Step, Template};
+use dokime::plugin::{Criterion, Step, Template};
+use dokime::templates::Context;
 use dokime::{Document, Error, Parameter, Result, Value, value};
 
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.steady_state.three_phase";
-const SAMPLES: &str = measurement::SAMPLES;
+const SAMPLES: &str = "obc.steady_state.three_phase.measurement";
 
 /* === Macros === */
 
@@ -53,21 +54,22 @@ struct Decision {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let template = parameters(Template::new("three_phase", "Three Phase"), supply());
+    let template = parameters(Template::of::<()>().identifier("three_phase").label("Three Phase"), supply());
     let template = charger::catalog(template).prompt(crate::prompts::catalog().into_iter().next().expect("Inspection Prompt"));
     let template = parameters(template, timing("Observation Duration", 0.05));
-    template
-        .parameter(Parameter::number("minimum_efficiency", "Minimum Efficiency").default(0.9).range(0.0..=1.0))
-        .parameter(Parameter::number("minimum_power_factor", "Minimum Power Factor").default(0.9).range(0.0..=1.0))
-        .initialize(initialize)
-        .step(Step::new("Energize Charger", start).identifier("start"))
-        .step(Step::new("Measure Steady Operation", measure).identifier("measure"))
-        .step(Step::new("Inspect Steady Operation", inspection).identifier("inspection"))
-        .criterion(Criterion::new("Conversion Efficiency", efficiency).identifier("efficiency"))
-        .criterion(Criterion::new("Input Power Factor", power_factor).identifier("power_factor"))
-        .cleanup(cleanup)
-        .uses_stream(SAMPLES)
-        .document(document())
+    measurement::catalog(
+        template
+            .parameter(Parameter::number("minimum_efficiency", "Minimum Efficiency").default(0.9).range(0.0..=1.0))
+            .parameter(Parameter::number("minimum_power_factor", "Minimum Power Factor").default(0.9).range(0.0..=1.0))
+            .initialize(initialize)
+            .step(Step::new("Energize Charger", start).identifier("start"))
+            .step(Step::new("Measure Steady Operation", measure).identifier("measure"))
+            .step(Step::new("Inspect Steady Operation", inspection).identifier("inspection"))
+            .criterion(Criterion::new("Conversion Efficiency", efficiency).identifier("efficiency"))
+            .criterion(Criterion::new("Input Power Factor", power_factor).identifier("power_factor"))
+            .cleanup(cleanup)
+            .document(document()),
+    )
 }
 pub fn document() -> Document {
     measurement::document(SAMPLES, TEMPLATE, "Three Phase")

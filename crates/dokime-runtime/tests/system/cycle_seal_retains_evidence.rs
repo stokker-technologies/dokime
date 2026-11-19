@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -33,8 +33,9 @@ use zip::ZipArchive;
 
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, documents_and_reports::decode_report, support};
-use dokime::Client;
-use dokime::client::{self, ContentArtifactsCreateOptions};
+use dokime_client_internal::{
+    Client, ContentArtifactsCreateOptions, EvidenceSubject, ExecutionMode, PluginPlacement, PluginRemote, PluginValue, ReportSubject,
+};
 use dokime_protocol::host::evidence::{AnnotationOwner, AnnotationOwnerOwner, ExecutionNoteOwner, NoteWritable, annotation_owner_owner};
 use dokime_protocol::host::{
     CyclePhase, CycleSelection, CycleSummary, ExecutionState, evidence_subject, execution_outcome, report_subject,
@@ -91,9 +92,9 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
-            let entry = client.plugins.create("thermal", client::PluginPlacement {
-                kind: Some(plugin_placement::Kind::Remote(client::PluginRemote { url: plugin.endpoint().into() })),
-            }, client::PluginValue { enabled: true }).await?.entry.unwrap();
+            let entry = client.plugins.create("thermal", PluginPlacement {
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+            }, PluginValue { enabled: true }).await?.entry.unwrap();
             support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
             let cases = support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let origin = cases[0].origin.clone().unwrap();
@@ -104,7 +105,7 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let unstarted = executions[1].summary.as_ref().unwrap().execution_id.clone();
 
             // Accept a Note and an Attached File While the Execution Runs.
-            client.executions.start(running.clone(), client::ExecutionMode::Automatic).await?;
+            client.executions.start(running.clone(), ExecutionMode::Automatic).await?;
             let mut progress = client.executions.progress.watch(running.clone()).await?;
             while let Some(frame) = progress.next().await? { if frame.phase == "prompt" { break; } }
             let execution_owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::Execution(ExecutionNoteOwner { cycle_id: name.clone(), execution_id: running.clone() })) }) };
@@ -151,15 +152,15 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             assert_eq!(not_run.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
             assert!(!not_run.controls.unwrap().can_start);
             assert!(matches!(not_run.outcome.unwrap().attribution, Some(execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::NotRun as i32));
-            let refusal = client.executions.start(unstarted, client::ExecutionMode::Automatic).await.unwrap_err();
+            let refusal = client.executions.start(unstarted, ExecutionMode::Automatic).await.unwrap_err();
             assert!(refusal.message().contains(&name));
             assert!(client.evidence.notes.create(cycle_owner, NoteWritable { message: "late".into() }).await.is_err());
             assert!(client.content.artifacts.create_with(file, "late-cycle.bin", "application/octet-stream", ContentArtifactsCreateOptions { scope: Some(scope), ..Default::default() }).await.is_err());
             assert!(client.files.uploads.create(FileMetadata { scope: Some(format!("cycle/{name}")), ..Default::default() }).await.is_err());
 
             // Two Downloads Return Each Retained File, Including the Report in the Archive.
-            let report_subject = client::ReportSubject { kind: Some(report_subject::Kind::Cycle(name.clone())) };
-            let evidence_subject = client::EvidenceSubject { kind: Some(evidence_subject::Kind::Cycle(name.clone())) };
+            let report_subject = ReportSubject { kind: Some(report_subject::Kind::Cycle(name.clone())) };
+            let evidence_subject = EvidenceSubject { kind: Some(evidence_subject::Kind::Cycle(name.clone())) };
             let mut reports = Vec::new();
             let mut archives = Vec::new();
             for _ in 0..2 {
@@ -228,9 +229,9 @@ fn cycle_seal_retries_temporary_report_failure_in_same_host() -> Result<(), Box<
             let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
             let settings = support::settings();
             let mut plugin = PluginProcess::start(&support::thermal_fixture()?, true, &settings.placement).await?;
-            let entry = client.plugins.create("thermal", client::PluginPlacement {
-                kind: Some(plugin_placement::Kind::Remote(client::PluginRemote { url: plugin.endpoint().into() })),
-            }, client::PluginValue { enabled: true }).await?.entry.unwrap();
+            let entry = client.plugins.create("thermal", PluginPlacement {
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+            }, PluginValue { enabled: true }).await?.entry.unwrap();
             support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
             let cases = support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let cycle = client.cycles.create(vec![cases[0].origin.clone().unwrap()], Metadata { label: "Report Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
@@ -344,7 +345,7 @@ fn cycle_seal_retires_report_after_archive_persistence_failure() -> Result<(), B
             let owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
 
             // Preserve an Independent On-Demand Report Across Failed Seal Recovery.
-            let subject = client::ReportSubject { kind: Some(report_subject::Kind::Cycle(name.clone())) };
+            let subject = ReportSubject { kind: Some(report_subject::Kind::Cycle(name.clone())) };
             let independent = client.reports.create(subject.clone(), "").await?.file.unwrap();
             let mut independent_bytes = Vec::new();
             while (independent_bytes.len() as u64) < independent.length {

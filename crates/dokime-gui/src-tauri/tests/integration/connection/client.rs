@@ -19,10 +19,10 @@ use tokio_stream::StreamExt;
 
 // Local Imports
 
-use dokime_sdk::client::StatusGetOptions;
+use dokime_client_internal::StatusGetOptions;
 
 use crate::support::server::Fixture;
-use dokime_sdk::client::OverviewWatchResponse;
+use dokime_client_internal::OverviewWatchResponse;
 use harmos_protocol::host;
 
 /* === Constants === */

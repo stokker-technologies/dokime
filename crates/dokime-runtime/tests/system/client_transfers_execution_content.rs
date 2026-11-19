@@ -18,7 +18,6 @@
 // Standard Library Imports
 use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
-use std::fs;
 use std::io::{Cursor, Read};
 
 // Third Party Imports
@@ -35,22 +34,22 @@ use zip::ZipArchive;
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::ArtifactScope;
-use dokime::Client;
 use dokime::FileReference;
 use dokime::MapValue;
-use dokime::client::ContentArtifactsCreateOptions;
-use dokime::client::ContentArtifactsListOptions;
-use dokime::client::EvidenceSubject;
-use dokime::client::FilesDeleteOptions;
-use dokime::client::FilesReadOptions;
-use dokime::client::FilesUploadsAppendOptions;
-use dokime::client::FilesUploadsCreateOptions;
-use dokime::client::FilesUploadsPublishOptions;
-use dokime::client::FilesUploadsResumeOptions;
-use dokime::client::FilesWatchOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
+use dokime_client_internal::Client;
+use dokime_client_internal::ContentArtifactsCreateOptions;
+use dokime_client_internal::ContentArtifactsListOptions;
+use dokime_client_internal::EvidenceSubject;
+use dokime_client_internal::FilesDeleteOptions;
+use dokime_client_internal::FilesReadOptions;
+use dokime_client_internal::FilesUploadsAppendOptions;
+use dokime_client_internal::FilesUploadsCreateOptions;
+use dokime_client_internal::FilesUploadsPublishOptions;
+use dokime_client_internal::FilesUploadsResumeOptions;
+use dokime_client_internal::FilesWatchOptions;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
 use dokime_protocol::host::FilesDeleteRequest;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::evidence_subject;
@@ -540,12 +539,10 @@ fn native_file_upload_recovery_preserves_history() -> Result<(), Box<dyn Error>>
             }
             assert!(completed);
             assert_eq!(followed, bytes);
-            // The SDK Convenience Publishes a Root File with the Same Resource.
-            let upload_path = root.path().join("client-upload.bin");
-            fs::write(&upload_path, &bytes)?;
+            // Publish a Root Fixture to Exercise Resource Deletion and Replay.
             let sdk =
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?;
-            let uploaded = sdk.files.upload(&upload_path).await?;
+            let uploaded = super::support::bundles::upload(&sdk, bytes.clone()).await?;
             assert_eq!(uploaded.sha256, Sha256::digest(&bytes).to_vec());
             let deleted = FilesDeleteRequest {
                 file: Some(uploaded),

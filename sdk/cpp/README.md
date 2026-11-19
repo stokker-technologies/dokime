@@ -1,130 +1,188 @@
 # Dokime C++ SDK
 
-The C++20 SDK provides template declarations, execution context operations and a
-composed host client. The [test example](examples/test/main.cpp) is the starter;
-its entry point serves the sidecar and drains the event engine at shutdown.
-The separate [client-plus-plugin example](examples/client/main.cpp) uploads a
-compiled `.dokime` bundle to an existing host. The host starts the managed
-sidecar; the client discovers Capture, runs it, answers its operator prompt and
-removes the plugin entry while preserving the evidence. Run the executable as
-`dokime-example-client HOST:PORT PATH/TO/CAPTURE.dokime`. Use a bundle built from
-the test starter with its native dependencies. The C++ entry point stays a
-sidecar; Python's in-process nonblocking endpoint is not needed for this flow.
+The C++20 authoring API uses explicit plugin, suite and template classes, ordinary
+operation handlers, and separate operation and template contexts. The
+[capture example](examples/starter/src/plugin/main.cpp) serves a plugin without arguments.
 
-## Author a Suite
+The starter's `mise run build` builds Release plugin and client binaries and stages
+the plugin's runtime files in `assets/plugin` for bundling. The `development`
+CMake preset keeps Debug outputs in the build directory.
+
+## Operation Lanes
+
+`dokime::Lane` re-exports the library declaration. Create `auto instrument = Lane::serial("instrument");`, assign it with `operation.lane(instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Plugin descriptions retain lane declarations and operation references; the library rejects undeclared references.
+
+## Author a Plugin
 
 ```cpp
 #include <dokime/plugin.hpp>
 
-using dokime::plugin::Context;
-using dokime::plugin::Criterion;
-using dokime::plugin::Plugin;
-using dokime::plugin::Record;
-using dokime::plugin::Step;
-using dokime::plugin::Suite;
-using dokime::plugin::Template;
-
-class Capture {
+class ConfirmationTestTemplate : public dokime::templates::TestTemplate {
 public:
-  inline static const Record<bool> confirmation{"confirmation", "Confirmation"};
+  inline static const dokime::templates::Record<bool> confirmation{"confirmation", "Confirmation"};
 
-  void confirm(Context &context) {
-    const auto answer = context.prompt("Continue?", {"Yes", "No"});
-    context.record(confirmation, answer == "Yes");
+  void confirm(dokime::templates::Context &ctx) {
+    const auto answer = ctx.prompt("Continue?", {"Yes", "No"});
+    ctx.record(confirmation, answer == "Yes");
   }
-  bool confirmed(Context &context) {
-    return context.records<&Capture::confirm>(confirmation).last();
+  bool confirmed(dokime::templates::Context &ctx) {
+    return ctx.records<&ConfirmationTestTemplate::confirm>(confirmation).last();
   }
-  static void declare(Template &value) {
+  static dokime::templates::Template definition() {
+    auto value = dokime::templates::Template::from<ConfirmationTestTemplate>();
     value.record(confirmation);
-    value.steps.push_back(Step::method<&Capture::confirm>("Confirm"));
-    value.criteria.push_back(Criterion::method<&Capture::confirmed>("Confirmed"));
+    value.step(dokime::templates::Step::method<&ConfirmationTestTemplate::confirm>("Confirm"));
+    value.criterion(dokime::templates::Criterion::method<&ConfirmationTestTemplate::confirmed>("Confirmed"));
+    return value;
   }
 };
 
-Plugin plugin("example", "0.1.0", {Suite::from<Capture>("Capture")});
-plugin.serve();
+class CaptureSuite : public dokime::Suite {
+public:
+  static dokime::Suite definition() {
+    auto value = dokime::Suite::from<CaptureSuite>();
+    value.template_value(ConfirmationTestTemplate::definition());
+    return value;
+  }
+};
+
+class ExamplePlugin : public dokime::Plugin {
+public:
+  ExamplePlugin() : dokime::Plugin(dokime::Plugin::from<ExamplePlugin>("0.1.0")) {
+    suite(CaptureSuite::definition());
+  }
+};
+
+int main() {
+  ExamplePlugin plugin;
+  plugin.serve();
+}
 ```
 
-The template is `capture`; its members are `capture.confirmation`,
-`capture.confirm` and `capture.confirmed`. The confirmation record's message is
-`google.protobuf.BoolValue`, exactly as in the Python example.
+The suite is `capture`, the template is `capture.confirmation`, and its record is
+`capture.confirmation.confirmation`. Class names lose their `Plugin`, `Suite` or
+`TestTemplate` suffix. Identifiers use snake case, while labels use Title Case.
+Explicit identifiers and labels override the derived values. Empty identifiers,
+duplicate declarations and lifecycle-name collisions fail during composition.
 
-`Suite("accuracy", {Template::from<VoltageTemplate>()})` produces
-`accuracy.voltage`; `readVoltage`, `ReadVoltage` and `read_voltage` produce
-`accuracy.voltage.read_voltage`. Type names lose a trailing `Template` or `Suite`.
-Names come from code, independently of labels. An optional explicit identifier
-wins, including on a suite, template or member. Empty identifiers and duplicate
-members across declaration kinds are refused before registration.
+`Plugin::from<T>`, `Suite::from<T>` and `Template::from<T>` use the existing
+compiler-signature facility on MSVC, GCC and Clang. Declaration functions return
+complete values; suites explicitly list their templates. `plugin.describe()`
+returns product description values without starting a listener.
 
-C++20 has no declaration reflection. `Template::from<T>` and
-`Step::method<&T::method>` read compiler signatures on MSVC, GCC and Clang.
-Record, prompt and stream declarations supply their field's code name explicitly.
-Declarations remain local and reusable across plugins and suites.
+## State and Contexts
 
-Declare records with `value.record(local_record)` inside the template's `declare`
-method. Declare prompts with `value.prompts.push_back(local_prompt)` and observers
-with `value.observer(observer)`. A `PromptDeclaration` accepts text and choices or
-a complete `dokime::Prompt`; `context.prompt(declaration)` returns its chosen label.
-Text prompts default to a single OK action. Rejected or unknown answers fail.
-`context.records<&T::step>(record).last()` returns the declared value and refuses
-an empty result. `context.statistics<&T::step>(stream, "field")` resolves both
-local declarations. `initialize(Context&)` and `cleanup(Context&)` methods bind
-automatically and share one template instance per execution.
+Plugin author classes may override `initialize(dokime::operations::Context&)` and
+`finalize(dokime::operations::Context&)`. The SDK encodes them as protected
+`<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
 
-`Template` carries typed `parameters`, `files` and `documents`. A pure
-`materialize(Case&, parameters)` callback adds declared `Step` and `Criterion`
-values with unique local instance identifiers; `Case` qualifies them through the
-same identifier function while preserving the declared operation identity.
+Each execution owns a template instance shared by initialize, steps, observers,
+criteria and cleanup. Use template fields for execution state. The optional
+`initialize(Context&)` and `cleanup(Context&)` methods bind automatically.
+Cleanup retains the instance after failed initialization and exposes its
+termination through `ctx.termination()`.
 
-The short prompt call uses `<template>.question` in its request and definition.
+Both contexts provide `ctx.plugin<T>()` for the actual author plugin object,
+typed operation calls, host-clock sleep and time, cancellation, declared secrets
+and saved settings. Only `dokime::templates::Context` provides execution identity,
+parameters, prompts, records, statistics, progress, logs, traceability, documents
+and effects. Carrier contexts and the untyped host dispatcher are private.
+Template contexts also capture files, manage continuous capture, publish artifacts
+and read the host process environment. Artifact uploads share the client's fenced
+transfer implementation.
+
+Template records use primitive C++ values or generated message values.
+`ctx.record` returns the acknowledged ordinal. `ctx.records(record).last()`
+refuses an empty selection; `count()` reports the population. Method-qualified
+queries select one declared step. Statistics return the statistics value.
 
 ## Plain Operations
 
 ```cpp
-using dokime::plugin::Visibility;
-using dokime::plugin::operation;
+std::string echo(dokime::operations::Context &, std::string request) {
+  return request;
+}
 
-auto echo = operation<std::string, std::string>(
-    "example.echo", Visibility::Public,
-    [](Context &, std::string request) { return request; });
-plugin.operation(echo);
-auto relay = operation<std::string, std::string>(
-    "example.relay", Visibility::Public,
-    [echo](Context &context, std::string request) {
-      return context.operation(echo, request);
-    });
-plugin.operation(relay);
+plugin.operation(dokime::operations::operation<std::string, std::string>(
+    "example.echo", dokime::operations::Visibility::Public, echo));
 ```
 
-Records and operations share conversions for `std::string`, `bool`, signed
-integers and floating values: StringValue, BoolValue, Int64Value and DoubleValue.
-Structured protobuf messages retain their type. A narrower signed integer refuses
-out-of-range returned values. Visibility is `Visibility::Private`,
-`Visibility::Protected` or `Visibility::Public`. Operation policies and replay
-safety remain explicit; calls retain the transport's policy and cancellation.
+`ctx.operation(echo_operation)(request)` returns the typed response. Retry
+policies require positive backoff. Authors declare no host requirements.
 
-Plugin sections are assembled from typed suites, records, prompts and
-`plugin.secrets(SecretsDeclarations)`. Context requirements are assembled by the
-SDK. Authors do not maintain a requirement list.
+## Configuration
+
+`Plugin::serve` resolves its optional address argument, `DOKIME_PLUGIN_ADDRESS`
+in the process environment, the working-directory `.env`, then `127.0.0.1:0`.
+Managed launch coordinates are private host input and take precedence internally.
+An explicitly empty address is an error. The SDK parses UTF-8 dotenv assignments,
+quotes and the shared escape grammar without modifying the process environment.
+
+`connect(ConnectionSettings)` resolves `remote`, `DOKIME_REMOTE`, then the
+working-directory `.env`. It accepts a direct HTTP origin with an explicit port or
+a version 1 `.pair` file. Pairing endpoints are attempted in order, each within the
+connection budget, retaining certificate pinning, credentials and host identity.
+
+## Bound Client Handles
+
+```cpp
+#include <dokime/client.hpp>
+
+auto client = dokime::connect();
+client.plugins().register_plugin(ExamplePlugin{});
+auto cases = client.cases().materialize("capture.confirmation", "example", "capture");
+auto cycle = client.cycle("Capture");
+for (const auto &test_case : cases) {
+  auto execution = cycle.execution(test_case);
+  auto progress = execution.run();
+  while (const auto update = progress.next()) {
+    // Observe Until the Host Seals the Execution.
+  }
+  const auto outcome = execution.seal();
+}
+cycle.seal();
+const auto archive = cycle.evidence();
+client.close();
+```
+
+`client.plugins().register_plugin(ExamplePlugin{})` binds the library-owned listener,
+waits for host readiness and binds the declared template types. `client.close()`
+unregisters its plugins and closes their listeners. Managed bundle installation, typed stream subscription,
+plugin notes and client invocation policy overrides require their upstream host
+or carrier contracts.
+
+`run()` starts on the first `next()`. `watch()` reattaches without starting work;
+closing or destroying either progress stream releases only observation. Explicit
+`stop()` and `cancel()` retain their host meanings. `seal()` returns the stable
+product outcome. Lookups preserve cycle/case bindings and refuse foreign cases.
+Finite resource lists and typed record/sample readers retain their first read cut.
+Record queries provide `read`, `pages`, `count` and `last`; sample queries provide
+`collect` and on-demand `pages`, with field and time selections. Frozen schema bindings are
+verified and shared by the client.
+
+Cycle/execution notes and artifacts return product values. Evidence downloads
+verify retained length and SHA-256. `on_prompt` installs one optional answer
+handler; close releases its observation and the channel. Explicit close reports
+handler failures; destructors release resources without throwing. `Error` retains
+structured host failure classification, code, cause, details and diagnostics.
 
 ## Build and Test
 
 ```sh
 mise -C sdk/cpp run prepare
+mise -C sdk/cpp run generate
 mise -C sdk/cpp run format
 mise -C sdk/cpp run check -- --preset tests
 mise -C sdk/cpp run build -- --preset tests
 mise -C sdk/cpp run test -- --preset tests
+mise -C sdk/cpp run consumer -- --preset tests
 ```
 
-These commands use this checkout's `target/cp/` and the Debug test preset. The
-SDK tests cover generated identifiers, independent qualification, duplicate
-refusal, primitive conversion and managed/remote sidecar calls. Build the C++
-thermal host fixture with the SDK target `dokime-system-suite`.
-Native Windows and Linux validation are independent obligations.
+Native dependency versions follow the pinned library's vcpkg baseline. These
+tasks use this checkout's `target/cp/` and Debug test preset. The tests cover
+class composition, independent binding, duplicate refusal, primitive conversion,
+dotenv parsing and managed/remote calls. The C++ thermal host fixture is the
+`dokime-system-suite` target. Native Windows and Linux proof are independent.
 
-Qualified evidence identities require a fresh development storage root; preserve
-existing roots instead of resetting them. See the [SDK guide](../../docs/sdk-cpp.md)
-for client, packaging and installation details; its authoring examples need the
-owner's corresponding update.
+Use fresh development storage when changing evidence schemas; preserve existing
+roots. The [SDK guide](../../docs/sdk-cpp.md) is maintained by the owner.

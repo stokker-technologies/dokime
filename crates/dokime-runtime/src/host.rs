@@ -240,6 +240,7 @@ impl Host {
                 placement: Some(placement),
                 value: Some(PluginValue { enabled: true }),
                 request_id: Uuid::now_v7().to_string(),
+                origin: None,
             })
             .await?;
         self.await_plugin_ready(&name).await?;

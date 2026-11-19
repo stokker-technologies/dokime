@@ -6,11 +6,11 @@ using Dokime.Plugins;
 using Google.Protobuf;
 using Grpc.Core;
 using Harmos;
-using File = System.IO.File;
+using Dokime.Transport;
 
 namespace Dokime;
 
-public static class FileTransfers
+internal static class FileTransfers
 {
   public static Task<FileReference> UploadAsync(this FilesResource files, string path, CallOptions context = default)
       => UploadAsync(path, context.CancellationToken,
@@ -27,13 +27,32 @@ public static class FileTransfers
           (upload, length, digest) => files.Uploads.Publish(upload, length, digest, policy: policy, cancellationToken: cancellationToken),
           upload => files.Uploads.Delete(upload));
 
+  internal static async Task<FileReference> UploadBytesAsync(this HostFilesResource files, byte[] data, string requestId, CancellationToken cancellationToken)
+  {
+    using var source = new MemoryStream(data, writable: false);
+    return await UploadAsync(source, cancellationToken,
+      metadata => files.Uploads.Create(metadata, request_id: requestId + "/create", cancellationToken: cancellationToken),
+      (upload, offset, bytes) => files.Uploads.Append(upload, offset, bytes, request_id: requestId + $"/append/{offset}", cancellationToken: cancellationToken),
+      (upload, length, digest) => files.Uploads.Publish(upload, length, digest, request_id: requestId + "/publish", cancellationToken: cancellationToken),
+      upload => files.Uploads.Delete(upload, request_id: requestId + "/abandon"));
+  }
+
   private static async Task<FileReference> UploadAsync(string path, CancellationToken cancellationToken,
       Func<FileMetadata, Task<UploadsCreateResponse>> create,
       Func<Upload, ulong, ByteString, Task<UploadsAppendResponse>> append,
       Func<Upload, ulong, ByteString, Task<UploadsPublishResponse>> publish,
       Func<Upload, Task<UploadsDeleteResponse>> delete)
   {
-    await using var source = File.OpenRead(path);
+    await using var source = System.IO.File.OpenRead(path);
+    return await UploadAsync(source, cancellationToken, create, append, publish, delete);
+  }
+
+  private static async Task<FileReference> UploadAsync(System.IO.Stream source, CancellationToken cancellationToken,
+    Func<FileMetadata, Task<UploadsCreateResponse>> create,
+    Func<Upload, ulong, ByteString, Task<UploadsAppendResponse>> append,
+    Func<Upload, ulong, ByteString, Task<UploadsPublishResponse>> publish,
+    Func<Upload, Task<UploadsDeleteResponse>> delete)
+  {
     var created = await create(new FileMetadata { ExpectedLength = (ulong)source.Length });
     var upload = created.Upload ?? throw new InvalidDataException("Upload File: Missing Upload");
     try

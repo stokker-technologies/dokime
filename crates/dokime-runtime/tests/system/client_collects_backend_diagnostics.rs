@@ -20,24 +20,24 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::Client;
 use dokime::Metadata;
 use dokime::SecretWritable;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
-use dokime::client::SecretsDeleteOptions;
-use dokime::client::SecretsSetOptions;
-use dokime::client::StatusLogsWatchOptions;
-use dokime::client::StatusTraceEventsListOptions;
-use dokime::client::StatusTraceEventsWatchOptions;
-use dokime::client::StatusWatchOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::SecretsDeleteOptions;
+use dokime_client_internal::SecretsSetOptions;
+use dokime_client_internal::StatusLogsWatchOptions;
+use dokime_client_internal::StatusTraceEventsListOptions;
+use dokime_client_internal::StatusTraceEventsWatchOptions;
+use dokime_client_internal::StatusWatchOptions;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_runtime::PluginProcess;
-use dokime_storage::Error as DokimeStorageError;
+
 use dokime_storage::Store;
 use harmos_protocol::host::ComponentState;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use std::error::Error;
 use std::path::Path;
@@ -126,7 +126,7 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -245,7 +245,7 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
                 .await?;
             assert!(!output.status.success());
             assert_eq!(std::fs::read(incompatible.path().join("existing-data"))?, b"preserve");
-            assert!(matches!(Store::open(incompatible.path()), Err(DokimeStorageError::Incompatible(_))));
+            assert!(matches!(Store::open(incompatible.path()), Err(dokime_storage::Error::Incompatible(_))));
             Ok::<(), Box<dyn Error>>(())
         })
         .await?

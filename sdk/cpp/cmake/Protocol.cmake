@@ -4,12 +4,12 @@ function(dokime_protocol target root output)
   get_target_property(protobuf_includes protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
   protobuf_generate(TARGET ${target} PROTOS ${ARGN}
     IMPORT_DIRS "${root}" ${protobuf_includes} PROTOC_OUT_DIR "${output}"
-    DEPENDENCIES protobuf::protoc ${ARGN})
+    DEPENDENCIES protobuf::protoc "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../vcpkg.json" ${ARGN})
   protobuf_generate(TARGET ${target} LANGUAGE grpc PROTOS ${ARGN}
     IMPORT_DIRS "${root}" ${protobuf_includes} PROTOC_OUT_DIR "${output}"
     GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
     PLUGIN "protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
-    DEPENDENCIES protobuf::protoc gRPC::grpc_cpp_plugin ${ARGN})
+    DEPENDENCIES protobuf::protoc gRPC::grpc_cpp_plugin "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../vcpkg.json" ${ARGN})
   target_include_directories(${target} SYSTEM PUBLIC
     $<BUILD_INTERFACE:${output}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/dokime/_wire>)

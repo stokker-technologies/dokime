@@ -50,7 +50,7 @@ pub const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 pub fn settings() -> HostSettings {
     HostSettings {
         installation: None,
-        credentials: super::credentials::namespace(),
+        credentials: super::namespace(),
         storage: dokime_storage::storage_defaults(),
         placement: PlacementSettings {
             reconnect_delay: Duration::from_secs(1),

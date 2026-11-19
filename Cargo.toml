@@ -12,6 +12,8 @@
 members = [
   "crates/dokime-gui/src-tauri",
   "crates/dokime-cli",
+  "crates/dokime-client-internal",
+  "crates/dokime-test-support",
   "crates/dokime-protocol",
   "crates/dokime-storage",
   "crates/dokime-operations",
@@ -49,6 +51,8 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Local
+dokime-client-internal = { path = "crates/dokime-client-internal" }
+dokime-test-support = { path = "crates/dokime-test-support" }
 dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
 dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
@@ -56,14 +60,14 @@ dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 
 # Git
-harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
+harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
+harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }

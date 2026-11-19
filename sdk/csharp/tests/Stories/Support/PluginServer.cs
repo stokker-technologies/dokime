@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Grpc.Net.Client;
-using Dokime.Plugins;
 
 namespace Stories.Support;
 
@@ -28,14 +27,14 @@ internal sealed class PluginServer : IAsyncDisposable
     Wire = new Wire(channel.CreateCallInvoker());
   }
 
-  internal static async Task<PluginServer> StartAsync(Plugin plugin)
+  internal static async Task<PluginServer> StartAsync(Dokime.Plugin plugin)
   {
     // Capture the SDK's Readiness Signal, Without Polling or Scenario Delays.
     var original = Console.Out;
     var ready = new ReadinessWriter(original);
     Console.SetOut(ready);
     var stop = new CancellationTokenSource();
-    var serving = plugin.ServeAsync(remote: true, cancellationToken: stop.Token);
+    var serving = plugin.Adapter.ServeAsync(remote: true, cancellationToken: stop.Token);
     try
     {
       var winner = await Task.WhenAny(ready.Address.Task, serving);

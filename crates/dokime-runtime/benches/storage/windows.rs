@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -33,6 +33,7 @@ use tokio::runtime::Runtime;
 use super::publication::{Fixture, settings};
 use dokime::SettingDeclaration;
 use dokime::prelude::*;
+use dokime::templates::Context;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_runtime::{HostSettings, PluginProcess, SchedulerClock, services};
 use prost::Message;
@@ -123,7 +124,9 @@ pub fn serve() -> Result<()> {
     let (streams, period) = layout.split_once(':').ok_or_else(|| Error::Invalid("Serve Window Benchmark: Use streams:period_ns".into()))?;
     let streams = streams.parse::<u64>().map_err(|error| Error::Invalid(format!("Serve Window Benchmark: {error}")))?;
     let period = Duration::from_nanos(period.parse::<u64>().map_err(|error| Error::Invalid(format!("Serve Window Benchmark: {error}")))?);
-    let mut template = Template::new("windows", "Windows")
+    let mut template = Template::of::<()>()
+        .identifier("windows")
+        .label("Windows")
         .record(Record::<Produced>::new("produced", "Produced"))
         .prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"))
         .prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"))
@@ -147,7 +150,8 @@ pub fn serve() -> Result<()> {
         template = template.stream(stream).observer(observer);
     }
     let window = prost_types::Duration::try_from(MHZ_WINDOW).map_err(|error| Error::Invalid(format!("Serve Window Benchmark: {error}")))?;
-    Plugin::new("storage.windows", "1.0.0")
+    Plugin::of::<()>("1.0.0")
+        .identifier("storage.windows")
         .setting(SettingDeclaration {
             name: "sample_window".into(),
             title: "Sample Window".into(),
@@ -156,9 +160,8 @@ pub fn serve() -> Result<()> {
                 value: Some(dokime::setting_value::Value::Duration(window)),
             }),
         })
-        .suite(Suite::new("storage.windows", "Window Benchmark").template(template))
-        .remote()
-        .serve()
+        .suite(Suite::of::<()>().identifier("storage.windows").label("Window Benchmark").template(template))
+        .run()
 }
 
 pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {

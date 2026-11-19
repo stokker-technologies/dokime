@@ -16,15 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::env;
 use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use dokime::RetryPolicy;
-use dokime::encoding;
 use dokime::model::Section;
-use dokime::plugin::HostEvidenceStatisticsOptions;
+use dokime::templates::Context;
+use dokime::templates::StatisticsReadOptions;
 use dokime::{Classification, Plot, PlotKind, prelude::*};
 use dokime::{Document, FieldReference, Severity, value::Kind};
 
@@ -35,6 +36,10 @@ use dokime::{Document, FieldReference, Severity, value::Kind};
 /* === Type Aliases === */
 
 /* === Structs === */
+
+struct ExecutionPlugin;
+struct ExecutionSuite;
+struct CaptureTestTemplate;
 
 #[derive(dokime::Row)]
 #[dokime(package = "execution")]
@@ -48,6 +53,8 @@ struct Parameters {
     value: f64,
     fail_attempts: u32,
     evaluate: bool,
+    initialize_failure: Option<bool>,
+    initialize_question: Option<bool>,
 }
 
 #[derive(dokime::Record)]
@@ -55,7 +62,6 @@ struct Parameters {
 struct Attempt {
     value: f64,
     attempt: u32,
-    scope_refused: bool,
 }
 
 struct Bench {
@@ -75,22 +81,25 @@ struct Bench {
 
 fn main() -> Result<()> {
     let reading = Stream::<Reading>::new("reading", "Reading");
-    let observer = Observer::new(&reading, read).every(std::time::Duration::from_secs(1));
+    let observer = Observer::new(&reading, read).every(Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
         y: vec![FieldReference::new("execution.capture.reading").field("value")],
         ..Default::default()
     };
     let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
-    let revision = std::env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
+    let revision = env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
-    let template = Template::new("capture", "Execution Capture")
+    let template = Template::of::<CaptureTestTemplate>()
+        .label("Execution Capture")
         .record(Record::<Attempt>::new("attempt", "Attempt"))
         .description(revision)
         .parameters(Parameters {
             value: 10.0,
             fail_attempts: 0,
             evaluate: true,
+            initialize_failure: None,
+            initialize_question: None,
         })
         .initialize(initialize)
         .step(Step::new("Baseline", baseline).identifier("baseline"))
@@ -126,24 +135,29 @@ fn main() -> Result<()> {
         .document(document)
         .stream(reading)
         .observer(observer);
-    let plugin = Plugin::new("execution", "1.0.0").suite(Suite::new("execution", "Execution").template(template));
-    let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
-    plugin.serve()
+    let plugin = Plugin::of::<ExecutionPlugin>("1.0.0").suite(Suite::of::<ExecutionSuite>().template(template));
+    plugin.run()
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
-    // Resolve Host Facts Through the Active Invocation.
-    let environment = ctx.host().backend.environment().await?;
-    if environment.backend_pid == 0 || environment.in_step {
-        return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
-    }
-    let _now = ctx.now().await?;
-
     let parameters = ctx.parameters::<Parameters>()?;
     ctx.set(Bench {
         value: parameters.value,
         fail_attempts: parameters.fail_attempts,
     });
+    if parameters.initialize_failure == Some(true) {
+        return Err(Error::Invalid("Initialize Execution: Resolve the Fixture's Requested Initialization Failure".into()));
+    }
+    if parameters.initialize_question == Some(true) {
+        ctx.prompt("Continue Initialization?", &["Continue"]).await?;
+    }
+    // Resolve Host Facts Through the Active Invocation.
+    let environment = ctx.environment().await?;
+    if environment.backend_pid == 0 || environment.in_step {
+        return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
+    }
+    let _now = ctx.now().await?;
+
     ctx.log(Severity::Info, parameters.value.to_string()).await
 }
 
@@ -156,15 +170,11 @@ async fn measure(ctx: &Context) -> Result<()> {
         ctx.prompt("Continue the Measurement?", &["Continue"]).await?;
     }
     let bench = ctx.get::<Bench>()?;
-    let refused =
-        ctx.host().evidence.logs.append("missing-execution".into(), Severity::Info, "out-of-scope".into(), ctx.now().await?).await;
-    let scope_refused = refused.is_err_and(|error| error.to_string().contains("Append"));
     ctx.record(
         &Record::<Attempt>::new("attempt", "Attempt"),
         Attempt {
             value: bench.value,
             attempt: ctx.attempt(),
-            scope_refused,
         },
     )
     .await?;
@@ -180,41 +190,24 @@ async fn read(ctx: &Context) -> Result<Reading> {
 }
 
 async fn own_measurements(ctx: &Context) -> Result<bool> {
-    let stats = ctx.statistics("reading", "", "measure").await?;
-    let repeated = ctx
-        .host()
-        .evidence
-        .statistics_with(
-            ctx.resolve("reading")?,
-            "value".into(),
-            HostEvidenceStatisticsOptions {
-                step: Some(ctx.resolve("measure")?),
-                at: stats.resolved_at.clone(),
-                ..Default::default()
-            },
-        )
-        .await?;
-    let mut latest = ctx.statistics("reading", "value", "measure").await?;
-    let advanced = latest.resolved_at.as_ref().zip(stats.resolved_at.as_ref()).is_some_and(|(latest, first)| {
+    let stats = ctx.statistics_with("reading", "value", "measure", StatisticsReadOptions::default()).await?;
+    let repeated = ctx.statistics_with("reading", "value", "measure", StatisticsReadOptions { at: stats.at.clone() }).await?;
+    let mut latest = ctx.statistics_with("reading", "value", "measure", StatisticsReadOptions::default()).await?;
+    let advanced = latest.at.as_ref().zip(stats.at.as_ref()).is_some_and(|(latest, first)| {
         latest.positions.iter().any(|current| {
             first.positions.iter().any(|previous| current.history == previous.history && current.sequence > previous.sequence)
         })
     });
-    latest.resolved_at = stats.resolved_at.clone();
-    let records = ctx.records(&Record::<Attempt>::new("attempt", "Attempt")).step(measure).list(1).await?;
-    let attempt = records
-        .last
-        .map(|record| <Attempt as encoding::Message>::decode(record.payload.as_slice()))
-        .transpose()
-        .map_err(|error| Error::Invalid(error.to_string()))?;
+    latest.at = stats.at.clone();
+    let attempt = ctx.records(&Record::<Attempt>::new("attempt", "Attempt")).step(measure).last_or_none().await?;
     Ok(stats == repeated
         && stats == latest
         && advanced
-        && stats.statistics.as_ref().is_some_and(|statistics| statistics.count > 0)
-        && stats.statistics.as_ref().and_then(|statistics| statistics.min.as_ref()).and_then(|value| value.kind.as_ref())
+        && stats.value.as_ref().is_some_and(|statistics| statistics.count > 0)
+        && stats.value.as_ref().and_then(|statistics| statistics.min.as_ref()).and_then(|value| value.kind.as_ref())
             == Some(&Kind::Number(ctx.get::<Bench>()?.value))
-        && stats.statistics.as_ref().map(|statistics| &statistics.max) == stats.statistics.as_ref().map(|statistics| &statistics.min)
-        && attempt.is_some_and(|record| record.scope_refused))
+        && stats.value.as_ref().map(|statistics| &statistics.max) == stats.value.as_ref().map(|statistics| &statistics.min)
+        && attempt.is_some_and(|record| record.value == ctx.get::<Bench>().map(|bench| bench.value).unwrap_or_default()))
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

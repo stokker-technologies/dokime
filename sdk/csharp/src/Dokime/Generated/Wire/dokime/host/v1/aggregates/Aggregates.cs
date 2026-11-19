@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/aggregates.proto</summary>
-  public static partial class AggregatesReflection {
+  internal static partial class AggregatesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/aggregates.proto</summary>
@@ -78,7 +78,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum QueryFilterOperator {
+  internal enum QueryFilterOperator {
     [pbr::OriginalName("QUERY_FILTER_OPERATOR_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("QUERY_FILTER_OPERATOR_EQ")] Eq = 1,
     [pbr::OriginalName("QUERY_FILTER_OPERATOR_NEQ")] Neq = 2,
@@ -90,7 +90,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("QUERY_FILTER_OPERATOR_IS_NULL")] IsNull = 8,
   }
 
-  public enum QuerySource {
+  internal enum QuerySource {
     [pbr::OriginalName("QUERY_SOURCE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("QUERY_SOURCE_CYCLES")] Cycles = 1,
     [pbr::OriginalName("QUERY_SOURCE_CASES")] Cases = 2,
@@ -462,7 +462,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AggregatesGetResponse : pb::IMessage<AggregatesGetResponse>
+  internal sealed partial class AggregatesGetResponse : pb::IMessage<AggregatesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -715,7 +715,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AggregateReply : pb::IMessage<AggregateReply>
+  internal sealed partial class AggregateReply : pb::IMessage<AggregateReply>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -965,7 +965,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class QueryAggregate : pb::IMessage<QueryAggregate>
+  internal sealed partial class QueryAggregate : pb::IMessage<QueryAggregate>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1291,7 +1291,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class QueryFilter : pb::IMessage<QueryFilter>
+  internal sealed partial class QueryFilter : pb::IMessage<QueryFilter>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1552,7 +1552,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class QueryRow : pb::IMessage<QueryRow>
+  internal sealed partial class QueryRow : pb::IMessage<QueryRow>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

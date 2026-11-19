@@ -93,6 +93,8 @@ tonic = { workspace = true, features = ["tls-ring"] }
 [dev-dependencies]
 # Local
 dokime = { path = "../../sdk/rust" }
+dokime-client-internal = { workspace = true }
+dokime-test-support = { workspace = true }
 
 # Git
 

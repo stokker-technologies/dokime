@@ -27,7 +27,8 @@
 
 /* === Classes === */
 
-namespace dokime::plugin {
+namespace dokime::templates {
+Metadata metadata(std::string identifier, std::string label);
 struct Declaration {
   std::string name;
   std::string label;
@@ -87,13 +88,14 @@ template <auto Method> struct Member {
 };
 template <class T, class R, class... A> T member_owner(R (T::*)(A...));
 } // namespace detail
-} // namespace dokime::plugin
+} // namespace dokime::templates
 
 /* === Templates === */
 
 /* === Public Declarations === */
 
-namespace dokime::plugin {
+namespace dokime::templates {
 std::string build_identifier(std::string name, std::optional<std::string> explicit_identifier = {}, std::string prefix = {},
                              bool class_name = false);
-}
+std::string build_label(std::string name);
+} // namespace dokime::templates

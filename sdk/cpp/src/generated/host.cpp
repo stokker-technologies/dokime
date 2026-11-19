@@ -118,7 +118,7 @@ using std::string;
 using std::uint32_t;
 using std::uint64_t;
 using std::vector;
-namespace dokime::plugin {
+namespace dokime::templates {
 using ::harmos::VISIBILITY_PUBLIC;
 using ::harmos::plugin::Operation;
 using ::harmos::plugin::Watching;
@@ -589,12 +589,17 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-} // namespace dokime::plugin
-namespace dokime::plugin {
+} // namespace dokime::templates
+namespace dokime::templates {
 HostRoot Context::host() {
   return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
 }
-Plugin &Plugin::requires_operation(HostOperation operation) {
+} // namespace dokime::templates
+namespace dokime {
+Plugin &Plugin::requires_operation(templates::HostOperation operation) {
+  using ::harmos::VISIBILITY_PUBLIC;
+  using ::harmos::plugin::Operation;
+  using templates::HostOperation;
   switch (operation) {
   case HostOperation::BackendEnvironment:
     return requires_operation(
@@ -696,4 +701,4 @@ Plugin &Plugin::requires_operation(HostOperation operation) {
     throw invalid_argument("Declare Host Requirement: Unknown Operation");
   }
 }
-} // namespace dokime::plugin
+} // namespace dokime

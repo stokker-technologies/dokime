@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/record_schemas.proto</summary>
-  public static partial class RecordSchemasReflection {
+  internal static partial class RecordSchemasReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/record_schemas.proto</summary>
@@ -203,7 +203,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum FieldType {
+  internal enum FieldType {
     [pbr::OriginalName("FIELD_TYPE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("FIELD_TYPE_BOOLEAN")] Boolean = 1,
     [pbr::OriginalName("FIELD_TYPE_INTEGER")] Integer = 2,
@@ -217,7 +217,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("FIELD_TYPE_ARRAY")] Array = 10,
   }
 
-  public enum RecordIcon {
+  internal enum RecordIcon {
     [pbr::OriginalName("RECORD_ICON_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("RECORD_ICON_ACTIVITY")] Activity = 1,
     [pbr::OriginalName("RECORD_ICON_ALERT_TRIANGLE")] AlertTriangle = 2,
@@ -245,7 +245,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("RECORD_ICON_CLOCK")] Clock = 24,
   }
 
-  public enum RecordTone {
+  internal enum RecordTone {
     [pbr::OriginalName("RECORD_TONE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("RECORD_TONE_INFO")] Info = 1,
     [pbr::OriginalName("RECORD_TONE_SUCCESS")] Success = 2,
@@ -256,7 +256,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("RECORD_TONE_NEUTRAL")] Neutral = 7,
   }
 
-  public enum TelemetryRole {
+  internal enum TelemetryRole {
     [pbr::OriginalName("TELEMETRY_ROLE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("TELEMETRY_ROLE_VALUE")] Value = 1,
     [pbr::OriginalName("TELEMETRY_ROLE_COUNTER")] Counter = 2,
@@ -266,20 +266,20 @@ namespace Dokime.Clients;
     [pbr::OriginalName("TELEMETRY_ROLE_THROUGHPUT")] Throughput = 6,
   }
 
-  public enum ValidationMode {
+  internal enum ValidationMode {
     [pbr::OriginalName("VALIDATION_MODE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("VALIDATION_MODE_STRICT")] Strict = 1,
     [pbr::OriginalName("VALIDATION_MODE_PROTOTYPE")] Prototype = 2,
   }
 
-  public enum ElapsedUnit {
+  internal enum ElapsedUnit {
     [pbr::OriginalName("ELAPSED_UNIT_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("ELAPSED_UNIT_SECONDS")] Seconds = 1,
     [pbr::OriginalName("ELAPSED_UNIT_MILLISECONDS")] Milliseconds = 2,
     [pbr::OriginalName("ELAPSED_UNIT_MINUTES")] Minutes = 3,
   }
 
-  public enum UnitFamily {
+  internal enum UnitFamily {
     [pbr::OriginalName("UNIT_FAMILY_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("UNIT_FAMILY_COUNT")] Count = 1,
     [pbr::OriginalName("UNIT_FAMILY_DISTANCE")] Distance = 2,
@@ -614,7 +614,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordSchemasGetResponse : pb::IMessage<RecordSchemasGetResponse>
+  internal sealed partial class RecordSchemasGetResponse : pb::IMessage<RecordSchemasGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1111,7 +1111,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordSchemasListResponse : pb::IMessage<RecordSchemasListResponse>
+  internal sealed partial class RecordSchemasListResponse : pb::IMessage<RecordSchemasListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1344,7 +1344,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Field : pb::IMessage<Field>
+  internal sealed partial class Field : pb::IMessage<Field>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1667,7 +1667,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordDisplay : pb::IMessage<RecordDisplay>
+  internal sealed partial class RecordDisplay : pb::IMessage<RecordDisplay>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1902,7 +1902,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordField : pb::IMessage<RecordField>
+  internal sealed partial class RecordField : pb::IMessage<RecordField>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2384,7 +2384,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordSchema : pb::IMessage<RecordSchema>
+  internal sealed partial class RecordSchema : pb::IMessage<RecordSchema>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3004,7 +3004,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Schema : pb::IMessage<Schema>
+  internal sealed partial class Schema : pb::IMessage<Schema>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3256,7 +3256,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TelemetryColumn : pb::IMessage<TelemetryColumn>
+  internal sealed partial class TelemetryColumn : pb::IMessage<TelemetryColumn>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3800,7 +3800,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TelemetrySchema : pb::IMessage<TelemetrySchema>
+  internal sealed partial class TelemetrySchema : pb::IMessage<TelemetrySchema>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4508,7 +4508,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AbsoluteTimeFormat : pb::IMessage<AbsoluteTimeFormat>
+  internal sealed partial class AbsoluteTimeFormat : pb::IMessage<AbsoluteTimeFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4706,7 +4706,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ElapsedFormat : pb::IMessage<ElapsedFormat>
+  internal sealed partial class ElapsedFormat : pb::IMessage<ElapsedFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4904,7 +4904,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EngineeringFormat : pb::IMessage<EngineeringFormat>
+  internal sealed partial class EngineeringFormat : pb::IMessage<EngineeringFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5102,7 +5102,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FixedFormat : pb::IMessage<FixedFormat>
+  internal sealed partial class FixedFormat : pb::IMessage<FixedFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5300,7 +5300,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class MeasurementUnit : pb::IMessage<MeasurementUnit>
+  internal sealed partial class MeasurementUnit : pb::IMessage<MeasurementUnit>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5581,7 +5581,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NormalFormat : pb::IMessage<NormalFormat>
+  internal sealed partial class NormalFormat : pb::IMessage<NormalFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5796,7 +5796,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ScientificFormat : pb::IMessage<ScientificFormat>
+  internal sealed partial class ScientificFormat : pb::IMessage<ScientificFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5994,7 +5994,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SiPrefixFormat : pb::IMessage<SiPrefixFormat>
+  internal sealed partial class SiPrefixFormat : pb::IMessage<SiPrefixFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6192,7 +6192,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ValueFormat : pb::IMessage<ValueFormat>
+  internal sealed partial class ValueFormat : pb::IMessage<ValueFormat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6399,7 +6399,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ValueFormatKind : pb::IMessage<ValueFormatKind>
+  internal sealed partial class ValueFormatKind : pb::IMessage<ValueFormatKind>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

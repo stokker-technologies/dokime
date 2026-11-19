@@ -127,12 +127,12 @@ use sha2::{Digest, Sha256};
 
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
+use dokime_client_internal::PluginEntry;
+use dokime_client_internal::PluginsListOptions;
+use dokime_client_internal::StatusGetOptions;
+use dokime_client_internal::plugin_placement;
 use dokime_gui::rpc::{Bridge, FRAME_ERROR};
-use dokime_sdk::client::PluginEntry;
-use dokime_sdk::client::PluginsListOptions;
-use dokime_sdk::client::StatusGetOptions;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
-use harmos_protocol::host as library;
+use harmos_protocol::host;
 
 /* === Constants === */
 
@@ -253,7 +253,7 @@ fn unary_call_bridges() {
             panic!("Status Replies with Canonical Bytes");
         };
         assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-        let identity = library::StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
+        let identity = host::StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
         assert_eq!(identity.host_id, fixture.session.status().backend.unwrap().backend_id);
         let error =
             bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.host.v1.Missing/Call"}))
@@ -313,7 +313,7 @@ fn installs_large_bundle() {
         let digest = Sha256::digest(&bytes).to_vec();
         let installed = install(&fixture, bytes).await.unwrap();
         let placement = installed.placement.unwrap().kind.unwrap();
-        let PluginPlacementKind::Managed(managed) = placement else {
+        let plugin_placement::Kind::Managed(managed) = placement else {
             panic!("Expected Managed Placement");
         };
         assert_eq!(managed.sha256, digest);

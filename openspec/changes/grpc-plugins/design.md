@@ -1192,8 +1192,8 @@ class Plugin:
     settings: ClassVar[Sequence[SettingDeclaration | SettingGroup]] = ()  # Typed saved defaults.
     secrets: ClassVar[Sequence[SecretDeclaration]] = ()  # Declared Secret Storage slots.
     def __init__(self) -> None: ...  # Bind/validate declarations without I/O or author hooks.
-    async def start(self, ctx: operations.Context) -> None: ...  # Once per activation, before Ready.
-    async def stop(self, ctx: operations.Context) -> None: ...  # Release plugin state on every attempted start.
+    async def initialize(self, ctx: operations.Context) -> None: ...  # Host-invoked activation operation.
+    async def finalize(self, ctx: operations.Context) -> None: ...  # Host-invoked settled shutdown operation.
     async def serve(self, address: str | None = None) -> None: ...  # Start, serve until stopped, settle and release owned resources.
 
 class Suite:
@@ -1213,12 +1213,13 @@ class TestTemplate:
     async def cleanup(self, ctx: templates.Context) -> None: ...  # Release partial or complete state after every attempted initialize.
 ```
 
-`Plugin.start` is an author hook, never the removed endpoint-producing method.
-`serve()` and `plugins.register()` share one private activation owner, not two
-server implementations. Stop drains admitted calls, releases execution instances,
-then invokes the plugin hook; repeated shutdown does not invoke it again. A failed
-or cancelled start still invokes stop for partial acquisition. No hook runs during
-description or bundling inspection. A register call binds the *same* plugin object
+The SDK encodes plugin `initialize` and `finalize` as protected operations with
+well-known identifiers `<plugin>.initialize` and `<plugin>.finalize` and Empty
+requests and responses. Hooks use the ordinary operation context; no SDK stop
+callback or parallel activation dispatcher invokes them. `serve()` and
+`plugins.register()` share the library-owned listener. The library owns activation,
+admission draining, invocation order and settled shutdown, including finalization
+after attempted initialization. No hook runs during description or bundling inspection. A register call binds the *same* plugin object
 as `ctx.plugin`; execution handlers and observers additionally share the same
 execution template instance as `self`. No Python `ctx.set`/`ctx.get` store exists.
 
@@ -1371,7 +1372,7 @@ class PromptDeclaration:
 
 | Capability | Current Python Evidence | Expression in the Class Shape / Smallest Addition |
 |---|---|---|
-| Plugin lifecycle | NEW; `_plugin.py:330` only clears SDK sessions in a private stop callback. | `Plugin.start(ctx)` / `Plugin.stop(ctx)` above; no new public endpoint owner. |
+| Plugin lifecycle | NEW; `_plugin.py:330` only clears SDK sessions in a private stop callback. | `Plugin.initialize(ctx)` / `Plugin.finalize(ctx)` encoded as well-known operations above; no new public endpoint owner. |
 | Deadline and retries | Exists: `operations.py:61` policy, `:91` decorator; `_plugin.py:260` translates step retries. | `policy=` on operation/step/criterion; retain one policy owner, no hard-coded retry delay in the adapter. |
 | Serial admission | NEW; `operations.py:61` and `proto/harmos/model/v1/policy.proto:24` have no serial field. | Policy needs shared admission support; no product semaphore copied beside library admission. Owner decision S1 below blocks this extension alone. |
 | Operation requirements | Exists: `_plugin.py:78` accepts explicit requirements and `:88` infers all host operations. | Remove author `requires`; infer product host requirements and literal `ctx.operation(Operation(...))` declarations from decorated functions/template hooks. Runtime-selected declarations need S2 below. Preserve the host requirement check. |
@@ -2044,7 +2045,7 @@ the table fixes every per-file script value. Assets are implicit in every row.
 
 ```toml
 [plugin]
-label = "Example" # Use "Capture" for test/Test projects.
+label = "Starter Project"
 tags = ["example"]
 dynamic = ["version", "description", "authors", "license", "repository"]
 icon = "assets/icon.svg"
@@ -2058,14 +2059,10 @@ dokime = ">=0.1.5"
 
 | File | New `[scripts]` Content |
 |---|---|
-| `sdk/python/examples/plugin/dokime.toml` | `build = ["uv", "sync"]`; `launch = ["uv", "run", "python", "-m", "dokime_example_plugin.plugin"]` |
-| `sdk/python/examples/test/dokime.toml` | `build = ["uv", "sync"]`; `launch = ["uv", "run", "python", "-m", "dokime_example_test.plugin"]` |
-| `sdk/rust/examples/plugin/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "target/debug/dokime-example-plugin"` |
-| `sdk/rust/examples/test/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "target/debug/dokime-example-test"` |
-| `sdk/csharp/examples/Plugin/dokime.toml` | `build = ["mise", "run", "build"]`; `launch = ["dotnet", "assets/plugin/dokime-example-plugin.dll"]` |
-| `sdk/csharp/examples/Test/dokime.toml` | `build = ["mise", "run", "build"]`; `launch = ["dotnet", "assets/plugin/dokime-example-test.dll"]` |
-| `sdk/cpp/examples/plugin/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "build/dokime-plugin"` |
-| `sdk/cpp/examples/test/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "build/dokime-plugin"` |
+| `sdk/python/examples/starter/dokime.toml` | `build = ["uv", "sync"]`; `launch = ["uv", "run", "python", "-m", "starter_project.plugin"]` |
+| `sdk/rust/examples/starter/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "target/debug/starter-project"` |
+| `sdk/csharp/examples/Starter/dokime.toml` | `build = ["mise", "run", "build"]`; `launch = ["dotnet", "assets/plugin/Example.Plugin.dll"]` |
+| `sdk/cpp/examples/starter/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "assets/plugin/dokime-plugin"` |
 
 C++ replaces `dynamic` with explicit version="0.1.0", description, authors,
 license="Apache-2.0" and repository fields; publisher/readme remain optional
@@ -2573,9 +2570,9 @@ This is an implementation capability request, not another SDK surface decision.
 | (a) Python Package Rename Alone | Move `sdk/python/src/dokime/**` to `sdk/python/src/dokime_sdk/**` mechanically, update its self-imports only; own `sdk/python/{pyproject.toml,hatch_build.py}` and rename-specific `tools/python/src/dokime_tools/build/{protocol.py,protocol_callers.py}`, `tools/python/src/dokime_tools/build/wheel.py`, `tools/python/src/dokime_tools/test/wheel.py`. No class/handle semantics. Hand off the destination tree before (b)/(c)/(e). | Existing root public-surface guard must scan the new tree and reject the old import path; installed wheel contains LICENSE/NOTICE, py.typed and stubs, imports only the new package. Minimal rename consumer/stub/generation checks pass before semantic cutover. No compatibility package or alternate import path. |
 | (b) Python Authoring Classes and Contexts | Own `sdk/python/src/dokime_sdk/{_plugin.py,_context.py,_payloads.py,_authoring.py,operations.py,templates/}`; move old authoring/documents/plot/parameters implementations into those owned private/template files. Own authoring-focused `sdk/python/tests/unit/test_authoring.py`, `tests/integration/{test_plain_operations.py,test_materialize_parameterized_steps.py,test_documents_survive_wire_roundtrip.py}`. Delete old `authoring.py`, old public plugin barrel, unified root context, `_SUITES`, suite decorator/shortcut, endpoint API, constructor-only composition and explicit decorator request/response arguments. | Typed class/function declarations, separate contexts and ctx.plugin; deterministic identifier/reuse/duplicate/primitive tests; initialize failure/cancellation still runs cleanup. Focused SDK type/build and owned tests, plus public surface and strict installed-wheel stub checks after (e) publishes roots. No duplicate policy or stream scheduler. S1–S3 remain explicit blockers only for their capabilities. |
 | (c) Python Client Handles and Configuration | Own `sdk/python/src/dokime_sdk/{_client.py,_connection.py,_configuration.py,_evidence.py,_transfers.py,_schemas.py,_values.py,_errors.py}` and any private subdirectories below those boundaries; move old connection/evidence/transfers/schemas/values code there. Own `sdk/python/tests/unit/{test_frozen_schemas.py,test_exact_values.py}` and client-focused `tests/integration/{test_connection.py,test_client_controls_remote_plugins.py,test_reports_read_fixed_storage_file.py}`, `tests/system/test_evidence_queries.py`, new client/configuration tests. Delete free selector functions, separate old Cycle/Execution wrappers and public connection module. | Deterministic fake-service composition traces, mutation replay/lost-reply cases, cancellation without execution cancellation, close ownership, fixed-cut paging, frozen decoding and digest verification. Type/stub checks; focused client tests; real host proof waits for named host dependencies, never patched SDK finality. |
-| (d) Command-Line Manifest, Bundles and Embedding | Own `crates/dokime-packaging/src/project.rs`, affected packaging manifest/bundle sources/tests, `crates/dokime-cli/{build.rs,src/commands/new.rs,src/commands/plugin/,src/commands/dev.rs}`, relevant CLI units/system stories, and all eight starter `dokime.toml` paths above. Own shared CLI fixture/tooling manifest consumers outside SDK trees. Delete old top-level manifest keys, `assets` lists, root-script embedding assumptions, argument-based plugin launches and old-schema fixtures. SDK workers do not edit these manifests. | `check:repository`, focused `dokime-packaging`/`dokime-cli` build and units, exact embedded file inventories, all four created starter bundle/inspect/dev command-line stories with `--no-desktop`; static/dynamic precedence and native metadata errors, confinement, asset completeness and stable bundle identity/version. Existing build task remains the command runner. |
+| (d) Command-Line Manifest, Bundles and Embedding | Own `crates/dokime-packaging/src/project.rs`, affected packaging manifest/bundle sources/tests, `crates/dokime-cli/{build.rs,src/commands/new.rs,src/commands/plugin/,src/commands/dev.rs}`, relevant CLI units/system stories, and the four starter `dokime.toml` paths above. Own shared CLI fixture/tooling manifest consumers outside SDK trees. Delete old top-level manifest keys, `assets` lists, root-script embedding assumptions, argument-based plugin launches and old-schema fixtures. SDK workers do not edit these manifests. | `check:repository`, focused `dokime-packaging`/`dokime-cli` build and units, exact embedded file inventories, all four created starter bundle/inspect/dev command-line stories with `--no-desktop`; static/dynamic precedence and native metadata errors, confinement, asset completeness and stable bundle identity/version. Existing build task remains the command runner. |
 | (e) Python Starter, Examples, Generation and Consumer Tests | Own all `sdk/python/examples/**` except (d)'s manifests; `sdk/python/{README.md,mise.toml,tools/**}`, `sdk/python/tests/generation/**`, new starter consumer stories, `sdk/tests/fixtures/python/**`, Python shared-SDK story callers, and Python fixture launch/selectors in `crates/dokime-runtime/tests/support/` plus the Python-specific system stories named in Authoring Adoption Owners. Own product-generated `sdk/python/src/dokime_sdk/{__init__.py,_generated/**,_wire/**}` and generation of those paths, never generated hand edits. (a) hands off generator files before this starts. Delete old root main.py/plugin.py/suite.py/template.py layouts, old imports, shipped example locks and superseded export assertions. | Public-surface check at the three homes, strict stub check, generated-bindings check, typed installed-wheel consumers, `mise -C sdk/python run example-test`, reshaped SDK example tests and command-line created-starter story. Class reference flow runs against a real host and saves valid retained evidence. Regenerate all tracked artifacts and verify no old package is installed. |
-| (f) Rust SDK and Starters | Own `sdk/rust/**` except (d)'s two manifests; Rust shared SDK fixtures `sdk/tests/fixtures/rust/**` and Rust-specific shared story adapters. Add separate public operation/template contexts and bound client modules while retaining the protocol-only dependency boundary. Update both Cargo starter projects, entries, catalogs, README and tests; delete their argument parsing, old single-template shortcut consumers, library-facing APIs and superseded client selectors. Runtime/CLI production consumers outside this list stay with the integrating owner. | `mise -C sdk/rust run format`, focused root build task for `dokime`/derive and consumer binaries, dependency-tree check and focused SDK integration tests. Generated bindings check and public surface, created Rust starter client/plugin and bundle stories on the native host. No full lane, bench profile or worker clippy. Upstream typed runtime-operation dependency remains visible. |
+| (f) Rust SDK and Starters | Own `sdk/rust/**` except (d)'s starter manifest; Rust shared SDK fixtures `sdk/tests/fixtures/rust/**` and Rust-specific shared story adapters. Add separate public operation/template contexts and bound client modules while retaining the protocol-only dependency boundary. Update the two-binary Cargo starter project, entries, catalogs, README and tests; delete their argument parsing, old single-template shortcut consumers, library-facing APIs and superseded client selectors. Runtime/CLI production consumers outside this list stay with the integrating owner. | `mise -C sdk/rust run format`, focused root build task for `dokime`/derive and consumer binaries, dependency-tree check and focused SDK integration tests. Generated bindings check and public surface, created Rust starter client/plugin and bundle stories on the native host. No full lane, bench profile or worker clippy. Upstream typed runtime-operation dependency remains visible. |
 | (g) C# SDK and Starters | Own `sdk/csharp/**` except (d)'s manifests; `sdk/tests/fixtures/csharp/**` and C# shared story adapters. Replace sealed constructor authoring with classes/attributes, add contexts/handles/configuration, split shared author library/plugin/client projects and update locks, README, tests and generation inputs/output. Delete old argument parsing, single-template shortcut consumers, public library namespaces and replaced API assertions. | C# format/check, focused Debug build via the SDK task with `--project`, focused authoring/client tests, generation/client checks and installed NuGet consumer. Native created starter flow, shared capture contract, bundle/dev stories. Do not use the task's existing Release default for worker proof. |
 | (h) C++ SDK and Starters | Own `sdk/cpp/**` except (d)'s manifests; `sdk/tests/fixtures/cpp/**` and C++ shared story adapters. Add classes/contexts/handles/configuration and second CMake binary, migrate examples/README/tests/installed package headers. Regenerate tracked binding output through generation tasks. Delete argument parsing, old single-template shortcut consumers, public library aliases/escape hatches and replaced API assertions. | C++ format/check, focused Debug SDK and consumer build/tests via SDK tasks, generated header/binding check, installed CMake consumer. Native created starter plugin/client, shared capture and command-line bundle/dev stories; Windows and Linux proof are independent. |
 
@@ -2620,19 +2617,19 @@ of them can proceed from the signatures and ownership above.
 | ID | Unsettled Contract / Recommended Smallest Resolution |
 |---|---|
 | S1 | Serial admission has no current policy field or agreed scope (per operation, plugin or device resource). Extend the shared operation policy with per-operation, per-activation serial admission, preserving its timeout/cancellation accounting; do not add a second product lock engine. The owner must choose the scope before implementation. |
-| S2 | The lock removes author `requires`, while the host still requires typed peer-operation declarations. Static calls can be inferred, but runtime-selected Operation values cannot be discovered reliably from Python code. Recommend an explicit typed operation-reference class attribute distinct from served operations, collected by the SDK; its name/shape requires owner agreement. Do not scan bytecode or disable the host check. |
 | S3 | SettingGroup has no metadata contract in current flat settings. Recommend product-only group metadata over unchanged saved keys, exposed by the product settings schema. The owner must decide its stored/catalog representation; do not invent nested setting names or a parallel settings registry. |
-| S4 | `plugin-lifecycle/design.md` D1/D2 specify initialize/finalize hooks; this task explicitly asks plugin start/stop and template setup/cleanup. This section follows the task. The owner must reconcile the owning lifecycle change before implementations share those hook names; no alias methods. Native process entries retain that change's run spelling; Python keeps the locked serve spelling. |
 
-Resolutions recorded on 2026-11-18 while the owner was away; each is the
-orchestrator's choice and is reported to the owner for confirmation:
+The settled contracts are:
 
 - S2 is settled by the earlier owner decision on `requires` (Option A): authors
   never declare requirements and the SDK declares every operation the plugin can
   reference. No new class attribute is added.
-- S4: the plugin class uses the hook names the `plugin-lifecycle` change already
-  agreed, `initialize` and `finalize`; templates keep `setup` and `cleanup`. The
-  signatures in this section apply under those names.
+- S4: the plugin class uses `initialize` and `finalize`; the SDK encodes these as
+  the well-known lifecycle operations rather than stop callbacks. Templates use
+  `initialize` and `cleanup`. This owner decision supersedes the earlier
+  start/stop and setup/cleanup spellings without aliases. The library owns lifecycle
+  invocation and connection scopes; missing carrier capabilities remain dependencies,
+  not permission for an SDK-local lifecycle dispatcher.
 - S1 and S3 are not needed by the starter and stay open. Nothing in items
   (a)-(h) may implement serial admission or settings groups until the owner
   chooses.
@@ -2649,9 +2646,45 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 
 | Both Locations | Current Callers and Responsibility | Recommendation for the Owner |
 |---|---|---|
-| `sdk/python/src/dokime/evidence.py:_download` and `transfers.py:download_report` | Evidence export calls the former; report download consumers call the latter. Both read bounded file ranges and verify identity/length/digest, with different outer publication behavior. | Share the internal verified byte-reader under (c), retaining distinct archive/report selection and file publication; delete the duplicate range/digest loop after the owner agrees. |
-| `sdk/python/src/dokime/authoring.py:_SUITES` and explicit Plugin suite inventories | The suite decorator fills the weak registry; Plugin resolves type input through it. Both determine suite membership/binding. | Delete the weak registry under the locked class decision, use explicit Plugin.suites only; no second registry for client lookup, only client-owned registration bindings. |
-| `sdk/python/tools/generate.py` and `tools/python/src/dokime_tools/build/protocol.py` | SDK generation owns author barrels; shared generation excludes them while producing descriptor projections. Both touch SDK publication inventories. | Preserve the intentional disjoint generation ownership, with one root inventory owner; do not merge or duplicate root generation. No deletion is recommended for the separate descriptor generator. |
+| `sdk/csharp/src/Dokime/Client.cs:ArtifactAsync` and `FileTransfers.cs:UploadAsync` | Bound cycle/execution artifacts use the client loop; template evidence and file inputs use the transfer helper. Both create, append, publish, verify and abandon uploads. | Keep the transfer owner and delete the client loop after owner approval; retain child mutation identities and abandon only unpublished uploads. |
+| `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Owned registration and carrier stories independently capture stdout, observe listener readiness and settle serving. | Keep one owned endpoint implementation and delete the story server helper after the owner selects its test access boundary. |
+| `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
+| `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
+| `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
+| `crates/dokime-gui/src/report/` and `crates/dokime-runtime/src/documents.rs` | The frontend build and report fixtures compile the standalone renderer; host report operations render retained HTML directly. Both render product reports, as `docs/gui.md` already records. | Keep the host report owner and retire the standalone renderer and its build consumers after the owner resolves the retained rendering contract. |
+| `sdk/cpp/src/plugin.cpp:Plugin::serve`, `sdk/tests/fixtures/cpp/thermal/main.cpp:main` and the library `sdk/cpp/src/server.cpp:Listener::close` | Product serving and the thermal fixture explicitly shut down the process default EventEngine; the library listener settles its dedicated serving engine. These are parallel teardown owners for different engine instances, with a repeated process-global release in the fixture. | Ask the library owner to own the full transport teardown, then delete the product and fixture process-global shutdown calls; do not remove either resource release speculatively. |
+| `crates/dokime-runtime/tests/system/client_edits_settings.rs:SettingsPlugin` and `sdk/rust/src/plugin/mod.rs:into_harmos` | The settings story builds its catalog with the SDK but implements the Instance protocol itself, including lifecycle acknowledgements; authored plugins use the SDK's library-owned listener. | Use an unpublished library-owned settings protocol fixture, then delete the story's manual carrier and SDK catalog dependency after the owner agrees. |
+| `mise.toml:lint:rust` and `tools/python/src/dokime_tools/build/rust/tests.py:build` | Rust lint selects all default-feature targets; test archive production additionally selects the GUI testing feature. The latter therefore found a fixture compilation failure after the lint task passed. | Share the required test-feature inventory and delete the independent hard-coded selection after the task owner agrees; retain both lint and archive proof. |
+| `tools/python/src/dokime_tools/build/cli_fixtures.py:build` and `build/desktop_fixtures.py:build` | Every language's CLI fixture producer rebuilds the development CLI; desktop fixture production independently builds the selected-profile CLI. Concurrent consumers can hold the same executable open while another producer replaces it. | Build each required CLI profile once before fixture consumers, then delete their unconditional rebuild calls; preserve development versus selected-profile fixture policy. |
+| `tools/python/src/dokime_tools/build/cli_fixtures.py:build` and `sdk/rust/tools/test_created.py:CreatedProjectStory` | Fixture production and the created-project story separately create and compile the same Rust starter into the checkout target. Both own generated-project dependency resolution and compilation setup. | Give generated-project compilation one owner, then delete the duplicated orchestration after the owner selects the required independent fresh-build proof; preserve user-owned locks and each story's build assertions. |
+| `sdk/cpp/tools/sdk.py` and the library `tools/python/src/harmos_tools/build/cpp.py` | Product and library SDK tasks independently bootstrap the pinned vcpkg checkout and orchestrate native compiler, CMake, format, test and install operations. | Give the library a configurable native build owner, then delete the duplicated product bootstrap/build orchestration after the owner agrees; keep product task and artifact policy product-owned. |
+| `sdk/cpp/cmake/Protocol.cmake:dokime_protocol`, `sdk/cpp/tests/CMakeLists.txt` and the library `sdk/cpp/cmake/Protocol.cmake:harmos_protocol` | Product services, the thermal fixture and library services independently configure native protobuf generation and its compiler dependencies. | Share one configurable generation recipe, then delete the product helper and separate fixture recipe after the owner agrees; preserve their distinct protocol inventories and install namespaces. |
+
+The pinned library's `sdk/cpp/CMakeLists.txt` also adds its sample executables to
+consumer builds. Make those examples opt-in or top-level-only upstream; product
+starters should not grow target-name exclusions for library samples.
+
+The C++ starter's normal build stages Release runtime inputs for bundling. Debug
+executables stay in the build tree: their dependency binaries can exceed the
+existing per-file bundle bound. This preserves the bundle admission limit and
+the created-project build deadline; it does not change SDK Debug test builds.
+The C++ CLI fixture producer reads Debug executables and their companions from
+the consumer build tree rather than the starter's bundle assets. Rust fixture
+production selects the Debug compiler environment independently of its fixture
+output profile, matching the generated project's normal build task.
+
+### Prompt Deadline and Stream Lag Proof
+
+`crates/dokime-runtime/tests/system/python_client_runs_thermal_suite_over_grpc.rs`
+advances the shipped starter's execution clock by two hours while its prompt is
+pending. The prompt remains pending across operation deadlines, but the same
+clock drives the continuous observer in
+`sdk/python/examples/starter/src/starter_project/plugin/suites/capture/confirmation.py`.
+That jump correctly violates the stream window lag policy and interrupts the
+execution before its final Passed assertion. This is REWORK: the owner must
+choose clock advancement that waits for every due stream window, or separate
+prompt-only fixture coverage. Neither permits relaxing operation deadlines,
+stream lag limits or the outcome assertion.
 
 The owner writes `docs/`; no documentation file changes belong to SDK workers.
 When implementation lands, these current statements need reconciliation:
@@ -2661,11 +2694,12 @@ When implementation lands, these current statements need reconciliation:
 | `docs/architecture.md:15`, `:37`, `:1133`, `:1217` | Product-only contexts/handles and class composition replace exposed carrier types and old entry/lifecycle descriptions; retained evidence follows seal-finality. |
 | `docs/product-guide.md:144` | SDK/CLI workflows use bound cycle/case/execution handles, product plugin operations and explicit seal finality. |
 | `docs/plugins.md:21` | Python execution state belongs to the TestTemplate instance, with plugin state separately reachable through ctx.plugin. |
-| `docs/rust-sdk.md:7`, `:37`, `:52`, `:96` | Separate operation/template contexts, one project with two binaries and bound client flow replace the old snippets. |
-| `docs/sdk-csharp.md:65`, `:115`, `:139` | Author bases/attributes and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
-| `docs/sdk-cpp.md:13`, `:26`, `:85` | Author classes and blocking bound handles hide carrier types and require no starter argument parsing. |
+| `docs/rust-sdk.md:7`, `:37`, `:52`, `:96` | Separate operation/template contexts, one starter with two binaries, operation-encoded lifecycle hooks and bound client flow replace the old snippets. |
+| `docs/sdk-csharp.md:65`, `:81`, `:115`, `:139` | Author bases/attributes, one shared-library/plugin/client starter and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
+| `docs/sdk-cpp.md:5`, `:13`, `:26`, `:85`, `:90` | The library pin is the common maintenance revision; author classes, protected lifecycle operations and blocking bound handles use one argument-free starter whose build stages Release bundle inputs. |
 | `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
 
-README impact belongs to implementation owners: root README's Python import,
-connection and starter path claims need the integrating owner's update; each SDK
-owner updates its package README and examples. Do not edit unrelated prose.
+The root README and SDK package READMEs describe the product imports, bound
+connection/client flow, protected lifecycle operations and single starter roots.
+The documentation changes above remain with the owner; workers do not edit
+`docs/` or unrelated prose.

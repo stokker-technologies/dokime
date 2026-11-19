@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/documents.proto</summary>
-  public static partial class DocumentsReflection {
+  internal static partial class DocumentsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/documents.proto</summary>
@@ -368,7 +368,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum DocumentCardKind {
+  internal enum DocumentCardKind {
     [pbr::OriginalName("DOCUMENT_CARD_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_CARD_KIND_TEXT")] Text = 1,
     [pbr::OriginalName("DOCUMENT_CARD_KIND_TELEMETRY_SUMMARY")] TelemetrySummary = 2,
@@ -385,21 +385,21 @@ namespace Dokime.Clients;
     [pbr::OriginalName("DOCUMENT_CARD_KIND_TELEMETRY_CONTEXT")] TelemetryContext = 13,
   }
 
-  public enum DocumentDensity {
+  internal enum DocumentDensity {
     [pbr::OriginalName("DOCUMENT_DENSITY_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_DENSITY_COMPACT")] Compact = 1,
     [pbr::OriginalName("DOCUMENT_DENSITY_NORMAL")] Normal = 2,
     [pbr::OriginalName("DOCUMENT_DENSITY_SPACIOUS")] Spacious = 3,
   }
 
-  public enum DocumentRail {
+  internal enum DocumentRail {
     [pbr::OriginalName("DOCUMENT_RAIL_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_RAIL_MAIN")] Main = 1,
     [pbr::OriginalName("DOCUMENT_RAIL_RIGHT")] Right = 2,
     [pbr::OriginalName("DOCUMENT_RAIL_LEFT")] Left = 3,
   }
 
-  public enum DocumentSummaryFormat {
+  internal enum DocumentSummaryFormat {
     [pbr::OriginalName("DOCUMENT_SUMMARY_FORMAT_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_SUMMARY_FORMAT_AUTO")] Auto = 1,
     [pbr::OriginalName("DOCUMENT_SUMMARY_FORMAT_NUMBER")] Number = 2,
@@ -410,19 +410,19 @@ namespace Dokime.Clients;
     [pbr::OriginalName("DOCUMENT_SUMMARY_FORMAT_TEXT")] Text = 7,
   }
 
-  public enum DocumentSummaryPresentation {
+  internal enum DocumentSummaryPresentation {
     [pbr::OriginalName("DOCUMENT_SUMMARY_PRESENTATION_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_SUMMARY_PRESENTATION_VALUE")] Value = 1,
     [pbr::OriginalName("DOCUMENT_SUMMARY_PRESENTATION_PROGRESS")] Progress = 2,
     [pbr::OriginalName("DOCUMENT_SUMMARY_PRESENTATION_BADGE")] Badge = 3,
   }
 
-  public enum DocumentSummaryStat {
+  internal enum DocumentSummaryStat {
     [pbr::OriginalName("DOCUMENT_SUMMARY_STAT_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_SUMMARY_STAT_LATEST")] Latest = 1,
   }
 
-  public enum DocumentSummaryState {
+  internal enum DocumentSummaryState {
     [pbr::OriginalName("DOCUMENT_SUMMARY_STATE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DOCUMENT_SUMMARY_STATE_OK")] Ok = 1,
     [pbr::OriginalName("DOCUMENT_SUMMARY_STATE_WARNING")] Warning = 2,
@@ -430,7 +430,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("DOCUMENT_SUMMARY_STATE_MUTED")] Muted = 4,
   }
 
-  public enum PlotAxisKind {
+  internal enum PlotAxisKind {
     [pbr::OriginalName("PLOT_AXIS_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("PLOT_AXIS_KIND_WALL_TIME")] WallTime = 1,
     [pbr::OriginalName("PLOT_AXIS_KIND_ELAPSED")] Elapsed = 2,
@@ -904,7 +904,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentsGetResponse : pb::IMessage<DocumentsGetResponse>
+  internal sealed partial class DocumentsGetResponse : pb::IMessage<DocumentsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1638,7 +1638,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentsWatchResponse : pb::IMessage<DocumentsWatchResponse>
+  internal sealed partial class DocumentsWatchResponse : pb::IMessage<DocumentsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2396,7 +2396,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentsAppendPartsResponse : pb::IMessage<DocumentsAppendPartsResponse>
+  internal sealed partial class DocumentsAppendPartsResponse : pb::IMessage<DocumentsAppendPartsResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2603,7 +2603,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentBinding : pb::IMessage<DocumentBinding>
+  internal sealed partial class DocumentBinding : pb::IMessage<DocumentBinding>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2893,7 +2893,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentBindingResult : pb::IMessage<DocumentBindingResult>
+  internal sealed partial class DocumentBindingResult : pb::IMessage<DocumentBindingResult>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3348,7 +3348,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentCard : pb::IMessage<DocumentCard>
+  internal sealed partial class DocumentCard : pb::IMessage<DocumentCard>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3627,7 +3627,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentCardBody : pb::IMessage<DocumentCardBody>
+  internal sealed partial class DocumentCardBody : pb::IMessage<DocumentCardBody>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4028,7 +4028,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentCardBudget : pb::IMessage<DocumentCardBudget>
+  internal sealed partial class DocumentCardBudget : pb::IMessage<DocumentCardBudget>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4337,7 +4337,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentCardFailure : pb::IMessage<DocumentCardFailure>
+  internal sealed partial class DocumentCardFailure : pb::IMessage<DocumentCardFailure>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4618,7 +4618,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentCompletion : pb::IMessage<DocumentCompletion>
+  internal sealed partial class DocumentCompletion : pb::IMessage<DocumentCompletion>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5038,7 +5038,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentEvidenceCut : pb::IMessage<DocumentEvidenceCut>
+  internal sealed partial class DocumentEvidenceCut : pb::IMessage<DocumentEvidenceCut>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5319,7 +5319,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentFrame : pb::IMessage<DocumentFrame>
+  internal sealed partial class DocumentFrame : pb::IMessage<DocumentFrame>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5526,7 +5526,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentFrameFrame : pb::IMessage<DocumentFrameFrame>
+  internal sealed partial class DocumentFrameFrame : pb::IMessage<DocumentFrameFrame>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6831,7 +6831,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentFrontiers : pb::IMessage<DocumentFrontiers>
+  internal sealed partial class DocumentFrontiers : pb::IMessage<DocumentFrontiers>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7209,7 +7209,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentHeader : pb::IMessage<DocumentHeader>
+  internal sealed partial class DocumentHeader : pb::IMessage<DocumentHeader>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7545,7 +7545,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentLayoutNode : pb::IMessage<DocumentLayoutNode>
+  internal sealed partial class DocumentLayoutNode : pb::IMessage<DocumentLayoutNode>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7843,7 +7843,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentLayoutNodeNode : pb::IMessage<DocumentLayoutNodeNode>
+  internal sealed partial class DocumentLayoutNodeNode : pb::IMessage<DocumentLayoutNodeNode>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -8137,7 +8137,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentOwnerReference : pb::IMessage<DocumentOwnerReference>
+  internal sealed partial class DocumentOwnerReference : pb::IMessage<DocumentOwnerReference>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -8432,7 +8432,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentPage : pb::IMessage<DocumentPage>
+  internal sealed partial class DocumentPage : pb::IMessage<DocumentPage>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -8681,7 +8681,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentPlacement : pb::IMessage<DocumentPlacement>
+  internal sealed partial class DocumentPlacement : pb::IMessage<DocumentPlacement>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -9073,7 +9073,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentPlotDefinition : pb::IMessage<DocumentPlotDefinition>
+  internal sealed partial class DocumentPlotDefinition : pb::IMessage<DocumentPlotDefinition>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -9418,7 +9418,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentRepeat : pb::IMessage<DocumentRepeat>
+  internal sealed partial class DocumentRepeat : pb::IMessage<DocumentRepeat>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -9785,7 +9785,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentRepeatInstance : pb::IMessage<DocumentRepeatInstance>
+  internal sealed partial class DocumentRepeatInstance : pb::IMessage<DocumentRepeatInstance>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10140,7 +10140,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentRepeatSelection : pb::IMessage<DocumentRepeatSelection>
+  internal sealed partial class DocumentRepeatSelection : pb::IMessage<DocumentRepeatSelection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10412,7 +10412,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSection : pb::IMessage<DocumentSection>
+  internal sealed partial class DocumentSection : pb::IMessage<DocumentSection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10702,7 +10702,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSectionIdentity : pb::IMessage<DocumentSectionIdentity>
+  internal sealed partial class DocumentSectionIdentity : pb::IMessage<DocumentSectionIdentity>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -10997,7 +10997,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSpan : pb::IMessage<DocumentSpan>
+  internal sealed partial class DocumentSpan : pb::IMessage<DocumentSpan>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -11405,7 +11405,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSummary : pb::IMessage<DocumentSummary>
+  internal sealed partial class DocumentSummary : pb::IMessage<DocumentSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -11603,7 +11603,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSummaryCondition : pb::IMessage<DocumentSummaryCondition>
+  internal sealed partial class DocumentSummaryCondition : pb::IMessage<DocumentSummaryCondition>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -11884,7 +11884,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSummaryGroup : pb::IMessage<DocumentSummaryGroup>
+  internal sealed partial class DocumentSummaryGroup : pb::IMessage<DocumentSummaryGroup>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -12202,7 +12202,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSummaryGroupDefinition : pb::IMessage<DocumentSummaryGroupDefinition>
+  internal sealed partial class DocumentSummaryGroupDefinition : pb::IMessage<DocumentSummaryGroupDefinition>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -12520,7 +12520,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSummaryTile : pb::IMessage<DocumentSummaryTile>
+  internal sealed partial class DocumentSummaryTile : pb::IMessage<DocumentSummaryTile>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -13151,7 +13151,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentSummaryTileDefinition : pb::IMessage<DocumentSummaryTileDefinition>
+  internal sealed partial class DocumentSummaryTileDefinition : pb::IMessage<DocumentSummaryTileDefinition>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -13729,7 +13729,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentTable : pb::IMessage<DocumentTable>
+  internal sealed partial class DocumentTable : pb::IMessage<DocumentTable>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -13927,7 +13927,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentTableRow : pb::IMessage<DocumentTableRow>
+  internal sealed partial class DocumentTableRow : pb::IMessage<DocumentTableRow>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -14208,7 +14208,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentTelemetryCut : pb::IMessage<DocumentTelemetryCut>
+  internal sealed partial class DocumentTelemetryCut : pb::IMessage<DocumentTelemetryCut>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -14480,7 +14480,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentWarning : pb::IMessage<DocumentWarning>
+  internal sealed partial class DocumentWarning : pb::IMessage<DocumentWarning>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -14715,7 +14715,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotPresentation : pb::IMessage<PlotPresentation>
+  internal sealed partial class PlotPresentation : pb::IMessage<PlotPresentation>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -15337,7 +15337,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotReferenceBand : pb::IMessage<PlotReferenceBand>
+  internal sealed partial class PlotReferenceBand : pb::IMessage<PlotReferenceBand>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -15770,7 +15770,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotReferenceLine : pb::IMessage<PlotReferenceLine>
+  internal sealed partial class PlotReferenceLine : pb::IMessage<PlotReferenceLine>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -16065,7 +16065,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotReferenceValue : pb::IMessage<PlotReferenceValue>
+  internal sealed partial class PlotReferenceValue : pb::IMessage<PlotReferenceValue>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -16326,7 +16326,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class DocumentScope : pb::IMessage<DocumentScope>
+  internal sealed partial class DocumentScope : pb::IMessage<DocumentScope>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
