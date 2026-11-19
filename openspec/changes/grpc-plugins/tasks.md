@@ -249,6 +249,6 @@
 ## Library Pin, Installer Feature and SDK Lanes
 
 - [x] Refresh Every Library Pin to `dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912`, Its Locks, Vendored Protocol Inputs and Generated Bindings; Adapt Existing Consumers and Prove the Focused SDK Tests and Runtime Test Compilation.
-- [ ] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
+- [x] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
 - [ ] Expose Library-Owned Lane Declarations and Operation Assignment Through All Four Product SDKs; Prove Each Description and Preserve Library Validation.
 - [ ] Run the Requested Final Repository, Rust Lint, Release-Context Binding and Supply Checks Without Expanding Local Test Lanes.
