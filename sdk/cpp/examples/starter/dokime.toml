@@ -7,7 +7,7 @@
 # ***
 
 [plugin]
-label = "Example"
+label = "Starter Project"
 tags = ["example"]
 icon = "assets/icon.svg"
 version = "0.1.0"
@@ -21,4 +21,4 @@ dokime = ">=0.1.5"
 
 [scripts]
 build = ["mise", "run", "build"]
-executable = "build/dokime-plugin"
+executable = "assets/plugin/dokime-plugin"

@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 using Harmos.Plugins;
 using Harmos;
 using Dokime.Templates;
@@ -85,7 +86,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         if (typeof(Dokime.Operations.IOperationReference).IsAssignableFrom(field.FieldType)
           && field.GetValue(null) is Dokime.Operations.IOperationReference reference)
           reference.Declare(transport);
-    foreach (var operation in Enum.GetValues<HostOperation>())
+    foreach (var operation in System.Enum.GetValues<HostOperation>())
       this.Requires(operation);
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
     var section = new Suites();
@@ -108,21 +109,30 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       transport.Section(prompts);
     if (secrets.Secrets.Count > 0)
       transport.Section(secrets);
-    transport.OnStop(DisposeResourcesAsync);
+    transport.Operation(new Operation<Empty, Empty>($"{identifier}.initialize", Visibility.Protected), async (raw, request) =>
+    {
+      await author.InitializeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
+      return new Empty();
+    });
+    transport.Operation(new Operation<Empty, Empty>($"{identifier}.finalize", Visibility.Protected), async (raw, request) =>
+    {
+      try
+      {
+        await author.FinalizeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
+        return new Empty();
+      }
+      finally
+      {
+        await DisposeResourcesAsync();
+      }
+    });
     built = true;
     return transport;
   }
 
   public async Task ServeAsync(string? address = null, bool remote = false, CancellationToken cancellationToken = default)
   {
-    try
-    {
-      await Build().ServeAsync(address, remote, cancellationToken);
-    }
-    finally
-    {
-      await DisposeResourcesAsync();
-    }
+    await Build().ServeAsync(address, remote, cancellationToken);
   }
 
   private void Register(Template template, Dokime.SuiteDefinition suite, HashSet<string> identifiers)

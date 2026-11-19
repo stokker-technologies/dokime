@@ -32,7 +32,7 @@ public sealed class CycleTestTemplate : TestTemplate
   });
   public override IReadOnlyList<Parameter> Parameters => [Dokime.Templates.Parameters.Number("limit", "Limit").WithDefault(85.0)];
 
-  public override Task SetupAsync(Context context, CancellationToken cancellationToken = default) => context.LogAsync("Initialized", cancellationToken: cancellationToken);
+  public override Task InitializeAsync(Context context, CancellationToken cancellationToken = default) => context.LogAsync("Initialized", cancellationToken: cancellationToken);
 
   [Step("Ramp to Target", TotalAttempts = 3, InitialBackoffSeconds = 0.1, ReplaySafe = true)]
   public Task Ramp(Context context) => context.ProgressAsync(1, 2, "Ramp to Target");

@@ -276,7 +276,7 @@ internal sealed class Template(string identifier, string label)
     template.Definition.Metadata.Label = instance.Label;
     template.Definition.Parameters.Add(instance.Parameters.Select(value => value.Clone()));
     template.Definition.Documents.Add(instance.Documents.Select(value => value.Clone()));
-    template.InitializeBody = context => ((TestTemplate)context.Instance!).SetupAsync(context, context.CancellationToken);
+    template.InitializeBody = context => ((TestTemplate)context.Instance!).InitializeAsync(context, context.CancellationToken);
     template.CleanupBody = context => ((TestTemplate)context.Instance!).CleanupAsync(context, context.CancellationToken);
     foreach (var field in typeof(T).GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public))
     {

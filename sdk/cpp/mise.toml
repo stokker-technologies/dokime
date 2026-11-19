@@ -65,3 +65,8 @@ run = 'uv run --no-sync --project ../../tools/python python tools/sdk.py consume
 description = "Generate or Check C++ Bindings"
 usage = 'arg "[args]" var=#true'
 run = 'uv run --no-sync --project ../../tools/python python tools/generate.py {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks."test:created"]
+hide = true
+description = "Run the Created C++ Project Against Prepared Product Bytes"
+run = 'uv run --no-sync --project ../../tools/python python tools/test_created.py'

@@ -15,6 +15,7 @@
 #include "dokime/plugin/v1/steps.pb.h"
 #include "dokime/plugin/v1/test_cases.pb.h"
 #include <cctype>
+#include <google/protobuf/empty.pb.h>
 #include <google/protobuf/util/message_differencer.h>
 #include <grpc/event_engine/event_engine.h>
 #include <limits>
@@ -230,9 +231,6 @@ Plugin::Plugin(string identifier, string version, vector<Suite> suites)
     : identifier_(identifier), version_(version), plugin_(make_shared<dokime::detail::PluginState>()),
       native_(move(identifier), move(version)), executions_(make_shared<templates::detail::Executions>()) {
   plugin_->plugin = this;
-  native_.on_stop([state = executions_] {
-    state->clear();
-  });
   context_operations();
   for (auto &suite : suites)
     this->suite(move(suite));
@@ -458,6 +456,26 @@ Plugin &Plugin::context_operations() {
 }
 harmos::plugin::Plugin Plugin::compose() const {
   auto result = native_;
+  result.operation(harmos::plugin::Operation<google::protobuf::Empty, google::protobuf::Empty>(
+      identifier_ + ".initialize", harmos::VISIBILITY_PROTECTED,
+      [plugin = plugin_](harmos::plugin::Context &transport, const google::protobuf::Empty &) {
+        operations::Context context(transport, plugin);
+        context.plugin().initialize(context);
+        return google::protobuf::Empty{};
+      }));
+  result.operation(harmos::plugin::Operation<google::protobuf::Empty, google::protobuf::Empty>(
+      identifier_ + ".finalize", harmos::VISIBILITY_PROTECTED,
+      [plugin = plugin_, executions = executions_](harmos::plugin::Context &transport, const google::protobuf::Empty &) {
+        operations::Context context(transport, plugin);
+        try {
+          context.plugin().finalize(context);
+        } catch (...) {
+          executions->clear();
+          throw;
+        }
+        executions->clear();
+        return google::protobuf::Empty{};
+      }));
   if (suites_.suites_size())
     result.section(suites_);
   if (prompts_.prompts_size())

@@ -184,7 +184,7 @@ mod tests {
     #[tokio::test]
     async fn created_starters_resolve_native_metadata_and_asset_inputs() -> Result<()> {
         let root = tempfile::tempdir()?;
-        for (language, folder) in [("python", ""), ("rust", ""), ("csharp", ""), ("cpp", "test")] {
+        for language in ["python", "rust", "csharp", "cpp"] {
             let destination = root.path().join(language);
             let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
             let arguments = vec![
@@ -198,25 +198,16 @@ mod tests {
             ];
             let cli = Cli::try_parse_from(arguments).unwrap();
             commands::run(cli.command, None, Settings::default()).await?;
-            let folders: &[&str] = if folder.is_empty() {
-                &[""]
-            } else if folder == "Test" {
-                &["Plugin", "Test"]
-            } else {
-                &["plugin", "test"]
-            };
-            for folder in folders {
-                let project = PluginProject::read(&destination.join(folder))?;
-                project.validate_inputs()?;
-                let metadata = project.resolve_metadata("")?;
-                assert!(metadata.version.is_some());
-                assert!(metadata.description.is_some());
-                assert!(!metadata.authors.unwrap_or_default().is_empty());
-                assert!(metadata.license.is_some());
-                assert!(metadata.repository.is_some());
-                let icon = metadata.icon.ok_or("Create Starter: Include Its Plugin Icon")?;
-                assert!(project.path(&icon)?.is_file());
-            }
+            let project = PluginProject::read(&destination)?;
+            project.validate_inputs()?;
+            let metadata = project.resolve_metadata("")?;
+            assert!(metadata.version.is_some());
+            assert!(metadata.description.is_some());
+            assert!(!metadata.authors.unwrap_or_default().is_empty());
+            assert!(metadata.license.is_some());
+            assert!(metadata.repository.is_some());
+            let icon = metadata.icon.ok_or("Create Starter: Include Its Plugin Icon")?;
+            assert!(project.path(&icon)?.is_file());
         }
         Ok(())
     }

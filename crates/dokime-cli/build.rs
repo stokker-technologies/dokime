@@ -71,7 +71,7 @@ fn embed_examples() {
     let mut source = String::new();
     embed_csharp(&repository, &mut source);
     for (name, language, folders) in
-        [("RUST", "rust", &["starter"][..]), ("PYTHON", "python", &["starter"][..]), ("CPP", "cpp", &["plugin", "test"][..])]
+        [("RUST", "rust", &["starter"][..]), ("PYTHON", "python", &["starter"][..]), ("CPP", "cpp", &["starter"][..])]
     {
         source.push_str(&format!("const {name}: &[(&str, &[u8])] = &[\n"));
         for folder in folders {
@@ -100,7 +100,7 @@ fn embed_examples() {
                 }
                 let path = repository.join(file);
                 assert!(fs::symlink_metadata(&path).expect("Read example file type").is_file(), "Embed Example: Use Regular Files");
-                let destination = if language != "cpp" { relative.to_owned() } else { format!("{folder}/{relative}") };
+                let destination = relative.to_owned();
                 source.push_str(&format!("({destination:?}, include_bytes!({:?})),\n", path.canonicalize().expect("Resolve example file")));
             }
         }

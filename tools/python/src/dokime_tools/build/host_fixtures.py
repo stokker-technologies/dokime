@@ -107,7 +107,9 @@ def build(profile: str, language: str = "auto") -> None:
                 profile,
                 "--package",
                 "dokime-runtime",
-                "--example",
+                "--package",
+                "dokime-client-internal",
+                "--bin",
                 "content_fixture",
                 "--bin",
                 "dokime-host",
@@ -119,9 +121,7 @@ def build(profile: str, language: str = "auto") -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        shutil.copy2(
-            root / "target" / compiler_profile / "examples" / f"content_fixture{extension}", output / f"content_fixture{extension}"
-        )
+        shutil.copy2(root / "target" / compiler_profile / f"content_fixture{extension}", output / f"content_fixture{extension}")
         shutil.copy2(root / "target" / compiler_profile / f"dokime-host{extension}", output / f"dokime-host{extension}")
         # Build the OBC Charger Plugin the Desktop Stories and Screenshots Install
         subprocess.run(

@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -39,6 +39,7 @@ struct TemplateBinding {
   std::string suite;
   std::string template_id;
 };
+struct RegistrationState;
 struct ClientState {
   explicit ClientState(std::shared_ptr<grpc::Channel> channel) : channel(std::move(channel)), transport(std::in_place, this->channel) {}
   std::shared_ptr<grpc::Channel> channel;
@@ -49,6 +50,8 @@ struct ClientState {
   mutable std::vector<std::weak_ptr<grpc::ClientContext>> contexts;
   std::map<std::type_index, std::vector<TemplateBinding>> bindings;
   std::shared_ptr<FrozenSchemaCache> schemas;
+  std::recursive_mutex registrations_mutex;
+  std::map<std::string, std::shared_ptr<RegistrationState>> registrations;
   std::mutex prompt_mutex;
   std::function<PromptAnswer(const PromptQuestion &)> prompt_handler;
   std::shared_ptr<grpc::ClientContext> prompt_context;
@@ -83,6 +86,8 @@ struct RegistrationState {
   std::shared_ptr<ClientState> client;
   harmos::client::PluginEntry entry;
   bool detached = false;
+  std::shared_ptr<Plugin> plugin;
+  std::optional<harmos::plugin::Listener> listener;
 };
 struct ProgressState {
   std::shared_ptr<ExecutionState> execution;

@@ -85,7 +85,11 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
     if matches!(args.lang, Language::Csharp) {
         return csharp_project(&args.path, files, checkout.as_deref());
     }
-    let names = if matches!(args.lang, Language::Python | Language::Rust) { Some(project_names(&args.path, args.lang)?) } else { None };
+    let names = if matches!(args.lang, Language::Python | Language::Rust | Language::Cpp) {
+        Some(project_names(&args.path, args.lang)?)
+    } else {
+        None
+    };
     let mut presets = None;
     if matches!(args.lang, Language::Cpp) && checkout.is_none() {
         let url = args.sdk_url.unwrap_or_else(|| {
@@ -127,7 +131,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
             };
             let destination = args.path.join(&relative);
             fs::create_dir_all(destination.parent().unwrap())?;
-            if relative.ends_with("/CMakePresets.json") && checkout.is_none() {
+            if relative == "CMakePresets.json" && checkout.is_none() {
                 let (url, digest) = presets.as_ref().ok_or("Create C++ Project: Missing SDK Coordinates")?;
                 let mut value: Value = serde_json::from_slice(bytes)?;
                 value["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_URL"] = url.clone().into();
@@ -197,20 +201,9 @@ fn starter_files(language: Language, embedded: &[(&str, &[u8])], checkout: Optio
         Language::Rust => "sdk/rust/examples/starter",
         Language::Python => "sdk/python/examples/starter",
         Language::Csharp => "sdk/csharp/examples/Starter",
-        Language::Cpp => return cpp_starter_files(checkout),
+        Language::Cpp => "sdk/cpp/examples/starter",
     };
     read_starter(&checkout.join(folder), language)
-}
-
-// The C++ Owner Replaces This Two-Folder Selection When Its Single Starter Lands.
-fn cpp_starter_files(checkout: &Path) -> Result<Vec<(String, Vec<u8>)>> {
-    let mut files = Vec::new();
-    for folder in ["plugin", "test"] {
-        for (relative, bytes) in read_starter(&checkout.join("sdk/cpp/examples").join(folder), Language::Cpp)? {
-            files.push((format!("{folder}/{relative}"), bytes));
-        }
-    }
-    Ok(files)
 }
 
 fn read_starter(root: &Path, language: Language) -> Result<Vec<(String, Vec<u8>)>> {
@@ -476,6 +469,103 @@ fn project_names(path: &Path, language: Language) -> Result<(String, String)> {
                 | "virtual"
                 | "yield"
         )
+    } else if matches!(language, Language::Cpp) {
+        matches!(
+            package.as_str(),
+            "alignas"
+                | "alignof"
+                | "and"
+                | "and_eq"
+                | "asm"
+                | "auto"
+                | "bitand"
+                | "bitor"
+                | "bool"
+                | "break"
+                | "case"
+                | "catch"
+                | "char"
+                | "char8_t"
+                | "char16_t"
+                | "char32_t"
+                | "class"
+                | "compl"
+                | "concept"
+                | "const"
+                | "consteval"
+                | "constexpr"
+                | "constinit"
+                | "const_cast"
+                | "continue"
+                | "co_await"
+                | "co_return"
+                | "co_yield"
+                | "decltype"
+                | "default"
+                | "delete"
+                | "do"
+                | "double"
+                | "dynamic_cast"
+                | "else"
+                | "enum"
+                | "explicit"
+                | "export"
+                | "extern"
+                | "false"
+                | "float"
+                | "for"
+                | "friend"
+                | "goto"
+                | "if"
+                | "inline"
+                | "int"
+                | "long"
+                | "mutable"
+                | "namespace"
+                | "new"
+                | "noexcept"
+                | "not"
+                | "not_eq"
+                | "nullptr"
+                | "operator"
+                | "or"
+                | "or_eq"
+                | "private"
+                | "protected"
+                | "public"
+                | "register"
+                | "reinterpret_cast"
+                | "requires"
+                | "return"
+                | "short"
+                | "signed"
+                | "sizeof"
+                | "static"
+                | "static_assert"
+                | "static_cast"
+                | "struct"
+                | "switch"
+                | "template"
+                | "this"
+                | "thread_local"
+                | "throw"
+                | "true"
+                | "try"
+                | "typedef"
+                | "typeid"
+                | "typename"
+                | "union"
+                | "unsigned"
+                | "using"
+                | "virtual"
+                | "void"
+                | "volatile"
+                | "wchar_t"
+                | "while"
+                | "xor"
+                | "xor_eq"
+        ) || package.contains("__")
+            || package.starts_with('_')
     } else {
         matches!(
             package.as_str(),
@@ -516,7 +606,7 @@ fn project_names(path: &Path, language: Language) -> Result<(String, String)> {
     if keyword {
         return Err(format!("Create {label} Project: Choose a Name That Does Not Normalize to the {label} Keyword {package}").into());
     }
-    let dependency = if matches!(language, Language::Rust) { "dokime" } else { "dokime_sdk" };
+    let dependency = if matches!(language, Language::Rust | Language::Cpp) { "dokime" } else { "dokime_sdk" };
     if package == dependency {
         return Err(format!("Create {label} Project: Choose a Name Other Than {dependency} to Avoid Shadowing the SDK").into());
     }
@@ -562,12 +652,7 @@ mod tests {
                 "<Project>\n<PackageReference Include=\"Dokime\" Version=\"0.1.0-dev\" />\n</Project>",
                 "<ProjectReference Include=",
             ),
-            (
-                Language::Cpp,
-                "plugin/CMakeLists.txt",
-                "if(DOKIME_SDK_URL)\nendif()\nfind_package(Dokime CONFIG REQUIRED)",
-                "add_subdirectory(",
-            ),
+            (Language::Cpp, "CMakeLists.txt", "if(DOKIME_SDK_URL)\nendif()\nfind_package(Dokime CONFIG REQUIRED)", "add_subdirectory("),
         ] {
             let text = super::local_dependency(language, relative, input.into(), Some(checkout.path()))?;
             assert!(text.contains(expected), "{text}");
@@ -585,7 +670,7 @@ mod tests {
             (Language::Rust, "rust/examples/starter"),
             (Language::Python, "python/examples/starter"),
             (Language::Csharp, "csharp/examples/Starter"),
-            (Language::Cpp, "cpp/examples/plugin"),
+            (Language::Cpp, "cpp/examples/starter"),
         ] {
             let missing = checkout.path().join("sdk").join(folder);
             let error = super::starter_files(language, &[], Some(checkout.path())).unwrap_err().to_string();
@@ -596,7 +681,7 @@ mod tests {
 
     #[test]
     fn every_buildable_starter_embeds_project_configuration() {
-        for (files, folders) in [(RUST, &[""][..]), (PYTHON, &[""][..]), (CSHARP, &[""][..]), (CPP, &["plugin", "test"][..])] {
+        for (files, folders) in [(RUST, &[""][..]), (PYTHON, &[""][..]), (CSHARP, &[""][..]), (CPP, &[""][..])] {
             for folder in folders {
                 for name in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
                     let relative = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
@@ -629,6 +714,36 @@ mod tests {
         for name in ["type", "match", "gen", "Self", "dokime", "my project", "name!"] {
             assert!(project_names(Path::new(name), Language::Rust).is_err(), "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn cpp_starter_has_one_root_and_two_executables() -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let project = directory.path().join("created-starter");
+        let checksum = "a".repeat(64);
+        run(
+            Args {
+                path: project.clone(),
+                lang: Language::Cpp,
+                from: None,
+                sdk_url: Some("https://example.test/sdk.tar.gz".into()),
+                sdk_sha256: Some(checksum.clone()),
+            },
+            Settings::default(),
+        )
+        .await?;
+        assert!(project.join("src/plugin/main.cpp").is_file());
+        assert!(project.join("src/client/main.cpp").is_file());
+        assert!(project.join("src/plugin/suites/capture/confirmation.cpp").is_file());
+        assert!(!project.join("plugin").exists());
+        assert!(!project.join("test").exists());
+        let presets: serde_json::Value = serde_json::from_slice(&fs::read(project.join("CMakePresets.json"))?)?;
+        assert_eq!(presets["configurePresets"][0]["cacheVariables"]["DOKIME_SDK_SHA256"], checksum);
+        assert!(fs::read_to_string(project.join("src/plugin.hpp"))?.contains("namespace created_starter"));
+        for name in ["class", "namespace", "dokime", "__reserved"] {
+            assert!(project_names(Path::new(name), Language::Cpp).is_err());
+        }
+        Ok(())
     }
 
     #[tokio::test]

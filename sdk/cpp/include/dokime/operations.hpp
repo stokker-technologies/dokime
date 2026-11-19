@@ -82,6 +82,7 @@ protected:
   std::shared_ptr<dokime::detail::PluginState> plugin_;
 
 private:
+  friend class dokime::Plugin;
   template <class Q, class R> friend class OperationValue;
   template <class Q, class R> friend class BoundOperation;
 };

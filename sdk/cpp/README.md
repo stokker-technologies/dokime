@@ -2,7 +2,7 @@
 
 The C++20 authoring API uses explicit plugin, suite and template classes, ordinary
 operation handlers, and separate operation and template contexts. The
-[capture example](examples/test/main.cpp) serves a plugin without arguments.
+[capture example](examples/starter/src/plugin/main.cpp) serves a plugin without arguments.
 
 ## Author a Plugin
 
@@ -64,6 +64,10 @@ returns product description values without starting a listener.
 
 ## State and Contexts
 
+Plugin author classes may override `initialize(dokime::operations::Context&)` and
+`finalize(dokime::operations::Context&)`. The SDK encodes them as protected
+`<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
+
 Each execution owns a template instance shared by initialize, steps, observers,
 criteria and cleanup. Use template fields for execution state. The optional
 `initialize(Context&)` and `cleanup(Context&)` methods bind automatically.
@@ -117,6 +121,7 @@ connection budget, retaining certificate pinning, credentials and host identity.
 #include <dokime/client.hpp>
 
 auto client = dokime::connect();
+client.plugins().register_plugin(ExamplePlugin{});
 auto cases = client.cases().materialize("capture.confirmation", "example", "capture");
 auto cycle = client.cycle("Capture");
 for (const auto &test_case : cases) {
@@ -132,9 +137,9 @@ const auto archive = cycle.evidence();
 client.close();
 ```
 
-The plugin must already be registered on the host. The pinned carrier provides
-only blocking `serve`; owned object registration requires an upstream addressable,
-closeable listener. Managed bundle installation, typed stream subscription,
+`client.plugins().register_plugin(ExamplePlugin{})` binds the library-owned listener,
+waits for host readiness and binds the declared template types. `client.close()`
+unregisters its plugins and closes their listeners. Managed bundle installation, typed stream subscription,
 plugin notes and client invocation policy overrides require their upstream host
 or carrier contracts.
 

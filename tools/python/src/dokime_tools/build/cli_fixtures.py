@@ -116,7 +116,7 @@ def build(profile: str, language: str = "rust") -> None:
         scratch = scratch_directory.name
         try:
             project = Path(scratch) / language
-            example = project if language in ("python", "csharp") else project / "test"
+            example = project
             arguments = [str(cli), "new", str(project), "--lang", language, "--from", str(root)]
             subprocess.run(
                 arguments,
@@ -201,7 +201,7 @@ def build(profile: str, language: str = "rust") -> None:
                         [
                             sys.executable,
                             str(root / "sdk/cpp/tests/support/run_plugin.py"),
-                            str(root / "target/cp/consumer" / f"dokime-plugin{extension}"),
+                            str(example / "assets/plugin" / f"dokime-plugin{extension}"),
                             str(root / "target/cp/tests/tests" / f"dokime-plugin-journey{extension}"),
                             placement,
                         ],
@@ -214,7 +214,7 @@ def build(profile: str, language: str = "rust") -> None:
                         stderr=sys.stderr,
                     )
                 (output / "cpp").mkdir(exist_ok=True)
-                for artifact in (root / "target/cp/consumer").iterdir():
+                for artifact in (example / "assets/plugin").iterdir():
                     if artifact.suffix in (".exe", ".dll") or artifact.name == "dokime-plugin":
                         shutil.copy2(artifact, output / "cpp" / artifact.name)
             shutil.copytree(project, output / language / "source", ignore=shutil.ignore_patterns(".venv", "bin", "obj"), dirs_exist_ok=True)

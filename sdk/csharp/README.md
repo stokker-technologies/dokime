@@ -10,9 +10,12 @@ A `Suite` subclass lists its `TestTemplate` types. Templates declare records,
 streams, observers, parameters and methods carrying `Step` or `Criterion` attributes.
 Both handler contexts expose the actual author plugin through `Plugin`;
 `Dokime.Templates.Context` adds execution evidence and lifecycle operations.
-Template `SetupAsync` and `CleanupAsync` own execution lifetimes. A template that
+Template `InitializeAsync` and `CleanupAsync` own execution lifetimes. A template that
 implements `IAsyncDisposable` is disposed after cleanup, including cleanup failure.
-Plugin-level lifecycle hooks, serial admission and settings groups are not implemented.
+Plugin classes may override `InitializeAsync(Dokime.Operations.Context, CancellationToken)`
+and `FinalizeAsync(Dokime.Operations.Context, CancellationToken)`. The SDK encodes
+protected `<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
+Serial admission and settings groups remain open.
 
 Identifiers strip `Plugin`, `Suite` and `TestTemplate` suffixes and convert word
 boundaries to underscores. Templates are always qualified by their suite, and

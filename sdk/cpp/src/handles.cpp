@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -236,8 +236,26 @@ Client::~Client() {
   }
 }
 void Client::close() {
-  if (!state_ || state_->closed.exchange(true))
+  if (!state_)
     return;
+  std::lock_guard registration_lock(state_->registrations_mutex);
+  if (state_->closed)
+    return;
+  std::exception_ptr cleanup_failure;
+  const auto registrations = state_->registrations;
+  for (const auto &[identifier, registration] : registrations) {
+    try {
+      RegisteredPlugin(registration).unregister();
+    } catch (...) {
+      if (!cleanup_failure)
+        cleanup_failure = std::current_exception();
+      if (registration->listener) {
+        registration->listener->close();
+        registration->listener.reset();
+      }
+    }
+  }
+  state_->closed = true;
   state_->prompt_worker.request_stop();
   {
     std::lock_guard lock(state_->contexts_mutex);
@@ -254,8 +272,11 @@ void Client::close() {
     state_->prompt_context.reset();
   }
   state_->bindings.clear();
+  state_->registrations.clear();
   state_->transport.reset();
   state_->channel.reset();
+  if (cleanup_failure)
+    std::rethrow_exception(cleanup_failure);
   if (state_->prompt_failure)
     std::rethrow_exception(state_->prompt_failure);
 }
@@ -742,13 +763,103 @@ optional<Progress> ProgressStream::next() try {
   throw;
 }
 Plugins::Plugins(shared_ptr<detail::ClientState> client) : client_(move(client)) {}
+RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<string> address, optional<string> request_id) {
+  std::lock_guard lock(client_->registrations_mutex);
+  client_->context();
+  const auto identifier = plugin->identifier();
+  if (client_->registrations.contains(identifier))
+    throw invalid_argument("Register Plugin: Unregister This Client's Existing Plugin First");
+  const auto values = detail::configuration::load();
+  const auto selected = detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
+  auto registration = make_shared<detail::RegistrationState>();
+  registration->client = client_;
+  registration->plugin = move(plugin);
+  registration->listener.emplace(registration->plugin->compose().start(selected));
+  const auto endpoint = "http://" + registration->listener->address();
+  try {
+    harmos::client::PluginPlacement placement;
+    placement.mutable_remote()->set_url(endpoint);
+    harmos::client::PluginValue value;
+    value.set_enabled(true);
+    client::PluginsCreateOptions options;
+    options.context = client_->context();
+    options.request_id = detail::mutation_identity(move(request_id));
+    const auto created = client_->transport->plugins.create(identifier, placement, value, options);
+    registration->entry = created.entry();
+    if (registration->entry.name() != identifier)
+      throw runtime_error("Register Plugin: Read the Requested Plugin Entry Identity");
+    client_->registrations.emplace(identifier, registration);
+    RegisteredPlugin registered(registration);
+    auto ready = [&] {
+      if (registration->entry.has_failure())
+        throw Error(detail::project_failure(registration->entry.failure()));
+      const auto state = registration->entry.state();
+      if (state != harmos::client::PLUGIN_STATE_READY && state != harmos::client::PLUGIN_STATE_CONNECTING)
+        throw runtime_error("Register Plugin: Enable the Plugin and Resolve Its Activation Failure");
+      return state == harmos::client::PLUGIN_STATE_READY;
+    };
+    if (!ready()) {
+      client::PluginsWatchOptions watching;
+      watching.context = client_->context();
+      watching.name = identifier;
+      auto watch = client_->transport->plugins.watch(watching);
+      while (const auto frame = watch.next()) {
+        if (!frame->resync_required().empty())
+          throw runtime_error("Register Plugin: Reconnect After Plugin Resynchronization");
+        if (frame->has_snapshot()) {
+          for (const auto &entry : frame->snapshot().entries())
+            if (entry.name() == identifier)
+              registration->entry = entry;
+        }
+        if (frame->has_change() && frame->change().entry().name() == identifier)
+          registration->entry = frame->change().entry();
+        if (ready())
+          break;
+      }
+    }
+    if (!ready())
+      throw runtime_error("Register Plugin: Reconnect; Readiness Observation Ended Before Ready");
+    for (const auto &[type, bindings] : registration->plugin->bindings_)
+      for (const auto &[suite, template_id] : bindings)
+        client_->bindings[type].push_back({identifier, suite, template_id});
+    return registered;
+  } catch (...) {
+    const auto failure = std::current_exception();
+    client::PluginsGetOptions lookup;
+    lookup.context = client_->context();
+    try {
+      const auto observed = client_->transport->plugins.get(identifier, lookup);
+      if (observed.entry().placement().remote().url() == endpoint) {
+        client::PluginsDeleteOptions deleting;
+        deleting.context = client_->context();
+        client_->transport->plugins.delete_(identifier, observed.entry().revision(), deleting);
+      }
+    } catch (const Error &error) {
+      const auto status = error.failure.details.find("grpc_status");
+      if (status == error.failure.details.end() || status->second != "5") {
+        registration->listener->close();
+        throw;
+      }
+    }
+    registration->listener->close();
+    registration->listener.reset();
+    client_->registrations.erase(identifier);
+    std::rethrow_exception(failure);
+  }
+}
 RegisteredPlugin Plugins::get(const string &identifier) {
+  std::lock_guard lock(client_->registrations_mutex);
+  if (const auto found = client_->registrations.find(identifier); found != client_->registrations.end()) {
+    RegisteredPlugin registered(found->second);
+    registered.refresh();
+    return registered;
+  }
   client::PluginsGetOptions options;
   options.context = client_->context();
   const auto result = client_->transport->plugins.get(identifier, options);
   if (result.entry().name() != identifier)
     throw runtime_error("Read Plugin: Read the Requested Entry Identity");
-  return RegisteredPlugin(make_shared<detail::RegistrationState>(detail::RegistrationState{client_, result.entry(), false}));
+  return RegisteredPlugin(make_shared<detail::RegistrationState>(detail::RegistrationState{client_, result.entry(), false, {}, {}}));
 }
 RegisteredPlugin::RegisteredPlugin(shared_ptr<detail::RegistrationState> state) : state_(move(state)) {}
 const string &RegisteredPlugin::identifier() const {
@@ -786,10 +897,13 @@ RegisteredPlugin &RegisteredPlugin::refresh() {
   return *this;
 }
 void RegisteredPlugin::unregister() {
+  std::lock_guard lock(state_->client->registrations_mutex);
   if (state_->detached)
     return;
   try {
     refresh();
+    if (state_->listener && state_->entry.placement().remote().url() != "http://" + state_->listener->address())
+      throw runtime_error("Unregister Plugin: Resolve the Changed Placement Before Removing This Client's Registration");
     client::PluginsDeleteOptions options;
     options.context = state_->client->context();
     state_->client->transport->plugins.delete_(identifier(), state_->entry.revision(), options);
@@ -798,6 +912,21 @@ void RegisteredPlugin::unregister() {
     if (status == error.failure.details.end() || status->second != "5")
       throw;
   }
+  if (state_->listener) {
+    state_->listener->close();
+    state_->listener.reset();
+  }
+  for (auto binding = state_->client->bindings.begin(); binding != state_->client->bindings.end();) {
+    std::erase_if(binding->second, [&](const auto &value) {
+      return value.plugin == identifier();
+    });
+    if (binding->second.empty())
+      binding = state_->client->bindings.erase(binding);
+    else
+      ++binding;
+  }
+  state_->client->registrations.erase(identifier());
+  state_->plugin.reset();
   state_->detached = true;
 }
 } // namespace dokime

@@ -29,7 +29,7 @@ import harmos.plugin
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy
-from harmos.plugin import Publisher, Window, observer, on_stop, operation, publisher, window_observer
+from harmos.plugin import Publisher, Window, observer, operation, publisher, window_observer
 
 # Local Imports
 import dokime_sdk.operations
@@ -38,6 +38,7 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations
 from ._payloads import message_type, pack
@@ -142,7 +143,8 @@ class Plugin:
             self._streams[id(method)] = identity
             self._streams[id(declaration)] = identity
             methods[f"plugin_stream_{index}"] = self._stream(None, name, method)
-        methods["release"] = self._stop()
+        methods["initialize"] = self._lifecycle("initialize")
+        methods["finalize"] = self._lifecycle("finalize")
         adapter = type("DokimeOperations", (), methods)()
         contributions: list[Message] = [Suites(suites=[item.definition() for item in self._suites])] if self._suites else []
         if self._records:
@@ -198,19 +200,13 @@ class Plugin:
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
         from ._configuration import load, resolve
 
-        if type(self).initialize is not Plugin.initialize or type(self).finalize is not Plugin.finalize:
-            raise ValueError(
-                "Activate Plugin: Upgrade harmos-sdk to Provide initialize(ctx) and finalize(ctx) Activation Hooks "
-                "With an Admitted harmos.plugin.Context; Plugin.start in harmos/_authoring.py Only Binds a Listener, "
-                "and on_stop in harmos/_contracts.py Accepts No Context. Keep Plugin Hooks Unoverridden Until Then"
-            )
         return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
 
     def _materialize(self, template: _Template) -> Callable[..., Awaitable[Message]]:
         async def execute(adapter: object, transport: harmos.plugin.Context, request: TestCasesMaterializeRequest) -> Message:
             try:
                 transport.scope()
-            except harmos.Failure as error:
+            except harmos.FailureError as error:
                 if error.value.code != "scope_required":
                     raise
             else:
@@ -295,7 +291,7 @@ class Plugin:
                     return CriteriaEvaluateResponse(passed=result)
                 return response_type()
             except dokime_sdk.operations.FailureError as error:
-                raise harmos.Failure(dokime_sdk.operations._failure(error.failure)) from error
+                raise harmos.FailureError(wire_failure(error.failure)) from error
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
@@ -379,12 +375,22 @@ class Plugin:
         context = Context(transport, self, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
         return session.instance, context
 
-    def _stop(self) -> Callable[..., Awaitable[None]]:
-        async def release(adapter: object) -> None:
-            self._sessions.clear()
-            self._ready.clear()
+    def _lifecycle(self, name: str) -> Callable[..., Awaitable[None]]:
+        async def invoke(adapter: object, transport: harmos.plugin.Context) -> None:
+            context = dokime_sdk.operations.Context(transport, self)
+            try:
+                if name == "initialize":
+                    await self.initialize(context)
+                else:
+                    await self.finalize(context)
+            except dokime_sdk.operations.FailureError as error:
+                raise harmos.FailureError(wire_failure(error.failure)) from error
+            finally:
+                if name == "finalize":
+                    self._sessions.clear()
+                    self._ready.clear()
 
-        return on_stop(release)
+        return invoke
 
 
 # === Public Functions === #

@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -199,16 +199,24 @@ public:
 
 private:
   friend class Plugins;
+  friend class Client;
   explicit RegisteredPlugin(std::shared_ptr<detail::RegistrationState> state);
   std::shared_ptr<detail::RegistrationState> state_;
 };
 class Plugins {
 public:
+  template <class T>
+  RegisteredPlugin register_plugin(T plugin, std::optional<std::string> address = {}, std::optional<std::string> request_id = {}) {
+    static_assert(std::is_base_of_v<Plugin, T>, "Register Plugin: Supply a Product Plugin Author Class");
+    return register_owned(std::make_shared<T>(std::move(plugin)), std::move(address), std::move(request_id));
+  }
   RegisteredPlugin get(const std::string &identifier);
 
 private:
   friend class Client;
   explicit Plugins(std::shared_ptr<detail::ClientState> client);
+  RegisteredPlugin register_owned(std::shared_ptr<Plugin> plugin, std::optional<std::string> address,
+                                  std::optional<std::string> request_id);
   std::shared_ptr<detail::ClientState> client_;
 };
 class Client {

@@ -56,6 +56,8 @@ class Host(Protocol):
 class HostFactory(Protocol):
     async def start(self, story: unittest.IsolatedAsyncioTestCase) -> Host: ...
 
+    def fixture(self, name: str) -> Path: ...
+
 
 class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
     async def test_create_bundle_develop_run_seal_and_save(self) -> None:
@@ -63,11 +65,9 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         repository = Path(__file__).resolve().parents[3]
         timeout = policy.load(repository).deadline("system")
         suffix = ".exe" if os.name == "nt" else ""
-        binary = repository / "target/debug" / f"dokime{suffix}"
-        self.assertTrue(
-            binary.is_file(),
-            "Create Rust Project: Build dokime-cli Through the Project Task",
-        )
+        support = repository / "sdk/python/tests/support/host.py"
+        factory = cast(HostFactory, runpy.run_path(str(support))["Host"])
+        binary = factory.fixture("dokime")
         scratch = Path(tempfile.mkdtemp(prefix="dokime-rust-created-"))
         self.addCleanup(shutil.rmtree, scratch)
         project = scratch / "created-starter"
@@ -201,8 +201,7 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             await process.wait()
 
         # Start the Prepared Product Host and Run the Unmodified Client.
-        support = repository / "sdk/python/tests/support/host.py"
-        host = await cast(HostFactory, runpy.run_path(str(support))["Host"]).start(self)
+        host = await factory.start(self)
         environment["DOKIME_REMOTE"] = host.endpoint
         process = await asyncio.create_subprocess_exec(
             str(repository / "target/debug" / f"created-starter-client{suffix}"),

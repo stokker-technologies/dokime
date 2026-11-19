@@ -13,6 +13,42 @@ namespace Stories.Integration;
 public sealed class AuthorDeclaresQualifiedMembers
 {
   [Fact]
+  public async Task PluginHooksUseProtectedWellKnownOperationsAndAuthorState()
+  {
+    var plugin = new LifecyclePlugin();
+    Assert.Empty(plugin.Events);
+    await using var server = await PluginServer.StartAsync(plugin);
+    var description = await server.Wire.DescribeAsync();
+    foreach (var name in new[] { "initialize", "finalize" })
+    {
+      var identifier = $"{plugin.Identifier}.{name}";
+      var operation = Assert.Single(description.Declarations.Operations, value => value.Id == identifier);
+      Assert.Equal(Harmos.Visibility.Protected, operation.Visibility);
+      Assert.Equal("google.protobuf.Empty", operation.Request);
+      Assert.Equal("google.protobuf.Empty", operation.Response);
+      await server.Wire.InvokeAsync<Empty>(description, identifier, new Empty());
+    }
+    Assert.Equal(new[] { "initialize", "finalize" }, plugin.Events);
+  }
+
+  private sealed class LifecyclePlugin : Dokime.Plugin
+  {
+    internal List<string> Events { get; } = [];
+    public override Task InitializeAsync(Dokime.Operations.Context context, CancellationToken cancellationToken = default)
+    {
+      Assert.Same(this, context.Plugin);
+      Events.Add("initialize");
+      return Task.CompletedTask;
+    }
+    public override Task FinalizeAsync(Dokime.Operations.Context context, CancellationToken cancellationToken = default)
+    {
+      Assert.Same(this, context.Plugin);
+      Events.Add("finalize");
+      return Task.CompletedTask;
+    }
+  }
+
+  [Fact]
   public void ClassesDeclareQualifiedMembersWithoutRunningThem()
   {
     var plugin = new ExamplePlugin();

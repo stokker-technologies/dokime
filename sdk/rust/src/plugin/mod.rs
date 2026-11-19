@@ -66,6 +66,8 @@ use crate::{PromptDefinitions, RecordContracts, Suites};
 
 /* === Structs === */
 
+struct Finalize(Executions);
+
 // A Product Plugin. Composition Is Inert Until Declaration Validation or Serve.
 pub struct Plugin {
     assembly: Assembly,
@@ -84,6 +86,8 @@ struct Assembly {
     secrets: Vec<SecretDeclaration>,
     registrations: Vec<Registration>,
     errors: Vec<String>,
+    initialize: Registration,
+    finalize: Registration,
 }
 
 /* === Enums === */
@@ -91,6 +95,12 @@ struct Assembly {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Drop for Finalize {
+    fn drop(&mut self) {
+        context::clear(&self.0).expect("Finalize Plugin Resources");
+    }
+}
 
 impl Plugin {
     pub(crate) fn registration_identifier(&self) -> &str {
@@ -125,8 +135,27 @@ impl Plugin {
                 secrets: Vec::new(),
                 registrations: Vec::new(),
                 errors: Vec::new(),
+                initialize: lifecycle("initialize", async |_| Ok(())),
+                finalize: lifecycle("finalize", async |_| Ok(())),
             },
         }
+    }
+}
+
+impl Plugin {
+    pub fn initialize<H>(mut self, handler: H) -> Self
+    where
+        H: for<'a> AsyncFn(&'a crate::operations::Context) -> Result<()> + Send + Sync + 'static,
+    {
+        self.assembly.initialize = lifecycle("initialize", handler);
+        self
+    }
+    pub fn finalize<H>(mut self, handler: H) -> Self
+    where
+        H: for<'a> AsyncFn(&'a crate::operations::Context) -> Result<()> + Send + Sync + 'static,
+    {
+        self.assembly.finalize = lifecycle("finalize", handler);
+        self
     }
 }
 
@@ -238,7 +267,7 @@ impl Plugin {
 
     fn assemble(self) -> Result<plugin::Plugin> {
         let Assembly {
-            identifier: _,
+            identifier,
             version: _,
             label: _,
             state,
@@ -250,6 +279,8 @@ impl Plugin {
             secrets,
             registrations,
             errors,
+            initialize,
+            finalize,
         } = self.assembly;
         if !errors.is_empty() {
             return Err(Error::Invalid(errors.join("; ")));
@@ -319,7 +350,8 @@ impl Plugin {
         for register in registrations {
             inner = register(inner, executions.clone(), "");
         }
-        inner = inner.on_stop(move || context::clear(&executions).map_err(harmos::Error::from));
+        inner = initialize(inner, executions.clone(), &identifier);
+        inner = finalize(inner, executions, &identifier);
         inner.declarations()?;
         Ok(inner)
     }
@@ -354,6 +386,24 @@ impl Plugin {
 
 /* === Private Functions === */
 
+fn lifecycle<H>(name: &'static str, handler: H) -> Registration
+where
+    H: for<'a> AsyncFn(&'a crate::operations::Context) -> Result<()> + Send + Sync + 'static,
+{
+    Box::new(move |plugin, executions, identifier| {
+        let operation = crate::operation::wire(
+            format!("{identifier}.{name}"),
+            harmos::Visibility::Protected,
+            async move |transport: &plugin::Context, (): ()| {
+                let _cleanup = (name == "finalize").then(|| Finalize(executions.clone()));
+                let context = crate::operations::Context::invocation(transport, &executions)?;
+                handler(&context).await
+            },
+        );
+        plugin.operation(operation)
+    })
+}
+
 /* === Tests === */
 
 #[cfg(test)]
@@ -362,6 +412,22 @@ mod tests {
     use crate::{Error, Result};
     use dokime_protocol::descriptor_pool;
     use harmos_protocol::{model::Protobuf, schema};
+
+    #[test]
+    fn lifecycle_hooks_are_inert_protected_operations_with_final_identity() -> Result<()> {
+        let declarations = Plugin::of::<()>("1.0.0")
+            .initialize(async |_| panic!("Inspecting Declarations Entered Initialize"))
+            .finalize(async |_| panic!("Inspecting Declarations Entered Finalize"))
+            .identifier("author")
+            .declarations()?;
+        for name in ["author.initialize", "author.finalize"] {
+            let operation = declarations.operations.iter().find(|operation| operation.id == name).expect("Lifecycle Operation");
+            assert_eq!(operation.visibility, harmos::Visibility::Protected as i32);
+            assert_eq!(operation.request, "google.protobuf.Empty");
+            assert_eq!(operation.response, "google.protobuf.Empty");
+        }
+        Ok(())
+    }
 
     #[test]
     fn default_host_requirements_preserve_protocol_operation_kinds() -> Result<()> {

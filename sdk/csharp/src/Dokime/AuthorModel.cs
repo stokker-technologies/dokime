@@ -20,6 +20,8 @@ public abstract class Plugin
   public virtual string Label => AuthorNames.Label(GetType().Name, "Plugin");
   public virtual string Version => GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
     ?? throw new ArgumentException("Describe Plugin: Set the Plugin Project Version");
+  public virtual Task InitializeAsync(Dokime.Operations.Context context, CancellationToken cancellationToken = default) => Task.CompletedTask;
+  public virtual Task FinalizeAsync(Dokime.Operations.Context context, CancellationToken cancellationToken = default) => Task.CompletedTask;
   public virtual IReadOnlyList<Type> Suites => [];
   public virtual IReadOnlyList<Delegate> Operations => [];
   public virtual IReadOnlyList<Dokime.Operations.SettingDeclaration> Settings => [];

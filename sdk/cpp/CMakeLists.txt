@@ -8,11 +8,13 @@ include(cmake/Dependencies.cmake)
 include(cmake/Library.cmake)
 include(cmake/Install.cmake)
 
+if(PROJECT_IS_TOP_LEVEL)
+  add_subdirectory(examples/starter)
+endif()
+
 option(DOKIME_BUILD_TESTS "Build SDK Stories and Host Fixtures" ${PROJECT_IS_TOP_LEVEL})
 if(DOKIME_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
 endif()
 
-add_executable(dokime-example-plugin examples/plugin/main.cpp)
-target_link_libraries(dokime-example-plugin PRIVATE Dokime::Cpp)

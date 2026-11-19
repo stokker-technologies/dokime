@@ -190,7 +190,7 @@
   - [x] Prove Failed/Cancelled Product Initialization Cleanup Exactly Once With the Deterministic Runtime Story.
   - [x] Prove the Created Rust and C# Starters Through Build, Bundle, Inspect, Headless Development and Unmodified Client Runs; Prove Python Creation and Shared Four-Language Capture.
   - [ ] Complete CLI Units/Stories, SDK Units/Integrations, Generated Checking, Repository Checking, Formatting, Scoped/Workspace Compilation and Final Rust Lint on This Candidate.
-    - [ ] Replace `crates/dokime-runtime/examples/content_fixture.rs` With an Unpublished Protocol Fixture Without an SDK Dependency; Preserve Every Trusted-Plugin Stale-Revision, Replay and Upload-Writer Fence Probe.
+    - [ ] Move the Raw Protocol Fixture to `crates/dokime-client-internal/src/bin/content_fixture.rs` Without Any SDK Dependency; Preserve Every Trusted-Plugin Stale-Revision, Replay and Upload-Writer Fence Probe.
     - [x] Validate Rust Project Names Against Rust Keywords and SDK Shadowing, and Run Created-Project Compiler Processes Through the Existing Owned Process-Tree Runner Without Changing Deadlines.
     - [x] Migrate Runtime and Desktop Benchmark Source Consumers to Marker Constructors, Native Template Contexts, Standard Plugin Run and the Unpublished Product Client; Typecheck Them in the Dev Profile Without Building or Running Benchmarks.
   - [x] Preserve Separate SDK Harness and Product Execution Sequencing Per the Owner Decision; Run Product Cleanup After Attempted Initialization, Including Failure and Cancellation.

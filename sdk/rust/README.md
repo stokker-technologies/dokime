@@ -3,6 +3,17 @@
 Author executable test plugins and call a running host with the `dokime` crate.
 The [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its records, steps and criteria.
 
+Plugin lifecycle hooks use ordinary async operation contexts:
+
+```rust
+Plugin::of::<ExamplePlugin>("0.1.0")
+    .initialize(async |ctx: &dokime::operations::Context| Ok(()))
+    .finalize(async |ctx: &dokime::operations::Context| Ok(()));
+```
+
+The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
+with empty payloads. Hooks share plugin-owned state with other operations.
+
 ## Author a Suite
 
 ```rust

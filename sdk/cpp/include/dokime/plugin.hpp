@@ -73,6 +73,8 @@ class Plugin {
 public:
   Plugin(std::string identifier, std::string version, std::vector<Suite> suites = {});
   Plugin &suite(Suite suite);
+  virtual void initialize(operations::Context &) {}
+  virtual void finalize(operations::Context &) {}
   template <class Q, class R> Plugin &operation(const operations::OperationValue<Q, R> &operation) {
     native_.operation(operation.native(plugin_));
     return *this;

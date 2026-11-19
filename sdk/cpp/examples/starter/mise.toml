@@ -15,5 +15,13 @@ ninja = "1.13.2"
 # === Entry Points === #
 
 [tasks.build]
-description = "Build the Managed Plugin Executable"
+description = "Build the Plugin and Client"
 run = ['cmake --preset development', 'cmake --build --preset development']
+
+[tasks.run]
+description = "Run the Test Client"
+run = "build/dokime-client"
+
+[tasks.dev]
+description = "Start Plugin Development"
+run = "dokime dev --plugin ."
