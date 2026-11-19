@@ -246,7 +246,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
                 let manifest = project.join("pyproject.toml");
                 let contents = fs::read_to_string(&manifest)?;
-                fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n"))?;
+                fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
                 remote_plugin = Some(
                     Command::from(process::command("uv"))
                         .args(["run", "python", "-m", "first_python.plugin"])
@@ -273,7 +273,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "confirmation",
+                    "capture.confirmation",
                     "--out",
                     cases.to_str().unwrap(),
                     "--parameters",

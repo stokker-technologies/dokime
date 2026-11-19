@@ -81,7 +81,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
                     let manifest = input.join("pyproject.toml");
                     let contents = fs::read_to_string(&manifest)?;
-                    fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n"))?;
+                    fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
                     input
                 };
 
@@ -119,7 +119,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         "--suite",
                         suite,
                         "--template",
-                        if language == "python" { "confirmation" } else { "capture" },
+                        if language == "python" { "capture.confirmation" } else { "capture" },
                         "--out",
                         cases.to_str().unwrap(),
                     ];
