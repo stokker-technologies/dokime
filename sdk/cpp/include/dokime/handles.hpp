@@ -232,7 +232,9 @@ public:
   Cycle cycle(const std::string &label, std::optional<std::string> request_id = {});
   template <class Q, class R> operations::BoundOperation<Q, R> operation(const operations::OperationValue<Q, R> &value) {
     harmos::plugin::Plugin description("contract", "0.0.0");
-    description.operation(value.native({}));
+    description.add([&value](harmos::plugin::Registrar &registrar) {
+      registrar.add(value.native({}));
+    });
     const auto contract = description.declarations().operations(0);
     const auto client = state_;
     const auto configured_policy = value.policy_.has_value();

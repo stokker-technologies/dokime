@@ -84,7 +84,8 @@ public:
   virtual void initialize(operations::Context &) {}
   virtual void finalize(operations::Context &) {}
   template <class Q, class R> Plugin &operation(const operations::OperationValue<Q, R> &operation) {
-    native_.operation(operation.native(plugin_));
+    Registrar registrar(native_);
+    registrar.add(operation.native(plugin_));
     return *this;
   }
   Plugin &secrets(SecretsDeclarations secrets);
@@ -110,11 +111,6 @@ private:
   harmos::Declarations declarations() const;
   friend class Plugins;
   friend class Cases;
-  template <class Q, class R> Plugin &requires_operation(harmos::plugin::Operation<Q, R> operation) {
-    native_.requires_operation(operation);
-    return *this;
-  }
-  Plugin &requires_operation(templates::HostOperation operation);
   Plugin &context_operations();
   std::string identifier_;
   std::string version_;

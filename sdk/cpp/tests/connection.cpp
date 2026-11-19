@@ -18,7 +18,7 @@
 
 // Local Imports
 #include "dokime/client.hpp"
-#include "harmos/host/v1/status.grpc.pb.h"
+#include "dokime/host/v1/status.grpc.pb.h"
 
 using std::string;
 using std::filesystem::path;
@@ -32,7 +32,7 @@ using std::filesystem::path;
 /* === Classes === */
 
 namespace {
-class IdentityService final : public harmos::host::v1::Status::CallbackService {
+class IdentityService final : public dokime::host::v1::Status::CallbackService {
 public:
   string identity;
   string authorization;

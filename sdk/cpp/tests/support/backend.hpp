@@ -11,10 +11,10 @@
 
 /* === Imports === */
 
+#include "dokime/host/v1/status.grpc.pb.h"
+#include "dokime/host/v1/status/logs.grpc.pb.h"
 #include "dokime/host/v1/suites.grpc.pb.h"
 #include "harmos/host/v1/plugins.grpc.pb.h"
-#include "harmos/host/v1/status.grpc.pb.h"
-#include "harmos/host/v1/status/logs.grpc.pb.h"
 #include <grpcpp/grpcpp.h>
 #include <string>
 
@@ -26,7 +26,7 @@
 
 /* === Classes === */
 
-class Backend final : public harmos::host::v1::Status::CallbackService {
+class Backend final : public dokime::host::v1::Status::CallbackService {
   grpc::ServerUnaryReactor *Get(grpc::CallbackServerContext *context, const harmos::host::v1::StatusGetRequest *,
                                 harmos::host::v1::StatusGetResponse *response) override {
     auto *reactor = context->DefaultReactor();
@@ -60,7 +60,7 @@ public:
     delete this;
   }
 };
-class Logs final : public harmos::host::v1::status::Logs::CallbackService {
+class Logs final : public dokime::host::v1::status::Logs::CallbackService {
   grpc::ServerWriteReactor<harmos::host::v1::status::LogsWatchResponse> *
   Watch(grpc::CallbackServerContext *context, const harmos::host::v1::status::LogsWatchRequest *) override {
     return new LogRead(context->client_metadata().contains("authorization"));
