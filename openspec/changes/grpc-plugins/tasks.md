@@ -70,7 +70,7 @@
 - [x] C#: Follow the Locked Authoring Surface.
 - [x] C#: Complete the Language Check and Host Fixture Producer With SDK-Owned Python Root Exports.
 - [x] C++: Follow the Locked Authoring Surface.
-- [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
+- [ ] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
 - [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
 - [x] Command Line: Implement Locked Point 11 With the Manifest-Project Amendment.
 - [x] Command Line: Remove Install/Add Trust Flags, Refusal and Callers; Installation Asks Nothing.
@@ -157,14 +157,14 @@
   - [x] Reconcile the Python Starter Source Inventory With Its Agreed Manifest Roots and Supply Native Metadata and Icons for That Inventory.
   - [x] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
   - [x] Complete Workspace Compilation, Packaging Units, Runtime Manifest Command Proof, Formatting, Repository Checks, Package Lints and Created Rust/C# Bundle/Inspect Proof.
-  - [x] Complete CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.
+  - [ ] Complete CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.
 - [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
   - [x] Replace the Owned Python Starter Sources With the Reference-Shaped Single Project, Its Host-Free Description Test and Explicit Project/Package Substitution Markers.
   - [x] Migrate the Client/Thermal Example Packages, Python Fixture Launchers, Typed Consumer and Three-Home/Strict Stub Inventories; Keep Repository Host Stories Outside the Starter.
   - [ ] Reconcile the Manifest/Asset and CLI Embedding Owners.
   - [x] Retire the Generated Public Client Facade Through Its Generator, Share One Three-Home Inventory and Complete Editable-Install Metadata and Listener-Address Readiness Support in the SDK.
   - [x] Complete Strict Installed Stubs, All Host-Free Integrations, Repository Checking, Isolated Editable Starter Checks and Native Listener/Interrupt Proof; Compose the Shared Capture Fixture From the Starter Suite.
-  - [x] Run the Named Host Stories on the Combined Candidate: NativeAuthoringStory, StarterStory, EvidenceQueryStory, Runtime Thermal Client and Created Python Starter First-Hour Journeys; Complete Four-Language Capture Equivalence With Prepared Native Fixtures.
+  - [ ] Run the Named Host Stories on the Combined Candidate: NativeAuthoringStory, StarterStory, EvidenceQueryStory, Runtime Thermal Client and Created Python Starter First-Hour Journeys; Complete Four-Language Capture Equivalence With Prepared Native Fixtures.
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
   - [x] Replace Plugin/Suite/Template Explicit Constructor Families and the Single-Template Shortcut With Marker Constructors and Final Suite Binding.
   - [x] Separate Operation and Template Contexts, Share Plugin-Owned State, Return Record Ordinals and Migrate Owned Declarations.
@@ -188,7 +188,8 @@
   - [x] Create All Four Languages With `--from` or `DOKIME_NEW_FROM`, Checkout Starter Sources and Native Local SDK Dependencies; Keep Argument Precedence and Actionable Missing-Starter Errors.
   - [x] Migrate Starter-Creation Stories and Fixture Tooling to `--from`; Remove Test-Owned SDK Dependency Overrides and C++ Archive Coordinates.
   - [x] Prove Failed/Cancelled Product Initialization Cleanup Exactly Once With the Deterministic Runtime Story.
-  - [x] Prove the Created Rust and C# Starters Through Build, Bundle, Inspect, Headless Development and Unmodified Client Runs; Prove Python Creation and Shared Four-Language Capture.
+  - [x] Prove the Created Rust and C# Starters Through Build, Bundle, Inspect, Headless Development and Unmodified Client Runs; Prove Python Creation.
+  - [ ] Prove Shared Four-Language Capture on the Combined Candidate.
   - [ ] Complete CLI Units/Stories, SDK Units/Integrations, Generated Checking, Repository Checking, Formatting, Scoped/Workspace Compilation and Final Rust Lint on This Candidate.
     - [x] Move the Raw Protocol Fixture to `crates/dokime-client-internal/src/bin/content_fixture.rs` Without Any SDK Dependency; Preserve Every Trusted-Plugin Stale-Revision, Replay and Upload-Writer Fence Probe.
     - [x] Validate Rust Project Names Against Rust Keywords and SDK Shadowing, and Run Created-Project Compiler Processes Through the Existing Owned Process-Tree Runner Without Changing Deadlines.
@@ -197,8 +198,9 @@
   - [x] Replace the Three Rust Example Roots With One Two-Binary Starter, Migrate Their Consumers and Embed That Starter With Project Name Substitution; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
   - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
   - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
-    - [x] Refresh the Root Cargo Lock and Validate the Consumer Lock; Build the Native Windows Product Host/CLI and Prove Shared Capture in All Four Languages, Including Rust Frozen Typed Record Reads and Verified Execution/Cycle ZIP Downloads.
-    - [x] Pass Native Windows SDK Units (17), SDK Integration/Capture Tests (12), CLI Units (20), CLI Stories (12), Formatting, Scoped/Workspace Compilation, Generated-Surface Checking and Repository Checking; Keep Final All-Target Rust Lint Open Above.
+    - [x] Refresh the Root Cargo Lock and Validate the Consumer Lock; Build the Native Windows Product Host/CLI and Prove Rust Frozen Typed Record Reads and Verified Execution/Cycle ZIP Downloads.
+    - [ ] Prove Shared Capture in All Four Languages on the Combined Candidate.
+    - [ ] Pass Native Windows SDK Units, SDK Integration/Capture Tests, CLI Units/Stories, Formatting, Scoped/Workspace Compilation, Generated-Surface Checking, Repository Checking and Final All-Target Rust Lint on the Combined Candidate.
 
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
@@ -212,7 +214,7 @@
   - [ ] Complete Registration-Owned Template Bindings and Listener Cleanup and Bind Managed Bundle Upload After the Carrier Listener and Product Installation Contracts Land.
   - [x] Replace Both C++ Starter Roots With the Requested Single Two-Executable Project, Native Static Manifest Metadata and the Unmodified Bound-Client Flow; Migrate the C++ CLI Embedding Functions.
   - [ ] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
-  - [x] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
+  - [ ] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
   - [ ] Complete Repository, Product-Host Shared Capture and Created-Project Bundle/Inspect/Dev/Client Proof; Linux Proof Remains Independent.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
 - [x] Unify Rust, Tooling, Python, C# and C++ Library Pins at the Owner-Selected Maintenance Head and Regenerate Every Tracked Binding.
@@ -226,7 +228,7 @@
 - [x] Supply Replay-Stable Execution UUIDs From Bound Python Handles and Prove Native Descriptor Readback With Synthesized JSON Names.
 - [x] Return Frozen Admitted Suite and Template Metadata From Host Execution Readback; Prove Reopened Python Declaration Queries.
 - [x] Run the Unmodified Created Python Client With CLI Prompt Answers, Execution and Cycle Seals, and Member-Identical Host Archives.
-- [x] Run the Shared Capture Through a Product Host in All Four Languages While Retaining Their Current Authoring Surfaces.
+- [ ] Run the Shared Capture Through a Product Host in All Four Languages While Retaining Their Current Authoring Surfaces.
 - [x] Refresh the Owner's Scratch Python Project From the Shipped Starter and Leave Its Validated Evidence Archive Under `_output/`.
 - [x] Prove Positive Python Retry Policies in NativeAuthoringStory and Both Python Thermal Runtime Stories; Reject Non-Positive Backoff at Operation Declaration and Keep the Explicit Fixture Delay.
 - [x] Replace Python Template Setup With the Locked Initialize Lifecycle Across Declaration Binding, Execution Dispatch, Examples and Fixtures Without an Alias.
