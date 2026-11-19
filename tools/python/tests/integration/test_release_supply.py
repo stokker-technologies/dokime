@@ -19,6 +19,7 @@ import json
 import os
 import ssl
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -53,6 +54,152 @@ from .environment import isolate_environment
 
 
 class SupplyTests(unittest.TestCase):
+    def test_notice_nightly_unaccepted_licenses_include_text_and_warnings(self) -> None:
+        root, execute, _ = self.notice_tools(rejected=True)
+        summary = root / "summary.md"
+        errors = io.StringIO()
+        self.enterContext(mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary)}))
+        self.enterContext(mock.patch.object(sys, "stderr", errors))
+        self.enterContext(mock.patch.object(sys, "argv", ["notices"]))
+        self.enterContext(mock.patch.dict(os.environ, {"RELEASE_CHANNEL": "nightly"}))
+        self.enterContext(mock.patch.object(policy, "root", return_value=root))
+        self.assertEqual(notices.main(), 0)
+        text = (root / "target/notices/THIRD-PARTY-NOTICES").read_text()
+        self.assertIn("Unicode License Text", text)
+        self.assertIn("BSD License Text", text)
+        for license_name in ("Unicode-3.0", "BSD-3-Clause"):
+            self.assertIn(f"dependency 1: {license_name}", errors.getvalue())
+            self.assertIn(f"dependency 1: {license_name}", summary.read_text())
+        self.assertEqual(errors.getvalue().count("::warning::"), 2)
+        self.assertEqual((root / "tools/config/deny.toml").read_text(), '[licenses]\nallow = ["MIT"]\n')
+        self.assertEqual(sum("about" in call.args[1] for call in execute.call_args_list), 3)
+
+    def test_notice_stable_unaccepted_license_preserves_tool_error(self) -> None:
+        for channel in ("stable", None, "ci"):
+            with self.subTest(channel=channel):
+                root, execute, failure = self.notice_tools(rejected=True)
+                self.enterContext(mock.patch.dict(os.environ, {} if channel is None else {"RELEASE_CHANNEL": channel}, clear=True))
+                self.enterContext(mock.patch.object(sys, "argv", ["notices"]))
+                self.enterContext(mock.patch.object(policy, "root", return_value=root))
+                with self.assertRaises(policy.ToolError) as raised:
+                    notices.main()
+                self.assertIs(raised.exception, failure)
+                self.assertFalse((root / "target/notices/THIRD-PARTY-NOTICES").exists())
+                self.assertEqual(sum("about" in call.args[1] for call in execute.call_args_list), 1)
+
+    def test_notice_accepted_licenses_match_on_both_channels(self) -> None:
+        contents = []
+        for strict in (True, False):
+            with self.subTest(strict=strict):
+                root, execute, _ = self.notice_tools(rejected=False)
+                warning = self.enterContext(mock.patch.object(notices, "_warning"))
+                counts = notices.generate(root, strict=strict)
+                contents.append((root / "target/notices/THIRD-PARTY-NOTICES").read_bytes())
+                self.assertEqual(counts, {"rust": 1, "shell": 0, "python": 0})
+                self.assertEqual(sum("about" in call.args[1] for call in execute.call_args_list), 2)
+                warning.assert_not_called()
+        self.assertEqual(contents[0], contents[1])
+
+    def test_notice_nightly_does_not_hide_other_tool_failures(self) -> None:
+        root, execute, _ = self.notice_tools(rejected=False)
+        failure = policy.ToolError("registry unavailable")
+        execute.side_effect = [json.dumps({"packages": []}), failure]
+        with self.assertRaises(policy.ToolError) as raised:
+            notices.generate(root, strict=False)
+        self.assertIs(raised.exception, failure)
+
+    def test_notice_nightly_reports_invalid_exceptions_without_blocking(self) -> None:
+        root, _, _ = self.notice_tools(rejected=True)
+        self.enterContext(mock.patch.object(sbom, "exceptions", side_effect=policy.ToolError("expired exception: dependency")))
+        warning = self.enterContext(mock.patch.object(notices, "_warning"))
+        counts = notices.generate(root, strict=False)
+        self.assertEqual(counts["rust"], 1)
+        self.assertEqual(warning.call_count, 3)
+
+    def test_notice_nightly_reports_exception_version_mismatch(self) -> None:
+        root, _, _ = self.notice_tools(rejected=True)
+        document = {"license": [{"package": "dependency", "version": "2", "license": "NCSA"}]}
+        metadata = {"packages": [{"name": "dependency", "version": "2", "manifest_path": str(root / "Cargo.toml")}]}
+        metadata["packages"].append({"name": "dependency", "version": "3", "manifest_path": str(root / "other/Cargo.toml")})
+        (root / "metadata.json").write_text(json.dumps(metadata))
+        self.enterContext(mock.patch.object(sbom, "exceptions", return_value=document))
+        warning = self.enterContext(mock.patch.object(notices, "_warning"))
+        notices.generate(root, strict=False)
+        self.assertEqual(warning.call_count, 3)
+
+    def test_notice_rejected_spans_include_with_requirements_and_multiple_crates(self) -> None:
+        root = Path.cwd()
+        packages = [
+            {"name": "first", "version": "1", "manifest_path": str(root / "first/Cargo.toml")},
+            {"name": "second", "version": "2", "manifest_path": str(root / "second/Cargo.toml")},
+        ]
+        diagnostics = ""
+        for package in packages:
+            requirement = "Apache-2.0 WITH LLVM-exception"
+            diagnostics += (
+                "error: failed to satisfy license requirements\n"
+                f"  ┌─ {package['manifest_path']}:4:12\n"
+                f'4 │ license = "{requirement}"\n'
+                f"  │            {'-' * len(requirement)}\n\n"
+            )
+        self.assertEqual(
+            notices._findings(root, diagnostics, packages),
+            [("first", "1", requirement), ("second", "2", requirement)],
+        )
+
+    def test_notice_unreadable_rejections_fail_instead_of_omitting_notices(self) -> None:
+        for diagnostics in (
+            "error: failed to satisfy license requirements\n",
+            "error: failed to satisfy license requirements\n  ┌─ missing/Cargo.toml:4:12\n",
+        ):
+            with self.subTest(diagnostics=diagnostics), self.assertRaises(policy.ToolError):
+                notices._findings(Path.cwd(), diagnostics, [])
+
+    def notice_tools(self, *, rejected: bool) -> tuple[Path, mock.Mock, policy.ToolError]:
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        (root / "tools/config").mkdir(parents=True)
+        (root / "crates/dokime-gui/node_modules").mkdir(parents=True)
+        (root / "tools/config/deny.toml").write_text('[licenses]\nallow = ["MIT"]\n')
+        (root / "uv.lock").write_text("package = []\n")
+        (root / "NOTICE").write_text("notice")
+        metadata = {"packages": [{"name": "dependency", "version": "1", "manifest_path": str(root / "Cargo.toml")}]}
+        (root / "metadata.json").write_text(json.dumps(metadata))
+        requirements = ["Unicode-3.0", "BSD-3-Clause"] if rejected else ["MIT"]
+        expression = " AND ".join(requirements)
+        failure = policy.ToolError(
+            "error: failed to satisfy license requirements\n"
+            f"  ┌─ {root / 'Cargo.toml'}:4:12\n"
+            f'4 │ license = "{expression}"\n'
+            f"  │            {'-' * len(requirements[0])}     {'-' * len(requirements[-1])}\n\n"
+        )
+
+        def execute(directory: Path, command: list[str], *, capture: bool = False) -> str:
+            if command[:2] == ["cargo", "metadata"]:
+                return (root / "metadata.json").read_text()
+            if command[0] == "pnpm":
+                return "{}"
+            self.assertIn("about", command)
+            config = tomllib.loads((root / "target/notices/about.toml").read_text())
+            allowed = set(config["accepted"]) | set(config.get("dependency", {}).get("accepted", []))
+            if not set(requirements) <= allowed:
+                raise failure
+            destination = Path(command[command.index("--output-file") + 1])
+            if destination.suffix == ".json":
+                data = {"licenses": [{"used_by": [{"crate": {"name": "dependency", "version": "1"}}]}]}
+                destination.write_text(json.dumps(data))
+            else:
+                self.assertIn("tools/config/about.hbs", command)
+                destination.write_text("Unicode License Text\nBSD License Text" if rejected else "MIT License Text")
+            return ""
+
+        self.enterContext(mock.patch.object(sbom, "exceptions", return_value={}))
+        self.enterContext(mock.patch.object(notices, "shell_notices", return_value=("shell", 0)))
+        self.enterContext(mock.patch.object(notices, "python_notices", return_value=("python", 0)))
+        mocked = self.enterContext(mock.patch.object(policy, "execute", side_effect=execute))
+        return root, mocked, failure
+
     def test_notice_config_uses_policy_and_dated_exceptions(self) -> None:
         repository = Path(__file__).resolve().parents[4]
         temporary_directory = tempfile.TemporaryDirectory()
