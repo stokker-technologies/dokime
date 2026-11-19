@@ -215,7 +215,7 @@ fn cycle_seal_retries_materialization_failure() -> Result<(), Box<dyn Error>> {
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
-            let cycle = client.cycles.create(Vec::new(), Metadata::default(), false, "").await?.cycle.unwrap();
+            let cycle = client.cycles.create(Vec::new(), Metadata { label: "Seal Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
             let name = cycle.cycle_id;
             let cycle_owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
             // Inject a Durable Publication Failure Without Timing or Deadline Changes.
