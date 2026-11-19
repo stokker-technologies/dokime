@@ -90,7 +90,9 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         output, _ = await asyncio.wait_for(locating.communicate(), timeout)
         self.assertEqual(locating.returncode, 0, output.decode())
         dotnet = output.decode().strip()
-        environment["PATH"] = str(Path(dotnet).parent) + os.pathsep + environment.get("PATH", "")
+        environment["PATH"] = (
+            str(Path(dotnet).parent) + os.pathsep + environment.get("PATH", "")
+        )
         environment["DOTNET_ROOT"] = str(Path(dotnet).parent)
         process = await asyncio.create_subprocess_exec(
             str(binary),

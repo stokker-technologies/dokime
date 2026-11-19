@@ -28,6 +28,7 @@ from zipfile import ZipFile
 from dokime_sdk import Client, ResultStatus
 
 # Local Imports
+from dokime_tools.build.cargo import compiler_environment
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
 
@@ -65,7 +66,7 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         scratch = Path(tempfile.mkdtemp(prefix="dokime-rust-created-"))
         self.addCleanup(shutil.rmtree, scratch)
         project = scratch / "created-starter"
-        environment = dict(os.environ)
+        environment = compiler_environment("dev")
         for variable in (
             "UV_PROJECT_ENVIRONMENT",
             "VIRTUAL_ENV",
@@ -135,6 +136,11 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(_close, process)
         output, _ = await asyncio.wait_for(process.communicate(), timeout)
         self.assertEqual(process.returncode, 0, output.decode())
+
+        # Stage the Built Plugin at the Manifest Path; Compiler Outputs Stay in the Checkout Target.
+        executable = project / "target/debug" / f"created-starter{suffix}"
+        executable.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repository / "target/debug" / executable.name, executable)
 
         # Build and Inspect the Bundle Through the Product Command.
         bundle = scratch / "created.dokime"
@@ -206,7 +212,7 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         host = await cast(HostFactory, runpy.run_path(str(support))["Host"]).start(self)
         environment["DOKIME_REMOTE"] = host.endpoint
         process = await asyncio.create_subprocess_exec(
-            str(repository / "target/debug" / f"client{suffix}"),
+            str(repository / "target/debug" / f"created-starter-client{suffix}"),
             cwd=project,
             env=environment,
             stdout=asyncio.subprocess.PIPE,

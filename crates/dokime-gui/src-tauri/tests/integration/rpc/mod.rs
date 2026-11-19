@@ -127,11 +127,11 @@ use sha2::{Digest, Sha256};
 
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
-use dokime_gui::rpc::{Bridge, FRAME_ERROR};
 use dokime_client_internal::PluginEntry;
 use dokime_client_internal::PluginsListOptions;
 use dokime_client_internal::StatusGetOptions;
 use dokime_client_internal::plugin_placement;
+use dokime_gui::rpc::{Bridge, FRAME_ERROR};
 use harmos_protocol::host;
 
 /* === Constants === */

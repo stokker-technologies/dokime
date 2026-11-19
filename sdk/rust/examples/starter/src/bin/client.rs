@@ -16,16 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-use dokime::{Result, ResultStatus, connect};
-use starter_project::plugin::{plugin, suites::capture::confirmation::ConfirmationTestTemplate};
 use std::{
     fs,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+// Third Party Imports
+use dokime::{Result, ResultStatus, connect};
+
+// Local Imports
+use starter_project::plugin::{plugin, suites::capture::confirmation::ConfirmationTestTemplate};
 
 /* === Constants === */
 

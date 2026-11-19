@@ -45,7 +45,12 @@ pub const SUITE: &str = "obc.transient";
 /* === Public Functions === */
 
 pub fn suite() -> Suite {
-    Suite::of::<()>().identifier(SUITE).label("Transient").template(startup::template()).template(overcurrent::template()).template(overvoltage::template())
+    Suite::of::<()>()
+        .identifier(SUITE)
+        .label("Transient")
+        .template(startup::template())
+        .template(overcurrent::template())
+        .template(overvoltage::template())
 }
 
 /* === Private Functions === */

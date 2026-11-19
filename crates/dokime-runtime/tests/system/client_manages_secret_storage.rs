@@ -20,9 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_client_internal::Client;
 use dokime::Metadata;
 use dokime::SecretWritable;
+use dokime_client_internal::Client;
 use dokime_client_internal::SecretImportAction;
 use dokime_client_internal::SecretImportChoice;
 use dokime_client_internal::SecretsDeleteOptions;

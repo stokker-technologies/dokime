@@ -23,8 +23,8 @@
 use crate::device::{Bench, Supply};
 use crate::records::charger;
 use crate::{settings, suites};
+use dokime::plugin::{Criterion, Observer, Step, Stream, Template, Window};
 use dokime::templates::Context;
-use dokime::plugin::{ Criterion, Observer, Step, Stream, Template, Window};
 use dokime::{Document, Parameter, Result};
 
 /* === Constants === */
@@ -61,7 +61,9 @@ pub fn template() -> Template {
     let samples = Stream::<Computation>::new("samples", "Heavy Observer Output");
     let observer = Observer::window(&samples, compute).interval_setting(settings::SAMPLE_INTERVAL);
     charger::catalog(
-        Template::of::<()>().identifier("observers").label("Heavy Observers")
+        Template::of::<()>()
+            .identifier("observers")
+            .label("Heavy Observers")
             .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))
             .parameter(Parameter::count("iterations", "Iterations per Sample").default(4096_u64).range(1.0..=65536.0))
             .initialize(initialize)

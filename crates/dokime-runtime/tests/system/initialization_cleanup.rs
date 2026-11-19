@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, error::Error};
+use std::error::Error;
 
 // Third Party Imports
 
@@ -57,7 +57,8 @@ fn initialization_failure_and_cancellation_clean_partial_resources_once() -> Res
 
             for (parameter, cancelled) in [("initialize_failure", false), ("initialize_question", true)] {
                 // Initialize Publishes Its Resource Before Failing or Waiting for Cancellation.
-                let parameters = HashMap::from([(parameter.into(), Value { kind: Some(value::Kind::Boolean(true)) })]);
+                let mut parameters = super::support::parameters(17.0, 0, true);
+                parameters.insert(parameter.into(), Value { kind: Some(value::Kind::Boolean(true)) });
                 let origin = host.materialize(&entry, "execution.capture", parameters).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
                 let execution = cycle.executions[0].clone();
@@ -73,7 +74,12 @@ fn initialization_failure_and_cancellation_clean_partial_resources_once() -> Res
                 if cancelled {
                     assert_eq!(snapshot.execution.termination, Termination::Cancelled as i32);
                 } else {
-                    assert_eq!(snapshot.execution.termination, Termination::Failed as i32);
+                    assert_eq!(
+                        snapshot.execution.termination,
+                        Termination::Failed as i32,
+                        "{:?}",
+                        snapshot.evidence.iter().map(|row| (&row.kind, String::from_utf8_lossy(&row.payload))).collect::<Vec<_>>()
+                    );
                 }
                 assert_eq!(snapshot.evidence.iter().filter(|row| row.kind == "log" && row.operation == cleanup).count(), 1);
                 assert!(!snapshot.evidence.iter().any(|row| row.kind == "step:start"));

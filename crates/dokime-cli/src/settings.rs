@@ -30,10 +30,10 @@ use tonic::Request;
 use tonic::transport::{Channel, Endpoint};
 
 // Local Imports
-use dokime_client_internal::Client;
-use dokime_client_internal::CallOptions;
 use crate::{Result, commands::pairing, error::Error};
 use dokime::StorageTransferSettings;
+use dokime_client_internal::CallOptions;
+use dokime_client_internal::Client;
 use dokime_runtime::{
     CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},

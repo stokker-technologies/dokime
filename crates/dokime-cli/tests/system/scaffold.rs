@@ -45,7 +45,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
     super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             let directory = super::credentials::tempdir()?;
-            let repository = super::root();
+            let repository = super::root().canonicalize()?;
             for (language, folders) in [("rust", &[""][..]), ("python", &[""][..]), ("csharp", &[""][..]), ("cpp", &["plugin", "test"][..])]
             {
                 // Create the Checkout's Starter With Its Native Local Dependency.
@@ -61,8 +61,8 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                     "rust" => {
                         let manifest: toml::Value = toml::from_str(&fs::read_to_string(project.join("Cargo.toml"))?)?;
                         assert_eq!(
-                            manifest["dependencies"]["dokime"]["path"].as_str(),
-                            Some(super::root().join("sdk/rust").to_str().unwrap().replace('\\', "/").as_str())
+                            std::path::Path::new(manifest["dependencies"]["dokime"]["path"].as_str().unwrap()).canonicalize()?,
+                            repository.join("sdk/rust")
                         );
                         assert!(project.join("src/bin/client.rs").is_file());
                     }

@@ -13,20 +13,19 @@
 
 pub mod bundles;
 
-mod credentials;
 mod settings;
 pub mod thermal;
 
 /* === Re-Exports === */
 
-pub use credentials::{CredentialStore, namespace, run, tempdir};
+pub use dokime_test_support::credentials::{CredentialStore, namespace, run, tempdir};
 pub use settings::{OPERATION_TIMEOUT, SYSTEM_HANG_GUARD, settings};
 
 /* === Imports === */
 
 // Standard Library Imports
 use std::collections::HashMap;
-use std::env::consts::EXE_SUFFIX;
+use std::env::consts::{EXE_SUFFIX, OS};
 use std::error::Error;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -38,10 +37,10 @@ use tokio::process::Child;
 use tokio::process::Command;
 
 // Local Imports
-use dokime_client_internal::Client;
-use dokime_client_internal::ClientSettings;
 use dokime::Metadata;
 use dokime::Value;
+use dokime_client_internal::Client;
+use dokime_client_internal::ClientSettings;
 use dokime_client_internal::PlannedCase;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
@@ -272,7 +271,7 @@ pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn Error>> {
 
 pub fn python() -> PathBuf {
     std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
-        let path = if cfg!(windows) { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
+        let path = if OS == "windows" { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(path)
     })
 }
@@ -343,7 +342,7 @@ pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8
 fn fixture_root() -> PathBuf {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
-    let target = if cfg!(windows) { "windows-x86_64" } else { "linux-x86_64" };
+    let target = if OS == "windows" { "windows-x86_64" } else { "linux-x86_64" };
     repository.join("target/build").join(profile).join(target).join("fixtures/host")
 }
 

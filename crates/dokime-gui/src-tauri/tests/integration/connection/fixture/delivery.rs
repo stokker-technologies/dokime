@@ -41,11 +41,11 @@ use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::FilesReadRequest;
 use dokime_protocol::host::content::ArtifactsGetRequest;
 
+use dokime_client_internal::ArtifactsGetResponse;
 use dokime_sdk::ArtifactMetadata;
 use dokime_sdk::ArtifactState;
 use dokime_sdk::FilesGetResponse;
 use dokime_sdk::FilesReadResponse;
-use dokime_client_internal::ArtifactsGetResponse;
 
 /* === Constants === */
 

@@ -27,10 +27,10 @@ use tonic::transport::Endpoint;
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::CapturedRecordSelection;
-use dokime_client_internal::Client;
 use dokime::EvidenceScope;
 use dokime::MapValue;
 use dokime::Metadata;
+use dokime_client_internal::Client;
 use dokime_client_internal::CyclesCreateOptions;
 use dokime_client_internal::CyclesGetOptions;
 use dokime_client_internal::CyclesListOptions;

@@ -27,8 +27,8 @@ use crate::device::Bench;
 use crate::device::{Fault, Power};
 use crate::records::charger::{self, Faulted, Initialized, Started, Stopped};
 use crate::streams::measurement;
+use dokime::plugin::{Criterion, Step, Template};
 use dokime::templates::Context;
-use dokime::plugin::{ Criterion, Step, Template};
 use dokime::{Document, Parameter, Result, Severity};
 
 /* === Constants === */
@@ -59,7 +59,9 @@ struct Outcome {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let template = Template::of::<()>().identifier("overvoltage").label("Overvoltage Protection")
+    let template = Template::of::<()>()
+        .identifier("overvoltage")
+        .label("Overvoltage Protection")
         .description("Step the voltage until the overvoltage latch opens the supply, then probe a restart.")
         .tag("device")
         .tag("protection");
@@ -69,19 +71,20 @@ pub fn template() -> Template {
         template,
         [Parameter::numbers("voltage_steps_v", "Voltage Steps", [230.0, 260.0, 290.0]).unit("V").items(1..=16).build()],
     );
-    measurement::catalog(parameters(template, timing("Observation Duration per Voltage Step", 0.02))
-        .initialize(initialize)
-        .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
-        .step(Step::new("Walk the Voltage Ladder", overload).identifier("overload"))
-        .step(Step::new("Leave Charger Safely Disconnected", disconnect).identifier("disconnect"))
-        .criterion(
-            Criterion::new("Overvoltage Disconnects and Prevents Restart", protected)
-                .identifier("latch")
-                .description("Passed once protection tripped on a voltage step and the latched charger refused to restart."),
-        )
-        .cleanup(cleanup)
-        
-        .document(document()))
+    measurement::catalog(
+        parameters(template, timing("Observation Duration per Voltage Step", 0.02))
+            .initialize(initialize)
+            .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
+            .step(Step::new("Walk the Voltage Ladder", overload).identifier("overload"))
+            .step(Step::new("Leave Charger Safely Disconnected", disconnect).identifier("disconnect"))
+            .criterion(
+                Criterion::new("Overvoltage Disconnects and Prevents Restart", protected)
+                    .identifier("latch")
+                    .description("Passed once protection tripped on a voltage step and the latched charger refused to restart."),
+            )
+            .cleanup(cleanup)
+            .document(document()),
+    )
 }
 
 pub fn document() -> Document {

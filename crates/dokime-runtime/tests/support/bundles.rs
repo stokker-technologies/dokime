@@ -21,8 +21,8 @@
 use harmos_runtime::bundle::Manifest;
 
 // Local Imports
-use dokime_client_internal::Client;
 use dokime::FileReference;
+use dokime_client_internal::Client;
 use std::env::consts::EXE_SUFFIX;
 use std::env::consts::OS;
 use std::error::Error;

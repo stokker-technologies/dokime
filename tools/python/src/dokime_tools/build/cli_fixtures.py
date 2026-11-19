@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Local Imports
 import dokime_tools.test.policy
-from dokime_tools.build import configuration, paths
+from dokime_tools.build import cargo, configuration, paths
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
 
@@ -63,7 +63,7 @@ def build(profile: str, language: str = "rust") -> None:
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
     # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.
-    environment = {**os.environ, "CARGO_TARGET_DIR": str(root / "target"), "MISE_LOCKED": "0"}
+    environment = {**cargo.compiler_environment(profile), "CARGO_TARGET_DIR": str(root / "target"), "MISE_LOCKED": "0"}
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
     environment.pop("VIRTUAL_ENV", None)
     environment.pop("PYTHONPATH", None)
@@ -161,7 +161,7 @@ def build(profile: str, language: str = "rust") -> None:
                 )
             elif language == "csharp":
                 subprocess.run(
-                    ["mise", "-C", "sdk/csharp", "run", "build:starter", "--", "--project", str(example / "Csharp.slnx")],
+                    ["mise", "-C", str(example), "run", "build"],
                     cwd=root,
                     env=environment,
                     check=True,

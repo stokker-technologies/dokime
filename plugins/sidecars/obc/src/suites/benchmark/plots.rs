@@ -26,8 +26,8 @@ use crate::records::charger;
 use crate::settings;
 use crate::streams::measurement::{self, charging};
 use crate::suites::{self, parameters, read_supply, supply, timing};
+use dokime::plugin::{Criterion, Observer, Prompt, Record, Step, Stream, Template};
 use dokime::templates::Context;
-use dokime::plugin::{ Criterion, Observer, Prompt, Record, Step, Stream, Template};
 use dokime::{
     Card, ContourRender, DataExpression, Document, FieldReference, GridAxisEntry, GridChart, Plot, PlotKind, PlotStyle, PromptArchetype,
     Reduction, ReferenceBand, ReferenceLine, Result, Value, XyInterval, data_expression, model, value,
@@ -87,16 +87,17 @@ pub fn template() -> Template {
     let observer = Observer::new(&survey, scan).interval_setting(settings::SAMPLE_INTERVAL);
     let template = parameters(Template::of::<()>().identifier("plots").label("Plot Families"), supply());
     let template = charger::catalog(template).record(contracts()).prompt(prompt());
-    measurement::catalog(parameters(template, timing("Capture Duration", 0.25))
-        .initialize(initialize)
-        .step(Step::new("Capture Plot Inputs", capture).identifier("capture"))
-        .step(Step::new("Confirm Plot Inputs", confirmation).identifier("confirmation"))
-        .criterion(Criterion::new("Plot Inputs Captured", captured).identifier("captured"))
-        .cleanup(cleanup)
-        
-        .stream(survey)
-        .observer(observer)
-        .document(document()))
+    measurement::catalog(
+        parameters(template, timing("Capture Duration", 0.25))
+            .initialize(initialize)
+            .step(Step::new("Capture Plot Inputs", capture).identifier("capture"))
+            .step(Step::new("Confirm Plot Inputs", confirmation).identifier("confirmation"))
+            .criterion(Criterion::new("Plot Inputs Captured", captured).identifier("captured"))
+            .cleanup(cleanup)
+            .stream(survey)
+            .observer(observer)
+            .document(document()),
+    )
 }
 async fn initialize(ctx: &Context) -> Result<()> {
     ctx.set(Scan { point: Mutex::new(0) });

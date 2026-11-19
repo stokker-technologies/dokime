@@ -27,8 +27,8 @@ use crate::device::Bench;
 use crate::device::{Fault, Power};
 use crate::records::charger::{self, Faulted, Initialized, Started, Stopped};
 use crate::streams::measurement;
+use dokime::plugin::{Criterion, Step, Template};
 use dokime::templates::Context;
-use dokime::plugin::{ Criterion, Step, Template};
 use dokime::{Document, Parameter, Result, Severity};
 
 /* === Constants === */
@@ -59,7 +59,9 @@ struct Outcome {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let template = Template::of::<()>().identifier("overcurrent").label("Overcurrent Protection")
+    let template = Template::of::<()>()
+        .identifier("overcurrent")
+        .label("Overcurrent Protection")
         .description("Step the load until the overcurrent latch opens the supply, then probe a restart.")
         .tag("device")
         .tag("protection");
@@ -67,19 +69,20 @@ pub fn template() -> Template {
     let template = parameters(template, supply());
     let template =
         parameters(template, [Parameter::numbers("load_steps_ohm", "Load Steps", [100.0, 50.0, 10.0]).unit("ohm").items(1..=16).build()]);
-    measurement::catalog(parameters(template, timing("Observation Duration per Load Step", 0.02))
-        .initialize(initialize)
-        .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
-        .step(Step::new("Walk the Load Ladder", overload).identifier("overload"))
-        .step(Step::new("Leave Charger Safely Disconnected", disconnect).identifier("disconnect"))
-        .criterion(
-            Criterion::new("Overcurrent Disconnects and Prevents Restart", protected)
-                .identifier("latch")
-                .description("Passed once protection tripped on a load step and the latched charger refused to restart."),
-        )
-        .cleanup(cleanup)
-        
-        .document(document()))
+    measurement::catalog(
+        parameters(template, timing("Observation Duration per Load Step", 0.02))
+            .initialize(initialize)
+            .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
+            .step(Step::new("Walk the Load Ladder", overload).identifier("overload"))
+            .step(Step::new("Leave Charger Safely Disconnected", disconnect).identifier("disconnect"))
+            .criterion(
+                Criterion::new("Overcurrent Disconnects and Prevents Restart", protected)
+                    .identifier("latch")
+                    .description("Passed once protection tripped on a load step and the latched charger refused to restart."),
+            )
+            .cleanup(cleanup)
+            .document(document()),
+    )
 }
 
 pub fn document() -> Document {

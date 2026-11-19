@@ -23,8 +23,8 @@
 use crate::device::Bench;
 use crate::device::Reading;
 use crate::{settings, suites};
+use dokime::plugin::{Observer, Stream};
 use dokime::templates::Context;
-use dokime::plugin::{ Observer, Stream};
 use dokime::{Document, FieldReference, Plot, PlotKind, Result, model};
 
 /* === Constants === */

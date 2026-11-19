@@ -27,11 +27,11 @@ use harmos_runtime::clock::Controller;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime_client_internal::Client;
 use dokime::EvidenceScope;
 use dokime::Metadata;
 use dokime::Termination;
 use dokime_client_internal::CasesCreateOptions;
+use dokime_client_internal::Client;
 use dokime_client_internal::CyclesCreateOptions;
 use dokime_client_internal::EvidenceStatisticsOptions;
 use dokime_client_internal::ExecutionBinding;

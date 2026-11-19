@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::plugin::{Record, Template};
 use dokime::templates::Context;
-use dokime::plugin::{ Record, Template};
 use dokime::{Message, Result};
 
 /* === Constants === */

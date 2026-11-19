@@ -18,4 +18,4 @@ description = "Start the Plugin in Dokime"
 run = "dokime dev --plugin ."
 [tasks.run]
 description = "Run the Client"
-run = "cargo run --bin client"
+run = "cargo run --bin starter-project-client"

@@ -53,8 +53,8 @@ struct Parameters {
     value: f64,
     fail_attempts: u32,
     evaluate: bool,
-    initialize_failure: bool,
-    initialize_question: bool,
+    initialize_failure: Option<bool>,
+    initialize_question: Option<bool>,
 }
 
 #[derive(dokime::Record)]
@@ -98,8 +98,8 @@ fn main() -> Result<()> {
             value: 10.0,
             fail_attempts: 0,
             evaluate: true,
-            initialize_failure: false,
-            initialize_question: false,
+            initialize_failure: None,
+            initialize_question: None,
         })
         .initialize(initialize)
         .step(Step::new("Baseline", baseline).identifier("baseline"))
@@ -140,6 +140,17 @@ fn main() -> Result<()> {
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
+    let parameters = ctx.parameters::<Parameters>()?;
+    ctx.set(Bench {
+        value: parameters.value,
+        fail_attempts: parameters.fail_attempts,
+    });
+    if parameters.initialize_failure == Some(true) {
+        return Err(Error::Invalid("Initialize Execution: Resolve the Fixture's Requested Initialization Failure".into()));
+    }
+    if parameters.initialize_question == Some(true) {
+        ctx.prompt("Continue Initialization?", &["Continue"]).await?;
+    }
     // Resolve Host Facts Through the Active Invocation.
     let environment = ctx.environment().await?;
     if environment.backend_pid == 0 || environment.in_step {
@@ -147,17 +158,6 @@ async fn initialize(ctx: &Context) -> Result<()> {
     }
     let _now = ctx.now().await?;
 
-    let parameters = ctx.parameters::<Parameters>()?;
-    ctx.set(Bench {
-        value: parameters.value,
-        fail_attempts: parameters.fail_attempts,
-    });
-    if parameters.initialize_failure {
-        return Err(Error::Invalid("Initialize Execution: Resolve the Fixture's Requested Initialization Failure".into()));
-    }
-    if parameters.initialize_question {
-        ctx.prompt("Continue Initialization?", &["Continue"]).await?;
-    }
     ctx.log(Severity::Info, parameters.value.to_string()).await
 }
 

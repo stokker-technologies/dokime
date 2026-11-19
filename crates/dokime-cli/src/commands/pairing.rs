@@ -31,11 +31,13 @@ use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 
 // Local Imports
 use crate::Result;
-use dokime_client_internal::Client;
-use dokime_client_internal::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions};
-use dokime_client_internal::{CallOptions, StatusGetOptions};
 use crate::error::Error;
 use crate::settings::Settings;
+use dokime_client_internal::Client;
+use dokime_client_internal::{
+    AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions,
+};
+use dokime_client_internal::{CallOptions, StatusGetOptions};
 
 /* === Constants === */
 

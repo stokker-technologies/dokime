@@ -23,14 +23,13 @@ pub mod transient;
 
 // Third Party Imports
 
-
 // Local Imports
 use crate::device::Bench;
 use crate::device::Supply;
 use crate::settings;
 use dokime::Error;
+use dokime::plugin::{Suite, Template};
 use dokime::templates::Context;
-use dokime::plugin::{ Suite, Template};
 use dokime::{Parameter, Result, Value};
 
 /* === Constants === */

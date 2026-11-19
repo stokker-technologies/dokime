@@ -23,8 +23,8 @@
 use crate::device::{Bench, Supply};
 use crate::records::charger;
 use crate::{settings, suites};
+use dokime::plugin::{Criterion, Observer, Prompt, Record, Step, Stream, Template, Window};
 use dokime::templates::Context;
-use dokime::plugin::{ Criterion, Observer, Prompt, Record, Step, Stream, Template, Window};
 use dokime::{Aggregate, Document, Error, FieldReference, Parameter, PromptArchetype, Result, Summary, Value, model, value};
 
 /* === Constants === */
@@ -82,7 +82,9 @@ pub fn template() -> Template {
     let meter = Stream::<MeterRegister>::new("meter", "Revenue Meter Register");
     let observer = Observer::window(&meter, read_register).interval_setting(settings::SAMPLE_INTERVAL);
     charger::catalog(
-        Template::of::<()>().identifier("exact_values").label("Exact Values")
+        Template::of::<()>()
+            .identifier("exact_values")
+            .label("Exact Values")
             .record(contracts())
             .prompt(prompt())
             .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))

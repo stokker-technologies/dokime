@@ -21,9 +21,9 @@
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime_client_internal::Client;
 use dokime::EvidenceScope;
 use dokime::Termination;
+use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceSamplesListOptions;
 use dokime_client_internal::ExecutionState;
 use dokime_client_internal::ExecutionsProgressWatchOptions;

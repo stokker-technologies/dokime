@@ -94,7 +94,6 @@ impl Manual {
         .description("Energize or De-Energize the Demonstration Charger and Report Its Observed State.");
         [read, set_power]
     }
-
 }
 
 impl Drop for Manual {

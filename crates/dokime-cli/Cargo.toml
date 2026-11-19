@@ -87,6 +87,7 @@ tonic = { workspace = true }
 
 [dev-dependencies]
 # Local
+dokime-test-support = { workspace = true }
 
 # Git
 

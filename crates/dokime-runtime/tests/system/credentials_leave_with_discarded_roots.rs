@@ -30,9 +30,9 @@ use tonic::transport::Endpoint;
 use uuid::Uuid;
 
 // Local Imports
-use dokime_client_internal::Client;
 use dokime::Metadata;
 use dokime::SecretWritable;
+use dokime_client_internal::Client;
 use dokime_client_internal::SecretsSetOptions;
 use dokime_runtime::credentials::Entry;
 use dokime_storage::Store;

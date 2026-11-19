@@ -22,8 +22,8 @@ use std::collections::HashMap;
 
 // Local Imports
 use dokime::Metadata;
+use dokime::plugin::Prompt;
 use dokime::templates::Context;
-use dokime::plugin::{ Prompt};
 use dokime::{PromptArchetype, PromptField, PromptFieldKind, Result, Value, ValueType, value};
 
 /* === Constants === */

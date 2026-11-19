@@ -24,14 +24,14 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 // Local Imports
+use crate::{Result, output, settings::Settings};
+use dokime::FileMetadata;
 use dokime_client_internal::PluginsCreateOptions;
 use dokime_client_internal::plugin_placement::Kind;
 use dokime_client_internal::{
     FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginManaged,
     PluginPlacement, PluginValue,
 };
-use crate::{Result, output, settings::Settings};
-use dokime::FileMetadata;
 
 /* === Constants === */
 

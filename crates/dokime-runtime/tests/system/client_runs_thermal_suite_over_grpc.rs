@@ -66,11 +66,12 @@ use tokio::process::Command;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime_client_internal::Client;
 use dokime::EvidenceScope;
 use dokime::MapValue;
 use dokime::RecordScope;
 use dokime::Value;
+use dokime::record_scope;
+use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceRecordsListOptions;
 use dokime_client_internal::EvidenceSamplesListOptions;
 use dokime_client_internal::EvidenceStatisticsOptions;
@@ -85,7 +86,6 @@ use dokime_client_internal::ReportState;
 use dokime_client_internal::ReportSubject;
 use dokime_client_internal::ReportsCreateOptions;
 use dokime_client_internal::ResultStatus;
-use dokime::record_scope;
 use dokime_protocol::host::evidence::sample_row;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::report_subject;

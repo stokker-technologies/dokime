@@ -34,9 +34,9 @@ use zip::ZipArchive;
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::ArtifactScope;
-use dokime_client_internal::Client;
 use dokime::FileReference;
 use dokime::MapValue;
+use dokime_client_internal::Client;
 use dokime_client_internal::ContentArtifactsCreateOptions;
 use dokime_client_internal::ContentArtifactsListOptions;
 use dokime_client_internal::EvidenceSubject;

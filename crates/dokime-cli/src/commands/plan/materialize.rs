@@ -23,8 +23,8 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_client_internal::{CasesCreateOptions, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
 use dokime::Value;
+use dokime_client_internal::{CasesCreateOptions, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
 use dokime_protocol::host::CasesCreateRequest;
 
 /* === Constants === */

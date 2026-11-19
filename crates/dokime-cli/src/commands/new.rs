@@ -172,7 +172,8 @@ fn source_checkout(argument: Option<PathBuf>, environment: Option<PathBuf>) -> R
     argument
         .or(environment)
         .map(|path| -> Result<PathBuf> {
-            let path = path.canonicalize()
+            let path = path
+                .canonicalize()
                 .map_err(|error| format!("Create Project: Choose a Readable SDK Checkout {}: {error}", path.display()))?;
             let text = path.to_string_lossy();
             // Native Build Tools Normalize Relative Project References After This Boundary.
@@ -180,7 +181,9 @@ fn source_checkout(argument: Option<PathBuf>, environment: Option<PathBuf>) -> R
                 PathBuf::from(format!(r"\\{server}"))
             } else if let Some(local) = text.strip_prefix(r"\\?\") {
                 PathBuf::from(local)
-            } else { path };
+            } else {
+                path
+            };
             Ok(path)
         })
         .transpose()
@@ -221,12 +224,12 @@ fn read_starter(root: &Path, language: Language) -> Result<Vec<(String, Vec<u8>)
             let entry = entry?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if matches!(
-                name.as_ref(),
-                "target" | "build" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials"
-            ) || (matches!(language, Language::Csharp) && matches!(name.as_ref(), "bin" | "obj")) || name == ".env"
+            if matches!(name.as_ref(), "target" | "build" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials")
+                || (matches!(language, Language::Csharp) && matches!(name.as_ref(), "bin" | "obj"))
+                || name == ".env"
                 || (name.starts_with(".env.") && name != ".env.example")
                 || matches!(name.as_ref(), "uv.lock" | "Cargo.lock" | "packages.lock.json")
+                || matches!(name.as_ref(), "credentials.json" | ".netrc" | ".pypirc" | "id_rsa" | "id_ed25519")
                 || [".key", ".pem", ".pair", ".dokime", ".pyc"].iter().any(|suffix| name.ends_with(suffix))
             {
                 continue;
@@ -263,6 +266,14 @@ fn local_dependency(language: Language, relative: &str, text: String, checkout: 
     });
     let path = directory.to_string_lossy().replace('\\', "/");
     let literal = serde_json::to_string(&path)?;
+    if relative == "mise.toml" || relative.ends_with("/mise.toml") {
+        let mut configuration: toml::Value = toml::from_str(&text)?;
+        if let Some(tools) = configuration.get_mut("tools").and_then(toml::Value::as_table_mut) {
+            tools.remove("github:stokker-technologies/dokime");
+        }
+        return toml::to_string_pretty(&configuration)
+            .map_err(|error| format!("Create Project: Write the Checkout Tool Configuration: {error}").into());
+    }
     match language {
         Language::Python if relative == "pyproject.toml" => Ok(format!("{text}\n[tool.uv.sources]\ndokime-sdk = {{ path = {literal} }}\n")),
         Language::Rust if relative == "Cargo.toml" => {
@@ -293,11 +304,7 @@ fn local_dependency(language: Language, relative: &str, text: String, checkout: 
             let start = text.find("if(DOKIME_SDK_URL)").ok_or("Create C++ Project: Declare the SDK Source Selection in CMakeLists.txt")?;
             let end = text.find("find_package(Dokime CONFIG REQUIRED)").ok_or("Create C++ Project: Declare the Dokime CMake Dependency")?
                 + "find_package(Dokime CONFIG REQUIRED)".len();
-            Ok(format!(
-                "{}set(DOKIME_BUILD_TESTS OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory({literal} \"${{CMAKE_BINARY_DIR}}/dokime-sdk\"){}",
-                &text[..start],
-                &text[end..]
-            ))
+            Ok(format!("{}add_subdirectory({literal} \"${{CMAKE_BINARY_DIR}}/dokime-sdk\"){}", &text[..start], &text[end..]))
         }
         _ => Ok(text),
     }
@@ -460,10 +467,15 @@ mod tests {
         let argument = tempfile::tempdir()?;
         let environment = tempfile::tempdir()?;
         assert_eq!(
-            super::source_checkout(Some(argument.path().into()), Some(environment.path().into()))?.map(|path| path.canonicalize()).transpose()?,
+            super::source_checkout(Some(argument.path().into()), Some(environment.path().into()))?
+                .map(|path| path.canonicalize())
+                .transpose()?,
             Some(argument.path().canonicalize()?)
         );
-        assert_eq!(super::source_checkout(None, Some(environment.path().into()))?.map(|path| path.canonicalize()).transpose()?, Some(environment.path().canonicalize()?));
+        assert_eq!(
+            super::source_checkout(None, Some(environment.path().into()))?.map(|path| path.canonicalize()).transpose()?,
+            Some(environment.path().canonicalize()?)
+        );
         assert_eq!(super::source_checkout(None, None)?, None);
         Ok(())
     }

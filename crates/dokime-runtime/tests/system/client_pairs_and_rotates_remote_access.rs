@@ -28,12 +28,12 @@ use tonic::transport::ClientTlsConfig;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime_client_internal::Client;
-use dokime_client_internal::ClientSettings;
 use dokime_client_internal::AccessPairingsListOptions;
 use dokime_client_internal::BackendOverviewGetOptions;
 use dokime_client_internal::CallOptions;
 use dokime_client_internal::CasesCreateOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::ClientSettings;
 use dokime_client_internal::ContentArtifactsListOptions;
 use dokime_client_internal::CyclesCreateOptions;
 use dokime_client_internal::CyclesListOptions;

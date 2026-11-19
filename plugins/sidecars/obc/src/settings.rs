@@ -89,8 +89,7 @@ pub async fn images_directory(ctx: &Context) -> Result<PathBuf> {
 /* === Private Functions === */
 
 async fn value(ctx: &Context, name: &str) -> Result<setting_value::Value> {
-    ctx.setting(name).await?.value
-        .ok_or_else(|| Error::Invalid(format!("Read Setting {name}: Restore Its Value in the Plugin Settings")))
+    ctx.setting(name).await?.value.ok_or_else(|| Error::Invalid(format!("Read Setting {name}: Restore Its Value in the Plugin Settings")))
 }
 
 /* === Tests === */

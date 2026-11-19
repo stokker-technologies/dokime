@@ -17,11 +17,11 @@
 
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
+use dokime::plugin::Plugin;
 use dokime_client_internal::Client;
 use dokime_client_internal::PluginsSettingsSetOptions;
 use dokime_client_internal::SettingsSetOptions;
 use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
-use dokime::plugin::Plugin;
 use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginValue};
 use harmos_protocol::model::setting_value;
@@ -90,10 +90,13 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
                     name: "enabled".into(),
                     title: "Enabled".into(),
                     description: String::new(),
-                    default: Some(SettingValue { value: Some(setting_value::Value::Flag(true)) }),
+                    default: Some(SettingValue {
+                        value: Some(setting_value::Value::Flag(true)),
+                    }),
                 }],
             };
-            let catalog = Plugin::of::<()>("0.1.0").identifier("settings_fixture").setting(declarations.values[0].clone()).declarations()?;
+            let catalog =
+                Plugin::of::<()>("0.1.0").identifier("settings_fixture").setting(declarations.values[0].clone()).declarations()?;
             let provider = SettingsPlugin(InstanceGetResponse {
                 id: "settings_fixture".into(),
                 version: "0.1.0".into(),
@@ -185,7 +188,12 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             let before = client.plugins.settings.list("settings_fixture").await?;
             assert_eq!(before.value.as_ref().unwrap().values["enabled"].value, Some(setting_value::Value::Flag(true)));
             let value = SettingValues {
-                values: HashMap::from([("enabled".into(), SettingValue { value: Some(setting_value::Value::Flag(false)) })]),
+                values: HashMap::from([(
+                    "enabled".into(),
+                    SettingValue {
+                        value: Some(setting_value::Value::Flag(false)),
+                    },
+                )]),
             };
             let options = PluginsSettingsSetOptions {
                 request_id: Some("plugin-value".into()),

@@ -282,7 +282,8 @@ impl Plugins {
     pub async fn register_with(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
         let plugins = Plugins { client: self.client.clone() };
         // A Cancelled Caller Leaves Admission Owned Until Close Can Unregister It.
-        tokio::spawn(async move { plugins.register_owned(plugin, options).await }).await
+        tokio::spawn(async move { plugins.register_owned(plugin, options).await })
+            .await
             .map_err(|error| invalid("Register Plugin", &format!("Inspect the Interrupted Registration Task: {error}")))?
     }
 

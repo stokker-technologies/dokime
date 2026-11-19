@@ -1448,6 +1448,7 @@ dependencies = [
  "dokime-packaging",
  "dokime-protocol",
  "dokime-runtime",
+ "dokime-test-support",
  "harmos-runtime",
  "prost",
  "prost-reflect",
@@ -1632,6 +1633,7 @@ dependencies = [
  "dokime-packaging",
  "dokime-protocol",
  "dokime-storage",
+ "dokime-test-support",
  "harmos-domain",
  "harmos-operations",
  "harmos-protocol",
@@ -1688,6 +1690,15 @@ dependencies = [
  "tracing",
  "uuid",
  "zip",
+]
+
+[[package]]
+name = "dokime-test-support"
+version = "0.1.5"
+dependencies = [
+ "dokime-runtime",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

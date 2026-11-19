@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_client_internal::PluginsSecretsListOptions;
 use crate::settings::Settings;
+use dokime_client_internal::PluginsSecretsListOptions;
 
 /* === Constants === */
 

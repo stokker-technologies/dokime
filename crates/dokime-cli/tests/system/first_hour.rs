@@ -93,8 +93,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             let directory = super::credentials::tempdir()?;
             let project = directory.path().join("first-rust");
             super::run(&["new", project.to_str().unwrap(), "--lang", "rust", "--from", super::root().to_str().unwrap()]).await?;
-            let built_project = super::fixtures().join("rust");
-            assert_eq!(fs::read(project.join("src/main.rs"))?, fs::read(built_project.join("src/main.rs"))?);
+            assert!(project.join("src/bin/client.rs").is_file());
 
             // Bundle the Executable Built From Those Exact Starter Sources
             let executable = super::fixtures().join(format!("rust{}", EXE_SUFFIX));

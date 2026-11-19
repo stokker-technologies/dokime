@@ -24,12 +24,12 @@ use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime_client_internal::Client;
 use dokime::MapValue;
 use dokime::Metadata;
 use dokime::Termination;
 use dokime_client_internal::CasesCreateOptions;
 use dokime_client_internal::CasesListOptions;
+use dokime_client_internal::Client;
 use dokime_client_internal::CyclesCreateOptions;
 use dokime_client_internal::CyclesGetOptions;
 use dokime_client_internal::CyclesSealOptions;

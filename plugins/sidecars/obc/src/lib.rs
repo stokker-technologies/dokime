@@ -28,7 +28,7 @@ pub mod suites;
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{Plugin};
+use dokime::plugin::Plugin;
 use dokime::{Declarations, Result};
 
 /* === Constants === */

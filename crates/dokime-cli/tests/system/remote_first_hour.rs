@@ -29,9 +29,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tonic::transport::Endpoint;
 
 // Local Imports
+use dokime::Metadata;
 use dokime_client_internal::Client;
 use dokime_client_internal::{CyclesCreateOptions, ExecutionBinding, FilesReadOptions, ReportSubject, report_subject};
-use dokime::Metadata;
 use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 /* === Constants === */

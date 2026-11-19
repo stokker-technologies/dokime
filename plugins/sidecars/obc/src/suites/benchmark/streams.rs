@@ -27,8 +27,8 @@ use crate::suites::{self, parameters};
 use crate::device::Bench;
 use crate::device::{Charger, Power, Supply};
 use crate::settings;
+use dokime::plugin::{Criterion, Observer, Step, Stream, Template, Window};
 use dokime::templates::Context;
-use dokime::plugin::{ Criterion, Observer, Step, Stream, Template, Window};
 use dokime::{Document, Error, Parameter, Result, Severity};
 
 /* === Constants === */
@@ -92,7 +92,9 @@ pub fn stream(module: usize) -> String {
 }
 
 pub fn template() -> Template {
-    let template = Template::of::<()>().identifier("streams").label("Module Array Capture")
+    let template = Template::of::<()>()
+        .identifier("streams")
+        .label("Module Array Capture")
         .description("Capture sixty-four independent module streams at full sample rate.")
         .tag("bench");
     let template = charger::catalog(template);

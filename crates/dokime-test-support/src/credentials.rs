@@ -16,20 +16,20 @@
 /* === Imports === */
 
 // Standard Library Imports
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 use std::fs::OpenOptions;
 #[cfg(target_os = "linux")]
-use std::process::{Child, Command as ProcessCommand};
+use std::process::{self, Child};
 use std::{
     error::Error,
     ffi::OsString,
-    io::Result as IoResult,
+    io,
     path::Path,
     sync::{Arc, Mutex},
 };
-use tempfile::TempDir;
 
 // Third Party Imports
+use tempfile::TempDir;
 
 // Local Imports
 
@@ -71,7 +71,7 @@ impl Root {
 
 impl Drop for Root {
     fn drop(&mut self) {
-        #[cfg(windows)]
+        #[cfg(target_os = "windows")]
         if let Err(error) = remove_credentials(self.path(), false) {
             let root = self.0.take().unwrap();
             let mut root = Some(root);
@@ -99,7 +99,7 @@ impl CredentialStore {
         {
             use std::{
                 fs::Permissions,
-                io::{BufRead, BufReader, Error as IoError, Write},
+                io::{BufRead, BufReader, Write},
                 os::unix::fs::PermissionsExt,
                 process::Stdio,
             };
@@ -129,7 +129,7 @@ impl CredentialStore {
             let address = tokio::task::spawn_blocking(move || {
                 let mut address = String::new();
                 BufReader::new(stdout).read_line(&mut address)?;
-                Ok::<String, IoError>(address)
+                Ok::<String, io::Error>(address)
             })
             .await??;
             store.check_running()?;
@@ -175,7 +175,7 @@ impl CredentialStore {
     }
 
     #[cfg(target_os = "linux")]
-    fn spawn(&mut self, mut command: ProcessCommand, package: &'static str) -> Result<(), Box<dyn Error>> {
+    fn spawn(&mut self, mut command: process::Command, package: &'static str) -> Result<(), Box<dyn Error>> {
         let child = command.spawn().map_err(|error| format!("Start Story Credential Store: Install the {package} Package: {error}"))?;
         self.children.push((package, child));
         Ok(())
@@ -230,17 +230,17 @@ pub fn run<T>(story: std::pin::Pin<Box<impl std::future::Future<Output = T>>>) -
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.block_on(ROOTS.scope(roots.clone(), story))));
     drop(runtime);
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     let mut failures = Vec::<String>::new();
-    #[cfg(not(windows))]
+    #[cfg(not(target_os = "windows"))]
     let failures = Vec::<String>::new();
     for root in std::mem::take(&mut *roots.lock().unwrap()) {
-        #[cfg(windows)]
+        #[cfg(target_os = "windows")]
         if let Err(error) = remove_credentials(root.path(), true) {
             let retained = root.keep();
             failures.push(format!("{error}; Retained Root: {}", retained.display()));
         }
-        #[cfg(not(windows))]
+        #[cfg(not(target_os = "windows"))]
         drop(root);
     }
     if !failures.is_empty() {
@@ -257,13 +257,13 @@ pub fn run<T>(story: std::pin::Pin<Box<impl std::future::Future<Output = T>>>) -
     }
 }
 
-pub fn tempdir() -> IoResult<Root> {
+pub fn tempdir() -> io::Result<Root> {
     tempfile::tempdir().map(|root| Root(Some(root)))
 }
 
 /* === Private Functions === */
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 fn remove_credentials(root: &Path, runtime_closed: bool) -> Result<(), Box<dyn Error>> {
     if root.join("backend-id").is_file() {
         // Runtime-Owned Work Must Release the Root Before Credential Disposal.

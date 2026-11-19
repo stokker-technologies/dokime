@@ -31,9 +31,9 @@ use tonic::Status;
 
 // Local Imports
 
+use crate::{Result, settings::Settings};
 use dokime_client_internal::Client;
 use dokime_client_internal::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
-use crate::{Result, settings::Settings};
 
 /* === Constants === */
 
