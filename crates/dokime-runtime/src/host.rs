@@ -27,15 +27,11 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_operations::plugins::Create;
-use harmos_operations::plugins::Delete;
-use harmos_operations::plugins::Watch;
-use harmos_protocol::host::PluginDescription;
-use harmos_protocol::host::PluginsDeleteRequest;
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginRemote};
-use harmos_protocol::host::{PluginState, PluginsWatchRequest};
-use harmos_protocol::host::{PluginValue, PluginsCreateRequest};
+use harmos_operations::plugins::{Create, Delete, Watch};
+use harmos_protocol::host::{
+    PluginDescription, PluginEntry, PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue, PluginsCreateRequest,
+    PluginsDeleteRequest, PluginsWatchRequest, plugin_placement,
+};
 use harmos_protocol::model::{FileMetadata, FileReference, Receipt};
 use harmos_runtime::bundle::Identity;
 use harmos_runtime::operations::StreamSettings;
@@ -45,24 +41,25 @@ use tokio::sync::watch::{self, Receiver, Sender};
 use uuid::Uuid;
 
 // Local Imports
-use crate::ExecutionCapabilities;
-use crate::{CaptureSettings, Cycle, Error, PlacementSettings, Result, SchedulerClock};
+use crate::execution_manager::ExecutionManager;
+use crate::prompts::PromptManager;
+use crate::services::{self, Assembly, ClientSettings};
+use crate::{CaptureSettings, Cycle, Error, ExecutionCapabilities, PlacementSettings, Result, SchedulerClock, await_plugin_ready, process};
+use dokime_operations::host::content;
 use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_operations::host::evidence::archive;
+use dokime_operations::host::files::read;
 use dokime_operations::host::files::uploads::{append, create, publish};
-use dokime_protocol::host::ExecutionControls;
-use dokime_protocol::host::ExecutionMode;
-use dokime_protocol::host::PromptsCreateRequest;
-use dokime_protocol::host::PromptsCreateResponse;
+use dokime_packaging::bundle;
 use dokime_protocol::host::content::ExecutionFileMetadata;
-use dokime_protocol::host::executions::CommandsCreateRequest;
-use dokime_protocol::host::executions::ExecutionCommandReceipt;
+use dokime_protocol::host::executions::{CommandsCreateRequest, ExecutionCommandReceipt};
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsPublishRequest};
-use dokime_protocol::model::Origin;
-use dokime_protocol::model::Suites;
-use dokime_protocol::model::Value;
-use dokime_storage::OutcomeCounts;
-use dokime_storage::StorageSettings;
-use dokime_storage::{ExecutionSnapshot, Store};
+use dokime_protocol::host::{
+    EvidenceArchiveRequest, EvidenceSubject, ExecutionControls, ExecutionMode, FilesReadRequest, PromptsCreateRequest,
+    PromptsCreateResponse, evidence_subject,
+};
+use dokime_protocol::model::{Origin, Suites, Value};
+use dokime_storage::{self, ExecutionSnapshot, OutcomeCounts, StorageSettings, Store};
 
 /* === Constants === */
 
@@ -95,11 +92,11 @@ pub struct Host {
     pub(crate) settings: HostSettings,
     pub(crate) plugins: Arc<Mutex<HashMap<String, PluginEntry>>>,
     pub(crate) plugin_admission_failures: Arc<Mutex<Vec<(String, String)>>>,
-    pub(crate) executions: crate::execution_manager::ExecutionManager,
-    pub(crate) prompts: Arc<crate::prompts::PromptManager>,
+    pub(crate) executions: ExecutionManager,
+    pub(crate) prompts: Arc<PromptManager>,
     changed: Sender<u64>,
     root_lease: RootLease,
-    pub(crate) assembly: Option<Arc<crate::services::Assembly>>,
+    pub(crate) assembly: Option<Arc<Assembly>>,
 }
 
 /* === Enums === */
@@ -109,11 +106,11 @@ pub struct Host {
 /* === Implementations === */
 
 impl Host {
-    pub async fn open(root: &Path, settings: HostSettings, operations: crate::services::ClientSettings) -> Result<Self> {
+    pub async fn open(root: &Path, settings: HostSettings, operations: ClientSettings) -> Result<Self> {
         // Every Host Entry Point Owns Its Descendants Before Any Plugin Starts.
-        crate::process::own_descendants()?;
+        process::own_descendants()?;
         let mut host = Self::open_store(root, settings)?;
-        host.assembly = Some(Arc::new(Box::pin(crate::services::assemble(&host, root, &operations)).await?));
+        host.assembly = Some(Arc::new(Box::pin(services::assemble(&host, root, &operations)).await?));
         host.reconcile_installation_plugins().await;
         Ok(host)
     }
@@ -132,17 +129,11 @@ impl Host {
         }
         let root_lease: RootLease = Arc::new(Mutex::new(Some(lease)));
         let store = Store::open_with(root, settings.storage)?;
-        dokime_operations::host::content::validate_store(&store)?;
+        content::validate_store(&store)?;
         let changed = watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
-        let prompts = Arc::new(crate::prompts::PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
-        let executions = crate::execution_manager::ExecutionManager::new(
-            store.clone(),
-            settings.clone(),
-            prompts.clone(),
-            changed.clone(),
-            root_lease.clone(),
-        )?;
+        let prompts = Arc::new(PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
+        let executions = ExecutionManager::new(store.clone(), settings.clone(), prompts.clone(), changed.clone(), root_lease.clone())?;
         Ok(Self {
             store,
             settings,
@@ -168,7 +159,7 @@ impl Host {
             description: String::new(),
             package: Default::default(),
         };
-        let bytes = dokime_packaging::bundle::create(executable, assets, identity, None)
+        let bytes = bundle::create(executable, assets, identity, None)
             .map_err(|source| Error::Invalid(format!("Create Plugin Bundle: {source}")))?;
         let content = self
             .upload_plugin_bundle(
@@ -262,19 +253,23 @@ impl Host {
             .get()
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Await Plugin Ready: Assemble the Host Context".into()))?;
-        let mut watch = context.operations.download_protobuf::<Watch>(
+        let watch = context.operations.download_protobuf::<Watch>(
             PluginsWatchRequest { name: Some(name.into()), at: None },
             StreamSettings {
                 items: self.settings.placement.stream_window,
                 bytes: self.settings.placement.message_bytes,
             },
         )?;
-        let result = crate::await_plugin_ready(
-            async || {
-                context.host.refresh_plugin_states().await?;
-                Ok(lock(&self.plugins)?.get(name).cloned())
+        let mut readiness = (context, self.plugins.clone(), name.to_owned(), watch);
+        let result = await_plugin_ready(
+            &mut readiness,
+            |(context, plugins, name, _)| {
+                Box::pin(async move {
+                    context.host.refresh_plugin_states().await?;
+                    Ok(lock(plugins)?.get(name).cloned())
+                })
             },
-            async || Ok(watch.next().await?.is_some()),
+            |(_, _, _, watch)| Box::pin(async move { Ok(watch.next().await?.is_some()) }),
             |entry| {
                 if entry.state == PluginState::Stopped as i32 {
                     return None;
@@ -289,8 +284,8 @@ impl Host {
         )
         .await
         .map(|_| ());
-        watch.request_cancel();
-        let _ = watch.join().await;
+        readiness.3.request_cancel();
+        let _ = readiness.3.join().await;
         result
     }
     fn admit(&self, action: &str) -> Result<()> {
@@ -377,7 +372,7 @@ impl Host {
         self.executions.start_execution_mode(execution, mode).await
     }
     pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
-        self.start_execution_mode(execution, dokime_protocol::host::ExecutionMode::Automatic).await
+        self.start_execution_mode(execution, ExecutionMode::Automatic).await
     }
     pub async fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
         self.executions.submit_execution_command(request).await
@@ -405,11 +400,11 @@ impl Host {
             .get()
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Export Execution: Open the Host Before Reading Evidence".into()))?;
-        let response = dokime_operations::host::evidence::archive::handle(
+        let response = archive::handle(
             &context,
-            dokime_protocol::host::EvidenceArchiveRequest {
-                subject: Some(dokime_protocol::host::EvidenceSubject {
-                    kind: Some(dokime_protocol::host::evidence_subject::Kind::Execution(execution.into())),
+            EvidenceArchiveRequest {
+                subject: Some(EvidenceSubject {
+                    kind: Some(evidence_subject::Kind::Execution(execution.into())),
                 }),
                 at: None,
             },
@@ -418,9 +413,9 @@ impl Host {
         let file = response.file.ok_or_else(|| Error::Invalid("Export Execution: Restore Its Native Archive Reference".into()))?;
         let mut bytes = Vec::new();
         while (bytes.len() as u64) < file.length {
-            let response = dokime_operations::host::files::read::handle(
+            let response = read::handle(
                 &context,
-                dokime_protocol::host::FilesReadRequest {
+                FilesReadRequest {
                     file: Some(file.clone()),
                     offset: bytes.len() as u64,
                     max_bytes: 0,
@@ -443,9 +438,7 @@ impl Host {
             .get()
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Attach Execution File: Open the Host Before Registering Content".into()))?;
-        dokime_operations::host::content::attach_execution_file(&context, execution, metadata, file)
-            .await
-            .map_err(|source| Error::Invalid(source.to_string()))
+        content::attach_execution_file(&context, execution, metadata, file).await.map_err(|source| Error::Invalid(source.to_string()))
     }
     /// Replaces the folders plugins may capture from; captures opened afterwards use them.
     pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {

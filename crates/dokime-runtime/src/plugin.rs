@@ -19,9 +19,11 @@ mod process;
 
 // Standard Library Imports
 use std::{
+    future::Future,
     io::{self, ErrorKind},
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
+    pin::Pin,
     process::{Command, Stdio},
     result,
     time::Duration,
@@ -226,12 +228,15 @@ impl Drop for PluginProcess {
 /* === Public Functions === */
 
 /// Wait for an Entry to Become Ready Using the Caller's Existing Watch and Error Boundary.
-pub async fn await_plugin_ready<E>(
-    mut read: impl AsyncFnMut() -> result::Result<Option<PluginEntry>, E>, mut changed: impl AsyncFnMut() -> result::Result<bool, E>,
+/// Callback Futures Borrow Only the Explicit State and Remain Send Across Read and Watch Awaits.
+pub async fn await_plugin_ready<S, E>(
+    state: &mut S,
+    mut read: impl for<'a> FnMut(&'a mut S) -> Pin<Box<dyn Future<Output = result::Result<Option<PluginEntry>, E>> + Send + 'a>>,
+    mut changed: impl for<'a> FnMut(&'a mut S) -> Pin<Box<dyn Future<Output = result::Result<bool, E>> + Send + 'a>>,
     unavailable: impl Fn(PluginEntry) -> Option<E>, closed: impl Fn() -> E,
 ) -> result::Result<PluginEntry, E> {
     loop {
-        if let Some(entry) = read().await? {
+        if let Some(entry) = read(state).await? {
             match PluginState::try_from(entry.state) {
                 Ok(PluginState::Ready) => return Ok(entry),
                 Ok(PluginState::Unavailable | PluginState::Stopped) => {
@@ -242,7 +247,7 @@ pub async fn await_plugin_ready<E>(
                 _ => (),
             }
         }
-        if !changed().await? {
+        if !changed(state).await? {
             return Err(closed());
         }
     }
@@ -296,7 +301,7 @@ async fn connect(endpoint: &str, settings: &PlacementSettings) -> Result<Instanc
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::Cell, collections::VecDeque, ffi::OsStr, fs};
+    use std::{collections::VecDeque, ffi::OsStr, fs, future};
 
     use dokime_packaging::project::PluginProject;
     use harmos_protocol::host::{PluginEntry, PluginState};
@@ -313,13 +318,13 @@ mod tests {
             ..Default::default()
         });
         let expected = entries[2].clone();
-        let mut entries = VecDeque::from(entries);
-        let changes = Cell::new(0);
+        let mut readiness = (VecDeque::from(entries), 0);
         let entry = await_plugin_ready(
-            async || Ok(entries.pop_front()),
-            async || {
-                changes.set(changes.get() + 1);
-                Ok(true)
+            &mut readiness,
+            |(entries, _)| Box::pin(future::ready(Ok(entries.pop_front()))),
+            |(_, changes)| {
+                *changes += 1;
+                Box::pin(future::ready(Ok(true)))
             },
             |_| Some("unavailable"),
             || "closed",
@@ -327,20 +332,21 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(entry, expected);
-        assert_eq!(changes.get(), 2);
+        assert_eq!(readiness.1, 2);
     }
 
     #[tokio::test]
     async fn entry_readiness_refuses_terminal_states_without_waiting() {
-        for state in [PluginState::Unavailable, PluginState::Stopped] {
+        for mut state in [PluginState::Unavailable, PluginState::Stopped] {
             let result = await_plugin_ready(
-                async || {
-                    Ok(Some(PluginEntry {
-                        state: state as i32,
+                &mut state,
+                |state| {
+                    Box::pin(future::ready(Ok(Some(PluginEntry {
+                        state: *state as i32,
                         ..Default::default()
-                    }))
+                    }))))
                 },
-                async || panic!("Terminal Entries Must Not Wait"),
+                |_| panic!("Terminal Entries Must Not Wait"),
                 |entry| Some(entry.state),
                 || -1,
             )
@@ -362,17 +368,45 @@ mod tests {
                 ..Default::default()
             }),
         ]);
-        let result = await_plugin_ready(async || Ok(entries.pop_front().unwrap()), async || Ok(true), |_| None, || "closed").await;
+        let result = await_plugin_ready(
+            &mut entries,
+            |entries| Box::pin(future::ready(Ok(entries.pop_front().unwrap()))),
+            |_| Box::pin(future::ready(Ok(true))),
+            |_| None,
+            || "closed",
+        )
+        .await;
         assert_eq!(result.unwrap().state, PluginState::Ready as i32);
     }
 
     #[tokio::test]
     async fn entry_readiness_propagates_read_watch_and_closed_errors() {
-        let result = await_plugin_ready(async || Err("read"), async || Ok(true), |_| None, || "closed").await;
+        let result = await_plugin_ready(
+            &mut (),
+            |_| Box::pin(future::ready(Err("read"))),
+            |_| Box::pin(future::ready(Ok(true))),
+            |_| None,
+            || "closed",
+        )
+        .await;
         assert_eq!(result, Err("read"));
-        let result = await_plugin_ready(async || Ok(None), async || Err("watch"), |_| None, || "closed").await;
+        let result = await_plugin_ready(
+            &mut (),
+            |_| Box::pin(future::ready(Ok(None))),
+            |_| Box::pin(future::ready(Err("watch"))),
+            |_| None,
+            || "closed",
+        )
+        .await;
         assert_eq!(result, Err("watch"));
-        let result = await_plugin_ready(async || Ok(None), async || Ok(false), |_| None, || "closed").await;
+        let result = await_plugin_ready(
+            &mut (),
+            |_| Box::pin(future::ready(Ok(None))),
+            |_| Box::pin(future::ready(Ok(false))),
+            |_| None,
+            || "closed",
+        )
+        .await;
         assert_eq!(result, Err("closed"));
     }
 

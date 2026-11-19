@@ -96,7 +96,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
 
 async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, action: &str) -> Result<PluginEntry> {
     let name = entry.name.clone();
-    let mut watch = client
+    let watch = client
         .plugins
         .watch_with(PluginsWatchOptions {
             name: Some(name.clone()),
@@ -104,26 +104,29 @@ async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, a
             ..Default::default()
         })
         .await?;
-    let mut initial = Some(entry);
+    let mut readiness = (Some(entry), client, name, settings, action, watch);
     let result = dokime_runtime::await_plugin_ready(
-        async || {
-            if initial.is_some() {
-                return Ok(initial.take());
-            }
-            let response = client
-                .plugins
-                .get_with(
-                    name.clone(),
-                    PluginsGetOptions {
-                        context: settings.context()?,
-                        ..Default::default()
-                    },
-                )
-                .await?;
-            let entry = response.entry.ok_or_else(|| format!("{action}: Plugin Entry Was Removed"))?;
-            Ok(Some(entry))
+        &mut readiness,
+        |(initial, client, name, settings, action, _)| {
+            Box::pin(async move {
+                if initial.is_some() {
+                    return Ok(initial.take());
+                }
+                let response = client
+                    .plugins
+                    .get_with(
+                        name.clone(),
+                        PluginsGetOptions {
+                            context: settings.context()?,
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                let entry = response.entry.ok_or_else(|| format!("{action}: Plugin Entry Was Removed"))?;
+                Ok(Some(entry))
+            })
         },
-        async || Ok(watch.next().await?.is_some()),
+        |(_, _, _, _, _, watch)| Box::pin(async move { Ok(watch.next().await?.is_some()) }),
         |entry| {
             Some(
                 Status::failed_precondition(format!(
@@ -137,7 +140,7 @@ async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, a
         || format!("{action}: Plugin Watch Closed Before Readiness").into(),
     )
     .await;
-    drop(watch);
+    drop(readiness);
     result
 }
 
