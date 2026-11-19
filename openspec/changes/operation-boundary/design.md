@@ -515,28 +515,43 @@ until that decision; a prior successful capture does not replace final proof.
 
 ## Administration Prefix Predicate at the Pinned Revision
 
-Task 4.4w's measured files/notes/artifacts cost comes from
-`crates/dokime-operations/src/host/storage/administration.rs::scan`: it selects all
-administration payloads through `ListColumnRows` before testing `starts_with`.
-The supported operation's `ColumnSelection.predicate` is a `ColumnPredicate` with
-`column: String`, `lower: Option<f64>` and `upper: Option<f64>`. At pin
-`e8df78630c1cb401e8fdadf7f50fc578b8f0509e`, neither that DTO nor
-`Harmos:crates/harmos-query/src/columnar.rs::ColumnPredicate` can represent a string
-prefix or lexicographic range. `storage/native/lists.rs` copies those numeric
-bounds directly into `ArrowScan`. Product backend `backend/columns.rs::scan` receives
-only that numeric scan and cannot recover a missing string selection.
+Task 4.4w uses library revision `05bd25a017a54b8af7f53553927e6af24054723b`
+for all Rust workspace dependencies and the Rust SDK consumer. `Cargo.toml` pins
+`harmos`, `harmos-domain`, `harmos-operations`, `harmos-packaging`, `harmos-protocol`,
+`harmos-query`, `harmos-runtime` and `harmos-storage`; the consumer manifest pins
+`harmos-protocol` and `harmos-runtime`. Both Cargo locks are refreshed through Cargo;
+`harmos-sdk-derive` follows the new source transitively. The Python tooling
+pin remains `e8df78630c1cb401e8fdadf7f50fc578b8f0509e`; the Python, C# and C++ SDK
+pins remain `c2cfb153ab136159f07741d1061fcb3a1191e86c` under their separate owners.
+The library's single `ColumnPredicate` now carries either numeric bounds or a
+nonempty case-sensitive text prefix, validates column kinds, and binds the predicate
+to continuation identity. No product predicate family is introduced.
 
-The smallest required upstream capability is a typed text prefix or half-open text
-range in column predicates, with validation, continuation identity and row filtering
-at the same issued cut. Once supplied, the product backend must select key columns
-before payload columns (or prune by durable key metadata), so rejected rows never
-decode their payloads. Prove equivalence to filter-after-decode across mixed prefixes,
-revisions and page boundaries, together with work counters proving payload exclusion.
-Do not encode text in numeric bounds, add a parallel product predicate family or
-fall back to filtered full-payload scans. The scan repair and before/after speedup
-claim remain open until the dependency owner supplies this contract and a validated
-revision, or authorizes coupled library implementation. The implementation worker
-is restricted to this product worktree and does not change dependency checkouts.
+`crates/dokime-operations/src/host/storage/administration.rs::scan` passes the prefix
+on `_storage.item`, the durable native key whose equality to `Administration.key`
+is covered by the envelope round trip. It no longer filters decoded payloads.
+`crates/dokime-storage/src/backend/columns.rs::scan` validates the predicate against
+the schema before pruning, then checks the existing `storage_rows.item` metadata
+with a byte-exact prefix comparison. Object chunks contain one key, so rejected
+chunks never open an Arrow payload file. This needs no schema change or migration.
+The shared library `finish_page`/`finish_scan` owns row filtering, page bounds and
+continuation validation; output projection follows durable key pruning. Payload-projection visits
+are reported through `ArrowPage.payload_rows`, including physical chunk visits.
+No cache crosses requests and no bound, setting or operation deadline changes.
+
+The six call sites in five files still enumerate collections: legacy artifact
+presence, committed artifacts, execution files, command recovery, notes and latest
+prepared report for a cycle. None is an exact-key lookup; named report Get already
+uses keyed administration access. Their public result ordering remains key-sorted.
+The deterministic backend fixture compares the old full-scan/filter result with
+prefix selection across six mixed prefixes, Unicode and literal wildcard bytes,
+three revisions per key, page boundaries and a later matching write beyond the
+issued cut. It compares ordered entries and continuation positions, checks token
+predicate binding and wrong-kind refusal, and counts rejected payload exclusion.
+An absent-prefix read also runs with the Arrow directory unavailable. The focused
+backend selection passes 18 tests, including this equivalence story. A full scan
+projects 72 revision payload rows; each matching prefix projects 12 and an absent
+prefix projects zero. Entries, page-position progression and the issued cut agree.
 
 ### Populated Release Measurement Baseline
 

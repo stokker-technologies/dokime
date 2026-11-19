@@ -28,14 +28,12 @@ use arrow_ipc::{
     reader::{FileReader, StreamReader},
     writer::StreamWriter,
 };
+use harmos_query::columnar::{self, ColumnKind, ColumnSource, ScanEvidence};
 use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
 use super::*;
-use harmos_query::columnar::ColumnSource;
-use harmos_query::columnar::{self, ColumnKind};
-
-use harmos_query::columnar::ScanEvidence;
+use crate::ipc::{self, BatchIndex, Projection, Writer};
 
 /* === Constants === */
 
@@ -113,11 +111,11 @@ fn store_chunk(connection: &Connection, source: &ColumnSource, batch: &RecordBat
     fs::create_dir_all(&directory).map_err(io)?;
     let filename = format!("{}.arrow", uuid::Uuid::now_v7());
     let path = directory.join(&filename);
-    let mut writer = crate::ipc::Writer::create(&path, batch.schema()).map_err(product)?;
+    let mut writer = Writer::create(&path, batch.schema()).map_err(product)?;
     let block = writer.append(batch).map_err(product)?;
     writer.finish().map_err(product)?;
     drop(writer);
-    crate::ipc::sync_parent(&path).map_err(product)?;
+    ipc::sync_parent(&path).map_err(product)?;
     // The Compressed File Is Synced Before Its Catalog Entry Can Commit.
     connection
         .execute(
@@ -170,15 +168,15 @@ pub(super) fn read_chunk(connection: &Connection, chunk: i64, metadata: &[&str],
     let (filename, block): (String, Vec<u8>) = connection
         .query_row("SELECT file,block FROM arrow_chunks WHERE id=?1", [chunk], |row| Ok((row.get(0)?, row.get(1)?)))
         .map_err(db)?;
-    let block = decode::<crate::ipc::BatchIndex>(&block)?;
+    let block = decode::<BatchIndex>(&block)?;
     if Path::new(&filename).components().count() != 1 {
         return Err(incompatible());
     }
     let path = directory(connection)?.join(filename);
     let reader = FileReader::try_new(fs::File::open(&path).map_err(io)?, None)
         .map_err(|source| Error::backend("Read Arrow Schema", BackendFailure::Corrupt, source))?;
-    let projection = crate::ipc::Projection::new(reader.schema(), metadata, values).map_err(product)?;
-    crate::ipc::read_query_batch(&path, &block, &projection, maximum).map_err(product)
+    let projection = Projection::new(reader.schema(), metadata, values).map_err(product)?;
+    ipc::read_query_batch(&path, &block, &projection, maximum).map_err(product)
 }
 
 fn io(source: io::Error) -> Error {
@@ -220,6 +218,10 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
             return Err(invalid("requested column is unavailable"));
         }
     }
+    if let Some(predicate) = &read.predicate {
+        let column = empty.column_by_name(&predicate.column).ok_or_else(|| invalid("Select an Available Predicate Column"))?;
+        predicate.validate_type(column.data_type())?;
+    }
     let source = text(&read.source)?;
     let chunk: Option<(i64, u64, u64, usize)> = state
         .connection
@@ -230,7 +232,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
         )
         .optional()
         .map_err(db)?;
-    let Some((chunk, _first, last, count)) = chunk else {
+    let Some((chunk, first, last, count)) = chunk else {
         return Ok(columnar::finish_page(
             snapshot,
             read,
@@ -263,6 +265,18 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
             .map_err(db)?;
         pruned |= predicate.lower.zip(maximum).is_some_and(|(lower, maximum)| maximum < lower)
             || predicate.upper.zip(minimum).is_some_and(|(upper, minimum)| minimum >= upper);
+        // Object Chunks Contain One Durable Key; Reject Its Prefix Before Opening Arrow.
+        if read.source.kind == ColumnKind::Objects
+            && predicate.column == "_storage.item"
+            && let Some(prefix) = &predicate.prefix
+        {
+            let matches: bool = state.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM storage_rows WHERE kind=1 AND schema_key=?1 AND position>=?2 AND position<=?3 AND substr(CAST(item AS BLOB),1,length(CAST(?4 AS BLOB)))=CAST(?4 AS BLOB))",
+                params![text(&read.source.schema)?, integer(first)?, integer(last)?, prefix],
+                |row| row.get(0),
+            ).map_err(db)?;
+            pruned |= !matches;
+        }
     }
     if let Some(time) = &read.time {
         let (minimum, maximum): (Option<i64>, Option<i64>) = state
@@ -323,7 +337,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
         let key = text(&read.source.schema)?;
         let mut query = state.connection.prepare("SELECT position FROM storage_rows WHERE kind=1 AND schema_key=?1 AND position>=?3 AND position<=?4 AND position<=?2 AND position=(SELECT max(o.position) FROM storage_rows o WHERE o.kind=1 AND o.schema_key=?1 AND o.item=storage_rows.item AND o.position<=?2) AND (?5 IS NULL OR scope=?5)").map_err(db)?;
         let retained = query
-            .query_map(params![key, integer(snapshot.at.sequence)?, integer(_first)?, integer(last)?, scope], |row| unsigned(row, 0))
+            .query_map(params![key, integer(snapshot.at.sequence)?, integer(first)?, integer(last)?, scope], |row| unsigned(row, 0))
             .map_err(db)?
             .collect::<result::Result<BTreeSet<_>, _>>()
             .map_err(db)?;
@@ -337,7 +351,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
     }
     let scopes = batch.column_by_name("_storage.scope").and_then(|column| column.as_any().downcast_ref::<StringArray>());
     let mut indices = Vec::new();
-    let visible = compound::visible_positions(&state.connection, &read.source, _first, last, snapshot.at.sequence)?;
+    let visible = compound::visible_positions(&state.connection, &read.source, first, last, snapshot.at.sequence)?;
     for (index, position) in positions(&batch)?.values().iter().enumerate() {
         if visible.contains(position)
             && scope.as_ref().is_none_or(|scope| scopes.is_some_and(|scopes| !scopes.is_null(index) && scopes.value(index) == scope))
@@ -355,7 +369,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
             complete,
             bytes: bytes_read,
             columns: required,
-            payload_rows: 0,
+            payload_rows: if payload.is_empty() { 0 } else { count },
         },
         cancel,
     )?;

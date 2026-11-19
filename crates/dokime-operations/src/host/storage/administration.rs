@@ -20,7 +20,7 @@ use std::{fmt::Display, num::NonZeroUsize};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray};
-use harmos_operations::storage::{ColumnKind, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
+use harmos_operations::storage::{ColumnKind, ColumnPredicate, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
 use harmos_operations::storage::{GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
@@ -130,7 +130,12 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                         schema: schema.clone(),
                     }),
                     columns: vec!["payload.key".into(), "_storage.scope".into(), "payload.payload".into()],
-                    predicate: None,
+                    predicate: Some(ColumnPredicate {
+                        column: "_storage.item".into(),
+                        lower: None,
+                        upper: None,
+                        prefix: Some(prefix.into()),
+                    }),
                     time: None,
                     start: 0,
                     work: Some(ReadLimits {
@@ -166,13 +171,11 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                 if keys.is_null(index) || scopes.is_null(index) || values.is_null(index) {
                     return Err(Error::Precondition("List Administration: Restore Its Complete Object".into()));
                 }
-                if keys.value(index).starts_with(prefix) {
-                    entries.push(Administration {
-                        key: keys.value(index).into(),
-                        scope: Identifier::new(scopes.value(index)).map_err(|cause| invalid("List Administration", cause))?,
-                        payload: values.value(index).to_vec(),
-                    });
-                }
+                entries.push(Administration {
+                    key: keys.value(index).into(),
+                    scope: Identifier::new(scopes.value(index)).map_err(|cause| invalid("List Administration", cause))?,
+                    payload: values.value(index).to_vec(),
+                });
             }
         }
         token = response.next_page_token;
@@ -245,6 +248,7 @@ mod tests {
                 bound,
             )
             .unwrap();
+        assert_eq!(encoded.item.as_str(), original.key);
         assert_ne!(encoded.item, other.item);
         assert_eq!(catalog().decode::<Administration>(&encoded, bound).unwrap(), original);
     }
