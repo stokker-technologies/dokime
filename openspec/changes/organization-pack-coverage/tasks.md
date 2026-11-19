@@ -19,8 +19,9 @@
 - [x] 6.4 Package a neutral example from the published Nightly kit without installing it; inspect the output and declared execution mode.
 
 - [x] 7.1 Record the owner decision to admit installation bundles, installation-relative resolution, registry reuse, provenance and user-entry precedence.
-- [x] 7.2 Reconcile installation bundles through the existing managed admission, staged replacement and deletion paths; surface file-specific failures without stopping host startup.
+- [ ] 7.2 Reconcile installation bundles through the existing managed admission, staged replacement and deletion paths; surface file-specific failures without stopping host startup.
 - [x] 7.3 Add deterministic bundle/restart coverage for initial admission, unchanged content, replacement, removal, corruption, admission failure and retained user entries.
 - [x] 7.4 Add the host story from native packaging preparation through shipped-template execution without invoking an installer.
 - [ ] 7.5 Run new and existing focused plugin proof, touched-package compilation including test targets and desktop testing, formatting and repository checks on Windows.
 - [ ] 7.6 Prove installation startup and prepared-layout execution on Linux.
+- [ ] 7.7 Resolve registry-owned entry provenance: a user Create that reuses installation content must remain user-owned, and shared content must not be released while another entry uses it. The current content-reference marker cannot establish entry ownership; do not add a parallel registry.

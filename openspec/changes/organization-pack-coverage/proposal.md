@@ -146,6 +146,16 @@ tool boundary; it does not execute an installer or install the product.
 
 ## Remaining Owner Decisions
 
+The pinned library registry has no entry-owned installation provenance. The
+candidate's content-reference marker follows a bundle reference when a user
+creates a separate entry from already uploaded installation content. That entry
+can then be mistaken for installation ownership and removed, also releasing
+content still referenced by another entry. This is unresolved REWORK: provenance
+must belong to the registry entry at Create/Replace, and shared content must stay
+retained. It does not amend the decision that user-installed entries are never
+touched. The regression is
+`crates/dokime-runtime/tests/system/installation_plugins.rs::user_entry_reusing_installation_content_survives_reconciliation`.
+
 The current-user, no-elevation implementation applies to Windows NSIS. Linux
 DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format
 has not been selected.

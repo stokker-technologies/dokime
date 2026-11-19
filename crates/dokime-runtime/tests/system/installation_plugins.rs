@@ -434,3 +434,41 @@ fn failed_admission_does_not_block_other_installation_plugins() -> Result<(), Bo
         .await?
     }))
 }
+
+#[test]
+fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Admit an Installation Bundle.
+            let root = support::tempdir()?;
+            let installation = tempfile::tempdir()?;
+            let plugins = installation.path().join("plugins");
+            fs::create_dir_all(&plugins)?;
+            fs::write(plugins.join("example-pack.dokime"), shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let shipped = inventory(&client).await?.remove("example-pack").unwrap();
+            let file = content(&shipped).content.clone().unwrap();
+
+            // A User Creates an Independent Entry From Already Uploaded Content.
+            let user = client
+                .plugins
+                .create("com.example.testhub", shipped.placement.unwrap(), PluginValue { enabled: true })
+                .await?
+                .entry
+                .unwrap();
+            support::plugin_state(&client.plugins, user, PluginState::Ready).await?;
+            server.close().await?;
+
+            // Startup Must Preserve Both Entries and Their Shared Immutable Content.
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let entries = inventory(&client).await?;
+            assert!(entries.contains_key("com.example.testhub"));
+            assert!(entries.contains_key("example-pack"));
+            assert!(client.files.get(file).await.is_ok());
+            assert!(client.evidence.health_events.list(Default::default()).await?.events.is_empty());
+            server.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
