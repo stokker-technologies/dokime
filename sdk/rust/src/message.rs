@@ -70,7 +70,7 @@ impl<T: Message> Message for Wire<T> {
     }
 }
 
-impl<T: ReflectMessage + Default + 'static> harmos::Message for Wire<T> {
+impl<T: ReflectMessage + Default + 'static> ::harmos::Message for Wire<T> {
     fn name() -> String {
         T::default().descriptor().full_name().into()
     }

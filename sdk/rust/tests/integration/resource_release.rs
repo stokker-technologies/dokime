@@ -28,12 +28,12 @@ use dokime::Origin;
 use dokime::PluginRun;
 use dokime::Termination;
 use dokime::origin;
-use dokime::plugin::ExecutionsCleanupRequest;
 use dokime::plugin::ExecutionsCleanupResponse;
-use dokime::plugin::ExecutionsInitializeRequest;
 use dokime::plugin::ExecutionsInitializeResponse;
-use dokime::plugin::TestCasesMaterializeRequest;
 use dokime::plugin::TestCasesMaterializeResponse;
+use dokime_protocol::plugin::ExecutionsCleanupRequest;
+use dokime_protocol::plugin::ExecutionsInitializeRequest;
+use dokime_protocol::plugin::TestCasesMaterializeRequest;
 use dokime_rust_stories::ResourceState;
 use harmos_protocol::plugin::Window;
 

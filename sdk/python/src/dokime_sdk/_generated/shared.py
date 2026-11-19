@@ -1,8 +1,5 @@
 # @generated from protocol descriptors; do not edit.
-from harmos._wire.host.v1.invocations_pb2 import InvocationsCancelResponse, InvocationsGetResponse, InvocationsWatchResponse
 from harmos._wire.host.v1.operations_pb2 import OperationsGetResponse, OperationsListResponse
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
-from harmos._wire.host.v1.time_pb2 import TimeGetResponse, TimeSleepResponse
 from harmos._wire.model.v1.callers_pb2 import ALL, CALLERS_UNSPECIFIED, CLIENTS, PLUGINS, Callers
 from harmos._wire.model.v1.description_pb2 import Declarations, LaneDeclaration
 from harmos._wire.model.v1.failure_pb2 import (
@@ -889,9 +886,6 @@ __all__ = [
     "ImportSource",
     "InstanceState",
     "IntegerRange",
-    "InvocationsCancelResponse",
-    "InvocationsGetResponse",
-    "InvocationsWatchResponse",
     "LaneDeclaration",
     "LineStyle",
     "LinearSpace",
@@ -960,7 +954,6 @@ __all__ = [
     "SettingValue",
     "SettingValues",
     "SettingsDeclarations",
-    "SettingsListResponse",
     "Severity",
     "Statistics",
     "Step",
@@ -977,8 +970,6 @@ __all__ = [
     "Termination",
     "TestCase",
     "TestCaseTemplate",
-    "TimeGetResponse",
-    "TimeSleepResponse",
     "TraceabilityEntry",
     "TraceabilityGetResponse",
     "TraceabilitySnapshot",

@@ -1,5 +1,6 @@
 // @generated from protocol descriptors; do not edit.
-use crate::{Context, Error, OperationPolicy, Plugin, Result};
+use crate::plugin::{Dependency, Registrar, Registration};
+use crate::{Context, Error, OperationPolicy, Result};
 use dokime_protocol::host::BackendEnvironmentRequest;
 use dokime_protocol::host::BackendEnvironmentResponse;
 use dokime_protocol::host::DocumentsAppendPartsRequest;
@@ -183,46 +184,46 @@ impl HostOperation {
         Self::TimeSleep,
     ];
 }
-impl Plugin {
-    pub(crate) fn requires_host(self, operation: HostOperation) -> Self {
-        match operation {
-            HostOperation::BackendEnvironment => self.requires::<BackendEnvironmentRequest>(),
-            HostOperation::ContentArtifactsCreate => self.requires::<ArtifactsCreateRequest>(),
-            HostOperation::DocumentsAppendParts => self.requires::<DocumentsAppendPartsRequest>(),
-            HostOperation::EffectsCreate => self.requires::<EffectsCreateRequest>(),
-            HostOperation::EffectsGet => self.requires::<EffectsGetRequest>(),
-            HostOperation::EffectsSet => self.requires::<EffectsSetRequest>(),
-            HostOperation::EvidenceLogsAppend => self.requires::<LogsAppendRequest>(),
-            HostOperation::EvidenceRecordsList => self.requires::<RecordsListRequest>(),
-            HostOperation::EvidenceRecordsAppend => self.requires::<RecordsAppendRequest>(),
-            HostOperation::EvidenceTraceabilityGet => self.requires::<TraceabilityGetRequest>(),
-            HostOperation::EvidenceTraceabilitySet => self.requires::<TraceabilitySetRequest>(),
-            HostOperation::EvidenceStatistics => self.requires::<EvidenceStatisticsRequest>(),
-            HostOperation::ExecutionsProgressGet => self.requires::<ProgressGetRequest>(),
-            HostOperation::ExecutionsProgressSet => self.requires::<ProgressSetRequest>(),
-            HostOperation::FilesCapturesStart => self.requires::<CapturesStartRequest>(),
-            HostOperation::FilesCapturesStop => self.requires::<CapturesStopRequest>(),
-            HostOperation::FilesUploadsCreate => self.requires::<UploadsCreateRequest>(),
-            HostOperation::FilesUploadsGet => self.requires::<UploadsGetRequest>(),
-            HostOperation::FilesUploadsResume => self.requires::<UploadsResumeRequest>(),
-            HostOperation::FilesUploadsAppend => self.requires::<UploadsAppendRequest>(),
-            HostOperation::FilesUploadsPublish => self.requires::<UploadsPublishRequest>(),
-            HostOperation::FilesUploadsDelete => self.requires::<UploadsDeleteRequest>(),
-            HostOperation::FilesGet => self.requires::<FilesGetRequest>(),
-            HostOperation::FilesRead => self.requires::<FilesReadRequest>(),
-            HostOperation::FilesWatch => self.requires::<FilesWatchRequest>(),
-            HostOperation::FilesDelete => self.requires::<FilesDeleteRequest>(),
-            HostOperation::FilesCapture => self.requires::<FilesCaptureRequest>(),
-            HostOperation::PromptsCreate => self.requires::<PromptsCreateRequest>(),
-            HostOperation::SecretsGet => self.requires::<SecretsGetRequest>(),
-            HostOperation::InvocationsGet => self.requires::<InvocationsGetRequest>(),
-            HostOperation::InvocationsCancel => self.requires::<InvocationsCancelRequest>(),
-            HostOperation::InvocationsWatch => self.requires::<InvocationsWatchRequest>(),
-            HostOperation::OperationsList => self.requires::<OperationsListRequest>(),
-            HostOperation::OperationsGet => self.requires::<OperationsGetRequest>(),
-            HostOperation::PluginsSettingsList => self.requires::<SettingsListRequest>(),
-            HostOperation::TimeGet => self.requires::<TimeGetRequest>(),
-            HostOperation::TimeSleep => self.requires::<TimeSleepRequest>(),
+impl Registration for HostOperation {
+    fn register(self, ctx: &mut Registrar<'_>) -> Result<()> {
+        match self {
+            HostOperation::BackendEnvironment => ctx.register(Dependency::<BackendEnvironmentRequest>::new()),
+            HostOperation::ContentArtifactsCreate => ctx.register(Dependency::<ArtifactsCreateRequest>::new()),
+            HostOperation::DocumentsAppendParts => ctx.register(Dependency::<DocumentsAppendPartsRequest>::new()),
+            HostOperation::EffectsCreate => ctx.register(Dependency::<EffectsCreateRequest>::new()),
+            HostOperation::EffectsGet => ctx.register(Dependency::<EffectsGetRequest>::new()),
+            HostOperation::EffectsSet => ctx.register(Dependency::<EffectsSetRequest>::new()),
+            HostOperation::EvidenceLogsAppend => ctx.register(Dependency::<LogsAppendRequest>::new()),
+            HostOperation::EvidenceRecordsList => ctx.register(Dependency::<RecordsListRequest>::new()),
+            HostOperation::EvidenceRecordsAppend => ctx.register(Dependency::<RecordsAppendRequest>::new()),
+            HostOperation::EvidenceTraceabilityGet => ctx.register(Dependency::<TraceabilityGetRequest>::new()),
+            HostOperation::EvidenceTraceabilitySet => ctx.register(Dependency::<TraceabilitySetRequest>::new()),
+            HostOperation::EvidenceStatistics => ctx.register(Dependency::<EvidenceStatisticsRequest>::new()),
+            HostOperation::ExecutionsProgressGet => ctx.register(Dependency::<ProgressGetRequest>::new()),
+            HostOperation::ExecutionsProgressSet => ctx.register(Dependency::<ProgressSetRequest>::new()),
+            HostOperation::FilesCapturesStart => ctx.register(Dependency::<CapturesStartRequest>::new()),
+            HostOperation::FilesCapturesStop => ctx.register(Dependency::<CapturesStopRequest>::new()),
+            HostOperation::FilesUploadsCreate => ctx.register(Dependency::<UploadsCreateRequest>::new()),
+            HostOperation::FilesUploadsGet => ctx.register(Dependency::<UploadsGetRequest>::new()),
+            HostOperation::FilesUploadsResume => ctx.register(Dependency::<UploadsResumeRequest>::new()),
+            HostOperation::FilesUploadsAppend => ctx.register(Dependency::<UploadsAppendRequest>::new()),
+            HostOperation::FilesUploadsPublish => ctx.register(Dependency::<UploadsPublishRequest>::new()),
+            HostOperation::FilesUploadsDelete => ctx.register(Dependency::<UploadsDeleteRequest>::new()),
+            HostOperation::FilesGet => ctx.register(Dependency::<FilesGetRequest>::new()),
+            HostOperation::FilesRead => ctx.register(Dependency::<FilesReadRequest>::new()),
+            HostOperation::FilesWatch => ctx.register(Dependency::<FilesWatchRequest>::new()),
+            HostOperation::FilesDelete => ctx.register(Dependency::<FilesDeleteRequest>::new()),
+            HostOperation::FilesCapture => ctx.register(Dependency::<FilesCaptureRequest>::new()),
+            HostOperation::PromptsCreate => ctx.register(Dependency::<PromptsCreateRequest>::new()),
+            HostOperation::SecretsGet => ctx.register(Dependency::<SecretsGetRequest>::new()),
+            HostOperation::InvocationsGet => ctx.register(Dependency::<InvocationsGetRequest>::new()),
+            HostOperation::InvocationsCancel => ctx.register(Dependency::<InvocationsCancelRequest>::new()),
+            HostOperation::InvocationsWatch => ctx.register(Dependency::<InvocationsWatchRequest>::new()),
+            HostOperation::OperationsList => ctx.register(Dependency::<OperationsListRequest>::new()),
+            HostOperation::OperationsGet => ctx.register(Dependency::<OperationsGetRequest>::new()),
+            HostOperation::PluginsSettingsList => ctx.register(Dependency::<SettingsListRequest>::new()),
+            HostOperation::TimeGet => ctx.register(Dependency::<TimeGetRequest>::new()),
+            HostOperation::TimeSleep => ctx.register(Dependency::<TimeSleepRequest>::new()),
         }
     }
 }

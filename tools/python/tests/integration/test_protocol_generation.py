@@ -16,7 +16,9 @@ import runpy
 import shutil
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
+from unittest import mock
 
 # isort: split
 
@@ -25,6 +27,7 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
+from dokime_tools.build.protocol import cpp_dependency, library_dependencies
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
@@ -39,6 +42,73 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
+    def test_manifest_pins_follow_workspace_and_reject_each_stale_consumer(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        try:
+            source = "https://example.test/library"
+            manifests = {
+                "Cargo.toml": (
+                    f'[workspace.dependencies]\nharmos = {{ git = "{source}", rev = "next" }}\n'
+                    f'library-runtime = {{ git = "{source}", rev = "previous" }}\n'
+                ),
+                "sdk/rust/tests/consumer/Cargo.toml": f'[dev-dependencies]\nlibrary-runtime = {{ git = "{source}", rev = "previous" }}\n',
+                "tools/python/pyproject.toml": f'[tool.uv.sources]\nlibrary-tools = {{ git = "{source}", rev = "previous" }}\n',
+                "sdk/python/pyproject.toml": f'[project]\ndependencies = ["harmos-sdk @ git+{source}@previous#subdirectory=sdk/python"]\n',
+            }
+            for relative, text in manifests.items():
+                path = scratch / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            archive = scratch / "sdk/cpp/cmake/Dependencies.cmake"
+            archive.parent.mkdir(parents=True)
+            archive.write_text(f"URL {source}/archive/next.tar.gz\n", encoding="utf-8")
+            library_dependencies(scratch)
+            library_dependencies(scratch, check=True)
+            for relative in manifests:
+                with self.subTest(manifest=relative):
+                    path = scratch / relative
+                    current = path.read_text(encoding="utf-8")
+                    if relative == "Cargo.toml":
+                        stale = current.replace(
+                            f'library-runtime = {{ git = "{source}", rev = "next"',
+                            f'library-runtime = {{ git = "{source}", rev = "previous"',
+                        )
+                    else:
+                        stale = current.replace("next", "previous")
+                    path.write_text(stale, encoding="utf-8")
+                    self.assertRaises(ValueError, library_dependencies, scratch, check=True)
+                    library_dependencies(scratch)
+                    self.assertEqual(path.read_text(encoding="utf-8"), current)
+            archive.write_text(f"URL {source}/archive/previous.tar.gz\n", encoding="utf-8")
+            self.assertRaises(ValueError, library_dependencies, scratch, check=True)
+        finally:
+            shutil.rmtree(scratch)
+
+    def test_cpp_archive_follows_the_workspace_pin_and_refuses_stale_bytes(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        try:
+            manifest = scratch / "Cargo.toml"
+            dependency = scratch / "sdk/cpp/cmake/Dependencies.cmake"
+            dependency.parent.mkdir(parents=True)
+            archive = b"First Archive"
+            manifest.write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "first"\n')
+            with mock.patch("urllib.request.urlopen", side_effect=lambda url: BytesIO(archive)) as download:
+                cpp_dependency(scratch)
+                cpp_dependency(scratch, check=True)
+                first = dependency.read_bytes()
+                self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/first.tar.gz")
+                manifest.write_text(manifest.read_text().replace('"first"', '"second"'))
+                self.assertRaises(ValueError, cpp_dependency, scratch, check=True)
+                cpp_dependency(scratch)
+                self.assertNotEqual(first, dependency.read_bytes())
+                self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/second.tar.gz")
+                archive = b"Changed Archive"
+                self.assertRaises(ValueError, cpp_dependency, scratch, check=True)
+                cpp_dependency(scratch)
+                cpp_dependency(scratch, check=True)
+        finally:
+            shutil.rmtree(scratch)
+
     def test_retired_python_package_and_imports_are_refused(self) -> None:
         cases = (
             ("dokime/__init__.py", ""),

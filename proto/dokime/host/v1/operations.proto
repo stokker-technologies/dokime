@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Operations Contracts
+//
+// Product client exposure of the in-process library operations.
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "harmos/host/v1/operations.proto";
+import "harmos/model/v1/callers.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// === Services === //
+
+// Exposes Operations to product clients with library-owned payloads and execution policy.
+service Operations {
+  // Return the complete admitted operation inventory; Private and unavailable operations are excluded.
+  rpc List(.harmos.host.v1.OperationsListRequest) returns (.harmos.host.v1.OperationsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Read one admitted operation contract; an unavailable or unauthorized identity refuses.
+  rpc Get(.harmos.host.v1.OperationsGetRequest) returns (.harmos.host.v1.OperationsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// === Enums === //

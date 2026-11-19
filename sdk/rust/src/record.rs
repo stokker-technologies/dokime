@@ -19,7 +19,7 @@
 use std::marker::PhantomData;
 
 // Third Party Imports
-use harmos::Message;
+use ::harmos::Message;
 
 // Local Imports
 use crate::Payload;

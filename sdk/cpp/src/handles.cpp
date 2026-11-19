@@ -21,6 +21,13 @@
 #include "dokime/detail/client.hpp"
 #include "dokime/detail/transfers.hpp"
 
+using dokime::client::host::PLUGIN_STATE_CONNECTING;
+using dokime::client::host::PLUGIN_STATE_READY;
+using dokime::client::host::PLUGIN_STATE_STOPPED;
+using dokime::client::host::PLUGIN_STATE_STOPPING;
+using dokime::client::host::PLUGIN_STATE_UNAVAILABLE;
+using dokime::client::host::PluginPlacement;
+using dokime::client::host::PluginValue;
 using std::invalid_argument;
 using std::make_shared;
 using std::move;
@@ -781,9 +788,9 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
   registration->listener.emplace(registration->plugin->compose().start(selected));
   const auto endpoint = "http://" + registration->listener->address();
   try {
-    harmos::client::PluginPlacement placement;
+    PluginPlacement placement;
     placement.mutable_remote()->set_url(endpoint);
-    harmos::client::PluginValue value;
+    PluginValue value;
     value.set_enabled(true);
     client::PluginsCreateOptions options;
     options.context = client_->context();
@@ -798,9 +805,9 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
       if (registration->entry.has_failure())
         throw Error(detail::project_failure(registration->entry.failure()));
       const auto state = registration->entry.state();
-      if (state != harmos::client::PLUGIN_STATE_READY && state != harmos::client::PLUGIN_STATE_CONNECTING)
+      if (state != PLUGIN_STATE_READY && state != PLUGIN_STATE_CONNECTING)
         throw runtime_error("Register Plugin: Enable the Plugin and Resolve Its Activation Failure");
-      return state == harmos::client::PLUGIN_STATE_READY;
+      return state == PLUGIN_STATE_READY;
     };
     if (!ready()) {
       client::PluginsWatchOptions watching;
@@ -886,15 +893,15 @@ string RegisteredPlugin::version() const {
 }
 string RegisteredPlugin::state() const {
   switch (state_->entry.state()) {
-  case harmos::client::PLUGIN_STATE_CONNECTING:
+  case PLUGIN_STATE_CONNECTING:
     return "Connecting";
-  case harmos::client::PLUGIN_STATE_READY:
+  case PLUGIN_STATE_READY:
     return "Ready";
-  case harmos::client::PLUGIN_STATE_STOPPING:
+  case PLUGIN_STATE_STOPPING:
     return "Stopping";
-  case harmos::client::PLUGIN_STATE_STOPPED:
+  case PLUGIN_STATE_STOPPED:
     return "Stopped";
-  case harmos::client::PLUGIN_STATE_UNAVAILABLE:
+  case PLUGIN_STATE_UNAVAILABLE:
     return "Unavailable";
   default:
     return "Unspecified";

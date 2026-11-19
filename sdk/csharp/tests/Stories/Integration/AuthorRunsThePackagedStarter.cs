@@ -53,7 +53,7 @@ public sealed class AuthorRunsThePackagedStarter
           new StepsExecuteRequest { Execution = "starter-execution", Step = step.Metadata.Identifier, TestCase = testCase, Origin = origin },
           "starter-execution", child =>
           {
-            if (child.Operation == "harmos.host.v1.Time/Get")
+            if (child.Operation == "harmos.plugin.v1.Time/Get")
               return new TimeGetResponse { Now = new Timestamp { Seconds = 120 } }.ToByteString();
             if (child.Operation == HostContracts.PromptsCreate.Contract.Id)
               return new Dokime.Clients.PromptsCreateResponse { Accepted = true, Action = "0" }.ToByteString();

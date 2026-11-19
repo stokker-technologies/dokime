@@ -29,7 +29,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::plugin;
+use ::harmos::plugin;
 use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
 
@@ -348,7 +348,7 @@ impl Context {
                 incoming: transport.watch(Wire(request), max_item_bytes).await?,
             }),
             Transport::Local(_) => Err(Error::failure(
-                harmos::Classification::Refused,
+                ::harmos::Classification::Refused,
                 "testing_host_unsupported",
                 format!("Testing Host: {} Is Not Simulated", Q::ID),
                 "Exercise This Operation Against a Real Host",

@@ -198,7 +198,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn erro
             })
             .await
             .map_err(|error| format!("{error:?}"))?;
-        assert!(discovered.backend.unwrap().methods.iter().any(|method| method == "/harmos.host.v1.access.Listener/Get"));
+        assert!(discovered.backend.unwrap().methods.iter().any(|method| method == "/dokime.host.v1.access.Listener/Get"));
         active.disconnect().map_err(|error| format!("{error:?}"))?;
         let request = OverviewWatchRequest::default().encode_to_vec();
         let mut watch = session.watch_raw("/dokime.host.v1.backend.Overview/Watch", &request).await?;
@@ -391,7 +391,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
                     body: tauri::ipc::InvokeBody::Raw(bytes),
                     headers: [(
                         tauri::http::HeaderName::from_static(dokime_gui::rpc::PATH_HEADER),
-                        tauri::http::HeaderValue::from_static("/harmos.host.v1.Status/Get"),
+                        tauri::http::HeaderValue::from_static("/dokime.host.v1.Status/Get"),
                     )]
                     .into_iter()
                     .collect(),
@@ -460,7 +460,7 @@ fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), 
             .map_err(|error| format!("{error:?}"))?;
         assert_eq!(attached.ownership, BackendOwnership::Attached);
         second.shutdown().await.map_err(|error| format!("{error:?}"))?;
-        let status: StatusGetResponse = session.unary("/harmos.host.v1.Status/Get", StatusGetRequest {}).await?;
+        let status: StatusGetResponse = session.unary("/dokime.host.v1.Status/Get", StatusGetRequest {}).await?;
         assert!(status.status.and_then(|value| value.identity).is_some());
         first.close().await?;
         let third = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(root.path().to_path_buf()));
@@ -495,7 +495,7 @@ fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<d
         assert_eq!(attached.ownership, BackendOwnership::Attached);
         assert_eq!(std::fs::read(&database)?, original);
         desktop.shutdown().await.map_err(|error| format!("{error:?}"))?;
-        let status: StatusGetResponse = session.unary("/harmos.host.v1.Status/Get", StatusGetRequest {}).await?;
+        let status: StatusGetResponse = session.unary("/dokime.host.v1.Status/Get", StatusGetRequest {}).await?;
         assert!(status.status.and_then(|value| value.identity).is_some());
         healthy.close().await?;
         Ok(())
@@ -520,7 +520,7 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
         })?;
         let snapshot: TraceEventsListResponse = session
             .unary(
-                "/harmos.host.v1.status.TraceEvents/List",
+                "/dokime.host.v1.status.TraceEvents/List",
                 TraceEventsListRequest {
                     page: Some(PageRequest {
                         page_size: 10,
@@ -535,7 +535,7 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
         assert_eq!(snapshot.events[0].fields.get("execution_id").unwrap(), "desktop-run");
         let mut watch = session
             .watch_raw(
-                "/harmos.host.v1.status.TraceEvents/Watch",
+                "/dokime.host.v1.status.TraceEvents/Watch",
                 &TraceEventsWatchRequest {
                     at: snapshot.resolved_at.clone(),
                     max_bytes: 65536,
@@ -561,7 +561,7 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
         loop {
             let part: DiagnosticsGetResponse = session
                 .unary(
-                    "/harmos.host.v1.status.Diagnostics/Get",
+                    "/dokime.host.v1.status.Diagnostics/Get",
                     DiagnosticsGetRequest {
                         name: name.clone(),
                         offset: bytes.len() as u64,

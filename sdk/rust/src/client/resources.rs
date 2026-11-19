@@ -82,6 +82,25 @@ use dokime_protocol::host::FilesReadResponse;
 use dokime_protocol::host::FilesWatchRequest;
 use dokime_protocol::host::FilesWatchResponse;
 use dokime_protocol::host::Output;
+use dokime_protocol::host::PluginEntry;
+use dokime_protocol::host::PluginPlacement;
+use dokime_protocol::host::PluginValue;
+use dokime_protocol::host::PluginsCreateRequest;
+use dokime_protocol::host::PluginsCreateResponse;
+use dokime_protocol::host::PluginsDeleteRequest;
+use dokime_protocol::host::PluginsDeleteResponse;
+use dokime_protocol::host::PluginsGetRequest;
+use dokime_protocol::host::PluginsGetResponse;
+use dokime_protocol::host::PluginsListRequest;
+use dokime_protocol::host::PluginsListResponse;
+use dokime_protocol::host::PluginsReplaceRequest;
+use dokime_protocol::host::PluginsReplaceResponse;
+use dokime_protocol::host::PluginsRestartRequest;
+use dokime_protocol::host::PluginsRestartResponse;
+use dokime_protocol::host::PluginsSetRequest;
+use dokime_protocol::host::PluginsSetResponse;
+use dokime_protocol::host::PluginsWatchRequest;
+use dokime_protocol::host::PluginsWatchResponse;
 use dokime_protocol::host::PromptDefinitionsGetRequest;
 use dokime_protocol::host::PromptDefinitionsGetResponse;
 use dokime_protocol::host::PromptDefinitionsListRequest;
@@ -220,6 +239,8 @@ use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsListResponse;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::plots::SnapshotsWatchResponse;
+use dokime_protocol::host::plugins::SettingsListRequest;
+use dokime_protocol::host::plugins::SettingsListResponse;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_protocol::host::prompts::AnswersCreateResponse;
 use dokime_protocol::host::storage::SourcesGetRequest;
@@ -233,51 +254,16 @@ use dokime_protocol::model::Metadata;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Window;
 use harmos::client::{CallOptions, ClientTransport, Watching, action_error, request_id};
-use harmos_protocol::host::InvocationsCancelRequest;
-use harmos_protocol::host::InvocationsCancelResponse;
 use harmos_protocol::host::InvocationsCreateRequest;
 use harmos_protocol::host::InvocationsCreateResponse;
-use harmos_protocol::host::InvocationsGetRequest;
-use harmos_protocol::host::InvocationsGetResponse;
-use harmos_protocol::host::InvocationsWatchRequest;
-use harmos_protocol::host::InvocationsWatchResponse;
 use harmos_protocol::host::OperationsGetRequest;
 use harmos_protocol::host::OperationsGetResponse;
 use harmos_protocol::host::OperationsListRequest;
 use harmos_protocol::host::OperationsListResponse;
-use harmos_protocol::host::PluginEntry;
-use harmos_protocol::host::PluginPlacement;
-use harmos_protocol::host::PluginValue;
-use harmos_protocol::host::PluginsCreateRequest;
-use harmos_protocol::host::PluginsCreateResponse;
-use harmos_protocol::host::PluginsDeleteRequest;
-use harmos_protocol::host::PluginsDeleteResponse;
-use harmos_protocol::host::PluginsGetRequest;
-use harmos_protocol::host::PluginsGetResponse;
-use harmos_protocol::host::PluginsListRequest;
-use harmos_protocol::host::PluginsListResponse;
-use harmos_protocol::host::PluginsReplaceRequest;
-use harmos_protocol::host::PluginsReplaceResponse;
-use harmos_protocol::host::PluginsRestartRequest;
-use harmos_protocol::host::PluginsRestartResponse;
-use harmos_protocol::host::PluginsSetRequest;
-use harmos_protocol::host::PluginsSetResponse;
-use harmos_protocol::host::PluginsWatchRequest;
-use harmos_protocol::host::PluginsWatchResponse;
-use harmos_protocol::host::SchemaDescription;
-use harmos_protocol::host::SchemasListRequest;
-use harmos_protocol::host::SchemasListResponse;
 use harmos_protocol::host::StatusGetRequest;
 use harmos_protocol::host::StatusGetResponse;
 use harmos_protocol::host::StatusWatchRequest;
 use harmos_protocol::host::StatusWatchResponse;
-use harmos_protocol::host::StreamIdentity;
-use harmos_protocol::host::StreamsListRequest;
-use harmos_protocol::host::StreamsListResponse;
-use harmos_protocol::host::TimeGetRequest;
-use harmos_protocol::host::TimeGetResponse;
-use harmos_protocol::host::TimeSleepRequest;
-use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::host::access::CertificatesCreateRequest;
 use harmos_protocol::host::access::CertificatesCreateResponse;
 use harmos_protocol::host::access::ListenerGetRequest;
@@ -291,12 +277,8 @@ use harmos_protocol::host::access::PairingsDeleteRequest;
 use harmos_protocol::host::access::PairingsDeleteResponse;
 use harmos_protocol::host::access::PairingsListRequest;
 use harmos_protocol::host::access::PairingsListResponse;
-use harmos_protocol::host::plugins::SettingsListRequest;
-use harmos_protocol::host::plugins::SettingsListResponse;
 use harmos_protocol::host::status::DiagnosticsGetRequest;
 use harmos_protocol::host::status::DiagnosticsGetResponse;
-use harmos_protocol::host::status::LogsListRequest;
-use harmos_protocol::host::status::LogsListResponse;
 use harmos_protocol::host::status::LogsWatchRequest;
 use harmos_protocol::host::status::LogsWatchResponse;
 use harmos_protocol::host::status::TraceEventsListRequest;
@@ -306,7 +288,6 @@ use harmos_protocol::host::status::TraceEventsWatchResponse;
 use harmos_protocol::model::DiscoveredOperation;
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
-use harmos_protocol::model::InstanceState;
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::Position;
 use harmos_protocol::model::ReadCut;
@@ -314,9 +295,93 @@ use harmos_protocol::model::Receipt;
 use harmos_protocol::model::SettingValues;
 use harmos_protocol::model::Upload;
 use prost_reflect::ReflectMessage;
-use prost_types::Duration;
-use prost_types::Timestamp;
 use tonic::codegen::http::uri::PathAndQuery;
+#[derive(Default)]
+pub struct AccessCertificatesCreateOptions {
+    pub context: CallOptions,
+}
+impl Clone for AccessCertificatesCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct AccessListenerGetOptions {
+    pub context: CallOptions,
+}
+impl Clone for AccessListenerGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct AccessListenerSetOptions {
+    pub context: CallOptions,
+}
+impl Clone for AccessListenerSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct AccessPairingsCreateOptions {
+    pub context: CallOptions,
+}
+impl Clone for AccessPairingsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct AccessPairingsListOptions {
+    pub at: Option<Position>,
+    pub context: CallOptions,
+}
+impl Clone for AccessPairingsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct AccessPairingsDeleteOptions {
+    pub context: CallOptions,
+}
+impl Clone for AccessPairingsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct AggregatesGetOptions {
     pub at: Option<ReadCut>,
@@ -1588,6 +1653,20 @@ impl Clone for FilesDeleteOptions {
     }
 }
 #[derive(Default)]
+pub struct InvocationsCreateOptions {
+    pub context: CallOptions,
+}
+impl Clone for InvocationsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
 pub struct MediaCapturesCreateOptions {
     pub input: Option<u32>,
     pub camera: Option<u32>,
@@ -1660,6 +1739,34 @@ impl Clone for MediaCapturesStopOptions {
     }
 }
 #[derive(Default)]
+pub struct OperationsListOptions {
+    pub context: CallOptions,
+}
+impl Clone for OperationsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct OperationsGetOptions {
+    pub context: CallOptions,
+}
+impl Clone for OperationsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
 pub struct PlotsSettingsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
@@ -1702,6 +1809,166 @@ impl Clone for PluginsSecretsListOptions {
         Self {
             name: self.name.clone(),
             at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsSettingsListOptions {
+    pub name: Option<String>,
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsSettingsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsSettingsSetOptions {
+    pub request_id: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsSettingsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsGetOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsListOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsWatchOptions {
+    pub name: Option<String>,
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsCreateOptions {
+    pub request_id: Option<String>,
+    pub origin: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            origin: self.origin.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsSetOptions {
+    pub context: CallOptions,
+}
+impl Clone for PluginsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsDeleteOptions {
+    pub context: CallOptions,
+}
+impl Clone for PluginsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsRestartOptions {
+    pub context: CallOptions,
+}
+impl Clone for PluginsRestartOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct PluginsReplaceOptions {
+    pub request_id: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for PluginsReplaceOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -2058,438 +2325,12 @@ impl Clone for SettingsSchemaOptions {
     }
 }
 #[derive(Default)]
-pub struct StorageSourcesGetOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for StorageSourcesGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct StorageSourcesSetOptions {
-    pub request_id: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for StorageSourcesSetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct StreamSchemasGetOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for StreamSchemasGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct StreamSchemasListOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for StreamSchemasListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AccessCertificatesCreateOptions {
-    pub context: CallOptions,
-}
-impl Clone for AccessCertificatesCreateOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AccessListenerGetOptions {
-    pub context: CallOptions,
-}
-impl Clone for AccessListenerGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AccessListenerSetOptions {
-    pub context: CallOptions,
-}
-impl Clone for AccessListenerSetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AccessPairingsCreateOptions {
-    pub context: CallOptions,
-}
-impl Clone for AccessPairingsCreateOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AccessPairingsListOptions {
-    pub at: Option<Position>,
-    pub context: CallOptions,
-}
-impl Clone for AccessPairingsListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AccessPairingsDeleteOptions {
-    pub context: CallOptions,
-}
-impl Clone for AccessPairingsDeleteOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct InvocationsCreateOptions {
-    pub context: CallOptions,
-}
-impl Clone for InvocationsCreateOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct InvocationsGetOptions {
-    pub context: CallOptions,
-}
-impl Clone for InvocationsGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct InvocationsCancelOptions {
-    pub context: CallOptions,
-}
-impl Clone for InvocationsCancelOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct InvocationsWatchOptions {
-    pub context: CallOptions,
-}
-impl Clone for InvocationsWatchOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct OperationsListOptions {
-    pub context: CallOptions,
-}
-impl Clone for OperationsListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct OperationsGetOptions {
-    pub context: CallOptions,
-}
-impl Clone for OperationsGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsSettingsListOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsSettingsListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsSettingsSetOptions {
-    pub request_id: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsSettingsSetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsGetOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsListOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsWatchOptions {
-    pub name: Option<String>,
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsWatchOptions {
-    fn clone(&self) -> Self {
-        Self {
-            name: self.name.clone(),
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsCreateOptions {
-    pub request_id: Option<String>,
-    pub origin: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsCreateOptions {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id.clone(),
-            origin: self.origin.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsSetOptions {
-    pub context: CallOptions,
-}
-impl Clone for PluginsSetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsDeleteOptions {
-    pub context: CallOptions,
-}
-impl Clone for PluginsDeleteOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsRestartOptions {
-    pub context: CallOptions,
-}
-impl Clone for PluginsRestartOptions {
-    fn clone(&self) -> Self {
-        Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsReplaceOptions {
-    pub request_id: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsReplaceOptions {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct SchemasListOptions {
-    pub schema: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for SchemasListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            schema: self.schema.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
 pub struct StatusDiagnosticsGetOptions {
     pub context: CallOptions,
 }
 impl Clone for StatusDiagnosticsGetOptions {
     fn clone(&self) -> Self {
         Self {
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct StatusLogsListOptions {
-    pub at: Option<Position>,
-    pub page: Option<PageRequest>,
-    pub context: CallOptions,
-}
-impl Clone for StatusLogsListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            page: self.page.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -2578,14 +2419,14 @@ impl Clone for StatusWatchOptions {
     }
 }
 #[derive(Default)]
-pub struct StreamsListOptions {
-    pub schema: Option<String>,
+pub struct StorageSourcesGetOptions {
+    pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
-impl Clone for StreamsListOptions {
+impl Clone for StorageSourcesGetOptions {
     fn clone(&self) -> Self {
         Self {
-            schema: self.schema.clone(),
+            at: self.at.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -2594,12 +2435,14 @@ impl Clone for StreamsListOptions {
     }
 }
 #[derive(Default)]
-pub struct TimeGetOptions {
+pub struct StorageSourcesSetOptions {
+    pub request_id: Option<String>,
     pub context: CallOptions,
 }
-impl Clone for TimeGetOptions {
+impl Clone for StorageSourcesSetOptions {
     fn clone(&self) -> Self {
         Self {
+            request_id: self.request_id.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -2608,12 +2451,30 @@ impl Clone for TimeGetOptions {
     }
 }
 #[derive(Default)]
-pub struct TimeSleepOptions {
+pub struct StreamSchemasGetOptions {
+    pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
-impl Clone for TimeSleepOptions {
+impl Clone for StreamSchemasGetOptions {
     fn clone(&self) -> Self {
         Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct StreamSchemasListOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for StreamSchemasListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -2642,15 +2503,12 @@ pub struct Root {
     pub prompts: Prompts,
     pub record_schemas: RecordSchemas,
     pub reports: Reports,
-    pub schemas: Schemas,
     pub secrets: Secrets,
     pub settings: Settings,
     pub status: Status,
     pub storage: Storage,
     pub stream_schemas: StreamSchemas,
-    pub streams: Streams,
     pub suites: Suites,
-    pub time: Time,
 }
 impl Root {
     pub fn new(client: ClientTransport) -> Self {
@@ -2674,15 +2532,12 @@ impl Root {
             prompts: Prompts::new(client.clone()),
             record_schemas: RecordSchemas::new(client.clone()),
             reports: Reports::new(client.clone()),
-            schemas: Schemas::new(client.clone()),
             secrets: Secrets::new(client.clone()),
             settings: Settings::new(client.clone()),
             status: Status::new(client.clone()),
             storage: Storage::new(client.clone()),
             stream_schemas: StreamSchemas::new(client.clone()),
-            streams: Streams::new(client.clone()),
             suites: Suites::new(client.clone()),
-            time: Time::new(client.clone()),
         }
     }
 }
@@ -2718,7 +2573,7 @@ impl AccessCertificates {
         let response = self
             .client
             .unary::<CertificatesCreateRequest, CertificatesCreateResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.access.Certificates/Create"),
+                PathAndQuery::from_static("/dokime.host.v1.access.Certificates/Create"),
                 request,
                 CertificatesCreateResponse::default().descriptor(),
             )
@@ -2745,7 +2600,7 @@ impl AccessListener {
         let response = self
             .client
             .unary::<ListenerGetRequest, ListenerGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.access.Listener/Get"),
+                PathAndQuery::from_static("/dokime.host.v1.access.Listener/Get"),
                 request,
                 ListenerGetResponse::default().descriptor(),
             )
@@ -2765,7 +2620,7 @@ impl AccessListener {
         let response = self
             .client
             .unary::<ListenerSetRequest, ListenerSetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.access.Listener/Set"),
+                PathAndQuery::from_static("/dokime.host.v1.access.Listener/Set"),
                 request,
                 ListenerSetResponse::default().descriptor(),
             )
@@ -2794,7 +2649,7 @@ impl AccessPairings {
         let response = self
             .client
             .unary::<PairingsCreateRequest, PairingsCreateResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.access.Pairings/Create"),
+                PathAndQuery::from_static("/dokime.host.v1.access.Pairings/Create"),
                 request,
                 PairingsCreateResponse::default().descriptor(),
             )
@@ -2812,7 +2667,7 @@ impl AccessPairings {
         let response = self
             .client
             .unary::<PairingsListRequest, PairingsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.access.Pairings/List"),
+                PathAndQuery::from_static("/dokime.host.v1.access.Pairings/List"),
                 request,
                 PairingsListResponse::default().descriptor(),
             )
@@ -2832,7 +2687,7 @@ impl AccessPairings {
         let response = self
             .client
             .unary::<PairingsDeleteRequest, PairingsDeleteResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.access.Pairings/Delete"),
+                PathAndQuery::from_static("/dokime.host.v1.access.Pairings/Delete"),
                 request,
                 PairingsDeleteResponse::default().descriptor(),
             )
@@ -4767,7 +4622,7 @@ impl Invocations {
         let response = self
             .client
             .unary::<InvocationsCreateRequest, InvocationsCreateResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Invocations/Create"),
+                PathAndQuery::from_static("/dokime.host.v1.Invocations/Create"),
                 request,
                 InvocationsCreateResponse::default().descriptor(),
             )
@@ -4775,62 +4630,6 @@ impl Invocations {
             .map_err(|error| action_error("invocations.create", error))?;
         let response = response.into_inner();
         Ok(response.payload)
-    }
-    pub async fn get(&self, instance: u64) -> Result<InstanceState, tonic::Status> {
-        self.get_with(instance, InvocationsGetOptions::default()).await
-    }
-    pub async fn get_with(&self, instance: u64, options: InvocationsGetOptions) -> Result<InstanceState, tonic::Status> {
-        let value = InvocationsGetRequest { instance };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<InvocationsGetRequest, InvocationsGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Invocations/Get"),
-                request,
-                InvocationsGetResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("invocations.get", error))?;
-        let response = response.into_inner();
-        response.invocation.ok_or_else(|| tonic::Status::data_loss("Read Invocations.Get: Missing Payload"))
-    }
-    pub async fn cancel(&self, instance: u64, reason: impl Into<String>) -> Result<InstanceState, tonic::Status> {
-        self.cancel_with(instance, reason, InvocationsCancelOptions::default()).await
-    }
-    pub async fn cancel_with(
-        &self, instance: u64, reason: impl Into<String>, options: InvocationsCancelOptions,
-    ) -> Result<InstanceState, tonic::Status> {
-        let value = InvocationsCancelRequest { instance, reason: reason.into() };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<InvocationsCancelRequest, InvocationsCancelResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Invocations/Cancel"),
-                request,
-                InvocationsCancelResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("invocations.cancel", error))?;
-        let response = response.into_inner();
-        response.invocation.ok_or_else(|| tonic::Status::data_loss("Read Invocations.Cancel: Missing Payload"))
-    }
-    pub async fn watch(&self, instance: u64) -> Result<Watching<InstanceState>, tonic::Status> {
-        self.watch_with(instance, InvocationsWatchOptions::default()).await
-    }
-    pub async fn watch_with(&self, instance: u64, options: InvocationsWatchOptions) -> Result<Watching<InstanceState>, tonic::Status> {
-        let value = InvocationsWatchRequest { instance };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .watch_known::<InvocationsWatchRequest, InvocationsWatchResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Invocations/Watch"),
-                request,
-                InvocationsWatchResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("invocations.watch", error))?;
-        let response = response.with_action("invocations.watch");
-        Ok(response.map(|response| response.invocation.ok_or_else(|| tonic::Status::data_loss("Read Invocations.Watch: Missing Payload"))))
     }
 }
 #[derive(Clone)]
@@ -4968,7 +4767,7 @@ impl Operations {
         let response = self
             .client
             .unary::<OperationsListRequest, OperationsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Operations/List"),
+                PathAndQuery::from_static("/dokime.host.v1.Operations/List"),
                 request,
                 OperationsListResponse::default().descriptor(),
             )
@@ -4986,7 +4785,7 @@ impl Operations {
         let response = self
             .client
             .unary::<OperationsGetRequest, OperationsGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Operations/Get"),
+                PathAndQuery::from_static("/dokime.host.v1.Operations/Get"),
                 request,
                 OperationsGetResponse::default().descriptor(),
             )
@@ -5159,7 +4958,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsGetRequest, PluginsGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Get"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Get"),
                 request,
                 PluginsGetResponse::default().descriptor(),
             )
@@ -5177,7 +4976,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsListRequest, PluginsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/List"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/List"),
                 request,
                 PluginsListResponse::default().descriptor(),
             )
@@ -5195,7 +4994,7 @@ impl Plugins {
         let response = self
             .client
             .watch_known::<PluginsWatchRequest, PluginsWatchResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Watch"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Watch"),
                 request,
                 PluginsWatchResponse::default().descriptor(),
             )
@@ -5226,7 +5025,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsCreateRequest, PluginsCreateResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Create"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Create"),
                 request,
                 PluginsCreateResponse::default().descriptor(),
             )
@@ -5252,7 +5051,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsSetRequest, PluginsSetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Set"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Set"),
                 request,
                 PluginsSetResponse::default().descriptor(),
             )
@@ -5272,7 +5071,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsDeleteRequest, PluginsDeleteResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Delete"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Delete"),
                 request,
                 PluginsDeleteResponse::default().descriptor(),
             )
@@ -5292,7 +5091,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsRestartRequest, PluginsRestartResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Restart"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Restart"),
                 request,
                 PluginsRestartResponse::default().descriptor(),
             )
@@ -5322,7 +5121,7 @@ impl Plugins {
         let response = self
             .client
             .unary::<PluginsReplaceRequest, PluginsReplaceResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Plugins/Replace"),
+                PathAndQuery::from_static("/dokime.host.v1.Plugins/Replace"),
                 request,
                 PluginsReplaceResponse::default().descriptor(),
             )
@@ -5369,18 +5168,16 @@ impl PluginsSettings {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self, name: impl Into<String>) -> Result<SettingsListResponse, tonic::Status> {
-        self.list_with(name, PluginsSettingsListOptions::default()).await
+    pub async fn list(&self) -> Result<SettingsListResponse, tonic::Status> {
+        self.list_with(PluginsSettingsListOptions::default()).await
     }
-    pub async fn list_with(
-        &self, name: impl Into<String>, options: PluginsSettingsListOptions,
-    ) -> Result<SettingsListResponse, tonic::Status> {
-        let value = SettingsListRequest { name: Some(name.into()), at: options.at };
+    pub async fn list_with(&self, options: PluginsSettingsListOptions) -> Result<SettingsListResponse, tonic::Status> {
+        let value = SettingsListRequest { name: options.name, at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
             .unary::<SettingsListRequest, SettingsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.plugins.Settings/List"),
+                PathAndQuery::from_static("/dokime.host.v1.plugins.Settings/List"),
                 request,
                 SettingsListResponse::default().descriptor(),
             )
@@ -5391,13 +5188,13 @@ impl PluginsSettings {
     }
     pub async fn set(
         &self, name: impl Into<String>, value: SettingValues, expected_revision: Vec<u8>,
-    ) -> Result<harmos_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
+    ) -> Result<dokime_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, PluginsSettingsSetOptions::default()).await
     }
     pub async fn set_with(
         &self, name: impl Into<String>, value: SettingValues, expected_revision: Vec<u8>, options: PluginsSettingsSetOptions,
-    ) -> Result<harmos_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
-        let value = harmos_protocol::host::plugins::SettingsSetRequest {
+    ) -> Result<dokime_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
+        let value = dokime_protocol::host::plugins::SettingsSetRequest {
             name: name.into(),
             value: Some(value),
             expected_revision,
@@ -5409,10 +5206,10 @@ impl PluginsSettings {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<harmos_protocol::host::plugins::SettingsSetRequest, harmos_protocol::host::plugins::SettingsSetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.plugins.Settings/Set"),
+            .unary::<dokime_protocol::host::plugins::SettingsSetRequest, dokime_protocol::host::plugins::SettingsSetResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.plugins.Settings/Set"),
                 request,
-                harmos_protocol::host::plugins::SettingsSetResponse::default().descriptor(),
+                dokime_protocol::host::plugins::SettingsSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plugins.settings.set", error))?;
@@ -5748,33 +5545,6 @@ impl Reports {
     }
 }
 #[derive(Clone)]
-pub struct Schemas {
-    client: ClientTransport,
-}
-impl Schemas {
-    pub fn new(client: ClientTransport) -> Self {
-        Self { client }
-    }
-    pub async fn list(&self) -> Result<Vec<SchemaDescription>, tonic::Status> {
-        self.list_with(SchemasListOptions::default()).await
-    }
-    pub async fn list_with(&self, options: SchemasListOptions) -> Result<Vec<SchemaDescription>, tonic::Status> {
-        let value = SchemasListRequest { schema: options.schema };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<SchemasListRequest, SchemasListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Schemas/List"),
-                request,
-                SchemasListResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("schemas.list", error))?;
-        let response = response.into_inner();
-        Ok(response.schemas)
-    }
-}
-#[derive(Clone)]
 pub struct Secrets {
     client: ClientTransport,
 }
@@ -6044,7 +5814,7 @@ impl Status {
         let response = self
             .client
             .unary::<StatusGetRequest, StatusGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Status/Get"),
+                PathAndQuery::from_static("/dokime.host.v1.Status/Get"),
                 request,
                 StatusGetResponse::default().descriptor(),
             )
@@ -6062,7 +5832,7 @@ impl Status {
         let response = self
             .client
             .watch_known::<StatusWatchRequest, StatusWatchResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Status/Watch"),
+                PathAndQuery::from_static("/dokime.host.v1.Status/Watch"),
                 request,
                 StatusWatchResponse::default().descriptor(),
             )
@@ -6091,7 +5861,7 @@ impl StatusDiagnostics {
         let response = self
             .client
             .unary::<DiagnosticsGetRequest, DiagnosticsGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.status.Diagnostics/Get"),
+                PathAndQuery::from_static("/dokime.host.v1.status.Diagnostics/Get"),
                 request,
                 DiagnosticsGetResponse::default().descriptor(),
             )
@@ -6109,24 +5879,6 @@ impl StatusLogs {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<LogsListResponse, tonic::Status> {
-        self.list_with(StatusLogsListOptions::default()).await
-    }
-    pub async fn list_with(&self, options: StatusLogsListOptions) -> Result<LogsListResponse, tonic::Status> {
-        let value = LogsListRequest { at: options.at, page: options.page };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<LogsListRequest, LogsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.status.Logs/List"),
-                request,
-                LogsListResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("status.logs.list", error))?;
-        let response = response.into_inner();
-        Ok(response)
-    }
     pub async fn watch(&self, max_bytes: u64, max_events: u32) -> Result<Watching<LogsWatchResponse>, tonic::Status> {
         self.watch_with(max_bytes, max_events, StatusLogsWatchOptions::default()).await
     }
@@ -6138,7 +5890,7 @@ impl StatusLogs {
         let response = self
             .client
             .watch_known::<LogsWatchRequest, LogsWatchResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.status.Logs/Watch"),
+                PathAndQuery::from_static("/dokime.host.v1.status.Logs/Watch"),
                 request,
                 LogsWatchResponse::default().descriptor(),
             )
@@ -6165,7 +5917,7 @@ impl StatusTraceEvents {
         let response = self
             .client
             .unary::<TraceEventsListRequest, TraceEventsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.status.TraceEvents/List"),
+                PathAndQuery::from_static("/dokime.host.v1.status.TraceEvents/List"),
                 request,
                 TraceEventsListResponse::default().descriptor(),
             )
@@ -6185,7 +5937,7 @@ impl StatusTraceEvents {
         let response = self
             .client
             .watch_known::<TraceEventsWatchRequest, TraceEventsWatchResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.status.TraceEvents/Watch"),
+                PathAndQuery::from_static("/dokime.host.v1.status.TraceEvents/Watch"),
                 request,
                 TraceEventsWatchResponse::default().descriptor(),
             )
@@ -6319,33 +6071,6 @@ impl StreamSchemas {
     }
 }
 #[derive(Clone)]
-pub struct Streams {
-    client: ClientTransport,
-}
-impl Streams {
-    pub fn new(client: ClientTransport) -> Self {
-        Self { client }
-    }
-    pub async fn list(&self) -> Result<Vec<StreamIdentity>, tonic::Status> {
-        self.list_with(StreamsListOptions::default()).await
-    }
-    pub async fn list_with(&self, options: StreamsListOptions) -> Result<Vec<StreamIdentity>, tonic::Status> {
-        let value = StreamsListRequest { schema: options.schema };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<StreamsListRequest, StreamsListResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Streams/List"),
-                request,
-                StreamsListResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("streams.list", error))?;
-        let response = response.into_inner();
-        Ok(response.streams)
-    }
-}
-#[derive(Clone)]
 pub struct Suites {
     client: ClientTransport,
 }
@@ -6395,51 +6120,6 @@ impl Suites {
             )
             .await
             .map_err(|error| action_error("suites.list", error))?;
-        let response = response.into_inner();
-        Ok(response)
-    }
-}
-#[derive(Clone)]
-pub struct Time {
-    client: ClientTransport,
-}
-impl Time {
-    pub fn new(client: ClientTransport) -> Self {
-        Self { client }
-    }
-    pub async fn get(&self) -> Result<Timestamp, tonic::Status> {
-        self.get_with(TimeGetOptions::default()).await
-    }
-    pub async fn get_with(&self, options: TimeGetOptions) -> Result<Timestamp, tonic::Status> {
-        let value = TimeGetRequest {};
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<TimeGetRequest, TimeGetResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Time/Get"),
-                request,
-                TimeGetResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("time.get", error))?;
-        let response = response.into_inner();
-        response.now.ok_or_else(|| tonic::Status::data_loss("Read Time.Get: Missing Payload"))
-    }
-    pub async fn sleep(&self, duration: Duration) -> Result<TimeSleepResponse, tonic::Status> {
-        self.sleep_with(duration, TimeSleepOptions::default()).await
-    }
-    pub async fn sleep_with(&self, duration: Duration, options: TimeSleepOptions) -> Result<TimeSleepResponse, tonic::Status> {
-        let value = TimeSleepRequest { duration: Some(duration) };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<TimeSleepRequest, TimeSleepResponse>(
-                PathAndQuery::from_static("/harmos.host.v1.Time/Sleep"),
-                request,
-                TimeSleepResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("time.sleep", error))?;
         let response = response.into_inner();
         Ok(response)
     }

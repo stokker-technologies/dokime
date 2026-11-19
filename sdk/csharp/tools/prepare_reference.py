@@ -15,6 +15,7 @@ import io
 import os
 import subprocess
 import tarfile
+import tomllib
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -37,7 +38,8 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912"
+manifest = tomllib.loads((Path(__file__).resolve().parents[3] / "Cargo.toml").read_text(encoding="utf-8"))
+revision: str = manifest["workspace"]["dependencies"]["harmos"]["rev"]
 # Each Revision Stages and Builds Apart: Cargo Fingerprints Path Sources by Location and Time, So a Shared Source
 # or Target Directory Could Reuse Another Revision's Artifacts.
 target: Path = (Path(__file__).resolve().parents[1] / "../../target").resolve()

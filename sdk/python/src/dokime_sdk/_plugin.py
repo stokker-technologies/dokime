@@ -29,7 +29,7 @@ import harmos.plugin
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy
-from harmos.plugin import Lane, Publisher, Window, observer, operation, publisher, window_observer
+from harmos.plugin import Catalog, Lane, Publisher, Window, observer, operation, publisher, window_observer
 
 # Local Imports
 import dokime_sdk.operations
@@ -165,15 +165,18 @@ class Plugin:
             contributions.append(PromptDefinitions(prompts=prompts))
         if self._secrets:
             contributions.append(SecretsDeclarations(secrets=[item._definition() for item in self._secrets]))
-        self._plugin = harmos.plugin.Plugin(
+        catalog = Catalog(
             adapter,
-            id=self.identifier,
-            version=self._version,
             requires=self._requires,
             sections=contributions,
-            lanes=tuple(self.lanes),
             settings=[item._definition() for item in self._settings],
-            messages=[*(message_type(record.row) for _, record in self._records)],
+            messages=[message_type(record.row) for _, record in self._records],
+        )
+        self._plugin = harmos.plugin.Plugin(
+            id=self.identifier,
+            version=self._version,
+            register=catalog.register,
+            lanes=tuple(self.lanes),
         )
 
         self._plugin.declarations()
@@ -196,7 +199,7 @@ class Plugin:
         except asyncio.CancelledError:
             pass
         finally:
-            await endpoint.close()
+            await endpoint.stop()
             await termination
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:

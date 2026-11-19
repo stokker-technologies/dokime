@@ -19,20 +19,27 @@ pub use crate::wire::host::files::LineMatcher;
 pub use crate::wire::host::files::MirrorCapture;
 pub use crate::wire::host::files::StreamCapture;
 pub use crate::wire::host::files::capture_mode;
-pub use crate::wire::plugin::CriteriaEvaluateRequest;
 pub use crate::wire::plugin::CriteriaEvaluateResponse;
-pub use crate::wire::plugin::ExecutionsCleanupRequest;
 pub use crate::wire::plugin::ExecutionsCleanupResponse;
-pub use crate::wire::plugin::ExecutionsInitializeRequest;
 pub use crate::wire::plugin::ExecutionsInitializeResponse;
-pub use crate::wire::plugin::StepsExecuteRequest;
 pub use crate::wire::plugin::StepsExecuteResponse;
-pub use crate::wire::plugin::TestCasesMaterializeRequest;
 pub use crate::wire::plugin::TestCasesMaterializeResponse;
+pub use harmos_protocol::host::InvocationsCancelResponse;
+pub use harmos_protocol::host::InvocationsGetResponse;
+pub use harmos_protocol::host::InvocationsWatchResponse;
+pub use harmos_protocol::host::TimeGetResponse;
+pub use harmos_protocol::host::TimeSleepResponse;
 pub mod dokime {
     pub mod host {
         pub mod files {
             pub use crate::wire::host::files::CapturesStopResponse;
+        }
+    }
+}
+pub mod harmos {
+    pub mod host {
+        pub mod plugins {
+            pub use harmos_protocol::host::plugins::SettingsListResponse;
         }
     }
 }

@@ -11,11 +11,17 @@
  * Secret Catalog and Transfer
  */
 
+/* === Imports === */
+
+// Standard Library Imports
 import assert from "node:assert/strict";
+
+// Third Party Imports
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { SecretImportAction, SecretSnapshotSchema } from "@host/model";
 import { beforeEach, test, vi } from "vitest";
-import { SecretsImportRequestSchema } from "@host/model";
+
+// Local Imports
+import { SecretImportAction, SecretSnapshotSchema, SecretsImportRequestSchema } from "@host/model";
 import { readSecrets, putSecret, removeSecret, previewSecrets, importSecrets } from "@/lib/api/native-secrets";
 
 const fixture = vi.hoisted(() => ({ unary: vi.fn() }));
@@ -46,7 +52,7 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
     const value = fromBinary(input, toBinary(input, create(input, request)));
     requests.push({ path, value });
     const reply =
-      path === "/harmos.host.v1.Status/Get"
+      path === "/dokime.host.v1.Status/Get"
         ? { status: { identity: { hostId: "fixture-host", applicationName: "Fixture Host" } } }
         : path.endsWith("/Get")
           ? { revision, value: { metadata: { identifier: "token" } } }

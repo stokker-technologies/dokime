@@ -34,7 +34,7 @@ internal sealed class PluginServer : IAsyncDisposable
     var ready = new ReadinessWriter(original);
     Console.SetOut(ready);
     var stop = new CancellationTokenSource();
-    var serving = plugin.Adapter.ServeAsync(remote: true, cancellationToken: stop.Token);
+    var serving = plugin.Adapter.RunAsync(remote: true, cancellationToken: stop.Token);
     try
     {
       var winner = await Task.WhenAny(ready.Address.Task, serving);

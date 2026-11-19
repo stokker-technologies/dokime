@@ -4,9 +4,6 @@
 from collections.abc import AsyncGenerator, Sequence
 from uuid import uuid4
 
-import harmos._wire.host.v1.plugins.settings_pb2
-from google.protobuf.duration_pb2 import Duration
-from google.protobuf.timestamp_pb2 import Timestamp
 from grpc import CallCredentials
 from grpc.aio import AioRpcError, Channel
 from harmos import _connection
@@ -27,42 +24,10 @@ from harmos._wire.host.v1.access.pairings_pb2 import (
     PairingsListRequest,
     PairingsListResponse,
 )
-from harmos._wire.host.v1.invocations_pb2 import (
-    InvocationsCancelRequest,
-    InvocationsCancelResponse,
-    InvocationsCreateRequest,
-    InvocationsCreateResponse,
-    InvocationsGetRequest,
-    InvocationsGetResponse,
-    InvocationsWatchRequest,
-    InvocationsWatchResponse,
-)
+from harmos._wire.host.v1.invocations_pb2 import InvocationsCreateRequest, InvocationsCreateResponse
 from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
-from harmos._wire.host.v1.plugins_pb2 import (
-    PluginEntry,
-    PluginPlacement,
-    PluginsCreateRequest,
-    PluginsCreateResponse,
-    PluginsDeleteRequest,
-    PluginsDeleteResponse,
-    PluginsGetRequest,
-    PluginsGetResponse,
-    PluginsListRequest,
-    PluginsListResponse,
-    PluginsReplaceRequest,
-    PluginsReplaceResponse,
-    PluginsRestartRequest,
-    PluginsRestartResponse,
-    PluginsSetRequest,
-    PluginsSetResponse,
-    PluginsWatchRequest,
-    PluginsWatchResponse,
-    PluginValue,
-)
-from harmos._wire.host.v1.schemas_pb2 import SchemaDescription, SchemasListRequest, SchemasListResponse
 from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetRequest, DiagnosticsGetResponse
-from harmos._wire.host.v1.status.logs_pb2 import LogsListRequest, LogsListResponse, LogsWatchRequest, LogsWatchResponse
+from harmos._wire.host.v1.status.logs_pb2 import LogsWatchRequest, LogsWatchResponse
 from harmos._wire.host.v1.status.trace_events_pb2 import (
     TraceEventsListRequest,
     TraceEventsListResponse,
@@ -70,10 +35,7 @@ from harmos._wire.host.v1.status.trace_events_pb2 import (
     TraceEventsWatchResponse,
 )
 from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse, StatusWatchRequest, StatusWatchResponse
-from harmos._wire.host.v1.streams_pb2 import StreamIdentity, StreamsListRequest, StreamsListResponse
-from harmos._wire.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
 from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
-from harmos._wire.model.v1.invocation_pb2 import InstanceState
 from harmos._wire.model.v1.operation_pb2 import DiscoveredOperation
 from harmos._wire.model.v1.page_pb2 import PageRequest
 from harmos._wire.model.v1.position_pb2 import Position, ReadCut
@@ -82,6 +44,7 @@ from harmos._wire.model.v1.setting_pb2 import SettingValues
 
 import dokime_sdk._wire.host.v1.plots.settings_pb2
 import dokime_sdk._wire.host.v1.plugins.secrets_pb2
+import dokime_sdk._wire.host.v1.plugins.settings_pb2
 import dokime_sdk._wire.host.v1.secrets_pb2
 import dokime_sdk._wire.host.v1.settings_pb2
 import dokime_sdk._wire.model.v1.metadata_pb2
@@ -292,6 +255,28 @@ from dokime_sdk._wire.host.v1.plots.snapshots_pb2 import (
     SnapshotsWatchRequest,
     SnapshotsWatchResponse,
 )
+from dokime_sdk._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
+from dokime_sdk._wire.host.v1.plugins_pb2 import (
+    PluginEntry,
+    PluginPlacement,
+    PluginsCreateRequest,
+    PluginsCreateResponse,
+    PluginsDeleteRequest,
+    PluginsDeleteResponse,
+    PluginsGetRequest,
+    PluginsGetResponse,
+    PluginsListRequest,
+    PluginsListResponse,
+    PluginsReplaceRequest,
+    PluginsReplaceResponse,
+    PluginsRestartRequest,
+    PluginsRestartResponse,
+    PluginsSetRequest,
+    PluginsSetResponse,
+    PluginsWatchRequest,
+    PluginsWatchResponse,
+    PluginValue,
+)
 from dokime_sdk._wire.host.v1.prompt_definitions_pb2 import (
     PromptDefinitionsGetRequest,
     PromptDefinitionsGetResponse,
@@ -368,7 +353,7 @@ class AccessCertificatesResource:
         request = CertificatesCreateRequest()
         response = await unary(
             self._channel,
-            "/harmos.host.v1.access.Certificates/Create",
+            "/dokime.host.v1.access.Certificates/Create",
             request,
             CertificatesCreateResponse,
             metadata=call_metadata,
@@ -389,7 +374,7 @@ class AccessListenerResource:
         request = ListenerGetRequest()
         response = await unary(
             self._channel,
-            "/harmos.host.v1.access.Listener/Get",
+            "/dokime.host.v1.access.Listener/Get",
             request,
             ListenerGetResponse,
             metadata=call_metadata,
@@ -411,7 +396,7 @@ class AccessListenerResource:
         request = ListenerSetRequest(value=value, expected_revision=expected_revision)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.access.Listener/Set",
+            "/dokime.host.v1.access.Listener/Set",
             request,
             ListenerSetResponse,
             metadata=call_metadata,
@@ -432,7 +417,7 @@ class AccessPairingsResource:
         request = PairingsCreateRequest(label=label)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.access.Pairings/Create",
+            "/dokime.host.v1.access.Pairings/Create",
             request,
             PairingsCreateResponse,
             metadata=call_metadata,
@@ -453,7 +438,7 @@ class AccessPairingsResource:
         request = PairingsListRequest(at=at)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.access.Pairings/List",
+            "/dokime.host.v1.access.Pairings/List",
             request,
             PairingsListResponse,
             metadata=call_metadata,
@@ -469,7 +454,7 @@ class AccessPairingsResource:
         request = PairingsDeleteRequest(name=name)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.access.Pairings/Delete",
+            "/dokime.host.v1.access.Pairings/Delete",
             request,
             PairingsDeleteResponse,
             metadata=call_metadata,
@@ -1680,8 +1665,8 @@ class PluginsSettingsResource:
 
     async def list(
         self,
-        name: str,
         *,
+        name: str | None = None,
         at: ReadCut | None = None,
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
@@ -1690,7 +1675,7 @@ class PluginsSettingsResource:
         request = SettingsListRequest(name=name, at=at)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.plugins.Settings/List",
+            "/dokime.host.v1.plugins.Settings/List",
             request,
             SettingsListResponse,
             metadata=call_metadata,
@@ -1710,15 +1695,15 @@ class PluginsSettingsResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> harmos._wire.host.v1.plugins.settings_pb2.SettingsSetResponse:
-        request = harmos._wire.host.v1.plugins.settings_pb2.SettingsSetRequest(
+    ) -> dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetResponse:
+        request = dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetRequest(
             name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await unary(
             self._channel,
-            "/harmos.host.v1.plugins.Settings/Set",
+            "/dokime.host.v1.plugins.Settings/Set",
             request,
-            harmos._wire.host.v1.plugins.settings_pb2.SettingsSetResponse,
+            dokime_sdk._wire.host.v1.plugins.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1780,7 +1765,7 @@ class StatusDiagnosticsResource:
         request = DiagnosticsGetRequest(name=name, offset=offset, max_bytes=max_bytes)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.status.Diagnostics/Get",
+            "/dokime.host.v1.status.Diagnostics/Get",
             request,
             DiagnosticsGetResponse,
             metadata=call_metadata,
@@ -1795,28 +1780,6 @@ class StatusLogsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
 
-    async def list(
-        self,
-        *,
-        at: Position | None = None,
-        page: PageRequest | None = None,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> LogsListResponse:
-        request = LogsListRequest(at=at, page=page)
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.status.Logs/List",
-            request,
-            LogsListResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="status.logs.list",
-        )
-        return response
-
     async def watch(
         self,
         max_bytes: int,
@@ -1830,7 +1793,7 @@ class StatusLogsResource:
         request = LogsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
         call = stream(
             self._channel,
-            "/harmos.host.v1.status.Logs/Watch",
+            "/dokime.host.v1.status.Logs/Watch",
             request,
             LogsWatchResponse,
             metadata=call_metadata,
@@ -1862,7 +1825,7 @@ class StatusTraceEventsResource:
         request = TraceEventsListRequest(at=at, page=page)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.status.TraceEvents/List",
+            "/dokime.host.v1.status.TraceEvents/List",
             request,
             TraceEventsListResponse,
             metadata=call_metadata,
@@ -1885,7 +1848,7 @@ class StatusTraceEventsResource:
         request = TraceEventsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
         call = stream(
             self._channel,
-            "/harmos.host.v1.status.TraceEvents/Watch",
+            "/dokime.host.v1.status.TraceEvents/Watch",
             request,
             TraceEventsWatchResponse,
             metadata=call_metadata,
@@ -1955,21 +1918,21 @@ class StorageSourcesResource:
 class AccessResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_certificates = AccessCertificatesResource(channel)
-        self._composed_listener = AccessListenerResource(channel)
-        self._composed_pairings = AccessPairingsResource(channel)
+        self._resource_certificates = AccessCertificatesResource(channel)
+        self._resource_listener = AccessListenerResource(channel)
+        self._resource_pairings = AccessPairingsResource(channel)
 
     @property
     def certificates(self) -> AccessCertificatesResource:
-        return self._composed_certificates
+        return self._resource_certificates
 
     @property
     def listener(self) -> AccessListenerResource:
-        return self._composed_listener
+        return self._resource_listener
 
     @property
     def pairings(self) -> AccessPairingsResource:
-        return self._composed_pairings
+        return self._resource_pairings
 
 
 class AggregatesResource:
@@ -2006,11 +1969,11 @@ class AggregatesResource:
 class BackendResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_overview = BackendOverviewResource(channel)
+        self._resource_overview = BackendOverviewResource(channel)
 
     @property
     def overview(self) -> BackendOverviewResource:
-        return self._composed_overview
+        return self._resource_overview
 
     async def appearance(
         self,
@@ -2187,16 +2150,16 @@ class CasesResource:
 class ContentResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_artifacts = ContentArtifactsResource(channel)
-        self._composed_execution_files = ContentExecutionFilesResource(channel)
+        self._resource_artifacts = ContentArtifactsResource(channel)
+        self._resource_execution_files = ContentExecutionFilesResource(channel)
 
     @property
     def artifacts(self) -> ContentArtifactsResource:
-        return self._composed_artifacts
+        return self._resource_artifacts
 
     @property
     def execution_files(self) -> ContentExecutionFilesResource:
-        return self._composed_execution_files
+        return self._resource_execution_files
 
 
 class CyclesResource:
@@ -2447,31 +2410,31 @@ class DocumentsResource:
 class EvidenceResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_health_events = EvidenceHealthEventsResource(channel)
-        self._composed_notes = EvidenceNotesResource(channel)
-        self._composed_records = EvidenceRecordsResource(channel)
-        self._composed_samples = EvidenceSamplesResource(channel)
-        self._composed_traceability = EvidenceTraceabilityResource(channel)
+        self._resource_health_events = EvidenceHealthEventsResource(channel)
+        self._resource_notes = EvidenceNotesResource(channel)
+        self._resource_records = EvidenceRecordsResource(channel)
+        self._resource_samples = EvidenceSamplesResource(channel)
+        self._resource_traceability = EvidenceTraceabilityResource(channel)
 
     @property
     def health_events(self) -> EvidenceHealthEventsResource:
-        return self._composed_health_events
+        return self._resource_health_events
 
     @property
     def notes(self) -> EvidenceNotesResource:
-        return self._composed_notes
+        return self._resource_notes
 
     @property
     def records(self) -> EvidenceRecordsResource:
-        return self._composed_records
+        return self._resource_records
 
     @property
     def samples(self) -> EvidenceSamplesResource:
-        return self._composed_samples
+        return self._resource_samples
 
     @property
     def traceability(self) -> EvidenceTraceabilityResource:
-        return self._composed_traceability
+        return self._resource_traceability
 
     async def statistics(
         self,
@@ -2529,21 +2492,21 @@ class EvidenceResource:
 class ExecutionsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_commands = ExecutionsCommandsResource(channel)
-        self._composed_progress = ExecutionsProgressResource(channel)
-        self._composed_schemas = ExecutionsSchemasResource(channel)
+        self._resource_commands = ExecutionsCommandsResource(channel)
+        self._resource_progress = ExecutionsProgressResource(channel)
+        self._resource_schemas = ExecutionsSchemasResource(channel)
 
     @property
     def commands(self) -> ExecutionsCommandsResource:
-        return self._composed_commands
+        return self._resource_commands
 
     @property
     def progress(self) -> ExecutionsProgressResource:
-        return self._composed_progress
+        return self._resource_progress
 
     @property
     def schemas(self) -> ExecutionsSchemasResource:
-        return self._composed_schemas
+        return self._resource_schemas
 
     async def get(
         self,
@@ -2835,11 +2798,11 @@ class ExecutionsResource:
 class FilesResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_uploads = FilesUploadsResource(channel)
+        self._resource_uploads = FilesUploadsResource(channel)
 
     @property
     def uploads(self) -> FilesUploadsResource:
-        return self._composed_uploads
+        return self._resource_uploads
 
     async def get(
         self,
@@ -2969,7 +2932,7 @@ class InvocationsResource:
         request = InvocationsCreateRequest(operation=operation, fingerprint=fingerprint, payload=payload)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Invocations/Create",
+            "/dokime.host.v1.Invocations/Create",
             request,
             InvocationsCreateResponse,
             metadata=call_metadata,
@@ -2979,90 +2942,15 @@ class InvocationsResource:
         )
         return response.payload
 
-    async def get(
-        self,
-        instance: int,
-        *,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> InstanceState:
-        request = InvocationsGetRequest(instance=instance)
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.Invocations/Get",
-            request,
-            InvocationsGetResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="invocations.get",
-        )
-        if not response.HasField("invocation"):
-            raise ValueError("Read Invocations.Get: Missing Payload")
-        return response.invocation
-
-    async def cancel(
-        self,
-        instance: int,
-        reason: str,
-        *,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> InstanceState:
-        request = InvocationsCancelRequest(instance=instance, reason=reason)
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.Invocations/Cancel",
-            request,
-            InvocationsCancelResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="invocations.cancel",
-        )
-        if not response.HasField("invocation"):
-            raise ValueError("Read Invocations.Cancel: Missing Payload")
-        return response.invocation
-
-    async def watch(
-        self,
-        instance: int,
-        *,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[InstanceState]:
-        request = InvocationsWatchRequest(instance=instance)
-        call = stream(
-            self._channel,
-            "/harmos.host.v1.Invocations/Watch",
-            request,
-            InvocationsWatchResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-        )
-        try:
-            async for response in call:
-                if not response.HasField("invocation"):
-                    raise ValueError("Read Invocations.Watch: Missing Payload")
-                yield response.invocation
-        except AioRpcError as error:
-            raise call_error("invocations.watch", error) from error
-        finally:
-            call.cancel()
-
 
 class MediaResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_captures = MediaCapturesResource(channel)
+        self._resource_captures = MediaCapturesResource(channel)
 
     @property
     def captures(self) -> MediaCapturesResource:
-        return self._composed_captures
+        return self._resource_captures
 
 
 class OperationsResource:
@@ -3075,7 +2963,7 @@ class OperationsResource:
         request = OperationsListRequest()
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Operations/List",
+            "/dokime.host.v1.Operations/List",
             request,
             OperationsListResponse,
             metadata=call_metadata,
@@ -3091,7 +2979,7 @@ class OperationsResource:
         request = OperationsGetRequest(id=id)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Operations/Get",
+            "/dokime.host.v1.Operations/Get",
             request,
             OperationsGetResponse,
             metadata=call_metadata,
@@ -3107,31 +2995,31 @@ class OperationsResource:
 class PlotsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_settings = PlotsSettingsResource(channel)
-        self._composed_snapshots = PlotsSnapshotsResource(channel)
+        self._resource_settings = PlotsSettingsResource(channel)
+        self._resource_snapshots = PlotsSnapshotsResource(channel)
 
     @property
     def settings(self) -> PlotsSettingsResource:
-        return self._composed_settings
+        return self._resource_settings
 
     @property
     def snapshots(self) -> PlotsSnapshotsResource:
-        return self._composed_snapshots
+        return self._resource_snapshots
 
 
 class PluginsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_secrets = PluginsSecretsResource(channel)
-        self._composed_settings = PluginsSettingsResource(channel)
+        self._resource_secrets = PluginsSecretsResource(channel)
+        self._resource_settings = PluginsSettingsResource(channel)
 
     @property
     def secrets(self) -> PluginsSecretsResource:
-        return self._composed_secrets
+        return self._resource_secrets
 
     @property
     def settings(self) -> PluginsSettingsResource:
-        return self._composed_settings
+        return self._resource_settings
 
     async def get(
         self,
@@ -3145,7 +3033,7 @@ class PluginsResource:
         request = PluginsGetRequest(name=name, at=at)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/Get",
+            "/dokime.host.v1.Plugins/Get",
             request,
             PluginsGetResponse,
             metadata=call_metadata,
@@ -3166,7 +3054,7 @@ class PluginsResource:
         request = PluginsListRequest(at=at)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/List",
+            "/dokime.host.v1.Plugins/List",
             request,
             PluginsListResponse,
             metadata=call_metadata,
@@ -3188,7 +3076,7 @@ class PluginsResource:
         request = PluginsWatchRequest(name=name, at=at)
         call = stream(
             self._channel,
-            "/harmos.host.v1.Plugins/Watch",
+            "/dokime.host.v1.Plugins/Watch",
             request,
             PluginsWatchResponse,
             metadata=call_metadata,
@@ -3220,7 +3108,7 @@ class PluginsResource:
         )
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/Create",
+            "/dokime.host.v1.Plugins/Create",
             request,
             PluginsCreateResponse,
             metadata=call_metadata,
@@ -3243,7 +3131,7 @@ class PluginsResource:
         request = PluginsSetRequest(name=name, value=value, expected_revision=expected_revision)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/Set",
+            "/dokime.host.v1.Plugins/Set",
             request,
             PluginsSetResponse,
             metadata=call_metadata,
@@ -3265,7 +3153,7 @@ class PluginsResource:
         request = PluginsDeleteRequest(name=name, expected_revision=expected_revision)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/Delete",
+            "/dokime.host.v1.Plugins/Delete",
             request,
             PluginsDeleteResponse,
             metadata=call_metadata,
@@ -3289,7 +3177,7 @@ class PluginsResource:
         request = PluginsRestartRequest(name=name, expected_revision=expected_revision)
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/Restart",
+            "/dokime.host.v1.Plugins/Restart",
             request,
             PluginsRestartResponse,
             metadata=call_metadata,
@@ -3320,7 +3208,7 @@ class PluginsResource:
         )
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Plugins/Replace",
+            "/dokime.host.v1.Plugins/Replace",
             request,
             PluginsReplaceResponse,
             metadata=call_metadata,
@@ -3385,11 +3273,11 @@ class PromptDefinitionsResource:
 class PromptsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_answers = PromptsAnswersResource(channel)
+        self._resource_answers = PromptsAnswersResource(channel)
 
     @property
     def answers(self) -> PromptsAnswersResource:
-        return self._composed_answers
+        return self._resource_answers
 
     async def get(
         self,
@@ -3606,32 +3494,6 @@ class ReportsResource:
             action="reports.publish",
         )
         return response
-
-
-class SchemasResource:
-    def __init__(self, channel: Channel) -> None:
-        self._channel = channel
-
-    async def list(
-        self,
-        *,
-        schema: str | None = None,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> list[SchemaDescription]:
-        request = SchemasListRequest(schema=schema)
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.Schemas/List",
-            request,
-            SchemasListResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="schemas.list",
-        )
-        return list(response.schemas)
 
 
 class SecretsResource:
@@ -3888,21 +3750,21 @@ class SettingsResource:
 class StatusResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_diagnostics = StatusDiagnosticsResource(channel)
-        self._composed_logs = StatusLogsResource(channel)
-        self._composed_trace_events = StatusTraceEventsResource(channel)
+        self._resource_diagnostics = StatusDiagnosticsResource(channel)
+        self._resource_logs = StatusLogsResource(channel)
+        self._resource_trace_events = StatusTraceEventsResource(channel)
 
     @property
     def diagnostics(self) -> StatusDiagnosticsResource:
-        return self._composed_diagnostics
+        return self._resource_diagnostics
 
     @property
     def logs(self) -> StatusLogsResource:
-        return self._composed_logs
+        return self._resource_logs
 
     @property
     def trace_events(self) -> StatusTraceEventsResource:
-        return self._composed_trace_events
+        return self._resource_trace_events
 
     async def get(
         self, *, call_metadata: Metadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
@@ -3910,7 +3772,7 @@ class StatusResource:
         request = StatusGetRequest()
         response = await unary(
             self._channel,
-            "/harmos.host.v1.Status/Get",
+            "/dokime.host.v1.Status/Get",
             request,
             StatusGetResponse,
             metadata=call_metadata,
@@ -3931,7 +3793,7 @@ class StatusResource:
         request = StatusWatchRequest(at=at)
         call = stream(
             self._channel,
-            "/harmos.host.v1.Status/Watch",
+            "/dokime.host.v1.Status/Watch",
             request,
             StatusWatchResponse,
             metadata=call_metadata,
@@ -3950,11 +3812,11 @@ class StatusResource:
 class StorageResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
-        self._composed_sources = StorageSourcesResource(channel)
+        self._resource_sources = StorageSourcesResource(channel)
 
     @property
     def sources(self) -> StorageSourcesResource:
-        return self._composed_sources
+        return self._resource_sources
 
 
 class StreamSchemasResource:
@@ -4008,32 +3870,6 @@ class StreamSchemasResource:
         return response
 
 
-class StreamsResource:
-    def __init__(self, channel: Channel) -> None:
-        self._channel = channel
-
-    async def list(
-        self,
-        *,
-        schema: str | None = None,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> list[StreamIdentity]:
-        request = StreamsListRequest(schema=schema)
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.Streams/List",
-            request,
-            StreamsListResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="streams.list",
-        )
-        return list(response.streams)
-
-
 class SuitesResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
@@ -4085,191 +3921,132 @@ class SuitesResource:
         return response
 
 
-class TimeResource:
-    def __init__(self, channel: Channel) -> None:
-        self._channel = channel
-
-    async def get(
-        self, *, call_metadata: Metadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
-    ) -> Timestamp:
-        request = TimeGetRequest()
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.Time/Get",
-            request,
-            TimeGetResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="time.get",
-        )
-        if not response.HasField("now"):
-            raise ValueError("Read Time.Get: Missing Payload")
-        return response.now
-
-    async def sleep(
-        self,
-        duration: Duration,
-        *,
-        call_metadata: Metadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> TimeSleepResponse:
-        request = TimeSleepRequest(duration=duration)
-        response = await unary(
-            self._channel,
-            "/harmos.host.v1.Time/Sleep",
-            request,
-            TimeSleepResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="time.sleep",
-        )
-        return response
-
-
-class ClientRoot(_connection.Connection):
+class Client(_connection.Connection):
     def __init__(self, channel: Channel) -> None:
         super().__init__(channel)
         self._channel = channel
-        self._composed_access = AccessResource(channel)
-        self._composed_aggregates = AggregatesResource(channel)
-        self._composed_backend = BackendResource(channel)
-        self._composed_cases = CasesResource(channel)
-        self._composed_content = ContentResource(channel)
-        self._composed_cycles = CyclesResource(channel)
-        self._composed_documents = DocumentsResource(channel)
-        self._composed_evidence = EvidenceResource(channel)
-        self._composed_executions = ExecutionsResource(channel)
-        self._composed_files = FilesResource(channel)
-        self._composed_invocations = InvocationsResource(channel)
-        self._composed_media = MediaResource(channel)
-        self._composed_operations = OperationsResource(channel)
-        self._composed_plots = PlotsResource(channel)
-        self._composed_plugins = PluginsResource(channel)
-        self._composed_prompt_definitions = PromptDefinitionsResource(channel)
-        self._composed_prompts = PromptsResource(channel)
-        self._composed_record_schemas = RecordSchemasResource(channel)
-        self._composed_reports = ReportsResource(channel)
-        self._composed_schemas = SchemasResource(channel)
-        self._composed_secrets = SecretsResource(channel)
-        self._composed_settings = SettingsResource(channel)
-        self._composed_status = StatusResource(channel)
-        self._composed_storage = StorageResource(channel)
-        self._composed_stream_schemas = StreamSchemasResource(channel)
-        self._composed_streams = StreamsResource(channel)
-        self._composed_suites = SuitesResource(channel)
-        self._composed_time = TimeResource(channel)
+        self._resource_access = AccessResource(channel)
+        self._resource_aggregates = AggregatesResource(channel)
+        self._resource_backend = BackendResource(channel)
+        self._resource_cases = CasesResource(channel)
+        self._resource_content = ContentResource(channel)
+        self._resource_cycles = CyclesResource(channel)
+        self._resource_documents = DocumentsResource(channel)
+        self._resource_evidence = EvidenceResource(channel)
+        self._resource_executions = ExecutionsResource(channel)
+        self._resource_files = FilesResource(channel)
+        self._resource_invocations = InvocationsResource(channel)
+        self._resource_media = MediaResource(channel)
+        self._resource_operations = OperationsResource(channel)
+        self._resource_plots = PlotsResource(channel)
+        self._resource_plugins = PluginsResource(channel)
+        self._resource_prompt_definitions = PromptDefinitionsResource(channel)
+        self._resource_prompts = PromptsResource(channel)
+        self._resource_record_schemas = RecordSchemasResource(channel)
+        self._resource_reports = ReportsResource(channel)
+        self._resource_secrets = SecretsResource(channel)
+        self._resource_settings = SettingsResource(channel)
+        self._resource_status = StatusResource(channel)
+        self._resource_storage = StorageResource(channel)
+        self._resource_stream_schemas = StreamSchemasResource(channel)
+        self._resource_suites = SuitesResource(channel)
 
     @property
     def access(self) -> AccessResource:
-        return self._composed_access
+        return self._resource_access
 
     @property
     def aggregates(self) -> AggregatesResource:
-        return self._composed_aggregates
+        return self._resource_aggregates
 
     @property
     def backend(self) -> BackendResource:
-        return self._composed_backend
+        return self._resource_backend
 
     @property
     def cases(self) -> CasesResource:
-        return self._composed_cases
+        return self._resource_cases
 
     @property
     def content(self) -> ContentResource:
-        return self._composed_content
+        return self._resource_content
 
     @property
     def cycles(self) -> CyclesResource:
-        return self._composed_cycles
+        return self._resource_cycles
 
     @property
     def documents(self) -> DocumentsResource:
-        return self._composed_documents
+        return self._resource_documents
 
     @property
     def evidence(self) -> EvidenceResource:
-        return self._composed_evidence
+        return self._resource_evidence
 
     @property
     def executions(self) -> ExecutionsResource:
-        return self._composed_executions
+        return self._resource_executions
 
     @property
     def files(self) -> FilesResource:
-        return self._composed_files
+        return self._resource_files
 
     @property
     def invocations(self) -> InvocationsResource:
-        return self._composed_invocations
+        return self._resource_invocations
 
     @property
     def media(self) -> MediaResource:
-        return self._composed_media
+        return self._resource_media
 
     @property
     def operations(self) -> OperationsResource:
-        return self._composed_operations
+        return self._resource_operations
 
     @property
     def plots(self) -> PlotsResource:
-        return self._composed_plots
+        return self._resource_plots
 
     @property
     def plugins(self) -> PluginsResource:
-        return self._composed_plugins
+        return self._resource_plugins
 
     @property
     def prompt_definitions(self) -> PromptDefinitionsResource:
-        return self._composed_prompt_definitions
+        return self._resource_prompt_definitions
 
     @property
     def prompts(self) -> PromptsResource:
-        return self._composed_prompts
+        return self._resource_prompts
 
     @property
     def record_schemas(self) -> RecordSchemasResource:
-        return self._composed_record_schemas
+        return self._resource_record_schemas
 
     @property
     def reports(self) -> ReportsResource:
-        return self._composed_reports
-
-    @property
-    def schemas(self) -> SchemasResource:
-        return self._composed_schemas
+        return self._resource_reports
 
     @property
     def secrets(self) -> SecretsResource:
-        return self._composed_secrets
+        return self._resource_secrets
 
     @property
     def settings(self) -> SettingsResource:
-        return self._composed_settings
+        return self._resource_settings
 
     @property
     def status(self) -> StatusResource:
-        return self._composed_status
+        return self._resource_status
 
     @property
     def storage(self) -> StorageResource:
-        return self._composed_storage
+        return self._resource_storage
 
     @property
     def stream_schemas(self) -> StreamSchemasResource:
-        return self._composed_stream_schemas
-
-    @property
-    def streams(self) -> StreamsResource:
-        return self._composed_streams
+        return self._resource_stream_schemas
 
     @property
     def suites(self) -> SuitesResource:
-        return self._composed_suites
-
-    @property
-    def time(self) -> TimeResource:
-        return self._composed_time
+        return self._resource_suites

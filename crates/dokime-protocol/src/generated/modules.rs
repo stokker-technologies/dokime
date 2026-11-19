@@ -3,6 +3,9 @@ pub(crate) mod dokime {
 pub mod host {
 pub mod v1 {
 include!("dokime.host.v1.rs");
+pub mod access {
+include!("dokime.host.v1.access.rs");
+}
 pub mod backend {
 include!("dokime.host.v1.backend.rs");
 }
@@ -29,6 +32,9 @@ include!("dokime.host.v1.plugins.rs");
 }
 pub mod prompts {
 include!("dokime.host.v1.prompts.rs");
+}
+pub mod status {
+include!("dokime.host.v1.status.rs");
 }
 pub mod storage {
 include!("dokime.host.v1.storage.rs");

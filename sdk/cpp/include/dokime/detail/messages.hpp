@@ -1,5 +1,8 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
+#include "dokime/host/v1/access/certificates.pb.h"
+#include "dokime/host/v1/access/listener.pb.h"
+#include "dokime/host/v1/access/pairings.pb.h"
 #include "dokime/host/v1/aggregates.pb.h"
 #include "dokime/host/v1/backend.pb.h"
 #include "dokime/host/v1/backend/overview.pb.h"
@@ -23,10 +26,14 @@
 #include "dokime/host/v1/files.pb.h"
 #include "dokime/host/v1/files/captures.pb.h"
 #include "dokime/host/v1/files/uploads.pb.h"
+#include "dokime/host/v1/invocations.pb.h"
 #include "dokime/host/v1/media/captures.pb.h"
+#include "dokime/host/v1/operations.pb.h"
 #include "dokime/host/v1/plots/settings.pb.h"
 #include "dokime/host/v1/plots/snapshots.pb.h"
+#include "dokime/host/v1/plugins.pb.h"
 #include "dokime/host/v1/plugins/secrets.pb.h"
+#include "dokime/host/v1/plugins/settings.pb.h"
 #include "dokime/host/v1/prompt_definitions.pb.h"
 #include "dokime/host/v1/prompts.pb.h"
 #include "dokime/host/v1/prompts/answers.pb.h"
@@ -34,6 +41,10 @@
 #include "dokime/host/v1/reports.pb.h"
 #include "dokime/host/v1/secrets.pb.h"
 #include "dokime/host/v1/settings.pb.h"
+#include "dokime/host/v1/status.pb.h"
+#include "dokime/host/v1/status/diagnostics.pb.h"
+#include "dokime/host/v1/status/logs.pb.h"
+#include "dokime/host/v1/status/trace_events.pb.h"
 #include "dokime/host/v1/storage/sources.pb.h"
 #include "dokime/host/v1/stream_schemas.pb.h"
 #include "dokime/host/v1/suites.pb.h"
@@ -904,6 +915,88 @@ using ::dokime::host::v1::plots::PlotSettingsValue;
 namespace host::plugins {
 using ::dokime::host::v1::plugins::SecretsListResponse;
 }
+using ::dokime::host::v1::plugins::SecretRequirement;
+namespace host::plugins {
+using ::dokime::host::v1::plugins::SettingsListResponse;
+}
+namespace host::plugins {
+using ::dokime::host::v1::plugins::SettingsSetResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsGetResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsListResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsWatchResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsCreateResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsSetResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsDeleteResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsRestartResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginsReplaceResponse;
+}
+namespace host {
+using ::dokime::host::v1::PluginValue;
+}
+namespace host {
+using ::dokime::host::v1::PluginDescription;
+}
+namespace host {
+using ::dokime::host::v1::PluginRemote;
+}
+namespace host {
+using ::dokime::host::v1::PluginManaged;
+}
+namespace host {
+using ::dokime::host::v1::PluginGuest;
+}
+namespace host {
+using ::dokime::host::v1::PluginPlacement;
+}
+namespace host {
+using ::dokime::host::v1::PluginProcess;
+}
+namespace host {
+using ::dokime::host::v1::PluginEntry;
+}
+namespace host {
+using ::dokime::host::v1::PluginSnapshot;
+}
+namespace host {
+using ::dokime::host::v1::PluginChange;
+}
+namespace host {
+using ::dokime::host::v1::PluginState;
+}
+namespace host {
+inline constexpr auto PLUGIN_STATE_UNSPECIFIED = static_cast<::dokime::host::v1::PluginState>(0);
+}
+namespace host {
+inline constexpr auto PLUGIN_STATE_CONNECTING = static_cast<::dokime::host::v1::PluginState>(1);
+}
+namespace host {
+inline constexpr auto PLUGIN_STATE_READY = static_cast<::dokime::host::v1::PluginState>(2);
+}
+namespace host {
+inline constexpr auto PLUGIN_STATE_UNAVAILABLE = static_cast<::dokime::host::v1::PluginState>(3);
+}
+namespace host {
+inline constexpr auto PLUGIN_STATE_STOPPED = static_cast<::dokime::host::v1::PluginState>(4);
+}
+namespace host {
+inline constexpr auto PLUGIN_STATE_STOPPING = static_cast<::dokime::host::v1::PluginState>(5);
+}
 using ::dokime::host::v1::PromptDefinitionsGetResponse;
 using ::dokime::host::v1::PromptDefinitionsListResponse;
 using ::dokime::host::v1::PromptInstance;
@@ -913,7 +1006,6 @@ using ::dokime::host::v1::PromptsGetResponse;
 using ::dokime::host::v1::PromptsListResponse;
 using ::dokime::host::v1::PromptsWatchResponse;
 using ::dokime::host::v1::PromptView;
-using ::dokime::host::v1::plugins::SecretRequirement;
 inline constexpr auto PROMPT_KIND_UNSPECIFIED = static_cast<::dokime::host::v1::PromptKind>(0);
 inline constexpr auto PROMPT_KIND_CONFIRMATION = static_cast<::dokime::host::v1::PromptKind>(1);
 inline constexpr auto PROMPT_KIND_FORM = static_cast<::dokime::host::v1::PromptKind>(2);

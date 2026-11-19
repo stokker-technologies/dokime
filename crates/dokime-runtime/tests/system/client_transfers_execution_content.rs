@@ -21,7 +21,7 @@ use std::error::Error;
 use std::io::{Cursor, Read};
 
 // Third Party Imports
-use harmos_protocol::host::{PluginState, plugin_placement};
+use dokime_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::PageRequest;
 use prost::Message;
@@ -47,9 +47,9 @@ use dokime_client_internal::FilesUploadsCreateOptions;
 use dokime_client_internal::FilesUploadsPublishOptions;
 use dokime_client_internal::FilesUploadsResumeOptions;
 use dokime_client_internal::FilesWatchOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::FilesDeleteRequest;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::evidence_subject;

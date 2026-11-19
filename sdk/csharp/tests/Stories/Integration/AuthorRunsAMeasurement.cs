@@ -27,7 +27,7 @@ public sealed class AuthorRunsAMeasurement
     await server.Wire.InvokeAsync<StepsExecuteResponse>(description, testCase.Steps[0].Operation,
       new StepsExecuteRequest { Execution = "capture-run", Step = testCase.Steps[0].Metadata.Identifier, TestCase = testCase, Origin = origin }, "capture-run", child =>
       {
-        if (child.Operation == "harmos.host.v1.Time/Get")
+        if (child.Operation == "harmos.plugin.v1.Time/Get")
           return new Harmos.Clients.TimeGetResponse { Now = new Timestamp { Seconds = 120 } }.ToByteString();
         if (child.Operation == HostContracts.PromptsCreate.Contract.Id)
         {

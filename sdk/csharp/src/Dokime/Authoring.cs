@@ -25,7 +25,7 @@ public interface IRecord
   {
     get;
   }
-  internal void Register(Harmos.Plugins.Plugin plugin, RecordContracts contracts, string identifier);
+  internal void Register(Harmos.Plugins.Registrar registrar, RecordContracts contracts, string identifier);
 }
 
 public sealed class Record<T>(string label = "", string? identifier = null) : IRecord
@@ -33,9 +33,9 @@ public sealed class Record<T>(string label = "", string? identifier = null) : IR
   public string? Identifier { get; } = identifier;
   public string Label { get; } = label;
 
-  void IRecord.Register(Harmos.Plugins.Plugin plugin, RecordContracts contracts, string identity)
+  void IRecord.Register(Harmos.Plugins.Registrar registrar, RecordContracts contracts, string identity)
   {
-    Payload<T>.Register(plugin);
+    Payload<T>.Register(registrar);
     contracts.Records.Add(new RecordContract
     {
       Metadata = new Metadata { Identifier = identity, Label = Label.Length == 0 ? identity : Label },
@@ -126,13 +126,13 @@ public interface IStream
   {
     get;
   }
-  internal void Register(Harmos.Plugins.Plugin plugin, string identifier, Func<Harmos.Plugins.Context, Context> context);
+  internal void Register(Harmos.Plugins.Registrar registrar, string identifier, Func<Harmos.Plugins.Context, Context> context);
 }
 
 /// <summary>Registers One Observer Form for Its Stream.</summary>
 internal interface ISampler
 {
-  void Register(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context);
+  void Register(Harmos.Plugins.Registrar registrar, string stream, Func<Harmos.Plugins.Context, Context> context);
 }
 
 /// <summary>A device-driven stream; an Observer supplies samples in host-granted windows instead.</summary>
@@ -147,21 +147,21 @@ public sealed class Stream<T>(string? identifier = null, Func<Context, Publisher
     get;
     set;
   }
-  void IStream.Register(Harmos.Plugins.Plugin plugin, string identifier, Func<Harmos.Plugins.Context, Context> context)
+  void IStream.Register(Harmos.Plugins.Registrar registrar, string identifier, Func<Harmos.Plugins.Context, Context> context)
   {
     if (Observer is { } observer)
-      observer.Register(plugin, identifier, context);
+      observer.Register(registrar, identifier, context);
     else if (produce is not null)
       GetType().GetMethod(nameof(RegisterProducer), BindingFlags.Instance | BindingFlags.NonPublic)!
-        .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [plugin, identifier, context]);
+        .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [registrar, identifier, context]);
     else
       throw new ArgumentException($"Declare Stream {Identifier}: Supply a Producer or Observer");
   }
 
-  private void RegisterProducer<TWire>(Harmos.Plugins.Plugin plugin, string identifier, Func<Harmos.Plugins.Context, Context> context)
+  private void RegisterProducer<TWire>(Harmos.Plugins.Registrar registrar, string identifier, Func<Harmos.Plugins.Context, Context> context)
     where TWire : IMessage<TWire>, new()
   {
-    plugin.Stream<TWire>(identifier, (raw, publisher) => produce!(context(raw), new Publisher<T>((value, at) =>
+    registrar.Register<TWire>(identifier, (raw, publisher) => produce!(context(raw), new Publisher<T>((value, at) =>
       publisher.PublishAsync((TWire)Payload<T>.Pack(value), at is null ? null : Timestamp.FromDateTimeOffset(at.Value)))));
   }
 }
@@ -181,13 +181,13 @@ public sealed class Observer<T> : ISampler
     WindowSetting = windowSetting;
     stream.Observer = this;
   }
-  void ISampler.Register(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context) =>
+  void ISampler.Register(Harmos.Plugins.Registrar registrar, string stream, Func<Harmos.Plugins.Context, Context> context) =>
       GetType().GetMethod(nameof(RegisterWire), BindingFlags.Instance | BindingFlags.NonPublic)!
-      .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [plugin, stream, context]);
+      .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [registrar, stream, context]);
 
-  private void RegisterWire<TWire>(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context)
+  private void RegisterWire<TWire>(Harmos.Plugins.Registrar registrar, string stream, Func<Harmos.Plugins.Context, Context> context)
     where TWire : IMessage<TWire>, new() =>
-    plugin.Observer<TWire>(stream, Interval is null ? null : Duration.FromTimeSpan(Interval.Value), async raw => (TWire)Payload<T>.Pack(await Read(context(raw))),
+    registrar.Register<TWire>(stream, Interval is null ? null : Duration.FromTimeSpan(Interval.Value), async raw => (TWire)Payload<T>.Pack(await Read(context(raw))),
       intervalSetting: IntervalSetting, windowSetting: WindowSetting);
   public string WindowSetting
   {
@@ -228,13 +228,13 @@ public sealed class WindowObserver<T, TColumns> : ISampler
     WindowSetting = windowSetting;
     stream.Observer = this;
   }
-  void ISampler.Register(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context) =>
+  void ISampler.Register(Harmos.Plugins.Registrar registrar, string stream, Func<Harmos.Plugins.Context, Context> context) =>
       GetType().GetMethod(nameof(RegisterWire), BindingFlags.Instance | BindingFlags.NonPublic)!
-      .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [plugin, stream, context]);
+      .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [registrar, stream, context]);
 
-  private void RegisterWire<TWire>(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context)
+  private void RegisterWire<TWire>(Harmos.Plugins.Registrar registrar, string stream, Func<Harmos.Plugins.Context, Context> context)
     where TWire : IMessage<TWire>, new() =>
-    plugin.WindowObserver<TWire, TColumns>(stream, Interval is null ? null : Duration.FromTimeSpan(Interval.Value),
+    registrar.Register<TWire, TColumns>(stream, Interval is null ? null : Duration.FromTimeSpan(Interval.Value),
       (raw, window) => Read(context(raw), new SampleWindow(window.Start.ToDateTimeOffset(), window.Period.ToTimeSpan(), window.Count)),
       intervalSetting: IntervalSetting, windowSetting: WindowSetting);
   public Stream<T> Stream

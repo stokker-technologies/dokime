@@ -24,9 +24,10 @@ from zipfile import BadZipFile, ZipFile
 from grpc.aio import AioRpcError
 from harmos import FileMetadata, FileReference, Upload
 
+import dokime_sdk._generated.client
+
 # Local Imports
 from ._errors import SdkError, call, invalid
-from ._generated.client import ClientRoot
 from ._generated.client_types import ReportSubject
 from ._generated.host import HostRoot
 from ._generated.shared import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
@@ -55,7 +56,7 @@ class Uploads(Protocol):
 
 
 async def publish_artifact(
-    transport: ClientRoot | HostRoot,
+    transport: dokime_sdk._generated.client.Client | HostRoot,
     scope: ArtifactScope,
     name: str,
     data: bytes,
@@ -133,7 +134,7 @@ async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata,
 
 
 async def download_report(
-    client: ClientRoot, execution: str, *, document: str = "", max_bytes: int, request_id: str | None = None
+    client: dokime_sdk._generated.client.Client, execution: str, *, document: str = "", max_bytes: int, request_id: str | None = None
 ) -> bytes:
     if max_bytes <= 0:
         raise ValueError("Download Report: Supply a Positive Read Limit")
@@ -145,7 +146,7 @@ async def download_report(
     return await download(client, report.file, max_bytes=max_bytes)
 
 
-async def download(client: ClientRoot, file: FileReference, *, max_bytes: int | None = None) -> bytes:
+async def download(client: dokime_sdk._generated.client.Client, file: FileReference, *, max_bytes: int | None = None) -> bytes:
     if max_bytes is not None and max_bytes <= 0:
         raise ValueError("Download File: Supply a Positive Read Limit")
     limits = await call("files.get", client.files.get(file))

@@ -11,12 +11,17 @@
 
 /* === Imports === */
 
-#include "dokime/host/v1/suites.grpc.pb.h"
-#include "harmos/host/v1/plugins.grpc.pb.h"
-#include "harmos/host/v1/status.grpc.pb.h"
-#include "harmos/host/v1/status/logs.grpc.pb.h"
-#include <grpcpp/grpcpp.h>
+// Standard Library Imports
 #include <string>
+
+// Third Party Imports
+#include <grpcpp/grpcpp.h>
+
+// Local Imports
+#include "dokime/host/v1/plugins.grpc.pb.h"
+#include "dokime/host/v1/status.grpc.pb.h"
+#include "dokime/host/v1/status/logs.grpc.pb.h"
+#include "dokime/host/v1/suites.grpc.pb.h"
 
 /* === Macros === */
 
@@ -26,7 +31,7 @@
 
 /* === Classes === */
 
-class Backend final : public harmos::host::v1::Status::CallbackService {
+class Backend final : public dokime::host::v1::Status::CallbackService {
   grpc::ServerUnaryReactor *Get(grpc::CallbackServerContext *context, const harmos::host::v1::StatusGetRequest *,
                                 harmos::host::v1::StatusGetResponse *response) override {
     auto *reactor = context->DefaultReactor();
@@ -60,7 +65,7 @@ public:
     delete this;
   }
 };
-class Logs final : public harmos::host::v1::status::Logs::CallbackService {
+class Logs final : public dokime::host::v1::status::Logs::CallbackService {
   grpc::ServerWriteReactor<harmos::host::v1::status::LogsWatchResponse> *
   Watch(grpc::CallbackServerContext *context, const harmos::host::v1::status::LogsWatchRequest *) override {
     return new LogRead(context->client_metadata().contains("authorization"));
@@ -77,11 +82,11 @@ class Suites final : public dokime::host::v1::Suites::Service {
   }
 };
 
-class Plugins final : public harmos::host::v1::Plugins::CallbackService {
-  harmos::host::v1::PluginsListResponse entries_;
+class Plugins final : public dokime::host::v1::Plugins::CallbackService {
+  dokime::host::v1::PluginsListResponse entries_;
 
-  grpc::ServerUnaryReactor *Create(grpc::CallbackServerContext *context, const harmos::host::v1::PluginsCreateRequest *request,
-                                   harmos::host::v1::PluginsCreateResponse *response) override {
+  grpc::ServerUnaryReactor *Create(grpc::CallbackServerContext *context, const dokime::host::v1::PluginsCreateRequest *request,
+                                   dokime::host::v1::PluginsCreateResponse *response) override {
     auto *reactor = context->DefaultReactor();
     if (!request->placement().remote().url().starts_with("http://")) {
       reactor->Finish({grpc::StatusCode::INVALID_ARGUMENT, "Create Plugin: URL Is Required"});
@@ -91,14 +96,14 @@ class Plugins final : public harmos::host::v1::Plugins::CallbackService {
     entry->set_name(request->name());
     *entry->mutable_placement() = request->placement();
     *entry->mutable_value() = request->value();
-    entry->set_state(harmos::host::v1::PLUGIN_STATE_CONNECTING);
+    entry->set_state(dokime::host::v1::PLUGIN_STATE_CONNECTING);
     *entries_.add_entries() = *entry;
     reactor->Finish(grpc::Status::OK);
     return reactor;
   }
 
-  grpc::ServerUnaryReactor *List(grpc::CallbackServerContext *context, const harmos::host::v1::PluginsListRequest *,
-                                 harmos::host::v1::PluginsListResponse *response) override {
+  grpc::ServerUnaryReactor *List(grpc::CallbackServerContext *context, const dokime::host::v1::PluginsListRequest *,
+                                 dokime::host::v1::PluginsListResponse *response) override {
     auto *reactor = context->DefaultReactor();
     *response = entries_;
     reactor->Finish(grpc::Status::OK);

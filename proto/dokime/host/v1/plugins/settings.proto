@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Product Plugin Settings Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.plugins;
+
+// === Imports === //
+
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+import "harmos/model/v1/setting.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.PluginsResources";
+
+// === Services === //
+
+// Owns product plugin persisted settings policy; library facilities do not provide administration routes.
+service Settings {
+  // List the product plugin settings; product policy owns admission and durability.
+  rpc List(.dokime.host.v1.plugins.SettingsListRequest) returns (.dokime.host.v1.plugins.SettingsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Set the product plugin settings; product policy owns admission and durability.
+  rpc Set(.dokime.host.v1.plugins.SettingsSetRequest) returns (.dokime.host.v1.plugins.SettingsSetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Requests and Responses === //
+
+// Selects a plugin entry and optional issued settings boundary.
+message SettingsListRequest {
+  // Selects the managed plugin entry; own-settings plugin calls use the separate library facility.
+  optional string name = 1;
+  // Unset selects the latest durable settings; otherwise resend an issued cut unchanged.
+  optional harmos.model.v1.ReadCut at = 2;
+}
+
+// Returns the plugin's declarations and complete current setting values at one revision.
+message SettingsListResponse {
+  repeated harmos.model.v1.SettingDeclaration declarations = 1;
+  harmos.model.v1.SettingValues value = 2;
+  // Opaque settings revision, separate from the plugin entry revision.
+  bytes revision = 3;
+  harmos.model.v1.ReadCut resolved_at = 4;
+}
+
+// Carries the whole replacement value, expected settings revision and replay identity.
+message SettingsSetRequest {
+  string name = 1;
+  // Complete declared value set; missing, unknown or differently typed values refuse.
+  harmos.model.v1.SettingValues value = 2;
+  // Issued settings revision; conflicts require getting the values again before retrying.
+  bytes expected_revision = 3;
+  // Nonempty caller-chosen identity retained with the normalized request for replay.
+  string request_id = 4;
+}
+
+// Returns the complete applied value, new settings revision and mutation receipt.
+message SettingsSetResponse {
+  harmos.model.v1.SettingValues value = 1;
+  bytes revision = 2;
+  harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Resources === //
+
+// === Enums === //

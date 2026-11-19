@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -36,9 +36,9 @@ use dokime_client_internal::EvidenceRecordsWatchOptions;
 use dokime_client_internal::EvidenceTraceabilityGetOptions;
 use dokime_client_internal::ExecutionMode;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_runtime::PluginProcess;
 
 /* === Constants === */
@@ -101,7 +101,7 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             loop {
                 let changed = watch.next().await?.ok_or("Observe Ready Plugin: Overview Watch Closed Before Admission")?;
                 assert!(!changed.opening);

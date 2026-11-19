@@ -101,7 +101,7 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
       response.set_action(answer);
       return response.SerializeAsString();
     }
-    if (operation == "harmos.host.v1.Time/Get") {
+    if (operation == "harmos.plugin.v1.Time/Get") {
       harmos::host::v1::TimeGetResponse response;
       response.mutable_now()->set_seconds(123);
       return response.SerializeAsString();

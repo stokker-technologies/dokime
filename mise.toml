@@ -251,7 +251,8 @@ description = "Check Repository Configuration"
 run = [
   { task = "format:toml --check" },
   "buf format --diff --exit-code",
-  "buf lint",
+  # D6 Reuses Library Payloads; Upstream Owns the Vendored Protocol's Lint Policy.
+  "buf lint --exclude-path proto/harmos",
   "{{vars.tools}} dokime_tools.build.protocol_callers",
   "{{vars.tools}} dokime_tools.ci.mise",
   "shellcheck --version",

@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use tonic::transport::Endpoint;
 
@@ -43,10 +43,10 @@ use dokime_client_internal::ExecutionsGetOptions;
 use dokime_client_internal::ExecutionsListOptions;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
 use dokime_client_internal::ExecutionsStepsOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::PromptsListOptions;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::ExecutionsDeleteRequest;
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::evidence::SamplesListRequest;
@@ -122,7 +122,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let created = cycles
                 .create_with(

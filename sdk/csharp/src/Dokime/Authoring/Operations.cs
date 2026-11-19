@@ -32,12 +32,12 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
     _ = policy?.ToWire();
   }
 
-  internal void Register(Harmos.Plugins.Plugin plugin, Func<Harmos.Plugins.Context, Context> context,
+  internal void Register(Harmos.Plugins.Registrar registrar, Func<Harmos.Plugins.Context, Context> context,
       Func<Context, TRequest, Task<TResponse>> handler)
   {
     GetType().GetMethod(nameof(RegisterWire), BindingFlags.Instance | BindingFlags.NonPublic)!
         .MakeGenericMethod(Payload<TRequest>.Descriptor.ClrType, Payload<TResponse>.Descriptor.ClrType)
-        .Invoke(this, [plugin, context, handler]);
+        .Invoke(this, [registrar, context, handler]);
   }
 
   private Harmos.Plugins.Operation<TWireRequest, TWireResponse> Wire<TWireRequest, TWireResponse>()
@@ -53,11 +53,11 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
     return new Harmos.Plugins.Operation<TWireRequest, TWireResponse>(identifier, audience, policy?.ToWire(), replaySafe: replaySafe, lane: lane?.Native);
   }
 
-  private void RegisterWire<TWireRequest, TWireResponse>(Harmos.Plugins.Plugin plugin,
+  private void RegisterWire<TWireRequest, TWireResponse>(Harmos.Plugins.Registrar registrar,
       Func<Harmos.Plugins.Context, Context> context, Func<Context, TRequest, Task<TResponse>> handler)
       where TWireRequest : IMessage<TWireRequest>, new() where TWireResponse : IMessage<TWireResponse>, new()
   {
-    plugin.Operation(Wire<TWireRequest, TWireResponse>(), async (raw, request) =>
+    registrar.Register(Wire<TWireRequest, TWireResponse>(), async (raw, request) =>
     {
       try
       {
@@ -78,17 +78,17 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
         .Invoke(this, [context, request, policy, cancellationToken])!;
   }
 
-  void IOperationReference.Declare(Harmos.Plugins.Plugin plugin)
+  void IOperationReference.Declare(Harmos.Plugins.Registrar registrar)
   {
     GetType().GetMethod(nameof(DeclareWire), BindingFlags.Instance | BindingFlags.NonPublic)!
-      .MakeGenericMethod(Payload<TRequest>.Descriptor.ClrType, Payload<TResponse>.Descriptor.ClrType).Invoke(this, [plugin]);
+      .MakeGenericMethod(Payload<TRequest>.Descriptor.ClrType, Payload<TResponse>.Descriptor.ClrType).Invoke(this, [registrar]);
   }
 
-  private void DeclareWire<TWireRequest, TWireResponse>(Harmos.Plugins.Plugin plugin)
+  private void DeclareWire<TWireRequest, TWireResponse>(Harmos.Plugins.Registrar registrar)
     where TWireRequest : IMessage<TWireRequest>, new() where TWireResponse : IMessage<TWireResponse>, new()
   {
     if (visibility != Visibility.Private)
-      plugin.Requires(Wire<TWireRequest, TWireResponse>());
+      registrar.Register(Wire<TWireRequest, TWireResponse>());
   }
 
   internal async Task<TResponse> CallAsync(Dokime.Client client, TRequest request, CancellationToken cancellationToken)
@@ -115,5 +115,5 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
 
 internal interface IOperationReference
 {
-  void Declare(Harmos.Plugins.Plugin plugin);
+  void Declare(Harmos.Plugins.Registrar registrar);
 }

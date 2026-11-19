@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
 project(DokimeCpp VERSION 0.1.5 LANGUAGES C CXX)
 
+option(DOKIME_BUILD_TESTS "Build SDK Stories and Host Fixtures" ${PROJECT_IS_TOP_LEVEL})
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(cmake/Protocol.cmake)
@@ -12,7 +14,6 @@ if(PROJECT_IS_TOP_LEVEL)
   add_subdirectory(examples/starter)
 endif()
 
-option(DOKIME_BUILD_TESTS "Build SDK Stories and Host Fixtures" ${PROJECT_IS_TOP_LEVEL})
 if(DOKIME_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)

@@ -243,23 +243,120 @@ after callers stop using `harmos_protocol::host` paths; Harmos payload values th
 `dokime-protocol` through the `harmos` SDK root. The filesystem publication helper used by
 `crates/dokime-gui/src-tauri/src/parameters.rs` becomes product-owned.
 
-### D6. Product Wrappers and Composition Removal (Proposed)
+### D6. Product Wrappers and Composition Removal (Agreed, 2026-11-19)
 
-Dokime wraps, under `proto/dokime/host/v1` nested resources and following the protocol
-source convention, each Harmos host operation that a Dokime client (desktop, CLI, Python, C#,
-C++ SDK, stories) calls today. Candidates from the current tree:
+The client inventory below is locked for the main-line pin declared in
+`Cargo.toml` at `workspace.dependencies.harmos.rev`. Declarations live under
+`proto/dokime/host/v1`; each wrapper retains its existing SDK resource and method
+name, declares CLIENTS explicitly and reuses the unchanged library messages.
+The handler registration uses `ProtobufOperation::service()` with the product
+service descriptor, because the payload descriptor belongs to the library.
+Declarations and generated projections do not establish handler implementation.
 
-| Harmos Resource | Methods Used by Dokime Clients | Audience |
-| --- | --- | --- |
-| Access.Listener, Access.Pairings, Access.Certificates | Get, Set; Create, List, Delete; Create | CLIENTS |
-| Status, status.Logs, status.TraceEvents, status.Diagnostics | Get, Watch; List, Watch; List, Watch; Get | CLIENTS |
-| Operations, Invocations | List, Get; Create, Get, Cancel, Watch | CLIENTS |
-| Schemas, Streams | List; List | CLIENTS |
-| Time | Get, Sleep | CLIENTS only if a client calls it |
+The `check:repository` task in `mise.toml` invokes
+`buf lint --exclude-path proto/harmos` to exclude unmodified third-party input
+from the product lint scope; Harmos owns that protocol's lint policy.
+`lint.ignore` only hides vendored diagnostics and still counts the vendored RPCs
+against product declarations, so it cannot implement this source boundary.
+D6 requires unchanged library payloads, including the four Operations List/Get messages also used by
+`harmos.plugin.v1.Operations` in `proto/harmos/plugin/v1/operations.proto`.
+Linting both authored and vendored RPCs together produced eight
+`RPC_REQUEST_RESPONSE_UNIQUE` diagnostics: each request and response at product
+List/Get and at library plugin List/Get. Product protocol rules remain enabled,
+and comment ignores remain disallowed. No product payload copies are introduced.
+
+The inventory was checked against desktop `connection/host.rs`, its generated
+dispatch and `src/lib/api/native-{remote,logs,diagnostics}.ts`; CLI
+`commands/{status,pairing,operation}.rs`; `dokime-client-internal`; the four SDK
+connection and bound-operation implementations; and their product stories.
+Generated methods without an authored caller are not evidence of use.
+
+| Product Service/Method | Audience | Request Message | Response Message | Client Evidence |
+| --- | --- | --- | --- | --- |
+| `dokime.host.v1.access.Listener/Get` | CLIENTS | `harmos.host.v1.access.ListenerGetRequest` | `harmos.host.v1.access.ListenerGetResponse` | Desktop preferences; CLI pairing export |
+| `dokime.host.v1.access.Listener/Set` | CLIENTS | `harmos.host.v1.access.ListenerSetRequest` | `harmos.host.v1.access.ListenerSetResponse` | Desktop preferences; CLI pairing export |
+| `dokime.host.v1.access.Pairings/Create` | CLIENTS | `harmos.host.v1.access.PairingsCreateRequest` | `harmos.host.v1.access.PairingsCreateResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
+| `dokime.host.v1.access.Pairings/List` | CLIENTS | `harmos.host.v1.access.PairingsListRequest` | `harmos.host.v1.access.PairingsListResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
+| `dokime.host.v1.access.Pairings/Delete` | CLIENTS | `harmos.host.v1.access.PairingsDeleteRequest` | `harmos.host.v1.access.PairingsDeleteResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
+| `dokime.host.v1.access.Certificates/Create` | CLIENTS | `harmos.host.v1.access.CertificatesCreateRequest` | `harmos.host.v1.access.CertificatesCreateResponse` | Desktop certificate regeneration |
+| `dokime.host.v1.Status/Get` | CLIENTS | `harmos.host.v1.StatusGetRequest` | `harmos.host.v1.StatusGetResponse` | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.Status/Watch` | CLIENTS | `harmos.host.v1.StatusWatchRequest` | `harmos.host.v1.StatusWatchResponse` (stream) | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.status.Logs/Watch` | CLIENTS | `harmos.host.v1.status.LogsWatchRequest` | `harmos.host.v1.status.LogsWatchResponse` (stream) | Runtime diagnostics story; C++ client-read story |
+| `dokime.host.v1.status.TraceEvents/List` | CLIENTS | `harmos.host.v1.status.TraceEventsListRequest` | `harmos.host.v1.status.TraceEventsListResponse` | Desktop log adapter; runtime diagnostics story |
+| `dokime.host.v1.status.TraceEvents/Watch` | CLIENTS | `harmos.host.v1.status.TraceEventsWatchRequest` | `harmos.host.v1.status.TraceEventsWatchResponse` (stream) | Desktop log adapter; runtime diagnostics story |
+| `dokime.host.v1.status.Diagnostics/Get` | CLIENTS | `harmos.host.v1.status.DiagnosticsGetRequest` | `harmos.host.v1.status.DiagnosticsGetResponse` | Desktop diagnostics archive and native host stories |
+| `dokime.host.v1.Operations/List` | CLIENTS | `harmos.host.v1.OperationsListRequest` | `harmos.host.v1.OperationsListResponse` | Desktop discovery; CLI operation commands; SDK bound operations |
+| `dokime.host.v1.Operations/Get` | CLIENTS | `harmos.host.v1.OperationsGetRequest` | `harmos.host.v1.OperationsGetResponse` | Desktop discovery; CLI operation commands; SDK bound operations |
+| `dokime.host.v1.Invocations/Create` | CLIENTS | `harmos.host.v1.InvocationsCreateRequest` | `harmos.host.v1.InvocationsCreateResponse` | CLI and Python/C#/C++ bound operation calls |
+
+This is 15 methods across nine services: Listener 2, Pairings 3, Certificates 1,
+Status 2, Logs 1, TraceEvents 2, Diagnostics 1, Operations 2 and Invocations 1.
+The prior candidate table overstated Logs.List, Invocations.Get/Cancel/Watch,
+Schemas.List and Streams.List: no authored product client calls them, so they
+are not wrapped. Time.Get/Sleep are plugin context calls only and are not
+client wrappers. Pairings.List, Status.Watch and Logs.Watch have real product
+story callers even where the interactive applications do not call them.
+No used generic method was missing from the candidate table.
+
+Plugin-facing identities move to `harmos.plugin.v1.Time/{Get,Sleep}`,
+`harmos.plugin.v1.Invocations/{Get,Cancel,Watch}`,
+`harmos.plugin.v1.Operations/{List,Get}` and
+`harmos.plugin.v1.plugins.Settings/List`. Their payload messages stay in
+`harmos.host.v1` (and its `plugins` package); message reuse does not preserve
+any removed host routing identity. The three virtual-clock comparisons in
+`crates/dokime-runtime/src/streams.rs` must move with the Time identity.
 
 `plugin-boundary` moves Plugins and plugins.Settings operations, contracts and
 SDK projections to Dokime as product policy over Harmos activation/storage calls.
 They are not wrappers around a Harmos registry or installation service.
+
+#### Product Plugin Policy Operations (2026-11-19)
+
+The owner requested the missing administration routes as part of this delivery.
+Plugin Boundary D1/D2/D4 supersedes generic payload reuse for administration:
+these declarations and their administration messages/resources are Dokime-owned,
+retaining the existing field numbers and SDK method names. Shared model values
+(read cuts, receipts, declarations, settings values and failures) remain Harmos
+payloads. The eight Plugins methods and two plugins.Settings methods below are
+CLIENTS only. Plugin own-settings reads remain the existing
+`harmos.plugin.v1.plugins.Settings/List` facility and the product kind resolver;
+there is no second plugin settings read route. Create retains optional `origin`
+(field 5); replacement preserves it. Application Settings.Get/Set/Schema is a
+separate existing product preference resource, unchanged by this inventory.
+
+| Product Service/Method | Audience | Request Message | Response Message | Authored Callers |
+| --- | --- | --- | --- | --- |
+| `dokime.host.v1.Plugins/Get` | CLIENTS | `dokime.host.v1.PluginsGetRequest` | `dokime.host.v1.PluginsGetResponse` | Desktop connection/host.rs; CLI plugin/{get,remove,mod}.rs; all four SDK registration/handle readiness and teardown; runtime/desktop support clients |
+| `dokime.host.v1.Plugins/List` | CLIENTS | `dokime.host.v1.PluginsListRequest` | `dokime.host.v1.PluginsListResponse` | Desktop generated dispatch and integration/rpc; CLI plugin/list.rs; Rust handle listing and generation fixture; C++ client-read/generation fixtures; runtime installation/support stories |
+| `dokime.host.v1.Plugins/Watch` | CLIENTS | `dokime.host.v1.PluginsWatchRequest` | `dokime.host.v1.PluginsWatchResponse` (stream) | Desktop connection/host.rs and tests/support/server.rs; CLI readiness in plugin/mod.rs; Rust/Python/C#/C++ registration; SDK authoring support clients |
+| `dokime.host.v1.Plugins/Create` | CLIENTS | `dokime.host.v1.PluginsCreateRequest` | `dokime.host.v1.PluginsCreateResponse` | Desktop connection/host.rs; CLI plugin/{register,install}.rs; all four SDK registration paths; runtime and SDK support clients |
+| `dokime.host.v1.Plugins/Set` | CLIENTS | `dokime.host.v1.PluginsSetRequest` | `dokime.host.v1.PluginsSetResponse` | Desktop generated dispatch; client_installs_and_removes_managed_plugins.rs enable/disable |
+| `dokime.host.v1.Plugins/Delete` | CLIENTS | `dokime.host.v1.PluginsDeleteRequest` | `dokime.host.v1.PluginsDeleteResponse` | Desktop capture support; CLI plugin/remove.rs; all four SDK registration teardown; runtime installation/support clients |
+| `dokime.host.v1.Plugins/Restart` | CLIENTS | `dokime.host.v1.PluginsRestartRequest` | `dokime.host.v1.PluginsRestartResponse` | Desktop generated dispatch; client_manages_plugin_entries.rs, client_browses_catalog.rs and client_reads_interrupted_execution.rs |
+| `dokime.host.v1.Plugins/Replace` | CLIENTS | `dokime.host.v1.PluginsReplaceRequest` | `dokime.host.v1.PluginsReplaceResponse` | Desktop generated dispatch; host/installation.rs startup replacement; client_installs_and_removes_managed_plugins.rs |
+| `dokime.host.v1.plugins.Settings/List` | CLIENTS | `dokime.host.v1.plugins.SettingsListRequest` | `dokime.host.v1.plugins.SettingsListResponse` | Desktop generated dispatch; client_edits_settings.rs reads/reopens; SDK plugin contexts use the separate own-settings facility |
+| `dokime.host.v1.plugins.Settings/Set` | CLIENTS | `dokime.host.v1.plugins.SettingsSetRequest` | `dokime.host.v1.plugins.SettingsSetResponse` | Desktop generated dispatch; client_edits_settings.rs complete conditional replacement/replay |
+
+This adds ten product policy operations beside the 15 generic wrappers, not ten
+facade-forwarding wrappers. `crates/dokime-client-internal/src/lib.rs` currently
+gets its plugin resources from the library Client; migrate it to these product
+resources. SDK registration owners are Rust `client/handles.rs`, Python
+`_client.py`, C# `Registration.cs` and C++ `src/handles.cpp`. Tests/support
+clients consume the same operations, not independent management services.
+
+The matching library host messages still exist at the pinned revision and are
+used by its in-process `harmos-operations/src/native/plugins` facade and runtime
+system fixtures. Product declarations do not restore their removed wire services.
+The product and library administration DTO families now overlap until the upstream
+ownership move completes; retain both pending the owner's deletion decision.
+Delete the obsolete upstream administration family/facade after migrating its
+runtime consumers, preserving the separate own-settings facility/resolver contract.
+
+Before this amendment Plugin Boundary assigned ownership and durable guarantees,
+but did not enumerate RPC names, caller audiences, message homes or the
+management-to-activation projection. This table locks names/audiences/message
+homes. Runtime policy, startup/storage integration and own-settings resolver
+implementation remain unchecked work; schema generation does not implement them.
 
 Decided by the owner on 2026-11-16: wrappers declare their audience with the `callers` option
 on their own methods, and plugins reach time and their own settings through the Harmos plugin

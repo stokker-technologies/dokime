@@ -9,7 +9,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
-using Harmos.Clients;
+using Dokime.Clients;
 
 namespace Dokime;
 
@@ -244,7 +244,7 @@ internal sealed class PluginEndpoint : IAsyncDisposable
     var ready = new ReadinessWriter(original);
     var stop = new CancellationTokenSource();
     Console.SetOut(ready);
-    var serving = plugin.Adapter.ServeAsync(address, remote: true, cancellationToken: stop.Token);
+    var serving = plugin.Adapter.RunAsync(address, remote: true, cancellationToken: stop.Token);
     try
     {
       var winner = await Task.WhenAny(ready.Address.Task, serving).WaitAsync(cancellationToken);

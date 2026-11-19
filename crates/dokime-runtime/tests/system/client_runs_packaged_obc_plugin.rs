@@ -21,8 +21,8 @@ use std::error::Error;
 use std::fs;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue};
+use dokime_protocol::host::plugin_placement;
+use dokime_protocol::host::{PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue};
 use prost_reflect::{self, DescriptorPool, DynamicMessage};
 use sha2::{Digest, Sha256};
 use tokio::time;

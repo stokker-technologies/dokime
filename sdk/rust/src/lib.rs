@@ -42,7 +42,6 @@ mod transfers;
 
 /* === Re-Exports === */
 
-use ::harmos::OperationRequest;
 pub use ::harmos::plugin::Lane;
 pub use client::{
     Attribution, Case, Client, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect, connect_with,
@@ -100,7 +99,7 @@ pub mod encoding {
     /* === Re-Exports === */
 
     pub mod contract {
-        pub use harmos::Message;
+        pub use ::harmos::Message;
     }
     pub use crate::message::Wire;
     pub use ::harmos::encoding::*;

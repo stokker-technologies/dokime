@@ -19,8 +19,8 @@ use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
 use super::support::bundles::{bundle, upload};
 use dokime_client_internal::Client;
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginState, PluginValue};
+use dokime_protocol::host::plugin_placement;
+use dokime_protocol::host::{PluginManaged, PluginPlacement, PluginState, PluginValue};
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use tonic::transport::Endpoint;
@@ -66,7 +66,7 @@ fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
                 })),
             };
             let installed = client.plugins.create("thermal", placement, PluginValue { enabled: true }).await?.entry.unwrap();
-            let installed = super::support::plugin_state(&client.plugins, installed, harmos_protocol::host::PluginState::Ready).await?;
+            let installed = super::support::plugin_state(&client.plugins, installed, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(installed.state, PluginState::Ready as i32);
             assert!(installed.process.is_some());
             assert_eq!(client.plugins.get("thermal").await?.entry, Some(installed.clone()));

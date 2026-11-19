@@ -74,7 +74,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         plugin = LifecyclePlugin()
         declarations = plugin.declarations()
         endpoint = await plugin._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.close)
+        self.addAsyncCleanup(endpoint.stop)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
         invoke = channel.stream_stream(
@@ -134,7 +134,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
         plugin = PlainPlugin()
         endpoint = await plugin._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.close)
+        self.addAsyncCleanup(endpoint.stop)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
         invoke = channel.stream_stream(
@@ -186,7 +186,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
         author = FailurePlugin()
         endpoint = await author._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.close)
+        self.addAsyncCleanup(endpoint.stop)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
         invoke = channel.stream_stream(
@@ -239,7 +239,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
         plugin = StreamsPlugin()
         endpoint = await plugin._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.close)
+        self.addAsyncCleanup(endpoint.stop)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
         template = plugin._suites[0].templates[0]
@@ -334,7 +334,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
         plugin = RecordsPlugin()
         endpoint = await plugin._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.close)
+        self.addAsyncCleanup(endpoint.stop)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
         invoke = channel.stream_stream(
@@ -388,7 +388,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     kind = frame.child.operation
                     child = cast(Any, requirement.request.FromString(frame.child.payload))
                     response = cast(Any, requirement.response())
-                    if kind == "harmos.host.v1.Time/Get":
+                    if kind == "harmos.plugin.v1.Time/Get":
                         response = TimeGetResponse(now=Timestamp())
                     elif kind == "dokime.host.v1.Prompts/Create":
                         asked = child

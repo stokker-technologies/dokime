@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Reflection;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
@@ -61,9 +62,14 @@ internal static class Payload<T>
     return (T)value;
   }
 
-  internal static void Register(Harmos.Plugins.Plugin plugin)
+  internal static void Register(Harmos.Plugins.Registrar registrar)
   {
-    typeof(Harmos.Plugins.Plugin).GetMethod(nameof(Harmos.Plugins.Plugin.Message))!
-        .MakeGenericMethod(Descriptor.ClrType).Invoke(plugin, null);
+    typeof(Payload<T>).GetMethod(nameof(RegisterWire), BindingFlags.Static | BindingFlags.NonPublic)!
+        .MakeGenericMethod(Descriptor.ClrType).Invoke(null, [registrar]);
+  }
+
+  private static void RegisterWire<TWire>(Harmos.Plugins.Registrar registrar) where TWire : IMessage<TWire>, new()
+  {
+    registrar.Register(new Harmos.Plugins.Descriptor<TWire>());
   }
 }

@@ -266,7 +266,7 @@ impl Host {
             |(context, plugins, name, _)| {
                 Box::pin(async move {
                     context.host.refresh_plugin_states().await?;
-                    Ok(lock(plugins)?.get(name).cloned())
+                    Ok(lock(plugins)?.get(name).cloned().map(dokime_operations::plugin_policy::entry))
                 })
             },
             |(_, _, _, watch)| Box::pin(async move { Ok(watch.next().await?.is_some()) }),
@@ -506,7 +506,7 @@ impl Host {
             result = Err(error.into());
         }
         if let Some(assembly) = &self.assembly {
-            if let Err(source) = assembly.runtime.shutdown_with_timeout(assembly.close_timeout).await {
+            if let Err(source) = assembly.runtime.stop_with_timeout(assembly.close_timeout).await {
                 result = Err(source.into());
             }
             if let Err(source) = assembly.backend_lease.close() {

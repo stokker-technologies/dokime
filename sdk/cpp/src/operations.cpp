@@ -80,7 +80,7 @@ string Context::secret(const string &identifier) {
   return transport_.call(operation, request).get().secret();
 }
 map<string, SettingValue> Context::settings() {
-  const Operation<SettingsListRequest, SettingsListResponse> operation("harmos.host.v1.plugins.Settings/List", harmos::VISIBILITY_PUBLIC);
+  const Operation<SettingsListRequest, SettingsListResponse> operation("harmos.plugin.v1.plugins.Settings/List", harmos::VISIBILITY_PUBLIC);
   const auto result = transport_.call(operation, SettingsListRequest{}).get();
   map<string, SettingValue> values;
   for (const auto &[name, value] : result.value().values()) {

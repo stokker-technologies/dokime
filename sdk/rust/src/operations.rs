@@ -21,7 +21,7 @@ pub use crate::operation::Operation;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::plugin;
+use ::harmos::plugin;
 use prost_types::Timestamp;
 
 // Local Imports

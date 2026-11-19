@@ -18,6 +18,8 @@
 // Standard Library Imports
 use std::{
     collections::BTreeSet,
+    env,
+    error::Error,
     fs,
     path::{Path, PathBuf},
 };
@@ -43,14 +45,14 @@ use heck::{ToSnakeCase, ToUpperCamelCase};
 
 /* === Public Functions === */
 
-pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::Error>> {
+pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn Error>> {
     // Prepared Tests Prefer Their Transferred Compiler; Source-Focused Tests Use the Pinned Package.
-    let vendor = std::env::var("TEST_PROFILE").ok().map(|profile| {
-        let target = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
+    let vendor = env::var("TEST_PROFILE").ok().map(|profile| {
+        let target = format!("{}-{}", env::consts::OS, env::consts::ARCH);
         root.join("target/build").join(profile).join(target).join("fixtures/inputs/vendor")
     });
     let (compiler, includes) = if let Some(vendor) = vendor.filter(|path| path.is_dir()) {
-        let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
+        let platform = match (env::consts::OS, env::consts::ARCH) {
             ("linux", "x86_64") => "linux-x86_64",
             ("linux", "aarch64") => "linux-aarch_64",
             ("macos", "x86_64") => "macos-x86_64",
@@ -81,7 +83,7 @@ pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::E
     Ok((compiler, includes))
 }
 
-pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
     let proto = root.join("proto");
     let (compiler, includes) = self::compiler(root)?;
     let mut pending = vec![proto.join("dokime"), proto.join("harmos")];

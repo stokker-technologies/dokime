@@ -24,7 +24,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::host::{PluginState, plugin_placement};
+use dokime_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::FileMetadata;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
@@ -33,9 +33,8 @@ use zip::ZipArchive;
 
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, documents_and_reports::decode_report, support};
-use dokime_client_internal::{
-    Client, ContentArtifactsCreateOptions, EvidenceSubject, ExecutionMode, PluginPlacement, PluginRemote, PluginValue, ReportSubject,
-};
+use dokime_client_internal::host::{PluginPlacement, PluginRemote, PluginValue};
+use dokime_client_internal::{Client, ContentArtifactsCreateOptions, EvidenceSubject, ExecutionMode, ReportSubject};
 use dokime_protocol::host::evidence::{AnnotationOwner, AnnotationOwnerOwner, ExecutionNoteOwner, NoteWritable, annotation_owner_owner};
 use dokime_protocol::host::{
     CyclePhase, CycleSelection, CycleSummary, ExecutionState, evidence_subject, execution_outcome, report_subject,

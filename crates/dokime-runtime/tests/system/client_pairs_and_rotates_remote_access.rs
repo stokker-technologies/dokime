@@ -20,7 +20,7 @@ use std::error::Error;
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::host::PluginsListRequest;
+use dokime_protocol::host::PluginsListRequest;
 use harmos_protocol::model::StorageTransferSettings;
 use tonic::Code;
 use tonic::transport::Certificate;

@@ -23,14 +23,13 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::OperationPolicy;
-use harmos::Visibility;
-use harmos::plugin;
+use ::harmos::OperationPolicy;
+use ::harmos::Visibility;
+use ::harmos::plugin;
 
 // Local Imports
 use crate::plugin::{
-    CriteriaEvaluateRequest, CriteriaEvaluateResponse, ExecutionsCleanupRequest, ExecutionsCleanupResponse, ExecutionsInitializeRequest,
-    ExecutionsInitializeResponse, StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
+    CriteriaEvaluateResponse, ExecutionsCleanupResponse, ExecutionsInitializeResponse, StepsExecuteResponse, TestCasesMaterializeResponse,
 };
 use crate::wire::model;
 use crate::{
@@ -44,6 +43,9 @@ use crate::{
     stream::{Registration, Sampler},
 };
 use crate::{Document, FileParameter, Metadata, Parameter, TestCase, TestCaseTemplate, Value};
+use dokime_protocol::plugin::{
+    CriteriaEvaluateRequest, ExecutionsCleanupRequest, ExecutionsInitializeRequest, StepsExecuteRequest, TestCasesMaterializeRequest,
+};
 
 /* === Constants === */
 
@@ -232,7 +234,9 @@ impl Template {
     }
 
     pub fn record<T: Payload>(mut self, record: Record<T>) -> Self {
-        self.registrations.push(Box::new(|plugin, _, _| plugin.message::<T::Message>()));
+        self.registrations.push(Box::new(|plugin, _, _| {
+            plugin.register(|registrar| registrar.register(plugin::Descriptor::<T::Message>::new())).map_err(Error::from)
+        }));
         self.records.push(record.definition);
         self
     }
@@ -511,104 +515,116 @@ impl Template {
             )
             .policy(step.policy);
             let handler = if step.replay_safe { handler.replay_safe() } else { handler };
-            plugin = plugin.operation(handler);
+            plugin = plugin.register(|registrar| registrar.register(handler))?;
         }
         for (operation, criterion) in criteria {
             let store = executions.clone();
             let template = identifier.clone();
-            plugin = plugin.operation(operation::wire(
-                operation.clone(),
-                Visibility::Protected,
-                async move |transport: &plugin::Context, Wire(request): Wire<CriteriaEvaluateRequest>| {
-                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
-                    let present = context.test_case()?.criteria.iter().any(|criterion| {
-                        criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.criterion)
-                            && criterion.operation == operation
-                    });
-                    if !present {
-                        return Err(Error::Invalid("Criterion Does Not Match the Frozen Test Case".into()));
-                    }
-                    let passed = criterion.handler.execute(&context).await?;
-                    Ok(Wire(CriteriaEvaluateResponse { passed }))
-                },
-            ));
+            plugin = plugin.register(|registrar| {
+                registrar.register(operation::wire(
+                    operation.clone(),
+                    Visibility::Protected,
+                    async move |transport: &plugin::Context, Wire(request): Wire<CriteriaEvaluateRequest>| {
+                        let context =
+                            Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
+                        let present = context.test_case()?.criteria.iter().any(|criterion| {
+                            criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.criterion)
+                                && criterion.operation == operation
+                        });
+                        if !present {
+                            return Err(Error::Invalid("Criterion Does Not Match the Frozen Test Case".into()));
+                        }
+                        let passed = criterion.handler.execute(&context).await?;
+                        Ok(Wire(CriteriaEvaluateResponse { passed }))
+                    },
+                ))
+            })?;
         }
         let allowed_steps = case.steps.iter().map(|step| step.operation.clone()).collect::<HashSet<_>>();
         let allowed_criteria = case.criteria.iter().map(|criterion| criterion.operation.clone()).collect::<HashSet<_>>();
         let allowed_streams = case.streams.iter().cloned().collect::<HashSet<_>>();
         let template = identifier.clone();
-        plugin = plugin.operation(operation::wire(
-            definition.materialize.clone(),
-            Visibility::Protected,
-            async move |transport: &plugin::Context, Wire(request): Wire<TestCasesMaterializeRequest>| {
-                if transport.scope().is_ok() {
-                    return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
-                }
-                if request.template != template {
-                    return Err(Error::Invalid("Materialization Names a Different Template".into()));
-                }
-                let mut case = case.clone();
-                case.parameters = request.parameters.clone();
-                if let Some(materialize) = &materialize {
-                    case = materialize(case, &request.parameters)?;
-                }
-                if case.parameters != request.parameters {
-                    return Err(Error::Invalid("Materialization Cannot Change Resolved Parameters".into()));
-                }
-                if case.steps.iter().any(|step| step.metadata.is_none())
-                    || case.criteria.iter().any(|criterion| criterion.metadata.is_none())
-                {
-                    return Err(Error::Invalid("Materialized Steps and Criteria Require Metadata".into()));
-                }
-                validate_names(
-                    case.steps.iter().filter_map(|step| step.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
-                    "Step",
-                )?;
-                validate_names(
-                    case.criteria.iter().filter_map(|criterion| criterion.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
-                    "Criterion",
-                )?;
-                if case.steps.iter().any(|step| !allowed_steps.contains(&step.operation))
-                    || case.criteria.iter().any(|criterion| !allowed_criteria.contains(&criterion.operation))
-                    || case.streams.iter().any(|stream| !allowed_streams.contains(stream))
-                {
-                    return Err(Error::Invalid("Materialization References an Undeclared Operation or Stream".into()));
-                }
-                Ok(Wire(TestCasesMaterializeResponse { test_case: Some(case) }))
-            },
-        ));
+        plugin = plugin.register(|registrar| {
+            registrar.register(operation::wire(
+                definition.materialize.clone(),
+                Visibility::Protected,
+                async move |transport: &plugin::Context, Wire(request): Wire<TestCasesMaterializeRequest>| {
+                    if transport.scope().is_ok() {
+                        return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
+                    }
+                    if request.template != template {
+                        return Err(Error::Invalid("Materialization Names a Different Template".into()));
+                    }
+                    let mut case = case.clone();
+                    case.parameters = request.parameters.clone();
+                    if let Some(materialize) = &materialize {
+                        case = materialize(case, &request.parameters)?;
+                    }
+                    if case.parameters != request.parameters {
+                        return Err(Error::Invalid("Materialization Cannot Change Resolved Parameters".into()));
+                    }
+                    if case.steps.iter().any(|step| step.metadata.is_none())
+                        || case.criteria.iter().any(|criterion| criterion.metadata.is_none())
+                    {
+                        return Err(Error::Invalid("Materialized Steps and Criteria Require Metadata".into()));
+                    }
+                    validate_names(
+                        case.steps.iter().filter_map(|step| step.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
+                        "Step",
+                    )?;
+                    validate_names(
+                        case.criteria
+                            .iter()
+                            .filter_map(|criterion| criterion.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
+                        "Criterion",
+                    )?;
+                    if case.steps.iter().any(|step| !allowed_steps.contains(&step.operation))
+                        || case.criteria.iter().any(|criterion| !allowed_criteria.contains(&criterion.operation))
+                        || case.streams.iter().any(|stream| !allowed_streams.contains(stream))
+                    {
+                        return Err(Error::Invalid("Materialization References an Undeclared Operation or Stream".into()));
+                    }
+                    Ok(Wire(TestCasesMaterializeResponse { test_case: Some(case) }))
+                },
+            ))
+        })?;
         if let Some(initialize) = initialize {
             let operation = build_identifier(&identifier, "initialize", false);
             let store = executions.clone();
             let template = identifier.clone();
-            plugin = plugin.operation(operation::wire(
-                operation,
-                Visibility::Protected,
-                async move |transport: &plugin::Context, Wire(request): Wire<ExecutionsInitializeRequest>| {
-                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
-                    initialize.execute(&context).await?;
-                    Ok(Wire(ExecutionsInitializeResponse {}))
-                },
-            ));
+            plugin = plugin.register(|registrar| {
+                registrar.register(operation::wire(
+                    operation,
+                    Visibility::Protected,
+                    async move |transport: &plugin::Context, Wire(request): Wire<ExecutionsInitializeRequest>| {
+                        let context =
+                            Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
+                        initialize.execute(&context).await?;
+                        Ok(Wire(ExecutionsInitializeResponse {}))
+                    },
+                ))
+            })?;
         }
         // Always Expose Cleanup So Even a Template Without a User Hook Releases Its Store.
         let template = identifier;
         let store = executions.clone();
-        plugin = plugin.operation(operation::wire(
-            definition.cleanup.clone().expect("SDK Cleanup Operation"),
-            Visibility::Protected,
-            async move |transport: &plugin::Context, Wire(request): Wire<ExecutionsCleanupRequest>| {
-                let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
-                let _end = context.end(store.clone());
-                let context = context.with_termination(request.termination)?;
-                if let Some(cleanup) = &cleanup {
-                    cleanup.execute(&context).await?;
-                }
-                Ok(Wire(ExecutionsCleanupResponse {}))
-            },
-        ));
+        plugin = plugin.register(|registrar| {
+            registrar.register(operation::wire(
+                definition.cleanup.clone().expect("SDK Cleanup Operation"),
+                Visibility::Protected,
+                async move |transport: &plugin::Context, Wire(request): Wire<ExecutionsCleanupRequest>| {
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
+                    let _end = context.end(store.clone());
+                    let context = context.with_termination(request.termination)?;
+                    if let Some(cleanup) = &cleanup {
+                        cleanup.execute(&context).await?;
+                    }
+                    Ok(Wire(ExecutionsCleanupResponse {}))
+                },
+            ))
+        })?;
         for register in registrations {
-            plugin = register(plugin, executions.clone(), "");
+            plugin = register(plugin, executions.clone(), "")?;
         }
         Ok((definition, plugin))
     }

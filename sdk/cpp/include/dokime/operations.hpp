@@ -25,11 +25,30 @@
 
 /* === Classes === */
 
+namespace dokime::templates {
+enum class HostOperation;
+}
+
 namespace dokime {
 using harmos::plugin::Lane;
 
 class Plugin;
 class Client;
+class Registrar {
+public:
+  Registrar &add(templates::HostOperation operation);
+  template <class T> Registrar &add(const T &value) {
+    native_.add([&value](harmos::plugin::Registrar &registrar) {
+      registrar.add(value);
+    });
+    return *this;
+  }
+
+private:
+  friend class Plugin;
+  explicit Registrar(harmos::plugin::Plugin &native) : native_(native) {}
+  harmos::plugin::Plugin &native_;
+};
 namespace detail {
 struct PluginState {
   Plugin *plugin = nullptr;

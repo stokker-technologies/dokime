@@ -19,15 +19,15 @@
 use std::error::Error;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime_client_internal::Client;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::SuitesListOptions;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_runtime::PluginProcess;
 
 /* === Constants === */
@@ -78,7 +78,7 @@ fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            let entry = super::support::plugin_state(&plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            let entry = super::support::plugin_state(&plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(entry.name, "thermal");
 
             // Read Suites, Templates, Record Contracts and Stream Rows
@@ -155,7 +155,7 @@ fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
             assert_eq!(retained.values, suites.values);
             assert_eq!(retained.resolved_at, suites.resolved_at);
             let restarted = plugins.restart("thermal", plugins.get("thermal").await?.entry.unwrap().revision).await?;
-            super::support::plugin_state(&plugins, restarted, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&plugins, restarted, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                     .suites

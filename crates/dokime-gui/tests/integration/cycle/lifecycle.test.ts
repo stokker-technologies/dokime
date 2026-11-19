@@ -13,12 +13,6 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
-import { openNativeExecutionProgressStream, openNativeRuntimeStream } from "@/lib/api/native-observation";
-import { previewNativeTestCycle } from "@/lib/api/native-planning";
-import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
-import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
-import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import {
@@ -37,10 +31,16 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
-import { fetchNativeDocument } from "../../../src/lib/api/native-document-session";
-import { projectExecutionStatus } from "../../../src/lib/api/native-planning-projection";
 
 // Local Imports
+import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
+import { openNativeExecutionProgressStream, openNativeRuntimeStream } from "@/lib/api/native-observation";
+import { previewNativeTestCycle } from "@/lib/api/native-planning";
+import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
+import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
+import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
+import { fetchNativeDocument } from "../../../src/lib/api/native-document-session";
+import { projectExecutionStatus } from "../../../src/lib/api/native-planning-projection";
 import { ControlCard } from "@/features/cycle/ControlCard";
 import { cycleControlState, executionControlState } from "@/features/cycle/control-model";
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
@@ -702,7 +702,7 @@ test("Diagnostics Read Stable Ranges and Verify the Whole Archive", async () => 
   const name = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
   let corrupt = false;
   fixture.extra.mockImplementation(async (path, request) => {
-    assert.equal(path, "/harmos.host.v1.status.Diagnostics/Get");
+    assert.equal(path, "/dokime.host.v1.status.Diagnostics/Get");
     assert.equal(request.name, request.offset === 0n ? "" : name);
     const data = bytes.slice(Number(request.offset), Number(request.offset + request.maxBytes));
     if (corrupt) {
@@ -721,7 +721,7 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
   const { openTraceStream, NativeTraceHistoryExpired } = await import("@/lib/api/native-logs");
   const at = { history: { store: "trace", epoch: "retained" }, sequence: 2n };
   fixture.extra.mockImplementation(async (path) => {
-    assert.equal(path, "/harmos.host.v1.status.TraceEvents/List");
+    assert.equal(path, "/dokime.host.v1.status.TraceEvents/List");
     return {
       resolvedAt: at,
       events: [
@@ -732,7 +732,7 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
   });
   const cancelled = vi.fn(async () => {});
   fixture.stream.mockImplementation(async (path, _input, output, _identity, request) => {
-    assert.equal(path, "/harmos.host.v1.status.TraceEvents/Watch");
+    assert.equal(path, "/dokime.host.v1.status.TraceEvents/Watch");
     assert.deepEqual(request.at, create((await import("@host/model")).PositionSchema, at));
     return {
       cancel: cancelled,

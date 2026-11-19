@@ -14,10 +14,10 @@
 #include "dokime/host/v1/files/uploads.pb.h"
 #include "dokime/host/v1/prompts.pb.h"
 #include "dokime/host/v1/secrets.pb.h"
-#include "harmos/host/v1/invocations.pb.h"
-#include "harmos/host/v1/operations.pb.h"
-#include "harmos/host/v1/plugins/settings.pb.h"
-#include "harmos/host/v1/time.pb.h"
+#include "harmos/plugin/v1/invocations.pb.h"
+#include "harmos/plugin/v1/operations.pb.h"
+#include "harmos/plugin/v1/plugins/settings.pb.h"
+#include "harmos/plugin/v1/time.pb.h"
 using ::dokime::CapturedRecordSelection;
 using ::dokime::ExecutionProgressValue;
 using ::dokime::FileSource;
@@ -124,7 +124,7 @@ using ::harmos::plugin::Operation;
 using ::harmos::plugin::Watching;
 Timestamp HostTimeResource::get(HostTimeGetOptions options) {
   TimeGetRequest request;
-  auto operation = Operation<TimeGetRequest, TimeGetResponse>("harmos.host.v1.Time/Get", VISIBILITY_PUBLIC);
+  auto operation = Operation<TimeGetRequest, TimeGetResponse>("harmos.plugin.v1.Time/Get", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   if (!response.has_now()) {
     throw runtime_error("Read TimeGet: Missing Payload");
@@ -134,7 +134,7 @@ Timestamp HostTimeResource::get(HostTimeGetOptions options) {
 TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSleepOptions options) {
   TimeSleepRequest request;
   *request.mutable_duration() = duration;
-  auto operation = Operation<TimeSleepRequest, TimeSleepResponse>("harmos.host.v1.Time/Sleep", VISIBILITY_PUBLIC);
+  auto operation = Operation<TimeSleepRequest, TimeSleepResponse>("harmos.plugin.v1.Time/Sleep", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
@@ -172,20 +172,20 @@ SettingsListResponse HostPluginsSettingsResource::list(HostPluginsSettingsListOp
   if (options.at) {
     *request.mutable_at() = *options.at;
   }
-  auto operation = Operation<SettingsListRequest, SettingsListResponse>("harmos.host.v1.plugins.Settings/List", VISIBILITY_PUBLIC);
+  auto operation = Operation<SettingsListRequest, SettingsListResponse>("harmos.plugin.v1.plugins.Settings/List", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
 vector<DiscoveredOperation> HostOperationsResource::list(HostOperationsListOptions options) {
   OperationsListRequest request;
-  auto operation = Operation<OperationsListRequest, OperationsListResponse>("harmos.host.v1.Operations/List", VISIBILITY_PUBLIC);
+  auto operation = Operation<OperationsListRequest, OperationsListResponse>("harmos.plugin.v1.Operations/List", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   return vector<DiscoveredOperation>(response.operations().begin(), response.operations().end());
 }
 DiscoveredOperation HostOperationsResource::get(const string &id, HostOperationsGetOptions options) {
   OperationsGetRequest request;
   request.set_id(id);
-  auto operation = Operation<OperationsGetRequest, OperationsGetResponse>("harmos.host.v1.Operations/Get", VISIBILITY_PUBLIC);
+  auto operation = Operation<OperationsGetRequest, OperationsGetResponse>("harmos.plugin.v1.Operations/Get", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   if (!response.has_operation()) {
     throw runtime_error("Read OperationsGet: Missing Payload");
@@ -195,7 +195,7 @@ DiscoveredOperation HostOperationsResource::get(const string &id, HostOperations
 InstanceState HostInvocationsResource::get(const uint64_t &instance, HostInvocationsGetOptions options) {
   InvocationsGetRequest request;
   request.set_instance(instance);
-  auto operation = Operation<InvocationsGetRequest, InvocationsGetResponse>("harmos.host.v1.Invocations/Get", VISIBILITY_PUBLIC);
+  auto operation = Operation<InvocationsGetRequest, InvocationsGetResponse>("harmos.plugin.v1.Invocations/Get", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   if (!response.has_invocation()) {
     throw runtime_error("Read InvocationsGet: Missing Payload");
@@ -206,7 +206,7 @@ InstanceState HostInvocationsResource::cancel(const uint64_t &instance, const st
   InvocationsCancelRequest request;
   request.set_instance(instance);
   request.set_reason(reason);
-  auto operation = Operation<InvocationsCancelRequest, InvocationsCancelResponse>("harmos.host.v1.Invocations/Cancel", VISIBILITY_PUBLIC);
+  auto operation = Operation<InvocationsCancelRequest, InvocationsCancelResponse>("harmos.plugin.v1.Invocations/Cancel", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   if (!response.has_invocation()) {
     throw runtime_error("Read InvocationsCancel: Missing Payload");
@@ -216,7 +216,7 @@ InstanceState HostInvocationsResource::cancel(const uint64_t &instance, const st
 HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, size_t max_item_bytes, HostInvocationsWatchOptions options) {
   InvocationsWatchRequest request;
   request.set_instance(instance);
-  auto operation = Operation<InvocationsWatchRequest, InvocationsWatchResponse>("harmos.host.v1.Invocations/Watch", VISIBILITY_PUBLIC);
+  auto operation = Operation<InvocationsWatchRequest, InvocationsWatchResponse>("harmos.plugin.v1.Invocations/Watch", VISIBILITY_PUBLIC);
   (void)options;
   operation.watch();
   auto incoming = std::make_shared<Watching<InvocationsWatchResponse>>(context.watch(operation, request, max_item_bytes));
@@ -596,107 +596,102 @@ HostRoot Context::host() {
 }
 } // namespace dokime::templates
 namespace dokime {
-Plugin &Plugin::requires_operation(templates::HostOperation operation) {
+Registrar &Registrar::add(templates::HostOperation operation) {
   using ::harmos::VISIBILITY_PUBLIC;
+  using ::harmos::plugin::Dependency;
   using ::harmos::plugin::Operation;
   using templates::HostOperation;
   switch (operation) {
   case HostOperation::BackendEnvironment:
-    return requires_operation(
-        Operation<BackendEnvironmentRequest, BackendEnvironmentResponse>("dokime.host.v1.Backend/Environment", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<BackendEnvironmentRequest, BackendEnvironmentResponse>("dokime.host.v1.Backend/Environment", VISIBILITY_PUBLIC)});
   case HostOperation::ContentArtifactsCreate:
-    return requires_operation(
-        Operation<ArtifactsCreateRequest, ArtifactsCreateResponse>("dokime.host.v1.content.Artifacts/Create", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<ArtifactsCreateRequest, ArtifactsCreateResponse>("dokime.host.v1.content.Artifacts/Create", VISIBILITY_PUBLIC)});
   case HostOperation::DocumentsAppendParts:
-    return requires_operation(
-        Operation<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse>("dokime.host.v1.Documents/AppendParts", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse>("dokime.host.v1.Documents/AppendParts", VISIBILITY_PUBLIC)});
   case HostOperation::EffectsCreate:
-    return requires_operation(Operation<EffectsCreateRequest, EffectsCreateResponse>("dokime.host.v1.Effects/Create", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<EffectsCreateRequest, EffectsCreateResponse>("dokime.host.v1.Effects/Create", VISIBILITY_PUBLIC)});
   case HostOperation::EffectsGet:
-    return requires_operation(Operation<EffectsGetRequest, EffectsGetResponse>("dokime.host.v1.Effects/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<EffectsGetRequest, EffectsGetResponse>("dokime.host.v1.Effects/Get", VISIBILITY_PUBLIC)});
   case HostOperation::EffectsSet:
-    return requires_operation(Operation<EffectsSetRequest, EffectsSetResponse>("dokime.host.v1.Effects/Set", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<EffectsSetRequest, EffectsSetResponse>("dokime.host.v1.Effects/Set", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceLogsAppend:
-    return requires_operation(Operation<LogsAppendRequest, LogsAppendResponse>("dokime.host.v1.evidence.Logs/Append", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<LogsAppendRequest, LogsAppendResponse>("dokime.host.v1.evidence.Logs/Append", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceRecordsList:
-    return requires_operation(
-        Operation<RecordsListRequest, RecordsListResponse>("dokime.host.v1.evidence.Records/List", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<RecordsListRequest, RecordsListResponse>("dokime.host.v1.evidence.Records/List", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceRecordsAppend:
-    return requires_operation(
-        Operation<RecordsAppendRequest, RecordsAppendResponse>("dokime.host.v1.evidence.Records/Append", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<RecordsAppendRequest, RecordsAppendResponse>("dokime.host.v1.evidence.Records/Append", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceTraceabilityGet:
-    return requires_operation(
-        Operation<TraceabilityGetRequest, TraceabilityGetResponse>("dokime.host.v1.evidence.Traceability/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<TraceabilityGetRequest, TraceabilityGetResponse>("dokime.host.v1.evidence.Traceability/Get", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceTraceabilitySet:
-    return requires_operation(
-        Operation<TraceabilitySetRequest, TraceabilitySetResponse>("dokime.host.v1.evidence.Traceability/Set", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<TraceabilitySetRequest, TraceabilitySetResponse>("dokime.host.v1.evidence.Traceability/Set", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceStatistics:
-    return requires_operation(
-        Operation<EvidenceStatisticsRequest, EvidenceStatisticsResponse>("dokime.host.v1.Evidence/Statistics", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<EvidenceStatisticsRequest, EvidenceStatisticsResponse>("dokime.host.v1.Evidence/Statistics", VISIBILITY_PUBLIC)});
   case HostOperation::ExecutionsProgressGet:
-    return requires_operation(
-        Operation<ProgressGetRequest, ProgressGetResponse>("dokime.host.v1.executions.Progress/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<ProgressGetRequest, ProgressGetResponse>("dokime.host.v1.executions.Progress/Get", VISIBILITY_PUBLIC)});
   case HostOperation::ExecutionsProgressSet:
-    return requires_operation(
-        Operation<ProgressSetRequest, ProgressSetResponse>("dokime.host.v1.executions.Progress/Set", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<ProgressSetRequest, ProgressSetResponse>("dokime.host.v1.executions.Progress/Set", VISIBILITY_PUBLIC)});
   case HostOperation::FilesCapturesStart:
-    return requires_operation(
-        Operation<CapturesStartRequest, CapturesStartResponse>("dokime.host.v1.files.Captures/Start", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<CapturesStartRequest, CapturesStartResponse>("dokime.host.v1.files.Captures/Start", VISIBILITY_PUBLIC)});
   case HostOperation::FilesCapturesStop:
-    return requires_operation(
-        Operation<CapturesStopRequest, CapturesStopResponse>("dokime.host.v1.files.Captures/Stop", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<CapturesStopRequest, CapturesStopResponse>("dokime.host.v1.files.Captures/Stop", VISIBILITY_PUBLIC)});
   case HostOperation::FilesUploadsCreate:
-    return requires_operation(
-        Operation<UploadsCreateRequest, UploadsCreateResponse>("dokime.host.v1.files.Uploads/Create", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<UploadsCreateRequest, UploadsCreateResponse>("dokime.host.v1.files.Uploads/Create", VISIBILITY_PUBLIC)});
   case HostOperation::FilesUploadsGet:
-    return requires_operation(Operation<UploadsGetRequest, UploadsGetResponse>("dokime.host.v1.files.Uploads/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<UploadsGetRequest, UploadsGetResponse>("dokime.host.v1.files.Uploads/Get", VISIBILITY_PUBLIC)});
   case HostOperation::FilesUploadsResume:
-    return requires_operation(
-        Operation<UploadsResumeRequest, UploadsResumeResponse>("dokime.host.v1.files.Uploads/Resume", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<UploadsResumeRequest, UploadsResumeResponse>("dokime.host.v1.files.Uploads/Resume", VISIBILITY_PUBLIC)});
   case HostOperation::FilesUploadsAppend:
-    return requires_operation(
-        Operation<UploadsAppendRequest, UploadsAppendResponse>("dokime.host.v1.files.Uploads/Append", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<UploadsAppendRequest, UploadsAppendResponse>("dokime.host.v1.files.Uploads/Append", VISIBILITY_PUBLIC)});
   case HostOperation::FilesUploadsPublish:
-    return requires_operation(
-        Operation<UploadsPublishRequest, UploadsPublishResponse>("dokime.host.v1.files.Uploads/Publish", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<UploadsPublishRequest, UploadsPublishResponse>("dokime.host.v1.files.Uploads/Publish", VISIBILITY_PUBLIC)});
   case HostOperation::FilesUploadsDelete:
-    return requires_operation(
-        Operation<UploadsDeleteRequest, UploadsDeleteResponse>("dokime.host.v1.files.Uploads/Delete", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<UploadsDeleteRequest, UploadsDeleteResponse>("dokime.host.v1.files.Uploads/Delete", VISIBILITY_PUBLIC)});
   case HostOperation::FilesGet:
-    return requires_operation(Operation<FilesGetRequest, FilesGetResponse>("dokime.host.v1.Files/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<FilesGetRequest, FilesGetResponse>("dokime.host.v1.Files/Get", VISIBILITY_PUBLIC)});
   case HostOperation::FilesRead:
-    return requires_operation(Operation<FilesReadRequest, FilesReadResponse>("dokime.host.v1.Files/Read", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<FilesReadRequest, FilesReadResponse>("dokime.host.v1.Files/Read", VISIBILITY_PUBLIC)});
   case HostOperation::FilesWatch:
-    return requires_operation(Operation<FilesWatchRequest, FilesWatchResponse>("dokime.host.v1.Files/Watch", VISIBILITY_PUBLIC).watch());
+    return add(Dependency{Operation<FilesWatchRequest, FilesWatchResponse>("dokime.host.v1.Files/Watch", VISIBILITY_PUBLIC).watch()});
   case HostOperation::FilesDelete:
-    return requires_operation(Operation<FilesDeleteRequest, FilesDeleteResponse>("dokime.host.v1.Files/Delete", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<FilesDeleteRequest, FilesDeleteResponse>("dokime.host.v1.Files/Delete", VISIBILITY_PUBLIC)});
   case HostOperation::FilesCapture:
-    return requires_operation(Operation<FilesCaptureRequest, FilesCaptureResponse>("dokime.host.v1.Files/Capture", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<FilesCaptureRequest, FilesCaptureResponse>("dokime.host.v1.Files/Capture", VISIBILITY_PUBLIC)});
   case HostOperation::PromptsCreate:
-    return requires_operation(Operation<PromptsCreateRequest, PromptsCreateResponse>("dokime.host.v1.Prompts/Create", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<PromptsCreateRequest, PromptsCreateResponse>("dokime.host.v1.Prompts/Create", VISIBILITY_PUBLIC)});
   case HostOperation::SecretsGet:
-    return requires_operation(Operation<SecretsGetRequest, SecretsGetResponse>("dokime.host.v1.Secrets/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<SecretsGetRequest, SecretsGetResponse>("dokime.host.v1.Secrets/Get", VISIBILITY_PUBLIC)});
   case HostOperation::InvocationsGet:
-    return requires_operation(
-        Operation<InvocationsGetRequest, InvocationsGetResponse>("harmos.host.v1.Invocations/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<InvocationsGetRequest, InvocationsGetResponse>("harmos.plugin.v1.Invocations/Get", VISIBILITY_PUBLIC)});
   case HostOperation::InvocationsCancel:
-    return requires_operation(
-        Operation<InvocationsCancelRequest, InvocationsCancelResponse>("harmos.host.v1.Invocations/Cancel", VISIBILITY_PUBLIC));
+    return add(Dependency{
+        Operation<InvocationsCancelRequest, InvocationsCancelResponse>("harmos.plugin.v1.Invocations/Cancel", VISIBILITY_PUBLIC)});
   case HostOperation::InvocationsWatch:
-    return requires_operation(
-        Operation<InvocationsWatchRequest, InvocationsWatchResponse>("harmos.host.v1.Invocations/Watch", VISIBILITY_PUBLIC).watch());
+    return add(Dependency{
+        Operation<InvocationsWatchRequest, InvocationsWatchResponse>("harmos.plugin.v1.Invocations/Watch", VISIBILITY_PUBLIC).watch()});
   case HostOperation::OperationsList:
-    return requires_operation(
-        Operation<OperationsListRequest, OperationsListResponse>("harmos.host.v1.Operations/List", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<OperationsListRequest, OperationsListResponse>("harmos.plugin.v1.Operations/List", VISIBILITY_PUBLIC)});
   case HostOperation::OperationsGet:
-    return requires_operation(Operation<OperationsGetRequest, OperationsGetResponse>("harmos.host.v1.Operations/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<OperationsGetRequest, OperationsGetResponse>("harmos.plugin.v1.Operations/Get", VISIBILITY_PUBLIC)});
   case HostOperation::PluginsSettingsList:
-    return requires_operation(
-        Operation<SettingsListRequest, SettingsListResponse>("harmos.host.v1.plugins.Settings/List", VISIBILITY_PUBLIC));
+    return add(
+        Dependency{Operation<SettingsListRequest, SettingsListResponse>("harmos.plugin.v1.plugins.Settings/List", VISIBILITY_PUBLIC)});
   case HostOperation::TimeGet:
-    return requires_operation(Operation<TimeGetRequest, TimeGetResponse>("harmos.host.v1.Time/Get", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<TimeGetRequest, TimeGetResponse>("harmos.plugin.v1.Time/Get", VISIBILITY_PUBLIC)});
   case HostOperation::TimeSleep:
-    return requires_operation(Operation<TimeSleepRequest, TimeSleepResponse>("harmos.host.v1.Time/Sleep", VISIBILITY_PUBLIC));
+    return add(Dependency{Operation<TimeSleepRequest, TimeSleepResponse>("harmos.plugin.v1.Time/Sleep", VISIBILITY_PUBLIC)});
   default:
     throw invalid_argument("Declare Host Requirement: Unknown Operation");
   }

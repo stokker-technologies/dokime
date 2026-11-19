@@ -20,7 +20,7 @@ use std::error::Error;
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use prost::Message;
 use prost_reflect::DescriptorPool;
@@ -38,9 +38,9 @@ use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceRecordsListOptions;
 use dokime_client_internal::ExecutionsSchemasGetOptions;
 use dokime_client_internal::FrozenSchemaCache;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::executions::SchemasGetRequest;
 use dokime_runtime::PluginProcess;
 
@@ -89,7 +89,7 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            let entry = super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            let entry = super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
 
             // Run Two Executions with the Same Frozen Descriptors.
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", Default::default()).await?;

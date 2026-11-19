@@ -26,6 +26,7 @@ from harmos_tools.source.protocol import caller_options
 
 # Local Imports
 from ..process import spawn_flags
+from .protocol import library_dependencies
 
 # Type Checking Imports
 
@@ -44,6 +45,7 @@ from ..process import spawn_flags
 
 def main() -> None:
     root = Path(__file__).resolve().parents[5]
+    library_dependencies(root, check=True)
     check_public_surfaces(root)
 
     scratch = Path(tempfile.mkdtemp())

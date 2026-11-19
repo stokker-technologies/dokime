@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Certificates Contracts
+//
+// Product client exposure of the in-process library operations.
+
+syntax = "proto3";
+
+package dokime.host.v1.access;
+
+// === Imports === //
+
+import "harmos/host/v1/access/certificates.proto";
+import "harmos/model/v1/callers.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.AccessResources";
+
+// === Services === //
+
+// Exposes Certificates to product clients with library-owned payloads and execution policy.
+service Certificates {
+  // Generate and persist a new TLS certificate, rotate the live listener and revoke all existing pairings; repeating the call rotates again.
+  rpc Create(.harmos.host.v1.access.CertificatesCreateRequest) returns (.harmos.host.v1.access.CertificatesCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// === Enums === //

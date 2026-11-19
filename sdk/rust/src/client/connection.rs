@@ -30,7 +30,7 @@ use tonic::{
 // Local Imports
 use super::{CallOptions, StatusGetOptions};
 use crate::{Client, Error, Result, StorageTransferSettings, configuration};
-use harmos::ClientSettings;
+use ::harmos::ClientSettings;
 
 /* === Constants === */
 

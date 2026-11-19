@@ -18,13 +18,13 @@ from collections.abc import AsyncIterator
 # Third Party Imports
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
-from harmos._wire.host.v1 import plugins_pb2
-from harmos._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Local Imports
 from dokime_sdk._connection import connect
 from dokime_sdk._errors import SdkError
 from dokime_sdk._plugin import Plugin
+from dokime_sdk._wire.host.v1 import plugins_pb2
+from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Type Checking Imports
 
@@ -180,7 +180,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.ready.set()
         running = await client.plugins.register(RunningPlugin(), address="127.0.0.1:0")
         assert running._endpoint is not None
-        self.addAsyncCleanup(running._endpoint.close)
+        self.addAsyncCleanup(running._endpoint.stop)
         await client.plugins.register(IdlePlugin(), address="127.0.0.1:0")
         self.refuse_delete.add("running")
         self.trace.clear()
@@ -190,7 +190,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(self.entries), ["running"])
         self.assertIsNotNone(running._endpoint)
         assert running._endpoint is not None
-        await running._endpoint.close()
+        await running._endpoint.stop()
         with self.assertRaises(SdkError) as repeated:
             await client.close()
         self.assertIs(failed.exception, repeated.exception)

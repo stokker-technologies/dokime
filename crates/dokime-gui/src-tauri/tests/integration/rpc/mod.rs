@@ -127,10 +127,10 @@ use sha2::{Digest, Sha256};
 
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
-use dokime_client_internal::PluginEntry;
 use dokime_client_internal::PluginsListOptions;
 use dokime_client_internal::StatusGetOptions;
-use dokime_client_internal::plugin_placement;
+use dokime_client_internal::host::PluginEntry;
+use dokime_client_internal::host::plugin_placement;
 use dokime_gui::rpc::{Bridge, FRAME_ERROR};
 use harmos_protocol::host;
 
@@ -222,7 +222,7 @@ fn refuses_invalid_dispatch() {
             {
                 assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
             }
-            for path in [None, Some("harmos.host.v1.Status/Get"), Some("/a/b/c")] {
+            for path in [None, Some("dokime.host.v1.Status/Get"), Some("/a/b/c")] {
                 let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path":path}));
                 assert_eq!(
                     bridge::invoke(&harness.window, command, fenced(generation, &[]), &headers).unwrap_err()["kind"],
@@ -231,7 +231,7 @@ fn refuses_invalid_dispatch() {
             }
         }
         assert_eq!(
-            bridge::invoke(&harness.window, "rpc", fenced(generation + 1, &[]), &json!({"dokime-rpc-path":"/harmos.host.v1.Status/Get"}))
+            bridge::invoke(&harness.window, "rpc", fenced(generation + 1, &[]), &json!({"dokime-rpc-path":"/dokime.host.v1.Status/Get"}))
                 .unwrap_err()["detail"]["kind"],
             "superseded"
         );
@@ -247,7 +247,7 @@ fn unary_call_bridges() {
         let harness = Harness::new(fixture.session.clone());
         let generation = fixture.generation();
         let reply =
-            bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/harmos.host.v1.Status/Get"}))
+            bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.host.v1.Status/Get"}))
                 .unwrap();
         let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
             panic!("Status Replies with Canonical Bytes");

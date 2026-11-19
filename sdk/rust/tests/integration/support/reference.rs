@@ -78,8 +78,12 @@ pub async fn start() -> TestResult<Runtime<Host>> {
     let clock = Clock::with_clock(Frozen {
         reading: Clock::real_at(std::time::SystemTime::UNIX_EPOCH).read(),
     });
-    Ok(Runtime::<Host>::launch_with((), (), |setup| {
+    Ok(Runtime::<Host>::start_with((), (), |setup| {
         setup.settings().clock(clock);
+        setup.settings().operation_settings(harmos_runtime::operations::Settings {
+            preparation_bytes: Some(NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
+            ..Default::default()
+        });
     })
     .await?)
 }

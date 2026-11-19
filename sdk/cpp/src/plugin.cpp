@@ -33,6 +33,7 @@ using dokime::plugin::v1::StepsExecuteRequest;
 using dokime::plugin::v1::StepsExecuteResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
+using google::protobuf::Empty;
 using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::all_of;
 using std::find_if;
@@ -56,6 +57,7 @@ using harmos::Declarations;
 using harmos::Failure;
 using harmos::OperationPolicy;
 using harmos::VISIBILITY_PROTECTED;
+using harmos::plugin::Contribution;
 using harmos::plugin::Operation;
 
 using std::invalid_argument;
@@ -282,6 +284,7 @@ Plugin &Plugin::suite(Suite suite) {
       bindings_[value.type].emplace_back(suite_id, id);
     bound.push_back(move(bindings));
   }
+  Registrar registrar(native_);
   dokime::detail::payloads::Suite declaration;
   *declaration.mutable_metadata() = metadata(suite_id, suite.label.empty() ? templates::build_label(suite.name) : suite.label);
   size_t index = 0;
@@ -297,7 +300,7 @@ Plugin &Plugin::suite(Suite suite) {
       const auto identity = bindings->identifiers.at(record.declaration.key);
       *record.contract.mutable_metadata() = metadata(identity, record.declaration.label.empty() ? identity : record.declaration.label);
       *records_.add_records() = move(record.contract);
-      record.message(native_);
+      record.message(registrar);
     }
     for (auto &prompt : value.prompts) {
       const auto identity = bindings->identifiers.at(prompt.key);
@@ -336,7 +339,7 @@ Plugin &Plugin::suite(Suite suite) {
         operation.replay_safe();
         operation.policy(policy);
       }
-      native_.operation(operation);
+      registrar.add(operation);
     }
     for (auto &criterion : value.criteria) {
       const auto operation_id = bindings->identifiers.at(criterion.key);
@@ -344,7 +347,7 @@ Plugin &Plugin::suite(Suite suite) {
       *declared->mutable_metadata() = metadata(operation_id, criterion.label);
       declared->set_operation(operation_id);
       const auto item = operation_id;
-      native_.operation(Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(
+      registrar.add(Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(
           operation_id, VISIBILITY_PROTECTED,
           [state, plugin, bindings, id, item, evaluate = criterion.evaluate](harmos::plugin::Context &transport,
                                                                              CriteriaEvaluateRequest request) {
@@ -361,10 +364,10 @@ Plugin &Plugin::suite(Suite suite) {
     }
     for (const auto &stream : value.streams) {
       test_case.add_streams(bindings->identifiers.at(stream.declaration.key));
-      stream.register_(native_, bindings, state, plugin);
+      stream.register_(registrar, bindings, state, plugin);
     }
     definition.set_materialize(build_identifier("materialize", {}, id));
-    native_.operation(Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(
+    registrar.add(Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(
         build_identifier("materialize", {}, id), VISIBILITY_PROTECTED,
         [id, test_case, bindings, steps = value.steps, criteria = value.criteria,
          materialize = move(value.materialize)](harmos::plugin::Context &transport, TestCasesMaterializeRequest request) {
@@ -392,7 +395,7 @@ Plugin &Plugin::suite(Suite suite) {
         }));
     if (value.initialize) {
       definition.set_initialize(build_identifier("initialize", {}, id));
-      native_.operation(Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(
+      registrar.add(Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(
           build_identifier("initialize", {}, id), VISIBILITY_PROTECTED,
           [state, plugin, bindings, id, initialize = move(value.initialize)](harmos::plugin::Context &transport,
                                                                              ExecutionsInitializeRequest request) {
@@ -403,7 +406,7 @@ Plugin &Plugin::suite(Suite suite) {
     }
     // Always Register Cleanup So the Host Can Release Execution Resources.
     definition.set_cleanup(build_identifier("cleanup", {}, id));
-    native_.operation(Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(
+    registrar.add(Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(
         build_identifier("cleanup", {}, id), VISIBILITY_PROTECTED,
         [state, plugin, bindings, id, cleanup = move(value.cleanup)](harmos::plugin::Context &transport, ExecutionsCleanupRequest request) {
           auto ctx = execution_context(transport, request, id, state, bindings, "Clean Up Execution", {}, plugin);
@@ -426,64 +429,64 @@ Plugin &Plugin::suite(Suite suite) {
   return *this;
 }
 Plugin &Plugin::context_operations() {
-  requires_operation(HostOperation::BackendEnvironment);
-  requires_operation(HostOperation::ContentArtifactsCreate);
-  requires_operation(HostOperation::FilesUploadsCreate);
-  requires_operation(HostOperation::FilesUploadsAppend);
-  requires_operation(HostOperation::FilesUploadsPublish);
-  requires_operation(HostOperation::FilesUploadsDelete);
-  requires_operation(HostOperation::FilesCapture);
-  requires_operation(HostOperation::FilesCapturesStart);
-  requires_operation(HostOperation::FilesCapturesStop);
-  requires_operation(HostOperation::PromptsCreate);
-  requires_operation(HostOperation::PluginsSettingsList);
-  requires_operation(HostOperation::SecretsGet);
-  requires_operation(HostOperation::EvidenceRecordsAppend);
-  requires_operation(HostOperation::EvidenceRecordsList);
-  requires_operation(HostOperation::EvidenceStatistics);
-  requires_operation(HostOperation::ExecutionsProgressGet);
-  requires_operation(HostOperation::ExecutionsProgressSet);
-  requires_operation(HostOperation::EvidenceLogsAppend);
-  requires_operation(HostOperation::EvidenceTraceabilityGet);
-  requires_operation(HostOperation::EvidenceTraceabilitySet);
-  requires_operation(HostOperation::DocumentsAppendParts);
-  requires_operation(HostOperation::EffectsCreate);
-  requires_operation(HostOperation::EffectsGet);
-  requires_operation(HostOperation::EffectsSet);
-  requires_operation(HostOperation::TimeGet);
-  requires_operation(HostOperation::TimeSleep);
+  Registrar registrar(native_);
+  registrar.add(HostOperation::BackendEnvironment);
+  registrar.add(HostOperation::ContentArtifactsCreate);
+  registrar.add(HostOperation::FilesUploadsCreate);
+  registrar.add(HostOperation::FilesUploadsAppend);
+  registrar.add(HostOperation::FilesUploadsPublish);
+  registrar.add(HostOperation::FilesUploadsDelete);
+  registrar.add(HostOperation::FilesCapture);
+  registrar.add(HostOperation::FilesCapturesStart);
+  registrar.add(HostOperation::FilesCapturesStop);
+  registrar.add(HostOperation::PromptsCreate);
+  registrar.add(HostOperation::PluginsSettingsList);
+  registrar.add(HostOperation::SecretsGet);
+  registrar.add(HostOperation::EvidenceRecordsAppend);
+  registrar.add(HostOperation::EvidenceRecordsList);
+  registrar.add(HostOperation::EvidenceStatistics);
+  registrar.add(HostOperation::ExecutionsProgressGet);
+  registrar.add(HostOperation::ExecutionsProgressSet);
+  registrar.add(HostOperation::EvidenceLogsAppend);
+  registrar.add(HostOperation::EvidenceTraceabilityGet);
+  registrar.add(HostOperation::EvidenceTraceabilitySet);
+  registrar.add(HostOperation::DocumentsAppendParts);
+  registrar.add(HostOperation::EffectsCreate);
+  registrar.add(HostOperation::EffectsGet);
+  registrar.add(HostOperation::EffectsSet);
+  registrar.add(HostOperation::TimeGet);
+  registrar.add(HostOperation::TimeSleep);
   return *this;
 }
 harmos::plugin::Plugin Plugin::compose() const {
   auto result = native_;
-  result.operation(harmos::plugin::Operation<google::protobuf::Empty, google::protobuf::Empty>(
-      identifier_ + ".initialize", harmos::VISIBILITY_PROTECTED,
-      [plugin = plugin_](harmos::plugin::Context &transport, const google::protobuf::Empty &) {
-        operations::Context context(transport, plugin);
-        context.plugin().initialize(context);
-        return google::protobuf::Empty{};
-      }));
-  result.operation(harmos::plugin::Operation<google::protobuf::Empty, google::protobuf::Empty>(
-      identifier_ + ".finalize", harmos::VISIBILITY_PROTECTED,
-      [plugin = plugin_, executions = executions_](harmos::plugin::Context &transport, const google::protobuf::Empty &) {
-        operations::Context context(transport, plugin);
-        try {
-          context.plugin().finalize(context);
-        } catch (...) {
-          executions->clear();
-          throw;
-        }
-        executions->clear();
-        return google::protobuf::Empty{};
-      }));
+  Registrar registrar(result);
+  registrar.add(Operation<Empty, Empty>(identifier_ + ".initialize", VISIBILITY_PROTECTED,
+                                        [plugin = plugin_](harmos::plugin::Context &transport, const Empty &) {
+                                          operations::Context context(transport, plugin);
+                                          context.plugin().initialize(context);
+                                          return Empty{};
+                                        }));
+  registrar.add(Operation<Empty, Empty>(identifier_ + ".finalize", VISIBILITY_PROTECTED,
+                                        [plugin = plugin_, executions = executions_](harmos::plugin::Context &transport, const Empty &) {
+                                          operations::Context context(transport, plugin);
+                                          try {
+                                            context.plugin().finalize(context);
+                                          } catch (...) {
+                                            executions->clear();
+                                            throw;
+                                          }
+                                          executions->clear();
+                                          return Empty{};
+                                        }));
   if (suites_.suites_size())
-    result.section(suites_);
+    registrar.add(Contribution{suites_});
   if (prompts_.prompts_size())
-    result.section(prompts_);
+    registrar.add(Contribution{prompts_});
   if (records_.records_size())
-    result.section(records_);
+    registrar.add(Contribution{records_});
   if (secrets_.secrets_size())
-    result.section(secrets_);
+    registrar.add(Contribution{secrets_});
   return result;
 }
 Plugin &Plugin::secrets(SecretsDeclarations secrets) {
@@ -529,13 +532,13 @@ Plugin::Plugin(Plugin &&other) noexcept
 }
 void Plugin::serve(optional<string> address) const {
   if (!address && dokime::detail::configuration::environment("HARMOS_ADDRESS")) {
-    compose().serve();
+    compose().run();
     ShutdownDefaultEventEngine();
     return;
   }
   const auto values = dokime::detail::configuration::load();
   const auto selected = dokime::detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
-  compose().serve(selected);
+  compose().run(selected);
   ShutdownDefaultEventEngine();
 }
 } // namespace dokime

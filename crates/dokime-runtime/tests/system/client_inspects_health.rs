@@ -22,11 +22,11 @@
 // Local Imports
 use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceHealthEventsListOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginState;
-use dokime_client_internal::PluginValue;
-use harmos_protocol::host::plugin_placement;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginState;
+use dokime_client_internal::host::PluginValue;
+use dokime_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 

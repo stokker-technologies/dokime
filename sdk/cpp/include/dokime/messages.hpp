@@ -852,6 +852,88 @@ using ::dokime::detail::payloads::client::PlotSettingsValue;
 namespace host::plugins {
 using ::dokime::detail::payloads::client::host::plugins::SecretsListResponse;
 }
+using ::dokime::detail::payloads::client::SecretRequirement;
+namespace host::plugins {
+using ::dokime::detail::payloads::client::host::plugins::SettingsListResponse;
+}
+namespace host::plugins {
+using ::dokime::detail::payloads::client::host::plugins::SettingsSetResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsGetResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsListResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsWatchResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsCreateResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsSetResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsDeleteResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsRestartResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginsReplaceResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginValue;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginDescription;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginRemote;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginManaged;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginGuest;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginPlacement;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginProcess;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginEntry;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginSnapshot;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginChange;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PluginState;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_UNSPECIFIED;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_CONNECTING;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_READY;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_UNAVAILABLE;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_STOPPED;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_STOPPING;
+}
 using ::dokime::detail::payloads::client::AnswersCreateResponse;
 using ::dokime::detail::payloads::client::PROMPT_KIND_CHOICE;
 using ::dokime::detail::payloads::client::PROMPT_KIND_CONFIRMATION;
@@ -881,7 +963,6 @@ using ::dokime::detail::payloads::client::ReportsCreateResponse;
 using ::dokime::detail::payloads::client::ReportsGetResponse;
 using ::dokime::detail::payloads::client::ReportsPublishResponse;
 using ::dokime::detail::payloads::client::ReportSubject;
-using ::dokime::detail::payloads::client::SecretRequirement;
 using ::dokime::detail::payloads::client::SecretsSetResponse;
 using ::dokime::detail::payloads::client::SuitesGetResponse;
 using ::dokime::detail::payloads::client::SuitesListResponse;

@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use harmos_runtime::clock;
 use harmos_runtime::clock::Controller;
 use tonic::transport::Endpoint;
@@ -41,11 +41,11 @@ use dokime_client_internal::ExecutionState;
 use dokime_client_internal::ExecutionsCommandsCreateOptions;
 use dokime_client_internal::ExecutionsCreateOptions;
 use dokime_client_internal::ExecutionsStartOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::RegisteredSelection;
 use dokime_client_internal::SelectionPlan;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_runtime::ControlledClock;
 use dokime_runtime::PluginProcess;
@@ -184,7 +184,7 @@ fn failed_worker_settles_its_samples() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             let cycle = client
                 .cycles
                 .create_with(

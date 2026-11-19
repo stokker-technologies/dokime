@@ -54,7 +54,7 @@ use std::path::Path;
 use std::process::Stdio;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
 use sha2::Digest;
@@ -79,13 +79,13 @@ use dokime_client_internal::ExecutionState;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
 use dokime_client_internal::FilesReadOptions;
 use dokime_client_internal::FrozenSchemaCache;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::ReportState;
 use dokime_client_internal::ReportSubject;
 use dokime_client_internal::ReportsCreateOptions;
 use dokime_client_internal::ResultStatus;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::evidence::sample_row;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::report_subject;
@@ -176,7 +176,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             assert!(
                 catalog
                     .iter()
-                    .any(|operation| operation.contract.as_ref().is_some_and(|contract| contract.id == "harmos.host.v1.Status/Get"))
+                    .any(|operation| operation.contract.as_ref().is_some_and(|contract| contract.id == "dokime.host.v1.Status/Get"))
             );
             let entry = client
                 .plugins
@@ -190,7 +190,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            let entry = super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            let entry = super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(client.plugins.list().await?.entries, vec![entry]);
             let suites = client.suites.list(String::new()).await?;
             let suite_id = suites.values[0].metadata.as_ref().unwrap().identifier.clone();

@@ -114,69 +114,69 @@ struct Template : Declaration {
   template <class T> Template &record(Record<T> record) {
     RecordContract contract;
     contract.set_message(decltype(detail::payload_message<T>())::descriptor()->full_name());
-    records.push_back({std::move(record), std::move(contract), [](harmos::plugin::Plugin &native) {
-                         native.message<decltype(detail::payload_message<T>())>();
+    records.push_back({std::move(record), std::move(contract), [](Registrar &registrar) {
+                         registrar.add(harmos::plugin::Descriptor<decltype(detail::payload_message<T>())>{});
                        }});
     return *this;
   }
   template <class T> Template &observer(Observer<T> observer) {
     auto stream = observer.stream;
-    streams.push_back(
-        {stream, [observer = std::move(observer)](harmos::plugin::Plugin &native, std::shared_ptr<const detail::Bindings> bindings,
-                                                  std::shared_ptr<detail::Executions> executions,
-                                                  std::shared_ptr<dokime::detail::PluginState> plugin) {
-           harmos::plugin::Stream<decltype(detail::payload_message<T>())> stream(bindings->identifiers.at(observer.stream.key));
-           stream.description(observer.stream.label);
-           native.stream(stream);
-           harmos::plugin::Observer<decltype(detail::payload_message<T>())> value(
-               stream, [executions, bindings, plugin, sample = observer.sample](harmos::plugin::Context &transport) {
-                 auto resources = executions->open(transport.scope());
-                 TestCase test_case;
-                 {
-                   std::lock_guard lock(resources->mutex);
-                   test_case = resources->test_case;
-                 }
-                 Context context(transport, std::move(test_case), {}, resources, bindings, plugin);
-                 return detail::pack<T>(sample(context));
-               });
-           value.every(observer.interval);
-           if (!observer.interval_setting.empty())
-             value.interval_setting(observer.interval_setting);
-           if (!observer.window_setting.empty())
-             value.window_setting(observer.window_setting);
-           native.observer(value);
-         }});
+    streams.push_back({stream, [observer = std::move(observer)](Registrar &registrar, std::shared_ptr<const detail::Bindings> bindings,
+                                                                std::shared_ptr<detail::Executions> executions,
+                                                                std::shared_ptr<dokime::detail::PluginState> plugin) {
+                         harmos::plugin::Stream<decltype(detail::payload_message<T>())> stream(
+                             bindings->identifiers.at(observer.stream.key));
+                         stream.description(observer.stream.label);
+                         registrar.add(stream);
+                         harmos::plugin::Observer<decltype(detail::payload_message<T>())> value(
+                             stream, [executions, bindings, plugin, sample = observer.sample](harmos::plugin::Context &transport) {
+                               auto resources = executions->open(transport.scope());
+                               TestCase test_case;
+                               {
+                                 std::lock_guard lock(resources->mutex);
+                                 test_case = resources->test_case;
+                               }
+                               Context context(transport, std::move(test_case), {}, resources, bindings, plugin);
+                               return detail::pack<T>(sample(context));
+                             });
+                         value.every(observer.interval);
+                         if (!observer.interval_setting.empty())
+                           value.interval_setting(observer.interval_setting);
+                         if (!observer.window_setting.empty())
+                           value.window_setting(observer.window_setting);
+                         registrar.add(value);
+                       }});
     return *this;
   }
   template <class T, class C> Template &observer(WindowObserver<T, C> observer) {
     auto stream = observer.stream;
-    streams.push_back(
-        {stream, [observer = std::move(observer)](harmos::plugin::Plugin &native, std::shared_ptr<const detail::Bindings> bindings,
-                                                  std::shared_ptr<detail::Executions> executions,
-                                                  std::shared_ptr<dokime::detail::PluginState> plugin) {
-           harmos::plugin::Stream<decltype(detail::payload_message<T>())> stream(bindings->identifiers.at(observer.stream.key));
-           stream.description(observer.stream.label);
-           native.stream(stream);
-           auto value = harmos::plugin::Observer<decltype(detail::payload_message<T>())>::template window<C>(
-               stream, [executions, bindings, plugin, sample = observer.sample](harmos::plugin::Context &transport,
-                                                                                const harmos::plugin::Window &window) {
-                 auto resources = executions->open(transport.scope());
-                 TestCase test_case;
-                 {
-                   std::lock_guard lock(resources->mutex);
-                   test_case = resources->test_case;
-                 }
-                 Context context(transport, std::move(test_case), {}, resources, bindings, plugin);
-                 const sampling::Window selected{window.start, window.period, window.count, window.sequence};
-                 return sample(context, selected);
-               });
-           value.every(observer.interval);
-           if (!observer.interval_setting.empty())
-             value.interval_setting(observer.interval_setting);
-           if (!observer.window_setting.empty())
-             value.window_setting(observer.window_setting);
-           native.observer(value);
-         }});
+    streams.push_back({stream, [observer = std::move(observer)](Registrar &registrar, std::shared_ptr<const detail::Bindings> bindings,
+                                                                std::shared_ptr<detail::Executions> executions,
+                                                                std::shared_ptr<dokime::detail::PluginState> plugin) {
+                         harmos::plugin::Stream<decltype(detail::payload_message<T>())> stream(
+                             bindings->identifiers.at(observer.stream.key));
+                         stream.description(observer.stream.label);
+                         registrar.add(stream);
+                         auto value = harmos::plugin::Observer<decltype(detail::payload_message<T>())>::template window<C>(
+                             stream, [executions, bindings, plugin, sample = observer.sample](harmos::plugin::Context &transport,
+                                                                                              const harmos::plugin::Window &window) {
+                               auto resources = executions->open(transport.scope());
+                               TestCase test_case;
+                               {
+                                 std::lock_guard lock(resources->mutex);
+                                 test_case = resources->test_case;
+                               }
+                               Context context(transport, std::move(test_case), {}, resources, bindings, plugin);
+                               const sampling::Window selected{window.start, window.period, window.count, window.sequence};
+                               return sample(context, selected);
+                             });
+                         value.every(observer.interval);
+                         if (!observer.interval_setting.empty())
+                           value.interval_setting(observer.interval_setting);
+                         if (!observer.window_setting.empty())
+                           value.window_setting(observer.window_setting);
+                         registrar.add(value);
+                       }});
     return *this;
   }
 
@@ -185,11 +185,11 @@ private:
   struct RecordDefinition {
     Declaration declaration;
     RecordContract contract;
-    std::function<void(harmos::plugin::Plugin &)> message;
+    std::function<void(Registrar &)> message;
   };
   struct StreamDefinition {
     Declaration declaration;
-    std::function<void(harmos::plugin::Plugin &, std::shared_ptr<const detail::Bindings>, std::shared_ptr<detail::Executions>,
+    std::function<void(Registrar &, std::shared_ptr<const detail::Bindings>, std::shared_ptr<detail::Executions>,
                        std::shared_ptr<dokime::detail::PluginState>)>
         register_;
   };
