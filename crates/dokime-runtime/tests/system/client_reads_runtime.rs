@@ -20,11 +20,13 @@ use std::error::Error;
 
 // Third Party Imports
 use harmos_protocol::host::ComponentState;
+use harmos_protocol::model::PageRequest;
 use harmos_runtime::operations::OperationFactory;
 use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime_client_internal::Client;
+use dokime_client_internal::StatusTraceEventsListOptions;
 use dokime_client_internal::StatusWatchOptions;
 use dokime_operations::host;
 
@@ -236,14 +238,25 @@ fn clients_reach_every_wrapper_service() -> Result<(), Box<dyn Error>> {
         let mut logs = client.status.logs.watch(4096, 16).await?;
         assert!(logs.next().await?.is_some());
         drop(logs);
-        client.status.trace_events.list().await?;
+        client
+            .status
+            .trace_events
+            .list_with(StatusTraceEventsListOptions {
+                page: Some(PageRequest {
+                    page_size: 1,
+                    max_bytes: 4096,
+                    page_token: String::new(),
+                }),
+                ..Default::default()
+            })
+            .await?;
         let mut traces = client.status.trace_events.watch(4096, 16).await?;
         assert!(traces.next().await?.is_some());
         drop(traces);
         assert!(!client.status.diagnostics.get(String::new(), 0, 1024).await?.name.is_empty());
 
         // Discover and Invoke the Product Status Wrapper Through Native Invocation Ownership.
-        let discovered = client.operations.list().await?.operations;
+        let discovered = client.operations.list().await?;
         assert!(!discovered.is_empty());
         assert!(
             discovered

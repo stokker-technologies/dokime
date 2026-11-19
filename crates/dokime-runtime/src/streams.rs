@@ -421,10 +421,15 @@ mod tests {
     use crate::ControlledClock;
     use harmos_operations::facilities::{TimeGet, TimeSleep};
     use harmos_protocol::host::{TimeGetRequest, TimeSleepRequest};
-    use harmos_runtime::operations::CallContext;
+    use harmos_runtime::operations::{self, CallContext};
+    use harmos_runtime::state::Never;
     use harmos_runtime::{Application, Lifecycle, Runtime, Setup, Startup};
     use std::convert::Infallible;
+    use std::error::Error;
+    use std::num::NonZeroUsize;
     use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::watch::error::RecvError;
 
     struct Model;
 
@@ -440,19 +445,19 @@ mod tests {
 
     impl Application for Model {
         type State = ();
-        type Transaction = harmos_runtime::state::Never;
+        type Transaction = Never;
         type Record = ();
     }
 
     #[tokio::test]
-    async fn plugin_clock_facilities_advance_virtual_execution_time() -> Result<(), Box<dyn std::error::Error>> {
+    async fn plugin_clock_facilities_advance_virtual_execution_time() -> Result<(), Box<dyn Error>> {
         // Assemble a Virtual Execution Clock and Its Actual Timing Middleware.
         let (time, controller) = ExecutionTime::open(&ControlledClock::new(7_000_000_000));
         let controller = controller.unwrap();
         let runtime = Runtime::<Model>::start_with((), (), |setup| {
             setup.settings().clock(time.clock.clone()).operation_middleware(Arc::new(Timing));
-            setup.settings().operation_settings(harmos_runtime::operations::Settings {
-                preparation_bytes: Some(std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
+            setup.settings().operation_settings(operations::Settings {
+                preparation_bytes: Some(NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
                 ..Default::default()
             });
         })
@@ -464,14 +469,14 @@ mod tests {
         let mut sleeping = time.sleeping.subscribe();
 
         // Advance Only When the Plugin Sleep Has Entered the Execution's Sleeping Set.
-        let duration = std::time::Duration::from_secs(2);
+        let duration = Duration::from_secs(2);
         let sleep = operations.call_protobuf::<TimeSleep>(TimeSleepRequest { duration: Some(duration.try_into()?) });
         let advance = async {
             while sleeping.borrow_and_update().is_empty() {
                 sleeping.changed().await?;
             }
             controller.advance_by(duration).await;
-            Ok::<(), tokio::sync::watch::error::RecvError>(())
+            Ok::<(), RecvError>(())
         };
         let (slept, advanced) = tokio::join!(sleep, advance);
         slept?;

@@ -19,11 +19,11 @@
 use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::PluginState;
 use tokio::net::TcpListener;
 
 // Local Imports
 use super::support;
-use dokime_protocol::host::PluginState;
 use dokime_runtime::{Host, PLUGINS_TIMEOUT};
 
 /* === Constants === */

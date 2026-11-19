@@ -41,6 +41,7 @@ use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
 use dokime::plugin::Plugin;
 use dokime_client_internal::Client;
+use dokime_client_internal::PluginsSettingsListOptions;
 use dokime_client_internal::PluginsSettingsSetOptions;
 use dokime_client_internal::SettingsSetOptions;
 use dokime_client_internal::host::PluginState;
@@ -201,8 +202,25 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             let sources = client.storage.sources.get().await?;
             let saved_sources = client.storage.sources.set(sources.value.clone().unwrap(), sources.revision).await?;
             assert_eq!(saved_sources.value, sources.value);
-            assert!(client.plugins.settings.list("missing").await.is_err());
-            let before = client.plugins.settings.list("settings_fixture").await?;
+            assert!(
+                client
+                    .plugins
+                    .settings
+                    .list_with(PluginsSettingsListOptions {
+                        name: Some("missing".into()),
+                        ..Default::default()
+                    })
+                    .await
+                    .is_err()
+            );
+            let before = client
+                .plugins
+                .settings
+                .list_with(PluginsSettingsListOptions {
+                    name: Some("settings_fixture".into()),
+                    ..Default::default()
+                })
+                .await?;
             assert_eq!(before.value.as_ref().unwrap().values["enabled"].value, Some(setting_value::Value::Flag(true)));
             let value = SettingValues {
                 values: HashMap::from([(
@@ -238,7 +256,14 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             let reopened = client.settings.get().await?;
             assert_eq!(reopened.value, saved.value);
             assert_eq!(reopened.revision, saved.revision);
-            let reopened = client.plugins.settings.list("settings_fixture").await?;
+            let reopened = client
+                .plugins
+                .settings
+                .list_with(PluginsSettingsListOptions {
+                    name: Some("settings_fixture".into()),
+                    ..Default::default()
+                })
+                .await?;
             assert_eq!(reopened.value, saved_plugin.value);
             assert_eq!(reopened.revision, saved_plugin.revision);
             let value = reopened.value.unwrap();
