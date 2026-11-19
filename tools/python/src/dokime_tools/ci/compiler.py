@@ -121,6 +121,15 @@ def _configured(command: Sequence[str] | str, shell: str | None, *, statistics: 
             environment["SCCACHE_CACHE_SIZE"] = size
     else:
         raise RuntimeError("Configure Compiler Cache: sccache: a supported explicit backend is required")
+    # Resolve the Project Tool Before a Child Enters a Generated Workspace.
+    environment["RUSTC_WRAPPER"] = subprocess.check_output(
+        ["mise", "which", "sccache"],
+        cwd=Path(__file__).resolve().parents[5],
+        env=environment,
+        text=True,
+        stderr=sys.stderr,
+        creationflags=spawn_flags(),
+    ).strip()
     temporary_directory = tempfile.TemporaryDirectory(prefix="project-sccache-")
     temporary = temporary_directory.name
     try:
@@ -157,7 +166,7 @@ def _execute(
     # The Server Logs Its Port Only After Backend Readiness And Binding Port 0.
     try:
         server = subprocess.Popen(
-            ["sccache"],
+            [environment["RUSTC_WRAPPER"]],
             creationflags=spawn_flags(),
             env=server_environment,
             stdout=subprocess.DEVNULL,
@@ -200,7 +209,6 @@ def _execute(
                 raise CacheError("Configure Compiler Cache: sccache: backend startup failed")
             child_environment = environment | {
                 "SCCACHE_SERVER_PORT": port,
-                "RUSTC_WRAPPER": "sccache",
             }
             if os.name == "nt":
                 # MSVC link.exe Stamps Each Proc-Macro DLL With A Fresh Timestamp And PDB GUID; Every Crate Hashing That DLL As
@@ -208,7 +216,7 @@ def _execute(
                 child_environment["LINK"] = " ".join(filter(None, ("/Brepro", environment.get("LINK"))))
             if backend is not None:
                 readiness = None
-                verification = ["sccache", "--show-stats", "--stats-format", "json"]
+                verification = [environment["RUSTC_WRAPPER"], "--show-stats", "--stats-format", "json"]
                 try:
                     readiness = subprocess.run(
                         verification,
@@ -290,7 +298,7 @@ def _execute(
                     if server.poll() is None:
                         try:
                             result = subprocess.run(
-                                ["sccache", "--show-stats", "--stats-format", "json"],
+                                [environment["RUSTC_WRAPPER"], "--show-stats", "--stats-format", "json"],
                                 creationflags=spawn_flags(),
                                 env=child_environment,
                                 stdin=subprocess.DEVNULL,
