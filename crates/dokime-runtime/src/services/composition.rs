@@ -200,7 +200,7 @@ pub(super) async fn launch(
         },
     )
     .map_err(|source| Error::ComposedStartup(Box::new(source)))?;
-    let runtime = Box::pin(Runtime::<Application>::launch_with((), Some(settings.clone()), |setup| {
+    let runtime = Box::pin(Runtime::<Application>::start_with((), Some(settings.clone()), |setup| {
         setup.resource::<Binding>(binding);
         setup.settings().operation_middleware(Arc::new(Timing));
         setup.settings().attach_streams(Samples {

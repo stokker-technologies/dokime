@@ -78,7 +78,7 @@ pub async fn start() -> TestResult<Runtime<Host>> {
     let clock = Clock::with_clock(Frozen {
         reading: Clock::real_at(std::time::SystemTime::UNIX_EPOCH).read(),
     });
-    Ok(Runtime::<Host>::launch_with((), (), |setup| {
+    Ok(Runtime::<Host>::start_with((), (), |setup| {
         setup.settings().clock(clock);
     })
     .await?)

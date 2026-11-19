@@ -243,7 +243,14 @@ fn clients_reach_every_wrapper_service() -> Result<(), Box<dyn Error>> {
         assert!(!client.status.diagnostics.get(String::new(), 0, 1024).await?.name.is_empty());
 
         // Discover and Invoke the Product Status Wrapper Through Native Invocation Ownership.
-        assert!(!client.operations.list().await?.operations.is_empty());
+        let discovered = client.operations.list().await?.operations;
+        assert!(!discovered.is_empty());
+        assert!(
+            discovered
+                .iter()
+                .filter_map(|operation| operation.contract.as_ref())
+                .all(|contract| { contract.callers != harmos_protocol::model::Callers::Plugins as i32 })
+        );
         let id = "dokime.host.v1.Status/Get";
         let contract = client.operations.get(id).await?.contract.unwrap();
         let payload = client.invocations.create(id, contract.fingerprint, Vec::new()).await?;

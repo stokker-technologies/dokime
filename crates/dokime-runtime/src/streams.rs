@@ -449,7 +449,7 @@ mod tests {
         // Assemble a Virtual Execution Clock and Its Actual Timing Middleware.
         let (time, controller) = ExecutionTime::open(&ControlledClock::new(7_000_000_000));
         let controller = controller.unwrap();
-        let runtime = Runtime::<Model>::launch_with((), (), |setup| {
+        let runtime = Runtime::<Model>::start_with((), (), |setup| {
             setup.settings().clock(time.clock.clone()).operation_middleware(Arc::new(Timing));
         })
         .await?;
@@ -460,14 +460,13 @@ mod tests {
         let mut sleeping = time.sleeping.subscribe();
 
         // Advance Only When the Plugin Sleep Has Entered the Execution's Sleeping Set.
-        let sleep = operations.call_protobuf::<TimeSleep>(TimeSleepRequest {
-            duration: Some(prost_types::Duration { seconds: 2, nanos: 0 }),
-        });
+        let duration = std::time::Duration::from_secs(2);
+        let sleep = operations.call_protobuf::<TimeSleep>(TimeSleepRequest { duration: Some(duration.try_into()?) });
         let advance = async {
             while sleeping.borrow_and_update().is_empty() {
                 sleeping.changed().await?;
             }
-            controller.advance_next().await;
+            controller.advance_by(duration).await;
             Ok::<(), tokio::sync::watch::error::RecvError>(())
         };
         let (slept, advanced) = tokio::join!(sleep, advance);
@@ -476,7 +475,7 @@ mod tests {
 
         // Read the Same Plugin Clock and Prove Settlement Removed the Sleeping Invocation.
         let after = operations.call_protobuf::<TimeGet>(TimeGetRequest {}).await?.now.unwrap();
-        assert_eq!(after.seconds - before.seconds, 2);
+        assert_eq!(after.seconds - before.seconds, duration.as_secs() as i64);
         assert_eq!(after.nanos, before.nanos);
         assert!(time.sleeping.borrow().is_empty());
         runtime.stop().await?;
