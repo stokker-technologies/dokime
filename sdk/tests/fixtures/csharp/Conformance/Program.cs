@@ -3,4 +3,4 @@
 using Harmos.Conformance;
 
 var fixture = new Fixture();
-await fixture.Build().ServeAsync(remote: args.Contains("--remote"));
+await fixture.Build().RunAsync(remote: args.Contains("--remote"));

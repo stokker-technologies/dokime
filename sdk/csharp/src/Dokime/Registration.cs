@@ -9,7 +9,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
-using Harmos.Clients;
+using Dokime.Clients;
 
 namespace Dokime;
 
