@@ -108,3 +108,18 @@ Named plugins are selected from `dokime-plugins-<version>-<target>.zip` (Windows
 The kit no longer carries identity/trust metadata; packaging uses the CLI build's
 product configuration for the default identifier and fixed updater verification key.
 Signing never reads an organization-supplied trust key.
+
+## Remaining Owner Decisions
+
+The restored installer places selected verified bundles under the installation's
+`plugins/` folder. The current host admits bundles through its registry and has no
+startup scan of that folder; automatic admission needs a runtime-owned decision.
+The current-user, no-elevation implementation applies to Windows NSIS. Linux
+DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format
+has not been selected.
+
+Pack validation and update-policy validation currently have both desktop and
+packaging owners, and distribution-identifier validation is also repeated there.
+These overlaps are retained for the owner to decide their shared home. Product
+native packaging still uses the existing Python/Tauri path, while organization
+packaging now uses the restored CLI/Rust path; neither existing path is deleted.

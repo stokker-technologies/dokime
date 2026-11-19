@@ -39,7 +39,6 @@ use super::{Error, distribution};
 /* === Constants === */
 
 const METADATA_MAX_BYTES: usize = 1024 * 1024;
-const RELEASE_API: &str = "https://api.github.com/repos/stokker-technologies/dokime/releases/tags";
 
 // The Mutable Prerelease Channel Whose Distribution Metadata Supplies Its Dokime Version.
 pub const NIGHTLY: &str = "nightly";
@@ -83,7 +82,11 @@ impl Release {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client =
             reqwest::Client::builder().https_only(true).user_agent("dokime").build().map_err(|error| Error::Invalid(error.to_string()))?;
-        let url = reqwest::Url::parse(&format!("{RELEASE_API}/{tag}")).map_err(|error| Error::Invalid(error.to_string()))?;
+        let repository = env!("CARGO_PKG_REPOSITORY")
+            .strip_prefix("https://github.com/")
+            .ok_or_else(|| Error::Invalid("Rebuild the CLI With Its GitHub Repository URL".into()))?;
+        let url = reqwest::Url::parse(&format!("https://api.github.com/repos/{repository}/releases/tags/{tag}"))
+            .map_err(|error| Error::Invalid(error.to_string()))?;
         let bytes = fetch(&client, &url, METADATA_MAX_BYTES, "release metadata").await?;
         let metadata: Metadata = serde_json::from_slice(&bytes)?;
         let mut assets = BTreeMap::new();

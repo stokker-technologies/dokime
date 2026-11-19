@@ -52,6 +52,7 @@ pub(super) use unix::executable;
 // Standard Library Imports
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::{ffi::OsStr, process::Command};
 
 // Third Party Imports
 
@@ -66,6 +67,7 @@ use std::path::{Path, PathBuf};
 /* === Structs === */
 
 pub struct PackageOptions {
+    pub command: fn(&OsStr) -> Command,
     pub artifacts: Option<PathBuf>,
     pub plugins: Vec<PathBuf>,
     pub output: PathBuf,
@@ -130,7 +132,7 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     let plugins = plugins::stage(&selected, scratch.path(), &distribution.target, &distribution.version)?;
     let staged = scratch.path().join("installers");
     fs::create_dir_all(&staged)?;
-    let outputs = native::assemble(&manifest, &distribution, &source, &plugins, scratch.path(), &staged, options.sign)?;
+    let outputs = native::assemble(&manifest, &distribution, &source, &plugins, scratch.path(), &staged, options)?;
     fs::create_dir_all(&options.output)?;
     let output = options.output.canonicalize()?;
     let mut published = Vec::new();

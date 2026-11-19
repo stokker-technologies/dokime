@@ -14,7 +14,7 @@
 /* === Re-Exports === */
 
 #[cfg(test)]
-pub(super) use tests::executable;
+pub(crate) use tests::executable;
 
 /* === Imports === */
 

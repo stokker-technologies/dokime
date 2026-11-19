@@ -179,7 +179,7 @@ impl Manifest {
     pub(super) fn identity(&self, compiled: &super::distribution::Identity) -> Result<super::distribution::Identity, Error> {
         let mut identity = compiled.clone();
         if let Some(identifier) = &self.installer.identifier {
-            let distribution = super::distribution::Identity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+            let distribution = super::distribution::Identity::new(identifier.clone()).map_err(Error::Invalid)?;
             identity.slug = distribution.slug();
             identity.identifier = distribution.identifier;
         }
@@ -213,7 +213,7 @@ impl Manifest {
             license.terms()?;
         }
         if let Some(identifier) = &self.installer.identifier {
-            super::distribution::Identity::new(identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+            super::distribution::Identity::new(identifier.clone()).map_err(Error::Invalid)?;
         }
         let installer_version = Version::parse(&self.installer.version);
         let version = self.dokime.version();

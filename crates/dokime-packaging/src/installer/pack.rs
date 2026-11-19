@@ -92,7 +92,6 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
     let directory = directory.canonicalize()?;
     let mut files = BTreeMap::new();
     let mut pending = vec![directory.clone()];
-    let mut total = 0usize;
     while let Some(folder) = pending.pop() {
         for entry in fs::read_dir(folder)? {
             let entry = entry?;
@@ -117,11 +116,6 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
             }
             if !kind.is_file() {
                 return Err(Error::Invalid("Use Only Regular Organization Files".into()));
-            }
-            let length = usize::try_from(entry.metadata()?.len()).map_err(|_| Error::Invalid("Reduce Organization File Size".into()))?;
-            total = total.saturating_add(length);
-            if total > 64 * 1024 * 1024 || files.len() >= 10_000 {
-                return Err(Error::Invalid("Reduce the Organization Pack Below 64 MiB and 10000 Files".into()));
             }
             files.insert(name, fs::read(path)?);
         }

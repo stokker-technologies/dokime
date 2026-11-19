@@ -89,6 +89,7 @@ pub async fn run(args: Args) -> Result<()> {
                 })
                 .collect();
             let options = dokime_packaging::installer::PackageOptions {
+                command: |program| dokime_runtime::process::command(program),
                 artifacts: args.artifacts,
                 plugins: args.plugins,
                 output: args.output,

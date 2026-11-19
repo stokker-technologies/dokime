@@ -41,6 +41,18 @@ use super::{Error, distribution};
 
 /* === Public Functions === */
 
+pub(super) fn options() -> super::PackageOptions {
+    super::PackageOptions {
+        command: |_| panic!("Native Tools Must Not Run During Preparation"),
+        artifacts: None,
+        plugins: Vec::new(),
+        output: Default::default(),
+        sign: false,
+        formats: Vec::new(),
+        target: None,
+    }
+}
+
 pub(super) fn kit(directory: &Path) -> Result<(), Error> {
     fs::create_dir_all(directory.join("bin"))?;
     fs::create_dir_all(directory.join("organization"))?;

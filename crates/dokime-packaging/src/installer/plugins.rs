@@ -205,6 +205,7 @@ mod tests {
     use super::*;
     use crate::bundle;
     use harmos_runtime::bundle::Identity;
+    use std::slice;
 
     #[test]
     fn stage_verified_grpc_bundle_and_refuse_duplicates_corruption_target_and_version() -> crate::Result<()> {
@@ -220,14 +221,18 @@ mod tests {
         let bytes = bundle::create(&executable, &[], identity, None)?;
         let path = root.path().join("example-pack.dokime");
         fs::write(&path, &bytes)?;
+        let selected = select(slice::from_ref(&path), &["example-pack".into()])?;
+        assert_eq!(selected, [path.clone()]);
+        assert!(select(slice::from_ref(&path), &["missing-example-pack".into()]).is_err());
         let staged = tempfile::tempdir()?;
-        let result = stage(&[path.clone()], staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION"))?;
+        let result = stage(slice::from_ref(&path), staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION"))?;
         assert_eq!(fs::read(&result["example-pack.dokime"])?, bytes);
         assert!(stage(&[path.clone(), path.clone()], staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION")).is_err());
-        assert!(stage(&[path.clone()], staged.path(), "unsupported", env!("CARGO_PKG_VERSION")).is_err());
-        assert!(stage(&[path.clone()], staged.path(), bundle::native_target(), "99.0.0").is_err());
+        assert!(stage(slice::from_ref(&path), staged.path(), "unsupported", env!("CARGO_PKG_VERSION")).is_err());
+        assert!(stage(slice::from_ref(&path), staged.path(), bundle::native_target(), "99.0.0").is_err());
         let second = root.path().join("second.dokime");
         fs::write(&second, &bytes)?;
+        assert!(select(&[path.clone(), second.clone()], &["example-pack".into()]).is_err());
         assert!(stage(&[path.clone(), second], staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION")).is_err());
         fs::write(&path, b"corrupt bundle")?;
         assert!(stage(&[path], staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION")).is_err());

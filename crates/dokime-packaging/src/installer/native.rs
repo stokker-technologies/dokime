@@ -31,7 +31,7 @@ use tauri_bundler::{BundleBinary, BundleSettings, NsisSettings, PackageSettings,
 use tauri_utils::config::NSISInstallerMode;
 
 // Local Imports
-use super::Error;
+use super::{Error, PackageOptions};
 use super::{
     artwork,
     distribution::{self, Distribution},
@@ -86,8 +86,10 @@ impl Staging {
 /* === Public Functions === */
 
 pub(super) fn prepare(
-    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, sign: bool,
+    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path,
+    options: &PackageOptions, authenticode: bool,
 ) -> Result<Settings, Error> {
+    let sign = options.sign;
     let identity = manifest.identity(&distribution.identity)?;
     let mut pack = resolve_organization(manifest, source)?;
     // Verified Plugin Bundles Have One Installed Location Outside The Organization Pack.
@@ -114,9 +116,11 @@ pub(super) fn prepare(
         super::stage_executable(&destination, &bytes, (name == "dokime-gui").then_some(&application_image))?;
         if windows {
             if sign {
-                sign_installer(manifest, &destination)?;
+                sign_installer(manifest, &destination, options.command)?;
             }
-            super::signing::authenticode(&destination)?;
+            if authenticode {
+                super::signing::authenticode(&destination, options.command)?;
+            }
         }
         let installed = format!("{installed_resource_prefix}{file}");
         if !windows {
@@ -167,7 +171,7 @@ pub(super) fn prepare(
     } = staging;
 
     // Stage Startup Identity in the Verified Inventory
-    let installed_identity = distribution::Identity::new(identity.identifier.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+    let installed_identity = distribution::Identity::new(identity.identifier.clone()).map_err(Error::Invalid)?;
     let identity_bytes = serde_json::to_vec_pretty(&serde_json::json!({"schema":1,"identifier":installed_identity.identifier}))?;
     let identity_path = scratch.join("distribution.json");
     fs::write(&identity_path, &identity_bytes)?;
@@ -180,8 +184,7 @@ pub(super) fn prepare(
         Some(settings) => (sign && settings.installer.is_some(), sign && settings.updater.is_some()),
         None => (false, false),
     };
-    let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
-    installer_signed |= windows && super::signing::authenticode_enabled(provider.as_deref())?;
+    installer_signed |= windows && authenticode;
     let metadata = DistributionMetadata {
         schema: 1,
         version: manifest.installer.version.clone(),
@@ -315,9 +318,11 @@ pub(super) fn prepare(
 
 pub fn assemble(
     manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path,
-    sign: bool,
+    options: &PackageOptions,
 ) -> Result<Vec<PathBuf>, Error> {
-    let settings = prepare(manifest, distribution, source, plugins, scratch, sign)?;
+    let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
+    let authenticode = super::signing::authenticode_enabled(provider.as_deref())?;
+    let settings = prepare(manifest, distribution, source, plugins, scratch, options, authenticode)?;
     let bundles = tauri_bundler::bundle_project(&settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)
@@ -328,7 +333,7 @@ pub fn assemble(
     });
     let mut outputs = Vec::new();
     for (kind, source) in paths {
-        let destination = finish_package(manifest, distribution, kind, &source, output, sign)?;
+        let destination = finish_package(manifest, distribution, kind, &source, output, options)?;
         outputs.push(destination);
     }
     Ok(outputs)
@@ -336,7 +341,11 @@ pub fn assemble(
 
 pub fn validate_signing(manifest: &Manifest, requested: bool) -> Result<(), Error> {
     let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
-    let hook = super::signing::authenticode_enabled(provider.as_deref())?;
+    validate_signing_with_provider(manifest, requested, provider.as_deref())
+}
+
+fn validate_signing_with_provider(manifest: &Manifest, requested: bool, provider: Option<&str>) -> Result<(), Error> {
+    let hook = super::signing::authenticode_enabled(provider)?;
     if hook && requested && manifest.signing.as_ref().is_some_and(|settings| settings.installer.is_some()) {
         return Err(Error::Invalid("select either manifest installer signing or the Authenticode hook".into()));
     }
@@ -546,7 +555,7 @@ fn explicit_update_mode(folder: &Path) -> Result<bool, Error> {
 }
 
 fn finish_package(
-    manifest: &Manifest, distribution: &Distribution, kind: PackageType, source: &Path, output: &Path, sign: bool,
+    manifest: &Manifest, distribution: &Distribution, kind: PackageType, source: &Path, output: &Path, options: &PackageOptions,
 ) -> Result<PathBuf, Error> {
     let identity = manifest.identity(&distribution.identity)?;
     let slug = &identity.slug;
@@ -559,16 +568,16 @@ fn finish_package(
             return Err(error);
         }
     };
-    if sign {
-        sign_installer(manifest, source)?;
+    if options.sign {
+        sign_installer(manifest, source, options.command)?;
     }
     if kind == PackageType::Nsis {
-        super::signing::authenticode(source)?;
+        super::signing::authenticode(source, options.command)?;
     }
     let destination = output.join(name);
     fs::copy(source, &destination)?;
-    if sign {
-        super::signing::updater(manifest, distribution, &destination, output)?;
+    if options.sign {
+        super::signing::updater(manifest, distribution, &destination, output, options.command)?;
     }
     Ok(destination)
 }
@@ -658,7 +667,7 @@ fn environment_file_available(name: Option<&str>) -> bool {
     path.is_file()
 }
 
-fn sign_installer(manifest: &Manifest, path: &Path) -> Result<(), Error> {
+fn sign_installer(manifest: &Manifest, path: &Path, tools: fn(&OsStr) -> Command) -> Result<(), Error> {
     let Some(signing) = &manifest.signing else {
         return Ok(());
     };
@@ -666,7 +675,7 @@ fn sign_installer(manifest: &Manifest, path: &Path) -> Result<(), Error> {
         return Ok(());
     };
     if cfg!(target_os = "windows") {
-        return sign_windows_installer(settings, path);
+        return sign_windows_installer(settings, path, tools);
     }
     let Some(key) = settings.key_id.as_deref() else {
         let error = Error::Invalid("missing Linux signing key".into());
@@ -675,19 +684,19 @@ fn sign_installer(manifest: &Manifest, path: &Path) -> Result<(), Error> {
     let extension = path.extension().and_then(OsStr::to_str);
     match extension {
         Some("deb") => {
-            let mut command = Command::new("debsigs");
+            let mut command = tools(OsStr::new("debsigs"));
             command.args(["--sign=origin", "--default-key", key]).arg(path);
             super::signing::run(&mut command, "DEB signing requires debsigs and an available GPG agent")?;
-            let mut command = Command::new("debsig-verify");
+            let mut command = tools(OsStr::new("debsig-verify"));
             command.arg(path);
             super::signing::run(&mut command, "DEB signature verification requires debsig-verify with the signing policy installed")
         }
         Some("rpm") => {
             let key_definition = format!("_gpg_name {key}");
-            let mut command = Command::new("rpmsign");
+            let mut command = tools(OsStr::new("rpmsign"));
             command.arg("--addsign").arg("--define").arg(key_definition).arg(path);
             super::signing::run(&mut command, "RPM signing requires rpmsign and an available GPG agent")?;
-            super::signing::verify_rpm_signature(path)
+            super::signing::verify_rpm_signature(path, tools)
         }
         _ => {
             let error = Error::Invalid("unsupported signing package format".into());
@@ -696,7 +705,7 @@ fn sign_installer(manifest: &Manifest, path: &Path) -> Result<(), Error> {
     }
 }
 
-fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<(), Error> {
+fn sign_windows_installer(settings: &InstallerSigning, path: &Path, tools: fn(&OsStr) -> Command) -> Result<(), Error> {
     let Some(thumbprint) = settings.certificate_thumbprint.as_deref() else {
         let error = Error::Invalid("missing signing certificate".into());
         return Err(error);
@@ -705,10 +714,10 @@ fn sign_windows_installer(settings: &InstallerSigning, path: &Path) -> Result<()
         let error = Error::Invalid("missing signing timestamp URL".into());
         return Err(error);
     };
-    let mut command = Command::new("signtool");
+    let mut command = tools(OsStr::new("signtool"));
     command.args(["sign", "/sha1", thumbprint, "/fd", "SHA256", "/tr", timestamp, "/td", "SHA256"]).arg(path);
     super::signing::run(&mut command, "installer signing requires signtool and the configured certificate in the current user store")?;
-    let mut command = Command::new("signtool");
+    let mut command = tools(OsStr::new("signtool"));
     command.args(["verify", "/pa"]).arg(path);
     super::signing::run(&mut command, "installer Authenticode verification failed")
 }
@@ -736,7 +745,7 @@ mod tests {
         let original = fs::read(source.path().join(format!("bin/dokime-gui{}", EXE_SUFFIX)))?;
         // Prepare the Built-In Appearance Through the Native Tool Boundary.
         let staging = scratch()?;
-        let settings = prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), false)?;
+        let settings = prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), &fixtures::options(), false)?;
         assert_eq!(settings.bundle_identifier(), "com.example.testhub");
         assert_eq!(settings.windows().nsis.as_ref().unwrap().install_mode, NSISInstallerMode::CurrentUser);
         assert!(staging.path().join("organization/default-only.css").is_file());
@@ -759,7 +768,7 @@ mod tests {
             file: Some(terms),
         });
         let staging = scratch()?;
-        prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), false)?;
+        prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), &fixtures::options(), false)?;
         assert!(!staging.path().join("organization/default-only.css").exists());
         assert_eq!(fs::read(staging.path().join("terms/EULA.txt"))?, b"example terms");
         let appearance: toml::Value = toml::from_str(&fs::read_to_string(staging.path().join("organization/organization.toml"))?).unwrap();
@@ -801,10 +810,10 @@ mod tests {
     #[test]
     fn signing_refusals_preserve_explicit_credential_selection() {
         let mut manifest = fixtures::manifest();
-        assert!(validate_signing(&manifest, false).is_ok());
-        assert!(matches!(validate_signing(&manifest, true), Err(Error::SigningConfiguration)));
+        assert!(validate_signing_with_provider(&manifest, false, None).is_ok());
+        assert!(matches!(validate_signing_with_provider(&manifest, true, None), Err(Error::SigningConfiguration)));
         manifest.signing = Some(crate::installer::manifest::Signing { installer: None, updater: None });
-        assert!(validate_signing(&manifest, true).is_err());
+        assert!(validate_signing_with_provider(&manifest, true, None).is_err());
         let mut settings = InstallerSigning {
             certificate_thumbprint: Some("a".repeat(40)),
             timestamp_url: Some("https://timestamp.example.test".into()),

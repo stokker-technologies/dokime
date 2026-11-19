@@ -238,7 +238,7 @@ fn enumerate_kind(module: HMODULE, kind: u16, enumeration: &mut Enumeration) -> 
         return Ok(());
     }
     let error = io::Error::last_os_error();
-    if error.raw_os_error() == Some(1813) {
+    if matches!(error.raw_os_error(), Some(1812 | 1813)) {
         return Ok(());
     }
     Err(error.into())
@@ -372,7 +372,7 @@ fn invalid_pe() -> Error {
 /* === Tests === */
 
 #[cfg(test)]
-pub(super) use tests::executable;
+pub(crate) use tests::executable;
 
 #[cfg(test)]
 mod tests {
@@ -411,6 +411,35 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn replace_icons_preserves_other_pe_resources() -> Result<(), Error> {
+        let root = tempfile::tempdir()?;
+        let path = root.path().join("example-pack.exe");
+        fs::write(&path, executable())?;
+        let filename = wide_path(&path)?;
+        let handle = unsafe { BeginUpdateResourceW(filename.as_ptr(), 0) };
+        assert!(!handle.is_null());
+        let mut update = Update(handle);
+        write_resource(update.0, 10, 7, b"preserved resource")?;
+        write_resource(update.0, GROUP_ICON, 19, b"old group")?;
+        write_resource(update.0, ICON, 20, b"old icon")?;
+        let result = unsafe { EndUpdateResourceW(update.0, 0) };
+        update.0 = ptr::null_mut();
+        check(result)?;
+        let pixels = image::RgbImage::from_pixel(2, 2, image::Rgb([12, 34, 56]));
+        let image = DynamicImage::ImageRgb8(pixels);
+        let expected = icon(&image)?;
+        replace(&path, &expected)?;
+        verify(&path, &expected)?;
+        let preserved = resources(&path, &[10])?;
+        assert_eq!(preserved.len(), 1);
+        assert_eq!(preserved[0].bytes, b"preserved resource");
+        let pixels = image::RgbImage::from_pixel(2, 2, image::Rgb([56, 34, 12]));
+        let different = icon(&DynamicImage::ImageRgb8(pixels))?;
+        assert!(verify(&path, &different).is_err());
+        Ok(())
+    }
 
     #[test]
     fn invalidated_authenticode_is_removed() {

@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::{
     io::Write,
@@ -46,9 +47,9 @@ use super::{distribution::Distribution, manifest::Manifest};
 
 /* === Public Functions === */
 
-pub(crate) fn authenticode(path: &Path) -> Result<bool, Error> {
+pub(crate) fn authenticode(path: &Path, tools: fn(&OsStr) -> Command) -> Result<bool, Error> {
     let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
-    authenticode_with_provider(path, provider.as_deref())
+    authenticode_with_provider(path, provider.as_deref(), tools)
 }
 
 pub(crate) fn authenticode_enabled(provider: Option<&str>) -> Result<bool, Error> {
@@ -59,7 +60,9 @@ pub(crate) fn authenticode_enabled(provider: Option<&str>) -> Result<bool, Error
     }
 }
 
-pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path, output: &Path) -> Result<(), Error> {
+pub fn updater(
+    manifest: &Manifest, distribution: &Distribution, package: &Path, output: &Path, tools: fn(&OsStr) -> Command,
+) -> Result<(), Error> {
     let Some(settings) = manifest.signing.as_ref().and_then(|s| s.updater.as_ref()) else {
         return Ok(());
     };
@@ -95,7 +98,7 @@ pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path,
     fs::write(&key, material)?;
     let signature = scratch.path().join("installer.minisig");
     let password = env::var(&settings.password_env).map_err(|_| Error::Invalid("updater password environment is missing".into()))?;
-    let mut child = Command::new("minisign")
+    let mut child = tools(OsStr::new("minisign"))
         .args(["-S", "-q", "-s"])
         .arg(&key)
         .arg("-m")
@@ -122,7 +125,7 @@ pub fn updater(manifest: &Manifest, distribution: &Distribution, package: &Path,
             .map_err(|_| Error::Invalid("compiled updater public key is invalid".into()))?,
     )?;
     run(
-        Command::new("minisign").args(["-V", "-q", "-m"]).arg(package).arg("-p").arg(&public_key).arg("-x").arg(&signature),
+        tools(OsStr::new("minisign")).args(["-V", "-q", "-m"]).arg(package).arg("-p").arg(&public_key).arg("-x").arg(&signature),
         "updater signature does not match compiled application trust",
     )?;
     let signature = STANDARD.encode(fs::read(signature)?);
@@ -159,8 +162,8 @@ pub(crate) fn run(command: &mut Command, requirement: &str) -> Result<(), Error>
     Ok(())
 }
 
-pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
-    let result = Command::new("rpmkeys")
+pub(crate) fn verify_rpm_signature(package: &Path, tools: fn(&OsStr) -> Command) -> Result<(), Error> {
+    let result = tools(OsStr::new("rpmkeys"))
         .arg("--checksig")
         .arg(package)
         .env("LC_ALL", "C")
@@ -175,7 +178,7 @@ pub(crate) fn verify_rpm_signature(package: &Path) -> Result<(), Error> {
 
 /* === Private Functions === */
 
-fn authenticode_with_provider(path: &Path, provider: Option<&str>) -> Result<bool, Error> {
+fn authenticode_with_provider(path: &Path, provider: Option<&str>, tools: fn(&OsStr) -> Command) -> Result<bool, Error> {
     if !authenticode_enabled(provider)? {
         eprintln!("Authenticode skipped: no Windows signing provider configured.");
         return Ok(false);
@@ -186,7 +189,7 @@ fn authenticode_with_provider(path: &Path, provider: Option<&str>) -> Result<boo
     let scratch = tempfile::tempdir()?;
     let script = scratch.path().join("authenticode.ps1");
     fs::write(&script, include_str!("../../../../tools/powershell/authenticode.ps1"))?;
-    let status = Command::new("pwsh")
+    let status = tools(OsStr::new("pwsh"))
         .args(["-NoProfile", "-NonInteractive", "-File"])
         .arg(&script)
         .args(["-Operation", "Sign", "-Path"])
@@ -210,9 +213,19 @@ mod tests {
     #[test]
     fn skipped_authenticode_never_opens_the_input() {
         for provider in [None, Some(""), Some("none")] {
-            assert!(!authenticode_with_provider(Path::new("absent-installer.exe"), provider).unwrap());
+            assert!(
+                !authenticode_with_provider(Path::new("absent-installer.exe"), provider, |_| panic!(
+                    "No Tool Must Start for a Disabled Provider"
+                ))
+                .unwrap()
+            );
         }
-        assert!(authenticode_with_provider(Path::new("absent-installer.exe"), Some("unknown")).is_err());
+        assert!(
+            authenticode_with_provider(Path::new("absent-installer.exe"), Some("unknown"), |_| panic!(
+                "No Tool Must Start for an Invalid Provider"
+            ))
+            .is_err()
+        );
     }
 
     #[test]

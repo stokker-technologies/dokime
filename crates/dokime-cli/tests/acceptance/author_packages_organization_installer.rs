@@ -50,7 +50,12 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
     tokio::time::timeout(Duration::from_secs(600), async {
         // Discover Installer Packaging Without Connecting to a Host.
         let binary = env!("CARGO_BIN_EXE_dokime");
-        let help = Command::from(process::command(binary)).args(["installer", "package", "--help"]).output().await?;
+        let help = Command::from(process::command(binary))
+            .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
+            .kill_on_drop(true)
+            .args(["installer", "package", "--help"])
+            .output()
+            .await?;
         assert!(help.status.success());
         // Author a Neutral Manifest and Supply a Local Kit; Never Consult Previous Releases.
         let root = tempfile::tempdir()?;
@@ -68,6 +73,8 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
             serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":dokime_packaging::bundle::native_target(),"files":{}}))?,
         )?;
         let refused = Command::from(process::command(binary))
+            .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
+            .kill_on_drop(true)
             .args(["installer", "package", "--manifest"])
             .arg(&manifest)
             .arg("--artifacts")
@@ -76,12 +83,14 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
             .arg(&output)
             .output()
             .await?;
-        assert!(!refused.status.success());
+        assert_eq!(refused.status.code(), Some(2));
         assert!(!output.exists());
         let error = String::from_utf8(refused.stderr)?;
         assert!(error.contains("distribution"), "{error}");
         // Refuse Implicit Signing Before Attempting a Download.
         let refused = Command::from(process::command(binary))
+            .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
+            .kill_on_drop(true)
             .args(["installer", "package", "--manifest"])
             .arg(&manifest)
             .arg("--sign")
@@ -89,7 +98,7 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
             .arg(&output)
             .output()
             .await?;
-        assert!(!refused.status.success());
+        assert_eq!(refused.status.code(), Some(2));
         assert!(String::from_utf8(refused.stderr)?.contains("--sign"));
         assert!(!output.exists());
         Ok(())
