@@ -19,12 +19,28 @@ import subprocess
 import sys
 from pathlib import Path
 
+# isort: split
+
+# Third Party Imports
+
+# isort: split
+
 # Local Imports
 import dokime_tools.test.policy
 from dokime_tools import temporary
 from dokime_tools.build import configuration, paths
 from dokime_tools.package.staging import stage_file
 from dokime_tools.process import spawn_flags
+
+# Type Checking Imports
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
 
 # === Public Functions === #
 
@@ -70,7 +86,12 @@ def bundle(root: Path, profile: str) -> list[Path]:
         overlay = scratch / "bundle.json"
         bundle_config: dict[str, object] = {"active": True, "createUpdaterArtifacts": signed, "resources": resources}
         if windows:
-            windows_config: dict[str, object] = {"nsis": {"installMode": "both"}}
+            windows_config: dict[str, object] = {
+                "nsis": {
+                    "installMode": "currentUser",
+                    "installerHooks": str(root / "crates/dokime-gui/src-tauri/installer-hooks.nsh"),
+                }
+            }
             if os.environ.get("DOKIME_AUTHENTICODE_PROVIDER", "none") != "none":
                 windows_config["signCommand"] = {
                     "cmd": "pwsh",
@@ -148,6 +169,8 @@ def bundle(root: Path, profile: str) -> list[Path]:
         scratch_directory.close()
     return outputs
 
+
+# === Private Functions === #
 
 # === Entry Point === #
 
