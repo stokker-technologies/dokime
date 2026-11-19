@@ -20,7 +20,7 @@ if (suite.Identifier != "capture" || template.Identifier != "capture.confirmatio
   || template.Steps.Single() != "capture.confirmation.confirm"
   || template.Criteria.Single() != "capture.confirmation.confirmed"
   || template.Records.Single() != "capture.confirmation.confirmation"
-  || !description.Operations.Contains("example.echo"))
+  || !description.Operations.Any(operation => operation.Identifier == "example.echo"))
 {
   throw new InvalidOperationException("Describe Plugin: Restore the Authored Capture Suite and Echo Operation");
 }

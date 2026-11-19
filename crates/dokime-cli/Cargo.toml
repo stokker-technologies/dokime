@@ -32,7 +32,7 @@ path = "src/main.rs"
 # Local
 dokime = { version = "0.1.5", path = "../../sdk/rust" }
 dokime-client-internal = { workspace = true }
-dokime-packaging = { workspace = true }
+dokime-packaging = { workspace = true, features = ["installer"] }
 dokime-protocol = { workspace = true }
 dokime-runtime = { workspace = true }
 

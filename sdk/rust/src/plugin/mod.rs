@@ -56,7 +56,7 @@ use crate::operations;
 use crate::stream::{Registration, Sampler};
 use crate::template::validate_names;
 use crate::testing::Selected;
-use crate::{Declarations, Error, Message, OperationRequest, Result};
+use crate::{Declarations, Error, Lane, Message, OperationRequest, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
 
 /* === Constants === */
@@ -85,6 +85,7 @@ struct Assembly {
     suites: Vec<Suite>,
     settings: Vec<SettingDeclaration>,
     secrets: Vec<SecretDeclaration>,
+    lanes: Vec<Lane>,
     registrations: Vec<Registration>,
     errors: Vec<String>,
     initialize: Registration,
@@ -134,6 +135,7 @@ impl Plugin {
                 suites: Vec::new(),
                 settings: Vec::new(),
                 secrets: Vec::new(),
+                lanes: Vec::new(),
                 registrations: Vec::new(),
                 errors: Vec::new(),
                 initialize: lifecycle("initialize", async |_| Ok(())),
@@ -183,6 +185,10 @@ impl Plugin {
     }
     pub fn suite(mut self, suite: Suite) -> Self {
         self.assembly.suites.push(suite.bind());
+        self
+    }
+    pub fn lane(mut self, lane: Lane) -> Self {
+        self.assembly.lanes.push(lane);
         self
     }
     pub fn operation(mut self, operation: Operation) -> Self {
@@ -278,6 +284,7 @@ impl Plugin {
             suites,
             settings,
             secrets,
+            lanes,
             registrations,
             errors,
             initialize,
@@ -285,6 +292,9 @@ impl Plugin {
         } = self.assembly;
         if !errors.is_empty() {
             return Err(Error::Invalid(errors.join("; ")));
+        }
+        for lane in lanes {
+            inner = inner.lane(lane);
         }
         let mut records = Vec::new();
         let mut prompts = Vec::new();
@@ -407,9 +417,30 @@ where
 #[cfg(test)]
 mod tests {
     use super::{HostOperation, Plugin, Visibility};
-    use crate::{Error, Result};
+    use crate::operations::{Context, Operation};
+    use crate::{Error, Lane, Result};
     use dokime_protocol::descriptor_pool;
-    use harmos_protocol::{model::Protobuf, schema};
+    use harmos_protocol::{
+        model::{Protobuf, lane_declaration},
+        schema,
+    };
+
+    #[test]
+    fn lanes_preserve_declarations_and_operation_assignments() -> Result<()> {
+        let instrument = Lane::serial("instrument");
+        let operation = Operation::new("example.measure", Visibility::Public, async |_: &Context, value: f64| Ok(value)).lane(&instrument);
+        let declarations = Plugin::of::<()>("1.0.0").lane(instrument).identifier("example").operation(operation).declarations()?;
+        assert_eq!(declarations.lanes.len(), 1);
+        assert_eq!(declarations.lanes[0].name, "instrument");
+        assert_eq!(declarations.lanes[0].capacity, Some(lane_declaration::Capacity::Serial(true)));
+        let operation = declarations.operations.iter().find(|operation| operation.id == "example.measure").unwrap();
+        assert_eq!(operation.lane, "instrument");
+
+        let missing = Lane::serial("missing");
+        let operation = Operation::new("example.measure", Visibility::Public, async |_: &Context, value: f64| Ok(value)).lane(&missing);
+        assert!(Plugin::of::<()>("1.0.0").operation(operation).declarations().is_err());
+        Ok(())
+    }
 
     #[test]
     fn lifecycle_hooks_are_inert_protected_operations_with_final_identity() -> Result<()> {

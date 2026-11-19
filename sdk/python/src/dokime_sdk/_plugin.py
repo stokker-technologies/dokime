@@ -29,7 +29,7 @@ import harmos.plugin
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy
-from harmos.plugin import Publisher, Window, observer, operation, publisher, window_observer
+from harmos.plugin import Lane, Publisher, Window, observer, operation, publisher, window_observer
 
 # Local Imports
 import dokime_sdk.operations
@@ -78,6 +78,7 @@ class Plugin:
     label: ClassVar[str | None] = None
     version: ClassVar[str | None] = None
     suites: ClassVar[Sequence[type[Suite]]] = ()
+    lanes: ClassVar[Sequence[Lane]] = ()
     operations: ClassVar[Sequence[Callable[..., object]]] = ()
     settings: ClassVar[Sequence[dokime_sdk.operations.SettingDeclaration]] = ()
     secrets: ClassVar[Sequence[dokime_sdk.operations.SecretDeclaration]] = ()
@@ -170,6 +171,7 @@ class Plugin:
             version=self._version,
             requires=self._requires,
             sections=contributions,
+            lanes=tuple(self.lanes),
             settings=[item._definition() for item in self._settings],
             messages=[*(message_type(record.row) for _, record in self._records)],
         )

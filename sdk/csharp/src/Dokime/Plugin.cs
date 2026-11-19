@@ -37,6 +37,14 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     return bound;
   }
 
+  public Plugin Lane(Dokime.Lane lane)
+  {
+    if (built)
+      throw new InvalidOperationException("Declare Lane: Create the Plugin Before Serving It");
+    transport.Lane(lane.Native);
+    return this;
+  }
+
   public Plugin Setting(string name, SettingValue defaultValue, string title = "", string description = "")
   {
     if (built)

@@ -4,7 +4,7 @@ from harmos._wire.host.v1.operations_pb2 import OperationsGetResponse, Operation
 from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse, TimeSleepResponse
 from harmos._wire.model.v1.callers_pb2 import ALL, CALLERS_UNSPECIFIED, CLIENTS, PLUGINS, Callers
-from harmos._wire.model.v1.description_pb2 import Declarations
+from harmos._wire.model.v1.description_pb2 import Declarations, LaneDeclaration
 from harmos._wire.model.v1.failure_pb2 import (
     CLASSIFICATION_CANCELLED,
     CLASSIFICATION_PERMANENT,
@@ -892,6 +892,7 @@ __all__ = [
     "InvocationsCancelResponse",
     "InvocationsGetResponse",
     "InvocationsWatchResponse",
+    "LaneDeclaration",
     "LineStyle",
     "LinearSpace",
     "Listeners",

@@ -311,6 +311,7 @@ impl Plugins {
                 placement,
                 super::PluginValue { enabled: true },
                 super::PluginsCreateOptions {
+                    origin: None,
                     request_id: Some(request_id),
                     context: self.client.context.clone(),
                 },

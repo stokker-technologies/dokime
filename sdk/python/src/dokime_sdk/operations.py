@@ -168,6 +168,7 @@ class Operation[Q: Payload, R: Payload]:
     policy: OperationPolicy | None = None
     description: str = ""
     replay_safe: bool = False
+    lane: plugin.Lane | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.visibility, Visibility):
@@ -190,6 +191,7 @@ class Operation[Q: Payload, R: Payload]:
             self.policy._definition() if self.policy is not None else None,
             self.description,
             self.replay_safe,
+            lane=self.lane,
         )
 
 
@@ -199,10 +201,11 @@ class Operation[Q: Payload, R: Payload]:
 def operation[F: Callable[..., object]](
     identifier: str | None = None,
     *,
-    visibility: Visibility,
+    visibility: Visibility = Visibility.PUBLIC,
     policy: OperationPolicy | None = None,
     description: str = "",
     replay_safe: bool = False,
+    lane: plugin.Lane | None = None,
 ) -> Callable[[F], F]:
     def decorate(handler: F) -> F:
         if not isinstance(handler, FunctionType) or not inspect.iscoroutinefunction(handler):
@@ -224,6 +227,7 @@ def operation[F: Callable[..., object]](
             policy,
             description,
             replay_safe,
+            lane,
         )
         vars(handler)["__dokime_operation__"] = definition
         return handler
@@ -253,6 +257,7 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
         policy=transport.policy,
         description=transport.description,
         replay_safe=transport.replay_safe,
+        lane=transport.lane,
     )(execute)
 
 

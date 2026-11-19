@@ -8,6 +8,10 @@ The starter's `mise run build` builds Release plugin and client binaries and sta
 the plugin's runtime files in `assets/plugin` for bundling. The `development`
 CMake preset keeps Debug outputs in the build directory.
 
+## Operation Lanes
+
+`dokime::Lane` re-exports the library declaration. Create `auto instrument = Lane::serial("instrument");`, assign it with `operation.lane(instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Plugin descriptions retain lane declarations and operation references; the library rejects undeclared references.
+
 ## Author a Plugin
 
 ```cpp

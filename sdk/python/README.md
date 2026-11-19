@@ -3,6 +3,10 @@
 `dokime-sdk` provides typed plugin declarations and async clients for a running
 Dokime host. It requires Python 3.13 or later. Resources close explicitly.
 
+## Operation Lanes
+
+`Lane` is re-exported by `dokime_sdk`. Declare `instrument = Lane("instrument", serial=True)`, list it in the plugin class's `lanes = [instrument]`, and select it with `@operation("example.measure", lane=instrument)`. `Lane("workers", concurrent=4)` bounds concurrency; `Lane("independent")` is unbounded. The library validates declarations and rejects an operation whose lane the plugin does not declare.
+
 ## Public Homes
 
 ```python

@@ -34,7 +34,7 @@
 
 namespace dokime::detail {
 class FrozenSchemaCache;
-Failure project_failure(const harmos::FailureValue &value);
+Failure project_failure(const harmos::model::Failure &value);
 struct TemplateBinding {
   std::string plugin;
   std::string suite;

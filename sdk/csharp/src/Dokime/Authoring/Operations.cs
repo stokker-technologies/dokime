@@ -20,13 +20,15 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
   private readonly Visibility visibility;
   private readonly OperationPolicy? policy;
   private readonly bool replaySafe;
-  public Operation(string identifier, Visibility visibility = Visibility.Public, OperationPolicy? policy = null, bool replaySafe = false)
+  private readonly Lane? lane;
+  public Operation(string identifier, Visibility visibility = Visibility.Public, OperationPolicy? policy = null, bool replaySafe = false, Lane? lane = null)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
     this.identifier = identifier;
     this.visibility = visibility;
     this.policy = policy;
     this.replaySafe = replaySafe;
+    this.lane = lane;
     _ = policy?.ToWire();
   }
 
@@ -48,7 +50,7 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
       Visibility.Public => Harmos.Visibility.Public,
       _ => throw new ArgumentException("Declare Operation: Choose a Visibility")
     };
-    return new Harmos.Plugins.Operation<TWireRequest, TWireResponse>(identifier, audience, policy?.ToWire(), replaySafe: replaySafe);
+    return new Harmos.Plugins.Operation<TWireRequest, TWireResponse>(identifier, audience, policy?.ToWire(), replaySafe: replaySafe, lane: lane?.Native);
   }
 
   private void RegisterWire<TWireRequest, TWireResponse>(Harmos.Plugins.Plugin plugin,

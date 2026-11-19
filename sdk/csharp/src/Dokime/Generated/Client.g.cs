@@ -2608,9 +2608,9 @@ internal sealed class PluginsResource
   {
     await foreach (var response in new Harmos.Client(invoker).Plugins.Watch(name, at, context, cancellationToken)) { yield return response; }
   }
-  public async Task<global::Harmos.Clients.PluginsCreateResponse> Create(string name, global::Harmos.Clients.PluginPlacement placement, global::Harmos.Clients.PluginValue value, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginsCreateResponse> Create(string name, global::Harmos.Clients.PluginPlacement placement, global::Harmos.Clients.PluginValue value, string? requestId = null, string? origin = null, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Plugins.Create(name, placement, value, requestId, context);
+    return await new Harmos.Client(invoker).Plugins.Create(name, placement, value, requestId, origin, context);
   }
   public async Task<global::Harmos.Clients.PluginsSetResponse> Set(string name, global::Harmos.Clients.PluginValue value, ByteString expectedRevision, CallOptions context = default)
   {

@@ -43,6 +43,7 @@ mod transfers;
 /* === Re-Exports === */
 
 use ::harmos::OperationRequest;
+pub use ::harmos::plugin::Lane;
 pub use client::{
     Attribution, Case, Client, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect, connect_with,
 };

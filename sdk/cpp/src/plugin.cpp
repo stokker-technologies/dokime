@@ -515,9 +515,10 @@ PluginDescription Plugin::describe() const {
     description.records.push_back({{record.metadata().identifier(), record.metadata().label()}, record.message()});
   description.prompts.assign(prompts_.prompts().begin(), prompts_.prompts().end());
   const auto catalog = declarations();
+  description.lanes.assign(catalog.lanes().begin(), catalog.lanes().end());
   for (const auto &operation : catalog.operations())
-    description.operations.push_back(
-        {operation.id(), operation.request(), operation.response(), static_cast<operations::Visibility>(operation.visibility())});
+    description.operations.push_back({operation.id(), operation.request(), operation.response(),
+                                      static_cast<operations::Visibility>(operation.visibility()), operation.lane()});
   return description;
 }
 Plugin::Plugin(Plugin &&other) noexcept

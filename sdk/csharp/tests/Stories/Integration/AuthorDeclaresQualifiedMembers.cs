@@ -13,6 +13,27 @@ namespace Stories.Integration;
 public sealed class AuthorDeclaresQualifiedMembers
 {
   [Fact]
+  public void LanesPreserveDeclarationsAndOperationAssignments()
+  {
+    var instrument = Lane.Serial("instrument");
+    var operation = new Dokime.Operations.Operation<double, double>("example.measure", lane: instrument);
+    var plugin = new LanePlugin().Lane(instrument).Operation(operation, (context, value) => Task.FromResult(value));
+    var description = plugin.Describe();
+    var lane = Assert.Single(description.Lanes);
+    Assert.Equal("instrument", lane.Name);
+    Assert.True(lane.Serial);
+    Assert.Equal("instrument", Assert.Single(description.Operations, item => item.Identifier == "example.measure").Lane);
+
+    var missing = new LanePlugin().Operation(operation, (context, value) => Task.FromResult(value));
+    Assert.Throws<ArgumentException>(() => missing.Describe());
+  }
+
+  private sealed class LanePlugin : Dokime.Plugin
+  {
+    public override string Version => "1.0.0";
+  }
+
+  [Fact]
   public async Task PluginHooksUseProtectedWellKnownOperationsAndAuthorState()
   {
     var plugin = new LifecyclePlugin();

@@ -14,6 +14,10 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
 
+## Operation Lanes
+
+`dokime::Lane` re-exports the library declaration. Create `let instrument = Lane::serial("instrument");`, assign it with `operation.lane(&instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Declaration validation rejects undeclared lane references.
+
 ## Author a Suite
 
 ```rust

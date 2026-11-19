@@ -35,7 +35,7 @@ using std::string;
 /* === Private Functions === */
 
 namespace dokime::detail {
-Failure project_failure(const harmos::FailureValue &value) {
+Failure project_failure(const harmos::model::Failure &value) {
   Failure result;
   switch (static_cast<int>(value.classification())) {
   case 1:
@@ -76,7 +76,7 @@ Error rpc_error(const string &operation, const grpc::Status &status, const grpc:
   for (const auto &[key, bytes] : context.GetServerTrailingMetadata()) {
     if (string(key.data(), key.length()) != "grpc-status-details-bin")
       continue;
-    harmos::FailureValue value;
+    harmos::model::Failure value;
     if (value.ParseFromArray(bytes.data(), static_cast<int>(bytes.length())) && value.classification()) {
       auto failure = project_failure(value);
       failure.details["grpc_status"] = std::to_string(static_cast<int>(status.error_code()));
