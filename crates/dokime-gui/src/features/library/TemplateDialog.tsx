@@ -18,17 +18,15 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
+import { ErrorCard } from "@/components/ErrorCard";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { type EditorParameterRow, editorProblems, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
 import {
@@ -48,6 +46,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ActiveCycleInline } from "@/features/library/ActiveCycle";
 import type { OpenCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, caseDeltas, NO_ACTIVE_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useParameterOverridesStatus, useParameterOverridesStore } from "@/stores/parameter-overrides-store";
@@ -108,7 +108,9 @@ export function TemplateDialog({
      Back and a failed RPC both land on the values the operator typed. */
   const [rows, setRows] = useState<EditorParameterRow[]>(() => seedEditorRows(template, overrides));
   useEffect(() => {
-    if (parametersReady) setRows(seedEditorRows(template, overrides));
+    if (parametersReady) {
+      setRows(seedEditorRows(template, overrides));
+    }
   }, [parametersReady, template, overrides]);
   const [fileRows, setFileRows] = useState<FileRowState[]>(() => initialFileRows(template));
   const [step, setStep] = useState<DialogStep>("parameters");
@@ -164,11 +166,13 @@ export function TemplateDialog({
   function changeRaw(name: string, raw: string) {
     setError(null);
     const definition = rows.find((row) => row.name === name)?.definition;
-    if (!definition) return;
+    if (!definition) {
+      return;
+    }
     setRows((current) => current.map((row) => (row.name === name ? editorRow(row.definition, raw) : row)));
     /* Typing a value back to its registered default is not an override: a
        stored copy of the default would silently outrank a later change to it. */
-    if (definition && raw === registeredParameterRaw(definition)) {
+    if (raw === registeredParameterRaw(definition)) {
       resetParameterOverride(templateId, definition.parameter_id);
       return;
     }
@@ -178,7 +182,9 @@ export function TemplateDialog({
   function resetRow(name: string) {
     setError(null);
     const definition = rows.find((row) => row.name === name)?.definition;
-    if (!definition) return;
+    if (!definition) {
+      return;
+    }
     setRows((current) =>
       current.map((row) => (row.name === name ? editorRow(row.definition, registeredParameterRaw(row.definition)) : row)),
     );
@@ -186,7 +192,9 @@ export function TemplateDialog({
   }
 
   function resetAll() {
-    if (fileRows.some((row) => row.uploading)) return;
+    if (fileRows.some((row) => row.uploading)) {
+      return;
+    }
     setError(null);
     setRows((current) => current.map((row) => editorRow(row.definition, registeredParameterRaw(row.definition))));
     clearTemplateOverrides(templateId);
@@ -194,7 +202,9 @@ export function TemplateDialog({
   }
 
   async function uploadFile(definition: FileDefinition, file: File | undefined) {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     setFileRows((current) => current.map((row) => (row.name === definition.name ? { ...row, error: null, uploading: true } : row)));
     try {
       const artifact = await uploadArtifact({
@@ -229,7 +239,9 @@ export function TemplateDialog({
      edited values; a failure keeps the operator on step 1 with their input.
      A preview with nothing to review (`summaryNeeded`) adds at once. */
   async function next() {
-    if (problems || busy || !append) return;
+    if (problems || busy || !append) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -239,8 +251,11 @@ export function TemplateDialog({
         selections: append.selections,
       });
       setPreview(expanded);
-      if (summaryNeeded(expanded, rows)) setStep("summary");
-      else await add(expanded);
+      if (summaryNeeded(expanded, rows)) {
+        setStep("summary");
+      } else {
+        await add(expanded);
+      }
     } catch (failure: unknown) {
       setError(failure);
     } finally {
@@ -249,7 +264,9 @@ export function TemplateDialog({
   }
 
   async function finishAndAdd() {
-    if (busy || !preview) return;
+    if (busy || !preview) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -262,14 +279,16 @@ export function TemplateDialog({
   }
 
   async function add(planned: PreviewTestCycleResponse) {
-    if (!append) throw new Error(NO_ACTIVE_CYCLE);
+    if (!append) {
+      throw new Error(NO_ACTIVE_CYCLE);
+    }
     const count = planned.case_count;
-    const response = await appendTestCycle(append);
+    await appendTestCycle(append);
     /* The cases are in the cycle: the dialog has finished, and closes before
        anything that only reports what happened. Announcing first left a
        successful add behind an open dialog whenever the toast threw. */
     onOpenChange(false);
-    const label = response.plan?.test_cycle?.title ?? cycleLabel ?? append.cycleId;
+    const label = cycleLabel ?? append.cycleId;
     toast.success(`Added ${count} ${count === 1 ? "Case" : "Cases"} to ${label}`, {
       action: {
         label: "Open Cycle",
@@ -447,7 +466,9 @@ export function TemplateDialog({
 
 /** The Registered Procedure, Before Parameters Materialize Any Cases. */
 export function TemplateProcedure({ template }: { template: SuiteTemplateEntry }) {
-  if (!template.steps.length) return null;
+  if (!template.steps.length) {
+    return null;
+  }
   return (
     <section aria-label="Procedure Steps" className="mx-4 grid gap-2 rounded-lg bg-muted/20 p-3">
       <h3 className="text-sm font-semibold">Procedure Steps</h3>
@@ -493,7 +514,9 @@ function StepIndicator({ step }: { step: DialogStep }) {
 }
 
 function StepSlot({ done, entry, step }: { done: boolean; entry: (typeof STEP_LABELS)[number] | undefined; step: DialogStep }) {
-  if (!entry) return null;
+  if (!entry) {
+    return null;
+  }
   const current = entry.key === step;
   return (
     <li className="flex items-center justify-center gap-2">

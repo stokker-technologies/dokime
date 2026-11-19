@@ -19,7 +19,17 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { CasesCreateResponseSchema, ParameterSchema, SuiteSchema, ValueType } from "@host/model";
+import {
+  CasesCreateResponseSchema,
+  CyclePhase,
+  CyclesGetResponseSchema,
+  ExecutionState,
+  ExecutionsCreateResponseSchema,
+  ParameterSchema,
+  SuiteSchema,
+  ValueType,
+} from "@host/model";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -27,8 +37,8 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { TemplateDialog } from "@/features/library/TemplateDialog";
 import type { OpenCycle } from "@/features/library/active-cycle-model";
+import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { previewNativeTestCycle } from "@/lib/api/native-planning";
 import { mapSuite } from "@/lib/host/suites";
 
@@ -39,6 +49,9 @@ import { mapSuite } from "@/lib/host/suites";
 const boundary = vi.hoisted(() => ({ unary: vi.fn(), preview: vi.fn(), append: vi.fn(), closed: vi.fn() }));
 vi.mock("@/lib/rpc/transport", () => ({ unary: boundary.unary }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("@/app/native-session/context", () => ({
+  useNativeSession: () => ({ identity: { generation: "planning", isCurrent: () => true } }),
+}));
 vi.mock("@/components/suite-picker/server-state", () => ({
   usePreviewTestCycleMutation: () => ({ mutateAsync: boundary.preview }),
   useAppendTestCycleMutation: () => ({ mutateAsync: boundary.append }),
@@ -111,7 +124,6 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
   );
   const parameters = Object.fromEntries(names.map((name, index) => [name, expected[index]]));
   boundary.unary.mockImplementation(async (path: string) => {
-    if (path.endsWith("Suites/List")) return { values: [source] };
     assert.ok(path.endsWith("Cases/Create"));
     return create(CasesCreateResponseSchema, {
       cases: [
@@ -125,7 +137,7 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
     });
   });
   boundary.preview.mockImplementation((request) => previewNativeTestCycle({ generation: "1", isCurrent: () => true }, request));
-  boundary.append.mockResolvedValue({ plan: null });
+  boundary.append.mockResolvedValue(create(ExecutionsCreateResponseSchema));
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, indexedDB: new IDBFactory(), IDBKeyRange });
   const activeCycle: OpenCycle = {
     attentionCount: 0,
@@ -194,6 +206,10 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
 
     // Plan Through the Native Adapter and Complete the Single-Case Transaction
     await act(async () => next.click());
+    assert.deepEqual(
+      boundary.unary.mock.calls.map(([path]) => path),
+      ["/dokime.host.v1.Cases/Create"],
+    );
     const call = boundary.unary.mock.calls.find(([path]) => path.endsWith("Cases/Create"));
     assert.ok(call);
     assert.equal(call[4].validateOnly, true);
@@ -212,5 +228,65 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
   } finally {
     await act(async () => root.unmount());
     container.remove();
+  }
+});
+
+test("Append Returns the Admission Without Rebuilding the Cycle or Refreshing the Catalog", async () => {
+  vi.clearAllMocks();
+  const { useAppendTestCycleMutation } = await vi.importActual<typeof import("@/components/suite-picker/server-state")>(
+    "@/components/suite-picker/server-state",
+  );
+  const client = new QueryClient();
+  const invalidations = vi.spyOn(client, "invalidateQueries");
+  let admission = create(ExecutionsCreateResponseSchema);
+  boundary.unary.mockImplementation(async (path: string, _input: unknown, _output: unknown, _session: unknown, request) => {
+    if (path.endsWith("Cycles/Get")) {
+      return create(CyclesGetResponseSchema, { cycle: { cycleId: "cycle", phase: CyclePhase.ACTIVE } });
+    }
+    if (path.endsWith("Cases/Create")) {
+      return create(CasesCreateResponseSchema, { cases: [{ caseId: "registered", suiteId: "suite", templateId: "template" }] });
+    }
+    assert.equal(path, "/dokime.host.v1.Executions/Create");
+    assert.equal(request.parent, "cycle");
+    assert.deepEqual(
+      request.executions.map((item: { caseId: string }) => item.caseId),
+      ["registered"],
+    );
+    admission = create(ExecutionsCreateResponseSchema, {
+      executions: request.executions.map((item: { executionId: string }) => ({
+        summary: { executionId: item.executionId, state: ExecutionState.OPEN },
+      })),
+    });
+    return admission;
+  });
+  let append: ReturnType<typeof useAppendTestCycleMutation>["mutateAsync"] | undefined;
+  function Append() {
+    append = useAppendTestCycleMutation().mutateAsync;
+    return null;
+  }
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(createElement(QueryClientProvider, { client }, createElement(Append))));
+    let reply: unknown;
+    await act(async () => {
+      assert.ok(append);
+      reply = await append({ cycleId: "cycle", selections: [{ suite_id: "suite", template_id: "template", parameters: {} }] });
+    });
+    assert.strictEqual(reply, admission);
+    assert.deepEqual(
+      boundary.unary.mock.calls.map(([path]) => path),
+      ["/dokime.host.v1.Cycles/Get", "/dokime.host.v1.Cases/Create", "/dokime.host.v1.Executions/Create"],
+    );
+    assert.ok(invalidations.mock.calls.length > 0);
+    assert.equal(
+      invalidations.mock.calls.some(([filter]) => filter?.queryKey?.[0] === "suite"),
+      false,
+    );
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    client.clear();
   }
 });
