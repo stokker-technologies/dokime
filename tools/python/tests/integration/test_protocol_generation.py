@@ -16,7 +16,9 @@ import runpy
 import shutil
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
+from unittest import mock
 
 # isort: split
 
@@ -25,6 +27,7 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
+from dokime_tools.build.protocol import cpp_dependency
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
@@ -39,6 +42,31 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
+    def test_cpp_archive_follows_the_workspace_pin_and_refuses_stale_bytes(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        try:
+            manifest = scratch / "Cargo.toml"
+            dependency = scratch / "sdk/cpp/cmake/Dependencies.cmake"
+            dependency.parent.mkdir(parents=True)
+            archive = b"First Archive"
+            manifest.write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "first"\n')
+            with mock.patch("urllib.request.urlopen", side_effect=lambda url: BytesIO(archive)) as download:
+                cpp_dependency(scratch)
+                cpp_dependency(scratch, check=True)
+                first = dependency.read_bytes()
+                self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/first.tar.gz")
+                manifest.write_text(manifest.read_text().replace('"first"', '"second"'))
+                self.assertRaises(ValueError, cpp_dependency, scratch, check=True)
+                cpp_dependency(scratch)
+                self.assertNotEqual(first, dependency.read_bytes())
+                self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/second.tar.gz")
+                archive = b"Changed Archive"
+                self.assertRaises(ValueError, cpp_dependency, scratch, check=True)
+                cpp_dependency(scratch)
+                cpp_dependency(scratch, check=True)
+        finally:
+            shutil.rmtree(scratch)
+
     def test_retired_python_package_and_imports_are_refused(self) -> None:
         cases = (
             ("dokime/__init__.py", ""),
