@@ -41,17 +41,6 @@ use dokime_protocol::host::{
 
 /* === Macros === */
 
-macro_rules! mapping {
-    ($source:path => $target:path, $value:ident, $body:expr) => {
-        impl Project<$target> for $source {
-            fn project(self) -> $target {
-                let $value = self;
-                $body
-            }
-        }
-    };
-}
-
 macro_rules! unary {
     ($name:ident, $native:path, $request:path, $response:path, $package:literal, $service:literal, $method:literal) => {
         pub struct $name;
@@ -93,93 +82,285 @@ trait Project<T> {
 
 /* === Implementations === */
 
-mapping!(PluginsGetRequest => host::PluginsGetRequest, value, host::PluginsGetRequest { name: value.name, at: value.at });
+impl Project<host::PluginsGetRequest> for PluginsGetRequest {
+    fn project(self) -> host::PluginsGetRequest {
+        let value = self;
+        host::PluginsGetRequest { name: value.name, at: value.at }
+    }
+}
 
-mapping!(host::PluginsGetResponse => PluginsGetResponse, value, PluginsGetResponse { entry: value.entry.map(Project::project), resolved_at: value.resolved_at });
+impl Project<PluginsGetResponse> for host::PluginsGetResponse {
+    fn project(self) -> PluginsGetResponse {
+        let value = self;
+        PluginsGetResponse {
+            entry: value.entry.map(Project::project),
+            resolved_at: value.resolved_at,
+        }
+    }
+}
 
-mapping!(PluginsListRequest => host::PluginsListRequest, value, host::PluginsListRequest { at: value.at });
+impl Project<host::PluginsListRequest> for PluginsListRequest {
+    fn project(self) -> host::PluginsListRequest {
+        let value = self;
+        host::PluginsListRequest { at: value.at }
+    }
+}
 
-mapping!(host::PluginsListResponse => PluginsListResponse, value, PluginsListResponse { entries: value.entries.into_iter().map(Project::project).collect(), resolved_at: value.resolved_at });
+impl Project<PluginsListResponse> for host::PluginsListResponse {
+    fn project(self) -> PluginsListResponse {
+        let value = self;
+        PluginsListResponse {
+            entries: value.entries.into_iter().map(Project::project).collect(),
+            resolved_at: value.resolved_at,
+        }
+    }
+}
 
-mapping!(PluginsWatchRequest => host::PluginsWatchRequest, value, host::PluginsWatchRequest { name: value.name, at: value.at });
+impl Project<host::PluginsWatchRequest> for PluginsWatchRequest {
+    fn project(self) -> host::PluginsWatchRequest {
+        let value = self;
+        host::PluginsWatchRequest { name: value.name, at: value.at }
+    }
+}
 
-mapping!(PluginsCreateRequest => host::PluginsCreateRequest, value, host::PluginsCreateRequest { request_id: value.request_id, name: value.name, placement: value.placement.map(Project::project), value: value.value.map(Project::project), origin: value.origin });
+impl Project<host::PluginsCreateRequest> for PluginsCreateRequest {
+    fn project(self) -> host::PluginsCreateRequest {
+        let value = self;
+        host::PluginsCreateRequest {
+            request_id: value.request_id,
+            name: value.name,
+            placement: value.placement.map(Project::project),
+            value: value.value.map(Project::project),
+            origin: value.origin,
+        }
+    }
+}
 
-mapping!(host::PluginsCreateResponse => PluginsCreateResponse, value, PluginsCreateResponse { entry: value.entry.map(Project::project), receipt: value.receipt });
+impl Project<PluginsCreateResponse> for host::PluginsCreateResponse {
+    fn project(self) -> PluginsCreateResponse {
+        let value = self;
+        PluginsCreateResponse {
+            entry: value.entry.map(Project::project),
+            receipt: value.receipt,
+        }
+    }
+}
 
-mapping!(PluginsSetRequest => host::PluginsSetRequest, value, host::PluginsSetRequest { name: value.name, value: value.value.map(Project::project), expected_revision: value.expected_revision });
+impl Project<host::PluginsSetRequest> for PluginsSetRequest {
+    fn project(self) -> host::PluginsSetRequest {
+        let value = self;
+        host::PluginsSetRequest {
+            name: value.name,
+            value: value.value.map(Project::project),
+            expected_revision: value.expected_revision,
+        }
+    }
+}
 
-mapping!(host::PluginsSetResponse => PluginsSetResponse, value, PluginsSetResponse { entry: value.entry.map(Project::project), receipt: value.receipt });
+impl Project<PluginsSetResponse> for host::PluginsSetResponse {
+    fn project(self) -> PluginsSetResponse {
+        let value = self;
+        PluginsSetResponse {
+            entry: value.entry.map(Project::project),
+            receipt: value.receipt,
+        }
+    }
+}
 
-mapping!(PluginsDeleteRequest => host::PluginsDeleteRequest, value, host::PluginsDeleteRequest { name: value.name, expected_revision: value.expected_revision });
+impl Project<host::PluginsDeleteRequest> for PluginsDeleteRequest {
+    fn project(self) -> host::PluginsDeleteRequest {
+        let value = self;
+        host::PluginsDeleteRequest {
+            name: value.name,
+            expected_revision: value.expected_revision,
+        }
+    }
+}
 
-mapping!(host::PluginsDeleteResponse => PluginsDeleteResponse, value, PluginsDeleteResponse { receipt: value.receipt });
+impl Project<PluginsDeleteResponse> for host::PluginsDeleteResponse {
+    fn project(self) -> PluginsDeleteResponse {
+        let value = self;
+        PluginsDeleteResponse { receipt: value.receipt }
+    }
+}
 
-mapping!(PluginsRestartRequest => host::PluginsRestartRequest, value, host::PluginsRestartRequest { name: value.name, expected_revision: value.expected_revision });
+impl Project<host::PluginsRestartRequest> for PluginsRestartRequest {
+    fn project(self) -> host::PluginsRestartRequest {
+        let value = self;
+        host::PluginsRestartRequest {
+            name: value.name,
+            expected_revision: value.expected_revision,
+        }
+    }
+}
 
-mapping!(host::PluginsRestartResponse => PluginsRestartResponse, value, PluginsRestartResponse { entry: value.entry.map(Project::project) });
+impl Project<PluginsRestartResponse> for host::PluginsRestartResponse {
+    fn project(self) -> PluginsRestartResponse {
+        let value = self;
+        PluginsRestartResponse { entry: value.entry.map(Project::project) }
+    }
+}
 
-mapping!(PluginsReplaceRequest => host::PluginsReplaceRequest, value, host::PluginsReplaceRequest { name: value.name, placement: value.placement.map(Project::project), expected_revision: value.expected_revision, request_id: value.request_id });
+impl Project<host::PluginsReplaceRequest> for PluginsReplaceRequest {
+    fn project(self) -> host::PluginsReplaceRequest {
+        let value = self;
+        host::PluginsReplaceRequest {
+            name: value.name,
+            placement: value.placement.map(Project::project),
+            expected_revision: value.expected_revision,
+            request_id: value.request_id,
+        }
+    }
+}
 
-mapping!(host::PluginsReplaceResponse => PluginsReplaceResponse, value, PluginsReplaceResponse { entry: value.entry.map(Project::project), receipt: value.receipt });
+impl Project<PluginsReplaceResponse> for host::PluginsReplaceResponse {
+    fn project(self) -> PluginsReplaceResponse {
+        let value = self;
+        PluginsReplaceResponse {
+            entry: value.entry.map(Project::project),
+            receipt: value.receipt,
+        }
+    }
+}
 
-mapping!(SettingsListRequest => host::plugins::SettingsListRequest, value, host::plugins::SettingsListRequest { name: value.name, at: value.at });
+impl Project<host::plugins::SettingsListRequest> for SettingsListRequest {
+    fn project(self) -> host::plugins::SettingsListRequest {
+        let value = self;
+        host::plugins::SettingsListRequest { name: value.name, at: value.at }
+    }
+}
 
-mapping!(host::plugins::SettingsListResponse => SettingsListResponse, value, SettingsListResponse { declarations: value.declarations, value: value.value, revision: value.revision, resolved_at: value.resolved_at });
+impl Project<SettingsListResponse> for host::plugins::SettingsListResponse {
+    fn project(self) -> SettingsListResponse {
+        let value = self;
+        SettingsListResponse {
+            declarations: value.declarations,
+            value: value.value,
+            revision: value.revision,
+            resolved_at: value.resolved_at,
+        }
+    }
+}
 
-mapping!(SettingsSetRequest => host::plugins::SettingsSetRequest, value, host::plugins::SettingsSetRequest { name: value.name, value: value.value, expected_revision: value.expected_revision, request_id: value.request_id });
+impl Project<host::plugins::SettingsSetRequest> for SettingsSetRequest {
+    fn project(self) -> host::plugins::SettingsSetRequest {
+        let value = self;
+        host::plugins::SettingsSetRequest {
+            name: value.name,
+            value: value.value,
+            expected_revision: value.expected_revision,
+            request_id: value.request_id,
+        }
+    }
+}
 
-mapping!(host::plugins::SettingsSetResponse => SettingsSetResponse, value, SettingsSetResponse { value: value.value, revision: value.revision, receipt: value.receipt });
+impl Project<SettingsSetResponse> for host::plugins::SettingsSetResponse {
+    fn project(self) -> SettingsSetResponse {
+        let value = self;
+        SettingsSetResponse {
+            value: value.value,
+            revision: value.revision,
+            receipt: value.receipt,
+        }
+    }
+}
 
-mapping!(PluginValue => host::PluginValue, value, host::PluginValue { enabled: value.enabled });
+impl Project<host::PluginValue> for PluginValue {
+    fn project(self) -> host::PluginValue {
+        let value = self;
+        host::PluginValue { enabled: value.enabled }
+    }
+}
 
-mapping!(PluginPlacement => host::PluginPlacement, value, host::PluginPlacement {
-    kind: value.kind.map(|kind| match kind {
-        plugin_placement::Kind::Managed(value) => host::plugin_placement::Kind::Managed(host::PluginManaged { content: value.content, sha256: value.sha256 }),
-        plugin_placement::Kind::Remote(value) => host::plugin_placement::Kind::Remote(host::PluginRemote { url: value.url }),
-        plugin_placement::Kind::Guest(_) => host::plugin_placement::Kind::Guest(host::PluginGuest {}),
-    }),
-});
-
-mapping!(host::PluginValue => PluginValue, value, PluginValue { enabled: value.enabled });
-
-mapping!(host::PluginPlacement => PluginPlacement, value, PluginPlacement {
-    kind: value.kind.map(|kind| match kind {
-        host::plugin_placement::Kind::Managed(value) => plugin_placement::Kind::Managed(PluginManaged { content: value.content, sha256: value.sha256 }),
-        host::plugin_placement::Kind::Remote(value) => plugin_placement::Kind::Remote(PluginRemote { url: value.url }),
-        host::plugin_placement::Kind::Guest(_) => plugin_placement::Kind::Guest(PluginGuest {}),
-    }),
-});
-
-mapping!(host::PluginEntry => PluginEntry, value, PluginEntry {
-    name: value.name,
-    placement: value.placement.map(Project::project),
-    value: value.value.map(Project::project),
-    revision: value.revision,
-    state: value.state,
-    failure: value.failure,
-    description: value.description.map(|description| PluginDescription {
-        id: description.id, version: description.version, started_at: description.started_at,
-        declarations: description.declarations, revision: description.revision, sdk: description.sdk, sdk_version: description.sdk_version,
-    }),
-    declarations_digest: value.declarations_digest,
-    process: value.process.map(|process| PluginProcess { id: process.id, executable_digest: process.executable_digest, started_at: process.started_at }),
-    activation: value.activation,
-    origin: value.origin,
-});
-mapping!(host::PluginsWatchResponse => PluginsWatchResponse, value, PluginsWatchResponse {
-    resolved_at: value.resolved_at,
-    event: value.event.map(|event| match event {
-        host::plugins_watch_response::Event::Snapshot(snapshot) => plugins_watch_response::Event::Snapshot(PluginSnapshot { entries: snapshot.entries.into_iter().map(Project::project).collect() }),
-        host::plugins_watch_response::Event::Change(change) => plugins_watch_response::Event::Change(PluginChange {
-            kind: change.kind.map(|kind| match kind {
-                host::plugin_change::Kind::Entry(entry) => plugin_change::Kind::Entry(entry.project()),
-                host::plugin_change::Kind::Deleted(name) => plugin_change::Kind::Deleted(name),
+impl Project<host::PluginPlacement> for PluginPlacement {
+    fn project(self) -> host::PluginPlacement {
+        let value = self;
+        host::PluginPlacement {
+            kind: value.kind.map(|kind| match kind {
+                plugin_placement::Kind::Managed(value) => host::plugin_placement::Kind::Managed(host::PluginManaged {
+                    content: value.content,
+                    sha256: value.sha256,
+                }),
+                plugin_placement::Kind::Remote(value) => host::plugin_placement::Kind::Remote(host::PluginRemote { url: value.url }),
+                plugin_placement::Kind::Guest(_) => host::plugin_placement::Kind::Guest(host::PluginGuest {}),
             }),
-        }),
-        host::plugins_watch_response::Event::ResyncRequired(reason) => plugins_watch_response::Event::ResyncRequired(reason),
-    }),
-});
+        }
+    }
+}
+
+impl Project<PluginValue> for host::PluginValue {
+    fn project(self) -> PluginValue {
+        let value = self;
+        PluginValue { enabled: value.enabled }
+    }
+}
+
+impl Project<PluginPlacement> for host::PluginPlacement {
+    fn project(self) -> PluginPlacement {
+        let value = self;
+        PluginPlacement {
+            kind: value.kind.map(|kind| match kind {
+                host::plugin_placement::Kind::Managed(value) => plugin_placement::Kind::Managed(PluginManaged {
+                    content: value.content,
+                    sha256: value.sha256,
+                }),
+                host::plugin_placement::Kind::Remote(value) => plugin_placement::Kind::Remote(PluginRemote { url: value.url }),
+                host::plugin_placement::Kind::Guest(_) => plugin_placement::Kind::Guest(PluginGuest {}),
+            }),
+        }
+    }
+}
+
+impl Project<PluginEntry> for host::PluginEntry {
+    fn project(self) -> PluginEntry {
+        let value = self;
+        PluginEntry {
+            name: value.name,
+            placement: value.placement.map(Project::project),
+            value: value.value.map(Project::project),
+            revision: value.revision,
+            state: value.state,
+            failure: value.failure,
+            description: value.description.map(|description| PluginDescription {
+                id: description.id,
+                version: description.version,
+                started_at: description.started_at,
+                declarations: description.declarations,
+                revision: description.revision,
+                sdk: description.sdk,
+                sdk_version: description.sdk_version,
+            }),
+            declarations_digest: value.declarations_digest,
+            process: value.process.map(|process| PluginProcess {
+                id: process.id,
+                executable_digest: process.executable_digest,
+                started_at: process.started_at,
+            }),
+            activation: value.activation,
+            origin: value.origin,
+        }
+    }
+}
+impl Project<PluginsWatchResponse> for host::PluginsWatchResponse {
+    fn project(self) -> PluginsWatchResponse {
+        let value = self;
+        PluginsWatchResponse {
+            resolved_at: value.resolved_at,
+            event: value.event.map(|event| match event {
+                host::plugins_watch_response::Event::Snapshot(snapshot) => plugins_watch_response::Event::Snapshot(PluginSnapshot {
+                    entries: snapshot.entries.into_iter().map(Project::project).collect(),
+                }),
+                host::plugins_watch_response::Event::Change(change) => plugins_watch_response::Event::Change(PluginChange {
+                    kind: change.kind.map(|kind| match kind {
+                        host::plugin_change::Kind::Entry(entry) => plugin_change::Kind::Entry(entry.project()),
+                        host::plugin_change::Kind::Deleted(name) => plugin_change::Kind::Deleted(name),
+                    }),
+                }),
+                host::plugins_watch_response::Event::ResyncRequired(reason) => plugins_watch_response::Event::ResyncRequired(reason),
+            }),
+        }
+    }
+}
 
 unary!(Get, plugins::Get, PluginsGetRequest, PluginsGetResponse, "dokime.host.v1", "Plugins", "Get");
 
