@@ -7,7 +7,7 @@
 # ***
 
 
-"""Typed Product Operations With Plain Payloads."""
+"""Typed Product Operations with Plain Payloads."""
 
 # === Imports === #
 

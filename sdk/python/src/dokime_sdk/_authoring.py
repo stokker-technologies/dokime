@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Composed Suite Definitions And Python Authoring Decorators."""
+"""Composed Suite Definitions and Python Authoring Decorators."""
 
 # === Imports === #
 
@@ -374,6 +374,9 @@ def step[**P, R](
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
             raise TypeError("Register Definition: Supply a Function")
+        if retries:
+            identity = build_identifier(handler.__name__, identifier)
+            raise ValueError(f"Declare Operation {identity}: Supply policy.retries.initial With a Positive Backoff Instead of retries")
         if policy is not None:
             policy._validate(build_identifier(handler.__name__, identifier))
         vars(handler)["__dokime_step__"] = Step(label, handler, identifier, retries, repeatable, policy)

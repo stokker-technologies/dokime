@@ -225,6 +225,7 @@ class AuthoringStory(unittest.TestCase):
         async def evaluate(ctx: dokime_sdk.templates.Context) -> bool:
             return True
 
+        self.assertRaisesRegex(ValueError, r"Declare Operation measure:.*policy\.retries\.initial", step("Measure", retries=1), measure)
         for initial in (timedelta(), timedelta(milliseconds=-1)):
             policy = OperationPolicy(retries=RetryPolicy(2, initial))
             error = r"Declare Operation measure:.*retries\.initial.*Positive"

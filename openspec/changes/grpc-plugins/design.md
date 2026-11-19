@@ -1391,9 +1391,9 @@ class PromptDeclaration:
 `OperationPolicy` retains total invocation timeout, attempt timeout, cancellation
 timeout and `RetryPolicy(total_attempts, initial, maximum,
 deterministic_jitter)` as typed duration values. No retries without explicit
-replay safety. A nonzero `step(retries=n)` means `n+1` total attempts; if `policy`
-already supplies retries, refuse the two sources rather than silently combine
-them. Absent policy inherits the operation owner's configured policy, never a
+replay safety. Retried steps declare `policy.retries` with an explicit positive
+`initial` backoff; `step(retries=n)` cannot express that policy and is refused
+with guidance naming the operation and field. Absent policy inherits the operation owner's configured policy, never a
 caller-created timeout. Private execution remains local and still uses the same
 policy and cancellation machinery. Visibility must be explicitly PRIVATE,
 PROTECTED or PUBLIC; no default or integer/module-constant substitute.

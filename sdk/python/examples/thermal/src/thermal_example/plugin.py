@@ -6,7 +6,7 @@
 #
 # ***
 
-"""The Shared Thermal Procedure With Local Declarations."""
+"""The Shared Thermal Procedure with Local Declarations."""
 
 # === Imports === #
 
