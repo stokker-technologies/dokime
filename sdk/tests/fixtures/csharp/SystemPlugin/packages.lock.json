@@ -6,7 +6,7 @@
         "type": "Direct",
         "requested": "[0.1.0-dev, 0.1.0-dev]",
         "resolved": "0.1.0-dev",
-        "contentHash": "JbBqCZGQOq5js2PhmBNw6IG1TTucvy7+3ihUclXAhm/FHwmDyva1gAW2qugaEzDFBONFf6s/m057bvwFXh50kw==",
+        "contentHash": "femoOnHcjZi12gjog9eExTJiCbgYwEvB4EDPQfuI+FuiJr0uE7jnstCI6X82Nny/s4Os7yPBnIdZe2CZeWM/LQ==",
         "dependencies": {
           "Google.Protobuf": "3.36.2",
           "Grpc.AspNetCore": "2.76.0",
