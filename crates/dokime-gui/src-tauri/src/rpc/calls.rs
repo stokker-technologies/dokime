@@ -13,21 +13,27 @@
 
 /* === Imports === */
 
-use crate::rpc::protocol;
-
 // Standard Library Imports
 use std::{
+    collections::HashMap,
+    mem,
     str::FromStr,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 // Third Party Imports
-use tauri::ipc::{Channel, JavaScriptChannelId, Response};
-use tokio::sync::mpsc;
+use tauri::http::HeaderMap;
+use tauri::ipc::{Channel, JavaScriptChannelId, Request, Response};
+use tauri::{Runtime, State, WebviewWindow};
+use tokio::sync::{self, Semaphore, mpsc};
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use super::*;
+use super::{Bridge, Context, RpcError};
+use crate::connection::{ConnectionSession, host};
+use crate::rpc::protocol;
 
 /* === Constants === */
 
@@ -65,7 +71,7 @@ struct Entry {
     owner: String,
     generation: u64,
     cancel: CancellationToken,
-    input: tokio::sync::Mutex<Option<mpsc::Sender<Vec<u8>>>>,
+    input: sync::Mutex<Option<mpsc::Sender<Vec<u8>>>>,
     max_request_bytes: usize,
     credit: Arc<Semaphore>,
     delivery: Mutex<Delivery>,
@@ -117,12 +123,12 @@ impl Streams {
             return Err(RpcError::LimitExceeded);
         }
         let (sender, receiver) = mpsc::channel(DESKTOP_INPUT_BUFFER_ITEMS as usize);
-        sender.try_send(std::mem::take(&mut opening.payload)).map_err(|_| RpcError::Busy)?;
+        sender.try_send(mem::take(&mut opening.payload)).map_err(|_| RpcError::Busy)?;
         let entry = Arc::new(Entry {
             owner: context.owner.clone(),
             generation: context.generation,
             cancel: CancellationToken::new(),
-            input: tokio::sync::Mutex::new(opening.keep_input.then_some(sender)),
+            input: sync::Mutex::new(opening.keep_input.then_some(sender)),
             max_request_bytes,
             credit: Arc::new(Semaphore::new(protocol::STREAM_CREDIT as usize)),
             delivery: Mutex::default(),
@@ -224,37 +230,36 @@ impl Entry {
 /* === Public Functions === */
 
 #[tauri::command]
-pub async fn rpc<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn rpc<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<Response, RpcError> {
-    // Keep The Nested Client Future Off Tauri's Main-Thread Response Stack.
+    // Keep the Nested Client Future off Tauri's Main-Thread Response Stack
     Box::pin(async move {
         let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         let path = path(request.headers())?;
         let started = Instant::now();
-        // Unary calls wait for their budget: they are short, and a burst of
-        // queries must not fail because a few others are still in flight.
-        let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled)?;
-        let admission_ms = started.elapsed().as_secs_f64() * 1000.0;
-        let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
-        let client = context.client();
-        let deadline = deadline(request.headers(), client.read_timeout(), client.watch_timeout())?;
-        let client = if header(request.headers(), DEADLINE_HEADER)?.is_some() { client.with_timeout(deadline) } else { client };
-        let response = context.execute(client.call_raw(path, payload)).await?;
-        let reply = context.reply_bytes(&response)?;
-        if path.starts_with("/dokime.host.v1.Reports/") {
-            tracing::info!(operation = path, admission_ms, request_ms = started.elapsed().as_secs_f64() * 1000.0, "Report RPC Completed");
+        let mut admission_ms = 0.0;
+        let reply = async {
+            // Unary Calls Wait for Admission so Bursts Do Not Refuse Short Queries
+            let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled);
+            admission_ms = started.elapsed().as_secs_f64() * 1000.0;
+            let context = bridge.context(&session, webview.label(), generation, Some(permit?))?;
+            let client = context.client();
+            let deadline = deadline(request.headers(), client.read_timeout(), client.watch_timeout())?;
+            let client = if header(request.headers(), DEADLINE_HEADER)?.is_some() { client.with_timeout(deadline) } else { client };
+            let response = context.execute(client.call_raw(path, payload)).await?;
+            context.reply_bytes(&response)
         }
-        Ok(reply)
+        .await;
+        tracing::debug!(operation = path, admission_ms, request_ms = started.elapsed().as_secs_f64() * 1000.0, "Native RPC Completed");
+        reply
     })
     .await
 }
 
 #[tauri::command]
-pub async fn rpc_stream_open<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn rpc_stream_open<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<Response, RpcError> {
     let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     let headers = request.headers();
@@ -280,9 +285,8 @@ pub async fn rpc_stream_open<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn rpc_stream_send<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn rpc_stream_send<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
@@ -291,9 +295,8 @@ pub async fn rpc_stream_send<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn rpc_stream_finish<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn rpc_stream_finish<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
@@ -302,9 +305,8 @@ pub async fn rpc_stream_finish<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn rpc_stream_cancel<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn rpc_stream_cancel<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
@@ -313,9 +315,8 @@ pub async fn rpc_stream_cancel<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn rpc_stream_ack<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn rpc_stream_ack<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<(), RpcError> {
     let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
@@ -330,7 +331,7 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
 /* === Private Functions === */
 
 async fn forward(
-    entry: &Entry, context: &Context, client: &crate::connection::host::Session, channel: &Channel<Response>, opening: &Opening,
+    entry: &Entry, context: &Context, client: &host::Session, channel: &Channel<Response>, opening: &Opening,
     mut receiver: mpsc::Receiver<Vec<u8>>,
 ) -> Result<(), RpcError> {
     if opening.keep_input {
@@ -363,11 +364,11 @@ fn frame(generation: u64, kind: u8, payload: &[u8]) -> Vec<u8> {
     bytes
 }
 
-fn header<'a>(headers: &'a tauri::http::HeaderMap, name: &str) -> Result<Option<&'a str>, RpcError> {
+fn header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, RpcError> {
     headers.get(name).map(|value| value.to_str().map_err(|_| RpcError::InvalidRequest)).transpose()
 }
 
-fn path(headers: &tauri::http::HeaderMap) -> Result<&str, RpcError> {
+fn path(headers: &HeaderMap) -> Result<&str, RpcError> {
     let path = header(headers, PATH_HEADER)?.ok_or(RpcError::InvalidRequest)?;
     let (service, method) = path.strip_prefix('/').and_then(|path| path.split_once('/')).ok_or(RpcError::InvalidRequest)?;
     let valid = !service.is_empty()
@@ -377,7 +378,7 @@ fn path(headers: &tauri::http::HeaderMap) -> Result<&str, RpcError> {
     valid.then_some(path).ok_or(RpcError::InvalidRequest)
 }
 
-fn deadline(headers: &tauri::http::HeaderMap, default: Duration, maximum: Duration) -> Result<Duration, RpcError> {
+fn deadline(headers: &HeaderMap, default: Duration, maximum: Duration) -> Result<Duration, RpcError> {
     let Some(value) = header(headers, DEADLINE_HEADER)? else {
         return Ok(default);
     };
@@ -389,7 +390,7 @@ fn deadline(headers: &tauri::http::HeaderMap, default: Duration, maximum: Durati
         .ok_or(RpcError::InvalidRequest)
 }
 
-fn stream(headers: &tauri::http::HeaderMap) -> Result<u64, RpcError> {
+fn stream(headers: &HeaderMap) -> Result<u64, RpcError> {
     header(headers, STREAM_HEADER)?.and_then(|value| value.parse().ok()).ok_or(RpcError::UnknownStream)
 }
 
@@ -397,13 +398,12 @@ fn stream(headers: &tauri::http::HeaderMap) -> Result<u64, RpcError> {
 
 #[cfg(test)]
 mod tests {
+    use tauri::http::{HeaderName, HeaderValue};
+
     use super::*;
 
-    fn headers(pairs: &[(&'static str, &'static str)]) -> tauri::http::HeaderMap {
-        pairs
-            .iter()
-            .map(|(name, value)| (tauri::http::HeaderName::from_static(name), tauri::http::HeaderValue::from_static(value)))
-            .collect()
+    fn headers(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
+        pairs.iter().map(|(name, value)| (HeaderName::from_static(name), HeaderValue::from_static(value))).collect()
     }
 
     #[test]
@@ -444,7 +444,7 @@ mod tests {
             owner: "main".into(),
             generation: 1,
             cancel: CancellationToken::new(),
-            input: tokio::sync::Mutex::new(None),
+            input: sync::Mutex::new(None),
             max_request_bytes: 1,
             credit: Arc::new(Semaphore::new(0)),
             delivery: Mutex::new(Delivery { sent: 3, acknowledged: 0 }),

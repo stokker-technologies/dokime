@@ -136,6 +136,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const rerunCase = useRerunCase(cycleId);
   const followActive = useSelectionStore((state) => state.followActive);
   const setSelectionState = useSelectionStore((state) => state.setSelectionState);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
 
@@ -158,7 +159,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   /* Only prompts whose owner still runs are offered: a prompt never outlives
      its execution, here as in the runtime that settles it. */
   const prompts = useMemo(() => {
-    if (!live) return [];
+    if (!live) {
+      return [];
+    }
     const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
       cycleEnded: phase !== "active",
@@ -253,8 +256,18 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   }
 
   if (selectedRow) {
+    const execution = selectedRow.execution;
     const executionMenu: ExecutionMenu = {
       kind: "execution",
+      onStart: execution?.controls?.canStart
+        ? () =>
+            run({ done: "Execution Started", failed: "Execution Could Not Start" }, () =>
+              commands.startExecution.mutateAsync(execution.test_execution_id),
+            )
+        : null,
+      startRefusal: selectedRow.execution?.controls?.canStart ? undefined : "Reload Execution Controls or Select a New Plugin Execution",
+      onDeleteCase: selectedRow.case.actions === null || selectedRow.case.actions.delete ? () => setDeleteOpen(true) : null,
+      deleteRefusal: selectedRow.case.actions?.delete === false ? selectedRow.case.actions.unavailable_reasons.join(" ") : undefined,
       archive: selectedRow.execution
         ? archiveAction(
             Boolean(selectedRow.execution.archived),
@@ -279,10 +292,38 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
       onSettings: selectedRow.execution ? () => setSettingsOpen(true) : null,
     };
-    const execution = selectedRow.execution;
     const executionSealed = caseSealed(executions, selectedRow.case.caseId);
     return (
       <div className="grid min-h-0">
+        <Dialog open={live && deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Case</DialogTitle>
+              <DialogDescription>
+                Deleting removes the case "{selectedRow.case.label}" and its{" "}
+                {rows.filter((row) => row.case.caseId === selectedRow.case.caseId && row.execution !== null).length} executions from this
+                cycle. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={() => setDeleteOpen(false)} variant="outline">
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setDeleteOpen(false);
+                  run({ done: "Case Deleted", failed: "The Case Could Not Be Deleted" }, async () => {
+                    await commands.deleteCase.mutateAsync(selectedRow.case.caseId);
+                    onSelectionChange({ view: "cycle" });
+                  });
+                }}
+              >
+                Delete Case
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         {live && execution ? (
           <SettingsDialog
             description="The execution's own settings. Its title is its case's label; a sealed attempt keeps the label its report froze."

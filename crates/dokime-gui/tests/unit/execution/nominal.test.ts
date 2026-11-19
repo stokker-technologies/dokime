@@ -20,6 +20,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
+import { Metric } from "@/components/Metric";
 import { EditableOperatorNotes } from "@/components/document/OperatorNotesView";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
@@ -53,6 +54,10 @@ import {
   type RankedPrompt,
   type ScopedPrompt,
 } from "@/features/cycle/prompt-banner-model";
+import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
+import { formatValue } from "@/lib/dashboard";
+import { documentSummaryTile, documentTableRows } from "@/lib/document-presentation";
+import { formatRecordValue } from "@/lib/record-display";
 import { durationText } from "@/features/cycle/use-elapsed";
 import { buildArtifactTree, type ArtifactTreeInput } from "@/lib/artifact-tree";
 import { shouldFollowArtifact } from "@/lib/execution-file-text";
@@ -664,4 +669,32 @@ test("Note Preview Preserves the Draft and Submits It", async () => {
   const buttons = host.querySelectorAll<HTMLButtonElement>("button");
   await act(async () => buttons[buttons.length - 1].click());
   assert.deepEqual(submit.mock.calls[0][0], { kind: "create", markdown: "**fixture**" });
+});
+
+test("Integer Cards, Records, Parameters and Criteria Keep Decimal Digits", () => {
+  for (const integer of [1152921504606847975n, 18446744073709551615n, -1152921504606847975n, 42n]) {
+    const value = new NativeIntegerValue(integer, integer >= 0n);
+    const expected = integer.toString();
+    const markup = renderToStaticMarkup(
+      createElement(Metric, { label: "Integer", value: expected, exactValue: expected, rawValue: value, presentation: "progress" }),
+    );
+    assert.ok(markup.includes(`>${expected}</span>`));
+    assert.equal(formatRecordValue(value), expected);
+    assert.equal(formatRecordValue(JSON.parse(JSON.stringify(value))), expected);
+    assert.equal(formatValue(value, "V"), `${expected} V`);
+    assert.equal(documentTableRows("criteria", [{ result: value }])[0].cells.result, expected);
+    assert.equal(
+      documentSummaryTile({ metadata: { identifier: "sum", label: "Sum" }, value, format: "number", presentation: "value" }).formatted,
+      expected,
+    );
+  }
+  assert.equal(
+    documentSummaryTile({
+      metadata: { identifier: "mean", label: "Mean" },
+      value: new NativeNumberValue(1234.5),
+      format: "number",
+      presentation: "value",
+    }).formatted,
+    "1234.5",
+  );
 });

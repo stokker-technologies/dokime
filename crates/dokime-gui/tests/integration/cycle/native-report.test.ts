@@ -19,12 +19,15 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
 import type { DocumentSurface } from "@/features/cycle/document-view-model";
+import { CycleSnapshotProvider } from "@/features/cycle/snapshot-source";
+import { ReportShell } from "@/report/ReportShell";
 import { ReportCycleWorkspace } from "@/report/ReportCycleWorkspace";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
@@ -169,6 +172,8 @@ async function nativeReport() {
     ],
   });
 }
+
+/* === Entry Point === */
 
 test("Embedded Protobuf Uses the Live Document and Value Decoders", async () => {
   const capture = await nativeReport();
@@ -362,4 +367,42 @@ test("Embedded File Bytes Retain Their Resource Media Type and Digest", async ()
   await assert.rejects(materializeReport(capture));
 });
 
-/* === Entry Point === */
+test("Report Shell Navigation Follows the Subject Even with One Execution", async () => {
+  const capture = await nativeReport();
+  for (const executionSubject of [true, false]) {
+    assert.ok(capture.report);
+    capture.report.testExecutionId = executionSubject ? "execution" : undefined;
+    const { source, executionId } = await materializeReport(capture);
+    assert.equal(source.executions.length, 1);
+    assert.equal(executionId, executionSubject ? "execution" : null);
+    const router = createRouter({
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+      routeTree: createRootRoute({
+        component: () =>
+          createElement(
+            CycleSnapshotProvider,
+            { source } as Parameters<typeof CycleSnapshotProvider>[0],
+            createElement(
+              ReportShell,
+              {
+                executionId,
+                frozen: {
+                  cycleId: "cycle",
+                  selection: { executionId: "execution" },
+                  generatedAt: source.generatedAt,
+                  title: "Fixture",
+                  onSelect: executionSubject ? undefined : () => undefined,
+                },
+              } as Parameters<typeof ReportShell>[0],
+              createElement("output", { "data-execution": "execution" }),
+            ),
+          ),
+      }),
+    });
+    await router.load();
+    const html = renderToStaticMarkup(createElement(RouterProvider, { router }));
+    assert.equal(/<nav\b/.test(html), !executionSubject);
+    assert.match(html, /data-execution="execution"/);
+    assert.equal(/data-slot="sidebar-brand"/.test(html), !executionSubject);
+  }
+});

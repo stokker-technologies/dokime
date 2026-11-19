@@ -25,6 +25,7 @@ use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue};
 use prost_reflect::{self, DescriptorPool, DynamicMessage};
 use sha2::{Digest, Sha256};
+use tokio::time;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -42,7 +43,9 @@ use dokime::client::EvidenceRecordsListOptions;
 use dokime::client::EvidenceStatisticsOptions;
 use dokime::client::ExecutionState;
 use dokime::client::FrozenSchemaCache;
+use dokime::client::RegisteredSelection;
 use dokime::client::ResultStatus;
+use dokime::client::SelectionPlan;
 use dokime::record_scope;
 use dokime_protocol::host::document_binding_result;
 use dokime_protocol::host::document_frame_frame;
@@ -175,9 +178,55 @@ fn exact(value: &Value) -> String {
 /* === Tests === */
 
 #[test]
+fn every_obc_template_plans_its_declared_defaults() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Install the Example Through the Host's Managed Plugin Boundary
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            install(&client).await?;
+
+            // Plan Every Catalog Template Through Cases/Create With No Overrides
+            let suites = client.suites.list(String::new()).await?;
+            assert!(!suites.values.is_empty());
+            let mut selections = Vec::new();
+            for suite in suites.values {
+                let suite_id = suite.metadata.ok_or("Plan Defaults: Read the Suite Metadata")?.identifier;
+                assert!(!suite.templates.is_empty(), "{suite_id}");
+                for template in suite.templates {
+                    let template_id = template.metadata.ok_or("Plan Defaults: Read the Template Metadata")?.identifier;
+                    selections.push(RegisteredSelection {
+                        suite_id: suite_id.clone(),
+                        template_id,
+                        ..Default::default()
+                    });
+                }
+            }
+            let expected =
+                selections.iter().map(|selection| (selection.suite_id.clone(), selection.template_id.clone())).collect::<BTreeSet<_>>();
+            let plan = SelectionPlan { selections, ..Default::default() };
+            let planned = client.cases.create(plan, true).await?;
+            let templates = planned.cases.iter().map(|case| (case.suite_id.clone(), case.template_id.clone())).collect::<BTreeSet<_>>();
+            assert_eq!(templates, expected);
+            assert!(planned.cases.iter().all(|case| case.origin.is_some()));
+            eprintln!("Planned {} OBC Templates Through Cases/Create With Their Declared Defaults", templates.len());
+
+            // Close the Host and Its Managed Plugin
+            process.close().await?;
+            Ok::<_, Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
 fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
     support::run(Box::pin(async {
-        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Install the Packaged Bundle Through a Verified Managed Upload
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
@@ -360,7 +409,7 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
 #[test]
 fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
     support::run(Box::pin(async {
-        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Install the Packaged OBC Bundle and the Remote Thermal Plugin on a Real-Clock Host
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;

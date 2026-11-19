@@ -21,8 +21,8 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/model";
-import { PlotStreamKind } from "@host/model";
+import { SnapshotsWatchResponseSchema } from "@host/model";
+import { Downsample, PlotStreamKind } from "@host/model";
 import { mapNativePlotWatchPage, toNativePlotRequest } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
@@ -117,7 +117,7 @@ test("Viewport and Panel Width Reach the Native Request With Defaults Enabled", 
 });
 
 test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => {
-  const wire = create(WatchFrameSchema, {
+  const wire = create(SnapshotsWatchResponseSchema, {
     updates: [PlotStreamKind.DELTA, PlotStreamKind.STATISTICS].map((kind) => ({
       kind,
       envelope: {
@@ -155,4 +155,22 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
   assert.equal(decoded[0].payload.summaries?.[0].max, 4.5);
   assert.equal(decoded[0].payload.summaries?.[0].mean, 2.875);
   assert.deepEqual(decoded[0].payload.replaced_buckets, [1]);
+});
+
+test("Document XY Requests Preserve the Declared Display Budget and Technique", () => {
+  const plot = { plot_id: "voltage", stream: "measurement", plot_type: "xy", x: "elapsed_s", y: ["voltage"] } as DocumentViewPlot;
+  const defaults = toNativePlotRequest(plotRequestForDocumentPlot(plot, { scope: null }));
+  assert.equal(defaults.maxPoints, 2000n);
+  assert.equal(defaults.technique, Downsample.AUTO);
+  for (const [downsample, expected] of [
+    ["auto", Downsample.AUTO],
+    ["raw", Downsample.RAW],
+    ["min_max", Downsample.MIN_MAX],
+    ["lttb", Downsample.LTTB],
+  ] as const) {
+    const native = toNativePlotRequest(plotRequestForDocumentPlot({ ...plot, display_points: 11801, downsample }, { scope: null }));
+    assert.equal(native.maxPoints, 11801n);
+    assert.equal(native.technique, expected);
+    assert.equal(native.xKey, "elapsed_s");
+  }
 });

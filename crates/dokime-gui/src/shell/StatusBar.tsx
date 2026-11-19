@@ -35,7 +35,6 @@ import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/Active
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
-import { useDesktopStopping } from "@/lib/desktop/stopping";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
 import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
@@ -205,19 +204,16 @@ function OperationBar({ operation }: { operation: BackendOperation }) {
 function BackendItem() {
   const navigate = useNavigate();
   const status = useBackendStatus();
-  const stopping = useDesktopStopping();
   const label = status.label ?? "Backend";
   const tone =
-    stopping === "visible"
-      ? "warn"
-      : status.connection === "connected"
-        ? "good"
-        : status.connection === "reconnecting"
-          ? "warn"
-          : status.connection === "disconnected"
-            ? "bad"
-            : "neutral";
-  const state = stopping === "visible" ? "Stopping…" : CONNECTION_LABEL[status.connection];
+    status.connection === "connected"
+      ? "good"
+      : status.connection === "reconnecting"
+        ? "warn"
+        : status.connection === "disconnected"
+          ? "bad"
+          : "neutral";
+  const state = CONNECTION_LABEL[status.connection];
   return (
     <Button
       variant="plain"

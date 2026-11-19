@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -150,12 +150,15 @@ async function library() {
   cycle = await call(desktop, "Cycles", "Get", { name: cycleId }).then((reply) => reply.cycle);
   const detail = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(detail.summary.state, "EXECUTION_STATE_OPEN");
+  assert.equal(detail.controls.canStart, true);
   await desktop.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-select]`);
 }
 
 async function execute() {
-  await desktop.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-actions]`);
-  await desktop.clickNamed("menuitem", "Start Execution");
+  await until("Planned Execution Page Start", () =>
+    desktop.find("css selector", '[aria-label="Execution #1 Controls"] button[data-execution-action="Start"]:enabled'),
+  );
+  await desktop.clickCss('[aria-label="Execution #1 Controls"] button[data-execution-action="Start"]');
   await until("Live Operator Prompt", () => desktop.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
   assert.ok((await desktop.text()).includes("Door"));
   await answerPendingPrompts(desktop);
@@ -200,10 +203,8 @@ async function exactBench() {
     executions: [{ executionId: benchExecution, caseId: plan.cases[0].caseId }],
   });
   await desktop.goto(`/cycles/${bench.cycleId}?executionId=${benchExecution}`, { reload: true });
-  await until("Registered Bench Execution Row", () =>
-    desktop.find("css selector", `li[data-execution-id="${benchExecution}"] button[data-tree-actions]`),
-  );
-  await desktop.clickCss(`li[data-execution-id="${benchExecution}"] button[data-tree-actions]`);
+  await until("Registered Bench Execution Row", () => desktop.find("css selector", 'button[aria-label="Execution Actions"]'));
+  await desktop.clickCss('button[aria-label="Execution Actions"]');
   await desktop.clickNamed("menuitem", "Start Execution");
   const prompt = await until("Bench Confirmation Prompt", async () => {
     const pending = await call(desktop, "Prompts", "List", { pendingOnly: true, executionId: benchExecution });
@@ -230,18 +231,20 @@ async function exactBench() {
     // Sealed evidence is complete; the view shows it once the settled run's document refresh lands,
     // until then tiles may hold a capture taken before the samples were saved.
     const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
-    return captured ? Object.fromEntries(values) : null;`),
+    return captured ? {exact: Object.fromEntries(values), shown: Object.fromEntries(tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.textContent]))} : null;`),
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last"]) {
-    assert.equal(values[name], String(base));
+    assert.equal(values.exact[name], String(base));
+    assert.equal(values.shown[name], String(base));
   }
   for (const name of ["p05", "p95", "p99"]) {
-    assert.equal(values[name], String(BigInt(Number(base))));
+    assert.equal(values.exact[name], String(BigInt(Number(base))));
   }
-  const count = BigInt(values.count);
+  const count = BigInt(values.exact.count);
   assert.ok(count > 0n);
-  assert.equal(values.sum, String(base * count));
+  assert.equal(values.exact.sum, String(base * count));
+  assert.equal(values.shown.sum, String(base * count));
 }
 
 async function reportsAndHistory() {
@@ -424,6 +427,16 @@ try {
       results.push({ name: "Fixture Cleanup", seconds: 0, error });
     }
   }
+  if (process.env.DOKIME_KEEP_EVIDENCE === "1") {
+    const roots = [...new Set(sessions.map((instance) => instance.applicationRoot))];
+    for (const [index, root] of roots.entries()) {
+      try {
+        await cp(join(root, "logs"), join(evidence, `desktop-${index}-logs`), { recursive: true });
+      } catch (error) {
+        results.push({ name: "Retain Desktop Diagnostics", seconds: 0, error });
+      }
+    }
+  }
   await printReportSaveTimings();
   const failures = results.filter((result) => result.error).length;
   if (options.junit) {
@@ -454,6 +467,8 @@ try {
   }
   if (failures) {
     process.exitCode = 1;
-  } else if (work) await rm(work, { recursive: true, force: true });
+  } else if (work) {
+    await rm(work, { recursive: true, force: true });
+  }
   process.stdout.write(`Native Desktop: ${results.length - failures} Passed; ${failures} Failed\n`);
 }

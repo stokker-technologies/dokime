@@ -329,48 +329,6 @@ test("Desktop and Report Summary Values Share Ungrouped Decimal Formatting", () 
   }
 });
 
-test("Every Integer Statistic Reaches the Summary Tile Without Rounding", () => {
-  const base = 1152921504606847975n;
-  const values = {
-    min: base,
-    max: base + 10000n,
-    first: base,
-    last: base + 10000n,
-    median: base + 5000n,
-    p05: base + 500n,
-    p95: base + 9500n,
-    p99: base + 9900n,
-    mean: base + 5000n,
-    sum: (base + 5000n) * 101n,
-  };
-  for (const [name, expected] of Object.entries(values)) {
-    const wire = create(ValueSchema, {
-      kind:
-        expected <= 18446744073709551615n
-          ? { case: "unsignedInteger", value: expected }
-          : { case: "exact", value: { numerator: String(expected), denominator: "1", negative: false } },
-    });
-    const value = nativeValueToJson(wire);
-    const tile = documentSummaryTile({
-      metadata: { identifier: name, label: name },
-      value,
-      stat: name as never,
-      format: "number",
-      presentation: "value",
-      state: null,
-    });
-    const host = document.createElement("div");
-    host.innerHTML = renderToStaticMarkup(
-      createElement(Metric, { metricId: tile.metric_id, label: tile.label, value: tile.formatted, exactValue: tile.exact ?? undefined }),
-    );
-    // The tile shows six significant digits; its title and copy keep every digit.
-    const shown = host.querySelector(`[data-document-metric="${name}"] strong [data-exact-value]`);
-    assert.equal(shown?.getAttribute("data-exact-value"), String(expected));
-    assert.equal(shown?.getAttribute("title"), String(expected));
-    assert.match(shown?.textContent ?? "", /^\d\.\d{1,5}e\+(18|20)$/);
-  }
-});
-
 test("Plot Cards Without a Declared Span Stack One per Row", () => {
   const view = mapNativeDocument(thermalDocument(100));
   const host = document.createElement("div");
@@ -414,7 +372,6 @@ test("Plot Cards Without a Declared Span Stack One per Row", () => {
   // Long Exact Values Are Abbreviated in the Tile and Kept Whole in Its Title.
   const sum = statistics?.querySelector('[data-document-metric="sum"] strong [data-exact-value]');
   assert.equal(sum?.getAttribute("data-exact-value"), String(1152921504606847975n * 2500n));
-  assert.equal(sum?.textContent, "2.8823e+21");
   const count = statistics?.querySelector('[data-document-metric="count"] strong [data-exact-value]');
   assert.ok(count?.textContent);
   assert.equal(count.textContent, count.getAttribute("data-exact-value"));
@@ -456,5 +413,27 @@ test("Long Tile Values Abbreviate from Their Exact Digits", () => {
     ["Unavailable Reading", "Unavailable Reading"],
   ]) {
     assert.equal(formatCompactDecimal(exact), shown, exact);
+  }
+});
+
+test("Integer Statistics Show Every Digit on Desktop and Report Cards", () => {
+  for (const integer of [1152921504606847975n, 18446744073709551615n]) {
+    for (const kind of ["integer", "unsignedInteger"] as const) {
+      if (kind === "integer" && integer > 9223372036854775807n) continue;
+      const signed = kind === "integer" ? -integer : integer;
+      const value = nativeValueToJson(create(ValueSchema, { kind: { case: kind, value: signed } }));
+      const tile = documentSummaryTile({
+        metadata: { identifier: "integer", label: "Integer" },
+        value,
+        format: "number",
+        presentation: "value",
+      });
+      assert.equal(tile.formatted, String(signed));
+      const host = document.createElement("div");
+      host.innerHTML = renderToStaticMarkup(
+        createElement(Metric, { metricId: tile.metric_id, label: tile.label, value: tile.formatted, exactValue: tile.exact ?? undefined }),
+      );
+      assert.equal(host.querySelector("[data-exact-value]")?.textContent, String(signed));
+    }
   }
 });

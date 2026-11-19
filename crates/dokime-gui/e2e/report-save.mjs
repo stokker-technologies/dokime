@@ -139,9 +139,9 @@ export async function printReportSaveTimings() {
       const milliseconds = (line, key) => Number(line.match(new RegExp(`\\b${key}=([0-9.]+)`))?.[1] ?? NaN);
       const calls = logs
         .split("\n")
-        .filter((line) => line.includes("Report RPC Completed"))
+        .filter((line) => line.includes("Native RPC Completed") && line.includes('operation="/dokime.host.v1.Reports/'))
         .map((line) => ({
-          operation: line.match(/operation=([^\s]+)/)?.[1],
+          operation: line.match(/operation="([^"]+)"/)?.[1],
           admission_ms: milliseconds(line, "admission_ms"),
           request_ms: milliseconds(line, "request_ms"),
         }));

@@ -26,6 +26,7 @@ import {
   settledOf,
 } from "@/app/live/runtime-refresh";
 import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
+import { executionControlState } from "@/features/cycle/control-model";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "../../../src/lib/api/native-planning-projection";
 
@@ -51,7 +52,9 @@ test("Runtime Refresh Preserves a Trailing Observation", async () => {
   let calls = 0;
   const coordinator = createRuntimeProjectionRefreshCoordinator(async () => {
     calls += 1;
-    if (calls === 1) await gate;
+    if (calls === 1) {
+      await gate;
+    }
   });
   const first = coordinator.request();
   assert.equal(coordinator.request(), first);
@@ -139,6 +142,30 @@ test("Durable Execution State Is Independent of Its Cycle", () => {
   const projected = mapNativeExecutionSummary(attempt, [], cycle);
   assert.equal(projected.status, "planned");
   assert.equal(projected.sealed, false);
+});
+
+test("Planned Execution Retains Host Start Capability", () => {
+  for (const canStart of [true, false]) {
+    const attempt = create(ExecutionSummarySchema, {
+      executionId: "unstarted",
+      caseId: "case",
+      ordinal: 1n,
+      state: ExecutionState.OPEN,
+      controls: { canStart },
+    });
+    const cycle = create(CycleSummarySchema, { cycleId: "cycle" });
+    const execution = mapNativeExecutionSummary(attempt, [], cycle);
+    assert.equal(execution.controls?.canStart, canStart);
+    const state = executionControlState({
+      ...execution,
+      controls: execution.controls,
+      progress: null,
+      promptWaiting: false,
+      stopping: false,
+    });
+    assert.equal(state.actions.includes("Start"), canStart);
+    assert.equal(state.detail !== null, !canStart);
+  }
 });
 
 test("Live File Refresh", () => {
