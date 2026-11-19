@@ -30,7 +30,7 @@ operator questions, retries, cancellation, cleanup and report publication.
 - Managed executable plugins and remote gRPC plugins.
 - Scoped records, typed Arrow stream files, frozen schemas and sealed evidence.
 - Operator prompts, interactive execution controls and explicit cleanup.
-- Bounded plot/document reads, self-contained HTML reports and explicit publication.
+- Bounded plot/document reads and self-contained reports retained with sealed cycles.
 - Authenticated remote access through the composed library Access services.
 
 ## Interfaces
@@ -136,6 +136,15 @@ mise -C sdk/cpp run test
 ## Quick Start
 
 ### Install the Latest Nightly
+
+The Windows desktop installer installs for the current user in
+`%LOCALAPPDATA%\Dokime`, without administrator rights. If an earlier all-users
+copy is installed, have an administrator uninstall it from Windows Settings
+before running the current-user installer. Linux DEB/RPM packages use their
+normal system package installation.
+
+The desktop installer includes `dokime` beside the desktop executable but does
+not add it to PATH. Use mise for the command-line installation below.
 
 Add the command-line tool from the `nightly` release to a `mise.toml`:
 

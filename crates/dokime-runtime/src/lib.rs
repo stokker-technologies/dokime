@@ -22,7 +22,6 @@ mod host;
 mod plugin;
 pub mod process;
 mod prompts;
-mod reports;
 mod run_control;
 pub mod services;
 mod streams;

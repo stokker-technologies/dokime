@@ -9,7 +9,7 @@
 
 /* What the cycle workspace shows about a cycle's progress and controls.
  *
- * Only derivation lives here: the execution rows the list shows, the finished count
+ * Only derivation lives here: the execution rows the list shows, the sealed count
  * the header states, the status wording, and which run control a lifecycle
  * allows. The projections in `@/lib/types` stay the only data contract; nothing
  * here introduces a second one.
@@ -52,11 +52,11 @@ export const LIST_STATUS_PILL_CLASS = `w-[var(--pill-width)] ${STATUS_PILL_CLASS
  * These are the `CaseStatus` members the concept names — PASSED, FAILED,
  * BLOCKED, CANCELLED, INTERRUPTED, SKIPPED — through their `@/lib/types`
  * projection. INVALIDATED is deliberately absent: a superseded case is
- * awaiting its rerun, which is the opposite of finished. So are PLANNED and
+ * awaiting its rerun, which is the opposite of sealed. So are PLANNED and
  * QUEUED, which are work the cycle still owes, and `unknown`, which is a
  * captured grouping stating nothing about the case at all.
  */
-const FINISHED_CASE_STATES: ReadonlySet<CaseState> = new Set(["passed", "failed", "blocked", "stopped", "interrupted", "skipped"]);
+const SEALED_CASE_STATES: ReadonlySet<CaseState> = new Set(["passed", "failed", "blocked", "stopped", "interrupted", "skipped", "not_run"]);
 
 const ACTIVE_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set(["running", "waiting_for_prompt", "finalizing"]);
 
@@ -65,6 +65,7 @@ const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Se
   "passed",
   "failed",
   "skipped",
+  "not_run",
   "stopped",
   "interrupted",
   "disconnected",
@@ -88,7 +89,7 @@ export type CycleCase = {
   attemptCount: number;
   /** Null where the projection reports none: no menu item is offered then. */
   actions: CaseActions | null;
-  finished: boolean;
+  sealed: boolean;
 };
 
 /**
@@ -134,6 +135,7 @@ export type FollowState = {
 
 /** One entry of a node's "…" menu. */
 export type NodeMenuItem =
+  | "Seal Cycle"
   | "Start Execution"
   | "Delete Case"
   | "Rerun Cycle"
@@ -154,8 +156,8 @@ export type ReportDownloadState = {
 
 /* === Public Functions === */
 
-export function isFinishedCase(status: CaseState): boolean {
-  return FINISHED_CASE_STATES.has(status);
+export function isSealedCase(status: CaseState): boolean {
+  return SEALED_CASE_STATES.has(status);
 }
 
 /** An attempt with nothing captured yet: planned, or queued and undispatched. */
@@ -187,14 +189,14 @@ export function followSelection({ selection, active, previousActive, selectedSta
   if (!selection.executionId) {
     return active;
   }
-  const selectedEnded =
+  const selectedSealed =
     previousSelected !== null &&
     previousSelected.executionId === selection.executionId &&
     previousSelected.status !== undefined &&
     selectedStatus !== undefined &&
     !isTerminalExecutionStatus(previousSelected.status) &&
     isTerminalExecutionStatus(selectedStatus);
-  if (selection.executionId === previousActive || selectedEnded) {
+  if (selection.executionId === previousActive || selectedSealed) {
     return active;
   }
   return null;
@@ -217,7 +219,7 @@ export function isTerminalExecutionStatus(status: TestExecution["status"]): bool
 }
 
 /**
- * Whether `row` offers Run Again: the newest attempt of its case, ended. An
+ * Whether `row` offers Run Again: the newest attempt of its case, sealed. An
  * earlier attempt is history, and the case's actions live on its newest row.
  */
 export function rowOffersRunAgain(row: CycleExecutionRow): boolean {
@@ -247,7 +249,7 @@ export function buildCycleCases(plan: TestCyclePlan | null): CycleCase[] {
       status,
       attemptCount: item?.attempt_count ?? 0,
       actions: item?.actions ?? null,
-      finished: isFinishedCase(status),
+      sealed: isSealedCase(status),
     };
   });
 }
@@ -334,8 +336,8 @@ export function cycleRowStatus(row: CycleExecutionRow): {
     : { label: caseStatusLabel(row.case.status), variant: caseStatusVariant(row.case.status) };
 }
 
-export function finishedCaseCount(cases: readonly CycleCase[]): number {
-  return cases.reduce((total, item) => total + (item.finished ? 1 : 0), 0);
+export function sealedCaseCount(cases: readonly CycleCase[]): number {
+  return cases.reduce((total, item) => total + (item.sealed ? 1 : 0), 0);
 }
 
 /**
@@ -349,7 +351,11 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [["Rerun Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
+    ? [
+        ["Rerun Cycle", "Add Cases", "Follow Active"],
+        ["Open Report", "Settings"],
+        ["Seal Cycle", archive],
+      ]
     : [
         ["Start Execution", "Re-Run"],
         ["Open Report", "Settings"],
@@ -360,7 +366,7 @@ export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): 
 /**
  * Why a node cannot be archived yet, or `undefined` once it can: a cycle
  * once its seal has settled, sealed or failed, an execution once its attempt
- * has ended.
+ * is sealed.
  */
 export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution"): string | undefined {
   if (allowed) {
@@ -368,7 +374,7 @@ export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution")
   }
   return subject === "cycle"
     ? "Archiving becomes available once the cycle is sealed or its seal has failed."
-    : "Archiving becomes available once the run has ended.";
+    : "Archiving becomes available once the run is sealed.";
 }
 
 /** Download Report waits only for a save already in progress. */
@@ -408,7 +414,7 @@ export type CycleState = {
  * An Active cycle is Idle, Running or Waiting for an operator; Sealing,
  * Sealed and Seal Failed close it. Seal Failed keeps the evidence and waits
  * for the operator to retry the seal or archive the cycle. An execution's outcome never reaches this label: a stopped
- * or finished run leaves its Active cycle Idle.
+ * or sealed run leaves its Active cycle Idle.
  */
 export function cycleState(phase: TestCycle["phase"], lifecycle: CycleLifecycle, waiting: boolean): CycleState {
   if (phase === "sealing") {
@@ -450,6 +456,8 @@ export function executionStatusLabel(status: TestExecution["status"]): string {
       return "Passed";
     case "failed":
       return "Failed";
+    case "not_run":
+      return "Not Run";
     case "skipped":
       return "Skipped";
     case "stopped":
@@ -481,6 +489,7 @@ export function executionStatusVariant(
       return "warning";
     case "stopped":
     case "interrupted":
+    case "not_run":
     case "skipped":
       return "secondary";
     case "planned":
@@ -521,6 +530,8 @@ export function caseStatusLabel(status: CaseState): string {
       return "Failed";
     case "blocked":
       return "Blocked";
+    case "not_run":
+      return "Not Run";
     case "skipped":
       return "Skipped";
     case "stopped":
@@ -549,6 +560,7 @@ export function caseStatusVariant(status: CaseState): "default" | "secondary" | 
       return "warning";
     case "stopped":
     case "interrupted":
+    case "not_run":
     case "skipped":
       return "secondary";
     default:

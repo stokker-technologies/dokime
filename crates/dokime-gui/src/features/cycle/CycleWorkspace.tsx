@@ -30,18 +30,18 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Archive, LockKeyhole, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
+import { ErrorCard } from "@/components/ErrorCard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import type { TestExecution } from "@/lib/types";
 import { useRerunNoticeStore } from "@/stores/rerun-notice-store";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -64,7 +64,7 @@ import {
   type CycleSelection,
   cycleState,
   type FollowState,
-  finishedCaseCount,
+  sealedCaseCount,
   followSelection,
   isActiveExecutionStatus,
   isCycleArchivable,
@@ -117,7 +117,7 @@ const CONFIRMS = {
   seal: {
     action: "Seal Cycle",
     description:
-      "Sealing closes this cycle permanently. Its running work stops, unstarted executions are cancelled, and all evidence is saved. Other cycles keep running. This can take time while evidence drains.",
+      "Sealing closes this cycle permanently and retains its report and complete evidence archive. Never-started executions are sealed as not run. Wait for any running execution to seal before continuing.",
     done: "Cycle Sealed",
     failed: "Cycle Seal Could Not Be Confirmed",
     pending: "Sealing — Saving Evidence",
@@ -146,7 +146,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
   const selection = useMemo<CycleSelection>(() => ({ caseId, executionId, view }), [caseId, executionId, view]);
   const selectedRow = selectedCycleRow(rows, selection);
-  const finished = finishedCaseCount(cases);
+  const sealed = sealedCaseCount(cases);
   const rerunOf = plan?.test_cycle.rerun_of ?? null;
   const rerunOfLabel = useCycleLabelQuery(rerunOf).data ?? rerunOf;
   const rerunNotices = useRerunNoticeStore((state) => state.notices[cycleId]);
@@ -164,7 +164,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     }
     const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
-      cycleEnded: phase !== "active",
+      cycleUnavailable: phase !== "active",
       executionActive: (id) => {
         const executionStatus = statuses.get(id);
         return executionStatus !== undefined && isActiveExecutionStatus(executionStatus);
@@ -202,7 +202,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           })
         : null;
     previousActive.current = activeExecutionId;
-    if (target) onSelectionChange({ executionId: target });
+    if (target) {
+      onSelectionChange({ executionId: target });
+    }
   }, [activeExecutionId, executionId, followActive, live, onSelectionChange, selectedStatus, selection]);
 
   /* A command reports what happened, not what was attempted: the operator
@@ -286,7 +288,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           ? () =>
               run({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
                 const created = await rerunCase.rerun(selectedRow.case.caseId);
-                if (created) onSelectionChange({ executionId: created });
+                if (created) {
+                  onSelectionChange({ executionId: created });
+                }
               })
           : null,
       rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
@@ -381,6 +385,11 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     onOpenReport: () => openReport(null),
     onSettings: () => setSettingsOpen(true),
     onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
+    onSeal:
+      !runningRow && (phase === "active" || phase === "seal_failed")
+        ? () => setConfirm({ kind: phase === "seal_failed" ? "retry" : "seal" })
+        : null,
+    sealFailed: phase === "seal_failed",
   };
   const control = cycleControlState({
     phase,
@@ -443,7 +452,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? null : (label) => commands.renameCycle.mutateAsync(label)}
               progress={
                 <>
-                  {`${finished} of ${cases.length} cases finished`}
+                  {`${sealed} of ${cases.length} Cases Sealed`}
                   {rerunOf ? (
                     <>
                       {" · Rerun of "}
@@ -511,7 +520,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           description="The cycle's own settings. Continuation starts the next unstarted execution after one completes, whatever its verdict."
           onOpenChange={setSettingsOpen}
           onSubmit={async (values) => {
-            if (values.title !== plan.test_cycle.title) await commands.renameCycle.mutateAsync(values.title);
+            if (values.title !== plan.test_cycle.title) {
+              await commands.renameCycle.mutateAsync(values.title);
+            }
             if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
               await commands.updatePolicy.mutateAsync({ continueAutomatically: values.continueAutomatically });
             }
@@ -541,13 +552,13 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
             <Button
               disabled={confirmPending}
               onClick={() => {
-                if (!confirm || !confirming) return;
+                if (!confirm || !confirming) {
+                  return;
+                }
+                const kind = confirm.kind;
+                setConfirm(null);
                 run({ done: confirming.done, failed: confirming.failed }, async () => {
-                  try {
-                    await (confirm.kind === "archive" ? commands.archiveCycle.mutateAsync(true) : commands.sealCycle.mutateAsync());
-                  } finally {
-                    setConfirm(null);
-                  }
+                  await (kind === "archive" ? commands.archiveCycle.mutateAsync(true) : commands.sealCycle.mutateAsync());
                 });
               }}
               variant="danger"

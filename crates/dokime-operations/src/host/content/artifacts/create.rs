@@ -66,6 +66,11 @@ pub async fn handle(context: &Context, mut request: ArtifactsCreateRequest) -> R
 crate::native::unary!(ArtifactsCreateRequest, ArtifactsCreateResponse, context, "dokime.host.v1.content", "Artifacts", "Create");
 
 fn scoped(trusted: Option<&str>, scope: Option<ArtifactScope>) -> Result<ArtifactScope> {
+    if trusted.is_none()
+        && scope.as_ref().is_some_and(|scope| scope.execution_id.is_none() && scope.cycle_id.is_some() && scope.case_id.is_none())
+    {
+        return Ok(scope.unwrap());
+    }
     let selected = scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
     let execution = crate::resources::resolve_execution(trusted, selected, ID)?.to_owned();
     let mut scope = scope.unwrap_or_default();
@@ -104,5 +109,10 @@ mod tests {
         assert!(matches!(scoped(Some("active"), Some(extra)), Err(Error::Permission(_))));
         assert!(matches!(scoped(None, None), Err(Error::Invalid(_))));
         assert_eq!(scoped(None, Some(own.clone())).unwrap(), own);
+        let cycle = ArtifactScope {
+            cycle_id: Some("cycle".into()),
+            ..Default::default()
+        };
+        assert_eq!(scoped(None, Some(cycle.clone())).unwrap(), cycle);
     }
 }

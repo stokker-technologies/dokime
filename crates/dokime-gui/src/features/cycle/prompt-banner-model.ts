@@ -47,7 +47,7 @@ export type ScopedPrompt = {
 /** What the workspace knows about the prompt owners it shows. */
 export type PromptOwners = {
   /** Whether the cycle has ended: completed, failed, stopped or interrupted. */
-  cycleEnded: boolean;
+  cycleUnavailable: boolean;
   /** Whether the named execution still runs; unknown executions do not. */
   executionActive: (executionId: string) => boolean;
 };
@@ -92,16 +92,16 @@ export function highestPromptLevel(prompts: readonly RankedPrompt[]): Severity |
 /**
  * The prompts an operator can still answer here.
  *
- * The runtime settles a prompt in the transaction that ends its owner, so the
+ * The runtime settles a prompt in the transaction that seals its owner, so the
  * pending list already omits it; this is the same rule held at the edge, so a
- * list read a moment before the owner ended never offers Respond. An
+ * list read a moment before the owner sealed never offers Respond. An
  * execution's prompt lives while that execution runs, a cycle's until the
- * cycle ends.
+ * cycle becomes unavailable.
  */
 export function answerablePrompts<T extends ScopedPrompt>(prompts: readonly T[], owners: PromptOwners): T[] {
   return prompts.filter((prompt) => {
     const executionId = prompt.scope?.executionId;
-    return executionId ? owners.executionActive(executionId) : !owners.cycleEnded;
+    return executionId ? owners.executionActive(executionId) : !owners.cycleUnavailable;
   });
 }
 

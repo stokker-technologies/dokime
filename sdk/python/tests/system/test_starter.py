@@ -18,6 +18,8 @@ import runpy
 import shutil
 import tempfile
 import unittest
+from datetime import datetime
+from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol, cast
@@ -85,7 +87,16 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         evidence = await cycle.evidence()
         archive = ZipFile(BytesIO(evidence))
         try:
-            self.assertTrue(archive.namelist())
+            self.assertIn("report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/data/records.json", archive.namelist())
+            self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
+            self.assertEqual(
+                json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
+                "record:capture.confirmation.confirmation",
+            )
+            self.assertEqual(await cycle.report(), archive.read("report.html"))
+            self.assertEqual(sha256(evidence).digest(), sha256(await cycle.evidence()).digest())
             self.assertIsNone(archive.testzip())
         finally:
             archive.close()
@@ -232,7 +243,11 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         cycle = await host.client.cycles.get(execution.cycle.identifier)
         detail = await host.client._transport.cycles.get(cycle.identifier)
         self.assertTrue(detail.cycle.sealed)
-        saved = project / "_output" / f"{cycle.identifier}.zip"
+        saved_archives = list((project / "_output").glob("*.zip"))
+        self.assertEqual(len(saved_archives), 1)
+        saved = saved_archives[0]
+        started = datetime.strptime(detail.cycle.metadata.label.split(" ", 1)[1], "%Y-%m-%d %H:%M:%S")
+        self.assertEqual(saved.name, f"{started:%Y-%m-%d_%H-%M-%S}.zip")
         self.assertTrue(saved.is_file())
         archive = ZipFile(saved)
         retained = ZipFile(BytesIO(await cycle.evidence()))
@@ -240,6 +255,15 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(archive.testzip())
             self.assertEqual(archive.namelist(), retained.namelist())
             self.assertIn("manifest.json", archive.namelist())
+            self.assertIn("report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/data/records.json", archive.namelist())
+            self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
+            self.assertEqual(
+                json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
+                "record:capture.confirmation.confirmation",
+            )
+            self.assertEqual(archive.read("report.html"), await cycle.report())
             for name in archive.namelist():
                 self.assertEqual(archive.read(name), retained.read(name), name)
             print(f"Created Starter Archive: {archive.namelist()}")

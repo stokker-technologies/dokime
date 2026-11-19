@@ -49,17 +49,15 @@ class ProgressWatchResponse(_message.Message, metaclass=GeneratedProtocolMessage
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     PHASE_FIELD_NUMBER: _ClassVar[int]
-    FINISHED_FIELD_NUMBER: _ClassVar[int]
     SEALED_FIELD_NUMBER: _ClassVar[int]
     OUTCOME_FIELD_NUMBER: _ClassVar[int]
     value: _execution_pb2.ExecutionProgressValue
     revision: bytes
     resolved_at: _position_pb2.Position
     phase: str
-    finished: bool
     sealed: bool
     outcome: _executions_pb2.ExecutionOutcome
-    def __init__(self, value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., phase: _Optional[str] = ..., finished: _Optional[bool] = ..., sealed: _Optional[bool] = ..., outcome: _Optional[_Union[_executions_pb2.ExecutionOutcome, _Mapping]] = ...) -> None: ...
+    def __init__(self, value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., phase: _Optional[str] = ..., sealed: _Optional[bool] = ..., outcome: _Optional[_Union[_executions_pb2.ExecutionOutcome, _Mapping]] = ...) -> None: ...
 
 @final
 class ProgressSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):

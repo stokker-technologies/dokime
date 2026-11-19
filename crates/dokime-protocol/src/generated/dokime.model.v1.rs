@@ -679,6 +679,7 @@ pub enum Termination {
     Failed = 2,
     Cancelled = 3,
     Interrupted = 4,
+    NotRun = 5,
 }
 impl Termination {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -692,6 +693,7 @@ impl Termination {
             Self::Failed => "TERMINATION_FAILED",
             Self::Cancelled => "TERMINATION_CANCELLED",
             Self::Interrupted => "TERMINATION_INTERRUPTED",
+            Self::NotRun => "TERMINATION_NOT_RUN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -702,6 +704,7 @@ impl Termination {
             "TERMINATION_FAILED" => Some(Self::Failed),
             "TERMINATION_CANCELLED" => Some(Self::Cancelled),
             "TERMINATION_INTERRUPTED" => Some(Self::Interrupted),
+            "TERMINATION_NOT_RUN" => Some(Self::NotRun),
             _ => None,
         }
     }

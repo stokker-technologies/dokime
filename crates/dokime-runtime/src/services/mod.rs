@@ -319,7 +319,6 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         operations: runtime.operations.clone(),
         catalogs: catalogs.clone(),
         identity,
-        temporary_report_limit: settings.max_cases,
     };
     let context = Arc::new(Context {
         administration,
@@ -336,6 +335,8 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         .set(Arc::downgrade(&runtime))
         .map_err(|_| Error::Invalid("Bind Execution Runtime: Assemble Once".into()))?;
     host.executions.inner.library_plugins.set(plugins).map_err(|_| Error::Invalid("Bind Execution Plugins: Assemble Once".into()))?;
+    // Retire Dead Attempts Before Recovery Reads Can Retain Their Native Bytes.
+    dokime_operations::host::cycles::seal::recover(&context).await?;
     let now = host.now_ns();
     dokime_operations::host::executions::commands::recover(
         &context,

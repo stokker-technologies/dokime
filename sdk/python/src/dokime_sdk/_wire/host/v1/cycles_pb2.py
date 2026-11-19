@@ -28,12 +28,13 @@ from dokime_sdk._wire.model.v1 import metadata_pb2 as dokime_dot_model_dot_v1_do
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
 from harmos._wire.model.v1 import failure_pb2 as harmos_dot_model_dot_v1_dot_failure__pb2
+from harmos._wire.model.v1 import file_pb2 as harmos_dot_model_dot_v1_dot_file__pb2
 from harmos._wire.model.v1 import page_pb2 as harmos_dot_model_dot_v1_dot_page__pb2
 from harmos._wire.model.v1 import position_pb2 as harmos_dot_model_dot_v1_dot_position__pb2
 from harmos._wire.model.v1 import receipt_pb2 as harmos_dot_model_dot_v1_dot_receipt__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1b\x64okime/host/v1/cycles.proto\x12\x0e\x64okime.host.v1\x1a\x1e\x64okime/model/v1/evidence.proto\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1e\x64okime/model/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1dharmos/model/v1/failure.proto\x1a\x1aharmos/model/v1/page.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"S\n\x10\x43yclesGetRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12*\n\x02\x61t\x18Z \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xb0\x01\n\x11\x43yclesGetResponse\x12,\n\x05value\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.CycleWritable\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12+\n\x05\x63ycle\x18\x03 \x01(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12.\n\x0bresolved_at\x18Z \x01(\x0b\x32\x19.harmos.model.v1.Position\"}\n\x10\x43yclesSetRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12,\n\x05value\x18\x14 \x01(\x0b\x32\x1d.dokime.host.v1.CycleWritable\x12\x19\n\x11\x65xpected_revision\x18\x15 \x01(\x0c\x12\x12\n\nrequest_id\x18\x16 \x01(\t\"~\n\x11\x43yclesSetResponse\x12,\n\x05value\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.CycleWritable\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\x8a\x02\n\x11\x43yclesListRequest\x12\x31\n\tselection\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.CycleSelection\x12+\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x1b.dokime.host.v1.CycleFilter\x12)\n\x05order\x18\x03 \x01(\x0b\x32\x1a.dokime.host.v1.CycleOrder\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x12/\n\x04page\x18[ \x01(\x0b\x32\x1c.harmos.model.v1.PageRequestH\x01\x88\x01\x01\x42\x05\n\x03_atB\x07\n\x05_page\"\x8a\x01\n\x12\x43yclesListResponse\x12,\n\x06\x63ycles\x18\x01 \x03(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12\x17\n\x0fnext_page_token\x18[ \x01(\t\"\x8b\x02\n\x12\x43yclesWatchRequest\x12\x31\n\tselection\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.CycleSelection\x12+\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x1b.dokime.host.v1.CycleFilter\x12)\n\x05order\x18\x03 \x01(\x0b\x32\x1a.dokime.host.v1.CycleOrder\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x12/\n\x04page\x18[ \x01(\x0b\x32\x1c.harmos.model.v1.PageRequestH\x01\x88\x01\x01\x42\x05\n\x03_atB\x07\n\x05_page\"\xb6\x01\n\x13\x43yclesWatchResponse\x12,\n\x06\x63ycles\x18\x01 \x03(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12\x0f\n\x07opening\x18[ \x01(\x08\x12\x31\n\x0fresync_required\x18\\ \x01(\x0b\x32\x18.harmos.model.v1.Failure\"\xb6\x01\n\x13\x43yclesCreateRequest\x12(\n\x07origins\x18\x01 \x03(\x0b\x32\x17.dokime.model.v1.Origin\x12+\n\x08metadata\x18\x02 \x01(\x0b\x32\x19.dokime.model.v1.Metadata\x12\x1e\n\x16\x63ontinue_automatically\x18\x03 \x01(\x08\x12\x14\n\x0csource_cycle\x18\x04 \x01(\t\x12\x12\n\nrequest_id\x18\x05 \x01(\t\"\xdd\x01\n\x14\x43yclesCreateResponse\x12+\n\x05\x63ycle\x18\x01 \x01(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12\x30\n\x07skipped\x18\x02 \x03(\x0b\x32\x1f.dokime.host.v1.RerunCaseNotice\x12;\n\x12\x64ropped_parameters\x18\x04 \x03(\x0b\x32\x1f.dokime.host.v1.RerunCaseNotice\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"5\n\x11\x43yclesSealRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x12\n\nrequest_id\x18\x02 \x01(\t\"M\n\x12\x43yclesSealResponse\x12\x0c\n\x04seal\x18\x01 \x01(\x0c\x12)\n\x07receipt\x18\x02 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\xf1\x01\n\x0b\x43ycleFilter\x12\x0c\n\x04text\x18\x01 \x01(\t\x12-\n\x08statuses\x18\x02 \x03(\x0e\x32\x1b.dokime.host.v1.CycleStatus\x12\x31\n\rcreated_after\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x32\n\x0e\x63reated_before\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x32\n\x07\x61rchive\x18\x05 \x01(\x0e\x32\x1c.dokime.host.v1.ArchiveScopeH\x00\x88\x01\x01\x42\n\n\x08_archive\"L\n\nCycleOrder\x12*\n\x03key\x18\x01 \x01(\x0e\x32\x1d.dokime.host.v1.CycleOrderKey\x12\x12\n\ndescending\x18\x02 \x01(\x08\"\xeb\x01\n\x0e\x43ycleSelection\x12\x11\n\tcycle_ids\x18\x01 \x03(\t\x12*\n\x06phases\x18\x02 \x03(\x0e\x32\x1a.dokime.host.v1.CyclePhase\x12+\n\ncreated_at\x18\x03 \x01(\x0b\x32\x17.dokime.model.v1.Window\x12\x32\n\x07\x61rchive\x18\x04 \x01(\x0e\x32\x1c.dokime.host.v1.ArchiveScopeH\x00\x88\x01\x01\x12-\n\x08statuses\x18\x05 \x03(\x0e\x32\x1b.dokime.host.v1.CycleStatusB\n\n\x08_archive\"D\n\x0fRerunCaseNotice\x12\x0f\n\x07\x63\x61se_id\x18\x01 \x01(\t\x12\x10\n\x08suite_id\x18\x02 \x01(\t\x12\x0e\n\x06reason\x18\x03 \x01(\t\"`\n\rCycleWritable\x12\r\n\x05label\x18\x01 \x01(\t\x12\x0e\n\x06paused\x18\x02 \x01(\x08\x12\x10\n\x08\x61rchived\x18\x03 \x01(\x08\x12\x1e\n\x16\x63ontinue_automatically\x18\x04 \x01(\x08\"\x83\x05\n\x0c\x43ycleSummary\x12\x10\n\x08\x63ycle_id\x18\x01 \x01(\t\x12+\n\x08metadata\x18\x02 \x01(\x0b\x32\x19.dokime.model.v1.Metadata\x12)\n\x05phase\x18\x03 \x01(\x0e\x32\x1a.dokime.host.v1.CyclePhase\x12+\n\x06status\x18\x04 \x01(\x0e\x32\x1b.dokime.host.v1.CycleStatus\x12\x12\n\ncase_count\x18\x05 \x01(\x04\x12\x17\n\x0f\x65xecution_count\x18\x06 \x01(\x04\x12\x1e\n\x16\x63ontinue_automatically\x18\x07 \x01(\x08\x12\x31\n\x0fobserved_cursor\x18\x08 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nstarted_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x0b \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12-\n\x06result\x18\x0c \x01(\x0b\x32\x1d.dokime.host.v1.ResultSummary\x12\x10\n\x08\x61rchived\x18\r \x01(\x08\x12\x0e\n\x06sealed\x18\x0e \x01(\x08\x12\x15\n\rrunning_count\x18\x0f \x01(\x04\x12\x14\n\x0cqueued_count\x18\x10 \x01(\x04\x12\x19\n\x0cseal_failure\x18\x11 \x01(\tH\x00\x88\x01\x01\x12\x15\n\x08rerun_of\x18\x12 \x01(\tH\x01\x88\x01\x01\x42\x0f\n\r_seal_failureB\x0b\n\t_rerun_of\"\xa8\x01\n\rResultSummary\x12,\n\x06status\x18\x01 \x01(\x0e\x32\x1c.dokime.host.v1.ResultStatus\x12\x0e\n\x06passed\x18\x02 \x01(\r\x12\x0e\n\x06\x66\x61iled\x18\x03 \x01(\r\x12\x0f\n\x07\x62locked\x18\x04 \x01(\r\x12\x0f\n\x07skipped\x18\x05 \x01(\r\x12\x10\n\x08\x64\x65\x63lared\x18\x06 \x01(\r\x12\x15\n\rnot_evaluated\x18\x07 \x01(\r*\x8b\x01\n\rCycleOrderKey\x12\x1f\n\x1b\x43YCLE_ORDER_KEY_UNSPECIFIED\x10\x00\x12\x1e\n\x1a\x43YCLE_ORDER_KEY_UPDATED_AT\x10\x01\x12\x1e\n\x1a\x43YCLE_ORDER_KEY_CREATED_AT\x10\x02\x12\x19\n\x15\x43YCLE_ORDER_KEY_LABEL\x10\x03*~\n\x0c\x41rchiveScope\x12\x1d\n\x19\x41RCHIVE_SCOPE_UNSPECIFIED\x10\x00\x12\x1c\n\x18\x41RCHIVE_SCOPE_UNARCHIVED\x10\x01\x12\x1a\n\x16\x41RCHIVE_SCOPE_ARCHIVED\x10\x02\x12\x15\n\x11\x41RCHIVE_SCOPE_ALL\x10\x03*\x8f\x01\n\nCyclePhase\x12\x1b\n\x17\x43YCLE_PHASE_UNSPECIFIED\x10\x00\x12\x16\n\x12\x43YCLE_PHASE_ACTIVE\x10\x01\x12\x17\n\x13\x43YCLE_PHASE_SEALING\x10\x02\x12\x16\n\x12\x43YCLE_PHASE_SEALED\x10\x03\x12\x1b\n\x17\x43YCLE_PHASE_SEAL_FAILED\x10\x04*\xfa\x01\n\x0b\x43ycleStatus\x12\x1c\n\x18\x43YCLE_STATUS_UNSPECIFIED\x10\x00\x12\x16\n\x12\x43YCLE_STATUS_READY\x10\x01\x12\x18\n\x14\x43YCLE_STATUS_RUNNING\x10\x02\x12\x17\n\x13\x43YCLE_STATUS_PAUSED\x10\x03\x12\x19\n\x15\x43YCLE_STATUS_STOPPING\x10\x04\x12\x1a\n\x16\x43YCLE_STATUS_COMPLETED\x10\x05\x12\x17\n\x13\x43YCLE_STATUS_FAILED\x10\x06\x12\x18\n\x14\x43YCLE_STATUS_BLOCKED\x10\x07\x12\x18\n\x14\x43YCLE_STATUS_STOPPED\x10\x08*\xb4\x01\n\x0cResultStatus\x12\x1d\n\x19RESULT_STATUS_UNSPECIFIED\x10\x00\x12\x19\n\x15RESULT_STATUS_PENDING\x10\x01\x12\x18\n\x14RESULT_STATUS_PASSED\x10\x02\x12\x18\n\x14RESULT_STATUS_FAILED\x10\x03\x12\x19\n\x15RESULT_STATUS_BLOCKED\x10\x04\x12\x1b\n\x17RESULT_STATUS_CANCELLED\x10\x05\x32\x8b\x04\n\x06\x43ycles\x12P\n\x03Get\x12 .dokime.host.v1.CyclesGetRequest\x1a!.dokime.host.v1.CyclesGetResponse\"\x04\xc8\xf3\x18\x01\x12P\n\x03Set\x12 .dokime.host.v1.CyclesSetRequest\x1a!.dokime.host.v1.CyclesSetResponse\"\x04\xc8\xf3\x18\x01\x12S\n\x04List\x12!.dokime.host.v1.CyclesListRequest\x1a\".dokime.host.v1.CyclesListResponse\"\x04\xc8\xf3\x18\x01\x12X\n\x05Watch\x12\".dokime.host.v1.CyclesWatchRequest\x1a#.dokime.host.v1.CyclesWatchResponse\"\x04\xc8\xf3\x18\x01\x30\x01\x12Y\n\x06\x43reate\x12#.dokime.host.v1.CyclesCreateRequest\x1a$.dokime.host.v1.CyclesCreateResponse\"\x04\xc8\xf3\x18\x01\x12S\n\x04Seal\x12!.dokime.host.v1.CyclesSealRequest\x1a\".dokime.host.v1.CyclesSealResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1b\x64okime/host/v1/cycles.proto\x12\x0e\x64okime.host.v1\x1a\x1e\x64okime/model/v1/evidence.proto\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1e\x64okime/model/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1dharmos/model/v1/failure.proto\x1a\x1aharmos/model/v1/file.proto\x1a\x1aharmos/model/v1/page.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"S\n\x10\x43yclesGetRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12*\n\x02\x61t\x18Z \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xb0\x01\n\x11\x43yclesGetResponse\x12,\n\x05value\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.CycleWritable\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12+\n\x05\x63ycle\x18\x03 \x01(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12.\n\x0bresolved_at\x18Z \x01(\x0b\x32\x19.harmos.model.v1.Position\"}\n\x10\x43yclesSetRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12,\n\x05value\x18\x14 \x01(\x0b\x32\x1d.dokime.host.v1.CycleWritable\x12\x19\n\x11\x65xpected_revision\x18\x15 \x01(\x0c\x12\x12\n\nrequest_id\x18\x16 \x01(\t\"~\n\x11\x43yclesSetResponse\x12,\n\x05value\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.CycleWritable\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\x8a\x02\n\x11\x43yclesListRequest\x12\x31\n\tselection\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.CycleSelection\x12+\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x1b.dokime.host.v1.CycleFilter\x12)\n\x05order\x18\x03 \x01(\x0b\x32\x1a.dokime.host.v1.CycleOrder\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x12/\n\x04page\x18[ \x01(\x0b\x32\x1c.harmos.model.v1.PageRequestH\x01\x88\x01\x01\x42\x05\n\x03_atB\x07\n\x05_page\"\x8a\x01\n\x12\x43yclesListResponse\x12,\n\x06\x63ycles\x18\x01 \x03(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12\x17\n\x0fnext_page_token\x18[ \x01(\t\"\x8b\x02\n\x12\x43yclesWatchRequest\x12\x31\n\tselection\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.CycleSelection\x12+\n\x06\x66ilter\x18\x02 \x01(\x0b\x32\x1b.dokime.host.v1.CycleFilter\x12)\n\x05order\x18\x03 \x01(\x0b\x32\x1a.dokime.host.v1.CycleOrder\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x12/\n\x04page\x18[ \x01(\x0b\x32\x1c.harmos.model.v1.PageRequestH\x01\x88\x01\x01\x42\x05\n\x03_atB\x07\n\x05_page\"\xb6\x01\n\x13\x43yclesWatchResponse\x12,\n\x06\x63ycles\x18\x01 \x03(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12\x0f\n\x07opening\x18[ \x01(\x08\x12\x31\n\x0fresync_required\x18\\ \x01(\x0b\x32\x18.harmos.model.v1.Failure\"\xb6\x01\n\x13\x43yclesCreateRequest\x12(\n\x07origins\x18\x01 \x03(\x0b\x32\x17.dokime.model.v1.Origin\x12+\n\x08metadata\x18\x02 \x01(\x0b\x32\x19.dokime.model.v1.Metadata\x12\x1e\n\x16\x63ontinue_automatically\x18\x03 \x01(\x08\x12\x14\n\x0csource_cycle\x18\x04 \x01(\t\x12\x12\n\nrequest_id\x18\x05 \x01(\t\"\xdd\x01\n\x14\x43yclesCreateResponse\x12+\n\x05\x63ycle\x18\x01 \x01(\x0b\x32\x1c.dokime.host.v1.CycleSummary\x12\x30\n\x07skipped\x18\x02 \x03(\x0b\x32\x1f.dokime.host.v1.RerunCaseNotice\x12;\n\x12\x64ropped_parameters\x18\x04 \x03(\x0b\x32\x1f.dokime.host.v1.RerunCaseNotice\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"5\n\x11\x43yclesSealRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x12\n\nrequest_id\x18\x02 \x01(\t\"z\n\x12\x43yclesSealResponse\x12\x0c\n\x04seal\x18\x01 \x01(\x0c\x12)\n\x07receipt\x18\x02 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\x12+\n\x05\x63ycle\x18\x03 \x01(\x0b\x32\x1c.dokime.host.v1.CycleSummary\"\xf1\x01\n\x0b\x43ycleFilter\x12\x0c\n\x04text\x18\x01 \x01(\t\x12-\n\x08statuses\x18\x02 \x03(\x0e\x32\x1b.dokime.host.v1.CycleStatus\x12\x31\n\rcreated_after\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x32\n\x0e\x63reated_before\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x32\n\x07\x61rchive\x18\x05 \x01(\x0e\x32\x1c.dokime.host.v1.ArchiveScopeH\x00\x88\x01\x01\x42\n\n\x08_archive\"L\n\nCycleOrder\x12*\n\x03key\x18\x01 \x01(\x0e\x32\x1d.dokime.host.v1.CycleOrderKey\x12\x12\n\ndescending\x18\x02 \x01(\x08\"\xeb\x01\n\x0e\x43ycleSelection\x12\x11\n\tcycle_ids\x18\x01 \x03(\t\x12*\n\x06phases\x18\x02 \x03(\x0e\x32\x1a.dokime.host.v1.CyclePhase\x12+\n\ncreated_at\x18\x03 \x01(\x0b\x32\x17.dokime.model.v1.Window\x12\x32\n\x07\x61rchive\x18\x04 \x01(\x0e\x32\x1c.dokime.host.v1.ArchiveScopeH\x00\x88\x01\x01\x12-\n\x08statuses\x18\x05 \x03(\x0e\x32\x1b.dokime.host.v1.CycleStatusB\n\n\x08_archive\"D\n\x0fRerunCaseNotice\x12\x0f\n\x07\x63\x61se_id\x18\x01 \x01(\t\x12\x10\n\x08suite_id\x18\x02 \x01(\t\x12\x0e\n\x06reason\x18\x03 \x01(\t\"`\n\rCycleWritable\x12\r\n\x05label\x18\x01 \x01(\t\x12\x0e\n\x06paused\x18\x02 \x01(\x08\x12\x10\n\x08\x61rchived\x18\x03 \x01(\x08\x12\x1e\n\x16\x63ontinue_automatically\x18\x04 \x01(\x08\"\xef\x05\n\x0c\x43ycleSummary\x12\x10\n\x08\x63ycle_id\x18\x01 \x01(\t\x12+\n\x08metadata\x18\x02 \x01(\x0b\x32\x19.dokime.model.v1.Metadata\x12)\n\x05phase\x18\x03 \x01(\x0e\x32\x1a.dokime.host.v1.CyclePhase\x12+\n\x06status\x18\x04 \x01(\x0e\x32\x1b.dokime.host.v1.CycleStatus\x12\x12\n\ncase_count\x18\x05 \x01(\x04\x12\x17\n\x0f\x65xecution_count\x18\x06 \x01(\x04\x12\x1e\n\x16\x63ontinue_automatically\x18\x07 \x01(\x08\x12\x31\n\x0fobserved_cursor\x18\x08 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nstarted_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x0b \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12-\n\x06result\x18\x0c \x01(\x0b\x32\x1d.dokime.host.v1.ResultSummary\x12\x10\n\x08\x61rchived\x18\r \x01(\x08\x12\x0e\n\x06sealed\x18\x0e \x01(\x08\x12\x15\n\rrunning_count\x18\x0f \x01(\x04\x12\x14\n\x0cqueued_count\x18\x10 \x01(\x04\x12\x19\n\x0cseal_failure\x18\x11 \x01(\tH\x00\x88\x01\x01\x12\x15\n\x08rerun_of\x18\x12 \x01(\tH\x01\x88\x01\x01\x12\x33\n\x0breport_file\x18\x13 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12\x35\n\revidence_file\x18\x14 \x01(\x0b\x32\x1e.harmos.model.v1.FileReferenceB\x0f\n\r_seal_failureB\x0b\n\t_rerun_of\"\xa8\x01\n\rResultSummary\x12,\n\x06status\x18\x01 \x01(\x0e\x32\x1c.dokime.host.v1.ResultStatus\x12\x0e\n\x06passed\x18\x02 \x01(\r\x12\x0e\n\x06\x66\x61iled\x18\x03 \x01(\r\x12\x0f\n\x07\x62locked\x18\x04 \x01(\r\x12\x0f\n\x07skipped\x18\x05 \x01(\r\x12\x10\n\x08\x64\x65\x63lared\x18\x06 \x01(\r\x12\x15\n\rnot_evaluated\x18\x07 \x01(\r*\x8b\x01\n\rCycleOrderKey\x12\x1f\n\x1b\x43YCLE_ORDER_KEY_UNSPECIFIED\x10\x00\x12\x1e\n\x1a\x43YCLE_ORDER_KEY_UPDATED_AT\x10\x01\x12\x1e\n\x1a\x43YCLE_ORDER_KEY_CREATED_AT\x10\x02\x12\x19\n\x15\x43YCLE_ORDER_KEY_LABEL\x10\x03*~\n\x0c\x41rchiveScope\x12\x1d\n\x19\x41RCHIVE_SCOPE_UNSPECIFIED\x10\x00\x12\x1c\n\x18\x41RCHIVE_SCOPE_UNARCHIVED\x10\x01\x12\x1a\n\x16\x41RCHIVE_SCOPE_ARCHIVED\x10\x02\x12\x15\n\x11\x41RCHIVE_SCOPE_ALL\x10\x03*\x8f\x01\n\nCyclePhase\x12\x1b\n\x17\x43YCLE_PHASE_UNSPECIFIED\x10\x00\x12\x16\n\x12\x43YCLE_PHASE_ACTIVE\x10\x01\x12\x17\n\x13\x43YCLE_PHASE_SEALING\x10\x02\x12\x16\n\x12\x43YCLE_PHASE_SEALED\x10\x03\x12\x1b\n\x17\x43YCLE_PHASE_SEAL_FAILED\x10\x04*\xfa\x01\n\x0b\x43ycleStatus\x12\x1c\n\x18\x43YCLE_STATUS_UNSPECIFIED\x10\x00\x12\x16\n\x12\x43YCLE_STATUS_READY\x10\x01\x12\x18\n\x14\x43YCLE_STATUS_RUNNING\x10\x02\x12\x17\n\x13\x43YCLE_STATUS_PAUSED\x10\x03\x12\x19\n\x15\x43YCLE_STATUS_STOPPING\x10\x04\x12\x1a\n\x16\x43YCLE_STATUS_COMPLETED\x10\x05\x12\x17\n\x13\x43YCLE_STATUS_FAILED\x10\x06\x12\x18\n\x14\x43YCLE_STATUS_BLOCKED\x10\x07\x12\x18\n\x14\x43YCLE_STATUS_STOPPED\x10\x08*\xb4\x01\n\x0cResultStatus\x12\x1d\n\x19RESULT_STATUS_UNSPECIFIED\x10\x00\x12\x19\n\x15RESULT_STATUS_PENDING\x10\x01\x12\x18\n\x14RESULT_STATUS_PASSED\x10\x02\x12\x18\n\x14RESULT_STATUS_FAILED\x10\x03\x12\x19\n\x15RESULT_STATUS_BLOCKED\x10\x04\x12\x1b\n\x17RESULT_STATUS_CANCELLED\x10\x05\x32\x8b\x04\n\x06\x43ycles\x12P\n\x03Get\x12 .dokime.host.v1.CyclesGetRequest\x1a!.dokime.host.v1.CyclesGetResponse\"\x04\xc8\xf3\x18\x01\x12P\n\x03Set\x12 .dokime.host.v1.CyclesSetRequest\x1a!.dokime.host.v1.CyclesSetResponse\"\x04\xc8\xf3\x18\x01\x12S\n\x04List\x12!.dokime.host.v1.CyclesListRequest\x1a\".dokime.host.v1.CyclesListResponse\"\x04\xc8\xf3\x18\x01\x12X\n\x05Watch\x12\".dokime.host.v1.CyclesWatchRequest\x1a#.dokime.host.v1.CyclesWatchResponse\"\x04\xc8\xf3\x18\x01\x30\x01\x12Y\n\x06\x43reate\x12#.dokime.host.v1.CyclesCreateRequest\x1a$.dokime.host.v1.CyclesCreateResponse\"\x04\xc8\xf3\x18\x01\x12S\n\x04Seal\x12!.dokime.host.v1.CyclesSealRequest\x1a\".dokime.host.v1.CyclesSealResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -53,54 +54,54 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CYCLES'].methods_by_name['Create']._serialized_options = b'\310\363\030\001'
   _globals['_CYCLES'].methods_by_name['Seal']._loaded_options = None
   _globals['_CYCLES'].methods_by_name['Seal']._serialized_options = b'\310\363\030\001'
-  _globals['_CYCLEORDERKEY']._serialized_start=3803
-  _globals['_CYCLEORDERKEY']._serialized_end=3942
-  _globals['_ARCHIVESCOPE']._serialized_start=3944
-  _globals['_ARCHIVESCOPE']._serialized_end=4070
-  _globals['_CYCLEPHASE']._serialized_start=4073
-  _globals['_CYCLEPHASE']._serialized_end=4216
-  _globals['_CYCLESTATUS']._serialized_start=4219
-  _globals['_CYCLESTATUS']._serialized_end=4469
-  _globals['_RESULTSTATUS']._serialized_start=4472
-  _globals['_RESULTSTATUS']._serialized_end=4652
-  _globals['_CYCLESGETREQUEST']._serialized_start=330
-  _globals['_CYCLESGETREQUEST']._serialized_end=413
-  _globals['_CYCLESGETRESPONSE']._serialized_start=416
-  _globals['_CYCLESGETRESPONSE']._serialized_end=592
-  _globals['_CYCLESSETREQUEST']._serialized_start=594
-  _globals['_CYCLESSETREQUEST']._serialized_end=719
-  _globals['_CYCLESSETRESPONSE']._serialized_start=721
-  _globals['_CYCLESSETRESPONSE']._serialized_end=847
-  _globals['_CYCLESLISTREQUEST']._serialized_start=850
-  _globals['_CYCLESLISTREQUEST']._serialized_end=1116
-  _globals['_CYCLESLISTRESPONSE']._serialized_start=1119
-  _globals['_CYCLESLISTRESPONSE']._serialized_end=1257
-  _globals['_CYCLESWATCHREQUEST']._serialized_start=1260
-  _globals['_CYCLESWATCHREQUEST']._serialized_end=1527
-  _globals['_CYCLESWATCHRESPONSE']._serialized_start=1530
-  _globals['_CYCLESWATCHRESPONSE']._serialized_end=1712
-  _globals['_CYCLESCREATEREQUEST']._serialized_start=1715
-  _globals['_CYCLESCREATEREQUEST']._serialized_end=1897
-  _globals['_CYCLESCREATERESPONSE']._serialized_start=1900
-  _globals['_CYCLESCREATERESPONSE']._serialized_end=2121
-  _globals['_CYCLESSEALREQUEST']._serialized_start=2123
-  _globals['_CYCLESSEALREQUEST']._serialized_end=2176
-  _globals['_CYCLESSEALRESPONSE']._serialized_start=2178
-  _globals['_CYCLESSEALRESPONSE']._serialized_end=2255
-  _globals['_CYCLEFILTER']._serialized_start=2258
-  _globals['_CYCLEFILTER']._serialized_end=2499
-  _globals['_CYCLEORDER']._serialized_start=2501
-  _globals['_CYCLEORDER']._serialized_end=2577
-  _globals['_CYCLESELECTION']._serialized_start=2580
-  _globals['_CYCLESELECTION']._serialized_end=2815
-  _globals['_RERUNCASENOTICE']._serialized_start=2817
-  _globals['_RERUNCASENOTICE']._serialized_end=2885
-  _globals['_CYCLEWRITABLE']._serialized_start=2887
-  _globals['_CYCLEWRITABLE']._serialized_end=2983
-  _globals['_CYCLESUMMARY']._serialized_start=2986
-  _globals['_CYCLESUMMARY']._serialized_end=3629
-  _globals['_RESULTSUMMARY']._serialized_start=3632
-  _globals['_RESULTSUMMARY']._serialized_end=3800
-  _globals['_CYCLES']._serialized_start=4655
-  _globals['_CYCLES']._serialized_end=5178
+  _globals['_CYCLEORDERKEY']._serialized_start=3984
+  _globals['_CYCLEORDERKEY']._serialized_end=4123
+  _globals['_ARCHIVESCOPE']._serialized_start=4125
+  _globals['_ARCHIVESCOPE']._serialized_end=4251
+  _globals['_CYCLEPHASE']._serialized_start=4254
+  _globals['_CYCLEPHASE']._serialized_end=4397
+  _globals['_CYCLESTATUS']._serialized_start=4400
+  _globals['_CYCLESTATUS']._serialized_end=4650
+  _globals['_RESULTSTATUS']._serialized_start=4653
+  _globals['_RESULTSTATUS']._serialized_end=4833
+  _globals['_CYCLESGETREQUEST']._serialized_start=358
+  _globals['_CYCLESGETREQUEST']._serialized_end=441
+  _globals['_CYCLESGETRESPONSE']._serialized_start=444
+  _globals['_CYCLESGETRESPONSE']._serialized_end=620
+  _globals['_CYCLESSETREQUEST']._serialized_start=622
+  _globals['_CYCLESSETREQUEST']._serialized_end=747
+  _globals['_CYCLESSETRESPONSE']._serialized_start=749
+  _globals['_CYCLESSETRESPONSE']._serialized_end=875
+  _globals['_CYCLESLISTREQUEST']._serialized_start=878
+  _globals['_CYCLESLISTREQUEST']._serialized_end=1144
+  _globals['_CYCLESLISTRESPONSE']._serialized_start=1147
+  _globals['_CYCLESLISTRESPONSE']._serialized_end=1285
+  _globals['_CYCLESWATCHREQUEST']._serialized_start=1288
+  _globals['_CYCLESWATCHREQUEST']._serialized_end=1555
+  _globals['_CYCLESWATCHRESPONSE']._serialized_start=1558
+  _globals['_CYCLESWATCHRESPONSE']._serialized_end=1740
+  _globals['_CYCLESCREATEREQUEST']._serialized_start=1743
+  _globals['_CYCLESCREATEREQUEST']._serialized_end=1925
+  _globals['_CYCLESCREATERESPONSE']._serialized_start=1928
+  _globals['_CYCLESCREATERESPONSE']._serialized_end=2149
+  _globals['_CYCLESSEALREQUEST']._serialized_start=2151
+  _globals['_CYCLESSEALREQUEST']._serialized_end=2204
+  _globals['_CYCLESSEALRESPONSE']._serialized_start=2206
+  _globals['_CYCLESSEALRESPONSE']._serialized_end=2328
+  _globals['_CYCLEFILTER']._serialized_start=2331
+  _globals['_CYCLEFILTER']._serialized_end=2572
+  _globals['_CYCLEORDER']._serialized_start=2574
+  _globals['_CYCLEORDER']._serialized_end=2650
+  _globals['_CYCLESELECTION']._serialized_start=2653
+  _globals['_CYCLESELECTION']._serialized_end=2888
+  _globals['_RERUNCASENOTICE']._serialized_start=2890
+  _globals['_RERUNCASENOTICE']._serialized_end=2958
+  _globals['_CYCLEWRITABLE']._serialized_start=2960
+  _globals['_CYCLEWRITABLE']._serialized_end=3056
+  _globals['_CYCLESUMMARY']._serialized_start=3059
+  _globals['_CYCLESUMMARY']._serialized_end=3810
+  _globals['_RESULTSUMMARY']._serialized_start=3813
+  _globals['_RESULTSUMMARY']._serialized_end=3981
+  _globals['_CYCLES']._serialized_start=4836
+  _globals['_CYCLES']._serialized_end=5359
 # @@protoc_insertion_point(module_scope)

@@ -12,11 +12,14 @@
 
 # Standard Library Imports
 import asyncio
+import json
 import unittest
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from hashlib import sha256
+from io import BytesIO
 from uuid import UUID
+from zipfile import ZipFile
 
 # Third Party Imports
 from google.protobuf.message import Message
@@ -31,8 +34,9 @@ from harmos._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_Ope
 from dokime_sdk._client import Case, Client
 from dokime_sdk._connection import connect
 from dokime_sdk._errors import SdkError
+from dokime_sdk._transfers import verify_archive
 from dokime_sdk._values import Outcome, PromptAnswer, PromptQuestion, ResultStatus, Termination, decode
-from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2
+from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2, reports_pb2
 from dokime_sdk._wire.host.v1.cases_pb2_grpc import CasesServicer, add_CasesServicer_to_server
 from dokime_sdk._wire.host.v1.cycles_pb2_grpc import CyclesServicer, add_CyclesServicer_to_server
 from dokime_sdk._wire.host.v1.evidence import notes_pb2
@@ -41,10 +45,13 @@ from dokime_sdk._wire.host.v1.evidence_pb2_grpc import EvidenceServicer, add_Evi
 from dokime_sdk._wire.host.v1.executions import progress_pb2
 from dokime_sdk._wire.host.v1.executions.progress_pb2_grpc import ProgressServicer, add_ProgressServicer_to_server
 from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add_ExecutionsServicer_to_server
+from dokime_sdk._wire.host.v1.files import uploads_pb2
+from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
 from dokime_sdk._wire.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
 from dokime_sdk._wire.host.v1.prompts import answers_pb2
 from dokime_sdk._wire.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
 from dokime_sdk._wire.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server
+from dokime_sdk._wire.host.v1.reports_pb2_grpc import ReportsServicer, add_ReportsServicer_to_server
 from dokime_sdk.operations import Operation, Visibility
 
 # Type Checking Imports
@@ -62,6 +69,12 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.changed_binding = False
         self.settled_seal = False
+        self.archived_cycle = False
+        self.seal_failure = False
+        self.execution_sealed = False
+        self.seal_release = asyncio.Event()
+        self.seal_release.set()
+        self.seal_started = asyncio.Event()
         self.outcome = executions_pb2.ExecutionOutcome(evaluated={"status": "RESULT_STATUS_PASSED", "reason": "Evaluated"})
         self.end_unsealed = False
         owner = self
@@ -74,7 +87,15 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             admitted_suite={"identifier": "suite"},
             admitted_template={"identifier": "suite.template"},
         )
-        self.data = b"retained archive"
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        archive.writestr("report.html", b"retained report")
+        archive.writestr(
+            "manifest.json",
+            json.dumps({"version": 1, "entries": [{"path": "report.html", "size": 15, "sha256": sha256(b"retained report").hexdigest()}]}),
+        )
+        archive.close()
+        self.data = buffer.getvalue()
         data = self.data
         digest = sha256(data).digest()
 
@@ -119,12 +140,34 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
 
             async def Seal(self, request: cycles_pb2.CyclesSealRequest, context: ServicerContext) -> cycles_pb2.CyclesSealResponse:
                 trace.append(request)
-                return cycles_pb2.CyclesSealResponse(seal=b"settled" if owner.settled_seal else b"")
+                if owner.settled_seal:
+                    return cycles_pb2.CyclesSealResponse(
+                        seal=b"settled", cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True}
+                    )
+                return cycles_pb2.CyclesSealResponse(
+                    cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING", "archived": owner.archived_cycle}
+                )
 
             async def Watch(
                 self, request: cycles_pb2.CyclesWatchRequest, context: ServicerContext
             ) -> AsyncIterator[cycles_pb2.CyclesWatchResponse]:
                 trace.append(request)
+                if request.selection.cycle_ids:
+                    if owner.archived_cycle and request.filter.archive != cycles_pb2.ARCHIVE_SCOPE_ALL:
+                        yield cycles_pb2.CyclesWatchResponse()
+                        return
+                    yield cycles_pb2.CyclesWatchResponse(cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING"}])
+                    owner.seal_started.set()
+                    await owner.seal_release.wait()
+                    if owner.seal_failure:
+                        yield cycles_pb2.CyclesWatchResponse(
+                            cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEAL_FAILED", "seal_failure": "storage"}]
+                        )
+                    else:
+                        yield cycles_pb2.CyclesWatchResponse(
+                            cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True, "archived": owner.archived_cycle}]
+                        )
+                    return
                 yield cycles_pb2.CyclesWatchResponse(cycles=[cycle])
                 cycle.phase = cycles_pb2.CYCLE_PHASE_SEALED
                 cycle.sealed = True
@@ -217,6 +260,8 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         class Notes(NotesServicer):
             async def Create(self, request: notes_pb2.NotesCreateRequest, context: ServicerContext) -> notes_pb2.NotesCreateResponse:
                 trace.append(request)
+                if owner.execution_sealed and request.owner.owner.WhichOneof("kind") == "execution":
+                    await context.abort(StatusCode.FAILED_PRECONDITION, "execution")
                 execution = request.owner.owner.execution.execution_id
                 cycle = request.owner.owner.execution.cycle_id if execution else request.owner.owner.cycle_id
                 return notes_pb2.NotesCreateResponse(
@@ -234,6 +279,22 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             ) -> evidence_pb2.EvidenceArchiveResponse:
                 trace.append(request)
                 return evidence_pb2.EvidenceArchiveResponse(file={"length": len(data), "sha256": digest})
+
+        class Reports(ReportsServicer):
+            async def Create(
+                self, request: reports_pb2.ReportsCreateRequest, context: ServicerContext
+            ) -> reports_pb2.ReportsCreateResponse:
+                trace.append(request)
+                return reports_pb2.ReportsCreateResponse(
+                    file={"metadata": {"id": "retained-report"}, "length": len(data), "sha256": digest}
+                )
+
+        class Uploads(UploadsServicer):
+            async def Create(
+                self, request: uploads_pb2.UploadsCreateRequest, context: ServicerContext
+            ) -> uploads_pb2.UploadsCreateResponse:
+                trace.append(request)
+                await context.abort(StatusCode.FAILED_PRECONDITION, "execution")
 
         class Files(FilesServicer):
             async def Get(self, request: files_pb2.FilesGetRequest, context: ServicerContext) -> files_pb2.FilesGetResponse:
@@ -304,6 +365,8 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             (add_NotesServicer_to_server, Notes()),
             (add_EvidenceServicer_to_server, Evidence()),
             (add_FilesServicer_to_server, Files()),
+            (add_ReportsServicer_to_server, Reports()),
+            (add_UploadsServicer_to_server, Uploads()),
             (add_OperationsServicer_to_server, Operations()),
             (add_InvocationsServicer_to_server, Invocations()),
             (add_PromptsServicer_to_server, Prompts()),
@@ -377,13 +440,47 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(execution.case.identifier, "case")
         self.assertEqual(execution._detail.summary.case_id, "case")
 
-    async def test_settled_cycle_seal_uses_its_acknowledgement_without_extra_readback(self) -> None:
+    async def test_settled_cycle_seal_needs_no_observation(self) -> None:
         cycle = await self.client.cycles.get("cycle")
         self.settled_seal = True
         self.trace.clear()
         await cycle.seal(request_id="settled-seal")
         self.assertEqual(self.trace, [cycles_pb2.CyclesSealRequest(name="cycle", request_id="settled-seal")])
         self.assertEqual(cycle.phase, "Sealed")
+
+    async def test_archived_cycle_seal_waits_for_completion_and_surfaces_materialization_failure(self) -> None:
+        self.archived_cycle = True
+        cycle = await self.client.cycles.get("cycle")
+        self.seal_release.clear()
+        pending = asyncio.create_task(cycle.seal())
+        await self.seal_started.wait()
+        self.assertFalse(pending.done())
+        self.seal_release.set()
+        await pending
+        self.assertTrue(cycle._summary.sealed)
+        self.assertTrue(cycle._summary.archived)
+        self.seal_failure = True
+        with self.assertRaises(SdkError):
+            await cycle.seal()
+        self.assertFalse(cycle._summary.sealed)
+
+    async def test_cycle_downloads_select_the_retained_archive_and_report(self) -> None:
+        cycle = await self.client.cycles.get("cycle")
+        self.assertEqual(await cycle.evidence(), self.data)
+        self.assertEqual(await cycle.evidence(), self.data)
+        self.assertEqual(await cycle.report(), self.data)
+        requests = [request for request in self.trace if isinstance(request, reports_pb2.ReportsCreateRequest)]
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].subject, reports_pb2.ReportSubject(cycle="cycle"))
+        self.assertEqual(requests[0].document_id, "")
+
+    async def test_sealed_execution_note_and_artifact_refusals_are_sdk_errors(self) -> None:
+        execution = await self.client.executions.get("execution")
+        self.execution_sealed = True
+        with self.assertRaises(SdkError):
+            await execution.note("later")
+        with self.assertRaises(SdkError):
+            await execution.artifact("later.bin", b"later")
 
     async def test_lost_reply_keeps_the_identity_for_an_unchanged_replay(self) -> None:
         with self.assertRaises(SdkError) as failed:
@@ -508,6 +605,42 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.end_unsealed = True
         with self.assertRaises(SdkError):
             [value async for value in execution.watch()]
+
+
+class ArchiveIntegrityStory(unittest.TestCase):
+    def test_manifest_verifies_nested_content_and_rejects_corruption(self) -> None:
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        content = b"execution report"
+        member = {"path": "report.html", "size": len(content), "sha256": sha256(content).hexdigest()}
+        nested = json.dumps({"version": 1, "entries": [member]}).encode()
+        prefix = "executions/01 Confirmation/"
+        archive.writestr(prefix + "report.html", content)
+        archive.writestr(prefix + "manifest.json", nested)
+        entries = [
+            {**member, "path": prefix + "report.html"},
+            {"path": prefix + "manifest.json", "size": len(nested), "sha256": sha256(nested).hexdigest()},
+        ]
+        archive.writestr("manifest.json", json.dumps({"version": 1, "entries": entries}))
+        archive.close()
+        data = buffer.getvalue()
+        self.assertEqual(verify_archive(data), data)
+
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        archive.writestr("report.html", b"corrupt report")
+        archive.writestr("manifest.json", json.dumps({"version": 1, "entries": [member]}))
+        archive.close()
+        with self.assertRaises(SdkError):
+            verify_archive(buffer.getvalue())
+
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        archive.writestr("unlisted", b"evidence")
+        archive.writestr("manifest.json", json.dumps({"version": 1, "entries": []}))
+        archive.close()
+        with self.assertRaises(SdkError):
+            verify_archive(buffer.getvalue())
 
 
 # === Public Functions === #

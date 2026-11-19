@@ -17,7 +17,9 @@
 
 // Standard Library Imports
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 
 // Third Party Imports
@@ -26,7 +28,6 @@ use harmos_operations::plugins::List;
 use harmos_protocol::host::PluginEntry;
 use harmos_protocol::host::PluginState;
 use harmos_protocol::host::PluginsListRequest;
-use harmos_protocol::model::FileReference;
 use harmos_protocol::model::Receipt;
 use harmos_protocol::model::Visibility;
 use harmos_runtime::operations::OperationManager;
@@ -74,7 +75,6 @@ pub(super) struct State {
     pub status: Arc<Status>,
     pub root: PathBuf,
     pub identity: HostIdentity,
-    pub temporary_report_limit: usize,
 }
 
 /* === Enums === */
@@ -96,6 +96,9 @@ impl host::Host for State {
     }
     fn signal_change(&self) {
         self.host.signal_change();
+    }
+    fn spawn_work(&self, work: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+        self.host.executions.spawn(work).map_err(convert)
     }
     async fn start_existing(&self, execution: &str, mode: ExecutionMode) -> Result<StartedCycle> {
         let cycle = self.host.start_execution_mode(execution, mode).await.map_err(convert)?;
@@ -147,15 +150,6 @@ impl host::Host for State {
     }
     fn report_template(&self) -> &'static [u8] {
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/generated/report/report.html"))
-    }
-    fn retain_report(&self, reference: FileReference) -> Result<()> {
-        self.host.reports.retain(reference, self.temporary_report_limit).map_err(convert)
-    }
-    fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>> {
-        self.host.reports.temporary(identifier).map_err(convert)
-    }
-    fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report> {
-        self.host.reports.publish_prepared(prepared).map_err(convert)
     }
     async fn plugins(&self) -> Result<Vec<PluginEntry>> {
         let reply = self

@@ -38,7 +38,7 @@ use dokime_protocol::model::Document;
 /* === Structs === */
 
 #[derive(Clone, PartialEq, Message)]
-struct PreparedReport {
+pub(crate) struct PreparedReport {
     #[prost(string, tag = "1")]
     execution: String,
 

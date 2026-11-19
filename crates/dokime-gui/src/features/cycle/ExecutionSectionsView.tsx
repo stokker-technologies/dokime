@@ -259,7 +259,7 @@ function ExecutionProgress({
   return [stepProgress(steps), duration].filter(Boolean).join(" · ") || null;
 }
 
-/** What the runtime measured: from start to finish, once the execution ended. */
+/** What the runtime measured: from start to finish, once the execution is sealed. */
 function measuredSeconds(execution: Pick<TestExecution, "started_at" | "finished_at">): number | null {
   const started = parseTimestampMs(execution.started_at);
   const finished = parseTimestampMs(execution.finished_at);

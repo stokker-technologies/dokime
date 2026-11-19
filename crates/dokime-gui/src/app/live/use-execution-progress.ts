@@ -73,7 +73,7 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
                   total: safeNumber(value.total, "execution progress total"),
                 },
           );
-          if (frame.finished) {
+          if (frame.sealed) {
             reconnect = false;
             break;
           }

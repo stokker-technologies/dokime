@@ -41,7 +41,7 @@ from dokime_tools.release import (
     verify,
 )
 
-from .ci_gates_fixtures import LATER, NEW, FakeGitHub, _staged_files
+from .ci_gates_fixtures import LATER, NEW, OLD, FakeGitHub, _staged_files
 from .environment import isolate_environment
 
 # Type Checking Imports
@@ -56,6 +56,45 @@ from .environment import isolate_environment
 
 
 class ChannelTests(unittest.TestCase):
+    def test_build_line_preserves_links_consumption_and_previous_changes(self) -> None:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        root = Path(scratch.name)
+        # Notes No Longer Read Dependency Provenance or the Product Version.
+        (root / "Cargo.toml").write_text("not a manifest", encoding="utf-8")
+        for provider in ("github", "gitlab"):
+            settings = {"provider": provider, "repository": "owner/product", "project_id": "owner/product", "product": "product"}
+            project = "https://github.com/owner/product" if provider == "github" else "https://gitlab.com/owner/product"
+            commit = project + ("/commit/" if provider == "github" else "/-/commit/")
+            source_run = "[run 9](https://example.test/runs/9)"
+
+            # Generate Both Builds Without Reading Provenance Inputs.
+            with patch.object(nightly.policy, "execute") as execute, patch.object(nightly.policy, "policy") as configuration:
+                previous = nightly._notes(root, settings, OLD, "[run 8](https://example.test/runs/8)", "")
+                notes = nightly._notes(root, settings, NEW, source_run, "")
+                execute.assert_not_called()
+                configuration.assert_not_called()
+            metadata = notes.split("\n\n")[1]
+            self.assertEqual(metadata, f"Built from [`{NEW[:8]}`]({commit}{NEW}) · {source_run}")
+            self.assertFalse(any(line.startswith("|") for line in notes.splitlines()))
+            self.assertIn('product = { git = "' + project + '", branch = "dev" }', notes)
+            if provider == "github":
+                self.assertIn('[tools."github:owner/product"]', notes)
+            else:
+                self.assertIn(f"{project}/-/releases/nightly", notes)
+
+            # Keep History and Newer-Run Protection on the New Metadata Format.
+            with patch.object(nightly.policy, "execute", side_effect=[OLD, "- fix: preserved change"]) as execute:
+                updated = nightly._notes(root, settings, NEW, source_run, previous)
+            self.assertEqual(execute.call_args_list[0].args[1], ["git", "rev-parse", "--verify", "--quiet", OLD + "^{commit}"])
+            self.assertEqual(execute.call_args_list[1].args[1], ["git", "log", "--format=- %s", "-20", f"{OLD}..{NEW}"])
+            self.assertIn("- fix: preserved change", updated)
+            field = "body" if provider == "github" else "description"
+            self.assertTrue(nightly._superseded({field: updated}, "7", field))
+            self.assertFalse(nightly._superseded({field: updated}, "9", field))
+            self.assertFalse(nightly._superseded({field: updated}, "10", field))
+            self.assertFalse(nightly._superseded(None, "7", field))
+
     def test_nightly_installation_uses_mise_mutable_version(self) -> None:
         definition = {
             "installers": ["mise", "cargo-binstall"],
@@ -199,7 +238,9 @@ class ChannelTests(unittest.TestCase):
                     directory, files = _staged_files(Path(temporary))
                     github = FakeGitHub(previous=True)
                     if state == "superseded":
-                        github.releases[1]["body"] = "| CI Run | [9](https://example.invalid/9) |"
+                        github.releases[1]["body"] = (
+                            f"Built from [`{LATER[:8]}`](https://example.invalid/commit/{LATER}) · [run 9](https://example.invalid/9)"
+                        )
                     else:
                         github.releases[1]["immutable"] = True
                     before = copy.deepcopy((github.releases, github.assets, github.tag))
