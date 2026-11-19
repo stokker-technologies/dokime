@@ -48,8 +48,8 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 ### CLI
 
 `dokime` creates SDK projects, packages executable plugins, hosts Dokime and
-controls a running host. Python, Rust and C# each embed one starter project;
-C++ currently embeds separate plugin and test projects. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
+controls a running host. Each language embeds one starter project containing
+its plugin and client programs. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
 
 #### Examples
 
@@ -170,9 +170,8 @@ dokime dev --plugin .
 ```
 
 `dokime new` writes one Python project with `dokime.toml` and the
-`src/my_project/` package, including its client and plugin modules. Rust and C#
-use one project with plugin and client programs; C++ retains separate plugin and
-test folders. The Python starter does not embed `uv.lock`. The first `uv sync` resolves the SDK
+`src/my_project/` package, including its client and plugin modules. Rust, C# and
+C++ also use one project with plugin and client programs. The Python starter does not embed `uv.lock`. The first `uv sync` resolves the SDK
 dependency named in `pyproject.toml` and creates a lock file to commit with your project.
 `dokime new my-project --lang rust --from .` uses the current checkout's starter
 and a local SDK dependency. All four languages accept `--from` and
