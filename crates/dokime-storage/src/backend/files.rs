@@ -77,7 +77,7 @@ pub(super) fn write(state: &mut State, file: &StagedFile, offset: u64, bytes: &[
     if bytes.len() > state.settings.chunk_bytes.get() {
         return Err(invalid("file chunk exceeds chunk budget"));
     }
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let (length, finished): (u64, Option<Vec<u8>>) = tx
         .query_row("SELECT length,finished FROM storage_files WHERE id=?1", [file.id.as_str()], |row| Ok((unsigned(row, 0)?, row.get(1)?)))
         .map_err(db)?;
@@ -113,7 +113,7 @@ pub(super) fn finish(
     state.check()?;
     state.history.check(&file.history)?;
     state.history.check(&position.history)?;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let (metadata, actual, finished): (Vec<u8>, u64, Option<Vec<u8>>) = tx
         .query_row("SELECT metadata,length,finished FROM storage_files WHERE id=?1", [file.id.as_str()], |row| {
             Ok((row.get(0)?, unsigned(row, 1)?, row.get(2)?))
@@ -164,7 +164,7 @@ pub(super) fn finish(
 pub(super) fn abort(state: &mut State, file: &StagedFile) -> Result<()> {
     state.check()?;
     state.history.check(&file.history)?;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let finished: Option<Vec<u8>> = tx
         .query_row("SELECT finished FROM storage_files WHERE id=?1", [file.id.as_str()], |row| row.get(0))
         .optional()
@@ -317,7 +317,7 @@ pub(super) fn abandon(state: &State, file: &StagedFile) -> Result<()> {
 
 pub(super) fn checkpoints(state: &mut State, checkpoints: &[FileCheckpoint]) -> Result<()> {
     state.check()?;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for checkpoint in checkpoints {
         state.history.check(&checkpoint.session.history)?;
         checkpoint.sha256()?;
@@ -328,13 +328,46 @@ pub(super) fn checkpoints(state: &mut State, checkpoints: &[FileCheckpoint]) -> 
                 |row| Ok((unsigned(row, 0)?, unsigned(row, 1)?, row.get(2)?, row.get(3)?)),
             )
             .map_err(db)?;
-        if abandoned || generation != checkpoint.session.generation || checkpoint.length > length {
-            return Err(conflict("checkpoint file production: generation or length differs"));
+        if generation != checkpoint.session.generation {
+            return Err(Error::backend(
+                "Checkpoint File Production",
+                BackendFailure::Conflict,
+                io::Error::other(format!(
+                    "File '{}': Writer Generation {} Differs from Current Generation {generation}; Resume the Upload and Use Its Returned Writer",
+                    checkpoint.session.id, checkpoint.session.generation,
+                )),
+            ));
+        }
+        if checkpoint.length > length {
+            return Err(Error::backend(
+                "Checkpoint File Production",
+                BackendFailure::Conflict,
+                io::Error::other(format!(
+                    "File '{}': Checkpoint Length {} Exceeds Stored Length {length}; Append the Missing Bytes Before Saving Its Checkpoint",
+                    checkpoint.session.id, checkpoint.length,
+                )),
+            ));
+        }
+        // A Captured Batch Can Outlive Abandonment; Never Restore Its Recovery State.
+        if abandoned {
+            continue;
         }
         if let Some(prior) = prior {
             let prior: FileCheckpoint = decode(&prior)?;
-            if prior.length > checkpoint.length || (prior.length == checkpoint.length && prior.hash_state != checkpoint.hash_state) {
-                return Err(conflict("checkpoint file production: durable prefix differs"));
+            // Concurrent Flushes Capture Before Persisting; Keep the Longest Durable Prefix.
+            if prior.length > checkpoint.length {
+                continue;
+            }
+            if prior.length == checkpoint.length && prior.hash_state != checkpoint.hash_state {
+                return Err(Error::backend(
+                    "Checkpoint File Production",
+                    BackendFailure::Conflict,
+                    io::Error::other(format!(
+                        "File '{}': Checkpoint Hash Differs at Durable Length {length}; Read the Accepted Bytes and Rebuild Its Checkpoint",
+                        checkpoint.session.id,
+                        length = checkpoint.length,
+                    )),
+                ));
             }
         }
         tx.execute(
@@ -378,7 +411,7 @@ pub(super) fn recover(state: &mut State, limits: ReadLimits) -> Result<Vec<FileC
             output.push(checkpoint);
         }
     }
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for checkpoint in &output {
         tx.execute(
             "DELETE FROM storage_file_chunks WHERE id=?1 AND offset>=?2",
@@ -513,6 +546,14 @@ mod tests {
             .unwrap();
         assert_eq!(recovered, vec![current]);
         assert_eq!(backend.get_file_production(&discarded).await.unwrap().phase, FilePhase::Abandoned);
+        let saved: Option<Vec<u8>> = backend
+            .state
+            .lock()
+            .await
+            .connection
+            .query_row("SELECT checkpoint FROM storage_file_sessions WHERE id=?1", [discarded.id.as_str()], |row| row.get(0))
+            .unwrap();
+        assert!(saved.is_none());
         backend.delete_session().await.unwrap();
     }
 
@@ -573,7 +614,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(recovered, vec![newer]);
+        assert_eq!(recovered, vec![newer.clone()]);
         assert_eq!(backend.get_file_production_bytes(&file, 0, NonZeroUsize::new(6).unwrap()).await.unwrap(), b"abcdef");
 
         // Reject an Old Writer After Resume Advances the Fence.
@@ -581,6 +622,11 @@ mod tests {
         let error = backend.set_file_production_checkpoints(StorageBatch::new(vec![older])).await.unwrap_err();
         assert!(matches!(error, Error::Backend { kind: BackendFailure::Conflict, .. }));
         assert!(error.to_string().contains(file.id.as_str()));
+
+        // Persist the Same Prefix Through the Current Writer Generation.
+        let mut resumed = newer;
+        resumed.session.generation = 2;
+        backend.set_file_production_checkpoints(StorageBatch::new(vec![resumed])).await.unwrap();
         backend.delete_session().await.unwrap();
     }
 
