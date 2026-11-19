@@ -20,6 +20,7 @@
 
 /* === Local Imports === */
 
+import { exactNumericText } from "@/lib/record-display";
 import { formatValue } from "@/lib/dashboard";
 import { durationParts } from "@/lib/format";
 import type { DocumentViewCard, JsonObject, ParameterDefinition, PromptRequest } from "@/lib/types";
@@ -140,23 +141,37 @@ export function executionPagePrompts<T extends Pick<PromptRequest, "scope">>(pro
 function parameterRow(key: string, label: string, value: unknown, declaredUnit: string | null): ExecutionParameterRow {
   const scale = durationScale(key, declaredUnit);
   const duration = scale === null ? null : durationFigure(value, scale);
-  if (duration) return { key, label, value, ...duration };
+  if (duration) {
+    return { key, label, value, ...duration };
+  }
   return { key, label, value, text: formatValue(value, null), unit: declaredUnit };
 }
 
 /** Seconds per declared or implied time unit, or `null` for a value that is no duration. */
 function durationScale(key: string, declaredUnit: string | null): number | null {
-  if (declaredUnit !== null) return TIME_UNITS[declaredUnit] ?? null;
+  if (declaredUnit !== null) {
+    return TIME_UNITS[declaredUnit] ?? null;
+  }
   const name = key.toLowerCase();
-  if (name.endsWith("_ms")) return TIME_UNITS.ms;
-  if (name.endsWith("_s") || name.includes("duration")) return TIME_UNITS.s;
+  if (name.endsWith("_ms")) {
+    return TIME_UNITS.ms;
+  }
+  if (name.endsWith("_s") || name.includes("duration")) {
+    return TIME_UNITS.s;
+  }
   return null;
 }
 
 function durationFigure(value: unknown, scale: number): Pick<ExecutionParameterRow, "text" | "unit"> | null {
   /* Native numbers arrive wrapped (`numericValue` unwraps them), plain ones as numbers. */
-  const values = (Array.isArray(value) ? value : [value]).map(numericValue);
-  if (!values.length || !values.every((item): item is number => item !== null && Number.isFinite(item))) return null;
+  const supplied = Array.isArray(value) ? value : [value];
+  if (supplied.some((item) => exactNumericText(item) !== null)) {
+    return null;
+  }
+  const values = supplied.map(numericValue);
+  if (!values.length || !values.every((item): item is number => item !== null && Number.isFinite(item))) {
+    return null;
+  }
   const parts = values.map((item) => durationParts(item * scale));
   const unit = parts[0].unit;
   return parts.every((part) => part.unit === unit)

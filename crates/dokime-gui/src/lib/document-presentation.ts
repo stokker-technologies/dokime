@@ -21,7 +21,7 @@
 
 import { COMPACT_DECIMAL_CHARACTERS, formatCompactDecimal, formatDecimal, formatUnitLabel } from "@/lib/format";
 import type { DocumentCardLayout, TelemetrySummaryFormat, TelemetrySummaryPresentation, TelemetrySummaryState } from "./document-contracts";
-import { formatRecordValue } from "./record-display";
+import { exactNumericText, formatRecordValue } from "./record-display";
 import type {
   DocumentDataExpression,
   DocumentViewCard,
@@ -309,6 +309,10 @@ function telemetryField(expression?: DocumentDataExpression | null): string | nu
 }
 
 function documentValue(value: unknown): string {
+  const exact = exactNumericText(value);
+  if (exact !== null) {
+    return exact;
+  }
   value = numericValue(value) ?? value;
   if (typeof value === "number") {
     return Number.isFinite(value) ? formatDecimal(value) : "-";
@@ -317,29 +321,27 @@ function documentValue(value: unknown): string {
 }
 
 /**
- * A tile's shown text and its complete value. A value too long for the tile is
- * abbreviated from its exact decimal; `exact` keeps every digit for the title
- * and copy. The label carries the unit in square brackets, so the value does not.
+ * Integer and exact values keep every digit on the tile, title and copy.
+ * Floating values retain their compact presentation. The label carries the unit.
  */
 function summaryValue(value: unknown, format: SummaryTile["format"], unit?: string | null): { formatted: string; exact: string } {
+  const suffix = format === "percent" ? "%" : format === "duration" ? (unit ?? "s") : "";
+  const exact = exactNumericText(value);
+  if (exact !== null) {
+    const rendered = `${exact}${suffix}`;
+    return { formatted: rendered, exact: rendered };
+  }
   value = numericValue(value) ?? value;
   const rendered = documentValue(value);
   const number = typeof value === "number" && Number.isFinite(value) ? value : null;
-  const decimal =
-    isRecord(value) &&
-    (value.__dokime_native_integer__ === true || value.__dokime_native_exact__ === true) &&
-    typeof value.decimal === "string"
-      ? value.decimal
-      : null;
-  if (number === null && decimal === null) {
+  if (number === null) {
     return { formatted: rendered, exact: rendered };
   }
   if (format === "percent" && number !== null) {
     const percent = `${number.toFixed(Math.abs(number) >= 10 ? 0 : 1)}%`;
     return { formatted: percent, exact: percent };
   }
-  const shown = rendered.length <= COMPACT_DECIMAL_CHARACTERS ? rendered : formatCompactDecimal(decimal ?? String(number));
-  const suffix = format === "percent" ? "%" : format === "duration" ? (unit ?? "s") : "";
+  const shown = rendered.length <= COMPACT_DECIMAL_CHARACTERS ? rendered : formatCompactDecimal(String(number));
   return { formatted: `${shown}${suffix}`, exact: `${rendered}${suffix}` };
 }
 

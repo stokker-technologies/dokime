@@ -136,6 +136,7 @@ export function mapCyclePhase(phase: CycleSummary["phase"]): TestCycle["phase"] 
 export function mapNativeExecutionSummary(item: ExecutionSummary, cases: TestCase[], cycle: CycleSummary): TestExecution {
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
   return {
+    controls: item.controls,
     archived: item.archived,
     sealed: item.state === ExecutionState.SEALED,
     test_execution_id: item.executionId,
@@ -182,7 +183,9 @@ export function projectExecutionStatus(
   liveState?: LiveExecutionState,
 ): TestExecution["status"] {
   if (state === ExecutionState.OPEN) {
-    if (liveState === LiveExecutionState.CLEANING_UP) return "finalizing";
+    if (liveState === LiveExecutionState.CLEANING_UP) {
+      return "finalizing";
+    }
     return controls?.requestId || (liveState !== undefined && liveState !== LiveExecutionState.QUEUED) ? "running" : "planned";
   }
   const attribution = outcome?.attribution;
@@ -346,7 +349,9 @@ function mapQueueItem(summary: CycleSummary, item: CaseSummary, ordinal: number)
 
 /** Action eligibility, or `null` where the projection reports none at all. */
 function mapCaseActions(actions: NativeCaseActions | undefined): CaseActions | null {
-  if (!actions) return null;
+  if (!actions) {
+    return null;
+  }
   return {
     delete: actions.delete,
     unavailable_reasons: [...actions.unavailableReasons],

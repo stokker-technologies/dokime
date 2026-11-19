@@ -11,13 +11,12 @@
  * its executions in cycle order.
  *
  * Every row is one line on one grid — chevron, status glyph, label, Run
- * Again, ordinal or progress, menu — with the same column widths on every
+ * Again, ordinal or progress — with the same column widths on every
  * row, so glyphs, ordinals and actions line up whatever the labels say. A row
  * is `--tree-row-height` tall (28px on a desk, 44px at touch). The label is
  * cut with an ellipsis and its full text is the row's tooltip and accessible
  * name; the status is a coloured glyph whose word is its tooltip and is also
- * read as text. The row menu appears on hover or focus, and on a long press at
- * touch.
+ * read as text. Entry actions live in the page header.
  *
  * It is a WAI-ARIA tree: arrow keys move between rows, left and right collapse
  * and expand the cycle node, Enter selects. Selecting the cycle node selects
@@ -35,7 +34,7 @@
 
 import { useMemo } from "react";
 import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
-import { useCycleCommands, useCycleDetailQuery, useCyclePendingPromptsQuery, useRerunCase } from "./cycle-queries";
+import { useCycleDetailQuery, useCyclePendingPromptsQuery, useRerunCase } from "./cycle-queries";
 /* === Local Imports === */
 import type { CycleSelection } from "./cycle-workspace-model";
 
@@ -48,7 +47,6 @@ export type CycleSidebarCasesProps = {
 /* === Components === */
 export function CycleSidebarCases(props: CycleSidebarCasesProps) {
   const detailQuery = useCycleDetailQuery(props.cycleId);
-  const commands = useCycleCommands(props.cycleId);
   const rerunCase = useRerunCase(props.cycleId);
   const prompts = useCyclePendingPromptsQuery(props.cycleId).data;
   const inputNeeded = useMemo(
@@ -62,8 +60,6 @@ export function CycleSidebarCases(props: CycleSidebarCasesProps) {
       inputNeeded={inputNeeded}
       actions={{
         rerunCase: rerunCase.rerun,
-        startExecution: (id) => commands.startExecution.mutateAsync(id),
-        deleteCase: (id) => commands.deleteCase.mutateAsync(id),
       }}
     />
   );

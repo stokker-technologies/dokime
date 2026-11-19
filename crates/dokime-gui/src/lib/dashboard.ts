@@ -12,7 +12,7 @@
 import { numericValue } from "@/lib/utils";
 
 import { formatDuration, formatNumber, formatTitleWord } from "./format";
-import { formatRecordValue, isDatetimeValue } from "./record-display";
+import { exactNumericText, formatRecordValue, isDatetimeValue } from "./record-display";
 import { parseTimestampMs } from "./time-format";
 import type { HubRecord } from "./types";
 
@@ -58,6 +58,10 @@ export function formatValue(value: unknown, unit?: string | null, key = ""): str
     }
     const items = value.map((item) => formatValue(item, null, key)).join(", ");
     return unit ? `${items} ${unit}` : items;
+  }
+  const exact = exactNumericText(value);
+  if (exact !== null) {
+    return unit ? `${exact} ${unit}` : exact;
   }
   const parsed = numeric(value);
   if (parsed === null) {

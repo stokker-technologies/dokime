@@ -133,7 +133,17 @@ export type FollowState = {
 };
 
 /** One entry of a node's "…" menu. */
-export type NodeMenuItem = "Rerun Cycle" | "Add Cases" | "Settings" | "Follow Active" | "Open Report" | "Archive" | "Unarchive" | "Re-Run";
+export type NodeMenuItem =
+  | "Start Execution"
+  | "Delete Case"
+  | "Rerun Cycle"
+  | "Add Cases"
+  | "Settings"
+  | "Follow Active"
+  | "Open Report"
+  | "Archive"
+  | "Unarchive"
+  | "Re-Run";
 
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
@@ -146,11 +156,6 @@ export type ReportDownloadState = {
 
 export function isFinishedCase(status: CaseState): boolean {
   return FINISHED_CASE_STATES.has(status);
-}
-
-/** Whether this attempt is a placeholder for a case the cycle has not run. */
-export function isPlannedExecution(status: TestExecution["status"]): boolean {
-  return status === "planned";
 }
 
 /** An attempt with nothing captured yet: planned, or queued and undispatched. */
@@ -345,7 +350,11 @@ export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): 
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
     ? [["Rerun Cycle", "Add Cases", "Follow Active"], ["Open Report", "Settings"], [archive]]
-    : [["Re-Run"], ["Open Report", "Settings"], [archive]];
+    : [
+        ["Start Execution", "Re-Run"],
+        ["Open Report", "Settings"],
+        [archive, "Delete Case"],
+      ];
 }
 
 /**

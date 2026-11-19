@@ -39,17 +39,28 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
 
   useEffect(() => {
     setProgress(null);
-    if (!testExecutionId || !session) return;
+    if (!testExecutionId || !session) {
+      return;
+    }
 
     let active = true;
     let retry: number | undefined;
     let stream: Awaited<ReturnType<typeof openNativeExecutionProgressStream>> | undefined;
     const connect = async () => {
-      if (!active || !session.identity.isCurrent()) return;
+      if (!active || !session.identity.isCurrent()) {
+        return;
+      }
+      let reconnect = true;
       try {
         stream = await openNativeExecutionProgressStream({ ...session.identity, own: session.own }, testExecutionId);
+        if (!active || !session.identity.isCurrent()) {
+          await stream.cancel();
+          return;
+        }
         for await (const frame of stream) {
-          if (!active || !session.identity.isCurrent()) break;
+          if (!active || !session.identity.isCurrent()) {
+            break;
+          }
           const value = frame.progress;
           setProgress(
             !value
@@ -62,12 +73,29 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
                   total: safeNumber(value.total, "execution progress total"),
                 },
           );
+          if (frame.finished) {
+            reconnect = false;
+            break;
+          }
         }
-      } catch {
-        if (active) setProgress(null);
+      } catch (error) {
+        const detail = error && typeof error === "object" && "detail" in error ? error.detail : null;
+        const refused =
+          error &&
+          typeof error === "object" &&
+          "kind" in error &&
+          error.kind === "grpc" &&
+          detail &&
+          typeof detail === "object" &&
+          "code" in detail &&
+          (detail.code === 3 || detail.code === 9);
+        reconnect = !refused;
+        if (active) {
+          setProgress(null);
+        }
       } finally {
         stream = undefined;
-        if (active && session.identity.isCurrent()) {
+        if (reconnect && active && session.identity.isCurrent()) {
           retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
         }
       }
@@ -76,7 +104,9 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
     void connect();
     return () => {
       active = false;
-      if (retry !== undefined) window.clearTimeout(retry);
+      if (retry !== undefined) {
+        window.clearTimeout(retry);
+      }
       void stream?.cancel();
     };
   }, [session, testExecutionId]);
