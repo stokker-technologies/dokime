@@ -91,7 +91,7 @@ async fn concurrent_view_retention_converges_and_isolates_resources() -> StoryRe
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
                 worker.run().await?;
-                worker.finalize().await
+                worker.cleanup().await
             });
             Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
         })

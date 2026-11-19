@@ -451,6 +451,10 @@ mod tests {
         let controller = controller.unwrap();
         let runtime = Runtime::<Model>::start_with((), (), |setup| {
             setup.settings().clock(time.clock.clone()).operation_middleware(Arc::new(Timing));
+            setup.settings().operation_settings(harmos_runtime::operations::Settings {
+                preparation_bytes: Some(std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
+                ..Default::default()
+            });
         })
         .await?;
         let mut context = CallContext::default();
