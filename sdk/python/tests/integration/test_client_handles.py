@@ -26,8 +26,6 @@ from google.protobuf.message import Message
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
 from harmos._wire.host.v1 import invocations_pb2, operations_pb2
-from harmos._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
-from harmos._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
 from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
@@ -48,6 +46,8 @@ from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
 from dokime_sdk._wire.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
+from dokime_sdk._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
+from dokime_sdk._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
 from dokime_sdk._wire.host.v1.prompts import answers_pb2
 from dokime_sdk._wire.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
 from dokime_sdk._wire.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server

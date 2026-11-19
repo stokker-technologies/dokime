@@ -23,13 +23,14 @@ from grpc import StatusCode
 from grpc.aio import AioRpcError
 from harmos.plugin import Endpoint
 
+import dokime_sdk._generated.client
+
 # Local Imports
 from ._authoring import _Template
 from ._context import BoundOperation
 from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
 from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
-from ._generated.client import ClientRoot
 from ._generated.shared import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
@@ -54,7 +55,7 @@ if TYPE_CHECKING:
 
 
 class Client:
-    _transport: ClientRoot
+    _transport: dokime_sdk._generated.client.Client
     plugins: "Plugins"
     cases: "Cases"
     cycles: "Cycles"
@@ -69,7 +70,7 @@ class Client:
         raise TypeError("Connect a Client with await connect()")
 
     @classmethod
-    def _bind(cls, transport: ClientRoot) -> "Client":
+    def _bind(cls, transport: dokime_sdk._generated.client.Client) -> "Client":
         self = object.__new__(cls)
         self._transport = transport
         self.plugins = Plugins(self)
@@ -257,7 +258,7 @@ class Plugins:
                     else:
                         if lookup_reply.entry.placement.remote.url == f"http://{endpoint.address}":
                             await self._client._transport.plugins.delete(lookup_reply.entry.name, lookup_reply.entry.revision)
-                    await endpoint.close()
+                    await endpoint.stop()
             except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
                 error.add_note(f"Registration Cleanup Failed: {cleanup}")
             raise
@@ -346,7 +347,7 @@ class RegisteredPlugin:
                     raise transport_error("plugins.delete", error, self._unregister_id) from error
             self._detached = True
         if self._endpoint is not None:
-            await self._endpoint.close()
+            await self._endpoint.stop()
             self._endpoint = None
         self._client.plugins._owned.pop(self.identifier, None)
         for template, bindings in list(self._client.plugins._bindings.items()):

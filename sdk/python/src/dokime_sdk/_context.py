@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar
 from google.protobuf.duration_pb2 import Duration
 from harmos import VISIBILITY_PUBLIC, plugin
 
+import dokime_sdk._generated.client
+
 # Local Imports
 from ._errors import call, invalid, refused
-from ._generated.client import ClientRoot
 from ._generated.host import HostRoot
 from ._payloads import Payload, message_type, pack, unpack
 from ._values import SampleRow
@@ -110,14 +111,16 @@ class StreamSubscription[T: Payload](Protocol):
 class BoundOperation[RequestT: Payload, ResponseT: Payload]:
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
-    def __init__(self, transport: plugin.Context | ClientRoot, operation: "operations.Operation[RequestT, ResponseT]") -> None:
+    def __init__(
+        self, transport: plugin.Context | dokime_sdk._generated.client.Client, operation: "operations.Operation[RequestT, ResponseT]"
+    ) -> None:
         self._transport = transport
         self._operation = operation
 
     async def __call__(self, request: RequestT, *, policy: "operations.OperationPolicy | None" = None) -> ResponseT:
         wire = self._operation._definition()
         encoded = pack(self._operation.request, request)
-        if isinstance(self._transport, ClientRoot):
+        if isinstance(self._transport, dokime_sdk._generated.client.Client):
             if policy is not None:
                 raise refused(
                     "invocations.create",

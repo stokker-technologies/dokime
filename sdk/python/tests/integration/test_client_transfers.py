@@ -24,8 +24,6 @@ from grpc import StatusCode
 from grpc.aio import Channel, ServicerContext, server
 from harmos import OperationPolicy, plugin
 from harmos._wire.host.v1 import invocations_pb2, operations_pb2
-from harmos._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
-from harmos._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
@@ -46,6 +44,8 @@ from dokime_sdk._wire.host.v1.executions import schemas_pb2
 from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
+from dokime_sdk._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
+from dokime_sdk._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
 from dokime_sdk.operations import BoundOperation, Operation, Visibility
 from dokime_sdk.templates import Context, Document, Section, Termination, TestTemplate, observer, record, stream
 
@@ -70,7 +70,7 @@ class ScopedCarrier(plugin.Context):
     ) -> R:
         if "/" not in operation.id:
             invoke = self.channel.unary_unary(
-                "/harmos.host.v1.Invocations/Create",
+                "/dokime.host.v1.Invocations/Create",
                 request_serializer=invocations_pb2.InvocationsCreateRequest.SerializeToString,
                 response_deserializer=invocations_pb2.InvocationsCreateResponse.FromString,
             )

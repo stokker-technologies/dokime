@@ -71,8 +71,8 @@ class AuthoringStory(unittest.TestCase):
 
         class LanePlugin(Plugin):
             version = "1.0.0"
-            lanes = [instrument]
-            operations = [measure]
+            lanes: ClassVar[list[Lane]] = [instrument]
+            operations: ClassVar[list[Callable[..., object]]] = [measure]
 
         declarations = LanePlugin().declarations()
         self.assertEqual(len(declarations.lanes), 1)
@@ -83,7 +83,7 @@ class AuthoringStory(unittest.TestCase):
 
         class MissingLanePlugin(Plugin):
             version = "1.0.0"
-            operations = [measure]
+            operations: ClassVar[list[Callable[..., object]]] = [measure]
 
         self.assertRaises(ValueError, MissingLanePlugin)
 

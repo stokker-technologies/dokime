@@ -180,7 +180,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.ready.set()
         running = await client.plugins.register(RunningPlugin(), address="127.0.0.1:0")
         assert running._endpoint is not None
-        self.addAsyncCleanup(running._endpoint.close)
+        self.addAsyncCleanup(running._endpoint.stop)
         await client.plugins.register(IdlePlugin(), address="127.0.0.1:0")
         self.refuse_delete.add("running")
         self.trace.clear()
@@ -190,7 +190,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(self.entries), ["running"])
         self.assertIsNotNone(running._endpoint)
         assert running._endpoint is not None
-        await running._endpoint.close()
+        await running._endpoint.stop()
         with self.assertRaises(SdkError) as repeated:
             await client.close()
         self.assertIs(failed.exception, repeated.exception)

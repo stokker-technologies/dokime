@@ -35,11 +35,12 @@ from grpc.aio import (
     secure_channel,
 )
 
+import dokime_sdk._generated.client
+
 # Local Imports
 from ._client import Client
 from ._configuration import load, resolve
 from ._errors import Failure, SdkError, chain, transport_error
-from ._generated.client import ClientRoot
 
 # Type Checking Imports
 
@@ -187,7 +188,7 @@ async def _connect_endpoint(
         if certificate_pem:
             raise ValueError("Connect: HTTP Cannot Carry a Certificate")
         channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
-    wire = ClientRoot(channel)
+    wire = dokime_sdk._generated.client.Client(channel)
     wire._owned_channel = channel
     client = Client._bind(wire)
     try:
@@ -216,7 +217,7 @@ def _endpoint(selected: str) -> SplitResult:
     return endpoint
 
 
-async def _ready(channel: Channel, client: ClientRoot, expected_backend_id: str | None) -> None:
+async def _ready(channel: Channel, client: dokime_sdk._generated.client.Client, expected_backend_id: str | None) -> None:
     if expected_backend_id:
         # Prove Identity With a Fail-Fast Call Before Waiting for Readiness.
         status = await client.status.get()
