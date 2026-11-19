@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/prompts.proto</summary>
-  public static partial class PromptsReflection {
+  internal static partial class PromptsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/prompts.proto</summary>
@@ -123,7 +123,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum PromptKind {
+  internal enum PromptKind {
     [pbr::OriginalName("PROMPT_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("PROMPT_KIND_CONFIRMATION")] Confirmation = 1,
     [pbr::OriginalName("PROMPT_KIND_FORM")] Form = 2,
@@ -380,7 +380,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptsGetResponse : pb::IMessage<PromptsGetResponse>
+  internal sealed partial class PromptsGetResponse : pb::IMessage<PromptsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1062,7 +1062,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptsListResponse : pb::IMessage<PromptsListResponse>
+  internal sealed partial class PromptsListResponse : pb::IMessage<PromptsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1761,7 +1761,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptsWatchResponse : pb::IMessage<PromptsWatchResponse>
+  internal sealed partial class PromptsWatchResponse : pb::IMessage<PromptsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2384,7 +2384,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptsCreateResponse : pb::IMessage<PromptsCreateResponse>
+  internal sealed partial class PromptsCreateResponse : pb::IMessage<PromptsCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2765,7 +2765,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptInstance : pb::IMessage<PromptInstance>
+  internal sealed partial class PromptInstance : pb::IMessage<PromptInstance>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3184,7 +3184,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptView : pb::IMessage<PromptView>
+  internal sealed partial class PromptView : pb::IMessage<PromptView>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3483,7 +3483,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptResponse : pb::IMessage<PromptResponse>
+  internal sealed partial class PromptResponse : pb::IMessage<PromptResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

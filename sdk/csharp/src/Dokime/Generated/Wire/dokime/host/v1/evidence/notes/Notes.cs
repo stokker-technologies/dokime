@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.EvidenceResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence/notes.proto</summary>
-  public static partial class NotesReflection {
+  internal static partial class NotesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence/notes.proto</summary>
@@ -375,7 +375,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NotesGetResponse : pb::IMessage<NotesGetResponse>
+  internal sealed partial class NotesGetResponse : pb::IMessage<NotesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1029,7 +1029,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NotesSetResponse : pb::IMessage<NotesSetResponse>
+  internal sealed partial class NotesSetResponse : pb::IMessage<NotesSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1618,7 +1618,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NotesListResponse : pb::IMessage<NotesListResponse>
+  internal sealed partial class NotesListResponse : pb::IMessage<NotesListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2187,7 +2187,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NotesWatchResponse : pb::IMessage<NotesWatchResponse>
+  internal sealed partial class NotesWatchResponse : pb::IMessage<NotesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2793,7 +2793,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NotesCreateResponse : pb::IMessage<NotesCreateResponse>
+  internal sealed partial class NotesCreateResponse : pb::IMessage<NotesCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3083,7 +3083,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class OperatorNote : pb::IMessage<OperatorNote>
+  internal sealed partial class OperatorNote : pb::IMessage<OperatorNote>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3461,7 +3461,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class NoteWritable : pb::IMessage<NoteWritable>
+  internal sealed partial class NoteWritable : pb::IMessage<NoteWritable>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3659,7 +3659,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AnnotationOwner : pb::IMessage<AnnotationOwner>
+  internal sealed partial class AnnotationOwner : pb::IMessage<AnnotationOwner>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3866,7 +3866,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AnnotationOwnerOwner : pb::IMessage<AnnotationOwnerOwner>
+  internal sealed partial class AnnotationOwnerOwner : pb::IMessage<AnnotationOwnerOwner>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4214,7 +4214,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AnnotationSelection : pb::IMessage<AnnotationSelection>
+  internal sealed partial class AnnotationSelection : pb::IMessage<AnnotationSelection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4458,7 +4458,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ExecutionNoteOwner : pb::IMessage<ExecutionNoteOwner>
+  internal sealed partial class ExecutionNoteOwner : pb::IMessage<ExecutionNoteOwner>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4693,7 +4693,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlannedCaseNoteOwner : pb::IMessage<PlannedCaseNoteOwner>
+  internal sealed partial class PlannedCaseNoteOwner : pb::IMessage<PlannedCaseNoteOwner>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

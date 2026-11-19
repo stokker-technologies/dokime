@@ -2,17 +2,18 @@
 
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Harmos.Plugins;
 using Harmos;
+using Dokime.Plugins;
 
-namespace Dokime.Plugins;
+namespace Dokime.Templates;
 
-public sealed record Step(string Label, Func<Context, Task> Run, string? Identifier = null,
+internal sealed record Step(string Label, Func<Context, Task> Run, string? Identifier = null,
     OperationPolicy? Policy = null, bool ReplaySafe = false, bool Repeatable = false);
-public sealed record Criterion(string Label, Func<Context, Task<bool>> Evaluate, string? Identifier = null, OperationPolicy? Policy = null);
+internal sealed record Criterion(string Label, Func<Context, Task<bool>> Evaluate, string? Identifier = null, OperationPolicy? Policy = null);
 
 public interface IRecord
 {
@@ -54,7 +55,10 @@ public sealed class PromptDeclaration
       Archetype = PromptArchetype.Choice,
       Metadata = new Metadata { Label = label.Length == 0 ? text : label },
     };
-    foreach (var (choice, index) in (choices ?? ["OK"]).Select((choice, index) => (choice, index)))
+    var actions = choices is { Length: > 0 } ? choices : ["OK"];
+    if (actions.Distinct(StringComparer.Ordinal).Count() != actions.Length)
+      throw new ArgumentException("Declare Prompt: Supply Distinct Choice Labels");
+    foreach (var (choice, index) in actions.Select((choice, index) => (choice, index)))
       Definition.Actions.Add(new PromptAction { Identifier = index.ToString(CultureInfo.InvariantCulture), Label = choice });
   }
 
@@ -74,18 +78,8 @@ public sealed class PromptDeclaration
   }
 }
 
-[AttributeUsage(AttributeTargets.Class)]
-public sealed class SuiteAttribute(string label = "") : Attribute
-{
-  public string Label { get; } = label;
-  public string? Identifier
-  {
-    get; set;
-  }
-}
-
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class StepAttribute(string label) : Attribute
+public sealed class StepAttribute(string label) : Dokime.Operations.PolicyAttribute
 {
   public string Label { get; } = label;
   public string? Identifier
@@ -99,7 +93,7 @@ public sealed class StepAttribute(string label) : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class CriterionAttribute(string label) : Attribute
+public sealed class CriterionAttribute(string label) : Dokime.Operations.PolicyAttribute
 {
   public string Label { get; } = label;
   public string? Identifier
@@ -115,7 +109,7 @@ internal static class Identifiers
     if (identifier is null)
     {
       if (type)
-        name = Regex.Replace(name, "(?:Template|Suite)$", "");
+        name = Regex.Replace(name, "(?:TestTemplate|Plugin|Suite)$", "");
       name = Regex.Replace(name, "([A-Z]+)([A-Z][a-z])", "$1_$2");
       name = Regex.Replace(name, "([a-z0-9])([A-Z])", "$1_$2");
       identifier = name.ToLowerInvariant();
@@ -142,7 +136,7 @@ internal interface ISampler
 }
 
 /// <summary>A device-driven stream; an Observer supplies samples in host-granted windows instead.</summary>
-public sealed class Stream<T>(string? identifier = null, Func<Context, Publisher<T>, Task>? produce = null) : IStream where T : IMessage<T>, new()
+public sealed class Stream<T>(string? identifier = null, Func<Context, Publisher<T>, Task>? produce = null) : IStream
 {
   public string? Identifier
   {
@@ -158,29 +152,43 @@ public sealed class Stream<T>(string? identifier = null, Func<Context, Publisher
     if (Observer is { } observer)
       observer.Register(plugin, identifier, context);
     else if (produce is not null)
-      plugin.Stream<T>(identifier, (raw, publisher) => produce(context(raw), publisher));
+      GetType().GetMethod(nameof(RegisterProducer), BindingFlags.Instance | BindingFlags.NonPublic)!
+        .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [plugin, identifier, context]);
     else
       throw new ArgumentException($"Declare Stream {Identifier}: Supply a Producer or Observer");
+  }
+
+  private void RegisterProducer<TWire>(Harmos.Plugins.Plugin plugin, string identifier, Func<Harmos.Plugins.Context, Context> context)
+    where TWire : IMessage<TWire>, new()
+  {
+    plugin.Stream<TWire>(identifier, (raw, publisher) => produce!(context(raw), new Publisher<T>((value, at) =>
+      publisher.PublishAsync((TWire)Payload<T>.Pack(value), at is null ? null : Timestamp.FromDateTimeOffset(at.Value)))));
   }
 }
 
 /// <summary>Samples One Row per Call; Each Host Window Calls It Once per Sample, in Order.</summary>
 /// <remarks><c>windowSetting</c> names a plugin Duration setting that replaces the host's window length.</remarks>
-public sealed class Observer<T> : ISampler where T : IMessage<T>, new()
+public sealed class Observer<T> : ISampler
 {
-  public Observer(Stream<T> stream, Duration? interval, Func<Context, Task<T>> read, string intervalSetting = "", string windowSetting = "")
+  public Observer(Stream<T> stream, TimeSpan? interval, Func<Context, Task<T>> read, string intervalSetting = "", string windowSetting = "")
   {
     if (stream.Observer is not null)
       throw new ArgumentException($"Declare Observer {stream.Identifier}: Remove the Duplicate Observer");
     Stream = stream;
-    Interval = interval?.Clone();
+    Interval = interval;
     Read = read;
     IntervalSetting = intervalSetting;
     WindowSetting = windowSetting;
     stream.Observer = this;
   }
   void ISampler.Register(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context) =>
-      plugin.Observer<T>(stream, Interval, raw => Read(context(raw)), intervalSetting: IntervalSetting, windowSetting: WindowSetting);
+      GetType().GetMethod(nameof(RegisterWire), BindingFlags.Instance | BindingFlags.NonPublic)!
+      .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [plugin, stream, context]);
+
+  private void RegisterWire<TWire>(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context)
+    where TWire : IMessage<TWire>, new() =>
+    plugin.Observer<TWire>(stream, Interval is null ? null : Duration.FromTimeSpan(Interval.Value), async raw => (TWire)Payload<T>.Pack(await Read(context(raw))),
+      intervalSetting: IntervalSetting, windowSetting: WindowSetting);
   public string WindowSetting
   {
     get;
@@ -189,7 +197,7 @@ public sealed class Observer<T> : ISampler where T : IMessage<T>, new()
   {
     get;
   }
-  public Duration? Interval
+  public TimeSpan? Interval
   {
     get;
   }
@@ -206,29 +214,34 @@ public sealed class Observer<T> : ISampler where T : IMessage<T>, new()
 /// <summary>Answers a Whole Host Window per Call With Columns That Repeat Every Field of the Row.</summary>
 /// <remarks>Sample <c>i</c> is due at <c>window.Start + i * window.Period</c>; every column holds <c>window.Count</c> values.</remarks>
 public sealed class WindowObserver<T, TColumns> : ISampler
-    where T : IMessage<T>, new()
     where TColumns : IMessage<TColumns>, new()
 {
-  public WindowObserver(Stream<T> stream, Duration? interval, Func<Context, Harmos.Plugins.Window, Task<TColumns>> read,
+  public WindowObserver(Stream<T> stream, TimeSpan? interval, Func<Context, SampleWindow, Task<TColumns>> read,
       string intervalSetting = "", string windowSetting = "")
   {
     if (stream.Observer is not null)
       throw new ArgumentException($"Declare Observer {stream.Identifier}: Remove the Duplicate Observer");
     Stream = stream;
-    Interval = interval?.Clone();
+    Interval = interval;
     Read = read;
     IntervalSetting = intervalSetting;
     WindowSetting = windowSetting;
     stream.Observer = this;
   }
   void ISampler.Register(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context) =>
-      plugin.WindowObserver<T, TColumns>(stream, Interval, (raw, window) => Read(context(raw), window),
-          intervalSetting: IntervalSetting, windowSetting: WindowSetting);
+      GetType().GetMethod(nameof(RegisterWire), BindingFlags.Instance | BindingFlags.NonPublic)!
+      .MakeGenericMethod(Payload<T>.Descriptor.ClrType).Invoke(this, [plugin, stream, context]);
+
+  private void RegisterWire<TWire>(Harmos.Plugins.Plugin plugin, string stream, Func<Harmos.Plugins.Context, Context> context)
+    where TWire : IMessage<TWire>, new() =>
+    plugin.WindowObserver<TWire, TColumns>(stream, Interval is null ? null : Duration.FromTimeSpan(Interval.Value),
+      (raw, window) => Read(context(raw), new SampleWindow(window.Start.ToDateTimeOffset(), window.Period.ToTimeSpan(), window.Count)),
+      intervalSetting: IntervalSetting, windowSetting: WindowSetting);
   public Stream<T> Stream
   {
     get;
   }
-  public Duration? Interval
+  public TimeSpan? Interval
   {
     get;
   }
@@ -240,13 +253,13 @@ public sealed class WindowObserver<T, TColumns> : ISampler
   {
     get;
   }
-  public Func<Context, Harmos.Plugins.Window, Task<TColumns>> Read
+  public Func<Context, SampleWindow, Task<TColumns>> Read
   {
     get;
   }
 }
 
-public sealed class Template(string identifier, string label)
+internal sealed class Template(string identifier, string label)
 {
   private System.Type? author;
   private readonly Dictionary<object, string> names = new();
@@ -255,11 +268,16 @@ public sealed class Template(string identifier, string label)
   internal List<PromptDeclaration> Prompts { get; } = [];
   internal string OwnerSuite { get; private set; } = "";
 
-  public static Template From<T>(string? identifier = null, string label = "") where T : new()
+  public static Template From<T>() where T : TestTemplate, new()
   {
-    var template = new Template(Identifiers.Build(typeof(T).Name, identifier, type: true), label.Length == 0 ? typeof(T).Name : label);
-    template.author = typeof(T);
     var instance = new T();
+    var template = new Template(instance.Identifier, instance.Label);
+    template.author = typeof(T);
+    template.Definition.Metadata.Label = instance.Label;
+    template.Definition.Parameters.Add(instance.Parameters.Select(value => value.Clone()));
+    template.Definition.Documents.Add(instance.Documents.Select(value => value.Clone()));
+    template.InitializeBody = context => ((TestTemplate)context.Instance!).SetupAsync(context, context.CancellationToken);
+    template.CleanupBody = context => ((TestTemplate)context.Instance!).CleanupAsync(context, context.CancellationToken);
     foreach (var field in typeof(T).GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public))
     {
       var declaration = field.GetValue(instance);
@@ -273,36 +291,61 @@ public sealed class Template(string identifier, string label)
         continue;
       template.names.Add(declaration, field.Name);
     }
-    foreach (var method in typeof(T).GetMethods())
+    foreach (var method in typeof(T).GetMethods().OrderBy(method => method.MetadataToken))
     {
       if (method.GetCustomAttribute<StepAttribute>() is { } step)
       {
+        ValidateHandler(method, typeof(Task));
         var declaration = new Step(step.Label, async context =>
         {
-          var result = method.Invoke(context.Instance, [context]);
+          var arguments = method.GetParameters().Length == 2 ? new object[] { context, context.CancellationToken } : new object[] { context };
+          var result = Invoke(method, context.Instance, arguments);
           if (result is Task task)
             await task;
           else if (method.ReturnType != typeof(void))
             throw new ArgumentException("Run Step: Return Task or void");
-        }, step.Identifier, Repeatable: step.Repeatable);
+        }, step.Identifier, Policy: step.Policy()?.ToWire(), ReplaySafe: step.ReplaySafe, Repeatable: step.Repeatable);
         template.Steps.Add(declaration);
         template.names.Add(declaration, method.Name);
         template.names.Add(method, method.Name);
       }
       if (method.GetCustomAttribute<CriterionAttribute>() is { } criterion)
       {
+        ValidateHandler(method, typeof(Task<bool>));
         var declaration = new Criterion(criterion.Label, async context =>
         {
-          var result = method.Invoke(context.Instance, [context]);
+          var arguments = method.GetParameters().Length == 2 ? new object[] { context, context.CancellationToken } : new object[] { context };
+          var result = Invoke(method, context.Instance, arguments);
           return result is Task<bool> task ? await task : result is bool passed ? passed
               : throw new ArgumentException("Evaluate Criterion: Return bool or Task<bool>");
-        }, criterion.Identifier);
+        }, criterion.Identifier, criterion.Policy()?.ToWire());
         template.Criteria.Add(declaration);
         template.names.Add(declaration, method.Name);
         template.names.Add(method, method.Name);
       }
     }
     return template;
+  }
+
+  private static object? Invoke(MethodInfo method, object? instance, object[] arguments)
+  {
+    try
+    {
+      return method.Invoke(instance, arguments);
+    }
+    catch (TargetInvocationException error) when (error.InnerException is not null)
+    {
+      ExceptionDispatchInfo.Capture(error.InnerException).Throw();
+      throw;
+    }
+  }
+
+  private static void ValidateHandler(MethodInfo method, System.Type result)
+  {
+    var parameters = method.GetParameters();
+    if (method.IsStatic || method.ReturnType != result || parameters.Length is < 1 or > 2 || parameters[0].ParameterType != typeof(Context)
+      || parameters.Length == 2 && parameters[1].ParameterType != typeof(CancellationToken))
+      throw new ArgumentException($"Declare Template Member {method.Name}: Use an Instance Task Handler Taking Context and an Optional CancellationToken");
   }
 
   internal object? CreateInstance() => author is null ? null : Activator.CreateInstance(author);
@@ -325,16 +368,14 @@ public sealed class Template(string identifier, string label)
     return prototype is null ? Resolve(declaration) : Resolve(prototype);
   }
 
-  internal Template Bind(string suite, bool single)
+  internal Template Bind(string suite)
   {
-    var bound = new Template(single ? suite : Identifiers.Build("", Definition.Metadata.Identifier, suite), Definition.Metadata.Label)
+    var bound = new Template(Identifiers.Build("", Definition.Metadata.Identifier, suite), Definition.Metadata.Label)
     {
       author = author,
       OwnerSuite = suite,
       InitializeBody = InitializeBody,
       CleanupBody = CleanupBody,
-      CreateResource = CreateResource,
-      MaterializeBody = MaterializeBody,
       MaterializePolicy = MaterializePolicy,
       InitializePolicy = InitializePolicy,
       CleanupPolicy = CleanupPolicy
@@ -374,18 +415,6 @@ public sealed class Template(string identifier, string label)
     return bound;
   }
 
-  public Template Record<T>(Record<T> record)
-  {
-    Records.Add(record);
-    return this;
-  }
-
-  public Template Prompt(PromptDeclaration prompt)
-  {
-    Prompts.Add(prompt);
-    return this;
-  }
-
   public TestCaseTemplate Definition
   {
     get;
@@ -415,16 +444,6 @@ public sealed class Template(string identifier, string label)
     get;
     private set;
   }
-  internal Func<Context, Task<IAsyncDisposable>>? CreateResource
-  {
-    get;
-    private set;
-  }
-  internal Func<TestCase, IReadOnlyDictionary<string, Value>, TestCase>? MaterializeBody
-  {
-    get;
-    private set;
-  }
   internal OperationPolicy? MaterializePolicy
   {
     get;
@@ -440,85 +459,4 @@ public sealed class Template(string identifier, string label)
     get;
     private set;
   }
-  public Template Step(Step step)
-  {
-    Steps.Add(step);
-    return this;
-  }
-  public Template Criterion(Criterion criterion)
-  {
-    Criteria.Add(criterion);
-    return this;
-  }
-  public Template Stream(IStream stream)
-  {
-    Streams.Add(stream);
-    return this;
-  }
-  public Template Observer<T>(Observer<T> observer) where T : IMessage<T>, new() => Stream(observer.Stream);
-  public Template Observer<T, TColumns>(WindowObserver<T, TColumns> observer)
-      where T : IMessage<T>, new()
-      where TColumns : IMessage<TColumns>, new() => Stream(observer.Stream);
-  public Template Initialize(Func<Context, Task> initialize, OperationPolicy? policy = null)
-  {
-    InitializeBody = initialize;
-    InitializePolicy = policy?.Clone();
-    return this;
-  }
-  public Template Cleanup(Func<Context, Task> cleanup, OperationPolicy? policy = null)
-  {
-    CleanupBody = cleanup;
-    CleanupPolicy = policy?.Clone();
-    return this;
-  }
-  public Template Resource(Func<Context, Task<IAsyncDisposable>> create)
-  {
-    CreateResource = create;
-    return this;
-  }
-  public Template Materialize(Func<TestCase, IReadOnlyDictionary<string, Value>, TestCase> materialize, OperationPolicy? policy = null)
-  {
-    MaterializeBody = materialize;
-    MaterializePolicy = policy?.Clone();
-    return this;
-  }
-  public Template Parameter(Parameter parameter)
-  {
-    Definition.Parameters.Add(parameter.Clone());
-    return this;
-  }
-  public Template Document(Document document)
-  {
-    Definition.Documents.Add(document.Clone());
-    return this;
-  }
-}
-
-public sealed class Suite(string identifier, string label, params Template[] templates)
-{
-  internal bool Single
-  {
-    get; set;
-  }
-
-  public static Suite From<T>() where T : new()
-  {
-    var attribute = typeof(T).GetCustomAttribute<SuiteAttribute>()
-        ?? throw new ArgumentException("Build Suite: Add SuiteAttribute to the Class");
-    var identifier = Identifiers.Build(typeof(T).Name, attribute.Identifier, type: true);
-    return new Suite(identifier, attribute.Label, Template.From<T>()) { Single = true };
-  }
-
-  public Metadata Metadata
-  {
-    get;
-  } = new()
-  {
-    Identifier = identifier,
-    Label = label
-  };
-  public IReadOnlyList<Template> Templates
-  {
-    get;
-  } = templates;
 }

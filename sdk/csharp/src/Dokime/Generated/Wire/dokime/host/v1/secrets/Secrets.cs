@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/secrets.proto</summary>
-  public static partial class SecretsReflection {
+  internal static partial class SecretsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/secrets.proto</summary>
@@ -143,7 +143,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum SecretImportAction {
+  internal enum SecretImportAction {
     [pbr::OriginalName("SECRET_IMPORT_ACTION_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("SECRET_IMPORT_ACTION_REPLACE")] Replace = 1,
     [pbr::OriginalName("SECRET_IMPORT_ACTION_SKIP")] Skip = 2,
@@ -397,7 +397,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsGetResponse : pb::IMessage<SecretsGetResponse>
+  internal sealed partial class SecretsGetResponse : pb::IMessage<SecretsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1042,7 +1042,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsSetResponse : pb::IMessage<SecretsSetResponse>
+  internal sealed partial class SecretsSetResponse : pb::IMessage<SecretsSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1539,7 +1539,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsListResponse : pb::IMessage<SecretsListResponse>
+  internal sealed partial class SecretsListResponse : pb::IMessage<SecretsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2016,7 +2016,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsWatchResponse : pb::IMessage<SecretsWatchResponse>
+  internal sealed partial class SecretsWatchResponse : pb::IMessage<SecretsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2630,7 +2630,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsDeleteResponse : pb::IMessage<SecretsDeleteResponse>
+  internal sealed partial class SecretsDeleteResponse : pb::IMessage<SecretsDeleteResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3144,7 +3144,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsExportResponse : pb::IMessage<SecretsExportResponse>
+  internal sealed partial class SecretsExportResponse : pb::IMessage<SecretsExportResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3732,7 +3732,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsImportResponse : pb::IMessage<SecretsImportResponse>
+  internal sealed partial class SecretsImportResponse : pb::IMessage<SecretsImportResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4031,7 +4031,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretArchive : pb::IMessage<SecretArchive>
+  internal sealed partial class SecretArchive : pb::IMessage<SecretArchive>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4229,7 +4229,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretImportChoice : pb::IMessage<SecretImportChoice>
+  internal sealed partial class SecretImportChoice : pb::IMessage<SecretImportChoice>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4464,7 +4464,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretImportEntry : pb::IMessage<SecretImportEntry>
+  internal sealed partial class SecretImportEntry : pb::IMessage<SecretImportEntry>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4708,7 +4708,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretImportPreview : pb::IMessage<SecretImportPreview>
+  internal sealed partial class SecretImportPreview : pb::IMessage<SecretImportPreview>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5006,7 +5006,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretSnapshot : pb::IMessage<SecretSnapshot>
+  internal sealed partial class SecretSnapshot : pb::IMessage<SecretSnapshot>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5341,7 +5341,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretSummary : pb::IMessage<SecretSummary>
+  internal sealed partial class SecretSummary : pb::IMessage<SecretSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5574,7 +5574,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretWritable : pb::IMessage<SecretWritable>
+  internal sealed partial class SecretWritable : pb::IMessage<SecretWritable>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

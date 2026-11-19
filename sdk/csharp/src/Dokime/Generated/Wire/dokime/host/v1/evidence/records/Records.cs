@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.EvidenceResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence/records.proto</summary>
-  public static partial class RecordsReflection {
+  internal static partial class RecordsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence/records.proto</summary>
@@ -634,7 +634,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordsListResponse : pb::IMessage<RecordsListResponse>
+  internal sealed partial class RecordsListResponse : pb::IMessage<RecordsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1526,7 +1526,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordsWatchResponse : pb::IMessage<RecordsWatchResponse>
+  internal sealed partial class RecordsWatchResponse : pb::IMessage<RecordsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2243,7 +2243,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordsAppendResponse : pb::IMessage<RecordsAppendResponse>
+  internal sealed partial class RecordsAppendResponse : pb::IMessage<RecordsAppendResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2487,7 +2487,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturedErrorCause : pb::IMessage<CapturedErrorCause>
+  internal sealed partial class CapturedErrorCause : pb::IMessage<CapturedErrorCause>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2787,7 +2787,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturedRecord : pb::IMessage<CapturedRecord>
+  internal sealed partial class CapturedRecord : pb::IMessage<CapturedRecord>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3641,7 +3641,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturedRecordError : pb::IMessage<CapturedRecordError>
+  internal sealed partial class CapturedRecordError : pb::IMessage<CapturedRecordError>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4171,7 +4171,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CycleScope : pb::IMessage<CycleScope>
+  internal sealed partial class CycleScope : pb::IMessage<CycleScope>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4420,7 +4420,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RecordScope : pb::IMessage<RecordScope>
+  internal sealed partial class RecordScope : pb::IMessage<RecordScope>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4715,7 +4715,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CapturedRecordSelection : pb::IMessage<CapturedRecordSelection>
+  internal sealed partial class CapturedRecordSelection : pb::IMessage<CapturedRecordSelection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

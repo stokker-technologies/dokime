@@ -11,7 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 namespace Dokime.Plugins;
-public sealed partial class Plugin
+internal sealed partial class Plugin
 {
   internal Plugin RequiresLibrary(Harmos.Plugins.HostOperation operation)
   {
@@ -19,7 +19,7 @@ public sealed partial class Plugin
     return this;
   }
 }
-public enum HostOperation
+internal enum HostOperation
 {
   BackendEnvironment,
   ContentArtifactsCreate,
@@ -91,7 +91,7 @@ internal static class HostContracts
   internal static readonly Operation<global::Dokime.Clients.PromptsCreateRequest, global::Dokime.Clients.PromptsCreateResponse> PromptsCreate = new("dokime.host.v1.Prompts/Create", Visibility.Public, watch: false);
   internal static readonly Operation<global::Dokime.Clients.SecretsGetRequest, global::Dokime.Clients.SecretsGetResponse> SecretsGet = new("dokime.host.v1.Secrets/Get", Visibility.Public, watch: false);
 }
-public static class HostRequirements
+internal static class HostRequirements
 {
   public static Plugin Requires(this Plugin plugin, HostOperation operation) => operation switch
   {
@@ -135,7 +135,7 @@ public static class HostRequirements
     _ => throw new ArgumentOutOfRangeException(nameof(operation), "Declare Host Requirement: Unknown Operation")
   };
 }
-public sealed class HostRoot(Context context)
+internal sealed class HostRoot(Context context)
 {
   public HostBackendResource Backend { get; } = new(context);
   public HostContentResource Content { get; } = new(context);
@@ -151,7 +151,7 @@ public sealed class HostRoot(Context context)
   public HostSecretsResource Secrets { get; } = new(context);
   public HostTimeResource Time { get; } = new(context);
 }
-public sealed class HostBackendResource(Context context)
+internal sealed class HostBackendResource(Context context)
 {
   public async Task<global::Dokime.Clients.BackendEnvironmentResponse> Environment(global::Harmos.Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -166,11 +166,11 @@ public sealed class HostBackendResource(Context context)
     return response;
   }
 }
-public sealed class HostContentResource(Context context)
+internal sealed class HostContentResource(Context context)
 {
   public HostContentArtifactsResource Artifacts { get; } = new(context);
 }
-public sealed class HostContentArtifactsResource(Context context)
+internal sealed class HostContentArtifactsResource(Context context)
 {
   public async Task<global::Dokime.Clients.ContentResources.ArtifactsCreateResponse> Create(global::Harmos.FileReference file, string filename, string content_type, global::Dokime.ArtifactScope? scope = null, string? request_id = null, global::Dokime.Metadata? metadata = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -193,7 +193,7 @@ public sealed class HostContentArtifactsResource(Context context)
     return response;
   }
 }
-public sealed class HostDocumentsResource(Context context)
+internal sealed class HostDocumentsResource(Context context)
 {
   public async Task<global::Harmos.Receipt> AppendParts(string execution, string document, string section, global::Dokime.Section? subsection = null, global::Dokime.Card? card = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -216,7 +216,7 @@ public sealed class HostDocumentsResource(Context context)
     return response.Receipt ?? throw new InvalidOperationException("Read DocumentsAppendParts: Missing Payload");
   }
 }
-public sealed class HostEffectsResource(Context context)
+internal sealed class HostEffectsResource(Context context)
 {
   public async Task<global::Dokime.Clients.EffectsCreateResponse> Create(string resource, string inverse_operation, ByteString inverse, string description, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -257,7 +257,7 @@ public sealed class HostEffectsResource(Context context)
     return response;
   }
 }
-public sealed class HostEvidenceResource(Context context)
+internal sealed class HostEvidenceResource(Context context)
 {
   public HostEvidenceLogsResource Logs { get; } = new(context);
   public HostEvidenceRecordsResource Records { get; } = new(context);
@@ -285,7 +285,7 @@ public sealed class HostEvidenceResource(Context context)
     return response;
   }
 }
-public sealed class HostEvidenceLogsResource(Context context)
+internal sealed class HostEvidenceLogsResource(Context context)
 {
   public async Task<global::Harmos.Receipt> Append(string execution, global::Dokime.Severity severity, string message, global::Google.Protobuf.WellKnownTypes.Timestamp at, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -301,7 +301,7 @@ public sealed class HostEvidenceLogsResource(Context context)
     return response.Receipt ?? throw new InvalidOperationException("Read EvidenceLogsAppend: Missing Payload");
   }
 }
-public sealed class HostEvidenceRecordsResource(Context context)
+internal sealed class HostEvidenceRecordsResource(Context context)
 {
   public async Task<global::Dokime.Clients.EvidenceResources.RecordsListResponse> List(string record_type, IReadOnlyList<uint> versions, global::Dokime.Window between, string step, global::Dokime.Clients.EvidenceResources.CapturedRecordSelection selection, global::Dokime.Clients.EvidenceResources.RecordScope? scope = null, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -342,7 +342,7 @@ public sealed class HostEvidenceRecordsResource(Context context)
     return response;
   }
 }
-public sealed class HostEvidenceTraceabilityResource(Context context)
+internal sealed class HostEvidenceTraceabilityResource(Context context)
 {
   public async Task<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse> Get(global::Dokime.EvidenceScope? scope = null, global::Harmos.PageRequest? page = null, global::Harmos.ReadCut? at = null, string? entry = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -385,11 +385,11 @@ public sealed class HostEvidenceTraceabilityResource(Context context)
     return response;
   }
 }
-public sealed class HostExecutionsResource(Context context)
+internal sealed class HostExecutionsResource(Context context)
 {
   public HostExecutionsProgressResource Progress { get; } = new(context);
 }
-public sealed class HostExecutionsProgressResource(Context context)
+internal sealed class HostExecutionsProgressResource(Context context)
 {
   public async Task<global::Dokime.Clients.ExecutionsResources.ProgressGetResponse> Get(string? name = null, global::Harmos.Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -423,7 +423,7 @@ public sealed class HostExecutionsProgressResource(Context context)
     return response;
   }
 }
-public sealed class HostFilesResource(Context context)
+internal sealed class HostFilesResource(Context context)
 {
   public HostFilesCapturesResource Captures { get; } = new(context);
   public HostFilesUploadsResource Uploads { get; } = new(context);
@@ -499,7 +499,7 @@ public sealed class HostFilesResource(Context context)
     return response;
   }
 }
-public sealed class HostFilesCapturesResource(Context context)
+internal sealed class HostFilesCapturesResource(Context context)
 {
   public async Task<ulong> Start(global::Dokime.FileSource source, string output, global::Dokime.Clients.FilesResources.CaptureMode mode, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -522,7 +522,7 @@ public sealed class HostFilesCapturesResource(Context context)
     return response;
   }
 }
-public sealed class HostFilesUploadsResource(Context context)
+internal sealed class HostFilesUploadsResource(Context context)
 {
   public async Task<global::Dokime.Clients.FilesResources.UploadsCreateResponse> Create(global::Harmos.FileMetadata metadata, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -592,7 +592,7 @@ public sealed class HostFilesUploadsResource(Context context)
     return response;
   }
 }
-public sealed class HostInvocationsResource(Context context)
+internal sealed class HostInvocationsResource(Context context)
 {
   public async Task<global::Harmos.InstanceState> Get(ulong instance, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -610,7 +610,7 @@ public sealed class HostInvocationsResource(Context context)
     }
   }
 }
-public sealed class HostOperationsResource(Context context)
+internal sealed class HostOperationsResource(Context context)
 {
   public async Task<IReadOnlyList<global::Harmos.DiscoveredOperation>> List(OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -621,18 +621,18 @@ public sealed class HostOperationsResource(Context context)
     return await context.Transport.Host.Operations.Get(id, policy, cancellationToken);
   }
 }
-public sealed class HostPluginsResource(Context context)
+internal sealed class HostPluginsResource(Context context)
 {
   public HostPluginsSettingsResource Settings { get; } = new(context);
 }
-public sealed class HostPluginsSettingsResource(Context context)
+internal sealed class HostPluginsSettingsResource(Context context)
 {
   public async Task<global::Harmos.Clients.SettingsListResponse> List(string? name = null, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     return await context.Transport.Host.Plugins.Settings.List(name, at, policy, cancellationToken);
   }
 }
-public sealed class HostPromptsResource(Context context)
+internal sealed class HostPromptsResource(Context context)
 {
   public async Task<global::Dokime.Clients.PromptsCreateResponse> Create(string prompt, string prompt_type, IReadOnlyDictionary<string, global::Dokime.Value> values, global::Dokime.Prompt? definition = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -653,7 +653,7 @@ public sealed class HostPromptsResource(Context context)
     return response;
   }
 }
-public sealed class HostSecretsResource(Context context)
+internal sealed class HostSecretsResource(Context context)
 {
   public async Task<global::Dokime.Clients.SecretsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
@@ -669,7 +669,7 @@ public sealed class HostSecretsResource(Context context)
     return response;
   }
 }
-public sealed class HostTimeResource(Context context)
+internal sealed class HostTimeResource(Context context)
 {
   public async Task<global::Google.Protobuf.WellKnownTypes.Timestamp> Get(OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {

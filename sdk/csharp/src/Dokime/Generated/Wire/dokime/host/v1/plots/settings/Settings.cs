@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.PlotsResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/plots/settings.proto</summary>
-  public static partial class SettingsReflection {
+  internal static partial class SettingsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/plots/settings.proto</summary>
@@ -398,7 +398,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsGetResponse : pb::IMessage<SettingsGetResponse>
+  internal sealed partial class SettingsGetResponse : pb::IMessage<SettingsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1089,7 +1089,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsSetResponse : pb::IMessage<SettingsSetResponse>
+  internal sealed partial class SettingsSetResponse : pb::IMessage<SettingsSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1379,7 +1379,7 @@ namespace Dokime.Clients.PlotsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlotSettingsValue : pb::IMessage<PlotSettingsValue>
+  internal sealed partial class PlotSettingsValue : pb::IMessage<PlotSettingsValue>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

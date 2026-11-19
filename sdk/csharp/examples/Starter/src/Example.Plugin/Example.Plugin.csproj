@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Example.Plugin</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>A Confirmation Suite and an Echo Operation</Description>
+    <Authors>Your Name</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/your-organization/Example</RepositoryUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Example/Example.csproj" />
+  </ItemGroup>
+</Project>

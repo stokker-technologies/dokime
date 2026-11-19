@@ -50,7 +50,7 @@ namespace Dokime;
           new pbr::FileDescriptor[] { global::Dokime.DocumentsReflection.Descriptor, global::Dokime.ExecutionReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Dokime.ParametersReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Suites), global::Dokime.Suites.Parser, new[]{ "Suites_" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Suite), global::Dokime.Suite.Parser, new[]{ "Metadata", "Templates", "Tags", "ParameterGroups" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.SuiteDefinition), global::Dokime.SuiteDefinition.Parser, new[]{ "Metadata", "Templates", "Tags", "ParameterGroups" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.TestCaseTemplate), global::Dokime.TestCaseTemplate.Parser, new[]{ "Metadata", "Parameters", "Files", "Documents", "Tags", "Materialize", "Initialize", "Cleanup", "ParameterGroups", "Steps" }, new[]{ "Initialize", "Cleanup" }, null, null, null)
           }));
     }
@@ -105,12 +105,12 @@ namespace Dokime;
 
     /// <summary>Field number for the "suites" field.</summary>
     public const int Suites_FieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Dokime.Suite> _repeated_suites_codec
-        = pb::FieldCodec.ForMessage(10, global::Dokime.Suite.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.Suite> suites_ = new pbc::RepeatedField<global::Dokime.Suite>();
+    private static readonly pb::FieldCodec<global::Dokime.SuiteDefinition> _repeated_suites_codec
+        = pb::FieldCodec.ForMessage(10, global::Dokime.SuiteDefinition.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.SuiteDefinition> suites_ = new pbc::RepeatedField<global::Dokime.SuiteDefinition>();
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.Suite> Suites_ {
+    public pbc::RepeatedField<global::Dokime.SuiteDefinition> Suites_ {
       get { return suites_; }
     }
 
@@ -246,16 +246,16 @@ namespace Dokime;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class Suite : pb::IMessage<Suite>
+  public sealed partial class SuiteDefinition : pb::IMessage<SuiteDefinition>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
   {
-    private static readonly pb::MessageParser<Suite> _parser = new pb::MessageParser<Suite>(() => new Suite());
+    private static readonly pb::MessageParser<SuiteDefinition> _parser = new pb::MessageParser<SuiteDefinition>(() => new SuiteDefinition());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<Suite> Parser { get { return _parser; } }
+    public static pb::MessageParser<SuiteDefinition> Parser { get { return _parser; } }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -271,7 +271,7 @@ namespace Dokime;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public Suite() {
+    public SuiteDefinition() {
       OnConstruction();
     }
 
@@ -279,7 +279,7 @@ namespace Dokime;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public Suite(Suite other) : this() {
+    public SuiteDefinition(SuiteDefinition other) : this() {
       metadata_ = other.metadata_ != null ? other.metadata_.Clone() : null;
       templates_ = other.templates_.Clone();
       tags_ = other.tags_.Clone();
@@ -289,8 +289,8 @@ namespace Dokime;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public Suite Clone() {
-      return new Suite(this);
+    public SuiteDefinition Clone() {
+      return new SuiteDefinition(this);
     }
 
     /// <summary>Field number for the "metadata" field.</summary>
@@ -341,12 +341,12 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
-      return Equals(other as Suite);
+      return Equals(other as SuiteDefinition);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(Suite other) {
+    public bool Equals(SuiteDefinition other) {
       if (ReferenceEquals(other, null)) {
         return false;
       }
@@ -434,7 +434,7 @@ namespace Dokime;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(Suite other) {
+    public void MergeFrom(SuiteDefinition other) {
       if (other == null) {
         return;
       }

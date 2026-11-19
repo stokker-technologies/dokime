@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.StorageResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/storage/sources.proto</summary>
-  public static partial class SourcesReflection {
+  internal static partial class SourcesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/storage/sources.proto</summary>
@@ -274,7 +274,7 @@ namespace Dokime.Clients.StorageResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SourcesGetResponse : pb::IMessage<SourcesGetResponse>
+  internal sealed partial class SourcesGetResponse : pb::IMessage<SourcesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -845,7 +845,7 @@ namespace Dokime.Clients.StorageResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SourcesSetResponse : pb::IMessage<SourcesSetResponse>
+  internal sealed partial class SourcesSetResponse : pb::IMessage<SourcesSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1135,7 +1135,7 @@ namespace Dokime.Clients.StorageResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class StorageSource : pb::IMessage<StorageSource>
+  internal sealed partial class StorageSource : pb::IMessage<StorageSource>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1444,7 +1444,7 @@ namespace Dokime.Clients.StorageResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class StorageSources : pb::IMessage<StorageSources>
+  internal sealed partial class StorageSources : pb::IMessage<StorageSources>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

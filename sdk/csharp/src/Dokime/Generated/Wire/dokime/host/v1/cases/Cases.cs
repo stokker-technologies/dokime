@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/cases.proto</summary>
-  public static partial class CasesReflection {
+  internal static partial class CasesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/cases.proto</summary>
@@ -149,7 +149,7 @@ namespace Dokime.Clients;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CasesParametersRequest), global::Dokime.Clients.CasesParametersRequest.Parser, new[]{ "Name", "Parent", "At" }, new[]{ "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CasesParametersResponse), global::Dokime.Clients.CasesParametersResponse.Parser, new[]{ "Parameters", "ResolvedAt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CaseActions), global::Dokime.Clients.CaseActions.Parser, new[]{ "Delete", "UnavailableReasons" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CaseDetail), global::Dokime.Clients.CaseDetail.Parser, new[]{ "Summary", "Suite", "ParameterCount", "GenerationIndex", "ObservedCursor" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CaseDetail), global::Dokime.Clients.CaseDetail.Parser, new[]{ "Summary", "SuiteDefinition", "ParameterCount", "GenerationIndex", "ObservedCursor" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CaseParameter), global::Dokime.Clients.CaseParameter.Parser, new[]{ "Name", "Value" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.CaseSummary), global::Dokime.Clients.CaseSummary.Parser, new[]{ "CaseId", "TemplateId", "Metadata", "Ordinal", "Status", "LatestExecutionId", "LatestExecutionStatus", "AttemptCount", "Actions", "SuiteId", "LatestExecutionOutcome" }, new[]{ "LatestExecutionId", "LatestExecutionStatus" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlannedCase), global::Dokime.Clients.PlannedCase.Parser, new[]{ "CaseId", "SuiteId", "TemplateId", "Metadata", "Ordinal", "SelectionIndex", "Origin" }, null, null, null, null),
@@ -166,7 +166,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum CaseStatus {
+  internal enum CaseStatus {
     [pbr::OriginalName("CASE_STATUS_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("CASE_STATUS_SKIPPED")] Skipped = 1,
     [pbr::OriginalName("CASE_STATUS_INVALIDATED")] Invalidated = 2,
@@ -465,7 +465,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CasesCreateResponse : pb::IMessage<CasesCreateResponse>
+  internal sealed partial class CasesCreateResponse : pb::IMessage<CasesCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -979,7 +979,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CasesGetResponse : pb::IMessage<CasesGetResponse>
+  internal sealed partial class CasesGetResponse : pb::IMessage<CasesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1476,7 +1476,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CasesListResponse : pb::IMessage<CasesListResponse>
+  internal sealed partial class CasesListResponse : pb::IMessage<CasesListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1953,7 +1953,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CasesWatchResponse : pb::IMessage<CasesWatchResponse>
+  internal sealed partial class CasesWatchResponse : pb::IMessage<CasesWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2541,7 +2541,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CasesDeleteResponse : pb::IMessage<CasesDeleteResponse>
+  internal sealed partial class CasesDeleteResponse : pb::IMessage<CasesDeleteResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3029,7 +3029,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CasesParametersResponse : pb::IMessage<CasesParametersResponse>
+  internal sealed partial class CasesParametersResponse : pb::IMessage<CasesParametersResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3262,7 +3262,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CaseActions : pb::IMessage<CaseActions>
+  internal sealed partial class CaseActions : pb::IMessage<CaseActions>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3486,7 +3486,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CaseDetail : pb::IMessage<CaseDetail>
+  internal sealed partial class CaseDetail : pb::IMessage<CaseDetail>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3551,7 +3551,7 @@ namespace Dokime.Clients;
     private global::Dokime.Metadata suite_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.Metadata Suite {
+    public global::Dokime.Metadata SuiteDefinition {
       get { return suite_; }
       set {
         suite_ = value;
@@ -3610,7 +3610,7 @@ namespace Dokime.Clients;
         return true;
       }
       if (!object.Equals(Summary, other.Summary)) return false;
-      if (!object.Equals(Suite, other.Suite)) return false;
+      if (!object.Equals(SuiteDefinition, other.SuiteDefinition)) return false;
       if (ParameterCount != other.ParameterCount) return false;
       if (GenerationIndex != other.GenerationIndex) return false;
       if (!object.Equals(ObservedCursor, other.ObservedCursor)) return false;
@@ -3622,7 +3622,7 @@ namespace Dokime.Clients;
     public override int GetHashCode() {
       int hash = 1;
       if (summary_ != null) hash ^= Summary.GetHashCode();
-      if (suite_ != null) hash ^= Suite.GetHashCode();
+      if (suite_ != null) hash ^= SuiteDefinition.GetHashCode();
       if (ParameterCount != 0UL) hash ^= ParameterCount.GetHashCode();
       if (GenerationIndex != 0UL) hash ^= GenerationIndex.GetHashCode();
       if (observedCursor_ != null) hash ^= ObservedCursor.GetHashCode();
@@ -3650,7 +3650,7 @@ namespace Dokime.Clients;
       }
       if (suite_ != null) {
         output.WriteRawTag(18);
-        output.WriteMessage(Suite);
+        output.WriteMessage(SuiteDefinition);
       }
       if (ParameterCount != 0UL) {
         output.WriteRawTag(24);
@@ -3680,7 +3680,7 @@ namespace Dokime.Clients;
       }
       if (suite_ != null) {
         output.WriteRawTag(18);
-        output.WriteMessage(Suite);
+        output.WriteMessage(SuiteDefinition);
       }
       if (ParameterCount != 0UL) {
         output.WriteRawTag(24);
@@ -3708,7 +3708,7 @@ namespace Dokime.Clients;
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(Summary);
       }
       if (suite_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Suite);
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(SuiteDefinition);
       }
       if (ParameterCount != 0UL) {
         size += 1 + pb::CodedOutputStream.ComputeUInt64Size(ParameterCount);
@@ -3739,9 +3739,9 @@ namespace Dokime.Clients;
       }
       if (other.suite_ != null) {
         if (suite_ == null) {
-          Suite = new global::Dokime.Metadata();
+          SuiteDefinition = new global::Dokime.Metadata();
         }
-        Suite.MergeFrom(other.Suite);
+        SuiteDefinition.MergeFrom(other.SuiteDefinition);
       }
       if (other.ParameterCount != 0UL) {
         ParameterCount = other.ParameterCount;
@@ -3783,9 +3783,9 @@ namespace Dokime.Clients;
           }
           case 18: {
             if (suite_ == null) {
-              Suite = new global::Dokime.Metadata();
+              SuiteDefinition = new global::Dokime.Metadata();
             }
-            input.ReadMessage(Suite);
+            input.ReadMessage(SuiteDefinition);
             break;
           }
           case 24: {
@@ -3831,9 +3831,9 @@ namespace Dokime.Clients;
           }
           case 18: {
             if (suite_ == null) {
-              Suite = new global::Dokime.Metadata();
+              SuiteDefinition = new global::Dokime.Metadata();
             }
-            input.ReadMessage(Suite);
+            input.ReadMessage(SuiteDefinition);
             break;
           }
           case 24: {
@@ -3859,7 +3859,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CaseParameter : pb::IMessage<CaseParameter>
+  internal sealed partial class CaseParameter : pb::IMessage<CaseParameter>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4103,7 +4103,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CaseSummary : pb::IMessage<CaseSummary>
+  internal sealed partial class CaseSummary : pb::IMessage<CaseSummary>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4729,7 +4729,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PlannedCase : pb::IMessage<PlannedCase>
+  internal sealed partial class PlannedCase : pb::IMessage<PlannedCase>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5167,7 +5167,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RegisteredSelection : pb::IMessage<RegisteredSelection>
+  internal sealed partial class RegisteredSelection : pb::IMessage<RegisteredSelection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5454,7 +5454,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RegisteredSelectionFilesEntry : pb::IMessage<RegisteredSelectionFilesEntry>
+  internal sealed partial class RegisteredSelectionFilesEntry : pb::IMessage<RegisteredSelectionFilesEntry>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5698,7 +5698,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RegisteredSelectionParametersEntry : pb::IMessage<RegisteredSelectionParametersEntry>
+  internal sealed partial class RegisteredSelectionParametersEntry : pb::IMessage<RegisteredSelectionParametersEntry>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5942,7 +5942,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SelectedFile : pb::IMessage<SelectedFile>
+  internal sealed partial class SelectedFile : pb::IMessage<SelectedFile>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6149,7 +6149,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SelectedFileKind : pb::IMessage<SelectedFileKind>
+  internal sealed partial class SelectedFileKind : pb::IMessage<SelectedFileKind>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6444,7 +6444,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SelectionPlan : pb::IMessage<SelectionPlan>
+  internal sealed partial class SelectionPlan : pb::IMessage<SelectionPlan>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6731,7 +6731,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SelectionValues : pb::IMessage<SelectionValues>
+  internal sealed partial class SelectionValues : pb::IMessage<SelectionValues>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

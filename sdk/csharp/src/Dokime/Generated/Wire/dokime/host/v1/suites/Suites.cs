@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/suites.proto</summary>
-  public static partial class SuitesReflection {
+  internal static partial class SuitesReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/suites.proto</summary>
@@ -375,7 +375,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SuitesGetResponse : pb::IMessage<SuitesGetResponse>
+  internal sealed partial class SuitesGetResponse : pb::IMessage<SuitesGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -422,10 +422,10 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "value" field.</summary>
     public const int ValueFieldNumber = 1;
-    private global::Dokime.Suite value_;
+    private global::Dokime.SuiteDefinition value_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.Suite Value {
+    public global::Dokime.SuiteDefinition Value {
       get { return value_; }
       set {
         value_ = value;
@@ -544,7 +544,7 @@ namespace Dokime.Clients;
       }
       if (other.value_ != null) {
         if (value_ == null) {
-          Value = new global::Dokime.Suite();
+          Value = new global::Dokime.SuiteDefinition();
         }
         Value.MergeFrom(other.Value);
       }
@@ -575,7 +575,7 @@ namespace Dokime.Clients;
             break;
           case 10: {
             if (value_ == null) {
-              Value = new global::Dokime.Suite();
+              Value = new global::Dokime.SuiteDefinition();
             }
             input.ReadMessage(Value);
             break;
@@ -608,7 +608,7 @@ namespace Dokime.Clients;
             break;
           case 10: {
             if (value_ == null) {
-              Value = new global::Dokime.Suite();
+              Value = new global::Dokime.SuiteDefinition();
             }
             input.ReadMessage(Value);
             break;
@@ -872,7 +872,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SuitesListResponse : pb::IMessage<SuitesListResponse>
+  internal sealed partial class SuitesListResponse : pb::IMessage<SuitesListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -919,12 +919,12 @@ namespace Dokime.Clients;
 
     /// <summary>Field number for the "values" field.</summary>
     public const int ValuesFieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Dokime.Suite> _repeated_values_codec
-        = pb::FieldCodec.ForMessage(10, global::Dokime.Suite.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.Suite> values_ = new pbc::RepeatedField<global::Dokime.Suite>();
+    private static readonly pb::FieldCodec<global::Dokime.SuiteDefinition> _repeated_values_codec
+        = pb::FieldCodec.ForMessage(10, global::Dokime.SuiteDefinition.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.SuiteDefinition> values_ = new pbc::RepeatedField<global::Dokime.SuiteDefinition>();
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.Suite> Values {
+    public pbc::RepeatedField<global::Dokime.SuiteDefinition> Values {
       get { return values_; }
     }
 

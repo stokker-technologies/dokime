@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/stream_schemas.proto</summary>
-  public static partial class StreamSchemasReflection {
+  internal static partial class StreamSchemasReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/stream_schemas.proto</summary>
@@ -378,7 +378,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class StreamSchemasGetResponse : pb::IMessage<StreamSchemasGetResponse>
+  internal sealed partial class StreamSchemasGetResponse : pb::IMessage<StreamSchemasGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -875,7 +875,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class StreamSchemasListResponse : pb::IMessage<StreamSchemasListResponse>
+  internal sealed partial class StreamSchemasListResponse : pb::IMessage<StreamSchemasListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

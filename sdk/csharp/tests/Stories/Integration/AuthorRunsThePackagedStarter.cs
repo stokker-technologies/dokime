@@ -62,7 +62,7 @@ public sealed class AuthorRunsThePackagedStarter
             return new RecordsAppendResponse { Ordinal = 1 }.ToByteString();
           });
       Assert.Equal("starter-execution", stored!.Execution);
-      Assert.Equal("capture.confirmation", stored.Kind);
+      Assert.Equal("capture.confirmation.confirmation", stored.Kind);
       Assert.True(BoolValue.Parser.ParseFrom(stored.Payload).Value);
 
       // Evaluate the Captured Evidence Through Its Qualified Step Selector.
@@ -73,7 +73,7 @@ public sealed class AuthorRunsThePackagedStarter
           {
             Assert.Equal(HostContracts.EvidenceRecordsList.Contract.Id, child.Operation);
             var request = RecordsListRequest.Parser.ParseFrom(child.Payload);
-            Assert.Equal("capture.confirm", request.Step);
+            Assert.Equal("capture.confirmation.confirm", request.Step);
             return new RecordsListResponse { Last = new CapturedRecord { Payload = stored.Payload } }.ToByteString();
           });
       Assert.True(verdict.Passed);

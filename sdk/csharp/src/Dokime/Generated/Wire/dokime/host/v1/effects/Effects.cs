@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/effects.proto</summary>
-  public static partial class EffectsReflection {
+  internal static partial class EffectsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/effects.proto</summary>
@@ -422,7 +422,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EffectsCreateResponse : pb::IMessage<EffectsCreateResponse>
+  internal sealed partial class EffectsCreateResponse : pb::IMessage<EffectsCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -993,7 +993,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EffectsGetResponse : pb::IMessage<EffectsGetResponse>
+  internal sealed partial class EffectsGetResponse : pb::IMessage<EffectsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1601,7 +1601,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EffectsSetResponse : pb::IMessage<EffectsSetResponse>
+  internal sealed partial class EffectsSetResponse : pb::IMessage<EffectsSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1891,7 +1891,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class EffectWritable : pb::IMessage<EffectWritable>
+  internal sealed partial class EffectWritable : pb::IMessage<EffectWritable>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
