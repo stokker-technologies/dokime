@@ -16,22 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    collections::BTreeSet,
-    env,
-    fmt::Display,
-    fs,
-    io::{ErrorKind, Read},
-    path::Path,
-    sync::Weak,
-};
+use std::{collections::BTreeSet, env, fmt::Display, fs, io::ErrorKind, path::Path, sync::Weak};
 
 // Third Party Imports
 use harmos_operations::plugins::{List, Replace};
 use harmos_protocol::host::status::Event;
 use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginsListRequest, PluginsReplaceRequest, plugin_placement};
 use harmos_protocol::model::{FileMetadata, FileReference};
-use harmos_runtime::bundle::{Bundle, Limits};
+use harmos_runtime::bundle::Bundle;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -39,6 +31,7 @@ use uuid::Uuid;
 use super::{Host, installation_directory, lock};
 use crate::{Error, Result};
 use dokime_operations::host::files::delete;
+use dokime_packaging::bundle;
 use dokime_protocol::host::FilesDeleteRequest;
 
 /* === Constants === */
@@ -111,7 +104,7 @@ impl Host {
             };
             let filename = filename.as_encoded_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             let source = format!("{INSTALLATION_SOURCE}{filename}");
-            let bundle = match read_bundle(&path) {
+            let bundle = match bundle::open(&path) {
                 Ok(bundle) => bundle,
                 Err(error) => {
                     unverified.insert(source);
@@ -311,17 +304,6 @@ impl Host {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn read_bundle(path: &Path) -> Result<Bundle> {
-    let limits = Limits::default();
-    let file = fs::File::open(path)?;
-    if !file.metadata()?.is_file() {
-        return Err(Error::Invalid("Admit Installation Plugin: Supply a Regular Bundle File".into()));
-    }
-    let mut bytes = Vec::new();
-    file.take(limits.archive_bytes as u64 + 1).read_to_end(&mut bytes)?;
-    Bundle::inspect(&bytes, limits).map_err(|error| Error::Invalid(error.to_string()))
-}
 
 fn managed(entry: &PluginEntry) -> Option<&PluginManaged> {
     match entry.placement.as_ref()?.kind.as_ref()? {

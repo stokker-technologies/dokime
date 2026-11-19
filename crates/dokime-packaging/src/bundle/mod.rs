@@ -264,6 +264,12 @@ pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, descrip
 }
 
 pub fn inspect(path: &Path) -> Result<Value> {
+    let bundle = open(path)?;
+    Ok(serde_json::to_value(bundle.manifest())?)
+}
+
+/// Read and Verify a Bundle Against the Current Product Compatibility Policy.
+pub fn open(path: &Path) -> Result<Bundle> {
     let limits = Limits::default();
     let bytes = read(path, limits.archive_bytes as u64)?;
     let bundle = Bundle::inspect(&bytes, limits)?;
@@ -276,7 +282,7 @@ pub fn inspect(path: &Path) -> Result<Value> {
         };
         crate::project::check_compatibility(requirement, env!("CARGO_PKG_VERSION"))?;
     }
-    Ok(serde_json::to_value(bundle.manifest())?)
+    Ok(bundle)
 }
 
 /* === Private Functions === */
