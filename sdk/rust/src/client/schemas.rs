@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -22,7 +22,6 @@ use std::{
 };
 
 // Third Party Imports
-use crate::PageRequest;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage};
 use prost_types::FileDescriptorSet;
@@ -32,6 +31,7 @@ use tonic::Status;
 // Local Imports
 use super::Client;
 use super::{ExecutionDetail, ExecutionsSchemasGetOptions};
+use crate::PageRequest;
 
 /* === Constants === */
 
@@ -102,7 +102,7 @@ impl FrozenSchemaCache {
                     ExecutionsSchemasGetOptions {
                         at: at.clone(),
                         page: Some(next_page.clone()),
-                        ..Default::default()
+                        context: client.context.clone(),
                     },
                 )
                 .await?;

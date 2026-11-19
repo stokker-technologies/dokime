@@ -14,9 +14,11 @@
 mod connection;
 mod files;
 mod handles;
+pub(crate) mod mutations;
+pub(crate) mod queries;
 mod schemas;
 #[rustfmt::skip]
-mod resources;
+pub(crate) mod resources;
 #[rustfmt::skip]
 mod types;
 
@@ -24,7 +26,12 @@ mod types;
 
 pub use ::harmos::client::{CallOptions, ClientTransport, Watching};
 pub use connection::{ConnectionSettings, connect, connect_with};
-pub use handles::{Attribution, Case, Cycle, Execution, Outcome, Progress, ProgressStream, RegisteredPlugin};
+pub use handles::{Attribution, Case, Cycle, CyclesQuery, Execution, ExecutionsQuery, Outcome, Progress, ProgressStream, RegisteredPlugin};
+pub use mutations::{
+    ArtifactCreateOptions, CycleCreateOptions, CycleSealOptions, ExecutionCancelOptions, ExecutionCreateOptions, ExecutionSealOptions,
+    ExecutionStartOptions, ExecutionStopOptions, NoteCreateOptions,
+};
+pub use queries::{Records, Samples};
 pub use resources::*;
 pub use types::*;
 

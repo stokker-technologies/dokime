@@ -85,3 +85,28 @@ mise -C sdk/rust run test
 To run only the sidecar, run `./target/debug/dokime-rust-test`. Its native entry calls `plugin.run()`.
 `dokime::testing::Harness` runs a template against an in-memory host
 with a controlled clock, without hardware.
+Cleanup runs after attempted initialization, including failure and cancellation,
+and can inspect resources created before initialization failed.
+
+## Read Bound Resources
+
+`client.plugins().list()`, `client.cases().list()`, `client.cycles().list()` and
+`client.executions().list()` return handles owned by that connection.
+`CyclesQuery` and `ExecutionsQuery` select filtered lists through `list_with`.
+Paged cycle and execution reads preserve the first durable cut and refuse changed
+cuts or repeated continuation tokens. Case, cycle and execution handles support
+`refresh()` without creating another resource.
+
+`execution.records::<T>(identifier)` supports `all()`, `rows()`, `count()` and
+`last()`. `execution.samples::<T>(identifier)` supports `all()` and `rows()`.
+Rows preserve their acknowledged identity, ordinal and exact timestamp;
+sample rows also retain receipt time, stream and source.
+Readers verify the frozen descriptor digest and message binding before decoding
+payloads, and reject empty `last()` selections.
+
+Cycle/execution creation, execution controls, cycle sealing, notes and artifacts
+offer `_with` methods accepting operation-specific request identity options.
+Reuse a request identity with identical inputs when replaying a mutation.
+Execution creation derives the same execution UUID from that identity.
+Template contexts also support `artifact()` and `artifact_with()`; they share the
+client's fenced upload implementation and attach only to the calling execution.

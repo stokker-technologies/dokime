@@ -18,7 +18,6 @@
 // Standard Library Imports
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -27,10 +26,12 @@ use std::{
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 
 // Local Imports
-use super::Watching;
+use super::mutations::{
+    self, ArtifactCreateOptions, CycleCreateOptions, CycleSealOptions, ExecutionCancelOptions, ExecutionCreateOptions,
+    ExecutionSealOptions, ExecutionStartOptions, ExecutionStopOptions, NoteCreateOptions,
+};
 use super::{
     AnnotationOwner, AnnotationOwnerOwner, CaseSummary, CycleFilter, CycleOrder, CyclePhase, CycleSelection, CycleSummary, EvidenceSubject,
     ExecutionBinding, ExecutionDetail, ExecutionMode, ExecutionNoteOwner, ExecutionOutcome, NoteWritable, OperatorNote, PluginEntry,
@@ -39,14 +40,17 @@ use super::{
 };
 use super::{
     CasesCreateOptions, CasesGetOptions, CasesParametersOptions, ContentArtifactsCreateOptions, CyclesCreateOptions, CyclesGetOptions,
-    CyclesSealOptions, CyclesWatchOptions, EvidenceArchiveOptions, EvidenceNotesCreateOptions, EvidenceRecordsListOptions,
-    ExecutionsCancelOptions, ExecutionsCreateOptions, ExecutionsGetOptions, ExecutionsProgressWatchOptions, ExecutionsSealOptions,
-    ExecutionsStartOptions, ExecutionsStopOptions, FilesGetOptions, FilesReadOptions, SuitesListOptions,
+    CyclesSealOptions, CyclesWatchOptions, EvidenceArchiveOptions, EvidenceNotesCreateOptions, ExecutionsCancelOptions,
+    ExecutionsCreateOptions, ExecutionsGetOptions, ExecutionsProgressWatchOptions, ExecutionsSealOptions, ExecutionsStartOptions,
+    ExecutionsStopOptions, FilesGetOptions, FilesReadOptions, SuitesListOptions,
 };
-use super::{PluginsDeleteOptions, PluginsGetOptions};
+use super::{
+    CasesListOptions, CyclesListOptions, ExecutionFilter, ExecutionOrder, ExecutionSelection, ExecutionState, ExecutionsListOptions,
+};
+use super::{PluginsDeleteOptions, PluginsGetOptions, PluginsListOptions};
+use super::{Watching, queries::Paging};
 use crate::{
-    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Payload, RecordScope, Result,
-    Termination, Value, authoring, payload, record_scope,
+    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value, authoring,
 };
 
 /* === Constants === */
@@ -83,6 +87,21 @@ pub struct Executions {
     client: Client,
 }
 
+#[derive(Default)]
+pub struct CyclesQuery {
+    pub label: String,
+    pub phases: Vec<CyclePhase>,
+    pub page_size: u32,
+}
+
+#[derive(Default)]
+pub struct ExecutionsQuery {
+    pub cycle: String,
+    pub templates: Vec<String>,
+    pub states: Vec<ExecutionState>,
+    pub page_size: u32,
+}
+
 #[derive(Clone)]
 pub struct Case {
     client: Client,
@@ -98,11 +117,12 @@ pub struct Cycle {
     client: Client,
     identifier: String,
     label: String,
+    phase: CyclePhase,
 }
 
 #[derive(Clone)]
 pub struct Execution {
-    client: Client,
+    pub(super) client: Client,
     identifier: String,
     pub cycle: Cycle,
     pub case: Case,
@@ -134,13 +154,6 @@ pub struct ProgressStream {
     sealed: bool,
 }
 
-pub struct Records<T: Payload> {
-    execution: Execution,
-    identifier: String,
-    step: String,
-    marker: PhantomData<T>,
-}
-
 /* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -155,7 +168,7 @@ pub enum Attribution {
 /* === Implementations === */
 
 impl Client {
-    fn ensure_open(&self) -> Result<()> {
+    pub(super) fn ensure_open(&self) -> Result<()> {
         if self.lifetime.closed.load(Ordering::Acquire) {
             return Err(Error::Invalid("Use Client: Connect a New Client After Close".into()));
         }
@@ -174,6 +187,9 @@ impl Client {
         Executions { client: self.clone() }
     }
     pub async fn cycle(&self, label: impl Into<String>) -> Result<Cycle> {
+        self.cycle_with(label, CycleCreateOptions::default()).await
+    }
+    pub async fn cycle_with(&self, label: impl Into<String>, options: CycleCreateOptions) -> Result<Cycle> {
         self.ensure_open()?;
         let reply = self
             .resources
@@ -187,8 +203,8 @@ impl Client {
                 false,
                 "",
                 CyclesCreateOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
@@ -201,6 +217,27 @@ impl Client {
 }
 
 impl Plugins {
+    pub async fn list(&self) -> Result<Vec<RegisteredPlugin>> {
+        self.client.ensure_open()?;
+        let values = self
+            .client
+            .resources
+            .plugins
+            .list_with(PluginsListOptions {
+                context: self.client.context.clone(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(values
+            .entries
+            .into_iter()
+            .map(|entry| RegisteredPlugin {
+                client: self.client.clone(),
+                entry,
+                detached: Arc::new(AtomicBool::new(false)),
+            })
+            .collect())
+    }
     pub async fn get(&self, identifier: &str) -> Result<RegisteredPlugin> {
         self.client.ensure_open()?;
         let reply = self
@@ -251,11 +288,18 @@ impl RegisteredPlugin {
         Ok(())
     }
     pub async fn unregister(&self) -> Result<()> {
-        self.client.ensure_open()?;
         if self.detached.load(Ordering::Acquire) {
             return Ok(());
         }
-        let value = self.client.plugins().get(self.identifier()).await?;
+        self.client.ensure_open()?;
+        let value = match self.client.plugins().get(self.identifier()).await {
+            Ok(value) => value,
+            Err(Error::Harmos(harmos::Error::Transport(status))) if status.code() == tonic::Code::NotFound => {
+                self.detached.store(true, Ordering::Release);
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
         self.client
             .resources
             .plugins
@@ -267,6 +311,22 @@ impl RegisteredPlugin {
 }
 
 impl Cases {
+    pub async fn list(&self) -> Result<Vec<Case>> {
+        self.client.ensure_open()?;
+        let page = self
+            .client
+            .resources
+            .cases
+            .list_with(
+                "",
+                CasesListOptions {
+                    context: self.client.context.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        page.cases.into_iter().map(|summary| Case::bind(self.client.clone(), summary, String::new())).collect()
+    }
     pub async fn materialize<T: 'static>(&self) -> Result<Vec<Case>> {
         self.client.ensure_open()?;
         let identifier = authoring::code_name::<T>(true);
@@ -384,6 +444,28 @@ impl Case {
     pub fn template(&self) -> &str {
         &self.template
     }
+    pub async fn refresh(&mut self) -> Result<()> {
+        self.client.ensure_open()?;
+        let page = self
+            .client
+            .resources
+            .cases
+            .get_with(
+                self.identifier(),
+                &self.cycle,
+                CasesGetOptions {
+                    context: self.client.context.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let summary = page.value.and_then(|value| value.summary).ok_or_else(|| invalid("Refresh Case", "Return Its Summary"))?;
+        let value = Self::bind(self.client.clone(), summary, self.cycle.clone())?;
+        self.label = value.label;
+        self.suite = value.suite;
+        self.template = value.template;
+        Ok(())
+    }
     pub async fn parameters<T: Message>(&self) -> Result<T> {
         self.client.ensure_open()?;
         let detail = self
@@ -425,6 +507,48 @@ impl Case {
 }
 
 impl Cycles {
+    pub async fn list(&self) -> Result<Vec<Cycle>> {
+        self.list_with(CyclesQuery::default()).await
+    }
+    pub async fn list_with(&self, query: CyclesQuery) -> Result<Vec<Cycle>> {
+        self.client.ensure_open()?;
+        let mut paging = Paging::default();
+        let mut values = Vec::new();
+        loop {
+            let page = self
+                .client
+                .resources
+                .cycles
+                .list_with(
+                    CycleSelection {
+                        phases: query.phases.iter().map(|phase| *phase as i32).collect(),
+                        ..Default::default()
+                    },
+                    CycleFilter {
+                        text: query.label.clone(),
+                        ..Default::default()
+                    },
+                    CycleOrder::default(),
+                    CyclesListOptions {
+                        at: paging.at.clone(),
+                        page: Some(PageRequest {
+                            page_size: query.page_size,
+                            page_token: paging.token.clone(),
+                            ..Default::default()
+                        }),
+                        context: self.client.context.clone(),
+                    },
+                )
+                .await?;
+            for value in page.cycles {
+                values.push(Cycle::bind(self.client.clone(), value)?);
+            }
+            if !paging.advance(page.resolved_at, page.next_page_token)? {
+                break;
+            }
+        }
+        Ok(values)
+    }
     pub async fn get(&self, identifier: &str) -> Result<Cycle> {
         self.client.ensure_open()?;
         let reply = self
@@ -452,6 +576,7 @@ impl Cycle {
             client,
             identifier: summary.cycle_id,
             label: summary.metadata.map(|metadata| metadata.label).unwrap_or_default(),
+            phase: CyclePhase::try_from(summary.phase).map_err(|_| invalid("Read Cycle", "Return a Known Phase"))?,
         })
     }
     pub fn identifier(&self) -> &str {
@@ -460,11 +585,25 @@ impl Cycle {
     pub fn label(&self) -> &str {
         &self.label
     }
+    pub fn phase(&self) -> CyclePhase {
+        self.phase
+    }
+    pub async fn refresh(&mut self) -> Result<()> {
+        let value = self.client.cycles().get(self.identifier()).await?;
+        self.label = value.label;
+        self.phase = value.phase;
+        Ok(())
+    }
     pub async fn execution(&self, case: &Case) -> Result<Execution> {
+        self.execution_with(case, ExecutionCreateOptions::default()).await
+    }
+    pub async fn execution_with(&self, case: &Case, options: ExecutionCreateOptions) -> Result<Execution> {
         self.client.ensure_open()?;
         if !Arc::ptr_eq(&self.client.lifetime, &case.client.lifetime) {
             return Err(invalid("Create Execution", "Select a Case From This Client"));
         }
+        let request_id = mutations::request_id(options.request_id)?;
+        let execution_id = mutations::execution_id(&request_id);
         let reply = self
             .client
             .resources
@@ -473,11 +612,11 @@ impl Cycle {
                 &self.identifier,
                 vec![ExecutionBinding {
                     case_id: case.identifier.clone(),
-                    execution_id: Uuid::now_v7().to_string(),
+                    execution_id,
                 }],
                 ExecutionsCreateOptions {
+                    request_id: Some(request_id),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
@@ -495,6 +634,9 @@ impl Cycle {
         })
     }
     pub async fn seal(&self) -> Result<()> {
+        self.seal_with(CycleSealOptions::default()).await
+    }
+    pub async fn seal_with(&self, options: CycleSealOptions) -> Result<()> {
         self.client.ensure_open()?;
         let reply = self
             .client
@@ -503,8 +645,8 @@ impl Cycle {
             .seal_with(
                 &self.identifier,
                 CyclesSealOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
@@ -551,6 +693,9 @@ impl Cycle {
         Err(invalid("Seal Cycle", "Reconnect After Observation Ended Before Seal Settlement"))
     }
     pub async fn artifact(&self, name: &str, data: Vec<u8>, mime: &str) -> Result<ArtifactMetadata> {
+        self.artifact_with(name, data, mime, ArtifactCreateOptions::default()).await
+    }
+    pub async fn artifact_with(&self, name: &str, data: Vec<u8>, mime: &str, options: ArtifactCreateOptions) -> Result<ArtifactMetadata> {
         artifact(
             &self.client,
             ArtifactScope {
@@ -560,6 +705,7 @@ impl Cycle {
             name,
             data,
             mime,
+            options,
         )
         .await
     }
@@ -567,11 +713,55 @@ impl Cycle {
         archive(&self.client, evidence_subject::Kind::Cycle(self.identifier.clone())).await
     }
     pub async fn note(&self, text: impl Into<String>) -> Result<OperatorNote> {
-        note(&self.client, &self.identifier, None, text.into()).await
+        self.note_with(text, NoteCreateOptions::default()).await
+    }
+    pub async fn note_with(&self, text: impl Into<String>, options: NoteCreateOptions) -> Result<OperatorNote> {
+        note(&self.client, &self.identifier, None, text.into(), options).await
     }
 }
 
 impl Executions {
+    pub async fn list(&self) -> Result<Vec<Execution>> {
+        self.list_with(ExecutionsQuery::default()).await
+    }
+    pub async fn list_with(&self, query: ExecutionsQuery) -> Result<Vec<Execution>> {
+        self.client.ensure_open()?;
+        let mut paging = Paging::default();
+        let mut values = Vec::new();
+        loop {
+            let page = self
+                .client
+                .resources
+                .executions
+                .list_with(
+                    &query.cycle,
+                    ExecutionSelection {
+                        template_ids: query.templates.clone(),
+                        statuses: query.states.iter().map(|state| *state as i32).collect(),
+                        ..Default::default()
+                    },
+                    ExecutionFilter::default(),
+                    ExecutionOrder::default(),
+                    ExecutionsListOptions {
+                        at: paging.at.clone(),
+                        page: Some(PageRequest {
+                            page_size: query.page_size,
+                            page_token: paging.token.clone(),
+                            ..Default::default()
+                        }),
+                        context: self.client.context.clone(),
+                    },
+                )
+                .await?;
+            for value in page.executions {
+                values.push(Execution::bind(self.client.clone(), value)?);
+            }
+            if !paging.advance(page.resolved_at, page.next_page_token)? {
+                break;
+            }
+        }
+        Ok(values)
+    }
     pub async fn get(&self, identifier: &str) -> Result<Execution> {
         self.client.ensure_open()?;
         let reply = self
@@ -600,6 +790,7 @@ impl Execution {
             client: client.clone(),
             identifier: detail.cycle_id.clone(),
             label: String::new(),
+            phase: CyclePhase::Unspecified,
         };
         let case = Case {
             client: client.clone(),
@@ -619,6 +810,13 @@ impl Execution {
     pub fn identifier(&self) -> &str {
         &self.identifier
     }
+    pub async fn refresh(&self) -> Result<()> {
+        let value = self.client.executions().get(self.identifier()).await?;
+        if value.cycle.identifier != self.cycle.identifier || value.case.identifier != self.case.identifier {
+            return Err(invalid("Refresh Execution", "Preserve Its Cycle and Case"));
+        }
+        Ok(())
+    }
     fn observe(&self, detail: Option<ExecutionDetail>) -> Result<()> {
         let observed = Self::bind(self.client.clone(), detail.ok_or_else(|| invalid("Observe Execution", "Return Its Detail"))?)?;
         if self.identifier != observed.identifier
@@ -630,6 +828,9 @@ impl Execution {
         Ok(())
     }
     pub async fn start(&self) -> Result<()> {
+        self.start_with(ExecutionStartOptions::default()).await
+    }
+    pub async fn start_with(&self, options: ExecutionStartOptions) -> Result<()> {
         self.client.ensure_open()?;
         let reply = self
             .client
@@ -639,8 +840,8 @@ impl Execution {
                 &self.identifier,
                 ExecutionMode::Automatic,
                 ExecutionsStartOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
@@ -663,6 +864,9 @@ impl Execution {
         }
     }
     pub async fn stop(&self) -> Result<()> {
+        self.stop_with(ExecutionStopOptions::default()).await
+    }
+    pub async fn stop_with(&self, options: ExecutionStopOptions) -> Result<()> {
         self.client.ensure_open()?;
         let reply = self
             .client
@@ -671,14 +875,17 @@ impl Execution {
             .stop_with(
                 &self.identifier,
                 ExecutionsStopOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
         self.observe(reply.execution)
     }
     pub async fn cancel(&self) -> Result<()> {
+        self.cancel_with(ExecutionCancelOptions::default()).await
+    }
+    pub async fn cancel_with(&self, options: ExecutionCancelOptions) -> Result<()> {
         self.client.ensure_open()?;
         let reply = self
             .client
@@ -687,14 +894,17 @@ impl Execution {
             .cancel_with(
                 &self.identifier,
                 ExecutionsCancelOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
         self.observe(reply.execution)
     }
     pub async fn seal(&self) -> Result<Outcome> {
+        self.seal_with(ExecutionSealOptions::default()).await
+    }
+    pub async fn seal_with(&self, options: ExecutionSealOptions) -> Result<Outcome> {
         self.client.ensure_open()?;
         let reply = self
             .client
@@ -703,14 +913,17 @@ impl Execution {
             .seal_with(
                 &self.identifier,
                 ExecutionsSealOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
-                    ..Default::default()
                 },
             )
             .await?;
         Outcome::decode(reply.outcome.ok_or_else(|| invalid("Seal Execution", "Return a Stable Outcome"))?)
     }
     pub async fn artifact(&self, name: &str, data: Vec<u8>, mime: &str) -> Result<ArtifactMetadata> {
+        self.artifact_with(name, data, mime, ArtifactCreateOptions::default()).await
+    }
+    pub async fn artifact_with(&self, name: &str, data: Vec<u8>, mime: &str, options: ArtifactCreateOptions) -> Result<ArtifactMetadata> {
         artifact(
             &self.client,
             ArtifactScope {
@@ -720,6 +933,7 @@ impl Execution {
             name,
             data,
             mime,
+            options,
         )
         .await
     }
@@ -727,15 +941,10 @@ impl Execution {
         archive(&self.client, evidence_subject::Kind::Execution(self.identifier.clone())).await
     }
     pub async fn note(&self, text: impl Into<String>) -> Result<OperatorNote> {
-        note(&self.client, self.cycle.identifier(), Some(self.identifier()), text.into()).await
+        self.note_with(text, NoteCreateOptions::default()).await
     }
-    pub fn records<T: Payload>(&self, identifier: impl Into<String>) -> Records<T> {
-        Records {
-            execution: self.clone(),
-            identifier: identifier.into(),
-            step: String::new(),
-            marker: PhantomData,
-        }
+    pub async fn note_with(&self, text: impl Into<String>, options: NoteCreateOptions) -> Result<OperatorNote> {
+        note(&self.client, self.cycle.identifier(), Some(self.identifier()), text.into(), options).await
     }
 }
 
@@ -812,37 +1021,6 @@ impl ProgressStream {
     }
 }
 
-impl<T: Payload> Records<T> {
-    pub fn step(mut self, step: impl Into<String>) -> Self {
-        self.step = step.into();
-        self
-    }
-    pub async fn last(&self) -> Result<T> {
-        self.execution.client.ensure_open()?;
-        let reply = self
-            .execution
-            .client
-            .resources
-            .evidence
-            .records
-            .list_with(
-                &self.identifier,
-                EvidenceRecordsListOptions {
-                    scope: Some(RecordScope {
-                        kind: Some(record_scope::Kind::Execution(self.execution.identifier.clone())),
-                    }),
-                    step: Some(self.step.clone()),
-                    page: Some(PageRequest { page_size: 1, ..Default::default() }),
-                    context: self.execution.client.context.clone(),
-                    ..Default::default()
-                },
-            )
-            .await?;
-        let record = reply.last.ok_or_else(|| invalid("Read Record", "Capture a Value Before Reading It"))?;
-        payload::decode(&record.payload)
-    }
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
@@ -865,7 +1043,7 @@ fn invalid(action: &str, correction: &str) -> Error {
     Error::Invalid(format!("{action}: {correction}"))
 }
 
-async fn note(client: &Client, cycle: &str, execution: Option<&str>, text: String) -> Result<OperatorNote> {
+async fn note(client: &Client, cycle: &str, execution: Option<&str>, text: String, options: NoteCreateOptions) -> Result<OperatorNote> {
     client.ensure_open()?;
     let owner = match execution {
         Some(execution) => annotation_owner_owner::Kind::Execution(ExecutionNoteOwner {
@@ -884,17 +1062,20 @@ async fn note(client: &Client, cycle: &str, execution: Option<&str>, text: Strin
             },
             NoteWritable { message: text },
             EvidenceNotesCreateOptions {
+                request_id: Some(mutations::request_id(options.request_id)?),
                 context: client.context.clone(),
-                ..Default::default()
             },
         )
         .await?;
     reply.note.ok_or_else(|| invalid("Create Note", "Return Its Acknowledged Value"))
 }
 
-async fn artifact(client: &Client, scope: ArtifactScope, name: &str, data: Vec<u8>, mime: &str) -> Result<ArtifactMetadata> {
+async fn artifact(
+    client: &Client, scope: ArtifactScope, name: &str, data: Vec<u8>, mime: &str, options: ArtifactCreateOptions,
+) -> Result<ArtifactMetadata> {
     client.ensure_open()?;
-    let file = client.resources.files.upload_bytes(data, client.context.clone()).await?;
+    let request_id = mutations::request_id(options.request_id)?;
+    let file = client.resources.files.upload_bytes(data, client.context.clone(), &request_id).await?;
     let reply = client
         .resources
         .content
@@ -904,6 +1085,7 @@ async fn artifact(client: &Client, scope: ArtifactScope, name: &str, data: Vec<u
             name,
             mime,
             ContentArtifactsCreateOptions {
+                request_id: Some(format!("{request_id}/attach")),
                 scope: Some(scope),
                 context: client.context.clone(),
                 ..Default::default()

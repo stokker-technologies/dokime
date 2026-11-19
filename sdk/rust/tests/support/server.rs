@@ -24,16 +24,21 @@ use std::{
 };
 
 // Third Party Imports
+use futures_util::Stream;
 use harmos_protocol::host::OperationsListRequest;
 use harmos_protocol::model::{Grpc, History, Position, Protobuf, ReadCut, Receipt, Visibility};
 use prost::Message;
 use prost_reflect::ReflectMessage;
-use tokio::{net::TcpListener, sync::oneshot};
+use prost_types::FileDescriptorSet;
+use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
+use tokio_stream::wrappers::TcpListenerStream;
 use tonic::{
-    Request, Response, Status,
+    Request, Response, Status, body,
     codegen::{Body, BoxFuture, Service, StdError, http},
-    server::NamedService,
+    server::{self, NamedService, ServerStreamingService, UnaryService},
+    transport::{self, Channel, Endpoint, Server},
 };
+use tonic_prost::ProstCodec;
 
 // Local Imports
 use super::TestResult;
@@ -60,9 +65,9 @@ use dokime_protocol::host::backend::RuntimeShellSnapshot;
 /* === Structs === */
 
 pub struct FakeServer {
-    pub channel: tonic::transport::Channel,
+    pub channel: Channel,
     stop: oneshot::Sender<()>,
-    task: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
+    task: JoinHandle<Result<(), transport::Error>>,
 }
 
 #[derive(Clone)]
@@ -97,16 +102,16 @@ impl FakeServer {
         let (stop, stopped) = oneshot::channel();
         let cycle = Arc::new(Mutex::new(None));
         let task = tokio::spawn(
-            tonic::transport::Server::builder()
+            Server::builder()
                 .add_service(Rpc::<0>(cycle.clone()))
                 .add_service(Rpc::<1>(cycle.clone()))
                 .add_service(Rpc::<2>(cycle.clone()))
                 .add_service(Rpc::<3>(cycle))
-                .serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener), async {
+                .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                     let _ = stopped.await;
                 }),
         );
-        let channel = tonic::transport::Endpoint::from_shared(format!("http://{address}"))?.connect().await?;
+        let channel = Endpoint::from_shared(format!("http://{address}"))?.connect().await?;
         Ok(Self { channel, stop, task })
     }
     pub async fn close(self) -> TestResult<()> {
@@ -129,7 +134,7 @@ impl<const R: u8, B: Body + Send + 'static> Service<http::Request<B>> for Rpc<R>
 where
     B::Error: Into<StdError> + Send,
 {
-    type Response = http::Response<tonic::body::Body>;
+    type Response = http::Response<body::Body>;
     type Error = Infallible;
     type Future = BoxFuture<Self::Response, Self::Error>;
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -140,23 +145,23 @@ where
         let cycle = self.0.clone();
         Box::pin(async move {
             if R == 2 {
-                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(CreateCycle(cycle), request).await);
+                return Ok(server::Grpc::new(ProstCodec::default()).unary(CreateCycle(cycle), request).await);
             }
             if R == 3 {
-                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(ListExecutions(cycle), request).await);
+                return Ok(server::Grpc::new(ProstCodec::default()).unary(ListExecutions(cycle), request).await);
             }
             if R == 0 {
-                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Discover, request).await);
+                return Ok(server::Grpc::new(ProstCodec::default()).unary(Discover, request).await);
             }
             if path == "/dokime.host.v1.backend.Overview/Watch" {
-                return Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).server_streaming(Watch, request).await);
+                return Ok(server::Grpc::new(ProstCodec::default()).server_streaming(Watch, request).await);
             }
-            Ok(tonic::server::Grpc::new(tonic_prost::ProstCodec::default()).unary(Overview, request).await)
+            Ok(server::Grpc::new(ProstCodec::default()).unary(Overview, request).await)
         })
     }
 }
 
-impl tonic::server::UnaryService<OperationsListRequest> for Discover {
+impl UnaryService<OperationsListRequest> for Discover {
     type Response = OperationsListResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<OperationsListRequest>) -> Self::Future {
@@ -176,7 +181,7 @@ impl tonic::server::UnaryService<OperationsListRequest> for Discover {
     }
 }
 
-impl tonic::server::UnaryService<OverviewGetRequest> for Overview {
+impl UnaryService<OverviewGetRequest> for Overview {
     type Response = OverviewGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<OverviewGetRequest>) -> Self::Future {
@@ -187,9 +192,9 @@ impl tonic::server::UnaryService<OverviewGetRequest> for Overview {
     }
 }
 
-impl tonic::server::ServerStreamingService<OverviewWatchRequest> for Watch {
+impl ServerStreamingService<OverviewWatchRequest> for Watch {
     type Response = OverviewWatchResponse;
-    type ResponseStream = Pin<Box<dyn futures_util::Stream<Item = Result<Self::Response, Status>> + Send>>;
+    type ResponseStream = Pin<Box<dyn Stream<Item = Result<Self::Response, Status>> + Send>>;
     type Future = BoxFuture<Response<Self::ResponseStream>, Status>;
     fn call(&mut self, request: Request<OverviewWatchRequest>) -> Self::Future {
         Box::pin(async move {
@@ -204,7 +209,7 @@ impl tonic::server::ServerStreamingService<OverviewWatchRequest> for Watch {
     }
 }
 
-impl tonic::server::UnaryService<CyclesCreateRequest> for CreateCycle {
+impl UnaryService<CyclesCreateRequest> for CreateCycle {
     type Response = CyclesCreateResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<CyclesCreateRequest>) -> Self::Future {
@@ -228,6 +233,7 @@ impl tonic::server::UnaryService<CyclesCreateRequest> for CreateCycle {
                     cycle_id: name.clone(),
                     summary: Some(ExecutionSummary {
                         execution_id: format!("{name}/{index}"),
+                        case_id: format!("case/{index}"),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -259,7 +265,7 @@ impl tonic::server::UnaryService<CyclesCreateRequest> for CreateCycle {
     }
 }
 
-impl tonic::server::UnaryService<ExecutionsListRequest> for ListExecutions {
+impl UnaryService<ExecutionsListRequest> for ListExecutions {
     type Response = ExecutionsListResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<ExecutionsListRequest>) -> Self::Future {
@@ -268,7 +274,7 @@ impl tonic::server::UnaryService<ExecutionsListRequest> for ListExecutions {
             let request = request.into_inner();
             let state = state.lock().unwrap();
             let cycle = state.as_ref().ok_or_else(|| Status::not_found("List Executions: Create a Cycle First"))?;
-            if request.parent != cycle.name || request.at.as_ref() != Some(&cycle.at) {
+            if request.parent != cycle.name || request.at.as_ref().is_some_and(|at| at != &cycle.at) {
                 return Err(Status::invalid_argument("List Executions: Retain the Created Cycle and Its Durable Cut"));
             }
             let offset = request
@@ -280,6 +286,9 @@ impl tonic::server::UnaryService<ExecutionsListRequest> for ListExecutions {
                 .transpose()
                 .map_err(|_| Status::invalid_argument("List Executions: Invalid Continuation"))?
                 .unwrap_or(0);
+            if offset != 0 && request.at.as_ref() != Some(&cycle.at) {
+                return Err(Status::invalid_argument("List Executions: Retain the First Page's Durable Cut"));
+            }
             let executions = cycle.executions.iter().skip(offset).take(1).cloned().collect::<Vec<_>>();
             let next_page_token =
                 if offset + executions.len() < cycle.executions.len() { (offset + executions.len()).to_string() } else { String::new() };
@@ -297,7 +306,7 @@ impl tonic::server::UnaryService<ExecutionsListRequest> for ListExecutions {
 
 pub fn contract() -> DiscoveredContract {
     let descriptor = OverviewGetRequest::default().descriptor();
-    let descriptors = prost_types::FileDescriptorSet {
+    let descriptors = FileDescriptorSet {
         file: descriptor.parent_pool().files().map(|file| file.file_descriptor_proto().clone()).collect(),
     }
     .encode_to_vec();

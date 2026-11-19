@@ -19,7 +19,9 @@
 use std::{
     any::{self, Any, TypeId},
     collections::{HashMap, HashSet},
-    future, mem,
+    future,
+    io::Cursor,
+    mem,
     num::NonZeroUsize,
     ops::Deref,
     sync::{Arc, Mutex, OnceLock},
@@ -37,14 +39,19 @@ use crate::EvidenceStatisticsResponse;
 use crate::OperationPolicy;
 use crate::Record;
 use crate::RecordsListResponse;
+use crate::client::{ArtifactCreateOptions, mutations};
 use crate::operation::FutureResult;
-use crate::plugin::{CaptureMode, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
+use crate::plugin::{CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
 use crate::templates::{CaptureResult, Environment};
 use crate::{FileSource, Metadata, TraceabilityEntry};
 
 use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
+use crate::{
+    ArtifactMetadata,
+    transfers::{self, Uploads},
+};
 use crate::{Error, Message, OperationRequest, Result, data, host, host::Wire};
 use crate::{ExecutionProgressValue, PageRequest, Severity};
 use crate::{Origin, Termination, TestCase, origin};
@@ -482,6 +489,29 @@ impl Context {
             gaps: reply.gaps,
         })
     }
+    pub async fn artifact(&self, name: &str, data: Vec<u8>, mime: &str) -> Result<ArtifactMetadata> {
+        self.artifact_with(name, data, mime, ArtifactCreateOptions::default()).await
+    }
+    pub async fn artifact_with(&self, name: &str, data: Vec<u8>, mime: &str, options: ArtifactCreateOptions) -> Result<ArtifactMetadata> {
+        let request_id = mutations::request_id(options.request_id)?;
+        let length = data.len() as u64;
+        let file = transfers::upload(Uploads::Template(self), Cursor::new(data), length, &request_id).await?;
+        let reply = self
+            .host()
+            .content
+            .artifacts
+            .create_with(
+                file,
+                name.into(),
+                mime.into(),
+                HostContentArtifactsCreateOptions {
+                    request_id: Some(format!("{request_id}/attach")),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        reply.artifact.ok_or_else(|| Error::Invalid("Attach Artifact: Return Its Acknowledged Metadata".into()))
+    }
     pub async fn start_capture(&self, source: FileSource, output: impl Into<String>, mode: CaptureMode) -> Result<u64> {
         self.host().files.captures.start(source, output.into(), mode).await
     }
@@ -531,8 +561,8 @@ impl Context {
     ) -> Result<()> {
         let mut options = HostDocumentsAppendPartsOptions::default();
         match part {
-            crate::templates::DocumentPart::Section(value) => options.subsection = Some(value),
-            crate::templates::DocumentPart::Card(value) => options.card = Some(value),
+            crate::templates::DocumentPart::Section(value) => options.subsection = Some(*value),
+            crate::templates::DocumentPart::Card(value) => options.card = Some(*value),
         }
         self.host().documents.append_parts_with(self.execution_id().into(), document.into(), section.into(), options).await?;
         Ok(())

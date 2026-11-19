@@ -51,6 +51,10 @@ name = "dokime-rust-capture"
 path = "../fixtures/capture.rs"
 
 [[bin]]
+name = "dokime-rust-history"
+path = "../fixtures/history.rs"
+
+[[bin]]
 name = "dokime-rust-test"
 path = "../../examples/test/src/main.rs"
 
@@ -95,7 +99,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 # Concurrency
 
 # Async
-tokio = { version = "1.50.0", features = ["sync", "rt-multi-thread", "net", "time"] }
+tokio = { version = "1.50.0", features = ["macros", "sync", "rt-multi-thread", "net", "time"] }
 
 # Networking
 

@@ -13,6 +13,7 @@
 
 /* === Re-Exports === */
 
+pub use crate::client::queries::{RecordRow, SampleRow};
 pub use crate::context::{Context, RecordsQuery};
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
@@ -52,8 +53,8 @@ pub struct Environment {
 /* === Enums === */
 
 pub enum DocumentPart {
-    Section(Section),
-    Card(Card),
+    Section(Box<Section>),
+    Card(Box<Card>),
 }
 
 /* === Traits === */

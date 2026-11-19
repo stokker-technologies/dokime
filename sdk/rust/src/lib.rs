@@ -38,6 +38,7 @@ mod stream;
 mod suite;
 mod template;
 pub mod testing;
+mod transfers;
 
 /* === Re-Exports === */
 

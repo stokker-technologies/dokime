@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,6 +17,8 @@ import runpy
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from zipfile import ZipFile
 
 # isort: split
 
@@ -27,11 +29,12 @@ from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetR
 # isort: split
 
 # Local Imports
+from dokime_tools.process import spawn_flags
+from dokime_tools.test import policy
+
 from dokime_sdk import PromptAnswer, PromptQuestion, ResultStatus
 from dokime_sdk._generated import client_types
 from dokime_sdk._generated.shared import RecordContracts, Suites
-from dokime_tools.process import spawn_flags
-from dokime_tools.test import policy
 
 # Type Checking Imports
 
@@ -157,6 +160,33 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(await execution.records(record.metadata.identifier, row_type=bool).last(), language)
                     self.assertEqual(await execution.records(record.metadata.identifier, row_type=bool).count(), 1, language)
                     await cycle.seal()
+                    if language == "rust":
+                        # Read Frozen History Through the Rust Bound Client.
+                        temporary = TemporaryDirectory(prefix="dokime-rust-history-")
+                        reader = None
+                        try:
+                            reader_environment = dict(environment)
+                            reader_environment["DOKIME_REMOTE"] = host.endpoint
+                            reader_environment["DOKIME_TEST_EXECUTION"] = execution.identifier
+                            reader = await asyncio.create_subprocess_exec(
+                                str(root / f"target/debug/dokime-rust-history{extension}"),
+                                cwd=temporary.name,
+                                env=reader_environment,
+                                creationflags=spawn_flags(),
+                            )
+                            self.assertEqual(await asyncio.wait_for(reader.wait(), timeout), 0)
+                            for archive in ("execution.zip", "cycle.zip"):
+                                saved = ZipFile(Path(temporary.name) / "_output" / archive)
+                                try:
+                                    self.assertIsNone(saved.testzip())
+                                    self.assertTrue(saved.namelist())
+                                finally:
+                                    saved.close()
+                        finally:
+                            if reader is not None and reader.returncode is None:
+                                reader.kill()
+                                await reader.wait()
+                            temporary.cleanup()
                     print(f"Capture Host Story: {language}: Passed", flush=True)
                 finally:
                     current = await client._transport.plugins.get(created.entry.name)

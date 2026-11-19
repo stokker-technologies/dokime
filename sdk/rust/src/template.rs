@@ -197,7 +197,7 @@ impl Template {
             definition: TestCaseTemplate {
                 metadata: Some(Metadata {
                     identifier: identifier.clone(),
-                    label: label.into(),
+                    label,
                     description: String::new(),
                     ..Default::default()
                 }),

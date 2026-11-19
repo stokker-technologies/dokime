@@ -173,12 +173,18 @@
   - [ ] Complete Typed Runtime Operation References and Stream Subscription After Their Shared Library Capabilities Land.
   - [ ] Bind Bundle Upload After the Product Host Publishes Its Installation Contract and Regenerated Bindings; Shared Plugins/Create Currently Accepts Placements Rather Than Bundle Uploads.
   - [ ] Complete the Remaining Declaration/Context Capability Surface and Catalog Validation, Including Operation-Scoped Observers, Typed Query Values and Template Notes/Artifacts.
+    - [x] Share Client/Template Artifact Uploads, Preserve Writer Fences and Mutation Identities, Verify Publication and Abandon Only Unpublished Uploads.
+    - [ ] Bind Template Notes After `Notes/Create` Admits Trusted Plugin Callers; Its Current Protocol Annotation Is `CLIENTS` Only.
   - [ ] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Remove Generated Host/Transport Escape Hatches With the Production Consumer and Generator Owners.
+    - [x] Add Bound Case Lists, Fixed-Cut Cycle/Execution Lists, Refresh Operations and Frozen Typed Record/Sample Readers With Digest Verification and Continuation Validation.
+    - [x] Add Operation-Specific Mutation Identity Overrides for Cycle/Execution Creation and Controls, Notes and Artifacts; Derive Replay-Stable Execution UUIDs From Request Identities.
   - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
   - [ ] Resolve Duplicated SDK Harness and Product Execution Sequencing With the Owner; Product Cleanup Still Requires Successful Initialization at `crates/dokime-runtime/src/execution.rs:643`.
   - [ ] Replace Both Rust Starter Roots With the Owner-Requested Single Two-Binary Project and Migrate CLI Embedding; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
   - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
   - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
+    - [x] Refresh the Root Cargo Lock and Validate the Consumer Lock; Build the Native Windows Product Host/CLI and Prove Shared Capture in All Four Languages, Including Rust Frozen Typed Record Reads and Verified Execution/Cycle ZIP Downloads.
+    - [x] Pass Native Windows SDK Units (12), SDK Integration/Capture Tests (14), Formatting, Scoped All-Target Compilation, Generated-Surface Checking, Repository Checking and Scoped Rust Lint.
 
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.

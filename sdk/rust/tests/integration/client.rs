@@ -19,6 +19,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use tonic::{Code, metadata::MetadataMap};
 
 // Local Imports
 use super::support::{
@@ -27,9 +28,9 @@ use super::support::{
 };
 use dokime::client::{
     BackendOverviewWatchOptions, CallOptions, CyclesCreateOptions, ExecutionFilter, ExecutionOrder, ExecutionSelection,
-    ExecutionsListOptions, OperationsListOptions,
+    ExecutionsListOptions, ExecutionsQuery, OperationsListOptions,
 };
-use dokime::{Client, ClientSettings, Metadata, Origin, PageRequest, StorageTransferSettings};
+use dokime::{Client, ClientSettings, Metadata, Origin, PageRequest, ReadCut, StorageTransferSettings};
 use dokime_protocol::host::ExecutionsGetResponse;
 use dokime_protocol::host::backend::{OverviewGetRequest, OverviewGetResponse};
 
@@ -67,8 +68,8 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
 
     // Authentication Failures Keep Their gRPC Status.
     let error = client.call(&overview, OverviewGetRequest::default()).await.unwrap_err();
-    assert_eq!(error.code(), tonic::Code::Unauthenticated);
-    let mut metadata = tonic::metadata::MetadataMap::new();
+    assert_eq!(error.code(), Code::Unauthenticated);
+    let mut metadata = MetadataMap::new();
     metadata.insert("authorization", "Bearer story".parse()?);
     let options = || CallOptions {
         metadata: metadata.clone(),
@@ -137,7 +138,7 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
         .await?;
     let cycle = created.cycle.ok_or("Missing Cycle")?;
     let at = created.receipt.and_then(|receipt| receipt.durable_at).ok_or("Missing Durable Position")?;
-    let cut = dokime::ReadCut {
+    let cut = ReadCut {
         positions: vec![at],
         revisions: Vec::new(),
     };
@@ -169,6 +170,19 @@ async fn discover_bind_call_and_follow_a_typed_backend() -> TestResult {
         page_token = page.next_page_token;
     }
     assert_eq!(executions, ["cycle/0", "cycle/1"]);
+
+    // Bind Every Page to This Client and Retain the First Read Cut.
+    let executions = client
+        .executions()
+        .list_with(ExecutionsQuery {
+            cycle: "cycle".into(),
+            page_size: 1,
+            ..Default::default()
+        })
+        .await?;
+    assert_eq!(executions.iter().map(|execution| execution.identifier()).collect::<Vec<_>>(), ["cycle/0", "cycle/1"]);
+    assert_eq!(executions[0].cycle.identifier(), "cycle");
+    assert_eq!(executions[0].case.identifier(), "case/0");
 
     // Release the Connection and Stop the Owned In-Process Server.
     drop(bounded);
