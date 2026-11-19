@@ -24,7 +24,7 @@ use prost::Message;
 use prost::bytes::{Buf, BufMut};
 
 // Local Imports
-use dokime::client::{InvocationsCreateOptions, OperationsGetOptions, OperationsListOptions};
+use crate::client::{InvocationsCreateOptions, OperationsGetOptions, OperationsListOptions};
 use dokime::{Callers, DiscoveredOperation, Visibility};
 
 /* === Constants === */
@@ -220,7 +220,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
 
 /* === Private Functions === */
 
-async fn find(client: &dokime::Client, operation: &str, settings: &crate::settings::Settings) -> crate::Result<DiscoveredOperation> {
+async fn find(client: &crate::client::Client, operation: &str, settings: &crate::settings::Settings) -> crate::Result<DiscoveredOperation> {
     let result = client.operations.get_with(operation, OperationsGetOptions { context: settings.context()? }).await;
     result.map_err(|source| {
         let mut status = Status::new(source.code(), format!("Discover {operation}: {source}"));

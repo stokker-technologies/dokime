@@ -12,7 +12,6 @@
 
 # Standard Library Imports
 import argparse
-import hashlib
 import json
 import os
 import shutil
@@ -73,11 +72,11 @@ def build(profile: str, language: str = "rust") -> None:
         scratch = scratch_directory.name
         try:
             project = Path(scratch) / "rust"
-            example = project / "test"
+            example = project
 
             # Generate the User's Rust Project With the Real Command-Line Tool.
             subprocess.run(
-                [str(cli), "new", str(project), "--lang", "rust"],
+                [str(cli), "new", str(project), "--lang", "rust", "--from", str(root)],
                 cwd=root,
                 check=True,
                 creationflags=spawn_flags(),
@@ -96,15 +95,10 @@ def build(profile: str, language: str = "rust") -> None:
             )
 
             # Build the Generated Source Against the SDK Candidate.
-            sdk = (root / "sdk/rust").as_posix()
             result = subprocess.run(
-                ["mise", "-C", str(example), "run", "build", "--", "--config", f"patch.crates-io.dokime.path='{sdk}'"],
-                cwd=root,
-                env=environment,
-                check=False,
-                capture_output=True,
-                text=True,
-                creationflags=spawn_flags(),
+                ["mise", "-C", str(example), "run", "build"],
+                cwd=root, env=environment, check=False, capture_output=True,
+                text=True, creationflags=spawn_flags(),
             )
             print(result.stdout, flush=True)
             print(result.stderr, flush=True)
@@ -112,22 +106,14 @@ def build(profile: str, language: str = "rust") -> None:
             shutil.copytree(project, output / "rust", dirs_exist_ok=True)
         finally:
             scratch_directory.cleanup()
-        shutil.copy2(root / "target/debug" / f"dokime-example-test{extension}", output / f"dokime-example-test{extension}")
+        shutil.copy2(root / "target/debug" / f"rust{extension}", output / f"dokime-example-test{extension}")
     else:
         scratch_directory = tempfile.TemporaryDirectory(prefix="dokime-cli-")
         scratch = scratch_directory.name
         try:
             project = Path(scratch) / language
-            example = project if language == "python" else project / ("Test" if language == "csharp" else "test")
-            arguments = [str(cli), "new", str(project), "--lang", language]
-            if language == "cpp":
-                sdk = root / "target/cp/tests/dokime-cpp.tar.gz"
-                archive_file = sdk.open("rb")
-                try:
-                    digest = hashlib.file_digest(archive_file, "sha256").hexdigest()
-                finally:
-                    archive_file.close()
-                arguments += ["--sdk-url", sdk.as_posix(), "--sdk-sha256", digest]
+            example = project if language in ("python", "csharp") else project / "test"
+            arguments = [str(cli), "new", str(project), "--lang", language, "--from", str(root)]
             subprocess.run(
                 arguments,
                 cwd=root,
@@ -148,12 +134,6 @@ def build(profile: str, language: str = "rust") -> None:
                 stderr=sys.stderr,
             )
             if language == "python":
-                wheel = next((paths.output(root, "build", profile, "any") / "python").glob("*.whl"))
-                manifest = (example / "pyproject.toml").open("a", encoding="utf-8")
-                try:
-                    manifest.write(f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n")
-                finally:
-                    manifest.close()
                 environment["DOKIME_TEST_HOST"] = str(paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host{extension}")
                 subprocess.run(
                     ["mise", "-C", str(example), "run", "build"],
@@ -177,7 +157,7 @@ def build(profile: str, language: str = "rust") -> None:
                 )
             elif language == "csharp":
                 subprocess.run(
-                    ["mise", "-C", "sdk/csharp", "run", "build:starter", "--", "--project", str(example / "Test.csproj")],
+                    ["mise", "-C", "sdk/csharp", "run", "build:starter", "--", "--project", str(example / "Csharp.slnx")],
                     cwd=root,
                     env=environment,
                     check=True,
@@ -186,7 +166,7 @@ def build(profile: str, language: str = "rust") -> None:
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
-                environment["DOKIME_STARTER"] = str(example / f"bin/Release/net10.0/dokime-example-test{extension}")
+                environment["DOKIME_STARTER"] = str(example / f"assets/plugin/Csharp.Plugin{extension}")
                 subprocess.run(
                     ["mise", "-C", "sdk/csharp", "run", "test:starter"],
                     cwd=root,
@@ -197,7 +177,7 @@ def build(profile: str, language: str = "rust") -> None:
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
-                shutil.copytree(example / "bin/Release/net10.0", output / "csharp", dirs_exist_ok=True)
+                shutil.copytree(example / "assets/plugin", output / "csharp", dirs_exist_ok=True)
             else:
                 subprocess.run(
                     ["mise", "-C", "sdk/cpp", "run", "consumer", "--", "--source", str(example)],

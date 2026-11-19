@@ -36,6 +36,8 @@ dokime-protocol = { workspace = true }
 dokime-runtime = { workspace = true }
 
 # Git
+harmos = { workspace = true }
+harmos-protocol = { workspace = true }
 harmos-runtime = { workspace = true }
 
 # Error Handling
@@ -51,6 +53,7 @@ sha2 = { workspace = true }
 # Serialization
 prost = { workspace = true }
 prost-reflect = { workspace = true }
+prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

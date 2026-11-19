@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+pub mod capture;
+
 /* === Re-Exports === */
 
 /* === Imports === */

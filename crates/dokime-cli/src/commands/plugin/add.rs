@@ -21,9 +21,9 @@
 
 // Local Imports
 use crate::{Result, output, settings::Settings};
-use dokime::client::PluginsCreateOptions;
-use dokime::client::plugin_placement::Kind;
-use dokime::client::{PluginPlacement, PluginRemote, PluginValue};
+use crate::client::PluginsCreateOptions;
+use crate::client::plugin_placement::Kind;
+use crate::client::{PluginPlacement, PluginRemote, PluginValue};
 
 /* === Constants === */
 

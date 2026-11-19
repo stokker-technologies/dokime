@@ -21,7 +21,7 @@
 
 // Local Imports
 use dokime::Metadata;
-use dokime::client::CyclesCreateOptions;
+use crate::client::CyclesCreateOptions;
 
 /* === Constants === */
 

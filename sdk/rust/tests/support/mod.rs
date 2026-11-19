@@ -14,7 +14,7 @@
 pub mod plugin;
 
 pub mod reference;
-pub mod server;
+
 
 /* === Re-Exports === */
 

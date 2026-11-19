@@ -20,8 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{Context, Record, Template};
-use dokime::{Error, Message, Result, encoding};
+use dokime::templates::Context;
+use dokime::plugin::{ Record, Template};
+use dokime::{Message, Result};
 
 /* === Constants === */
 
@@ -111,12 +112,7 @@ pub fn hold() -> Record<HoldEvent> {
 
 /// Decode the Last Record of a Type, Optionally Within One Step.
 pub async fn last<T: Message>(ctx: &Context, record: &Record<T>) -> Result<Option<T>> {
-    let records = ctx.records(record).list(0).await?;
-    records
-        .last
-        .map(|captured| <T as encoding::Message>::decode(captured.payload.as_slice()))
-        .transpose()
-        .map_err(|error| Error::Invalid(format!("Read {}: {error}", record.identifier())))
+    ctx.records(record).last_or_none().await
 }
 
 /* === Private Functions === */

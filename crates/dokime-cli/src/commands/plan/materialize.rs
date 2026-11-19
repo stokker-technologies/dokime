@@ -24,7 +24,7 @@ use prost_reflect::ReflectMessage;
 
 // Local Imports
 use dokime::Value;
-use dokime::client::{CasesCreateOptions, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
+use crate::client::{CasesCreateOptions, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
 use dokime_protocol::host::CasesCreateRequest;
 
 /* === Constants === */

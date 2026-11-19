@@ -21,8 +21,8 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use dokime::client::evidence_subject::Kind;
-use dokime::client::{EvidenceArchiveOptions, EvidenceSubject};
+use crate::client::evidence_subject::Kind;
+use crate::client::{EvidenceArchiveOptions, EvidenceSubject};
 
 /* === Constants === */
 

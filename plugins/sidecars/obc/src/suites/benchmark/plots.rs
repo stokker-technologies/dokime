@@ -26,7 +26,8 @@ use crate::records::charger;
 use crate::settings;
 use crate::streams::measurement::{self, charging};
 use crate::suites::{self, parameters, read_supply, supply, timing};
-use dokime::plugin::{Context, Criterion, Observer, Prompt, Record, Step, Stream, Template};
+use dokime::templates::Context;
+use dokime::plugin::{ Criterion, Observer, Prompt, Record, Step, Stream, Template};
 use dokime::{
     Card, ContourRender, DataExpression, Document, FieldReference, GridAxisEntry, GridChart, Plot, PlotKind, PlotStyle, PromptArchetype,
     Reduction, ReferenceBand, ReferenceLine, Result, Value, XyInterval, data_expression, model, value,
@@ -36,7 +37,7 @@ use dokime::{
 
 pub const TEMPLATE: &str = "obc.benchmark.plots";
 pub const SURVEY: &str = "obc.benchmark.plots.survey";
-const SAMPLES: &str = measurement::SAMPLES;
+const SAMPLES: &str = "obc.benchmark.plots.measurement";
 const STARTED: &str = "obc.benchmark.plots.started";
 const COMPLETED: &str = "obc.benchmark.plots.completed";
 
@@ -84,18 +85,18 @@ pub fn prompt() -> Prompt {
 pub fn template() -> Template {
     let survey = Stream::<Survey>::new("survey", "Thermal Channel Survey");
     let observer = Observer::new(&survey, scan).interval_setting(settings::SAMPLE_INTERVAL);
-    let template = parameters(Template::new("plots", "Plot Families"), supply());
+    let template = parameters(Template::of::<()>().identifier("plots").label("Plot Families"), supply());
     let template = charger::catalog(template).record(contracts()).prompt(prompt());
-    parameters(template, timing("Capture Duration", 0.25))
+    measurement::catalog(parameters(template, timing("Capture Duration", 0.25))
         .initialize(initialize)
         .step(Step::new("Capture Plot Inputs", capture).identifier("capture"))
         .step(Step::new("Confirm Plot Inputs", confirmation).identifier("confirmation"))
         .criterion(Criterion::new("Plot Inputs Captured", captured).identifier("captured"))
         .cleanup(cleanup)
-        .uses_stream(SAMPLES)
+        
         .stream(survey)
         .observer(observer)
-        .document(document())
+        .document(document()))
 }
 async fn initialize(ctx: &Context) -> Result<()> {
     ctx.set(Scan { point: Mutex::new(0) });

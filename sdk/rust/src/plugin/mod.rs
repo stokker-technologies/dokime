@@ -87,6 +87,17 @@ struct Assembly {
 /* === Implementations === */
 
 impl Plugin {
+    pub(crate) fn registration_identifier(&self) -> &str {
+        &self.assembly.identifier
+    }
+
+    pub(crate) fn template_bindings(&self) -> Vec<(std::any::TypeId, String, String)> {
+        self.assembly.suites.iter().flat_map(|suite| {
+            let identifier = suite.definition.metadata.as_ref().expect("Suite Metadata").identifier.clone();
+            suite.templates.iter().map(move |template| (template.marker, identifier.clone(), template.id().into()))
+        }).collect()
+    }
+
     pub fn of<T>(version: impl Into<String>) -> Self {
         let identifier = crate::authoring::code_name::<T>(true);
         let version = version.into();
@@ -211,7 +222,7 @@ impl Plugin {
     }
 
     // Finish Composition Without Opening a Socket or Running Author Callbacks.
-    fn into_harmos(self) -> Result<plugin::Plugin> {
+    pub(crate) fn into_harmos(self) -> Result<plugin::Plugin> {
         self.with_requirements().assemble()
     }
 
@@ -311,6 +322,17 @@ impl Plugin {
         let plugin = self.into_harmos()?;
         let plugin = if managed { plugin } else { plugin.remote() };
         plugin.serve().map_err(Error::from)
+    }
+
+    pub fn run_with(self, address: impl Into<String>) -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+        runtime.block_on(async move {
+            let mut listener = self.into_harmos()?.remote().start(address).await?;
+            println!("Plugin Listening on {}", listener.address());
+            tokio::signal::ctrl_c().await?;
+            listener.close().await?;
+            Ok(())
+        })
     }
 }
 

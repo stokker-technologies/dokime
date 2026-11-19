@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{ExecutionMode, ExecutionsStartOptions};
+use crate::client::{ExecutionMode, ExecutionsStartOptions};
 
 /* === Constants === */
 

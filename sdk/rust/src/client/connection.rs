@@ -29,7 +29,8 @@ use tonic::{
 
 // Local Imports
 use super::{CallOptions, StatusGetOptions};
-use crate::{Client, ClientSettings, Error, Result, StorageTransferSettings, configuration};
+use harmos::ClientSettings;
+use crate::{Client, Error, Result, StorageTransferSettings, configuration};
 
 /* === Constants === */
 
@@ -162,7 +163,7 @@ pub async fn connect_with(settings: ConnectionSettings) -> Result<Client> {
             let mut client = Client::from_channel(channel, bounds)?;
             client.context = context.clone();
             if let Some(expected) = &identity {
-                let reply = client.status.get_with(StatusGetOptions { context: context.clone() }).await?;
+                let reply = client.resources.status.get_with(StatusGetOptions { context: context.clone() }).await?;
                 let observed = reply.status.and_then(|status| status.identity).map(|identity| identity.host_id);
                 if observed.as_deref() != Some(expected) {
                     return Err(Error::Invalid("Connect: Host Identity Differs; Export a Pairing From the Intended Host".into()));

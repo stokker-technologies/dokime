@@ -93,17 +93,10 @@ fn plugin() -> Plugin {
     Plugin::of::<()>("1.0.0")
         .identifier("oven")
         .suite(Suite::of::<()>().identifier("oven").label("Oven").template(soak))
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .requires_host(HostOperation::EvidenceStatistics)
-        .requires_host(HostOperation::EvidenceLogsAppend)
-        .requires_host(HostOperation::ExecutionsProgressGet)
-        .requires_host(HostOperation::ExecutionsProgressSet)
-        .requires_host(HostOperation::TimeSleep)
 }
 
 async fn soak(ctx: &Context) -> Result<()> {
-    let door = ctx.host().prompts.create("door".into(), ctx.resolve("door")?, Default::default()).await?;
+    let door = ctx.prompt_answer(Prompt::new("door", "Door", "Close the Door"), Default::default()).await?;
     let hold_s = ctx.parameters::<Setpoint>()?.hold_s;
     if hold_s == 0 {
         return Err(Error::Invalid("Soak: Hold for at Least One Second".into()));
@@ -119,7 +112,7 @@ async fn soak(ctx: &Context) -> Result<()> {
 }
 
 async fn held(ctx: &Context) -> Result<bool> {
-    let statistics = ctx.statistics("temperature", "celsius", "soak").await?.statistics.unwrap_or_default();
+    let statistics = ctx.statistics("temperature", "celsius", "soak").await?.unwrap_or_default();
     Ok(statistics.count == 4
         && statistics.mean
             == Some(Value {

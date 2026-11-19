@@ -1,17 +1,17 @@
 /* ***
  *
- * Dokime
+ * Starter Project
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
-// A First Plugin With an Operator Prompt and Retained Evidence
+// Echo Operation
 
 /* === Modules === */
 
-mod suite;
+
 
 /* === Re-Exports === */
 
@@ -22,7 +22,8 @@ mod suite;
 // Third Party Imports
 
 // Local Imports
-use dokime::Result;
+use dokime::operations::{Context, Operation};
+use dokime::{Result, Visibility};
 
 /* === Constants === */
 
@@ -32,19 +33,28 @@ use dokime::Result;
 
 /* === Structs === */
 
+
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+
+
 /* === Public Functions === */
+
+pub fn operation() -> Operation {
+    Operation::new("example.echo", Visibility::Public, echo)
+}
 
 /* === Private Functions === */
 
-fn main() -> Result<()> {
-    let plugin = suite::plugin();
-    plugin.run()
+async fn echo(_ctx: &Context, request: String) -> Result<String> {
+    Ok(request)
 }
 
 /* === Tests === */
+
+

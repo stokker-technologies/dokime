@@ -28,14 +28,15 @@ use crate::records::charger::{self, Completed, Initialized, Started};
 use crate::settings;
 use crate::streams::measurement;
 use crate::suites::{self, attach, parameters, read_supply, sample_count, supply, timing};
-use dokime::plugin::{Context, Criterion, Record, Step, Template};
+use dokime::templates::Context;
+use dokime::plugin::{ Criterion, Record, Step, Template};
 use dokime::{Document, Error, Parameter, Result, Severity};
 
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.transient.startup";
 pub const CHECKPOINT: &str = "obc.transient.startup.checkpoint";
-const SAMPLES: &str = measurement::SAMPLES;
+const SAMPLES: &str = "obc.transient.startup.measurement";
 
 // The Largest Reference Image the Evidence Step Attaches.
 const MOST_IMAGE_BYTES: u64 = 4 * 1024 * 1024;
@@ -75,7 +76,7 @@ pub fn checkpoint() -> Record<Checkpoint> {
 }
 
 pub fn template() -> Template {
-    let template = Template::new("startup", "Start-Up Sequence")
+    let template = Template::of::<()>().identifier("startup").label("Start-Up Sequence")
         .description("Measure the AC start-up inrush, inspect the charger, then observe settling.")
         .tag("device")
         .tag("startup");
@@ -91,7 +92,7 @@ pub fn template() -> Template {
             Parameter::flag("continuous", "Observe Until Stopped").default(false).build(),
         ],
     );
-    template
+    measurement::catalog(template
         .initialize(initialize)
         .record(checkpoint())
         .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
@@ -104,8 +105,8 @@ pub fn template() -> Template {
                 .description("Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."),
         )
         .cleanup(cleanup)
-        .uses_stream(SAMPLES)
-        .document(document())
+        
+        .document(document()))
 }
 
 pub fn document() -> Document {

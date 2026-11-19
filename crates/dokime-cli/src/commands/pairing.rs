@@ -33,9 +33,9 @@ use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use crate::Result;
 use crate::error::Error;
 use crate::settings::Settings;
-use dokime::Client;
-use dokime::client::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions};
-use dokime::client::{CallOptions, StatusGetOptions};
+use crate::client::Client;
+use crate::client::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions};
+use crate::client::{CallOptions, StatusGetOptions};
 
 /* === Constants === */
 

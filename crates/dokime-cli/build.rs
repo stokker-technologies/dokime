@@ -50,6 +50,14 @@ const UNKNOWN: &str = "unknown";
 
 fn main() {
     embed_examples();
+    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo Manifest Directory"));
+    let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo Build Output"));
+    fs::copy(manifest.join("src/client.rs"), output.join("cli_client.rs")).expect("Compile the Private CLI Client in Stories");
+    for (source, destination) in [("resources.rs", "client_resources.rs"), ("types.rs", "client_types.rs")] {
+        let path = manifest.join("../../sdk/rust/src/client").join(source);
+        println!("cargo:rerun-if-changed={}", path.display());
+        fs::copy(path, output.join(destination)).expect("Compile Shared Generated Client Bindings Privately in the CLI");
+    }
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=Cargo.toml");
@@ -71,7 +79,7 @@ fn embed_examples() {
     let mut source = String::new();
     embed_csharp(&repository, &mut source);
     for (name, language, folders) in
-        [("RUST", "rust", &["plugin", "test"][..]), ("PYTHON", "python", &["starter"][..]), ("CPP", "cpp", &["plugin", "test"][..])]
+        [("RUST", "rust", &["starter"][..]), ("PYTHON", "python", &["starter"][..]), ("CPP", "cpp", &["plugin", "test"][..])]
     {
         source.push_str(&format!("const {name}: &[(&str, &[u8])] = &[\n"));
         for folder in folders {
@@ -100,7 +108,7 @@ fn embed_examples() {
                 }
                 let path = repository.join(file);
                 assert!(fs::symlink_metadata(&path).expect("Read example file type").is_file(), "Embed Example: Use Regular Files");
-                let destination = if language == "python" { relative.to_owned() } else { format!("{folder}/{relative}") };
+                let destination = if language != "cpp" { relative.to_owned() } else { format!("{folder}/{relative}") };
                 source.push_str(&format!("({destination:?}, include_bytes!({:?})),\n", path.canonicalize().expect("Resolve example file")));
             }
         }

@@ -22,7 +22,6 @@ import unittest
 from asyncio.subprocess import Process
 from pathlib import Path
 from typing import Protocol, cast
-from xml.sax.saxutils import escape
 from zipfile import ZipFile
 
 # Third Party Imports
@@ -74,6 +73,8 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             str(project),
             "--lang",
             "csharp",
+            "--from",
+            str(repository),
             env=environment,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
@@ -83,15 +84,6 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         output, _ = await asyncio.wait_for(process.communicate(), timeout)
         self.assertEqual(process.returncode, 0, output.decode())
 
-        # Point Only This Disposable Consumer at the Worktree SDK.
-        manifest = project / "src/CreatedStarter/CreatedStarter.csproj"
-        dependency = escape(str(repository / "sdk/csharp/src/Dokime/Dokime.csproj"))
-        manifest.write_text(
-            manifest.read_text().replace(
-                '<PackageReference Include="Dokime" Version="[0.1.0-dev]" />',
-                f'<ProjectReference Include="{dependency}" />',
-            )
-        )
         process = await asyncio.create_subprocess_exec(
             "mise",
             "-C",

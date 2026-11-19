@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::PromptsGetOptions;
+use crate::client::PromptsGetOptions;
 
 /* === Constants === */
 

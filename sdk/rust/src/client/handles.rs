@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    any::TypeId,
     collections::HashMap,
     sync::{
         Arc,
@@ -26,6 +27,7 @@ use std::{
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
+use tokio::sync::Mutex;
 
 // Local Imports
 use super::mutations::{
@@ -42,7 +44,7 @@ use super::{
     CasesCreateOptions, CasesGetOptions, CasesParametersOptions, ContentArtifactsCreateOptions, CyclesCreateOptions, CyclesGetOptions,
     CyclesSealOptions, CyclesWatchOptions, EvidenceArchiveOptions, EvidenceNotesCreateOptions, ExecutionsCancelOptions,
     ExecutionsCreateOptions, ExecutionsGetOptions, ExecutionsProgressWatchOptions, ExecutionsSealOptions, ExecutionsStartOptions,
-    ExecutionsStopOptions, FilesGetOptions, FilesReadOptions, SuitesListOptions,
+    ExecutionsStopOptions, FilesGetOptions, FilesReadOptions,
 };
 use super::{
     CasesListOptions, CyclesListOptions, ExecutionFilter, ExecutionOrder, ExecutionSelection, ExecutionState, ExecutionsListOptions,
@@ -50,7 +52,7 @@ use super::{
 use super::{PluginsDeleteOptions, PluginsGetOptions, PluginsListOptions};
 use super::{Watching, queries::Paging};
 use crate::{
-    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value, authoring,
+    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value,
 };
 
 /* === Constants === */
@@ -64,6 +66,20 @@ use crate::{
 #[derive(Default)]
 pub(super) struct Lifetime {
     closed: AtomicBool,
+    owned: Mutex<Vec<OwnedRegistration>>,
+}
+
+struct OwnedRegistration {
+    identifier: String,
+    listener: harmos::plugin::Listener,
+    detached: Arc<AtomicBool>,
+    bindings: Vec<(TypeId, String, String)>,
+}
+
+#[derive(Default)]
+pub struct PluginRegisterOptions {
+    pub address: Option<String>,
+    pub request_id: Option<String>,
 }
 
 pub struct Plugins {
@@ -211,12 +227,95 @@ impl Client {
         Cycle::bind(self.clone(), reply.cycle.ok_or_else(|| invalid("Create Cycle", "Return a Bound Cycle"))?)
     }
     pub async fn close(&self) -> Result<()> {
+        let mut owned = self.lifetime.owned.lock().await;
+        let mut failures = Vec::new();
+        for registration in owned.iter_mut() {
+            if !registration.detached.load(Ordering::Acquire) {
+                let removed = async {
+                    let entry = self.resources.plugins.get_with(&registration.identifier, PluginsGetOptions {
+                        context: self.context.clone(), ..Default::default()
+                    }).await?.entry.ok_or_else(|| invalid("Close Client", "Read the Owned Plugin Entry"))?;
+                    self.resources.plugins.delete_with(&registration.identifier, entry.revision, PluginsDeleteOptions {
+                        context: self.context.clone()
+                    }).await?;
+                    registration.detached.store(true, Ordering::Release);
+                    Result::Ok(())
+                }.await;
+                if let Err(error) = removed {
+                    failures.push(error.to_string());
+                }
+            }
+            if let Err(error) = registration.listener.close().await {
+                failures.push(error.to_string());
+            }
+        }
+        if !failures.is_empty() {
+            return Err(invalid("Close Client", &format!("Resolve Cleanup Failures and Retry Close: {}", failures.join("; "))));
+        }
+        owned.clear();
         self.lifetime.closed.store(true, Ordering::Release);
         Ok(())
     }
 }
 
 impl Plugins {
+    pub async fn register(&self, plugin: crate::Plugin) -> Result<RegisteredPlugin> {
+        self.register_with(plugin, PluginRegisterOptions::default()).await
+    }
+
+    pub async fn register_with(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
+        let mut owned = self.client.lifetime.owned.lock().await;
+        self.client.ensure_open()?;
+        let values = crate::configuration::load()?;
+        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", options.address.as_deref(), &values)?;
+        let identifier = plugin.registration_identifier().to_owned();
+        let bindings = plugin.template_bindings();
+        let plugin = plugin.into_harmos()?.remote();
+        let mut listener = plugin.start(address).await?;
+        let placement = super::PluginPlacement { kind: Some(super::plugin_placement::Kind::Remote(super::PluginRemote {
+            url: format!("http://{}", listener.address()),
+        })) };
+        let created = self.client.resources.plugins.create_with(&identifier, placement, super::PluginValue {
+            enabled: true, ..Default::default()
+        }, super::PluginsCreateOptions {
+            request_id: Some(mutations::request_id(options.request_id)?), context: self.client.context.clone()
+        }).await;
+        let reply = match created {
+            Ok(reply) => reply,
+            Err(error) => {
+                listener.close().await?;
+                return Err(error.into());
+            }
+        };
+        let entry = reply.entry.ok_or_else(|| invalid("Register Plugin", "Return Its Registry Entry"))?;
+        let detached = Arc::new(AtomicBool::new(false));
+        owned.push(OwnedRegistration { identifier: entry.name.clone(), listener, detached: detached.clone(), bindings });
+        let mut registered = RegisteredPlugin { client: self.client.clone(), entry, detached };
+        drop(owned);
+        let readiness = async {
+            if registered.state()? == PluginState::Ready {
+                return Ok(());
+            }
+            let mut watch = self.client.resources.plugins.watch_with(super::PluginsWatchOptions {
+                name: Some(registered.identifier().into()), context: self.client.context.clone(), ..Default::default()
+            }).await?;
+            while let Some(_frame) = watch.next().await? {
+                registered.refresh().await?;
+                match registered.state()? {
+                    PluginState::Ready => return Ok(()),
+                    PluginState::Connecting => {},
+                    _ => return Err(invalid("Register Plugin", "Resolve the Plugin Activation Failure and Register Again")),
+                }
+            }
+            Err(invalid("Register Plugin", "Keep the Host Connected Until the Plugin Is Ready"))
+        }.await;
+        if let Err(error) = readiness {
+            registered.unregister().await?;
+            return Err(error);
+        }
+        Ok(registered)
+    }
+
     pub async fn list(&self) -> Result<Vec<RegisteredPlugin>> {
         self.client.ensure_open()?;
         let values = self
@@ -306,6 +405,10 @@ impl RegisteredPlugin {
             .delete_with(self.identifier(), value.entry.revision, PluginsDeleteOptions { context: self.client.context.clone() })
             .await?;
         self.detached.store(true, Ordering::Release);
+        let mut owned = self.client.lifetime.owned.lock().await;
+        if let Some(registration) = owned.iter_mut().find(|registration| registration.identifier == self.identifier()) {
+            registration.listener.close().await?;
+        }
         Ok(())
     }
 }
@@ -329,29 +432,14 @@ impl Cases {
     }
     pub async fn materialize<T: 'static>(&self) -> Result<Vec<Case>> {
         self.client.ensure_open()?;
-        let identifier = authoring::code_name::<T>(true);
-        let suites = self
-            .client
-            .resources
-            .suites
-            .list_with(
-                "",
-                SuitesListOptions {
-                    context: self.client.context.clone(),
-                    ..Default::default()
-                },
-            )
-            .await?;
         let mut matches = Vec::new();
-        for suite in suites.values {
-            let suite_id = suite.metadata.ok_or_else(|| invalid("Materialize Cases", "Read Suite Metadata"))?.identifier;
-            for template in suite.templates {
-                let template_id = template.metadata.ok_or_else(|| invalid("Materialize Cases", "Read Template Metadata"))?.identifier;
-                if template_id.rsplit('.').next() == Some(identifier.as_str()) {
-                    matches.push((suite_id.clone(), template_id));
-                }
+        let owned = self.client.lifetime.owned.lock().await;
+        for registration in owned.iter().filter(|entry| !entry.detached.load(Ordering::Acquire)) {
+            for (marker, suite, template) in &registration.bindings {
+                if *marker == TypeId::of::<T>() { matches.push((suite.clone(), template.clone())); }
             }
         }
+        drop(owned);
         if matches.len() != 1 {
             return Err(invalid("Materialize Cases", "Register Exactly One Plugin Containing the Selected Template Type"));
         }

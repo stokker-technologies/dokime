@@ -73,7 +73,7 @@ struct Decoder<T: Payload> {
 
 // One Query Owns Its First Durable Cut and Every Continuation at That Cut.
 #[derive(Default)]
-pub(super) struct Paging {
+pub(crate) struct Paging {
     pub at: Option<ReadCut>,
     pub token: String,
     seen: HashSet<String>,

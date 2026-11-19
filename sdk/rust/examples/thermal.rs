@@ -176,15 +176,8 @@ async fn within_limit(ctx: &Context) -> Result<bool> {
     let stats = ctx
         .statistics("temperature", "celsius", "hold")
         .await?
-        .statistics
         .ok_or_else(|| Error::Invalid("Read Statistics: Missing Payload".into()))?;
-    let records = ctx.records(&Record::<Door>::new("door", "Door Check")).step(hold).list(0).await?;
-    let closed = records
-        .last
-        .map(|record| <Door as dokime::encoding::Message>::decode(record.payload.as_slice()))
-        .transpose()
-        .map_err(|error| Error::Invalid(error.to_string()))?
-        .is_some_and(|door| door.closed);
+    let closed = ctx.records(&Record::<Door>::new("door", "Door Check")).step(hold).last_or_none().await?.is_some_and(|door| door.closed);
     Ok(stats.count > 0
         && matches!(stats.max.as_ref().and_then(|value| value.kind.as_ref()), Some(value::Kind::Number(value)) if *value <= ctx.get::<Bench>()?.limit)
         && closed)

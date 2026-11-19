@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::PromptsAnswersCreateOptions;
-use dokime::client::PromptsListOptions;
+use crate::client::PromptsAnswersCreateOptions;
+use crate::client::PromptsListOptions;
 
 /* === Constants === */
 

@@ -31,8 +31,9 @@ use tonic::transport::{Channel, Endpoint};
 
 // Local Imports
 use crate::{Result, commands::pairing, error::Error};
-use dokime::client::{self, CallOptions};
-use dokime::{Client, StorageTransferSettings};
+use crate::client::{self, CallOptions};
+use crate::client::Client;
+use dokime::{ StorageTransferSettings};
 use dokime_runtime::{
     CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},

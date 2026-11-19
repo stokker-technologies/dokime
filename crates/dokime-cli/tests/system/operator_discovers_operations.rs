@@ -52,7 +52,7 @@ fn operator_discovers_operations() -> Result<(), Box<dyn std::error::Error>> {
 
             // Compare the Complete Discovery With the Client Catalog
             let channel = tonic::transport::Endpoint::from_shared(host.endpoint.clone())?.connect().await?;
-            let client = dokime::Client::from_channel(channel, super::client_settings())?;
+            let client = crate::client::Client::from_channel(channel, super::client_settings())?;
             let reply = client.operations.list().await?;
             let actual = listed["operations"].as_array().ok_or("List Operations: Missing Operations")?;
             assert_eq!(actual.len(), reply.len());

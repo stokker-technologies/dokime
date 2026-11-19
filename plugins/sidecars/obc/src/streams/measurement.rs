@@ -23,12 +23,13 @@
 use crate::device::Bench;
 use crate::device::Reading;
 use crate::{settings, suites};
-use dokime::plugin::{Context, Observer, Plugin, Stream};
+use dokime::templates::Context;
+use dokime::plugin::{ Observer, Stream};
 use dokime::{Document, FieldReference, Plot, PlotKind, Result, model};
 
 /* === Constants === */
 
-pub const SAMPLES: &str = "obc.measurement";
+pub const SAMPLES: &str = "measurement";
 
 /* === Macros === */
 
@@ -81,14 +82,14 @@ impl Measurement {
 
 /* === Public Functions === */
 
-pub fn catalog(plugin: Plugin) -> Plugin {
+pub fn catalog(template: dokime::templates::Template) -> dokime::templates::Template {
     let stream = Stream::<Measurement>::new(SAMPLES, "Charger Measurements");
     let observer = Observer::new(&stream, measure).interval_setting(settings::SAMPLE_INTERVAL);
-    plugin.stream(stream).observer(observer)
+    template.stream(stream).observer(observer)
 }
 
 async fn measure(ctx: &Context) -> Result<Measurement> {
-    if !suites::captures(ctx, SAMPLES) {
+    if !suites::captures(ctx, &ctx.resolve(SAMPLES)?) {
         return Ok(Measurement::default());
     }
     let (index, reading, phase) = ctx.get::<Bench>()?.sample();

@@ -26,9 +26,9 @@ use tokio::io::AsyncReadExt;
 // Local Imports
 use crate::{Result, output, settings::Settings};
 use dokime::FileMetadata;
-use dokime::client::PluginsCreateOptions;
-use dokime::client::plugin_placement::Kind;
-use dokime::client::{
+use crate::client::PluginsCreateOptions;
+use crate::client::plugin_placement::Kind;
+use crate::client::{
     FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginManaged,
     PluginPlacement, PluginValue,
 };

@@ -13,7 +13,7 @@
 
 /* === Re-Exports === */
 
-pub use crate::client::{Client, ClientSettings, Method};
+pub use crate::client::Client;
 pub use crate::operations::Operation;
 pub use crate::plugin::{Criterion, HostOperation, Observer, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template, Window};
 pub use crate::{Error, Message, OperationPolicy, Parameters, Result, Row, Settings, Visibility};

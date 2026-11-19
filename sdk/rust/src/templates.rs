@@ -38,6 +38,12 @@ use crate::{CaptureGap, CapturedArtifact, Card};
 
 /* === Structs === */
 
+pub struct PromptAnswer {
+    pub accepted: bool,
+    pub action: String,
+    pub values: std::collections::HashMap<String, crate::Value>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct CaptureResult {
     pub artifacts: Vec<CapturedArtifact>,

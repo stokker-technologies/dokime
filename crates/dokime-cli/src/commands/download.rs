@@ -23,9 +23,9 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime::Client;
+use crate::client::Client;
 use dokime::FileReference;
-use dokime::client::{FilesGetOptions, FilesReadOptions};
+use crate::client::{FilesGetOptions, FilesReadOptions};
 
 /* === Constants === */
 

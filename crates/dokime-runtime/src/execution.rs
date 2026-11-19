@@ -509,7 +509,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         };
         states.push(RunState::Initializing);
         host.set_run_phase(&execution, "initializing")?;
-        let mut initialized = template.initialize.is_none();
+        let mut initialization_started = template.initialize.is_none();
         let mut sampling = false;
         let mut evaluated = Vec::new();
         let result: Result<()> = async {
@@ -517,6 +517,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                 return Err(Error::Cancelled);
             }
             if let Some(operation) = &template.initialize {
+                initialization_started = true;
                 dispatch
                     .invoke::<_, ExecutionsInitializeResponse>(
                         operation,
@@ -527,7 +528,6 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                         },
                     )
                     .await?;
-                initialized = true;
             }
             // The Plugin Has Registered the Unit, So the Host May Now Grant Its Stream Windows.
             // The Scope Samples Exactly the Case's Streams; the Library Refuses Any the Plugin Does Not Declare.
@@ -640,7 +640,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             let error = samples_settlement("Stop Execution Samples", &source, &case.streams);
             dispatch.resources.failure("streams", &error)?;
         }
-        if initialized && let Some(operation) = &template.cleanup {
+        if initialization_started && let Some(operation) = &template.cleanup {
             let cleanup = dispatch
                 .invoke::<_, ExecutionsCleanupResponse>(
                     operation,

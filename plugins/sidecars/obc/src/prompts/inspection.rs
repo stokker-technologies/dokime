@@ -22,7 +22,8 @@ use std::collections::HashMap;
 
 // Local Imports
 use dokime::Metadata;
-use dokime::plugin::{Context, Prompt};
+use dokime::templates::Context;
+use dokime::plugin::{ Prompt};
 use dokime::{PromptArchetype, PromptField, PromptFieldKind, Result, Value, ValueType, value};
 
 /* === Constants === */
@@ -62,7 +63,7 @@ pub async fn inspect(ctx: &Context, prompt: &str, note: &str) -> Result<Inspecti
             kind: Some(value::Kind::Text(note.into())),
         },
     )]);
-    let answer = ctx.host().prompts.create(instance(prompt), ctx.resolve(prompt)?, values).await?;
+    let answer = ctx.prompt_answer(Prompt::new(instance(prompt), "Charger Inspection", "Inspect the Charger"), values).await?;
     let passed = matches!(answer.values.get("inspection_passed").and_then(|value| value.kind.as_ref()), Some(value::Kind::Boolean(true)));
     let note = match answer.values.get("operator_note").and_then(|value| value.kind.as_ref()) {
         Some(value::Kind::Text(text)) => text.clone(),

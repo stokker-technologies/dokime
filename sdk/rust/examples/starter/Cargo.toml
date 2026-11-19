@@ -17,9 +17,9 @@
 # === Package === #
 
 [package]
-name = "dokime-example-test"
+name = "starter-project"
 version = "0.1.0"
-description = "Example Plugin"
+description = "Starter Project"
 authors = ["Your Name"]
 license = "Apache-2.0"
 repository = "https://github.com/your-organization/your-project"
@@ -28,9 +28,17 @@ publish = false
 
 # === Package Targets === #
 
+[lib]
+name = "starter_project"
+path = "src/lib.rs"
+
 [[bin]]
-name = "dokime-example-test"
+name = "starter-project"
 path = "src/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
 
 # === Features === #
 
@@ -59,6 +67,7 @@ dokime = "0.1.5"
 # Concurrency
 
 # Async
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 
 # Networking
 
@@ -74,7 +83,7 @@ dokime = "0.1.5"
 
 [dev-dependencies]
 # Async
-tokio = { version = "1.50.0", features = ["macros", "rt"] }
+
 
 # === Target Dependencies === #
 

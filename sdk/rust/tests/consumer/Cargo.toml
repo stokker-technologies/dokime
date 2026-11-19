@@ -56,7 +56,7 @@ path = "../fixtures/history.rs"
 
 [[bin]]
 name = "dokime-rust-test"
-path = "../../examples/test/src/main.rs"
+path = "../fixtures/confirmation/main.rs"
 
 [[bin]]
 name = "dokime-sdk-consumer"
@@ -64,11 +64,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "dokime-rust-plugin"
-path = "../../examples/plugin/src/main.rs"
-
-[[bin]]
-name = "dokime-rust-client"
-path = "../../examples/client/src/main.rs"
+path = "../fixtures/plugin.rs"
 
 # === Features === #
 
@@ -118,8 +114,8 @@ tokio = { version = "1.50.0", features = ["macros", "sync", "rt-multi-thread", "
 dokime-protocol = { path = "../../../../crates/dokime-protocol" }
 
 # Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a037b73e7a60e5fd4be50dbff72779c95ef7cc45", default-features = false, features = [
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "f3c858c33efdebc94b33a44e112f28703932f4a1" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "f3c858c33efdebc94b33a44e112f28703932f4a1", default-features = false, features = [
   "grpc",
 ] }
 
@@ -165,7 +161,7 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Secur
 
 [[test]]
 name = "capture"
-path = "../../examples/test/src/suite.rs"
+path = "src/capture.rs"
 
 [[test]]
 name = "integration"

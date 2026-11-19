@@ -34,7 +34,6 @@ use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
 
 // Local Imports
-use crate::EvidenceStatisticsResponse;
 use crate::OperationPolicy;
 use crate::Record;
 use crate::RecordsListResponse;
@@ -377,6 +376,23 @@ impl Context {
         crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
     }
 
+    pub async fn setting(&self, identifier: &str) -> Result<crate::SettingValue> {
+        let response = self.host().plugins.settings.list().await?;
+        response.value.and_then(|mut settings| settings.values.remove(identifier))
+            .ok_or_else(|| Error::Invalid(format!("Read Setting: Declare and Configure {identifier}")))
+    }
+
+    pub async fn prompt_answer(&self, prompt: impl Into<Prompt>, values: HashMap<String, crate::Value>) -> Result<crate::templates::PromptAnswer> {
+        let prompt = prompt.into();
+        let mut definition = prompt.definition;
+        let metadata = definition.metadata.as_mut().expect("Prompt Metadata");
+        metadata.identifier = self.resolve(&metadata.identifier)?;
+        let identifier = metadata.identifier.clone();
+        let answer = self.host().prompts.create_with(identifier.clone(), if prompt.declared { identifier } else { String::new() }, values,
+            HostPromptsCreateOptions { definition: Some(definition), ..Default::default() }).await?;
+        Ok(crate::templates::PromptAnswer { accepted: answer.accepted, action: answer.action, values: answer.values })
+    }
+
     pub fn resolve(&self, local: &str) -> Result<String> {
         let Some(origin::Kind::PluginRun(run)) = self.origin()?.kind.as_ref() else {
             return Err(Error::Invalid("Resolve Declaration: Call From a Template Operation".into()));
@@ -451,9 +467,9 @@ impl Context {
 
     pub async fn statistics(
         &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>,
-    ) -> Result<EvidenceStatisticsResponse> {
+    ) -> Result<Option<crate::Statistics>> {
         let step = step.into();
-        self.call_with(
+        let response = self.call_with(
             EvidenceStatisticsRequest {
                 stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
                     stream.as_ref().into()
@@ -466,7 +482,8 @@ impl Context {
             },
             None,
         )
-        .await
+        .await?;
+        Ok(response.statistics)
     }
     pub async fn progress(&self, completed: u64, total: u64, label: impl Into<String>) -> Result<()> {
         self.progress_with(completed, total, label, ProgressSetOptions::default()).await
@@ -696,7 +713,7 @@ impl<T: Payload> RecordsQuery<'_, T> {
         self
     }
 
-    pub async fn list(&self, limit: u32) -> Result<RecordsListResponse> {
+    async fn read(&self, limit: u32) -> Result<RecordsListResponse> {
         let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
         self.context
             .call_with(
@@ -712,8 +729,36 @@ impl<T: Payload> RecordsQuery<'_, T> {
     }
 
     pub async fn last(&self) -> Result<T> {
-        let record = self.list(1).await?.last.ok_or_else(|| Error::Invalid("Read Record: Capture a Value Before Reading It".into()))?;
+        let record = self.read(1).await?.last.ok_or_else(|| Error::Invalid("Read Record: Capture a Value Before Reading It".into()))?;
         payload::decode(&record.payload)
+    }
+
+    pub async fn count(&self) -> Result<u64> {
+        Ok(self.read(1).await?.count)
+    }
+
+    pub async fn last_or_none(&self) -> Result<Option<T>> {
+        self.read(1).await?.last.map(|record| payload::decode(&record.payload)).transpose()
+    }
+
+    pub async fn rows(&self) -> Result<Vec<crate::templates::RecordRow<T>>> {
+        let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
+        let mut paging = crate::client::queries::Paging::default();
+        let mut rows = Vec::new();
+        loop {
+            let page = self.context.call_with(RecordsListRequest {
+                record_type: self.context.resolve(self.record.identifier())?, step: step.clone(),
+                at: paging.at.clone(), page: Some(PageRequest { page_token: paging.token.clone(), ..Default::default() }), ..Default::default()
+            }, None).await?;
+            for record in page.records {
+                rows.push(crate::templates::RecordRow { identifier: record.record_id, ordinal: record.sequence, timestamp: record.timestamp, value: payload::decode(&record.payload)? });
+            }
+            if !paging.advance(page.resolved_at, page.next_page_token)? { return Ok(rows); }
+        }
+    }
+
+    pub async fn all(&self) -> Result<Vec<T>> {
+        Ok(self.rows().await?.into_iter().map(|row| row.value).collect())
     }
 }
 

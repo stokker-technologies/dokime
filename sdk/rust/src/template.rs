@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    any::TypeId,
     collections::{HashMap, HashSet},
     sync::Arc,
 };
@@ -71,6 +72,7 @@ pub struct Criterion {
 
 // An Inert Template. Its Materializer Never Creates Execution Resources.
 pub struct Template {
+    pub(crate) marker: TypeId,
     definition: TestCaseTemplate,
     initialize: Option<Action<()>>,
     cleanup: Option<Action<()>>,
@@ -190,10 +192,11 @@ impl Template {
         &self.definition.metadata.as_ref().expect("Template Metadata").identifier
     }
 
-    pub fn of<T>() -> Self {
+    pub fn of<T: 'static>() -> Self {
         let identifier = code_name::<T>(true);
         let label = crate::authoring::type_label::<T>();
         Self {
+            marker: TypeId::of::<T>(),
             definition: TestCaseTemplate {
                 metadata: Some(Metadata {
                     identifier: identifier.clone(),

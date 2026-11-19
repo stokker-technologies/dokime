@@ -23,7 +23,7 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime::client::CasesCreateOptions;
+use crate::client::CasesCreateOptions;
 use dokime_protocol::host::CasesCreateRequest;
 
 /* === Constants === */

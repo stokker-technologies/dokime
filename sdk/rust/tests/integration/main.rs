@@ -18,7 +18,7 @@ pub mod process;
 
 
 mod authoring;
-mod client;
+
 mod data;
 mod resource_release;
 mod resources;

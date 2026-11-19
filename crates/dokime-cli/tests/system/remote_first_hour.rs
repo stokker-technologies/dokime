@@ -29,9 +29,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime::Client;
+use crate::client::Client;
 use dokime::Metadata;
-use dokime::client::{CyclesCreateOptions, ExecutionBinding, FilesReadOptions, ReportSubject, report_subject};
+use crate::client::{CyclesCreateOptions, ExecutionBinding, FilesReadOptions, ReportSubject, report_subject};
 use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 /* === Constants === */
@@ -63,7 +63,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 // Generate the SDK's Starter and Start the New Host
                 let directory = super::credentials::tempdir()?;
                 let project = directory.path().join(language);
-                super::run(&["new", project.to_str().unwrap(), "--lang", language]).await?;
+                super::run(&["new", project.to_str().unwrap(), "--lang", language, "--from", super::root().to_str().unwrap()]).await?;
                 // Select the Development Input
                 let input = if language == "rust" {
                     let executable = super::fixtures().join(format!("dokime-example-test{}", EXE_SUFFIX));
@@ -76,13 +76,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
                     bundle
                 } else {
-                    // Resolve the SDK Candidate Exported by This Worktree.
-                    let input = project.clone();
-                    let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
-                    let manifest = input.join("pyproject.toml");
-                    let contents = fs::read_to_string(&manifest)?;
-                    fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
-                    input
+                    project.clone()
                 };
 
                 // Start One Disposable Application with Its Plugin
@@ -119,7 +113,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         "--suite",
                         suite,
                         "--template",
-                        if language == "python" { "capture.confirmation" } else { "capture" },
+                        "capture.confirmation",
                         "--out",
                         cases.to_str().unwrap(),
                     ];

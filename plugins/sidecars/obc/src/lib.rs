@@ -28,7 +28,7 @@ pub mod suites;
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{HostOperation, Plugin};
+use dokime::plugin::{Plugin};
 use dokime::{Declarations, Result};
 
 /* === Constants === */
@@ -51,35 +51,14 @@ pub const IDENTIFIER: &str = "obc";
 
 /// Compose the Plugin-Level Catalogs and the Execution-Owned Templates.
 pub fn plugin() -> Result<Plugin> {
-    let mut plugin = Plugin::new(IDENTIFIER, env!("CARGO_PKG_VERSION"));
+    let mut plugin = Plugin::of::<()>(env!("CARGO_PKG_VERSION")).identifier(IDENTIFIER);
     for suite in suites::catalog() {
         plugin = plugin.suite(suite);
     }
     let plugin = operations::catalog(plugin)?;
-    let plugin = streams::catalog(plugin);
     let mut plugin = plugin;
     for setting in settings::catalog() {
         plugin = plugin.setting(setting);
-    }
-    for operation in [
-        HostOperation::PromptsCreate,
-        HostOperation::EvidenceRecordsAppend,
-        HostOperation::EvidenceRecordsList,
-        HostOperation::EvidenceStatistics,
-        HostOperation::EvidenceLogsAppend,
-        HostOperation::EvidenceTraceabilityGet,
-        HostOperation::EvidenceTraceabilitySet,
-        HostOperation::ExecutionsProgressGet,
-        HostOperation::ExecutionsProgressSet,
-        HostOperation::FilesUploadsCreate,
-        HostOperation::FilesUploadsAppend,
-        HostOperation::FilesUploadsPublish,
-        HostOperation::ContentArtifactsCreate,
-        HostOperation::PluginsSettingsList,
-        HostOperation::TimeGet,
-        HostOperation::TimeSleep,
-    ] {
-        plugin = plugin.requires_host(operation);
     }
     Ok(plugin)
 }

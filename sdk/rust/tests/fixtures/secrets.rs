@@ -89,9 +89,9 @@ fn main() -> Result<()> {
 
 async fn read(ctx: &Context) -> Result<()> {
     let identifier = ctx.parameters::<Parameters>()?.identifier;
-    let result = match ctx.host().secrets.get(identifier).await {
+    let result = match ctx.secret(&identifier).await {
         Ok(secret) => ReadResult {
-            value: String::from_utf8(secret.secret).map_err(|error| Error::Invalid(error.to_string()))?,
+            value: String::from_utf8(secret).map_err(|error| Error::Invalid(error.to_string()))?,
             refusal: String::new(),
         },
         Err(error) => ReadResult {

@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 // Local Imports
 use crate::device::{Charger, Power, Supply};
-use dokime::plugin::{Context, Operation};
+use dokime::operations::{Context, Operation};
 use dokime::{Message, Result, Visibility};
 
 /* === Constants === */
@@ -95,10 +95,11 @@ impl Manual {
         [read, set_power]
     }
 
-    /// Power Down When the Plugin Stops.
-    pub fn power_down(&self) -> Result<()> {
+}
+
+impl Drop for Manual {
+    fn drop(&mut self) {
         self.charger.lock().unwrap_or_else(PoisonError::into_inner).stop();
-        Ok(())
     }
 }
 

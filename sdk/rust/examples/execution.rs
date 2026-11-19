@@ -23,7 +23,6 @@ use std::time::Duration;
 
 // Local Imports
 use dokime::RetryPolicy;
-use dokime::encoding;
 use dokime::model::Section;
 use dokime::plugin::HostEvidenceStatisticsOptions;
 use dokime::templates::Context;
@@ -186,7 +185,7 @@ async fn read(ctx: &Context) -> Result<Reading> {
 }
 
 async fn own_measurements(ctx: &Context) -> Result<bool> {
-    let stats = ctx.statistics("reading", "", "measure").await?;
+    let stats = ctx.host().evidence.statistics_with(ctx.resolve("reading")?, "value".into(), HostEvidenceStatisticsOptions { step: Some(ctx.resolve("measure")?), ..Default::default() }).await?;
     let repeated = ctx
         .host()
         .evidence
@@ -200,19 +199,14 @@ async fn own_measurements(ctx: &Context) -> Result<bool> {
             },
         )
         .await?;
-    let mut latest = ctx.statistics("reading", "value", "measure").await?;
+    let mut latest = ctx.host().evidence.statistics_with(ctx.resolve("reading")?, "value".into(), HostEvidenceStatisticsOptions { step: Some(ctx.resolve("measure")?), ..Default::default() }).await?;
     let advanced = latest.resolved_at.as_ref().zip(stats.resolved_at.as_ref()).is_some_and(|(latest, first)| {
         latest.positions.iter().any(|current| {
             first.positions.iter().any(|previous| current.history == previous.history && current.sequence > previous.sequence)
         })
     });
     latest.resolved_at = stats.resolved_at.clone();
-    let records = ctx.records(&Record::<Attempt>::new("attempt", "Attempt")).step(measure).list(1).await?;
-    let attempt = records
-        .last
-        .map(|record| <Attempt as encoding::Message>::decode(record.payload.as_slice()))
-        .transpose()
-        .map_err(|error| Error::Invalid(error.to_string()))?;
+    let attempt = ctx.records(&Record::<Attempt>::new("attempt", "Attempt")).step(measure).last_or_none().await?;
     Ok(stats == repeated
         && stats == latest
         && advanced

@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::ExecutionsProgressWatchOptions;
+use crate::client::ExecutionsProgressWatchOptions;
 
 /* === Constants === */
 

@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use dokime::PageRequest;
-use dokime::client::{ExecutionsGetOptions, ExecutionsSchemasGetOptions};
+use crate::client::{ExecutionsGetOptions, ExecutionsSchemasGetOptions};
 
 /* === Constants === */
 

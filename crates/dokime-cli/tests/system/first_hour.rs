@@ -92,9 +92,9 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             // Create a Rust Project From the Embedded SDK Starter
             let directory = super::credentials::tempdir()?;
             let project = directory.path().join("first-rust");
-            super::run(&["new", project.to_str().unwrap(), "--lang", "rust"]).await?;
+            super::run(&["new", project.to_str().unwrap(), "--lang", "rust", "--from", super::root().to_str().unwrap()]).await?;
             let built_project = super::fixtures().join("rust");
-            assert_eq!(fs::read(project.join("test/src/main.rs"))?, fs::read(built_project.join("test/src/main.rs"))?);
+            assert_eq!(fs::read(project.join("src/main.rs"))?, fs::read(built_project.join("src/main.rs"))?);
 
             // Bundle the Executable Built From Those Exact Starter Sources
             let executable = super::fixtures().join(format!("dokime-example-test{}", EXE_SUFFIX));
@@ -150,7 +150,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
                 let suite = suites["values"][0]["metadata"]["identifier"].as_str().ok_or("List Suites: Missing Suite Identity")?;
                 // Preview Without Registration, Then Recover the Same Registered Reply
-                let plan = serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"capture"}],"max_cases":1}});
+                let plan = serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"capture.confirmation"}],"max_cases":1}});
                 let input = directory.path().join("plan.json");
                 fs::write(&input, serde_json::to_vec(&plan)?)?;
                 let preview: Value = serde_json::from_str(
@@ -182,7 +182,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "capture",
+                    "capture.confirmation",
                     "--out",
                     cases.to_str().unwrap(),
                 ])
@@ -240,11 +240,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
 
                 // Create and Serve the Pure Python Starter Remotely
                 let project = directory.path().join("first-python");
-                super::run(&["new", project.to_str().unwrap(), "--lang", "python"]).await?;
-                let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
-                let manifest = project.join("pyproject.toml");
-                let contents = fs::read_to_string(&manifest)?;
-                fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
+                super::run(&["new", project.to_str().unwrap(), "--lang", "python", "--from", super::root().to_str().unwrap()]).await?;
                 remote_plugin = Some(
                     super::command()
                         .envs(credentials.environment.iter().cloned())

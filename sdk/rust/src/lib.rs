@@ -44,7 +44,7 @@ mod transfers;
 
 use ::harmos::OperationRequest;
 pub use client::{
-    Attribution, Case, Client, ClientSettings, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect,
+    Attribution, Case, Client, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect,
     connect_with,
 };
 pub use client::{RegisteredPlugin, ResultStatus};
