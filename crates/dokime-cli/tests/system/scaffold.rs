@@ -99,7 +99,11 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                             let bytes = fs::read(super::root().join(file))?;
                             let expected = if language == "python" {
                                 match str::from_utf8(&bytes) {
-                                    Ok(text) => text.replace("starter_project", language).replace("starter-project", language).into_bytes(),
+                                    Ok(text) => text
+                                        .replace("starter_project", language)
+                                        .replace("starter-project", language)
+                                        .replace("Starter Project", "Python")
+                                        .into_bytes(),
                                     Err(_) => bytes,
                                 }
                             } else {

@@ -169,3 +169,6 @@
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
 - [ ] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
+
+- [x] Substitute Python Starter Display Titles With Style-Guide Title Case and Prove Name, Package and Display Substitution.
+- [x] Run Both Python First-Hour Journeys Through Product Development Commands Instead of a Hand-Launched Listener.

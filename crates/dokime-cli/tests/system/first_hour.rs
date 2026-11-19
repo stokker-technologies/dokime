@@ -26,11 +26,9 @@ use harmos_runtime::bundle::{Bundle, Facility, Limits};
 use prost_reflect::{DynamicMessage, SerializeOptions};
 use serde_json::{Deserializer, Serializer, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 use tokio::time;
 
 // Local Imports
-use dokime_runtime::process;
 
 /* === Constants === */
 
@@ -248,18 +246,18 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let contents = fs::read_to_string(&manifest)?;
                 fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
                 remote_plugin = Some(
-                    Command::from(process::command("uv"))
-                        .args(["run", "python", "-m", "first_python.plugin"])
-                        .current_dir(&project)
+                    super::command()
+                        .envs(credentials.environment.iter().cloned())
+                        .args(["dev", "--plugin", project.to_str().unwrap(), "--no-desktop"])
+                        .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::inherit())
-                        .kill_on_drop(true)
                         .spawn()?,
                 );
                 let plugin = remote_plugin.as_mut().unwrap();
                 let mut lines = BufReader::new(plugin.stdout.take().unwrap()).lines();
-                let url = lines.next_line().await?.ok_or("Serve Python: Missing Listener Announcement")?;
-                super::run(&["--endpoint", &endpoint, "plugin", "add", &url]).await?;
+                let endpoint = lines.next_line().await?.ok_or("Develop Python: Read the Host Endpoint")?;
+                lines.next_line().await?.ok_or("Develop Python: Read the Storage Root")?;
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
                 let suite = suites["values"].as_array().unwrap().last().unwrap()["metadata"]["identifier"].as_str().unwrap();
                 let cases = directory.path().join("python-cases.pb");
@@ -308,8 +306,8 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             drop(host.stdin.take());
             let host_status = host.wait().await?;
             if let Some(mut plugin) = remote_plugin {
-                plugin.kill().await?;
-                plugin.wait().await?;
+                drop(plugin.stdin.take());
+                assert!(plugin.wait().await?.success());
             }
             result?;
             assert!(host_status.success());

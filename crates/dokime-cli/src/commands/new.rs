@@ -127,7 +127,12 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
                 fs::write(destination, serde_json::to_vec_pretty(&value)?)?;
             } else if let Some((name, package)) = &python {
                 match str::from_utf8(bytes) {
-                    Ok(text) => fs::write(destination, text.replace("starter_project", package).replace("starter-project", name))?,
+                    Ok(text) => fs::write(
+                        destination,
+                        text.replace("starter_project", package)
+                            .replace("starter-project", name)
+                            .replace("Starter Project", &python_title(name)),
+                    )?,
                     Err(_) => fs::write(destination, bytes)?,
                 }
             } else {
@@ -145,6 +150,50 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
 }
 
 /* === Private Functions === */
+
+fn python_title(name: &str) -> String {
+    let words = name.split(|character: char| !character.is_alphanumeric()).filter(|word| !word.is_empty()).collect::<Vec<_>>();
+    words
+        .iter()
+        .enumerate()
+        .map(|(index, word)| {
+            let word = word.to_lowercase();
+            if index != 0
+                && index + 1 != words.len()
+                && matches!(
+                    word.as_str(),
+                    "a" | "an"
+                        | "the"
+                        | "and"
+                        | "but"
+                        | "or"
+                        | "nor"
+                        | "for"
+                        | "so"
+                        | "yet"
+                        | "as"
+                        | "at"
+                        | "by"
+                        | "in"
+                        | "of"
+                        | "on"
+                        | "per"
+                        | "to"
+                        | "up"
+                        | "via"
+                )
+            {
+                return word;
+            }
+            let mut characters = word.chars();
+            match characters.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + characters.as_str(),
+                None => word,
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 fn python_names(path: &Path) -> Result<(String, String)> {
     let name = path.file_name().and_then(|name| name.to_str()).ok_or("Create Python Project: Choose a UTF-8 Project Folder Name")?;
@@ -208,7 +257,7 @@ fn python_names(path: &Path) -> Result<(String, String)> {
 mod tests {
     use std::{error::Error, fs, path::Path};
 
-    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, python_names, run};
+    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, python_names, python_title, run};
     use crate::settings::Settings;
 
     #[test]
@@ -223,6 +272,14 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn python_display_titles_follow_project_names() {
+        assert_eq!(python_title("my-project"), "My Project");
+        assert_eq!(python_title("number-of-rows"), "Number of Rows");
+        assert_eq!(python_title("the-test-and-the-result"), "The Test and the Result");
+        assert_eq!(python_title("read_it_in"), "Read It In");
     }
 
     #[test]
@@ -252,6 +309,7 @@ mod tests {
         assert!(manifest.contains("module-name = \"my_project\""));
         let launch = fs::read_to_string(project.join("dokime.toml"))?;
         assert!(launch.contains("my_project.plugin"));
+        assert!(launch.contains("label = \"My Project\""));
         let plugin = fs::read_to_string(project.join("src/my_project/plugin/__init__.py"))?;
         assert!(plugin.contains("from my_project.plugin."));
         Ok(())
