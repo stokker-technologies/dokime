@@ -20,16 +20,26 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     env::consts::EXE_SUFFIX,
     error::Error,
+    fmt::Debug,
     fs,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 // Third Party Imports
 use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginState, PluginValue, plugin_placement};
 use harmos_runtime::bundle::Identity;
-use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use tonic::transport::Endpoint;
+use tracing::{
+    Event, Subscriber,
+    field::{Field, Visit},
+    span::{Attributes, Id},
+};
+use tracing_subscriber::{
+    Layer,
+    layer::{Context, SubscriberExt},
+};
 
 // Local Imports
 use super::support;
@@ -50,11 +60,52 @@ use dokime_runtime::{Host, HostSettings, services};
 
 /* === Structs === */
 
+#[derive(Clone, Default)]
+struct AdmissionMutations(Arc<Mutex<BTreeMap<String, usize>>>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Visit for AdmissionMutations {
+    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
+        self.record_str(field, &format!("{value:?}"));
+    }
+
+    fn record_str(&mut self, field: &Field, value: &str) {
+        if !matches!(field.name(), "operation" | "action") {
+            return;
+        }
+        if matches!(
+            value,
+            "harmos.host.v1.Plugins/Create"
+                | "harmos.host.v1.Plugins/Replace"
+                | "harmos.host.v1.Plugins/Delete"
+                | "dokime.host.v1.files.Uploads/Create"
+                | "dokime.host.v1.files.Uploads/Append"
+                | "dokime.host.v1.files.Uploads/Publish"
+                | "dokime.host.v1.Files/Delete"
+        ) {
+            *self.0.lock().unwrap().entry(value.into()).or_default() += 1;
+        }
+    }
+}
+
+impl<S: Subscriber> Layer<S> for AdmissionMutations {
+    fn on_new_span(&self, attributes: &Attributes<'_>, _: &Id, _: Context<'_, S>) {
+        if attributes.metadata().name() == "operations.admit_entry" {
+            attributes.record(&mut self.clone());
+        }
+    }
+
+    fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+        if event.metadata().target() == "dokime_operations::host::files::transfer" {
+            event.record(&mut self.clone());
+        }
+    }
+}
 
 /* === Public Functions === */
 
@@ -102,14 +153,15 @@ fn copies(root: &Path) -> Result<BTreeSet<PathBuf>, Box<dyn Error>> {
     fs::read_dir(root.join("plugins"))?.map(|entry| Ok(entry?.path())).collect()
 }
 
-async fn install_user(client: &Client, bytes: Vec<u8>, name: &str) -> Result<PluginEntry, Box<dyn Error>> {
+async fn install_user(client: &Client, bytes: Vec<u8>, name: &str, enabled: bool) -> Result<PluginEntry, Box<dyn Error>> {
     let sha256 = Sha256::digest(&bytes).to_vec();
     let file = support::bundles::upload(client, bytes).await?;
     let placement = PluginPlacement {
         kind: Some(plugin_placement::Kind::Managed(PluginManaged { content: Some(file), sha256 })),
     };
-    let entry = client.plugins.create(name, placement, PluginValue { enabled: true }).await?.entry.unwrap();
-    support::plugin_state(&client.plugins, entry, PluginState::Ready).await
+    let entry = client.plugins.create(name, placement, PluginValue { enabled }).await?.entry.unwrap();
+    let state = if enabled { PluginState::Ready } else { PluginState::Stopped };
+    support::plugin_state(&client.plugins, entry, state).await
 }
 
 /* === Tests === */
@@ -126,7 +178,7 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             let executable = support::thermal_fixture()?;
             let mut first_path = plugins.join("first.dokime");
             fs::write(&first_path, shipped_bundle(&executable, "com.example.testhub", "1.0.0")?)?;
-            fs::write(plugins.join("second.dokime"), shipped_bundle(&executable, "example_pack", "1.0.0")?)?;
+            fs::write(plugins.join("second.dokime"), shipped_bundle(&support::ping_fixture()?, "example_pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             let first = inventory(&client).await?;
             assert_eq!(first.len(), 2);
@@ -134,8 +186,14 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
                 assert_eq!(entry.origin, "installation");
             }
 
-            // Keep a User Install Beside the Shipped Set.
-            let user = install_user(&client, shipped_bundle(&executable, "example_pack_user", "1.0.0")?, "example_pack_user").await?;
+            // Keep a Disabled User Install Beside the Shipped Set.
+            let user = install_user(
+                &client,
+                shipped_bundle(&support::capture_fixture()?, "example_pack_user", "1.0.0")?,
+                "example_pack_user",
+                false,
+            )
+            .await?;
             let installed_copies = copies(root.path())?;
             assert_eq!(installed_copies.len(), 3);
             server.close().await?;
@@ -196,7 +254,11 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
 }
 
 #[test]
-fn unchanged_restart_does_not_write_the_plugin_registry() -> Result<(), Box<dyn Error>> {
+fn unchanged_restart_performs_no_admission_mutations() -> Result<(), Box<dyn Error>> {
+    let mutations = AdmissionMutations::default();
+    let subscriber = tracing_subscriber::registry().with(mutations.clone());
+    // Each Story Runs in Its Own Process; Observe Background Threads Too.
+    tracing::subscriber::set_global_default(subscriber)?;
     support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Admit One Shipped Bundle.
@@ -211,30 +273,27 @@ fn unchanged_restart_does_not_write_the_plugin_registry() -> Result<(), Box<dyn 
             let original = inventory(&client).await?;
             server.close().await?;
 
-            // Count Registry Writes at the Existing SQLite Storage Boundary, Including In-Place Updates.
-            let database = Connection::open(root.path().join("storage.sqlite3"))?;
-            database.execute_batch(
-                "CREATE TABLE registry_writes(count INTEGER NOT NULL);
-                 INSERT INTO registry_writes VALUES(0);
-                 CREATE TRIGGER count_registry_inserts AFTER INSERT ON storage_rows
-                   WHEN NEW.schema_id='harmos.plugins.registry'
-                   BEGIN UPDATE registry_writes SET count=count+1; END;
-                 CREATE TRIGGER count_registry_updates AFTER UPDATE ON storage_rows
-                   WHEN NEW.schema_id='harmos.plugins.registry'
-                   BEGIN UPDATE registry_writes SET count=count+1; END;
-                 CREATE TRIGGER count_registry_deletes AFTER DELETE ON storage_rows
-                   WHEN OLD.schema_id='harmos.plugins.registry'
-                   BEGIN UPDATE registry_writes SET count=count+1; END;",
-            )?;
+            // Confirm the Existing Operation and Transfer Traces Observe Initial Admission.
+            let admitted = mutations.0.lock().unwrap().clone();
+            assert_eq!(admitted["harmos.host.v1.Plugins/Create"], 1);
+            assert_eq!(admitted["dokime.host.v1.files.Uploads/Create"], 1);
+            assert!(admitted["dokime.host.v1.files.Uploads/Append"] > 0);
+            assert_eq!(admitted["dokime.host.v1.files.Uploads/Publish"], 1);
+            mutations.0.lock().unwrap().clear();
 
-            // Restore the Unchanged Folder Without Registry Writes.
+            // Restore the Unchanged Folder Without Admission Mutations.
             let (server, client) = open(root.path(), installation.path()).await?;
             let unchanged = inventory(&client).await?;
-            assert_eq!(unchanged["example_pack"].revision, original["example_pack"].revision);
-            assert_eq!(unchanged["example_pack"].placement, original["example_pack"].placement);
+            assert_eq!(unchanged.keys().collect::<Vec<_>>(), original.keys().collect::<Vec<_>>());
+            for (name, entry) in &original {
+                assert_eq!(unchanged[name].name, entry.name);
+                assert_eq!(unchanged[name].origin, entry.origin);
+                assert_eq!(unchanged[name].revision, entry.revision);
+                assert_eq!(unchanged[name].placement, entry.placement);
+                assert_eq!(unchanged[name].description.as_ref().unwrap().version, entry.description.as_ref().unwrap().version);
+            }
             server.close().await?;
-            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
-            assert_eq!(writes, 0, "An Unchanged Restart Must Not Write the Plugin Registry");
+            assert!(mutations.0.lock().unwrap().is_empty(), "An Unchanged Restart Must Issue No Admission Mutations");
 
             // Confirm the Counter Observes an Actual Replacement.
             fs::write(&path, shipped_bundle(&executable, "example_pack", "2.0.0")?)?;
@@ -242,8 +301,24 @@ fn unchanged_restart_does_not_write_the_plugin_registry() -> Result<(), Box<dyn 
             let updated = inventory(&client).await?;
             assert_ne!(updated["example_pack"].revision, original["example_pack"].revision);
             server.close().await?;
-            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
-            assert!(writes > 0);
+            let replaced = mutations.0.lock().unwrap().clone();
+            assert_eq!(replaced["harmos.host.v1.Plugins/Replace"], 1);
+            assert_eq!(replaced["dokime.host.v1.files.Uploads/Create"], 1);
+            assert!(replaced["dokime.host.v1.files.Uploads/Append"] > 0);
+            assert_eq!(replaced["dokime.host.v1.files.Uploads/Publish"], 1);
+            assert_eq!(replaced["dokime.host.v1.Files/Delete"], 1);
+            mutations.0.lock().unwrap().clear();
+
+            // Confirm the Counter Observes Entry Deletion and Content Release.
+            fs::remove_file(&path)?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            assert!(inventory(&client).await?.is_empty());
+            let health = client.evidence.health_events.list(Default::default()).await?;
+            assert!(health.events.is_empty(), "{health:?}");
+            server.close().await?;
+            let removed = mutations.0.lock().unwrap().clone();
+            assert_eq!(removed["harmos.host.v1.Plugins/Delete"], 1);
+            assert_eq!(removed["dokime.host.v1.Files/Delete"], 1);
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
@@ -287,7 +362,7 @@ fn user_plugin_wins_a_shipped_name_collision() -> Result<(), Box<dyn Error>> {
             let (server, client) = open(root.path(), installation.path()).await?;
             assert!(inventory(&client).await?.is_empty());
             assert!(client.evidence.health_events.list(Default::default()).await?.events.is_empty());
-            let user = install_user(&client, shipped_bundle(&executable, "example_pack", "1.0.0")?, "example_pack").await?;
+            let user = install_user(&client, shipped_bundle(&executable, "example_pack", "1.0.0")?, "example_pack", true).await?;
             server.close().await?;
 
             // An Installer Cannot Replace a User Entry of the Same Identity.
@@ -506,14 +581,14 @@ fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(
             let file = content(&shipped).content.clone().unwrap();
             assert_eq!(shipped.origin, "installation");
 
-            // A User Creates an Independent Entry From Already Uploaded Content.
+            // A Disabled User Entry Reuses Content Without Registering the Same Operations Twice.
             let user = client
                 .plugins
-                .create("com.example.testhub", shipped.placement.unwrap(), PluginValue { enabled: true })
+                .create("com.example.testhub", shipped.placement.unwrap(), PluginValue { enabled: false })
                 .await?
                 .entry
                 .unwrap();
-            let user = support::plugin_state(&client.plugins, user, PluginState::Ready).await?;
+            let user = support::plugin_state(&client.plugins, user, PluginState::Stopped).await?;
             assert!(user.origin.is_empty());
             server.close().await?;
 
@@ -539,8 +614,8 @@ fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(
             let current = entries["example_pack"].clone();
             let current_file = content(&current).content.clone().unwrap();
             let sharing =
-                client.plugins.create("example.current", current.placement.unwrap(), PluginValue { enabled: true }).await?.entry.unwrap();
-            let sharing = support::plugin_state(&client.plugins, sharing, PluginState::Ready).await?;
+                client.plugins.create("example.current", current.placement.unwrap(), PluginValue { enabled: false }).await?.entry.unwrap();
+            let sharing = support::plugin_state(&client.plugins, sharing, PluginState::Stopped).await?;
             assert!(sharing.origin.is_empty());
             server.close().await?;
 

@@ -138,19 +138,23 @@ Renaming a shipped file keeps its identity, settings and registry revision witho
 an admission mutation. Changing a bundle identity retires the obsolete installation entry through
 Delete after a complete verified scan.
 
-An unchanged folder performs no upload, Create, Replace or Delete and must cause
-no registry writes during restore or reconciliation. The regression counts registry
-writes through SQLite storage triggers, independently of filesystem timestamps,
-with a positive control for later mutations. At pin `dae69cea0`, the isolated
-restart regression observes nine row writes instead of zero: restoration changes
-activation state before saving, and admission/health persist live process state.
-The unchanged-payload save guard does not suppress those changed payloads. Task
-7.9 stays open for the library fix; product reconciliation adds no substitute
-registry or write-suppression layer. The library retains
+An unchanged folder causes no admission mutation: reconciliation performs no
+upload, Create, Replace, Delete or content release. The restart regression counts
+these actions through existing operation-admission and file-transfer traces, with
+positive controls for initial admission, replacement and removal. Entry names,
+origins, bundle digests, versions and revisions remain identical across restart.
+This contract permits the library's ordinary persistence of activation and process
+state when plugins start. At pin `dae69cea0`, an unchanged restart observed nine
+registry writes because the library persists durable entries and live state
+together. Separating those concerns is a library follow-up after the product moves
+to the library's main line; product reconciliation adds no substitute registry or
+write-suppression layer. The library retains
 bounded replay receipts for Create and Replace; startup adds no parallel receipt
 policy. Superseded extracted copies use existing retirement paths. Superseded
 uploaded content is released through Files.Delete only when no registry entry
 references its storage position, including entries with empty origin.
+The shared-content regression uses disabled user entries: their content remains
+retained without trying to activate the same globally registered operations twice.
 
 Each failed bundle reports its path, reason and corrective action through existing
 plugin health events, Status health and the Status log, while other bundles are
