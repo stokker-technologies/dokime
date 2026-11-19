@@ -717,11 +717,6 @@ hide = true
 description = "Install Selected Native CI Prerequisites"
 run = "python tools/python/src/dokime_tools/ci/bootstrap.py"
 
-[tasks."ci:docs"]
-hide = true
-description = "Check Guide Public Surfaces"
-run = "{{vars.tools}} dokime_tools.ci.docs"
-
 [tasks."ci:send"]
 hide = true
 description = "Export Declared CI Artifacts"
