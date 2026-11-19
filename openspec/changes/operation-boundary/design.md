@@ -253,6 +253,18 @@ The handler registration uses `ProtobufOperation::service()` with the product
 service descriptor, because the payload descriptor belongs to the library.
 Declarations and generated projections do not establish handler implementation.
 
+The `check:repository` task in `mise.toml` invokes
+`buf lint --exclude-path proto/harmos` to exclude unmodified third-party input
+from the product lint scope; Harmos owns that protocol's lint policy.
+`lint.ignore` only hides vendored diagnostics and still counts the vendored RPCs
+against product declarations, so it cannot implement this source boundary.
+D6 requires unchanged library payloads, including the four Operations List/Get messages also used by
+`harmos.plugin.v1.Operations` in `proto/harmos/plugin/v1/operations.proto`.
+Linting both authored and vendored RPCs together produced eight
+`RPC_REQUEST_RESPONSE_UNIQUE` diagnostics: each request and response at product
+List/Get and at library plugin List/Get. Product protocol rules remain enabled,
+and comment ignores remain disallowed. No product payload copies are introduced.
+
 The inventory was checked against desktop `connection/host.rs`, its generated
 dispatch and `src/lib/api/native-{remote,logs,diagnostics}.ts`; CLI
 `commands/{status,pairing,operation}.rs`; `dokime-client-internal`; the four SDK
