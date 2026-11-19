@@ -168,9 +168,9 @@ impl Plugin {
         let version = version.into();
         Self {
             assembly: Assembly {
-                identifier: identifier.clone(),
+                identifier,
                 label: crate::authoring::type_label::<T>(),
-                version: version.clone(),
+                version,
                 state: Arc::new(()),
                 requirements: Vec::new(),
                 samplers: Vec::new(),

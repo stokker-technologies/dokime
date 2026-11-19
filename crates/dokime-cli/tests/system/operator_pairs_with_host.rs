@@ -94,7 +94,7 @@ fn operator_pairs_with_host() -> Result<(), Box<dyn Error>> {
             super::run(&["--remote", path.to_str().unwrap(), "catalog", "list", "--json"]).await?;
             super::run(&["--remote", path.to_str().unwrap(), "execution", "list", "--json"]).await?;
             let call: Value = serde_json::from_str(
-                &super::run(&["--remote", path.to_str().unwrap(), "operation", "call", "harmos.host.v1.Status/Get", "--json", "{}"])
+                &super::run(&["--remote", path.to_str().unwrap(), "operation", "call", "dokime.host.v1.Status/Get", "--json", "{}"])
                     .await?,
             )?;
             assert_eq!(call["status"]["identity"], status["status"]["identity"]);
@@ -152,7 +152,7 @@ fn operator_pairs_with_host() -> Result<(), Box<dyn Error>> {
 
             // Revoke This Pairing Through Access and Observe Its Next Connection Fail
             let request = serde_json::json!({"name": exported["pairing_id"]}).to_string();
-            super::run(&["--endpoint", &host.endpoint, "operation", "call", "harmos.host.v1.access.Pairings/Delete", "--json", &request])
+            super::run(&["--endpoint", &host.endpoint, "operation", "call", "dokime.host.v1.access.Pairings/Delete", "--json", &request])
                 .await?;
             let refused = super::command().args(["--remote", path.to_str().unwrap(), "status", "--json"]).output().await?;
             assert_eq!(refused.status.code(), Some(3));

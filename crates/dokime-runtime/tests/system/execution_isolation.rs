@@ -20,7 +20,7 @@ use std::error::Error;
 use std::sync::{Arc, Mutex};
 
 // Third Party Imports
-use harmos_protocol::host::{OperationsGetRequest, OperationsListRequest, PluginState, plugin_placement};
+use dokime_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::{
     Callers, Classification, Declarations, Failure, OperationContract, OperationPolicy, Position, Requirement, Section, StreamDeclaration,
     Visibility,
@@ -52,7 +52,8 @@ use dokime::{
     TestCaseTemplate, origin, value,
 };
 use dokime_client_internal::Client;
-use dokime_client_internal::{ExecutionMode, ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue, ResultStatus};
+use dokime_client_internal::host::{PluginPlacement, PluginRemote, PluginValue};
+use dokime_client_internal::{ExecutionMode, ExecutionOutcome, ResultStatus};
 use dokime_operations::host;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
@@ -67,6 +68,24 @@ use dokime_runtime::{Host, services};
 use dokime_storage::{Execution, Sample, Store};
 
 /* === Constants === */
+
+const CLIENT_WRAPPERS: [&str; 15] = [
+    "dokime.host.v1.access.Listener/Get",
+    "dokime.host.v1.access.Listener/Set",
+    "dokime.host.v1.access.Pairings/Create",
+    "dokime.host.v1.access.Pairings/List",
+    "dokime.host.v1.access.Pairings/Delete",
+    "dokime.host.v1.access.Certificates/Create",
+    "dokime.host.v1.Status/Get",
+    "dokime.host.v1.Status/Watch",
+    "dokime.host.v1.status.Logs/Watch",
+    "dokime.host.v1.status.TraceEvents/List",
+    "dokime.host.v1.status.TraceEvents/Watch",
+    "dokime.host.v1.status.Diagnostics/Get",
+    "dokime.host.v1.Operations/List",
+    "dokime.host.v1.Operations/Get",
+    "dokime.host.v1.Invocations/Create",
+];
 
 /* === Macros === */
 
@@ -177,16 +196,8 @@ impl Instance for ScopeProbe {
                         ("dokime.host.v1.executions.Progress/Get", progress.encode_to_vec(), foreign, false),
                     ]);
                 }
-                cases.extend([
-                    ("dokime.host.v1.Settings/Get", SettingsGetRequest::default().encode_to_vec(), true, true),
-                    ("harmos.host.v1.Operations/List", OperationsListRequest::default().encode_to_vec(), true, true),
-                    (
-                        "harmos.host.v1.Operations/Get",
-                        OperationsGetRequest { id: "harmos.host.v1.Time/Get".into() }.encode_to_vec(),
-                        true,
-                        true,
-                    ),
-                ]);
+                cases.push(("dokime.host.v1.Settings/Get", SettingsGetRequest::default().encode_to_vec(), true, true));
+                cases.extend(CLIENT_WRAPPERS.map(|operation| (operation, Vec::new(), true, true)));
 
                 // Exercise Each Request Over the Real Plugin Child Carrier
                 let types = probe.description.declarations.as_ref().unwrap().types.as_ref().unwrap();
@@ -427,7 +438,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 "dokime.host.v1.executions.Progress/Get",
                 "dokime.host.v1.Settings/Get",
             ];
-            for id in required_operations.into_iter().chain(["harmos.host.v1.Operations/List", "harmos.host.v1.Operations/Get"]) {
+            for id in required_operations.into_iter().chain(CLIENT_WRAPPERS) {
                 let contract = client.operations.get(id).await?.contract.ok_or("Discover Required Operation: Missing Contract")?;
                 host_contracts.push(contract);
             }
@@ -538,7 +549,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 completed.outcome
             );
             let results = observations.lock().unwrap().clone();
-            assert_eq!(results.len(), 18, "{results:?}");
+            assert_eq!(results.len(), 16 + CLIENT_WRAPPERS.len(), "{results:?}");
             for (operation, expected_refusal, refused) in results {
                 assert_eq!(refused, expected_refusal, "{operation}: Expected Refusal {expected_refusal}");
             }

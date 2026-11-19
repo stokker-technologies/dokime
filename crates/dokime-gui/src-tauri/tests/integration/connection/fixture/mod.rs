@@ -105,9 +105,9 @@ impl Service {
 
 impl<const KIND: u8> server::NamedService for Rpc<KIND> {
     const NAME: &'static str = match KIND {
-        0 => "harmos.host.v1.Status",
+        0 => "dokime.host.v1.Status",
         1 => "dokime.host.v1.backend.Overview",
-        _ => "harmos.host.v1.Operations",
+        _ => "dokime.host.v1.Operations",
     };
 }
 
@@ -124,7 +124,7 @@ impl<const KIND: u8> codegen::Service<HttpRequest> for Rpc<KIND> {
         let service = self.0.clone();
         Box::pin(async move {
             let response = match request.uri().path() {
-                "/harmos.host.v1.Status/Get" => {
+                "/dokime.host.v1.Status/Get" => {
                     let mut reply = host::StatusGetResponse::default();
                     let status = reply.status.get_or_insert_default();
                     status.available = true;
@@ -144,13 +144,13 @@ impl<const KIND: u8> codegen::Service<HttpRequest> for Rpc<KIND> {
                     };
                     server::Grpc::new(ProstCodec::<_, OverviewGetRequest>::default()).unary(Reply(reply), request).await
                 }
-                "/harmos.host.v1.Operations/List" => {
+                "/dokime.host.v1.Operations/List" => {
                     let reply = host::OperationsListResponse {
                         operations: vec![DiscoveredOperation {
                             grpc_available: true,
                             contract: Some(DiscoveredContract {
                                 grpc: Some(Grpc {
-                                    package: "harmos.host.v1".into(),
+                                    package: "dokime.host.v1".into(),
                                     service: "Status".into(),
                                     method: "Get".into(),
                                     ..Default::default()

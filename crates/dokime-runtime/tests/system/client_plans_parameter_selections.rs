@@ -24,17 +24,17 @@ use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Value;
 use dokime_client_internal::CasesCreateOptions;
 use dokime_client_internal::Client;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::RegisteredSelection;
 use dokime_client_internal::RegisteredSelectionParametersEntry;
 use dokime_client_internal::SelectionPlan;
 use dokime_client_internal::SelectionValues;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::CasesCreateRequest;
+use dokime_protocol::host::plugin_placement;
 use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -83,7 +83,7 @@ fn client_plans_parameter_selections() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             let cases = Client::from_channel(channel.clone(), super::support::client_settings())?.cases.clone();
             let selection = RegisteredSelection {
                 suite_id: "thermal".into(),

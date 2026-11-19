@@ -34,7 +34,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
-use harmos_protocol::host::{PluginEntry, PluginState};
+use dokime_protocol::host::{PluginEntry, PluginState};
 use harmos_protocol::model::{ReadCut, StorageTransferSettings};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, BufReader};

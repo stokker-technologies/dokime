@@ -60,7 +60,7 @@ fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
                 .find(|entry| entry["contract"]["id"] == "dokime.host.v1.Files/Read")
                 .ok_or("Discover Product Files.Read")?;
             assert_eq!(shared["contract"]["callers"], "ALL");
-            let id = "harmos.host.v1.Status/Get";
+            let id = "dokime.host.v1.Status/Get";
             assert!(list["operations"].as_array().unwrap().iter().any(|entry| entry["contract"]["id"] == id));
             let reply: serde_json::Value =
                 serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "operation", "call", id, "--json", "{}"]).await?)?;

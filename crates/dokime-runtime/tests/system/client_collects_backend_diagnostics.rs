@@ -23,21 +23,21 @@
 use dokime::Metadata;
 use dokime::SecretWritable;
 use dokime_client_internal::Client;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::SecretsDeleteOptions;
 use dokime_client_internal::SecretsSetOptions;
 use dokime_client_internal::StatusLogsWatchOptions;
 use dokime_client_internal::StatusTraceEventsListOptions;
 use dokime_client_internal::StatusTraceEventsWatchOptions;
 use dokime_client_internal::StatusWatchOptions;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_runtime::PluginProcess;
 
+use dokime_protocol::host::plugin_placement;
 use dokime_storage::Store;
 use harmos_protocol::host::ComponentState;
-use harmos_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use std::error::Error;
 use std::path::Path;
@@ -133,7 +133,7 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            let entry = super::support::plugin_state(&plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            let entry = super::support::plugin_state(&plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             assert!(entry.description.as_ref().unwrap().id.contains(secret));
             loop {
                 let frame = logs.next().await?.ok_or("Watch Logs: Closed Before Plugin Admission")?;

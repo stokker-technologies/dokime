@@ -35,15 +35,10 @@ use dokime::Suites;
 use dokime::Termination;
 use dokime::Value;
 use dokime::origin;
-use dokime::plugin::CriteriaEvaluateRequest;
 use dokime::plugin::CriteriaEvaluateResponse;
-use dokime::plugin::ExecutionsCleanupRequest;
 use dokime::plugin::ExecutionsCleanupResponse;
-use dokime::plugin::ExecutionsInitializeRequest;
 use dokime::plugin::ExecutionsInitializeResponse;
-use dokime::plugin::StepsExecuteRequest;
 use dokime::plugin::StepsExecuteResponse;
-use dokime::plugin::TestCasesMaterializeRequest;
 use dokime::plugin::TestCasesMaterializeResponse;
 use dokime::value;
 use dokime_protocol::host::EvidenceStatisticsRequest;
@@ -60,6 +55,11 @@ use dokime_protocol::host::evidence::RecordsListResponse;
 use dokime_protocol::host::executions::ProgressGetResponse;
 use dokime_protocol::host::executions::ProgressSetRequest;
 use dokime_protocol::host::executions::ProgressSetResponse;
+use dokime_protocol::plugin::CriteriaEvaluateRequest;
+use dokime_protocol::plugin::ExecutionsCleanupRequest;
+use dokime_protocol::plugin::ExecutionsInitializeRequest;
+use dokime_protocol::plugin::StepsExecuteRequest;
+use dokime_protocol::plugin::TestCasesMaterializeRequest;
 use harmos_protocol::host::TimeSleepRequest;
 use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::model::Visibility;
@@ -161,7 +161,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     assert_eq!(case.streams, ["thermal.cycle.temperature", "thermal.cycle.counter"]);
     assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "thermal.cycle.within_limit");
     attached.stop("Materialization Complete").await?;
-    runtime.shutdown().await?;
+    runtime.stop().await?;
 
     // Freeze Origin and Initialize an Execution with Explicit Harmos Scope.
     let origin = Origin {
@@ -254,7 +254,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
 
     // Keep the Step Waiting on the Host While Its Observer Produces Evidence.
     let sleep = hold.child().await?;
-    assert_eq!(sleep.operation, "harmos.host.v1.Time/Sleep");
+    assert_eq!(sleep.operation, "harmos.plugin.v1.Time/Sleep");
     assert_eq!(
         TimeSleepRequest::decode(sleep.payload.as_slice())?.duration,
         Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 })

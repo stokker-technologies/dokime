@@ -28,15 +28,16 @@ use dokime_client_internal::CasesCreateResponse;
 use dokime_client_internal::CyclesCreateResponse;
 use dokime_client_internal::ExecutionsGetResponse;
 use dokime_client_internal::ExecutionsListResponse;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::PluginsCreateOptions;
 use dokime_client_internal::ProgressWatchResponse;
 use dokime_client_internal::RegisteredSelection;
 use dokime_client_internal::SelectionPlan;
-use dokime_client_internal::plugin_placement;
-use dokime_client_internal::{PluginState, PluginsDeleteOptions, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginState;
+use dokime_client_internal::host::PluginValue;
+use dokime_client_internal::host::plugin_placement;
+use dokime_client_internal::{PluginsDeleteOptions, PluginsGetOptions, PluginsWatchOptions};
 use dokime_gui::capture_folders;
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::connection::host::Session;
@@ -87,7 +88,7 @@ async fn admit_plugin(session: &Session, endpoint: &str) -> Result<(), Box<dyn E
     ready(session, admitted.entry.ok_or("Admit Capture Fixture: Missing Entry")?).await
 }
 
-async fn ready(session: &Session, mut entry: harmos_protocol::host::PluginEntry) -> Result<(), Box<dyn Error>> {
+async fn ready(session: &Session, mut entry: dokime_protocol::host::PluginEntry) -> Result<(), Box<dyn Error>> {
     let options = PluginsWatchOptions {
         name: Some(entry.name.clone()),
         context: session.call_options()?,

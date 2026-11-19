@@ -81,16 +81,30 @@ macro_rules! watch {
                 };
                 let (send, receive) = native_stream(settings).map_err(|source| ServingError::Native(Arc::new(source)))?;
                 let host = execution.resource::<HostContext>().map_err(|_| ServingError::Catalog)?;
-                let invocation =
-                    host.for_call().submit::<$native>(request, send).map_err(|source| ServingError::Native(Arc::new(source)))?;
-                let forward = async {
+                let mut invocation =
+                    Box::pin(host.for_call().submit::<$native>(request, send).map_err(|source| ServingError::Native(Arc::new(source)))?);
+                let mut forward = Box::pin(async {
                     while let Some(item) = receive.recv().await {
                         output.send((*item).clone()).await.map_err(|source| ServingError::Native(Arc::new(source)))?;
                     }
                     Ok::<(), ServingError>(())
-                };
-                let settle = async { invocation.await.map_err(|source| ServingError::Native(Arc::new(source))) };
-                let (_, response) = tokio::try_join!(forward, settle)?;
+                });
+                let response = tokio::select! {
+                    result = &mut forward => {
+                        if let Err(source) = result {
+                            invocation.request_cancel();
+                            let _ = invocation.await;
+                            return Err(source);
+                        }
+                        invocation.await
+                    }
+                    result = &mut invocation => {
+                        // Drain the Native Operation's Last Frames Before Returning Its Final Status.
+                        forward.await?;
+                        result
+                    }
+                }
+                .map_err(|source| ServingError::Native(Arc::new(source)))?;
                 response.try_unwrap().map_err(|_| ServingError::Catalog)
             }
         }

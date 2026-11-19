@@ -27,14 +27,14 @@ use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceSamplesListOptions;
 use dokime_client_internal::ExecutionState;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginState;
-use dokime_client_internal::PluginValue;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginState;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::evidence::SamplesListRequest;
 use dokime_protocol::host::execution_outcome;
+use dokime_protocol::host::plugin_placement;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -82,7 +82,7 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .await?
             .entry
             .unwrap();
-        let entry = super::support::plugin_state(&plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+        let entry = super::support::plugin_state(&plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
         let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
         let parameters = super::support::parameters(19.0, 0, true).into_iter().map(|(key, value)| (key, vec![value])).collect();
         let planned = super::support::materialize(&client, "execution", "execution.capture", parameters).await?;

@@ -33,7 +33,8 @@ use tonic::Status;
 
 use crate::{Result, settings::Settings};
 use dokime_client_internal::Client;
-use dokime_client_internal::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::host::PluginEntry;
+use dokime_client_internal::{PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 

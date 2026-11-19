@@ -27,7 +27,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginState, PluginValue, plugin_placement};
+use dokime_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginState, PluginValue, plugin_placement};
 use harmos_runtime::bundle::Identity;
 use sha2::{Digest, Sha256};
 use tonic::transport::Endpoint;

@@ -30,19 +30,19 @@ use dokime::PluginRun;
 use dokime::Termination;
 use dokime::Value;
 use dokime::origin;
-use dokime::plugin::ExecutionsCleanupRequest;
 use dokime::plugin::ExecutionsCleanupResponse;
-use dokime::plugin::ExecutionsInitializeRequest;
 use dokime::plugin::ExecutionsInitializeResponse;
-use dokime::plugin::StepsExecuteRequest;
 use dokime::plugin::StepsExecuteResponse;
-use dokime::plugin::TestCasesMaterializeRequest;
 use dokime::plugin::TestCasesMaterializeResponse;
 use dokime::value;
 use dokime_protocol::host::evidence::LogsAppendResponse;
 use dokime_protocol::host::executions::ProgressGetResponse;
 use dokime_protocol::host::executions::ProgressSetRequest;
 use dokime_protocol::host::executions::ProgressSetResponse;
+use dokime_protocol::plugin::ExecutionsCleanupRequest;
+use dokime_protocol::plugin::ExecutionsInitializeRequest;
+use dokime_protocol::plugin::StepsExecuteRequest;
+use dokime_protocol::plugin::TestCasesMaterializeRequest;
 
 /* === Constants === */
 

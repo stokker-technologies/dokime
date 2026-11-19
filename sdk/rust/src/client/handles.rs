@@ -30,15 +30,15 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 
 // Local Imports
+use super::host::{PluginEntry, PluginPlacement, PluginRemote, PluginState, PluginValue, plugin_placement};
 use super::mutations::{
     self, ArtifactCreateOptions, CycleCreateOptions, CycleSealOptions, ExecutionCancelOptions, ExecutionCreateOptions,
     ExecutionSealOptions, ExecutionStartOptions, ExecutionStopOptions, NoteCreateOptions,
 };
 use super::{
     AnnotationOwner, AnnotationOwnerOwner, CaseSummary, CycleFilter, CycleOrder, CyclePhase, CycleSelection, CycleSummary, EvidenceSubject,
-    ExecutionBinding, ExecutionDetail, ExecutionMode, ExecutionNoteOwner, ExecutionOutcome, NoteWritable, OperatorNote, PluginEntry,
-    PluginState, ProgressWatchResponse, RegisteredSelection, ResultStatus, SelectionPlan, annotation_owner_owner, evidence_subject,
-    execution_outcome,
+    ExecutionBinding, ExecutionDetail, ExecutionMode, ExecutionNoteOwner, ExecutionOutcome, NoteWritable, OperatorNote,
+    ProgressWatchResponse, RegisteredSelection, ResultStatus, SelectionPlan, annotation_owner_owner, evidence_subject, execution_outcome,
 };
 use super::{
     CasesCreateOptions, CasesGetOptions, CasesParametersOptions, ContentArtifactsCreateOptions, CyclesCreateOptions, CyclesGetOptions,
@@ -297,8 +297,8 @@ impl Plugins {
         let bindings = plugin.template_bindings();
         let plugin = plugin.into_harmos()?.remote();
         let mut listener = plugin.start(address).await?;
-        let placement = super::PluginPlacement {
-            kind: Some(super::plugin_placement::Kind::Remote(super::PluginRemote {
+        let placement = PluginPlacement {
+            kind: Some(plugin_placement::Kind::Remote(PluginRemote {
                 url: format!("http://{}", listener.address()),
             })),
         };
@@ -309,7 +309,7 @@ impl Plugins {
             .create_with(
                 &identifier,
                 placement,
-                super::PluginValue { enabled: true },
+                PluginValue { enabled: true },
                 super::PluginsCreateOptions {
                     origin: None,
                     request_id: Some(request_id),

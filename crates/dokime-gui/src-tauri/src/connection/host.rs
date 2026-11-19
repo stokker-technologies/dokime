@@ -44,12 +44,14 @@ use tonic::{Request, Status, transport::Endpoint};
 use dokime_client_internal::BackendOverviewGetOptions;
 use dokime_client_internal::OperationsListOptions;
 use dokime_client_internal::StatusGetOptions;
-use dokime_client_internal::plugin_placement;
+use dokime_client_internal::host::plugin_placement;
 use dokime_sdk::StorageTransferSettings;
 
 use super::ConnectionTarget;
-use dokime_client_internal::{CallOptions, PluginEntry, PluginsCreateOptions};
-use dokime_client_internal::{PluginManaged, PluginPlacement, PluginState, PluginValue, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::host::PluginEntry;
+use dokime_client_internal::host::{PluginManaged, PluginPlacement, PluginState, PluginValue};
+use dokime_client_internal::{CallOptions, PluginsCreateOptions};
+use dokime_client_internal::{PluginsGetOptions, PluginsWatchOptions};
 use dokime_sdk::FileReference;
 
 use dokime_runtime::{HostSettings, services};

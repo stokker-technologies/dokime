@@ -17,20 +17,16 @@
 
 // Standard Library Imports
 use std::error::Error;
-use std::sync::Arc;
 
 // Third Party Imports
 use harmos_protocol::host::ComponentState;
 use harmos_runtime::operations::OperationFactory;
-use tokio::sync::mpsc::UnboundedSender;
 use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime_client_internal::Client;
 use dokime_client_internal::StatusWatchOptions;
 use dokime_operations::host;
-use dokime_runtime::ControlledClock;
-use dokime_runtime::SchedulerClock;
 
 /* === Constants === */
 
@@ -40,30 +36,11 @@ use dokime_runtime::SchedulerClock;
 
 /* === Structs === */
 
-struct ObservedClock {
-    clock: Arc<ControlledClock>,
-    waits: UnboundedSender<i64>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-
-#[async_trait::async_trait]
-impl SchedulerClock for ObservedClock {
-    fn now_ns(&self) -> i64 {
-        self.clock.now_ns()
-    }
-    async fn wait_until(&self, at_ns: i64) -> dokime_runtime::Result<()> {
-        self.clock.wait_until(at_ns).await
-    }
-    async fn reached(&self, at_ns: i64) {
-        let _ = self.waits.send(at_ns);
-        self.clock.reached(at_ns).await;
-    }
-}
 
 /* === Public Functions === */
 
@@ -133,46 +110,6 @@ fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<()
         }
         server.close().await?;
         Ok(())
-    }))
-}
-
-#[test]
-fn library_time_uses_the_execution_clock() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        use dokime_runtime::{ControlledClock, SchedulerClock, services};
-        use prost_types::Duration;
-        use std::sync::Arc;
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-            // Compose the Library Clock With an Observed Controlled Scheduler
-            let root = super::support::tempdir()?;
-            let clock = Arc::new(ControlledClock::new(0));
-            let (waits, mut waiting) = tokio::sync::mpsc::unbounded_channel();
-            let mut settings = super::support::settings();
-            settings.clock = Arc::new(ObservedClock { clock: clock.clone(), waits });
-
-            let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings, super::support::service_settings()).await?;
-
-            let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
-            let client = Client::from_channel(channel, super::support::client_settings())?;
-
-            let before = client.time.get().await?;
-            assert_eq!((before.seconds, before.nanos), (0, 0));
-
-            // Advance Only After the Library Has Registered This Sleep
-            let sleeping = client.clone();
-            let sleep = tokio::spawn(async move { sleeping.time.sleep(Duration { seconds: 7, nanos: 0 }).await });
-            while waiting.recv().await.ok_or("Sleep Through Library Time: Missing Scheduler Wait")? != 7_000_000_000 {}
-
-            clock.wait_until(7_000_000_000).await?;
-
-            sleep.await??;
-            let after = client.time.get().await?;
-            assert_eq!((after.seconds, after.nanos), (7, 0));
-
-            server.close().await?;
-            Ok::<(), Box<dyn Error>>(())
-        })
-        .await?
     }))
 }
 
@@ -261,5 +198,58 @@ fn client_reads_runtime() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
+    }))
+}
+
+#[test]
+fn clients_reach_every_wrapper_service() -> Result<(), Box<dyn Error>> {
+    super::support::run(Box::pin(async {
+        // Assemble the Product Listener and Call Its Generated Client Resources.
+        let root = super::support::tempdir()?;
+        let server = dokime_runtime::services::serve(
+            "127.0.0.1:0".parse()?,
+            root.path(),
+            super::support::settings(),
+            super::support::service_settings(),
+        )
+        .await?;
+        let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
+        let client = Client::from_channel(channel, super::support::client_settings())?;
+
+        // Enable an Ephemeral Listener and Exercise Pairing and Certificate Administration.
+        let listener = client.access.listener.get().await?;
+        let mut value = listener.value.unwrap();
+        value.enabled = true;
+        value.endpoint = "127.0.0.1:0".into();
+        client.access.listener.set(value, listener.revision).await?;
+        let pairing = client.access.pairings.create("Wrapper Audience").await?;
+        let pairing = pairing.pairing.unwrap();
+        assert!(client.access.pairings.list().await?.pairings.iter().any(|entry| entry.id == pairing.id));
+        client.access.pairings.delete(pairing.id).await?;
+        assert!(!client.access.certificates.create().await?.is_empty());
+
+        // Exercise All Status Services and Their Opening Frames.
+        assert!(client.status.get().await?.status.is_some());
+        let mut status = client.status.watch().await?;
+        assert!(status.next().await?.is_some());
+        drop(status);
+        let mut logs = client.status.logs.watch(4096, 16).await?;
+        assert!(logs.next().await?.is_some());
+        drop(logs);
+        client.status.trace_events.list().await?;
+        let mut traces = client.status.trace_events.watch(4096, 16).await?;
+        assert!(traces.next().await?.is_some());
+        drop(traces);
+        assert!(!client.status.diagnostics.get(String::new(), 0, 1024).await?.name.is_empty());
+
+        // Discover and Invoke the Product Status Wrapper Through Native Invocation Ownership.
+        assert!(!client.operations.list().await?.operations.is_empty());
+        let id = "dokime.host.v1.Status/Get";
+        let contract = client.operations.get(id).await?.contract.unwrap();
+        let payload = client.invocations.create(id, contract.fingerprint, Vec::new()).await?;
+        let status = <harmos_protocol::host::StatusGetResponse as prost::Message>::decode(payload.as_slice())?;
+        assert!(status.status.is_some());
+        server.close().await?;
+        Ok(())
     }))
 }

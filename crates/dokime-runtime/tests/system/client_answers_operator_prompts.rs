@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -36,12 +36,12 @@ use dokime_client_internal::ExecutionsCommandsCreateOptions;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
 use dokime_client_internal::ExecutionsStartOptions;
 use dokime_client_internal::ExecutionsStopOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::PromptKind;
 use dokime_client_internal::PromptsAnswersCreateOptions;
 use dokime_client_internal::PromptsListOptions;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_protocol::model::origin;
 use dokime_runtime::PluginProcess;
@@ -93,7 +93,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let mut repeated_origin = cases[0].origin.clone().unwrap();
             if let Some(origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {

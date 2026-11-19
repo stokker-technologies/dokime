@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::error;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use prost::Message;
 use tokio::time;
 use tonic::transport::Endpoint;
@@ -33,13 +33,13 @@ use dokime::Value;
 use dokime::record_scope;
 use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceRecordsListOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginState;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::PluginsSecretsListOptions;
 use dokime_client_internal::SecretsDeleteOptions;
 use dokime_client_internal::SecretsSetOptions;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginState;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
 
@@ -128,7 +128,7 @@ fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn erro
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let created = client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
-            support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
+            support::plugin_state(&client.plugins, created.entry.unwrap(), dokime_protocol::host::PluginState::Ready).await?;
             let options = || PluginsSecretsListOptions {
                 name: Some("secret_reader".into()),
                 ..Default::default()
@@ -172,7 +172,7 @@ fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn erro
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
             let entry = client.plugins.get("secret_reader").await?.entry.unwrap();
-            support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(client.plugins.secrets.list_with(options()).await?.secrets, stored.secrets);
 
             // Removing the Stored Secret Makes the Requirement Missing; a Deleted Entry Has No View
@@ -237,7 +237,7 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn error::Error>> {
                 .entry
                 .unwrap();
             let reader_entry =
-                super::support::plugin_state(&client.plugins, reader_entry, harmos_protocol::host::PluginState::Ready).await?;
+                super::support::plugin_state(&client.plugins, reader_entry, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(reader_entry.state, PluginState::Ready as i32, "{reader_entry:?}");
             let owner_entry = client
                 .plugins
@@ -251,7 +251,7 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn error::Error>> {
                 .await?
                 .entry
                 .unwrap();
-            let owner_entry = super::support::plugin_state(&client.plugins, owner_entry, harmos_protocol::host::PluginState::Ready).await?;
+            let owner_entry = super::support::plugin_state(&client.plugins, owner_entry, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(owner_entry.state, PluginState::Ready as i32, "{owner_entry:?}");
             let secrets = Client::from_channel(channel, super::support::client_settings())?.secrets.clone();
 

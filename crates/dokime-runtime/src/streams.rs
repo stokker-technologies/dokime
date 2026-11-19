@@ -455,7 +455,7 @@ mod tests {
         .await?;
         let mut context = CallContext::default();
         context.insert(time.clone())?;
-        let operations = runtime.operations.execution().with_context(context);
+        let operations = runtime.operations.with_context(context);
         let before = operations.call_protobuf::<TimeGet>(TimeGetRequest {}).await?.now.unwrap();
         let mut sleeping = time.sleeping.subscribe();
 

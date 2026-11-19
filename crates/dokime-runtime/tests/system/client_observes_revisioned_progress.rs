@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 // Third Party Imports
-use harmos_protocol::host::{PluginState, plugin_placement};
+use dokime_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::ReadCut;
 use tokio::time;
 use tonic::Code;
@@ -38,9 +38,9 @@ use dokime_client_internal::ExecutionsListOptions;
 use dokime_client_internal::ExecutionsProgressGetOptions;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
 use dokime_client_internal::ExecutionsSealOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_runtime::PluginProcess;
 

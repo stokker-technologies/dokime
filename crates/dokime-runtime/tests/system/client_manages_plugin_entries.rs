@@ -19,9 +19,9 @@ use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
 use dokime_client_internal::Client;
 use dokime_client_internal::PluginsListOptions;
+use dokime_protocol::host::plugin_placement;
+use dokime_protocol::host::{PluginPlacement, PluginRemote, PluginState, PluginValue};
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginState, PluginValue};
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -61,7 +61,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let entry = client.plugins.create("thermal", placement.clone(), PluginValue { enabled: true }).await?.entry.unwrap();
-            let entry = super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            let entry = super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(entry.name, "thermal");
             assert_eq!(entry.state, PluginState::Ready as i32);
             assert_eq!(entry.placement, Some(placement.clone()));
@@ -93,7 +93,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             client.plugins.delete(restarted.name, restarted.revision).await?;
             assert!(client.plugins.list().await?.entries.is_empty());
             let readded = client.plugins.create("thermal", placement, PluginValue { enabled: true }).await?.entry.unwrap();
-            let readded = super::support::plugin_state(&client.plugins, readded, harmos_protocol::host::PluginState::Ready).await?;
+            let readded = super::support::plugin_state(&client.plugins, readded, dokime_protocol::host::PluginState::Ready).await?;
             assert_eq!(readded.name, entry.name);
             assert_eq!(readded.state, PluginState::Ready as i32);
             plugin.close().await?;

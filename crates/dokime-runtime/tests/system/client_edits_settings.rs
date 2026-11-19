@@ -19,8 +19,8 @@
 use std::{collections::HashMap, error::Error, path::Path};
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginValue};
+use dokime_protocol::host::plugin_placement;
+use dokime_protocol::host::{PluginPlacement, PluginRemote, PluginValue};
 use harmos_protocol::model::setting_value;
 use harmos_protocol::model::{SettingDeclaration, SettingValue, SettingValues, SettingsDeclarations};
 use harmos_protocol::plugin::instance_server::{Instance, InstanceServer};
@@ -43,7 +43,8 @@ use dokime::plugin::Plugin;
 use dokime_client_internal::Client;
 use dokime_client_internal::PluginsSettingsSetOptions;
 use dokime_client_internal::SettingsSetOptions;
-use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::host::PluginState;
+use dokime_client_internal::{PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 

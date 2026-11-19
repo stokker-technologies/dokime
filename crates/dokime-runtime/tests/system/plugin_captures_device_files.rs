@@ -21,7 +21,7 @@ use std::error;
 use std::path::Path;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use dokime_protocol::host::plugin_placement;
 use prost::Message;
 use tonic::transport::Endpoint;
 
@@ -34,9 +34,9 @@ use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceRecordsListOptions;
 use dokime_client_internal::ExecutionsCancelOptions;
 use dokime_client_internal::ExecutionsProgressWatchOptions;
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::model::ArtifactScope;
 use dokime_protocol::model::value;
@@ -178,7 +178,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let created = client.plugins.create("capture", placement, PluginValue { enabled: true }).await?;
-            super::support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, created.entry.unwrap(), dokime_protocol::host::PluginState::Ready).await?;
 
             // Copy the Device Tree Once, Preserving Relative Paths
             let copied = admit(&client, "capture.copy", device.path(), outside.path()).await?;

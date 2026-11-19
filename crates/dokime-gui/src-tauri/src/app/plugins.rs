@@ -25,9 +25,8 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime_client_internal::{
-    FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginEntry,
-};
+use dokime_client_internal::host::PluginEntry;
+use dokime_client_internal::{FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions};
 use dokime_sdk::{FileMetadata, Upload};
 use sha2::{Digest, Sha256};
 const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;

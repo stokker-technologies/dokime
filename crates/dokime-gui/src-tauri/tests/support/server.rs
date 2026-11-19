@@ -18,12 +18,13 @@ use std::path::Path;
 
 // Local Imports
 
-use dokime_client_internal::PluginPlacement;
-use dokime_client_internal::PluginRemote;
-use dokime_client_internal::PluginValue;
 use dokime_client_internal::PluginsCreateOptions;
-use dokime_client_internal::plugin_placement;
-use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::host::PluginPlacement;
+use dokime_client_internal::host::PluginRemote;
+use dokime_client_internal::host::PluginState;
+use dokime_client_internal::host::PluginValue;
+use dokime_client_internal::host::plugin_placement;
+use dokime_client_internal::{PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};

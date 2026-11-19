@@ -53,7 +53,7 @@ fn sdk_and_binary_calls_share_host_identity() {
         let client = fixture.client().await;
         let typed =
             client.execute(client.client().status.get_with(StatusGetOptions { context: client.call_options().unwrap() })).await.unwrap();
-        let bytes = client.call_raw("/harmos.host.v1.Status/Get", &[]).await.unwrap();
+        let bytes = client.call_raw("/dokime.host.v1.Status/Get", &[]).await.unwrap();
         let binary = host::StatusGetResponse::decode(bytes.as_slice()).unwrap();
         assert_eq!(typed.status.unwrap().identity, binary.status.unwrap().identity);
         fixture.close().await;
@@ -84,7 +84,7 @@ fn sdk_status_remains_available_after_native_detach() {
         let fixture = Fixture::new().await;
         fixture.session.disconnect().unwrap();
         let client = fixture.client().await;
-        let response: host::StatusGetResponse = client.unary("/harmos.host.v1.Status/Get", host::StatusGetRequest {}).await.unwrap();
+        let response: host::StatusGetResponse = client.unary("/dokime.host.v1.Status/Get", host::StatusGetRequest {}).await.unwrap();
         assert!(response.status.unwrap().available);
         fixture.close().await;
     })
