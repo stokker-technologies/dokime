@@ -305,6 +305,9 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             await process.wait()
             await asyncio.gather(completed, return_exceptions=True)
 
+        # Client Close Removes Its Owned Registration Before Returning.
+        self.assertFalse((await host.client._transport.plugins.list()).entries)
+
         # Verify the Stable Outcome, Cycle Seal and Retained Archive.
         execution = await host.client.executions.get(execution_id)
         self.assertEqual((await execution.seal()).status, ResultStatus.PASSED)
