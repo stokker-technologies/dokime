@@ -23,28 +23,30 @@ mod fixture;
 
 use std::{
     collections::BTreeMap,
-    io::{BufRead, BufReader, Write},
+    env, fs,
+    io::{self, BufRead, BufReader, Write},
+    mem,
     panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
+    path::{Path, PathBuf},
     process::Stdio,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 // Third Party Imports
-use criterion::Criterion;
-// Local Imports
+use criterion::{Criterion, SamplingMode};
+use tokio::runtime::Runtime;
 use tracing::{Id, Subscriber, span::Attributes};
 use tracing_subscriber::{
     Layer,
     filter::filter_fn,
-    layer::{Context as LayerContext, SubscriberExt},
+    layer::{Context, SubscriberExt},
     registry::LookupSpan,
     util::SubscriberInitExt,
 };
 
-use criterion::SamplingMode;
-use std::path::{Path, PathBuf};
-use tokio::runtime::Runtime;
+// Local Imports
+use dokime_runtime::process;
 
 /* === Constants === */
 
@@ -64,13 +66,13 @@ struct QueryTimes(Arc<Mutex<BTreeMap<&'static str, Vec<f64>>>>);
 /* === Implementations === */
 
 impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for QueryTimes {
-    fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: LayerContext<'_, S>) {
+    fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
         if attributes.metadata().name().starts_with("plot.") || attributes.metadata().name().starts_with("document.") {
             context.span(id).unwrap().extensions_mut().insert(Instant::now());
         }
     }
 
-    fn on_close(&self, id: Id, context: LayerContext<'_, S>) {
+    fn on_close(&self, id: Id, context: Context<'_, S>) {
         if let Some(started) = context.span(&id).unwrap().extensions().get::<Instant>() {
             self.0.lock().unwrap().entry(context.span(&id).unwrap().name()).or_default().push(started.elapsed().as_secs_f64() * 1_000.0);
         }
@@ -82,20 +84,20 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for QueryTimes {
 /* === Private Functions === */
 
 fn main() {
-    if std::env::args().any(|argument| argument == "--remote") {
+    if env::var_os("DOKIME_DESKTOP_BENCH_CONTROL").is_some() {
         fixture::serve().unwrap();
         return;
     }
-    if std::env::args().any(|argument| argument == "--fixture-host") {
+    if env::args().any(|argument| argument == "--fixture-host") {
         host();
         return;
     }
 
     // Start The Real Native Desktop Driver Once Outside Criterion's Timers.
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let mut child = dokime_runtime::process::command("node")
+    let mut child = process::command("node")
         .arg(directory.join("benches/system/driver.mjs"))
-        .env("DOKIME_DESKTOP_BENCH_HOST", std::env::current_exe().unwrap())
+        .env("DOKIME_DESKTOP_BENCH_HOST", env::current_exe().unwrap())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -178,12 +180,12 @@ fn main() {
 
 fn host() {
     let executor = Runtime::new().unwrap();
-    let directory = std::env::var_os("DOKIME_DESKTOP_BENCH_FIXTURES").expect("fixture directory under target");
-    std::fs::create_dir_all(&directory).unwrap();
-    let restored = std::env::var_os("DOKIME_DESKTOP_BENCH_RESTORE").filter(|path| !path.is_empty());
+    let directory = env::var_os("DOKIME_DESKTOP_BENCH_FIXTURES").expect("fixture directory under target");
+    fs::create_dir_all(&directory).unwrap();
+    let restored = env::var_os("DOKIME_DESKTOP_BENCH_RESTORE").filter(|path| !path.is_empty());
     let restoring = restored.is_some();
     let root = restored.map_or_else(|| tempfile::tempdir_in(&directory).unwrap().keep(), PathBuf::from);
-    assert!(root.canonicalize().unwrap().starts_with(std::fs::canonicalize(&directory).unwrap()), "owned fixture root");
+    assert!(root.canonicalize().unwrap().starts_with(fs::canonicalize(&directory).unwrap()), "owned fixture root");
     let queries = QueryTimes::default();
     let probe =
         queries.clone().with_filter(filter_fn(|metadata| metadata.name().starts_with("plot.") || metadata.name().starts_with("document.")));
@@ -196,10 +198,10 @@ fn host() {
         "shutdown_ms": Duration::from_secs(30).as_millis(),
         "end_s":fixture::ORIGIN_S + (fixture::rows() - 1) as f64 * fixture::sample_ns() as f64 / 1e9})
     );
-    std::io::stdout().flush().unwrap();
+    io::stdout().flush().unwrap();
     let result = catch_unwind(AssertUnwindSafe(|| {
         let mut history_ready = restoring;
-        for line in std::io::stdin().lock().lines() {
+        for line in io::stdin().lock().lines() {
             let line = line.unwrap();
             // Prove Native Launch Before Admitting The Multi-Million-Row History.
             if line == "prepare" && !history_ready {
@@ -209,9 +211,9 @@ fn host() {
             if line == "live" || line == "late" {
                 executor.block_on(fixture.publish(&line));
             }
-            let times = std::mem::take(&mut *queries.0.lock().unwrap());
+            let times = mem::take(&mut *queries.0.lock().unwrap());
             println!("{}", serde_json::json!({"stages": times}));
-            std::io::stdout().flush().unwrap();
+            io::stdout().flush().unwrap();
         }
     }));
     executor.block_on(fixture.close());
