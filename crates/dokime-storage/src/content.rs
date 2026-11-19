@@ -29,9 +29,9 @@ use tempfile::TempPath;
 use zip::{CompressionMethod, DateTime, System, ZipWriter, write::SimpleFileOptions};
 
 // Local Imports
-use dokime_protocol::host::CyclePhase;
 use crate::persisted::Scope;
 use crate::{Error, Result, Store};
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::CycleSummary;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ExecutionFileMetadata;

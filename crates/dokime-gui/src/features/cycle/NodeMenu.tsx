@@ -77,7 +77,7 @@ export type ExecutionMenu = {
   /** Opens the report the execution has now: current or sealed;
    *  `null` for a case that has not run, which has no report of its own. */
   onOpenReport: (() => void) | null;
-  /** Re-Run the execution's case; `null` while the attempt has not ended. */
+  /** Re-Run the execution's case; `null` while the execution is not sealed. */
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
   rerunRefusal?: string;

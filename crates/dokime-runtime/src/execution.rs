@@ -28,7 +28,6 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use dokime_protocol::host::CyclePhase;
 use crate::{
     Error, Result,
     capabilities::can_start,
@@ -39,6 +38,7 @@ use crate::{
     streams::{ExecutionTime, SampleScope},
 };
 use dokime_operations::Resources;
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::host::executions::ExecutionCommandPhase;
 use dokime_protocol::host::{EvaluatedOutcome, ExecutionMode, ExecutionOutcome, ResultStatus, UnevaluatedOutcome};

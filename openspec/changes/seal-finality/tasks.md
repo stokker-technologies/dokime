@@ -5,8 +5,8 @@
 
 ## 2. Finality
 
-- [ ] 2.1 Refuse new notes on a sealed execution with an actionable error; prove refusal after seal and acceptance before it.
-- [ ] 2.2 Refuse new attached files on a sealed execution; prove the same pair of cases.
+- [x] 2.1 Refuse new notes on a sealed execution with an actionable error; prove refusal after seal and acceptance before it.
+- [x] 2.2 Refuse new attached files on a sealed execution; prove the same pair of cases.
 
 - [x] 2.3 Offer an execution seal call that returns the outcome, repeats safely and refuses running or never-started executions; progress Watch emits one sealed outcome frame and ends, including reattachment; notes and artifacts after the run go to the cycle until it is sealed.
 
@@ -14,10 +14,10 @@
 
 - [x] 3.1 Verify what the evidence archive contains today (samples, records, files, notes, documents, report) and record any gap against full evidence here before implementing.
 - [ ] 3.2 Materialize the cycle report during seal under the Sealing phase and retain it; report Seal Failed with the cause and leave the cycle sealable.
-- [ ] 3.3 Materialize the evidence archive containing that report during the same seal and retain it.
-- [ ] 3.4 Return the retained report and archive on every download; prove equal digests across two downloads.
-- [ ] 3.5 Refuse a cycle seal while an execution is running and name it.
-- [ ] 3.6 Seal never-started executions as not run during a cycle seal, list them as not run in the report, exclude them from pass and fail counts and refuse a later start.
+- [x] 3.3 Materialize the evidence archive containing that report during the same seal and retain it.
+- [x] 3.4 Return the retained report and archive on every download; prove equal digests across two downloads.
+- [x] 3.5 Refuse a cycle seal while an execution is running and name it.
+- [x] 3.6 Seal never-started executions as not run during a cycle seal, list them as not run in the report, exclude them from pass and fail counts and refuse a later start.
 
 ### Archive Inventory Before Implementation
 

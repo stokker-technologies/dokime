@@ -33,12 +33,12 @@ use zip::ZipArchive;
 
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, documents_and_reports::decode_report, support};
-use dokime::client::{self, ContentArtifactsCreateOptions};
 use dokime::Client;
-use dokime_runtime::PluginProcess;
+use dokime::client::{self, ContentArtifactsCreateOptions};
 use dokime_protocol::host::evidence::{AnnotationOwner, AnnotationOwnerOwner, ExecutionNoteOwner, NoteWritable, annotation_owner_owner};
 use dokime_protocol::host::{CyclePhase, ExecutionState, evidence_subject, execution_outcome, report_subject};
 use dokime_protocol::model::{ArtifactScope, Metadata, Termination};
+use dokime_runtime::PluginProcess;
 use dokime_storage::{CycleArchive, ExecutionArchive};
 
 /* === Constants === */
@@ -62,7 +62,7 @@ use dokime_storage::{CycleArchive, ExecutionArchive};
 /* === Tests === */
 
 #[test]
-fn cycle_seal_retains_evidence_and_retries_materialization_failure() -> Result<(), Box<dyn Error>> {
+fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
     support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Admit Two Executions Without Starting Them.
@@ -124,20 +124,7 @@ fn cycle_seal_retains_evidence_and_retries_materialization_failure() -> Result<(
             let scope = ArtifactScope { cycle_id: Some(name.clone()), ..Default::default() };
             let artifact = client.content.artifacts.create_with(file.clone(), "cycle.bin", "application/octet-stream", ContentArtifactsCreateOptions { scope: Some(scope.clone()), ..Default::default() }).await?.artifact.unwrap();
 
-            // Inject a Durable Publication Failure Without Timing or Deadline Changes.
-            let database = Connection::open(root.path().join("storage.sqlite3"))?;
-            database.execute_batch("CREATE TRIGGER refuse_seal_report BEFORE INSERT ON storage_files WHEN NEW.id LIKE 'prepared-report/cycle-seal/%' BEGIN SELECT RAISE(ABORT,'Injected Report Publication Failure'); END;")?;
-            let mut completion = client.cycles.seal(name.clone()).await?;
-            let mut phases = Vec::new();
-            while let Some(frame) = completion.next().await? { phases.push(frame.cycle.unwrap().phase); }
-            assert_eq!(phases, [CyclePhase::Sealing as i32, CyclePhase::SealFailed as i32]);
-            let failed = client.cycles.get(name.clone()).await?.cycle.unwrap();
-            assert!(!failed.sealed);
-            assert!(failed.seal_failure.is_some());
-            client.evidence.notes.create(cycle_owner.clone(), NoteWritable { message: "repair-reviewed".into() }).await?;
-            database.execute_batch("DROP TRIGGER refuse_seal_report;")?;
-
-            // Retry and Observe Materialization Followed by Its Completion.
+            // Observe Materialization Followed by Its Retained Completion.
             let mut completion = client.cycles.seal(name.clone()).await?;
             let mut phases = Vec::new();
             let mut retained = None;
@@ -212,6 +199,45 @@ fn cycle_seal_retains_evidence_and_retries_materialization_failure() -> Result<(
             assert!(replay.next().await?.is_none());
             process.close().await?;
             plugin.close().await?;
+            Ok(())
+        }).await?
+    }))
+}
+
+#[test]
+fn cycle_seal_retries_materialization_failure() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Own an Empty Cycle and Its Native Storage Fault Independently of Retention Proof.
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let cycle = client.cycles.create(Vec::new(), Metadata::default(), false, "").await?.cycle.unwrap();
+            let name = cycle.cycle_id;
+            let cycle_owner = AnnotationOwner { owner: Some(AnnotationOwnerOwner { kind: Some(annotation_owner_owner::Kind::CycleId(name.clone())) }) };
+            // Inject a Durable Publication Failure Without Timing or Deadline Changes.
+            let database = Connection::open(root.path().join("storage.sqlite3"))?;
+            database.execute_batch("CREATE TRIGGER refuse_seal_report BEFORE INSERT ON storage_files WHEN NEW.id LIKE 'prepared-report/cycle-seal/%' BEGIN SELECT RAISE(ABORT,'Injected Report Publication Failure'); END;")?;
+            let mut completion = client.cycles.seal(name.clone()).await?;
+            let mut phases = Vec::new();
+            while let Some(frame) = completion.next().await? { phases.push(frame.cycle.unwrap().phase); }
+            assert_eq!(phases, [CyclePhase::Sealing as i32, CyclePhase::SealFailed as i32]);
+            let failed = client.cycles.get(name.clone()).await?.cycle.unwrap();
+            assert!(!failed.sealed);
+            assert!(failed.seal_failure.is_some());
+            client.evidence.notes.create(cycle_owner.clone(), NoteWritable { message: "repair-reviewed".into() }).await?;
+            database.execute_batch("DROP TRIGGER refuse_seal_report;")?;
+
+            // Retry the Same Unsealed Cycle After Resolving Its Materialization Fault.
+            let mut completion = client.cycles.seal(name.clone()).await?;
+            let mut phases = Vec::new();
+            while let Some(frame) = completion.next().await? { phases.push(frame.cycle.unwrap().phase); }
+            assert_eq!(phases, [CyclePhase::Sealing as i32, CyclePhase::Sealed as i32]);
+            assert!(client.cycles.get(name).await?.cycle.unwrap().sealed);
+            process.close().await?;
             Ok(())
         }).await?
     }))

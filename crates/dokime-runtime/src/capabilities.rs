@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::host::CyclePhase;
 use crate::{Result, execution_manager::ExecutionManager, host::lock};
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::model::origin;
 use dokime_storage::{ExecutionCut, ExecutionState};
 

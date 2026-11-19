@@ -548,8 +548,8 @@ test("Prompt Answering", () => {
     scope: { executionId: executionId },
   });
   const pending: Owned[] = [scoped("running", "one"), scoped("interrupted", "two"), { correlation_id: "cycle" }];
-  const owners = (cycleEnded: boolean) => ({
-    cycleEnded,
+  const owners = (cycleUnavailable: boolean) => ({
+    cycleUnavailable,
     executionActive: (executionId: string) => executionId === "one",
   });
   assert.deepEqual(

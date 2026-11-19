@@ -19,9 +19,9 @@
 
 // Third Party Imports
 use harmos_protocol::model::{History, Position, Receipt, Section};
-use sha2::{Digest, Sha256};
 use prost::Message;
 use rusqlite::{Connection, OptionalExtension, params};
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, Store};

@@ -41,7 +41,6 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use dokime_protocol::host::CyclePhase;
 use crate::execution;
 use crate::run_control::RunControl;
 use crate::services::composition::Application;
@@ -52,6 +51,7 @@ use crate::{
     prompts::PromptManager,
 };
 use dokime_operations::host::{Context, Progress};
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::host::executions::{CommandsCreateRequest, ExecutionCommandReceipt};
 use dokime_protocol::host::{CycleSummary, ExecutionMode, ExecutionOutcome, UnevaluatedOutcome};

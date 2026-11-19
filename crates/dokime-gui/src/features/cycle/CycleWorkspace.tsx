@@ -164,7 +164,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     }
     const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
-      cycleEnded: phase !== "active",
+      cycleUnavailable: phase !== "active",
       executionActive: (id) => {
         const executionStatus = statuses.get(id);
         return executionStatus !== undefined && isActiveExecutionStatus(executionStatus);

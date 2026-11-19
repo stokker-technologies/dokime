@@ -90,7 +90,7 @@ export type CycleControlInput = {
 /* === Public Functions === */
 
 /**
- * The runtime owns finalization. Completed records cover only finished steps,
+ * The runtime owns finalization. Completed records cover only completed steps,
  * and progress counts one step's work; neither establishes that the run sealed.
  */
 export function executionControlState(input: ExecutionControlInput): ExecutionControlState {
