@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Status Contracts
+//
+// Product client exposure of the in-process library operations.
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "harmos/host/v1/status.proto";
+import "harmos/model/v1/callers.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// === Services === //
+
+// Exposes Status to product clients with library-owned payloads and execution policy.
+service Status {
+  // Read the current host identity and contributed health with the status history boundary.
+  rpc Get(.harmos.host.v1.StatusGetRequest) returns (.harmos.host.v1.StatusGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Validate the optional issued position, emit current status and then changes; this is a live view rather than historical status replay.
+  rpc Watch(.harmos.host.v1.StatusWatchRequest) returns (stream .harmos.host.v1.StatusWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// === Enums === //

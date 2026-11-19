@@ -243,19 +243,56 @@ after callers stop using `harmos_protocol::host` paths; Harmos payload values th
 `dokime-protocol` through the `harmos` SDK root. The filesystem publication helper used by
 `crates/dokime-gui/src-tauri/src/parameters.rs` becomes product-owned.
 
-### D6. Product Wrappers and Composition Removal (Proposed)
+### D6. Product Wrappers and Composition Removal (Agreed, 2026-11-19)
 
-Dokime wraps, under `proto/dokime/host/v1` nested resources and following the protocol
-source convention, each Harmos host operation that a Dokime client (desktop, CLI, Python, C#,
-C++ SDK, stories) calls today. Candidates from the current tree:
+The client inventory below is locked for the main-line pin
+`aa9f5612efeea8f38bdd01c06b81f688ad11660f`. Declarations live under
+`proto/dokime/host/v1`; each wrapper retains its existing SDK resource and method
+name, declares CLIENTS explicitly and reuses the unchanged library messages.
+The handler registration uses `ProtobufOperation::service()` with the product
+service descriptor, because the payload descriptor belongs to the library.
+Declarations and generated projections do not establish handler implementation.
 
-| Harmos Resource | Methods Used by Dokime Clients | Audience |
-| --- | --- | --- |
-| Access.Listener, Access.Pairings, Access.Certificates | Get, Set; Create, List, Delete; Create | CLIENTS |
-| Status, status.Logs, status.TraceEvents, status.Diagnostics | Get, Watch; List, Watch; List, Watch; Get | CLIENTS |
-| Operations, Invocations | List, Get; Create, Get, Cancel, Watch | CLIENTS |
-| Schemas, Streams | List; List | CLIENTS |
-| Time | Get, Sleep | CLIENTS only if a client calls it |
+The inventory was checked against desktop `connection/host.rs`, its generated
+dispatch and `src/lib/api/native-{remote,logs,diagnostics}.ts`; CLI
+`commands/{status,pairing,operation}.rs`; `dokime-client-internal`; the four SDK
+connection and bound-operation implementations; and their product stories.
+Generated methods without an authored caller are not evidence of use.
+
+| Product Service/Method | Audience | Request Message | Response Message | Client Evidence |
+| --- | --- | --- | --- | --- |
+| `dokime.host.v1.access.Listener/Get` | CLIENTS | `harmos.host.v1.access.ListenerGetRequest` | `harmos.host.v1.access.ListenerGetResponse` | Desktop preferences; CLI pairing export |
+| `dokime.host.v1.access.Listener/Set` | CLIENTS | `harmos.host.v1.access.ListenerSetRequest` | `harmos.host.v1.access.ListenerSetResponse` | Desktop preferences; CLI pairing export |
+| `dokime.host.v1.access.Pairings/Create` | CLIENTS | `harmos.host.v1.access.PairingsCreateRequest` | `harmos.host.v1.access.PairingsCreateResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
+| `dokime.host.v1.access.Pairings/List` | CLIENTS | `harmos.host.v1.access.PairingsListRequest` | `harmos.host.v1.access.PairingsListResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
+| `dokime.host.v1.access.Pairings/Delete` | CLIENTS | `harmos.host.v1.access.PairingsDeleteRequest` | `harmos.host.v1.access.PairingsDeleteResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
+| `dokime.host.v1.access.Certificates/Create` | CLIENTS | `harmos.host.v1.access.CertificatesCreateRequest` | `harmos.host.v1.access.CertificatesCreateResponse` | Desktop certificate regeneration |
+| `dokime.host.v1.Status/Get` | CLIENTS | `harmos.host.v1.StatusGetRequest` | `harmos.host.v1.StatusGetResponse` | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.Status/Watch` | CLIENTS | `harmos.host.v1.StatusWatchRequest` | `harmos.host.v1.StatusWatchResponse` (stream) | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.status.Logs/Watch` | CLIENTS | `harmos.host.v1.status.LogsWatchRequest` | `harmos.host.v1.status.LogsWatchResponse` (stream) | Runtime diagnostics story; C++ client-read story |
+| `dokime.host.v1.status.TraceEvents/List` | CLIENTS | `harmos.host.v1.status.TraceEventsListRequest` | `harmos.host.v1.status.TraceEventsListResponse` | Desktop log adapter; runtime diagnostics story |
+| `dokime.host.v1.status.TraceEvents/Watch` | CLIENTS | `harmos.host.v1.status.TraceEventsWatchRequest` | `harmos.host.v1.status.TraceEventsWatchResponse` (stream) | Desktop log adapter; runtime diagnostics story |
+| `dokime.host.v1.status.Diagnostics/Get` | CLIENTS | `harmos.host.v1.status.DiagnosticsGetRequest` | `harmos.host.v1.status.DiagnosticsGetResponse` | Desktop diagnostics archive and native host stories |
+| `dokime.host.v1.Operations/List` | CLIENTS | `harmos.host.v1.OperationsListRequest` | `harmos.host.v1.OperationsListResponse` | Desktop discovery; CLI operation commands; SDK bound operations |
+| `dokime.host.v1.Operations/Get` | CLIENTS | `harmos.host.v1.OperationsGetRequest` | `harmos.host.v1.OperationsGetResponse` | Desktop discovery; CLI operation commands; SDK bound operations |
+| `dokime.host.v1.Invocations/Create` | CLIENTS | `harmos.host.v1.InvocationsCreateRequest` | `harmos.host.v1.InvocationsCreateResponse` | CLI and Python/C#/C++ bound operation calls |
+
+This is 15 methods across nine services: Listener 2, Pairings 3, Certificates 1,
+Status 2, Logs 1, TraceEvents 2, Diagnostics 1, Operations 2 and Invocations 1.
+The prior candidate table overstated Logs.List, Invocations.Get/Cancel/Watch,
+Schemas.List and Streams.List: no authored product client calls them, so they
+are not wrapped. Time.Get/Sleep are plugin context calls only and are not
+client wrappers. Pairings.List, Status.Watch and Logs.Watch have real product
+story callers even where the interactive applications do not call them.
+No used generic method was missing from the candidate table.
+
+Plugin-facing identities move to `harmos.plugin.v1.Time/{Get,Sleep}`,
+`harmos.plugin.v1.Invocations/{Get,Cancel,Watch}`,
+`harmos.plugin.v1.Operations/{List,Get}` and
+`harmos.plugin.v1.plugins.Settings/List`. Their payload messages stay in
+`harmos.host.v1` (and its `plugins` package); message reuse does not preserve
+any removed host routing identity. The three virtual-clock comparisons in
+`crates/dokime-runtime/src/streams.rs` must move with the Time identity.
 
 `plugin-boundary` moves Plugins and plugins.Settings operations, contracts and
 SDK projections to Dokime as product policy over Harmos activation/storage calls.
