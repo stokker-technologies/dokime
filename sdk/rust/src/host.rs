@@ -158,41 +158,41 @@ impl Request for dokime_protocol::host::SecretsGetRequest {
 }
 impl Request for harmos_protocol::host::InvocationsGetRequest {
     type Response = harmos_protocol::host::InvocationsGetResponse;
-    const ID: &'static str = "harmos.host.v1.Invocations/Get";
+    const ID: &'static str = "harmos.plugin.v1.Invocations/Get";
     const WATCH: bool = false;
 }
 impl Request for harmos_protocol::host::InvocationsCancelRequest {
     type Response = harmos_protocol::host::InvocationsCancelResponse;
-    const ID: &'static str = "harmos.host.v1.Invocations/Cancel";
+    const ID: &'static str = "harmos.plugin.v1.Invocations/Cancel";
     const WATCH: bool = false;
 }
 impl Request for harmos_protocol::host::InvocationsWatchRequest {
     type Response = harmos_protocol::host::InvocationsWatchResponse;
-    const ID: &'static str = "harmos.host.v1.Invocations/Watch";
+    const ID: &'static str = "harmos.plugin.v1.Invocations/Watch";
     const WATCH: bool = true;
 }
 impl Request for harmos_protocol::host::OperationsListRequest {
     type Response = harmos_protocol::host::OperationsListResponse;
-    const ID: &'static str = "harmos.host.v1.Operations/List";
+    const ID: &'static str = "harmos.plugin.v1.Operations/List";
     const WATCH: bool = false;
 }
 impl Request for harmos_protocol::host::OperationsGetRequest {
     type Response = harmos_protocol::host::OperationsGetResponse;
-    const ID: &'static str = "harmos.host.v1.Operations/Get";
+    const ID: &'static str = "harmos.plugin.v1.Operations/Get";
     const WATCH: bool = false;
 }
 impl Request for harmos_protocol::host::plugins::SettingsListRequest {
     type Response = harmos_protocol::host::plugins::SettingsListResponse;
-    const ID: &'static str = "harmos.host.v1.plugins.Settings/List";
+    const ID: &'static str = "harmos.plugin.v1.plugins.Settings/List";
     const WATCH: bool = false;
 }
 impl Request for harmos_protocol::host::TimeGetRequest {
     type Response = harmos_protocol::host::TimeGetResponse;
-    const ID: &'static str = "harmos.host.v1.Time/Get";
+    const ID: &'static str = "harmos.plugin.v1.Time/Get";
     const WATCH: bool = false;
 }
 impl Request for harmos_protocol::host::TimeSleepRequest {
     type Response = harmos_protocol::host::TimeSleepResponse;
-    const ID: &'static str = "harmos.host.v1.Time/Sleep";
+    const ID: &'static str = "harmos.plugin.v1.Time/Sleep";
     const WATCH: bool = false;
 }

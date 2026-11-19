@@ -15,7 +15,7 @@ internal sealed partial class Plugin
 {
   internal Plugin RequiresLibrary(Harmos.Plugins.HostOperation operation)
   {
-    transport.Requires(operation);
+    transport.Register(ctx => ctx.Register(operation));
     return this;
   }
 }

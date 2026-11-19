@@ -33,15 +33,12 @@ internal sealed class Client : IDisposable
   public PromptsResource Prompts { get; }
   public RecordSchemasResource RecordSchemas { get; }
   public ReportsResource Reports { get; }
-  public SchemasResource Schemas { get; }
   public SecretsResource Secrets { get; }
   public SettingsResource Settings { get; }
   public StatusResource Status { get; }
   public StorageResource Storage { get; }
   public StreamSchemasResource StreamSchemas { get; }
-  public StreamsResource Streams { get; }
   public SuitesResource Suites { get; }
-  public TimeResource Time { get; }
   public Client(CallInvoker invoker)
   {
     Access = new AccessResource(invoker);
@@ -63,15 +60,12 @@ internal sealed class Client : IDisposable
     Prompts = new PromptsResource(invoker);
     RecordSchemas = new RecordSchemasResource(invoker);
     Reports = new ReportsResource(invoker);
-    Schemas = new SchemasResource(invoker);
     Secrets = new SecretsResource(invoker);
     Settings = new SettingsResource(invoker);
     Status = new StatusResource(invoker);
     Storage = new StorageResource(invoker);
     StreamSchemas = new StreamSchemasResource(invoker);
-    Streams = new StreamsResource(invoker);
     Suites = new SuitesResource(invoker);
-    Time = new TimeResource(invoker);
   }
   public static Client Connect(string address, global::Harmos.StorageTransferSettings? transfer = null, int? messageBytes = null)
   {
@@ -102,7 +96,23 @@ internal sealed class AccessCertificatesResource
   }
   public async Task<string> Create(CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Access.Certificates.Create(context);
+    var request = new global::Harmos.Clients.CertificatesCreateRequest
+    {
+    };
+    var method = new Method<global::Harmos.Clients.CertificatesCreateRequest, global::Harmos.Clients.CertificatesCreateResponse>(MethodType.Unary, "dokime.host.v1.access.Certificates", "Create",
+        Marshallers.Create<global::Harmos.Clients.CertificatesCreateRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.CertificatesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.CertificatesCreateResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.CertificatesCreateResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.CertificatesCreateResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call access.certificates.create: " + error.Status.Detail), error.Trailers);
+    }
+    return response.CertificatePem;
   }
 }
 internal sealed class AccessListenerResource
@@ -114,11 +124,45 @@ internal sealed class AccessListenerResource
   }
   public async Task<global::Harmos.Clients.ListenerGetResponse> Get(CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Access.Listener.Get(context);
+    var request = new global::Harmos.Clients.ListenerGetRequest
+    {
+    };
+    var method = new Method<global::Harmos.Clients.ListenerGetRequest, global::Harmos.Clients.ListenerGetResponse>(MethodType.Unary, "dokime.host.v1.access.Listener", "Get",
+        Marshallers.Create<global::Harmos.Clients.ListenerGetRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.ListenerGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.ListenerGetResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.ListenerGetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.ListenerGetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call access.listener.get: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
   public async Task<global::Harmos.Clients.ListenerSetResponse> Set(global::Harmos.Clients.ListenerValue value, ByteString expectedRevision, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Access.Listener.Set(value, expectedRevision, context);
+    var request = new global::Harmos.Clients.ListenerSetRequest
+    {
+      Value = value,
+      ExpectedRevision = expectedRevision,
+    };
+    var method = new Method<global::Harmos.Clients.ListenerSetRequest, global::Harmos.Clients.ListenerSetResponse>(MethodType.Unary, "dokime.host.v1.access.Listener", "Set",
+        Marshallers.Create<global::Harmos.Clients.ListenerSetRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.ListenerSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.ListenerSetResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.ListenerSetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.ListenerSetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call access.listener.set: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
 }
 internal sealed class AccessPairingsResource
@@ -130,15 +174,69 @@ internal sealed class AccessPairingsResource
   }
   public async Task<global::Harmos.Clients.PairingsCreateResponse> Create(string label, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Access.Pairings.Create(label, context);
+    var request = new global::Harmos.Clients.PairingsCreateRequest
+    {
+      Label = label,
+    };
+    var method = new Method<global::Harmos.Clients.PairingsCreateRequest, global::Harmos.Clients.PairingsCreateResponse>(MethodType.Unary, "dokime.host.v1.access.Pairings", "Create",
+        Marshallers.Create<global::Harmos.Clients.PairingsCreateRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.PairingsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.PairingsCreateResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.PairingsCreateResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.PairingsCreateResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call access.pairings.create: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
   public async Task<global::Harmos.Clients.PairingsListResponse> List(global::Harmos.Position? at = null, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Access.Pairings.List(at, context);
+    var request = new global::Harmos.Clients.PairingsListRequest
+    {
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Harmos.Clients.PairingsListRequest, global::Harmos.Clients.PairingsListResponse>(MethodType.Unary, "dokime.host.v1.access.Pairings", "List",
+        Marshallers.Create<global::Harmos.Clients.PairingsListRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.PairingsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.PairingsListResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.PairingsListResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.PairingsListResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call access.pairings.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
   public async Task<global::Harmos.Clients.PairingsDeleteResponse> Delete(string name, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Access.Pairings.Delete(name, context);
+    var request = new global::Harmos.Clients.PairingsDeleteRequest
+    {
+      Name = name,
+    };
+    var method = new Method<global::Harmos.Clients.PairingsDeleteRequest, global::Harmos.Clients.PairingsDeleteResponse>(MethodType.Unary, "dokime.host.v1.access.Pairings", "Delete",
+        Marshallers.Create<global::Harmos.Clients.PairingsDeleteRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.PairingsDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.PairingsDeleteResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.PairingsDeleteResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.PairingsDeleteResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call access.pairings.delete: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
 }
 internal sealed class AggregatesResource
@@ -2271,19 +2369,26 @@ internal sealed class InvocationsResource
   }
   public async Task<ByteString> Create(string operation, ByteString fingerprint, ByteString payload, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Invocations.Create(operation, fingerprint, payload, context);
-  }
-  public async Task<global::Harmos.InstanceState> Get(ulong instance, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Invocations.Get(instance, context);
-  }
-  public async Task<global::Harmos.InstanceState> Cancel(ulong instance, string reason, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Invocations.Cancel(instance, reason, context);
-  }
-  public async IAsyncEnumerable<global::Harmos.InstanceState> Watch(ulong instance, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-  {
-    await foreach (var response in new Harmos.Client(invoker).Invocations.Watch(instance, context, cancellationToken)) { yield return response; }
+    var request = new global::Harmos.Clients.InvocationsCreateRequest
+    {
+      Operation = operation,
+      Fingerprint = fingerprint,
+      Payload = payload,
+    };
+    var method = new Method<global::Harmos.Clients.InvocationsCreateRequest, global::Harmos.Clients.InvocationsCreateResponse>(MethodType.Unary, "dokime.host.v1.Invocations", "Create",
+        Marshallers.Create<global::Harmos.Clients.InvocationsCreateRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.InvocationsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.InvocationsCreateResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.InvocationsCreateResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.InvocationsCreateResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call invocations.create: " + error.Status.Detail), error.Trailers);
+    }
+    return response.Payload;
   }
 }
 internal sealed class MediaResource
@@ -2432,11 +2537,44 @@ internal sealed class OperationsResource
   }
   public async Task<IReadOnlyList<global::Harmos.DiscoveredOperation>> List(CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Operations.List(context);
+    var request = new global::Harmos.Clients.OperationsListRequest
+    {
+    };
+    var method = new Method<global::Harmos.Clients.OperationsListRequest, global::Harmos.Clients.OperationsListResponse>(MethodType.Unary, "dokime.host.v1.Operations", "List",
+        Marshallers.Create<global::Harmos.Clients.OperationsListRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.OperationsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.OperationsListResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.OperationsListResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.OperationsListResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call operations.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response.Operations;
   }
   public async Task<global::Harmos.DiscoveredOperation> Get(string id, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Operations.Get(id, context);
+    var request = new global::Harmos.Clients.OperationsGetRequest
+    {
+      Id = id,
+    };
+    var method = new Method<global::Harmos.Clients.OperationsGetRequest, global::Harmos.Clients.OperationsGetResponse>(MethodType.Unary, "dokime.host.v1.Operations", "Get",
+        Marshallers.Create<global::Harmos.Clients.OperationsGetRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.OperationsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.OperationsGetResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.OperationsGetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.OperationsGetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call operations.get: " + error.Status.Detail), error.Trailers);
+    }
+    return response.Operation ?? throw new InvalidOperationException("Read Operations.Get: Missing Payload");
   }
 }
 internal sealed class PlotsResource
@@ -2587,46 +2725,10 @@ internal sealed class PlotsSnapshotsResource
 }
 internal sealed class PluginsResource
 {
-  private readonly CallInvoker invoker;
   public PluginsSecretsResource Secrets { get; }
-  public PluginsSettingsResource Settings { get; }
   public PluginsResource(CallInvoker invoker)
   {
-    this.invoker = invoker;
     Secrets = new PluginsSecretsResource(invoker);
-    Settings = new PluginsSettingsResource(invoker);
-  }
-  public async Task<global::Harmos.Clients.PluginsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Get(name, at, context);
-  }
-  public async Task<global::Harmos.Clients.PluginsListResponse> List(global::Harmos.ReadCut? at = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.List(at, context);
-  }
-  public async IAsyncEnumerable<global::Harmos.Clients.PluginsWatchResponse> Watch(string? name = null, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-  {
-    await foreach (var response in new Harmos.Client(invoker).Plugins.Watch(name, at, context, cancellationToken)) { yield return response; }
-  }
-  public async Task<global::Harmos.Clients.PluginsCreateResponse> Create(string name, global::Harmos.Clients.PluginPlacement placement, global::Harmos.Clients.PluginValue value, string? requestId = null, string? origin = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Create(name, placement, value, requestId, origin, context);
-  }
-  public async Task<global::Harmos.Clients.PluginsSetResponse> Set(string name, global::Harmos.Clients.PluginValue value, ByteString expectedRevision, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Set(name, value, expectedRevision, context);
-  }
-  public async Task<global::Harmos.Receipt> Delete(string name, ByteString expectedRevision, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Delete(name, expectedRevision, context);
-  }
-  public async Task<global::Harmos.Clients.PluginEntry> Restart(string name, ByteString expectedRevision, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Restart(name, expectedRevision, context);
-  }
-  public async Task<global::Harmos.Clients.PluginsReplaceResponse> Replace(string name, global::Harmos.Clients.PluginPlacement placement, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Replace(name, placement, expectedRevision, requestId, context);
   }
 }
 internal sealed class PluginsSecretsResource
@@ -2663,22 +2765,6 @@ internal sealed class PluginsSecretsResource
       throw new RpcException(new Status(error.StatusCode, "Call plugins.secrets.list: " + error.Status.Detail), error.Trailers);
     }
     return response;
-  }
-}
-internal sealed class PluginsSettingsResource
-{
-  private readonly CallInvoker invoker;
-  public PluginsSettingsResource(CallInvoker invoker)
-  {
-    this.invoker = invoker;
-  }
-  public async Task<global::Harmos.Clients.SettingsListResponse> List(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Settings.List(name, at, context);
-  }
-  public async Task<global::Harmos.Clients.SettingsSetResponse> Set(string name, global::Harmos.SettingValues value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Plugins.Settings.Set(name, value, expectedRevision, requestId, context);
   }
 }
 internal sealed class PromptDefinitionsResource
@@ -3035,18 +3121,6 @@ internal sealed class ReportsResource
     return response;
   }
 }
-internal sealed class SchemasResource
-{
-  private readonly CallInvoker invoker;
-  public SchemasResource(CallInvoker invoker)
-  {
-    this.invoker = invoker;
-  }
-  public async Task<IReadOnlyList<global::Harmos.Clients.SchemaDescription>> List(string? schema = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Schemas.List(schema, context);
-  }
-}
 internal sealed class SecretsResource
 {
   private readonly CallInvoker invoker;
@@ -3329,11 +3403,56 @@ internal sealed class StatusResource
   }
   public async Task<global::Harmos.Clients.StatusGetResponse> Get(CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Status.Get(context);
+    var request = new global::Harmos.Clients.StatusGetRequest
+    {
+    };
+    var method = new Method<global::Harmos.Clients.StatusGetRequest, global::Harmos.Clients.StatusGetResponse>(MethodType.Unary, "dokime.host.v1.Status", "Get",
+        Marshallers.Create<global::Harmos.Clients.StatusGetRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.StatusGetResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusGetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.StatusGetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call status.get: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
   public async IAsyncEnumerable<global::Harmos.Clients.StatusWatchResponse> Watch(global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    await foreach (var response in new Harmos.Client(invoker).Status.Watch(at, context, cancellationToken)) { yield return response; }
+    var request = new global::Harmos.Clients.StatusWatchRequest
+    {
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Harmos.Clients.StatusWatchRequest, global::Harmos.Clients.StatusWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Status", "Watch",
+        Marshallers.Create<global::Harmos.Clients.StatusWatchRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.StatusWatchResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusWatchResponse.Parser.ParseFrom(bytes)));
+    using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+    using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
+    while (true)
+    {
+      bool available;
+      try
+      {
+        available = await call.ResponseStream.MoveNext(linked.Token);
+      }
+      catch (RpcException error)
+      {
+        throw new RpcException(new Status(error.StatusCode, "Call status.watch: " + error.Status.Detail), error.Trailers);
+      }
+      if (!available)
+      {
+        yield break;
+      }
+      var response = call.ResponseStream.Current;
+      yield return response;
+    }
   }
 }
 internal sealed class StatusDiagnosticsResource
@@ -3345,7 +3464,26 @@ internal sealed class StatusDiagnosticsResource
   }
   public async Task<global::Harmos.Clients.DiagnosticsGetResponse> Get(string name, ulong offset, ulong maxBytes, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Status.Diagnostics.Get(name, offset, maxBytes, context);
+    var request = new global::Harmos.Clients.DiagnosticsGetRequest
+    {
+      Name = name,
+      Offset = offset,
+      MaxBytes = maxBytes,
+    };
+    var method = new Method<global::Harmos.Clients.DiagnosticsGetRequest, global::Harmos.Clients.DiagnosticsGetResponse>(MethodType.Unary, "dokime.host.v1.status.Diagnostics", "Get",
+        Marshallers.Create<global::Harmos.Clients.DiagnosticsGetRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.DiagnosticsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.DiagnosticsGetResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.DiagnosticsGetResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.DiagnosticsGetResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call status.diagnostics.get: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
 }
 internal sealed class StatusLogsResource
@@ -3355,13 +3493,40 @@ internal sealed class StatusLogsResource
   {
     this.invoker = invoker;
   }
-  public async Task<global::Harmos.Clients.LogsListResponse> List(global::Harmos.Position? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Status.Logs.List(at, page, context);
-  }
   public async IAsyncEnumerable<global::Harmos.Clients.LogsWatchResponse> Watch(ulong maxBytes, uint maxEvents, global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    await foreach (var response in new Harmos.Client(invoker).Status.Logs.Watch(maxBytes, maxEvents, at, context, cancellationToken)) { yield return response; }
+    var request = new global::Harmos.Clients.LogsWatchRequest
+    {
+      MaxBytes = maxBytes,
+      MaxEvents = maxEvents,
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Harmos.Clients.LogsWatchRequest, global::Harmos.Clients.LogsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.status.Logs", "Watch",
+        Marshallers.Create<global::Harmos.Clients.LogsWatchRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.LogsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.LogsWatchResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.LogsWatchResponse.Parser.ParseFrom(bytes)));
+    using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+    using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
+    while (true)
+    {
+      bool available;
+      try
+      {
+        available = await call.ResponseStream.MoveNext(linked.Token);
+      }
+      catch (RpcException error)
+      {
+        throw new RpcException(new Status(error.StatusCode, "Call status.logs.watch: " + error.Status.Detail), error.Trailers);
+      }
+      if (!available)
+      {
+        yield break;
+      }
+      var response = call.ResponseStream.Current;
+      yield return response;
+    }
   }
 }
 internal sealed class StatusTraceEventsResource
@@ -3373,11 +3538,66 @@ internal sealed class StatusTraceEventsResource
   }
   public async Task<global::Harmos.Clients.TraceEventsListResponse> List(global::Harmos.Position? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    return await new Harmos.Client(invoker).Status.TraceEvents.List(at, page, context);
+    var request = new global::Harmos.Clients.TraceEventsListRequest
+    {
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    if (page is not null)
+    {
+      request.Page = page;
+    }
+    var method = new Method<global::Harmos.Clients.TraceEventsListRequest, global::Harmos.Clients.TraceEventsListResponse>(MethodType.Unary, "dokime.host.v1.status.TraceEvents", "List",
+        Marshallers.Create<global::Harmos.Clients.TraceEventsListRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.TraceEventsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.TraceEventsListResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.TraceEventsListResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.TraceEventsListResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call status.trace_events.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
   public async IAsyncEnumerable<global::Harmos.Clients.TraceEventsWatchResponse> Watch(ulong maxBytes, uint maxEvents, global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    await foreach (var response in new Harmos.Client(invoker).Status.TraceEvents.Watch(maxBytes, maxEvents, at, context, cancellationToken)) { yield return response; }
+    var request = new global::Harmos.Clients.TraceEventsWatchRequest
+    {
+      MaxBytes = maxBytes,
+      MaxEvents = maxEvents,
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    var method = new Method<global::Harmos.Clients.TraceEventsWatchRequest, global::Harmos.Clients.TraceEventsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.status.TraceEvents", "Watch",
+        Marshallers.Create<global::Harmos.Clients.TraceEventsWatchRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.TraceEventsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.TraceEventsWatchResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.TraceEventsWatchResponse.Parser.ParseFrom(bytes)));
+    using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+    using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
+    while (true)
+    {
+      bool available;
+      try
+      {
+        available = await call.ResponseStream.MoveNext(linked.Token);
+      }
+      catch (RpcException error)
+      {
+        throw new RpcException(new Status(error.StatusCode, "Call status.trace_events.watch: " + error.Status.Detail), error.Trailers);
+      }
+      if (!available)
+      {
+        yield break;
+      }
+      var response = call.ResponseStream.Current;
+      yield return response;
+    }
   }
 }
 internal sealed class StorageResource
@@ -3503,18 +3723,6 @@ internal sealed class StreamSchemasResource
     return response;
   }
 }
-internal sealed class StreamsResource
-{
-  private readonly CallInvoker invoker;
-  public StreamsResource(CallInvoker invoker)
-  {
-    this.invoker = invoker;
-  }
-  public async Task<IReadOnlyList<global::Harmos.Clients.StreamIdentity>> List(string? schema = null, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Streams.List(schema, context);
-  }
-}
 internal sealed class SuitesResource
 {
   private readonly CallInvoker invoker;
@@ -3573,21 +3781,5 @@ internal sealed class SuitesResource
       throw new RpcException(new Status(error.StatusCode, "Call suites.list: " + error.Status.Detail), error.Trailers);
     }
     return response;
-  }
-}
-internal sealed class TimeResource
-{
-  private readonly CallInvoker invoker;
-  public TimeResource(CallInvoker invoker)
-  {
-    this.invoker = invoker;
-  }
-  public async Task<global::Google.Protobuf.WellKnownTypes.Timestamp> Get(CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Time.Get(context);
-  }
-  public async Task<global::Harmos.Clients.TimeSleepResponse> Sleep(global::Google.Protobuf.WellKnownTypes.Duration duration, CallOptions context = default)
-  {
-    return await new Harmos.Client(invoker).Time.Sleep(duration, context);
   }
 }
