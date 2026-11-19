@@ -23,6 +23,7 @@
 - [x] 3.15 Separate document rendering and report creation from explicit durable report publication.
 - [x] 4.1 Make `sdk/rust` the host-free product `dokime` authoring/client crate with generated service coverage.
 - [x] 4.2 Provide `dokime new`, plugin, bundle, installer and protocol commands in the one CLI; remove cargo-dokime.
+- [x] 4.2.1 Apply the 2026-11-19 plugin verbs: replace CLI `plugin add` with `plugin register` without an alias, retain bundle `plugin install`, remove Python's refusing `plugins.upload` method without adding an `install` stub, and update command consumers, README and the locked SDK specification. Prove CLI units/remote registration/managed installation and Python units/host-free integration.
 - [x] 4.3 Replace PyO3 with the pure Python authoring/client package, explicit close and shipped examples.
 - [x] 4.4 Provide C# authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
 - [x] 4.5 Provide C++ authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
@@ -167,7 +168,7 @@
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
-- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
+- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
 - [x] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
 
 - [x] Substitute Python Starter Display Titles With Style-Guide Title Case and Prove Name, Package and Display Substitution.

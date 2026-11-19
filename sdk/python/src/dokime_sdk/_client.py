@@ -14,7 +14,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -268,15 +267,6 @@ class Plugins:
             for template in suite.templates:
                 self._bindings.setdefault(template.instance, []).append((identifier, suite.identifier, template.identifier or ""))
                 self._templates[template.identifier or ""] = template
-
-    async def upload(self, bundle: str | Path | bytes, *, request_id: str | None = None) -> "RegisteredPlugin":
-        identity = _identity(request_id)
-        raise refused(
-            "plugins.upload",
-            "The Host Has No Product Managed-Bundle Installation Operation",
-            "Publish the Product Plugins/Create Bundle Contract and Regenerate Bindings",
-            request_id=identity,
-        )
 
     async def get(self, identifier: str) -> "RegisteredPlugin":
         reply = await call("plugins.get", self._client._transport.plugins.get(identifier))

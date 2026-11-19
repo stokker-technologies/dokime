@@ -1032,7 +1032,7 @@ async def main() -> None:
   `cycle.execution(case)`, `execution.note(...)`, `execution.artifact(...)`.
   Every handle is bound from creation.
 - `client.plugins.register(plugin)` serves the plugin, adds it and returns when
-  it is ready; `client.plugins.upload(bundle)` installs a bundle. They replace
+  it is ready; `client.plugins.install(bundle)` installs a bundle. They replace
   `create`. `client.close()` unregisters what this client registered.
 - `execution.run()` is `start()` followed by `watch()`; both stay as primitives
   for fire-and-forget and for re-attaching. It is not awaitable on its own.
@@ -1153,7 +1153,7 @@ public handle compositions below do not create automatic streaming RPC twins.
 | `dokime.client.ClientRoot` | Root `Client`; generated ClientRoot private, no public channel constructor. |
 | `dokime.evidence.{Cycle,Execution,Telemetry,TelemetryRow,cycle,execution,executions}` | Bound root `Cycle`/`Execution`, `templates.SamplesQuery`/`SampleRow`, and client resource lookups; delete free selectors and old handles. |
 | `dokime.schemas.FrozenSchemaCache` | Internal verified descriptor cache used by all readback handles. |
-| `dokime.transfers.{upload_bytes,upload_file,download_report}` | Internal transfers used by plugin upload, artifacts, evidence and generated report bindings. |
+| `dokime.transfers.{upload_bytes,upload_file,download_report}` | Internal transfers used by plugin installation, artifacts, evidence and generated report bindings. |
 | `dokime.values.{encode,decode}` | Internal scalar conversion; `Scalar` has the root home above. |
 | Root `FailureError`, `FailureValue` | `operations.FailureError`, root `Failure` data and `SdkError`; no carrier exception escapes. |
 | Root `Window` | `templates.Window`, product sampling window. |
@@ -1500,8 +1500,8 @@ class Client:
     async def close(self) -> None: ...  # Unregister owned registrations, stop their sidecars, then close the channel.
 
 class Plugins:
-    async def register(self, plugin: Plugin, *, address: str | None = None, request_id: str | None = None) -> RegisteredPlugin: ...  # Serve/add the object and wait for host-owned Ready admission.
-    async def upload(self, bundle: str | Path | bytes, *, request_id: str | None = None) -> RegisteredPlugin: ...  # Install a managed bundle and return its bound entry.
+    async def register(self, plugin: Plugin, *, address: str | None = None, request_id: str | None = None) -> RegisteredPlugin: ...  # Serve/register the object and wait for host-owned Ready admission.
+    async def install(self, bundle: str | Path | bytes, *, request_id: str | None = None) -> RegisteredPlugin: ...  # Install a managed bundle and return its bound entry.
     async def get(self, identifier: str) -> RegisteredPlugin: ...  # Read an existing entry without taking lifetime ownership.
 
 class RegisteredPlugin:
@@ -1565,6 +1565,14 @@ class Execution:
     def samples[T: Payload](self, stream: Stream[T] | str, *, fields: Sequence[str] = (), between: tuple[datetime | None, datetime | None] | None = None, row_type: type[T] | None = None) -> SamplesQuery[T]: ...  # Build a finite decoded sample query.
 ```
 
+Owner amendment, 2026-11-19: remote gRPC plugins use `register` and managed bundles
+use `install`. The CLI exposes `dokime plugin register <address>` and
+`dokime plugin install <bundle>`; `plugin add` has no alias. The hand-written
+Python collection already implements `register(plugin)`. Its former `upload`
+method only refused installation because the product managed-install contract is
+missing; remove that method and leave `install` absent until the contract above
+is implemented. Do not publish a refusing `install` stub.
+
 Lookup handles retain their client and host identity, never create a second
 channel or start a plugin. Never accept a case/handle from another client/host.
 `run()` is an async iterator, not a coroutine returning an iterator: no RPC occurs
@@ -1607,7 +1615,7 @@ land before final client proof. There is no SDK bypass to the carrier.
 |---|---|
 | `connect` | Open channel; existing `harmos.host.v1.Status/Get` verifies paired host identity; await readiness within the connection budget. Product Status wrapper remains an operation-boundary dependency. |
 | `plugins.register` | Start owned listener; current `harmos.host.v1.Plugins/Create` with remote placement; current `harmos.host.v1.Plugins/Watch` until Ready. Target NEW `dokime.host.v1.Plugins/Create` returns only after host-owned Ready; no SDK polling loop. Preserve entry identity/revision and class bindings. |
-| `plugins.upload` | Upload bytes using `dokime.host.v1.files.Uploads/Create`, `Append` in offset order, `Publish`; NEW `dokime.host.v1.Plugins/Create` with managed bundle reference, host-owned inspection/install/Ready; return one entry. |
+| `plugins.install` | Upload bytes using `dokime.host.v1.files.Uploads/Create`, `Append` in offset order, `Publish`; NEW `dokime.host.v1.Plugins/Create` with managed bundle reference, host-owned inspection/install/Ready; return one entry. |
 | `plugins.get`, registered `refresh` | Current `harmos.host.v1.Plugins/Get`; target NEW `dokime.host.v1.Plugins/Get`; unwrap entry. |
 | Registered `unregister`, `Client.close` | Get entry/revision, then current `harmos.host.v1.Plugins/Delete`; target NEW `dokime.host.v1.Plugins/Delete`; stop SDK-owned sidecar after detach, then close channel for Client.close. Missing previously removed owned entry is already detached. |
 | `client.cycle` | `dokime.host.v1.Cycles/Create`, no origins, `continue_automatically=false`, metadata label; unwrap `cycle`. |

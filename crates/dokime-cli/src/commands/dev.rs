@@ -99,7 +99,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
                         let description = process.as_mut().ok_or("Develop Plugin: Retain Its Process")?.describe().await?;
                         project.as_ref().ok_or("Develop Plugin: Retain Its Manifest")?.resolve_metadata(&description.version)?;
                         let url = process.as_ref().ok_or("Develop Plugin: Retain Its Process")?.endpoint().to_owned();
-                        super::plugin::add::attach(url, Some(endpoint.clone()), &settings, None).await?;
+                        super::plugin::register::attach(url, Some(endpoint.clone()), &settings, None).await?;
                     }
                 }
                 Ok::<_, Error>(endpoint)
