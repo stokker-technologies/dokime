@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, io::Write, num::NonZeroUsize};
+use std::{collections::HashMap, future::Future, io::Write, num::NonZeroUsize, pin::Pin};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
@@ -114,126 +114,131 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
     .await
 }
 
-pub(crate) async fn materialize(context: &Context, subject: EvidenceSubject, report: Option<FileReference>) -> Result<FileReference> {
-    let scope = subject_scope(&subject)?;
-    let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
-    let (store, _read_cancellation) = context.host.store().read_session()?;
-    match subject.kind.as_ref() {
-        Some(evidence_subject::Kind::Execution(execution)) => {
-            let cycle = store.metadata(execution)?.execution.cycle;
-            let mut contents = HashMap::from([(execution.clone(), content(context, execution).await?)]);
-            inventory(context, &cycle, &mut contents, &mut ArchivedContent::default()).await?;
-            let mut files = contents.remove(execution).unwrap();
-            let report = match report {
-                Some(report) => report,
-                None => crate::host::reports::create::prepare(
-                    context,
-                    ReportsCreateRequest {
-                        subject: Some(ReportSubject {
-                            kind: Some(report_subject::Kind::Execution(execution.clone())),
-                        }),
-                        request_id: format!("evidence-report/{execution}/{}", crate::host::views::hex(&store.cut(execution)?.seal)),
-                        ..Default::default()
-                    },
-                )
-                .await?
-                .file
-                .ok_or_else(|| Error::Precondition("Export Execution: Restore Its Report".into()))?,
-            };
-            files.report = Some(native_file(context, report, None).await?);
-            store.write_execution_archive(execution, &mut file, files)?;
-        }
-        Some(evidence_subject::Kind::Cycle(cycle)) => {
-            let page = NonZeroUsize::new(context.settings.page_items).unwrap();
-            let mut files = HashMap::new();
-            let mut after = String::new();
-            loop {
-                let executions = store.cycle_execution_page(cycle, &after, page)?;
-                if executions.is_empty() {
-                    break;
-                }
-                for execution in executions {
-                    after = execution.clone();
-                    files.insert(execution.clone(), content(context, &execution).await?);
-                }
+pub(crate) fn materialize(
+    context: &Context, subject: EvidenceSubject, report: Option<FileReference>,
+) -> Pin<Box<dyn Future<Output = Result<FileReference>> + Send + '_>> {
+    Box::pin(async move {
+        let scope = subject_scope(&subject)?;
+        let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
+        let (store, _read_cancellation) = context.host.store().read_session()?;
+        match subject.kind.as_ref() {
+            Some(evidence_subject::Kind::Execution(execution)) => {
+                let cycle = store.metadata(execution)?.execution.cycle;
+                let mut contents = HashMap::from([(execution.clone(), content(context, execution).await?)]);
+                inventory(context, &cycle, &mut contents, &mut ArchivedContent::default()).await?;
+                let mut files = contents.remove(execution).unwrap();
+                let report = match report {
+                    Some(report) => report,
+                    None => crate::host::reports::create::prepare(
+                        context,
+                        ReportsCreateRequest {
+                            subject: Some(ReportSubject {
+                                kind: Some(report_subject::Kind::Execution(execution.clone())),
+                            }),
+                            request_id: format!("evidence-report/{execution}/{}", crate::host::views::hex(&store.cut(execution)?.seal)),
+                            ..Default::default()
+                        },
+                    )
+                    .await?
+                    .file
+                    .ok_or_else(|| Error::Precondition("Export Execution: Restore Its Report".into()))?,
+                };
+                files.report = Some(native_file(context, report, None).await?);
+                store.write_execution_archive(execution, &mut file, files)?;
             }
-            let mut owned = ArchivedContent {
-                files: native_files(context, Scope::Cycle(cycle).identifier()?).await?,
-                ..Default::default()
-            };
-            inventory(context, cycle, &mut files, &mut owned).await?;
-            let report = report.ok_or_else(|| Error::Precondition("Seal Cycle: Materialize Its Report Before Its Archive".into()))?;
-            owned.report = Some(native_file(context, report, None).await?);
-            store.write_cycle_archive(cycle, page, &mut file, &mut files, owned)?;
+            Some(evidence_subject::Kind::Cycle(cycle)) => {
+                let page = NonZeroUsize::new(context.settings.page_items).unwrap();
+                let mut files = HashMap::new();
+                let mut after = String::new();
+                loop {
+                    let executions = store.cycle_execution_page(cycle, &after, page)?;
+                    if executions.is_empty() {
+                        break;
+                    }
+                    for execution in executions {
+                        after = execution.clone();
+                        files.insert(execution.clone(), content(context, &execution).await?);
+                    }
+                }
+                let mut owned = ArchivedContent {
+                    files: native_files(context, Scope::Cycle(cycle).identifier()?).await?,
+                    ..Default::default()
+                };
+                inventory(context, cycle, &mut files, &mut owned).await?;
+                let report = report.ok_or_else(|| Error::Precondition("Seal Cycle: Materialize Its Report Before Its Archive".into()))?;
+                owned.report = Some(native_file(context, report, None).await?);
+                store.write_cycle_archive(cycle, page, &mut file, &mut files, owned)?;
+            }
+            None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
         }
-        None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
-    }
-    let (file, length, sha256) = crate::host::content::transfer::temporary(file)?;
-    let digest = (0..sha256.len()).step_by(2).map(|index| u8::from_str_radix(&sha256[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
-    let created = crate::host::files::uploads::create::derived(
-        context,
-        UploadsCreateRequest {
-            metadata: Some(FileMetadata {
-                id: format!("temporary-evidence/{}", uuid::Uuid::now_v7()),
-                scope: Some(scope.to_string()),
-                media_type: "application/zip".into(),
-                expected_length: Some(length),
-                expected_sha256: Some(digest.clone()),
-            }),
-            request_id: uuid::Uuid::now_v7().to_string(),
-        },
-    )
-    .await?;
-    let upload = created.upload.ok_or_else(|| Error::Precondition("Publish Evidence Archive: Return Its Native Upload".into()))?;
-    let result = async {
-        let mut offset = 0;
-        while offset < length {
-            let count = (length - offset).min(created.chunk_bytes) as usize;
-            let mut data = vec![0; count];
-            crate::host::content::transfer::read_temporary(&file, offset, &mut data)?;
-            crate::host::files::uploads::append::handle(
-                context,
-                UploadsAppendRequest {
-                    upload: Some(upload.clone()),
-                    offset,
-                    data,
-                    request_id: uuid::Uuid::now_v7().to_string(),
-                },
-            )
-            .await?;
-            offset += count as u64;
-        }
-        let published = crate::host::files::uploads::publish::handle(
+        let (file, length, sha256) = crate::host::content::transfer::temporary(file)?;
+        let digest =
+            (0..sha256.len()).step_by(2).map(|index| u8::from_str_radix(&sha256[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
+        let created = crate::host::files::uploads::create::derived(
             context,
-            UploadsPublishRequest {
-                upload: Some(upload.clone()),
-                length,
-                sha256: digest,
+            UploadsCreateRequest {
+                metadata: Some(FileMetadata {
+                    id: format!("temporary-evidence/{}", uuid::Uuid::now_v7()),
+                    scope: Some(scope.to_string()),
+                    media_type: "application/zip".into(),
+                    expected_length: Some(length),
+                    expected_sha256: Some(digest.clone()),
+                }),
                 request_id: uuid::Uuid::now_v7().to_string(),
             },
         )
         .await?;
-        published.upload.ok_or_else(|| Error::Precondition("Publish Evidence Archive: Return Its Native Reference".into()))
-    }
-    .await;
-    let reference = match result {
-        Ok(reference) => reference,
-        Err(source) => {
-            let removed = crate::host::files::uploads::delete::handle(
+        let upload = created.upload.ok_or_else(|| Error::Precondition("Publish Evidence Archive: Return Its Native Upload".into()))?;
+        let result = async {
+            let mut offset = 0;
+            while offset < length {
+                let count = (length - offset).min(created.chunk_bytes) as usize;
+                let mut data = vec![0; count];
+                crate::host::content::transfer::read_temporary(&file, offset, &mut data)?;
+                crate::host::files::uploads::append::handle(
+                    context,
+                    UploadsAppendRequest {
+                        upload: Some(upload.clone()),
+                        offset,
+                        data,
+                        request_id: uuid::Uuid::now_v7().to_string(),
+                    },
+                )
+                .await?;
+                offset += count as u64;
+            }
+            let published = crate::host::files::uploads::publish::handle(
                 context,
-                UploadsDeleteRequest {
-                    upload: Some(upload),
+                UploadsPublishRequest {
+                    upload: Some(upload.clone()),
+                    length,
+                    sha256: digest,
                     request_id: uuid::Uuid::now_v7().to_string(),
                 },
             )
-            .await;
-            if let Err(cleanup) = removed {
-                return Err(Error::Invalid(format!("Publish Evidence Archive: {source}; Remove Its Failed Upload: {cleanup}")));
-            }
-            return Err(source);
+            .await?;
+            published.upload.ok_or_else(|| Error::Precondition("Publish Evidence Archive: Return Its Native Reference".into()))
         }
-    };
-    Ok(reference)
+        .await;
+        let reference = match result {
+            Ok(reference) => reference,
+            Err(source) => {
+                let removed = crate::host::files::uploads::delete::handle(
+                    context,
+                    UploadsDeleteRequest {
+                        upload: Some(upload),
+                        request_id: uuid::Uuid::now_v7().to_string(),
+                    },
+                )
+                .await;
+                if let Err(cleanup) = removed {
+                    return Err(Error::Invalid(format!("Publish Evidence Archive: {source}; Remove Its Failed Upload: {cleanup}")));
+                }
+                return Err(source);
+            }
+        };
+        Ok(reference)
+    })
 }
 
 /* === Private Functions === */

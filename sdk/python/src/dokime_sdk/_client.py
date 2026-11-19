@@ -28,6 +28,7 @@ from harmos.plugin import Endpoint
 from ._authoring import _Template
 from ._context import BoundOperation
 from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
+from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
 from ._generated.client import ClientRoot
 from ._generated.shared import MapValue
@@ -41,7 +42,6 @@ from ._wire.model.v1.metadata_pb2 import Metadata
 # Type Checking Imports
 if TYPE_CHECKING:
     from ._authoring import Record, Stream, TestTemplate
-    from ._evidence import RecordsQuery, SamplesQuery
     from ._plugin import Plugin
     from .operations import Operation
 
@@ -752,8 +752,6 @@ class Execution:
         )
 
     def records[T: Payload](self, declaration: "Record[T] | str", *, step: str = "", row_type: type[T] | None = None) -> "RecordsQuery[T]":
-        from ._evidence import RecordsQuery
-
         return RecordsQuery._for_execution(self, declaration, step=step, row_type=row_type)
 
     def samples[T: Payload](
@@ -764,8 +762,6 @@ class Execution:
         between: tuple[datetime | None, datetime | None] | None = None,
         row_type: type[T] | None = None,
     ) -> "SamplesQuery[T]":
-        from ._evidence import SamplesQuery
-
         return SamplesQuery(self, stream, fields=fields, between=between, row_type=row_type)
 
 

@@ -44,9 +44,10 @@ Neither ZIP contained `report.html` or native operator notes.
 
 ### Archive Inventory After Implementation
 
-Execution ZIPs retain the same evidence, Arrow telemetry and native file/reference
-members, add native operator notes to `evidence.pb`, and include `report.html`.
-Their first complete archive is retained at the execution seal. Frozen document
+Standalone execution ZIPs retain the same evidence, Arrow telemetry and native
+file/reference members, add native operator notes to `evidence.pb`, and include
+`report.html`. Their first complete download is retained against the execution's
+seal. Frozen document
 declarations remain in the execution catalog; the HTML includes evaluated document
 responses and their captured plots, records, notes and files.
 
@@ -54,7 +55,8 @@ Cycle ZIPs retain every nested execution ZIP and add cycle `evidence.pb` (cycle
 metadata, native notes and artifact metadata), cycle-owned native file/reference
 members, and the one aggregate `report.html`. The aggregate report covers every
 execution, including not-run executions. Its native file and the archive's native
-file are retained with the cycle's sealed state. Notes and artifact inventories
+file are retained with the cycle's sealed state. Nested execution ZIPs use that
+aggregate report rather than materializing additional reports. Notes and artifact inventories
 are grouped once per archive request.
 
 ## 4. Validation and Delivery
