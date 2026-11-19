@@ -14,9 +14,8 @@
 /* === Re-Exports === */
 
 pub use crate::client::{Client, ClientSettings, Method};
-pub use crate::plugin::{
-    Context, Criterion, HostOperation, Observer, Operation, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template, Window,
-};
+pub use crate::operations::Operation;
+pub use crate::plugin::{Criterion, HostOperation, Observer, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template, Window};
 pub use crate::{Error, Message, OperationPolicy, OperationRequest, Parameters, Result, Row, Settings, Visibility};
 
 /* === Imports === */

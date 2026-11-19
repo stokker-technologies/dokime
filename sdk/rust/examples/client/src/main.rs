@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let executable = arguments.next().ok_or("Start Plugin: Supply the Capture Plugin Executable")?;
 
     // Start the Sidecar
-    let mut child = Command::new(executable).arg("--remote").stdout(Stdio::piped()).spawn()?;
+    let mut child = Command::new(executable).stdout(Stdio::piped()).spawn()?;
     let result = (|| -> Result<(), Box<dyn Error>> {
         let output = child.stdout.take().ok_or("Start Plugin: Enable Its Readiness Output")?;
         let mut output = BufReader::new(output);

@@ -15,13 +15,22 @@
 
 /* === Imports === */
 
-use super::resources::Files;
-use super::{FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions};
-use crate::{FileMetadata, FileReference};
+// Standard Library Imports
+use std::{
+    fs::File,
+    io::{Cursor, Read},
+    path::Path,
+};
+
+// Third Party Imports
 use sha2::{Digest, Sha256};
-use std::{fs::File, io::Read, path::Path};
 use tonic::Status;
 use uuid::Uuid;
+
+// Local Imports
+use super::resources::Files;
+use super::{CallOptions, FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions};
+use crate::{FileMetadata, FileReference};
 
 /* === Constants === */
 
@@ -40,9 +49,17 @@ use uuid::Uuid;
 impl Files {
     /// Upload a Local File with Bounded Chunks and Verified Publication.
     pub async fn upload(&self, path: impl AsRef<Path>) -> Result<FileReference, Status> {
-        let mut file =
-            File::open(path.as_ref()).map_err(|error| Status::invalid_argument(format!("Upload File: Open Its Path: {error}")))?;
+        let file = File::open(path.as_ref()).map_err(|error| Status::invalid_argument(format!("Upload File: Open Its Path: {error}")))?;
         let length = file.metadata().map_err(|error| Status::invalid_argument(format!("Upload File: Inspect Its Length: {error}")))?.len();
+        self.upload_reader(file, length, CallOptions::default()).await
+    }
+
+    pub(crate) async fn upload_bytes(&self, data: Vec<u8>, context: CallOptions) -> Result<FileReference, Status> {
+        let length = data.len() as u64;
+        self.upload_reader(Cursor::new(data), length, context).await
+    }
+
+    async fn upload_reader(&self, mut file: impl Read, length: u64, context: CallOptions) -> Result<FileReference, Status> {
         let request_id = Uuid::now_v7().to_string();
         let created = self
             .uploads
@@ -53,6 +70,7 @@ impl Files {
                 },
                 FilesUploadsCreateOptions {
                     request_id: Some(format!("{request_id}/create")),
+                    context: context.clone(),
                     ..Default::default()
                 },
             )
@@ -80,6 +98,7 @@ impl Files {
                         buffer[..size].to_vec(),
                         FilesUploadsAppendOptions {
                             request_id: Some(format!("{request_id}/append/{offset}")),
+                            context: context.clone(),
                             ..Default::default()
                         },
                     )
@@ -99,6 +118,7 @@ impl Files {
                     digest.clone(),
                     FilesUploadsPublishOptions {
                         request_id: Some(format!("{request_id}/publish")),
+                        context: context.clone(),
                         ..Default::default()
                     },
                 )
@@ -116,6 +136,7 @@ impl Files {
                     upload,
                     FilesUploadsDeleteOptions {
                         request_id: Some(format!("{request_id}/abandon")),
+                        context,
                         ..Default::default()
                     },
                 )

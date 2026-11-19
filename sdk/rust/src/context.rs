@@ -18,9 +18,10 @@
 // Standard Library Imports
 use std::{
     any::{self, Any, TypeId},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     future, mem,
     num::NonZeroUsize,
+    ops::Deref,
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
@@ -33,7 +34,10 @@ use crate::OperationPolicy;
 use crate::Record;
 use crate::RecordsListResponse;
 use crate::operation::FutureResult;
-use crate::plugin::RecordsAppendResponse;
+use crate::plugin::{CaptureMode, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
+use crate::templates::{CaptureResult, Environment};
+use crate::{FileSource, Metadata, TraceabilityEntry};
+
 use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
@@ -51,9 +55,14 @@ use uuid::Uuid;
 /* === Type Aliases === */
 
 type Resources = Mutex<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>;
-pub(crate) type Executions = Arc<Mutex<HashMap<String, Arc<Execution>>>>;
-
 /* === Structs === */
+
+#[derive(Clone)]
+pub(crate) struct Executions {
+    store: Arc<Mutex<HashMap<String, Arc<Execution>>>>,
+    state: Arc<dyn Any + Send + Sync>,
+    secrets: Arc<HashSet<String>>,
+}
 
 // One operation's host channel and the resources shared by its execution.
 #[derive(Clone)]
@@ -61,6 +70,8 @@ pub struct Context {
     transport: Transport,
     execution: Arc<Execution>,
     termination: Option<Termination>,
+    state: Arc<dyn Any + Send + Sync>,
+    secrets: Arc<HashSet<String>>,
 }
 
 // An In-Process Host Answering Encoded Requests by Operation Identity.
@@ -115,6 +126,22 @@ pub(crate) trait LocalHost: Send + Sync {
 
 /* === Implementations === */
 
+impl Executions {
+    pub(crate) fn new(state: Arc<dyn Any + Send + Sync>, secrets: HashSet<String>) -> Self {
+        Self {
+            store: Arc::new(Mutex::new(HashMap::new())),
+            state,
+            secrets: Arc::new(secrets),
+        }
+    }
+}
+impl Deref for Executions {
+    type Target = Mutex<HashMap<String, Arc<Execution>>>;
+    fn deref(&self) -> &Self::Target {
+        &self.store
+    }
+}
+
 impl Execution {
     pub(crate) fn new(test_case: TestCase, origin: Origin) -> Arc<Self> {
         Arc::new(Self {
@@ -146,6 +173,8 @@ impl Context {
         if run.template != template || run.plugin.is_empty() || run.test_case.as_ref() != Some(&test_case) {
             return Err(Error::Invalid("Execution Origin Requires an Entry and Matching Template and Test Case".into()));
         }
+        let state = executions.state.clone();
+        let secrets = executions.secrets.clone();
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.entry(identifier.into()).or_insert_with(|| {
             Arc::new(Execution {
@@ -165,10 +194,14 @@ impl Context {
             transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
+            state,
+            secrets,
         })
     }
 
     pub(crate) fn invocation(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
+        let state = executions.state.clone();
+        let secrets = executions.secrets.clone();
         let executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.get(transport.scope().unwrap_or_default()).cloned().unwrap_or_else(|| {
             Arc::new(Execution {
@@ -181,10 +214,14 @@ impl Context {
             transport: Transport::Harmos(Box::new(transport.clone())),
             execution,
             termination: None,
+            state,
+            secrets,
         })
     }
 
     pub(crate) fn publication(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
+        let state = executions.state.clone();
+        let secrets = executions.secrets.clone();
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         if transport.scope().is_err() {
             executions.entry(String::new()).or_insert_with(|| {
@@ -202,17 +239,32 @@ impl Context {
             transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
+            state,
+            secrets,
         })
     }
 
-    pub(crate) fn local(local: Local, execution: Arc<Execution>) -> Self {
+    pub(crate) fn local(local: Local, execution: Arc<Execution>, state: Arc<dyn Any + Send + Sync>) -> Self {
         Self {
             transport: Transport::Local(Arc::new(local)),
             execution,
             termination: None,
+            state,
+            secrets: Arc::new(HashSet::new()),
         }
     }
 
+    pub fn plugin<T: Send + Sync + 'static>(&self) -> Result<&T> {
+        self.state
+            .downcast_ref()
+            .ok_or_else(|| Error::Invalid(format!("Read Plugin State: Supply {} With Plugin::state", any::type_name::<T>())))
+    }
+    pub async fn secret(&self, identifier: &str) -> Result<Vec<u8>> {
+        if !self.secrets.contains(identifier) {
+            return Err(Error::Invalid(format!("Read Secret: Declare {identifier} on the Plugin")));
+        }
+        Ok(self.host().secrets.get(identifier.into()).await?.secret)
+    }
     pub fn execution_id(&self) -> &str {
         match &self.transport {
             Transport::Harmos(transport) => transport.scope().unwrap_or_default(),
@@ -308,7 +360,7 @@ impl Context {
         }
     }
 
-    pub async fn typed_settings<T: Message>(&self) -> Result<T> {
+    pub async fn settings<T: Message>(&self) -> Result<T> {
         let response = self.host().plugins.settings.list().await?;
         crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
     }
@@ -325,6 +377,9 @@ impl Context {
 
     pub async fn prompt(&self, question: impl Into<Prompt>, choices: &[&str]) -> Result<String> {
         let mut prompt = question.into();
+        if choices.iter().collect::<HashSet<_>>().len() != choices.len() {
+            return Err(Error::Invalid("Create Prompt: Supply Distinct Operator Choice Labels".into()));
+        }
         if !choices.is_empty() {
             prompt.definition.actions.clear();
             for (index, label) in choices.iter().enumerate() {
@@ -355,7 +410,7 @@ impl Context {
             .ok_or_else(|| Error::Invalid("Read Prompt Answer: Choose One of the Declared Actions".into()))
     }
 
-    pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<RecordsAppendResponse> {
+    pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<u64> {
         let kind = self.resolve(record.identifier())?;
         self.call_with(
             RecordsAppendRequest {
@@ -368,6 +423,7 @@ impl Context {
             None,
         )
         .await
+        .map(|reply| reply.ordinal)
     }
 
     pub fn records<'a, T: Payload>(&'a self, record: &'a Record<T>) -> RecordsQuery<'a, T> {
@@ -414,6 +470,100 @@ impl Context {
             None,
         )
         .await?;
+        Ok(())
+    }
+
+    pub async fn capture(&self, source: FileSource, output: impl Into<String>) -> Result<CaptureResult> {
+        let reply = self.host().files.capture(source, output.into()).await?;
+        Ok(CaptureResult {
+            artifacts: reply.artifacts,
+            gaps: reply.gaps,
+        })
+    }
+    pub async fn start_capture(&self, source: FileSource, output: impl Into<String>, mode: CaptureMode) -> Result<u64> {
+        self.host().files.captures.start(source, output.into(), mode).await
+    }
+    pub async fn stop_capture(&self, capture_id: u64) -> Result<CaptureResult> {
+        let reply = self.host().files.captures.stop(capture_id).await?;
+        Ok(CaptureResult {
+            artifacts: reply.artifacts,
+            gaps: reply.gaps,
+        })
+    }
+    pub async fn environment(&self) -> Result<Environment> {
+        let reply = self.host().backend.environment().await?;
+        Ok(Environment {
+            backend_pid: reply.backend_pid,
+            in_step: reply.in_step,
+        })
+    }
+    pub async fn traceability(
+        &self, identifier: impl Into<String>, value: crate::Value, label: impl Into<String>, source: impl Into<String>,
+        unit: impl Into<String>,
+    ) -> Result<()> {
+        let identifier = identifier.into();
+        let host = self.host();
+        let current = host
+            .evidence
+            .traceability
+            .get_with(HostEvidenceTraceabilityGetOptions {
+                entry: Some(identifier.clone()),
+                ..Default::default()
+            })
+            .await?;
+        let entry = TraceabilityEntry {
+            metadata: Some(Metadata {
+                identifier: identifier.clone(),
+                label: label.into(),
+                ..Default::default()
+            }),
+            value: Some(value),
+            source: source.into(),
+            unit: unit.into(),
+        };
+        host.evidence.traceability.set(entry, current.revision, identifier).await?;
+        Ok(())
+    }
+    pub async fn document(
+        &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
+    ) -> Result<()> {
+        let mut options = HostDocumentsAppendPartsOptions::default();
+        match part {
+            crate::templates::DocumentPart::Section(value) => options.subsection = Some(value),
+            crate::templates::DocumentPart::Card(value) => options.card = Some(value),
+        }
+        self.host().documents.append_parts_with(self.execution_id().into(), document.into(), section.into(), options).await?;
+        Ok(())
+    }
+    pub async fn prepare_effect<T: Message>(
+        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
+    ) -> Result<String> {
+        let reply = self
+            .host()
+            .effects
+            .create(resource.into(), inverse_operation.into(), prost::Message::encode_to_vec(&inverse), description.into())
+            .await?;
+        if reply.name.is_empty() {
+            return Err(Error::Invalid("Prepare Effect: Return Its Recovery Ticket Before Applying the Effect".into()));
+        }
+        Ok(reply.name)
+    }
+    pub async fn confirm_effect(&self, ticket: &str, at: Option<prost_types::Timestamp>, restored: bool) -> Result<()> {
+        let host = self.host();
+        let current = host.effects.get(ticket.into()).await?;
+        host.effects
+            .set(
+                ticket.into(),
+                crate::plugin::EffectWritable {
+                    applied_at: Some(match at {
+                        Some(at) => at,
+                        None => self.now().await?,
+                    }),
+                    restored,
+                },
+                current.revision,
+            )
+            .await?;
         Ok(())
     }
 

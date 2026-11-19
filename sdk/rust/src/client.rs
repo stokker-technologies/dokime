@@ -11,7 +11,9 @@
 
 /* === Modules === */
 
+mod connection;
 mod files;
+mod handles;
 mod schemas;
 #[rustfmt::skip]
 mod resources;
@@ -21,6 +23,8 @@ mod types;
 /* === Re-Exports === */
 
 pub use ::harmos::client::{CallOptions, ClientTransport, Watching};
+pub use connection::{ConnectionSettings, connect, connect_with};
+pub use handles::{Attribution, Case, Cycle, Execution, Outcome, Progress, ProgressStream, RegisteredPlugin};
 pub use resources::*;
 pub use types::*;
 
@@ -31,6 +35,7 @@ pub use ::harmos::client::{Input, Method, NoItems, Running};
 /* === Imports === */
 
 // Standard Library Imports
+use std::{ops::Deref, sync::Arc};
 
 // Third Party Imports
 use prost_reflect::ReflectMessage;
@@ -38,7 +43,6 @@ use tonic::transport::Channel;
 
 // Local Imports
 use crate::DiscoveredContract;
-use std::ops::Deref;
 
 /* === Constants === */
 
@@ -53,6 +57,8 @@ use std::ops::Deref;
 pub struct Client {
     transport: ::harmos::Client,
     resources: resources::Root,
+    context: CallOptions,
+    lifetime: Arc<handles::Lifetime>,
 }
 
 /* === Enums === */
@@ -64,7 +70,12 @@ pub struct Client {
 impl Client {
     pub fn new(transport: ::harmos::Client) -> Self {
         let resources = resources::Root::new(transport.transport_handle());
-        Self { transport, resources }
+        Self {
+            transport,
+            resources,
+            context: CallOptions::default(),
+            lifetime: Arc::new(handles::Lifetime::default()),
+        }
     }
     pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, tonic::Status> {
         Ok(Self::new(::harmos::Client::new(channel, settings)?))

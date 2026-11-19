@@ -18,7 +18,6 @@ mod suite;
 /* === Imports === */
 
 // Standard Library Imports
-use std::env;
 
 // Third Party Imports
 
@@ -45,8 +44,7 @@ use dokime::Result;
 
 fn main() -> Result<()> {
     let plugin = suite::plugin();
-    let plugin = if env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
-    plugin.serve()
+    plugin.run()
 }
 
 /* === Tests === */

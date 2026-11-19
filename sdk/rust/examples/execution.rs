@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::env;
 use std::time::Duration;
 
 // Third Party Imports
@@ -25,6 +26,7 @@ use dokime::RetryPolicy;
 use dokime::encoding;
 use dokime::model::Section;
 use dokime::plugin::HostEvidenceStatisticsOptions;
+use dokime::templates::Context;
 use dokime::{Classification, Plot, PlotKind, prelude::*};
 use dokime::{Document, FieldReference, Severity, value::Kind};
 
@@ -75,16 +77,18 @@ struct Bench {
 
 fn main() -> Result<()> {
     let reading = Stream::<Reading>::new("reading", "Reading");
-    let observer = Observer::new(&reading, read).every(std::time::Duration::from_secs(1));
+    let observer = Observer::new(&reading, read).every(Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
         y: vec![FieldReference::new("execution.capture.reading").field("value")],
         ..Default::default()
     };
     let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
-    let revision = std::env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
+    let revision = env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
-    let template = Template::new("capture", "Execution Capture")
+    let template = Template::of::<()>()
+        .identifier("capture")
+        .label("Execution Capture")
         .record(Record::<Attempt>::new("attempt", "Attempt"))
         .description(revision)
         .parameters(Parameters {
@@ -126,14 +130,15 @@ fn main() -> Result<()> {
         .document(document)
         .stream(reading)
         .observer(observer);
-    let plugin = Plugin::new("execution", "1.0.0").suite(Suite::new("execution", "Execution").template(template));
-    let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
-    plugin.serve()
+    let plugin = Plugin::of::<()>("1.0.0")
+        .identifier("execution")
+        .suite(Suite::of::<()>().identifier("execution").label("Execution").template(template));
+    plugin.run()
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
     // Resolve Host Facts Through the Active Invocation.
-    let environment = ctx.host().backend.environment().await?;
+    let environment = ctx.environment().await?;
     if environment.backend_pid == 0 || environment.in_step {
         return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
     }

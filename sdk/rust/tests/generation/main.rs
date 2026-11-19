@@ -21,7 +21,7 @@
 
 // Local Imports
 use dokime::client::Client;
-use dokime::plugin::Context;
+use dokime::templates::Context;
 use dokime::{FileReference, FileSource};
 
 /* === Constants === */

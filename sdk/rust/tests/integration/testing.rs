@@ -23,6 +23,7 @@ use prost_types::Timestamp;
 
 // Local Imports
 use dokime::prelude::*;
+use dokime::templates::Context;
 use dokime::testing::{Evaluated, Harness, Logged, Prompted};
 use dokime::{ExecutionProgressValue, Severity, Termination, Value, value::Kind};
 
@@ -72,7 +73,9 @@ fn plugin() -> Plugin {
     let temperature = Stream::<Temperature>::new("temperature", "Temperature");
     let observer = Observer::new(&temperature, async |ctx: &Context| Ok(Temperature { celsius: ctx.get::<Oven>()?.celsius }))
         .every(std::time::Duration::from_millis(500));
-    let soak = Template::new("soak", "Soak")
+    let soak = Template::of::<()>()
+        .identifier("soak")
+        .label("Soak")
         .record(Record::<Soaked>::new("soaked", "Soaked"))
         .prompt(Prompt::new("door", "Door", "Is the Door Closed?").action("cancel", "Cancel").action("closed", "Closed"))
         .parameters(Setpoint { celsius: 85.0, hold_s: 2 })
@@ -87,8 +90,9 @@ fn plugin() -> Plugin {
         .cleanup(async |ctx: &Context| ctx.log(Severity::Info, format!("{:?}", ctx.termination())).await)
         .stream(temperature)
         .observer(observer);
-    Plugin::new("oven", "1.0.0")
-        .suite(Suite::new("oven", "Oven").template(soak))
+    Plugin::of::<()>("1.0.0")
+        .identifier("oven")
+        .suite(Suite::of::<()>().identifier("oven").label("Oven").template(soak))
         .requires_host(HostOperation::PromptsCreate)
         .requires_host(HostOperation::EvidenceRecordsAppend)
         .requires_host(HostOperation::EvidenceStatistics)

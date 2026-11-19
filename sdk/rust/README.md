@@ -6,15 +6,18 @@ The [Capture Suite](examples/test/src/suite.rs) owns its records, steps and crit
 ## Author a Suite
 
 ```rust
-use dokime::prelude::*;
+use dokime::{Plugin, Result, Suite};
+use dokime::templates::{Context, Criterion, Record, Step, Template};
 
-struct Capture;
-impl Capture {
+struct CaptureSuite;
+struct ExamplePlugin;
+struct ConfirmationTestTemplate;
+impl ConfirmationTestTemplate {
     fn confirmation() -> Record<bool> {
         Record::of(Self::confirmation, "Confirmation")
     }
     fn template() -> Template {
-        Template::of::<Self>("Capture")
+        Template::of::<Self>()
             .record(Self::confirmation())
             .step(Step::new("Confirm", Self::confirm))
             .criterion(Criterion::new("Confirmed", Self::confirmed))
@@ -28,21 +31,21 @@ impl Capture {
         ctx.records(&Self::confirmation()).step(Self::confirm).last().await
     }
 }
-let plugin = Plugin::new("example", "0.1.0").suite(Suite::single(Capture::template()));
+let plugin = Plugin::of::<ExamplePlugin>("0.1.0").suite(Suite::of::<CaptureSuite>().template(ConfirmationTestTemplate::template()));
 ```
 
-This declares template `capture`, step `capture.confirm`, criterion
-`capture.confirmed` and record `capture.confirmation`. The record uses
-`google.protobuf.BoolValue`, matching the Python Capture suite.
-`Suite::new("example", "Example").template(Capture::template())` instead binds
-`example.capture` and prefixes its members with `example.capture.`.
+This declares template `capture.confirmation`, step `capture.confirmation.confirm`,
+criterion `capture.confirmation.confirmed` and record `capture.confirmation.confirmation`.
+`Plugin::of::<T>`, `Suite::of::<T>()` and `Template::of::<T>()` derive identifiers and
+labels from marker names, removing `Plugin`, `Suite` and `TestTemplate` suffixes.
+`.identifier(...)` and `.label(...)` override them explicitly. Steps and criteria
+use their function names; anonymous handlers require an explicit identifier.
+Builders compose ordinary values and data alone uses derives.
 
-`Template::of::<T>` generates a name from the type, removing a trailing `Template`
-or `Suite`. Steps and criteria use their function names. Word boundaries become
-underscores; labels never choose identifiers. `Template::new` and member
-`.identifier(...)` values are explicit identifiers. Anonymous handlers require an
-explicit identifier. Keep record, prompt and stream declarations local to their
-template; reuse declarations without changing them when composing another suite.
+Operation handlers receive `dokime::operations::Context`; template handlers receive
+`dokime::templates::Context`. Both read plugin-owned state through `plugin::<T>()`.
+Template state uses `set(value)` and `get::<T>()` and lasts for one execution.
+Authors do not declare host requirements.
 
 ## Values and Operations
 
@@ -51,13 +54,15 @@ encodes their well-known protobuf wrappers. Structured rows use `#[derive(Messag
 or `#[derive(dokime::Record)]` with `#[dokime(package = "example")]` when needed.
 
 ```rust
-use dokime::prelude::*;
+use dokime::{Plugin, Result, Visibility};
+use dokime::operations::{Context, Operation};
+struct ExamplePlugin;
 let echo = Operation::new("example.echo", Visibility::Public,
     async |_: &Context, request: String| Ok(request));
-let plugin = Plugin::new("example", "0.1.0").operation(echo);
+let plugin = Plugin::of::<ExamplePlugin>("0.1.0").operation(echo);
 ```
 
-Declare structured questions with `dokime::plugin::Prompt` on the template and
+Declare structured questions with `dokime::templates::Prompt` on the template and
 pass the declaration to `ctx.prompt(&question, &[])`. The short text call uses `<template>.question`. The call returns the chosen
 label and refuses rejected or unknown actions. `records(&declaration).last()`
 returns a typed value and refuses an empty result. `.step(handler)` or
@@ -77,6 +82,6 @@ mise -C sdk/rust run test
 ./target/debug/dokime-rust-client http://127.0.0.1:7000 ./target/debug/dokime-rust-test
 ```
 
-To serve only the sidecar, run `./target/debug/dokime-rust-test --remote`.
+To run only the sidecar, run `./target/debug/dokime-rust-test`. Its native entry calls `plugin.run()`.
 `dokime::testing::Harness` runs a template against an in-memory host
 with a controlled clock, without hardware.

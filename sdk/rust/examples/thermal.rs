@@ -24,6 +24,7 @@ use std::time::Duration;
 use dokime::RetryPolicy;
 use dokime::model::Section;
 use dokime::prelude::*;
+use dokime::templates::Context;
 use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, Severity, card, value};
 
 /* === Constants === */
@@ -97,7 +98,9 @@ fn main() -> Result<()> {
         unit: "°C".into(),
         ..Default::default()
     };
-    let template = Template::new("cycle", "Thermal Cycle")
+    let template = Template::of::<()>()
+        .identifier("cycle")
+        .label("Thermal Cycle")
         .record(door)
         .parameters(Parameters { limit: 85.0 })
         .initialize(initialize)
@@ -133,9 +136,9 @@ fn main() -> Result<()> {
                 ..Default::default()
             }),
         ));
-    let plugin = Plugin::new("thermal", "1.0.0").suite(Suite::new("thermal", "Thermal").template(template));
-    let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
-    plugin.serve()
+    let plugin =
+        Plugin::of::<()>("1.0.0").identifier("thermal").suite(Suite::of::<()>().identifier("thermal").label("Thermal").template(template));
+    plugin.run()
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
@@ -152,7 +155,7 @@ async fn ramp(ctx: &Context) -> Result<()> {
 async fn hold(ctx: &Context) -> Result<()> {
     let answer = ctx.prompt("Is the Door Closed?", &["Yes", "No"]).await?;
     ctx.record(&Record::<Door>::new("door", "Door Check"), Door { closed: answer == "Yes" }).await?;
-    ctx.sleep(std::time::Duration::from_millis(2500)).await?;
+    ctx.sleep(Duration::from_millis(2500)).await?;
     ctx.progress(2, 2, "Hold").await
 }
 

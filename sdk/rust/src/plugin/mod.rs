@@ -18,8 +18,7 @@ mod types;
 
 /* === Re-Exports === */
 
-pub use crate::context::Context;
-pub use crate::operation::Operation;
+use crate::operation::Operation;
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
 pub use crate::stream::{Observer, Stream};
@@ -33,10 +32,7 @@ include!("host_exports.rs");
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{any::Any, collections::HashSet, sync::Arc};
 
 // Third Party Imports
 
@@ -72,6 +68,9 @@ pub struct Plugin {
 
 struct Assembly {
     identifier: String,
+    version: String,
+    label: String,
+    state: Arc<dyn Any + Send + Sync>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
     inner: plugin::Plugin,
@@ -80,7 +79,6 @@ struct Assembly {
     secrets: Vec<SecretDeclaration>,
     registrations: Vec<Registration>,
     errors: Vec<String>,
-    stop: Vec<Box<dyn Fn() -> Result<()> + Send + Sync>>,
 }
 
 /* === Enums === */
@@ -90,11 +88,15 @@ struct Assembly {
 /* === Implementations === */
 
 impl Plugin {
-    pub fn new(identifier: impl Into<String>, version: impl Into<String>) -> Self {
-        let identifier = identifier.into();
+    pub fn of<T>(version: impl Into<String>) -> Self {
+        let identifier = crate::authoring::code_name::<T>(true);
+        let version = version.into();
         Self {
             assembly: Assembly {
                 identifier: identifier.clone(),
+                label: crate::authoring::type_label::<T>(),
+                version: version.clone(),
+                state: Arc::new(()),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
                 inner: plugin::Plugin::new(identifier, version),
@@ -103,7 +105,6 @@ impl Plugin {
                 secrets: Vec::new(),
                 registrations: Vec::new(),
                 errors: Vec::new(),
-                stop: Vec::new(),
             },
         }
     }
@@ -117,15 +118,31 @@ impl Plugin {
         HostOperation::ALL.into_iter().fold(self, |plugin, operation| plugin.requires_host(operation))
     }
 
+    pub fn identifier(mut self, identifier: impl Into<String>) -> Self {
+        self.assembly.identifier = identifier.into();
+        self.assembly.inner = plugin::Plugin::new(&self.assembly.identifier, &self.assembly.version);
+        self
+    }
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.assembly.label = label.into();
+        self
+    }
+    pub fn state<T: Send + Sync + 'static>(mut self, state: T) -> Self {
+        self.assembly.state = Arc::new(state);
+        self
+    }
     pub fn suite(mut self, suite: Suite) -> Self {
-        self.assembly.suites.push(suite);
+        self.assembly.suites.push(suite.bind());
         self
     }
     pub fn operation(mut self, operation: Operation) -> Self {
-        self.assembly.registrations.push(operation.registration());
+        match operation.registration() {
+            Ok(registration) => self.assembly.registrations.push(registration),
+            Err(error) => self.assembly.errors.push(error.to_string()),
+        }
         self
     }
-    pub fn requires_operation<Q: OperationRequest>(mut self) -> Self {
+    pub(crate) fn requires_operation<Q: OperationRequest>(mut self) -> Self {
         if self.assembly.requirements.contains(&Q::ID) {
             return self;
         }
@@ -160,16 +177,6 @@ impl Plugin {
         self.assembly.registrations.push(observer.registration());
         self
     }
-    pub fn on_stop(mut self, cleanup: impl Fn() -> Result<()> + Send + Sync + 'static) -> Self {
-        self.assembly.stop.push(Box::new(cleanup));
-        self
-    }
-    // Managed Is the Default; Both Placements Honor HARMOS_ADDRESS.
-    pub fn remote(mut self) -> Self {
-        self.assembly.inner = self.assembly.inner.remote();
-        self
-    }
-
     // Select One Template and What an In-Process Host Needs to Run It.
     pub(crate) fn into_testing(self, template: &str) -> Result<Selected> {
         let this = self.with_requirements();
@@ -182,7 +189,7 @@ impl Plugin {
         }
         let mut selected = Vec::new();
         for suite in self.assembly.suites {
-            selected.extend(suite.templates.into_iter().filter(|candidate| candidate.identifier() == template));
+            selected.extend(suite.templates.into_iter().filter(|candidate| candidate.id() == template));
         }
         if selected.len() != 1 {
             return Err(Error::Invalid(format!("Test Template: Declare Exactly One Template {template}")));
@@ -194,6 +201,7 @@ impl Plugin {
             template: template.parts()?,
             prompts,
             requirements: self.assembly.requirements,
+            state: self.assembly.state,
             samplers: self.assembly.samplers,
         })
     }
@@ -206,6 +214,9 @@ impl Plugin {
     fn assemble(self) -> Result<plugin::Plugin> {
         let Assembly {
             identifier: _,
+            version: _,
+            label: _,
+            state,
             requirements: _,
             samplers: _,
             mut inner,
@@ -214,7 +225,6 @@ impl Plugin {
             secrets,
             registrations,
             errors,
-            stop,
         } = self.assembly;
         if !errors.is_empty() {
             return Err(Error::Invalid(errors.join("; ")));
@@ -231,7 +241,7 @@ impl Plugin {
             suites.iter().filter_map(|suite| suite.definition.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
             "Suite",
         )?;
-        validate_names(suites.iter().flat_map(|suite| suite.templates.iter().map(|template| template.identifier())), "Template")?;
+        validate_names(suites.iter().flat_map(|suite| suite.templates.iter().map(|template| template.id())), "Template")?;
         validate_names(
             records.iter().filter_map(|record| record.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
             "Record",
@@ -252,10 +262,14 @@ impl Plugin {
             secrets.iter().map(|secret| secret.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
             "Secret",
         )?;
+        let secret_names = secrets
+            .iter()
+            .filter_map(|secret| secret.metadata.as_ref().map(|metadata| metadata.identifier.clone()))
+            .collect::<HashSet<_>>();
         if !secrets.is_empty() {
             inner = inner.section(Wire(SecretsDeclarations { secrets }));
         }
-        let executions: Executions = Arc::new(Mutex::new(HashMap::new()));
+        let executions = Executions::new(state, secret_names);
         let mut definitions = Vec::new();
         for mut suite in suites {
             for template in suite.templates {
@@ -281,16 +295,13 @@ impl Plugin {
             inner = register(inner, executions.clone(), "");
         }
         inner = inner.on_stop(move || context::clear(&executions).map_err(harmos::Error::from));
-        for cleanup in stop {
-            inner = inner.on_stop(move || cleanup().map_err(harmos::Error::from));
-        }
         inner.declarations()?;
         Ok(inner)
     }
     pub fn declarations(self) -> Result<Declarations> {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
-    pub fn serve(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
         self.into_harmos()?.serve().map_err(Error::from)
     }
 }
