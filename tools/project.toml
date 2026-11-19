@@ -1,6 +1,7 @@
 [conventions.testing]
 # Expected Lanes Are Independent of Task Names.
 expected_lanes = [
+  "python:unit",
   "python:integration",
   "python:system",
   "rust:unit",

@@ -125,7 +125,7 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                         RunState::Stepping,
                         RunState::Evaluating,
                         RunState::CleaningUp,
-                        RunState::Finished
+                        RunState::Sealed
                     ]
                 );
                 let temperatures =

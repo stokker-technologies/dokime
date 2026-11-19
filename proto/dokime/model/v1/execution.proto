@@ -110,4 +110,7 @@ enum Termination {
   TERMINATION_CANCELLED = 3;
 
   TERMINATION_INTERRUPTED = 4;
+
+  // The cycle was sealed before this execution started.
+  TERMINATION_NOT_RUN = 5;
 }

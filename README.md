@@ -30,7 +30,7 @@ operator questions, retries, cancellation, cleanup and report publication.
 - Managed executable plugins and remote gRPC plugins.
 - Scoped records, typed Arrow stream files, frozen schemas and sealed evidence.
 - Operator prompts, interactive execution controls and explicit cleanup.
-- Bounded plot/document reads, self-contained HTML reports and explicit publication.
+- Bounded plot/document reads and self-contained reports retained with sealed cycles.
 - Authenticated remote access through the composed library Access services.
 
 ## Interfaces
@@ -60,6 +60,8 @@ mise run build -- --package dokime-cli
 ./target/debug/dokime dev --no-desktop --plugin ./bench
 ./target/debug/dokime plugin bundle ./bench --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
+./target/debug/dokime --endpoint http://127.0.0.1:7000 plugin register http://127.0.0.1:7001
+./target/debug/dokime --endpoint http://127.0.0.1:7000 plugin install ./bench.dokime
 ./target/debug/dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.pair
 ./target/debug/dokime --remote operator.pair --connect-timeout 10 status --json
 ```
@@ -135,6 +137,15 @@ mise -C sdk/cpp run test
 
 ### Install the Latest Nightly
 
+The Windows desktop installer installs for the current user in
+`%LOCALAPPDATA%\Dokime`, without administrator rights. If an earlier all-users
+copy is installed, have an administrator uninstall it from Windows Settings
+before running the current-user installer. Linux DEB/RPM packages use their
+normal system package installation.
+
+The desktop installer includes `dokime` beside the desktop executable but does
+not add it to PATH. Use mise for the command-line installation below.
+
 Add the command-line tool from the `nightly` release to a `mise.toml`:
 
 ```toml
@@ -174,7 +185,8 @@ with `dokime plugin bundle . --out ../my-project.dokime`.
 
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
-managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
+managed `.dokime` bundle with `plugin install` or register a remote plugin URL with
+`plugin register`, materialize a case and run it.
 
 For development, `dokime dev --plugin <bundle-or-plugin-folder>` reads `dokime.toml` in
 plugin folders, runs their configured build, and starts a disposable host with console

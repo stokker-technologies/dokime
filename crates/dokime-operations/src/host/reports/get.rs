@@ -53,8 +53,31 @@ pub const ID: &str = "dokime.host.v1.Reports/Get";
 
 pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<ReportsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let mut temporary = context.host.temporary_report(&request.name)?;
-        if temporary.is_none() && !request.name.is_empty() {
+        if let Some(Kind::Cycle(name)) = request.subject.as_ref().and_then(|subject| subject.kind.as_ref())
+            && let Some(cycle) = context.host.store().client_cycle(name)?
+            && cycle.sealed
+            && (request.name.is_empty()
+                || cycle.report_file.as_ref().and_then(|file| file.metadata.as_ref()).is_some_and(|metadata| metadata.id == request.name))
+        {
+            let file = cycle
+                .report_file
+                .ok_or_else(|| Error::Precondition(format!("Get Report: Restore the Retained Report for Sealed Cycle {name}")))?;
+            let key =
+                file.metadata.as_ref().ok_or_else(|| Error::Precondition("Get Report: Restore Its Retained Identity".into()))?.id.clone();
+            let (prepared, _) = administration::message::<PreparedReport>(context, &key).await?;
+            let saved = prepared.response.ok_or_else(|| Error::Precondition("Get Report: Restore Its Retained Capture".into()))?;
+            let mut report = saved.report;
+            if let Some(report) = report.as_mut() {
+                report.origin = ReportOrigin::Sealed as i32;
+            }
+            return Ok(ReportsGetResponse {
+                report,
+                file: Some(file),
+                resolved_at: saved.resolved_at,
+            });
+        }
+        let mut temporary = None;
+        if !request.name.is_empty() {
             temporary =
                 administration::message::<PreparedReport>(context, &request.name).await?.0.response.and_then(|response| response.file);
         }

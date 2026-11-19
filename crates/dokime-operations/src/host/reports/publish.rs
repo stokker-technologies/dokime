@@ -102,7 +102,12 @@ pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result
             html,
             seal,
         };
-        let report = context.host.publish_report(prepared)?;
+        let report = context.host.store().publish_report(
+            &prepared.execution,
+            &prepared.execution_seal,
+            prepared.document.ok_or_else(|| Error::Invalid("Publish Report: Restore Its Frozen Document".into()))?,
+            prepared.html,
+        )?;
         let key = format!("published-report/{}", report.identifier);
         let scope = Scope::Execution(&report.execution).identifier()?;
         administration::retain(context, &key, scope, &retained).await?;

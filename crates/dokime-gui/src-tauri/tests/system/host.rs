@@ -505,7 +505,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             loop {
                 let frame = progress.next().await.ok_or("Observe Execution: Closed Before Prompt")??;
                 let frame = ProgressWatchResponse::decode(frame.as_slice())?;
-                assert!(!frame.finished);
+                assert!(!frame.sealed);
                 if frame.phase == "prompt" {
                     break;
                 }
@@ -645,7 +645,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let mut terminal = false;
             while let Some(frame) = progress.next().await {
                 assert!(!terminal);
-                terminal = ProgressWatchResponse::decode(frame?.as_slice())?.finished;
+                terminal = ProgressWatchResponse::decode(frame?.as_slice())?.sealed;
             }
             assert!(terminal);
             let mut cards_with_data = 0;

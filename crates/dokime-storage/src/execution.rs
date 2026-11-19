@@ -19,9 +19,10 @@
 
 // Third Party Imports
 use prost::Message;
+use prost_types::Timestamp;
 
 // Local Imports
-use crate::{Result, StoredArtifact, StoredExecutionFile};
+use crate::Result;
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::LogsAppendRequest;
 use dokime_protocol::model::ExecutionProgressValue;
@@ -56,6 +57,9 @@ pub struct Execution {
 
     #[prost(enumeration = "Termination", tag = "6")]
     pub termination: i32,
+
+    #[prost(message, optional, tag = "7")]
+    pub sealed_at: Option<Timestamp>,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -113,27 +117,6 @@ pub struct ExecutionSnapshot {
     pub evidence: Vec<Evidence>,
     pub samples: Vec<Sample>,
     pub seal: Vec<u8>,
-}
-
-#[derive(Clone, PartialEq, Message)]
-pub struct ExecutionArchive {
-    #[prost(message, optional, tag = "1")]
-    pub execution: Option<Execution>,
-
-    #[prost(message, repeated, tag = "2")]
-    pub evidence: Vec<Evidence>,
-
-    #[prost(bytes = "vec", tag = "4")]
-    pub seal: Vec<u8>,
-
-    #[prost(bytes = "vec", repeated, tag = "5")]
-    pub reports: Vec<Vec<u8>>,
-
-    #[prost(message, repeated, tag = "9")]
-    pub artifacts: Vec<StoredArtifact>,
-
-    #[prost(message, repeated, tag = "10")]
-    pub files: Vec<StoredExecutionFile>,
 }
 
 #[derive(Default)]

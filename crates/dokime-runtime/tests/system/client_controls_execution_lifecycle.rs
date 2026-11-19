@@ -53,6 +53,7 @@ use dokime_client_internal::PluginRemote;
 use dokime_client_internal::PluginValue;
 use dokime_client_internal::RegisteredSelection;
 use dokime_client_internal::SelectionPlan;
+use dokime_client_internal::{ArchiveScope, CycleFilter, CyclePhase, CycleSelection};
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
@@ -551,6 +552,13 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 },
             )
             .await?;
+        let mut completion = cycles.watch(CycleSelection { cycle_ids: vec![cycle.cycle_id.clone()], ..Default::default() }, CycleFilter { archive: Some(ArchiveScope::All as i32), ..Default::default() }, Default::default()).await?;
+        while let Some(frame) = completion.next().await? {
+            assert!(frame.resync_required.is_none());
+            let cycle = &frame.cycles[0];
+            assert_ne!(cycle.phase, CyclePhase::SealFailed as i32);
+            if cycle.sealed { break; }
+        }
         let sealed = cycles.get_with(cycle.cycle_id.clone(), CyclesGetOptions { at: None, ..Default::default() }).await?.cycle.unwrap();
         assert!(sealed.sealed && sealed.archived);
 

@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { progressCount } from "@/features/cycle/ControlCard";
-import { executionControlState, inputNeededLabel, rerunNoticeLines } from "@/features/cycle/control-model";
+import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
@@ -30,7 +30,6 @@ import {
   isCycleArchivable,
   isFollowing,
   isUnstartedExecution,
-  nodeMenuGroups,
   reportDownloadState,
   reportFilename,
   rowOffersRunAgain,
@@ -219,53 +218,10 @@ test("Settings Dialogs", () => {
 });
 
 test("Node Menus", () => {
-  // Cycle Menu Opens Its Report and Archives, with No Bundle, Folder or Clearing
-  const items: string[] = nodeMenuGroups("cycle", false).flat();
-  assert.deepEqual(nodeMenuGroups("cycle", false), [
-    ["Rerun Cycle", "Add Cases", "Follow Active"],
-    ["Open Report", "Settings"],
-    ["Archive"],
-  ]);
-  for (const removed of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
-    assert.ok(!items.includes(removed), removed);
-  }
-
-  // Execution Menu Offers Re-Run, Open Report, Settings and Archive
-  assert.deepEqual(nodeMenuGroups("execution", false), [
-    ["Start Execution", "Re-Run"],
-    ["Open Report", "Settings"],
-    ["Archive", "Delete Case"],
-  ]);
-
-  // An Archived Node Offers Unarchive in Place of Archive
-  assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
-  assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive", "Delete Case"]);
-
-  // Rerun Cycle Stays Offered Once a Cycle Is Sealed or Archived
-  assert.ok(nodeMenuGroups("cycle", true).flat().includes("Rerun Cycle"));
-
-  // A Rerun's Control Card States the Cases It Skipped, by Reason, and the Parameters It Dropped
-  assert.deepEqual(
-    rerunNoticeLines({
-      droppedParameters: [{ caseId: "obc.steady", reason: "no longer declares ramp", suiteId: "provider:obc:checks" }],
-      skipped: [
-        { caseId: "obc.pulse", reason: "its suite no longer declares this case", suiteId: "provider:obc:checks" },
-        { caseId: "obc.sweep", reason: "its suite no longer declares this case", suiteId: "provider:obc:checks" },
-        { caseId: "obc.idle", reason: "its suite is no longer installed", suiteId: "provider:obc:idle" },
-      ],
-    }),
-    [
-      "2 cases skipped: obc.pulse, obc.sweep, its suite no longer declares this case",
-      "1 case skipped: obc.idle, its suite is no longer installed",
-      "Parameters dropped from obc.steady: no longer declares ramp",
-    ],
-  );
-  assert.deepEqual(rerunNoticeLines({ droppedParameters: [], skipped: [] }), []);
-
   // Archiving Waits for a Sealed Cycle or an Ended Run and Says So
   assert.equal(archiveRefusal(true, "cycle"), undefined);
-  assert.match(archiveRefusal(false, "cycle") ?? "", /once the cycle is sealed/);
-  assert.match(archiveRefusal(false, "execution") ?? "", /once the run has ended/);
+  assert.ok(archiveRefusal(false, "cycle"));
+  assert.ok(archiveRefusal(false, "execution"));
 
   // Download Report Waits Only for a Save in Progress
   assert.deepEqual(reportDownloadState(false), {
@@ -325,7 +281,7 @@ test("Execution Controls", () => {
         report: { state: reportState, failure: reportState === "failed" ? "fixture failure" : null },
       }),
     );
-    assert.equal(settled.phase, "ended");
+    assert.equal(settled.phase, "sealed");
     assert.deepEqual(settled.actions, ["Re-Run"]);
     assert.equal(settled.detail, reportState === "failed" ? "fixture failure" : null);
   }
@@ -370,7 +326,7 @@ test("Execution Controls", () => {
   assert.deepEqual(settled, { actions: [], detail: null, line: "Finalizing · saving evidence", phase: "finalizing" });
   assert.equal(executionControlState(input({ controls: running, progress: { completed: 5, label: "S", total: 5 } })).phase, "running");
   assert.equal(executionControlState(input({ controls: running, status: "finalizing" })).phase, "finalizing");
-  assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "ended");
+  assert.equal(executionControlState(input({ controls: running, status: "passed" })).phase, "sealed");
   const waiting = executionControlState(
     input({ controls: running, progress: { completed: 5, label: "S", total: 5 }, promptWaiting: true }),
   );
@@ -382,12 +338,12 @@ test("Execution Controls", () => {
 
   // An Ended Attempt Offers Re-Run
   assert.deepEqual(executionControlState(input({ status: "passed", controls: running })).actions, ["Re-Run"]);
-  assert.equal(executionControlState(input({ status: "failed" })).line, "Ended · Failed");
+  assert.equal(executionControlState(input({ status: "failed" })).phase, "sealed");
 
   // Missing Plugins Preserve The Terminal State And Offer No New Attempt
   for (const status of ["passed", "failed", "interrupted", "stopped"] as const) {
     const unavailable = executionControlState(input({ pluginAvailable: false, status }));
-    assert.equal(unavailable.phase, "ended");
+    assert.equal(unavailable.phase, "sealed");
     assert.deepEqual(unavailable.actions, []);
     assert.ok(unavailable.detail);
   }

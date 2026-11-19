@@ -64,11 +64,11 @@ class GenerationContracts(unittest.TestCase):
     def test_three_public_homes_have_one_inventory(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         try:
-            package = scratch / "sdk/python/src/dokime_sdk"
             generator = scratch / "sdk/python/tools/generate.py"
             generator.parent.mkdir(parents=True)
             shutil.copy2(Path(__file__).resolve().parents[4] / "sdk/python/tools/generate.py", generator)
             homes = runpy.run_path(str(generator))["PUBLIC_HOMES"]
+            package = scratch / "sdk/python/src/dokime_sdk"
             for module, names in homes.items():
                 relative = f"{module}/__init__.py" if module == "templates" else f"{module}.py" if module else "__init__.py"
                 path = package / relative

@@ -53,8 +53,8 @@ async def main() -> None:
     console.print(f"Plugin [bold]{plugin.identifier}[/bold] Is Ready")
 
     # Initialize Test Cycle
-    started = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cycle = await client.cycle(label=f"Capture {started}")
+    started = datetime.now()
+    cycle = await client.cycle(label=f"Capture {started:%Y-%m-%d %H:%M:%S}")
 
     # Initialize Test Cases
     cases = await client.cases.materialize(ConfirmationTestTemplate)
@@ -81,7 +81,7 @@ async def main() -> None:
 
     # Save Evidence
     evidence = await cycle.evidence()
-    saved = OUTPUT / f"{cycle.identifier}.zip"
+    saved = OUTPUT / f"{started:%Y-%m-%d_%H-%M-%S}.zip"
     saved.write_bytes(evidence)
     console.print(f"Saved [cyan]{saved}[/cyan]")
 

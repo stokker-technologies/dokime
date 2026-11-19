@@ -70,7 +70,8 @@ message ProgressWatchResponse {
   bytes revision = 2;
   .harmos.model.v1.Position resolved_at = 3;
   string phase = 4;
-  bool finished = 5;
+  reserved 5;
+  reserved "finished";
   // True only in the final frame, after the execution and its outcome are durably sealed.
   bool sealed = 6;
   // Present in the sealed frame, including its evaluated/declared status or unevaluated termination.

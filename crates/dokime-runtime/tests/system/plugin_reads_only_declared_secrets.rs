@@ -82,7 +82,7 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
     let cycle = super::support::admit(client, cases).await?;
     let mut progress = client.executions.progress.watch(cycle[0].clone()).await?;
     while let Some(frame) = progress.next().await? {
-        if frame.finished {
+        if frame.sealed {
             break;
         }
     }

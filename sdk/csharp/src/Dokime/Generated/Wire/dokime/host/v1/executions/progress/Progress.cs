@@ -37,38 +37,38 @@ namespace Dokime.Clients.ExecutionsResources;
             "aXNpb24SOgoLcmVzb2x2ZWRfYXQYAyABKAsyGS5oYXJtb3MubW9kZWwudjEu",
             "UG9zaXRpb25SCnJlc29sdmVkQXQiYQoUUHJvZ3Jlc3NXYXRjaFJlcXVlc3QS",
             "EgoEbmFtZRgBIAEoCVIEbmFtZRIuCgJhdBgCIAEoCzIZLmhhcm1vcy5tb2Rl",
-            "bC52MS5Qb3NpdGlvbkgAUgJhdIgBAUIFCgNfYXQitAIKFVByb2dyZXNzV2F0",
+            "bC52MS5Qb3NpdGlvbkgAUgJhdIgBAUIFCgNfYXQiqAIKFVByb2dyZXNzV2F0",
             "Y2hSZXNwb25zZRI9CgV2YWx1ZRgBIAEoCzInLmRva2ltZS5tb2RlbC52MS5F",
             "eGVjdXRpb25Qcm9ncmVzc1ZhbHVlUgV2YWx1ZRIaCghyZXZpc2lvbhgCIAEo",
             "DFIIcmV2aXNpb24SOgoLcmVzb2x2ZWRfYXQYAyABKAsyGS5oYXJtb3MubW9k",
             "ZWwudjEuUG9zaXRpb25SCnJlc29sdmVkQXQSFAoFcGhhc2UYBCABKAlSBXBo",
-            "YXNlEhoKCGZpbmlzaGVkGAUgASgIUghmaW5pc2hlZBIWCgZzZWFsZWQYBiAB",
-            "KAhSBnNlYWxlZBI6CgdvdXRjb21lGAcgASgLMiAuZG9raW1lLmhvc3QudjEu",
-            "RXhlY3V0aW9uT3V0Y29tZVIHb3V0Y29tZSLBAQoSUHJvZ3Jlc3NTZXRSZXF1",
-            "ZXN0EhcKBG5hbWUYASABKAlIAFIEbmFtZYgBARI9CgV2YWx1ZRgCIAEoCzIn",
-            "LmRva2ltZS5tb2RlbC52MS5FeGVjdXRpb25Qcm9ncmVzc1ZhbHVlUgV2YWx1",
-            "ZRIrChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoDFIQZXhwZWN0ZWRSZXZpc2lv",
-            "bhIdCgpyZXF1ZXN0X2lkGAQgASgJUglyZXF1ZXN0SWRCBwoFX25hbWUipAEK",
-            "E1Byb2dyZXNzU2V0UmVzcG9uc2USPQoFdmFsdWUYASABKAsyJy5kb2tpbWUu",
-            "bW9kZWwudjEuRXhlY3V0aW9uUHJvZ3Jlc3NWYWx1ZVIFdmFsdWUSGgoIcmV2",
-            "aXNpb24YAiABKAxSCHJldmlzaW9uEjIKB3JlY2VpcHQYAyABKAsyGC5oYXJt",
-            "b3MubW9kZWwudjEuUmVjZWlwdFIHcmVjZWlwdDLWAgoIUHJvZ3Jlc3MSagoD",
-            "R2V0Ei0uZG9raW1lLmhvc3QudjEuZXhlY3V0aW9ucy5Qcm9ncmVzc0dldFJl",
-            "cXVlc3QaLi5kb2tpbWUuaG9zdC52MS5leGVjdXRpb25zLlByb2dyZXNzR2V0",
-            "UmVzcG9uc2UiBMjzGAMScgoFV2F0Y2gSLy5kb2tpbWUuaG9zdC52MS5leGVj",
-            "dXRpb25zLlByb2dyZXNzV2F0Y2hSZXF1ZXN0GjAuZG9raW1lLmhvc3QudjEu",
-            "ZXhlY3V0aW9ucy5Qcm9ncmVzc1dhdGNoUmVzcG9uc2UiBMjzGAEwARJqCgNT",
-            "ZXQSLS5kb2tpbWUuaG9zdC52MS5leGVjdXRpb25zLlByb2dyZXNzU2V0UmVx",
-            "dWVzdBouLmRva2ltZS5ob3N0LnYxLmV4ZWN1dGlvbnMuUHJvZ3Jlc3NTZXRS",
-            "ZXNwb25zZSIEyPMYAkIlqgIiRG9raW1lLkNsaWVudHMuRXhlY3V0aW9uc1Jl",
-            "c291cmNlc2IGcHJvdG8z"));
+            "YXNlEhYKBnNlYWxlZBgGIAEoCFIGc2VhbGVkEjoKB291dGNvbWUYByABKAsy",
+            "IC5kb2tpbWUuaG9zdC52MS5FeGVjdXRpb25PdXRjb21lUgdvdXRjb21lSgQI",
+            "BRAGUghmaW5pc2hlZCLBAQoSUHJvZ3Jlc3NTZXRSZXF1ZXN0EhcKBG5hbWUY",
+            "ASABKAlIAFIEbmFtZYgBARI9CgV2YWx1ZRgCIAEoCzInLmRva2ltZS5tb2Rl",
+            "bC52MS5FeGVjdXRpb25Qcm9ncmVzc1ZhbHVlUgV2YWx1ZRIrChFleHBlY3Rl",
+            "ZF9yZXZpc2lvbhgDIAEoDFIQZXhwZWN0ZWRSZXZpc2lvbhIdCgpyZXF1ZXN0",
+            "X2lkGAQgASgJUglyZXF1ZXN0SWRCBwoFX25hbWUipAEKE1Byb2dyZXNzU2V0",
+            "UmVzcG9uc2USPQoFdmFsdWUYASABKAsyJy5kb2tpbWUubW9kZWwudjEuRXhl",
+            "Y3V0aW9uUHJvZ3Jlc3NWYWx1ZVIFdmFsdWUSGgoIcmV2aXNpb24YAiABKAxS",
+            "CHJldmlzaW9uEjIKB3JlY2VpcHQYAyABKAsyGC5oYXJtb3MubW9kZWwudjEu",
+            "UmVjZWlwdFIHcmVjZWlwdDLWAgoIUHJvZ3Jlc3MSagoDR2V0Ei0uZG9raW1l",
+            "Lmhvc3QudjEuZXhlY3V0aW9ucy5Qcm9ncmVzc0dldFJlcXVlc3QaLi5kb2tp",
+            "bWUuaG9zdC52MS5leGVjdXRpb25zLlByb2dyZXNzR2V0UmVzcG9uc2UiBMjz",
+            "GAMScgoFV2F0Y2gSLy5kb2tpbWUuaG9zdC52MS5leGVjdXRpb25zLlByb2dy",
+            "ZXNzV2F0Y2hSZXF1ZXN0GjAuZG9raW1lLmhvc3QudjEuZXhlY3V0aW9ucy5Q",
+            "cm9ncmVzc1dhdGNoUmVzcG9uc2UiBMjzGAEwARJqCgNTZXQSLS5kb2tpbWUu",
+            "aG9zdC52MS5leGVjdXRpb25zLlByb2dyZXNzU2V0UmVxdWVzdBouLmRva2lt",
+            "ZS5ob3N0LnYxLmV4ZWN1dGlvbnMuUHJvZ3Jlc3NTZXRSZXNwb25zZSIEyPMY",
+            "AkIlqgIiRG9raW1lLkNsaWVudHMuRXhlY3V0aW9uc1Jlc291cmNlc2IGcHJv",
+            "dG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.Clients.ExecutionsReflection.Descriptor, global::Dokime.ExecutionReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressGetRequest), global::Dokime.Clients.ExecutionsResources.ProgressGetRequest.Parser, new[]{ "Name", "At" }, new[]{ "Name", "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressGetResponse), global::Dokime.Clients.ExecutionsResources.ProgressGetResponse.Parser, new[]{ "Value", "Revision", "ResolvedAt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest), global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest.Parser, new[]{ "Name", "At" }, new[]{ "At" }, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse), global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse.Parser, new[]{ "Value", "Revision", "ResolvedAt", "Phase", "Finished", "Sealed", "Outcome" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse), global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse.Parser, new[]{ "Value", "Revision", "ResolvedAt", "Phase", "Sealed", "Outcome" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressSetRequest), global::Dokime.Clients.ExecutionsResources.ProgressSetRequest.Parser, new[]{ "Name", "Value", "ExpectedRevision", "RequestId" }, new[]{ "Name" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ExecutionsResources.ProgressSetResponse), global::Dokime.Clients.ExecutionsResources.ProgressSetResponse.Parser, new[]{ "Value", "Revision", "Receipt" }, null, null, null, null)
           }));
@@ -908,7 +908,6 @@ namespace Dokime.Clients.ExecutionsResources;
       revision_ = other.revision_;
       resolvedAt_ = other.resolvedAt_ != null ? other.resolvedAt_.Clone() : null;
       phase_ = other.phase_;
-      finished_ = other.finished_;
       sealed_ = other.sealed_;
       outcome_ = other.outcome_ != null ? other.outcome_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
@@ -968,18 +967,6 @@ namespace Dokime.Clients.ExecutionsResources;
       }
     }
 
-    /// <summary>Field number for the "finished" field.</summary>
-    public const int FinishedFieldNumber = 5;
-    private bool finished_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Finished {
-      get { return finished_; }
-      set {
-        finished_ = value;
-      }
-    }
-
     /// <summary>Field number for the "sealed" field.</summary>
     public const int SealedFieldNumber = 6;
     private bool sealed_;
@@ -1023,7 +1010,6 @@ namespace Dokime.Clients.ExecutionsResources;
       if (Revision != other.Revision) return false;
       if (!object.Equals(ResolvedAt, other.ResolvedAt)) return false;
       if (Phase != other.Phase) return false;
-      if (Finished != other.Finished) return false;
       if (Sealed != other.Sealed) return false;
       if (!object.Equals(Outcome, other.Outcome)) return false;
       return Equals(_unknownFields, other._unknownFields);
@@ -1037,7 +1023,6 @@ namespace Dokime.Clients.ExecutionsResources;
       if (Revision.Length != 0) hash ^= Revision.GetHashCode();
       if (resolvedAt_ != null) hash ^= ResolvedAt.GetHashCode();
       if (Phase.Length != 0) hash ^= Phase.GetHashCode();
-      if (Finished != false) hash ^= Finished.GetHashCode();
       if (Sealed != false) hash ^= Sealed.GetHashCode();
       if (outcome_ != null) hash ^= Outcome.GetHashCode();
       if (_unknownFields != null) {
@@ -1074,10 +1059,6 @@ namespace Dokime.Clients.ExecutionsResources;
         output.WriteRawTag(34);
         output.WriteString(Phase);
       }
-      if (Finished != false) {
-        output.WriteRawTag(40);
-        output.WriteBool(Finished);
-      }
       if (Sealed != false) {
         output.WriteRawTag(48);
         output.WriteBool(Sealed);
@@ -1112,10 +1093,6 @@ namespace Dokime.Clients.ExecutionsResources;
         output.WriteRawTag(34);
         output.WriteString(Phase);
       }
-      if (Finished != false) {
-        output.WriteRawTag(40);
-        output.WriteBool(Finished);
-      }
       if (Sealed != false) {
         output.WriteRawTag(48);
         output.WriteBool(Sealed);
@@ -1145,9 +1122,6 @@ namespace Dokime.Clients.ExecutionsResources;
       }
       if (Phase.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Phase);
-      }
-      if (Finished != false) {
-        size += 1 + 1;
       }
       if (Sealed != false) {
         size += 1 + 1;
@@ -1184,9 +1158,6 @@ namespace Dokime.Clients.ExecutionsResources;
       }
       if (other.Phase.Length != 0) {
         Phase = other.Phase;
-      }
-      if (other.Finished != false) {
-        Finished = other.Finished;
       }
       if (other.Sealed != false) {
         Sealed = other.Sealed;
@@ -1236,10 +1207,6 @@ namespace Dokime.Clients.ExecutionsResources;
           }
           case 34: {
             Phase = input.ReadString();
-            break;
-          }
-          case 40: {
-            Finished = input.ReadBool();
             break;
           }
           case 48: {
@@ -1292,10 +1259,6 @@ namespace Dokime.Clients.ExecutionsResources;
           }
           case 34: {
             Phase = input.ReadString();
-            break;
-          }
-          case 40: {
-            Finished = input.ReadBool();
             break;
           }
           case 48: {

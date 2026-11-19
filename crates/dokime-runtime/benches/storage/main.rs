@@ -197,7 +197,7 @@ impl Fixture {
     fn seal(&self) {
         self.store.close_streams("execution").unwrap();
         self.store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
-        self.store.seal("execution").unwrap();
+        self.store.seal("execution", Default::default()).unwrap();
     }
 }
 impl DocumentFixture {

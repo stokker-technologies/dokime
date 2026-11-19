@@ -15,7 +15,7 @@
  * decision, so they never disagree. The host admits Start for an unstarted
  * attempt and Cancel for active work. Pause or Resume and Stop belong to a
  * running attempt; Stop is the only destructive action. Once the last step settles the card says it is
- * finalizing and offers nothing until the attempt ends; an ended attempt
+ * finalizing and offers nothing until the execution seals; a sealed execution
  * offers Re-Run, which appends a new attempt and selects it. The card exists
  * only while live: a file has nothing to command.
  */

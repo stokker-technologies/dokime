@@ -19,7 +19,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { Archive, ArchiveRestore, Ellipsis, FileText, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Ellipsis, FileText, LockKeyhole, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
 // Local Imports
@@ -61,6 +61,8 @@ export type CycleMenu = {
   /** Opens the cycle's Settings: title, description, Continue Automatically. */
   onSettings: () => void;
   onToggleFollowActive: () => void;
+  onSeal: (() => void) | null;
+  sealFailed: boolean;
 };
 
 /** The execution page's "…" menu. */
@@ -75,7 +77,7 @@ export type ExecutionMenu = {
   /** Opens the report the execution has now: current or sealed;
    *  `null` for a case that has not run, which has no report of its own. */
   onOpenReport: (() => void) | null;
-  /** Re-Run the execution's case; `null` while the attempt has not ended. */
+  /** Re-Run the execution's case; `null` while the execution is not sealed. */
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
   rerunRefusal?: string;
@@ -195,6 +197,13 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
     return null;
   }
   switch (item) {
+    case "Seal Cycle":
+      return (
+        <DropdownMenuItem disabled={!menu.onSeal} onSelect={() => menu.onSeal?.()}>
+          <LockKeyhole />
+          {menu.sealFailed ? "Retry Seal" : "Seal Cycle"}
+        </DropdownMenuItem>
+      );
     case "Rerun Cycle":
       return (
         <DropdownMenuItem onSelect={menu.onRerunCycle}>

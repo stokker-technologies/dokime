@@ -7,7 +7,7 @@
  * ***
  */
 
-// Read or Update the Host Through the SDK
+// Register a Remote gRPC Plugin
 
 /* === Modules === */
 
@@ -71,8 +71,8 @@ pub(crate) async fn attach(url: String, endpoint: Option<String>, settings: &Set
             },
         )
         .await?;
-    let entry = value.entry.take().ok_or("Add Plugin: Missing Registered Entry")?;
-    value.entry = Some(super::await_ready(&client, entry, settings, "Add Plugin").await?);
+    let entry = value.entry.take().ok_or("Register Plugin: Missing Registered Entry")?;
+    value.entry = Some(super::await_ready(&client, entry, settings, "Register Plugin").await?);
     if let Some(json) = output {
         output::print(&value, json)?;
     }

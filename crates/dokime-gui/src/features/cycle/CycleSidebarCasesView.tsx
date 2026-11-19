@@ -76,7 +76,7 @@ import {
   cycleRowSelection,
   cycleState,
   executionStatusLabel,
-  finishedCaseCount,
+  sealedCaseCount,
   isFollowing,
   rowOffersRunAgain,
   selectedCycleRow,
@@ -242,7 +242,7 @@ export function CycleSidebarCasesView({
   );
 
   const total = cases.length;
-  const finished = finishedCaseCount(cases);
+  const sealed = sealedCaseCount(cases);
   const cycleSelected = selectedKey === null;
 
   return (
@@ -294,8 +294,8 @@ export function CycleSidebarCasesView({
                 {plan.test_cycle.title}
               </Button>
               <span aria-hidden />
-              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} of ${total} Cases Finished`}>
-                {finished}/{total}
+              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${sealed} of ${total} Cases Sealed`}>
+                {sealed}/{total}
               </span>
             </div>
 

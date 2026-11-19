@@ -73,7 +73,8 @@ message ReportsGetResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// ReportsCreateRequest for Reports.Create. The execution, or every execution in the cycle, must have ended.
+// ReportsCreateRequest for Reports.Create. The selected executions must be sealed.
+// An empty document ID on a sealed cycle returns its retained report.
 message ReportsCreateRequest {
   .dokime.host.v1.ReportSubject subject = 1;
   string document_id = 2;
@@ -149,7 +150,7 @@ message ReportCase {
   .dokime.host.v1.CasesParametersResponse parameters = 2;
 }
 
-// One ended execution's native responses, computed at its final evidence cut.
+// One sealed execution's native responses, computed at its final evidence cut.
 message ReportExecution {
   .dokime.host.v1.ExecutionsGetResponse detail = 1;
   .dokime.host.v1.ExecutionsParametersResponse inputs = 2;

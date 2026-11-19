@@ -78,7 +78,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         )
         .await?;
     while let Some(frame) = events.next().await? {
-        if frame.phase == "prompt" || frame.finished {
+        if frame.phase == "prompt" || frame.sealed {
             let pending = client
                 .prompts
                 .list_with(
@@ -94,8 +94,8 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
                 return settle(prompt, id_file, args.json);
             }
         }
-        if frame.finished {
-            return Err("Await Prompt: Execution Finished Without a Pending Prompt".into());
+        if frame.sealed {
+            return Err("Await Prompt: Execution Sealed Without a Pending Prompt".into());
         }
     }
     Err("Await Prompt: Progress Watch Closed Without Settlement".into())

@@ -21,6 +21,24 @@ concurrency:
   group: nightly
   cancel-in-progress: false
 jobs:
+  plan:
+    name: Check / Nightly / Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - uses: ./.github/actions/setup
+      with:
+        platform: unix
+        prepare-arguments: --tools-only
+    - id: impact
+      run: mise run ci:impact -- --event nightly
+    env:
+      MISE_ENABLE_TOOLS: python,uv
+    outputs:
+      check_matrix: ${{ steps.impact.outputs.check_matrix }}
+      test_matrix: ${{ steps.impact.outputs.test_matrix }}
+    if: github.ref == 'refs/heads/dev'
   freshness:
     name: Check / Nightly / Freshness
     runs-on: ubuntu-latest
@@ -40,15 +58,11 @@ jobs:
       run: mise run ci:nightly-freshness --
       env:
         GH_TOKEN: ${{ github.token }}
-    - id: impact
-      run: mise run ci:impact -- --event nightly
     env:
       CI_TRANSPORT: 'true'
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
     outputs:
       build: ${{ steps.freshness.outputs.build }}
-      check_matrix: ${{ steps.impact.outputs.check_matrix }}
-      test_matrix: ${{ steps.impact.outputs.test_matrix }}
     if: github.ref == 'refs/heads/dev'
   check:
     name: Check / Product
@@ -56,10 +70,9 @@ jobs:
     with:
       channel: nightly
       profile: release
-      matrix: ${{ needs.freshness.outputs.check_matrix }}
+      matrix: ${{ needs.plan.outputs.check_matrix }}
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
   build_product:
     name: Build / Product
     uses: ./.github/workflows/validate-build-product.yml
@@ -67,8 +80,7 @@ jobs:
       channel: nightly
       profile: release
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
   build_tests:
     name: Build / Tests
     uses: ./.github/workflows/validate-build-tests.yml
@@ -76,14 +88,12 @@ jobs:
       channel: nightly
       profile: release
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
   build_host_fixtures:
     name: Build / SDK / ${{ matrix.language == 'csharp' && 'C#' || 'C++' }} / Fixtures
     uses: ./.github/workflows/validate-build-tests.yml
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
     strategy:
       fail-fast: false
       matrix:
@@ -98,8 +108,7 @@ jobs:
     name: Build / Bench
     uses: ./.github/workflows/validate-build-tests.yml
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
     with:
       channel: nightly
       profile: release
@@ -147,8 +156,7 @@ jobs:
       channel: nightly
       profile: release
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
   build_docs:
     name: Build / Docs
     uses: ./.github/workflows/validate-build-docs.yml
@@ -156,8 +164,7 @@ jobs:
       channel: nightly
       profile: release
     needs:
-    - freshness
-    if: needs.freshness.outputs.build == 'true'
+    - plan
   check_generated:
     name: Check / Generated
     uses: ./.github/workflows/validate-check-generated.yml
@@ -181,14 +188,13 @@ jobs:
       minutes: ${{ matrix.minutes }}
       suite: ${{ format('{0}', strategy.job-index) }}
     needs:
-    - freshness
+    - plan
     - build_product
     - build_tests
     - build_python
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.freshness.outputs.test_matrix) }}
-    if: needs.freshness.outputs.build == 'true'
+      matrix: ${{ fromJSON(needs.plan.outputs.test_matrix) }}
   test_host:
     name: Test / Host / System / Execution (${{ matrix.platform }})
     uses: ./.github/workflows/validate-test.yml
@@ -379,7 +385,8 @@ jobs:
     uses: ./.github/workflows/publish.yml
     needs:
     - package
-    if: github.ref == 'refs/heads/dev'
+    - freshness
+    if: github.ref == 'refs/heads/dev' && needs.freshness.outputs.build == 'true'
     permissions:
       contents: write
       actions: read

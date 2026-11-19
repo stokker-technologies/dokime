@@ -174,7 +174,7 @@ async fn copy(session: &Session, device: &Path, request: &str) -> Result<(i32, V
     let mut progress = session.watch_raw("/dokime.host.v1.executions.Progress/Watch", &request).await?;
     loop {
         let frame = progress.next().await.ok_or("Observe Copy: Closed Before Completion")??;
-        if ProgressWatchResponse::decode(frame.as_slice())?.finished {
+        if ProgressWatchResponse::decode(frame.as_slice())?.sealed {
             break;
         }
     }

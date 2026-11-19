@@ -85,7 +85,22 @@ sealable again.
 #### Scenario: Materialization Fails
 
 - **WHEN** report creation fails during a cycle seal
-- **THEN** the cycle reports Seal Failed with the cause and can be sealed again
+- **THEN** the cycle reports Seal Failed with the cause, retains no partial report or archive and remains unsealed
+- **AND** after resolving a non-persistence materialization cause, sealing succeeds in the same host with exactly one report and one archive
+- **AND** complete not-run execution outcomes established before the error remain sealed and are reused by retry
+
+#### Scenario: Persistence Failure Requires Reopening
+
+- **WHEN** native storage persistence fails during cycle sealing
+- **THEN** the existing fatal storage latch rejects further writes in that host
+- **AND** after resolving the storage cause and reopening the same root, the cycle remains unsealed with its saved Seal Failed cause (or a restart cause if Sealing was interrupted)
+- **AND** no partial report or archive is retained and a new seal succeeds with exactly one report and one archive
+
+#### Scenario: One Cycle Progress Mechanism
+
+- **WHEN** a client calls Cycles/Seal
+- **THEN** the unary response returns admission without waiting for materialization
+- **AND** clients await Sealed or Seal Failed through Cycles/Watch, which also carries Sealing
 
 ### Requirement: Seal Call Returns the Outcome
 

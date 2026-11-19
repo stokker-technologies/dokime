@@ -113,6 +113,9 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.client.close)
 
     async def test_register_waits_for_ready_then_close_unregisters_only_owned_entries(self) -> None:
+        self.assertFalse(hasattr(self.client.plugins, "upload"))
+        self.assertFalse(hasattr(self.client.plugins, "install"))
+
         class ExamplePlugin(Plugin):
             version = "1.0.0"
 

@@ -13,7 +13,7 @@
 # Standard Library Imports
 
 # Third Party Imports
-from dokime_sdk.templates import Context, TestTemplate, criterion, record, step
+from dokime_sdk.templates import Context, TestTemplate, criterion, observer, record, step, stream
 
 # Local Imports
 
@@ -35,6 +35,11 @@ class ConfirmationTestTemplate(TestTemplate):
     async def confirm(self, ctx: Context) -> None:
         answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
         await ctx.record(self.confirmation, answer == "Yes")
+
+    @stream("Temperature [°C]", row=float)
+    @observer(interval_ms=100)
+    def temperature(self, ctx: Context) -> float:
+        return 21.5
 
     @criterion("Confirmed")
     async def confirmed(self, ctx: Context) -> bool:

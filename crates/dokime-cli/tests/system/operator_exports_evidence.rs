@@ -126,7 +126,7 @@ fn operator_exports_evidence() -> Result<(), Box<dyn Error>> {
                 super::run(&["--endpoint", &endpoint, "execution", "export", execution, "--out", exported.to_str().unwrap()]).await?;
             assert_eq!(path.trim(), exported.to_str().unwrap());
             let archive = fs::read(&exported)?;
-            assert!(members(&archive, &["manifest.json", "evidence.pb"]));
+            assert!(members(&archive, &["manifest.json", "data/execution.json", "report.html"]));
             let repeated = super::command()
                 .args(["--endpoint", &endpoint, "execution", "export", execution, "--out", exported.to_str().unwrap()])
                 .output()
@@ -137,8 +137,23 @@ fn operator_exports_evidence() -> Result<(), Box<dyn Error>> {
             // Export the Cycle ZIP With Its Execution Member
             let exported = directory.path().join("cycle.zip");
             super::run(&["--endpoint", &endpoint, "cycle", "export", cycle_id, "--out", exported.to_str().unwrap()]).await?;
-            let member = format!("executions/{execution}.zip");
-            assert!(members(&fs::read(&exported)?, &[member.as_str(), "manifest.json"]));
+            let label = executions["executions"][0]["admitted_template"]["label"].as_str().ok_or("Export Cycle: Missing Template Label")?;
+            let member = format!("executions/01 {label}/report.html");
+            let retained = fs::read(&exported)?;
+            assert!(members(&retained, &[member.as_str(), "manifest.json", "report.html", "data/cycle.json"]));
+            let second = directory.path().join("cycle-again.zip");
+            super::run(&["--endpoint", &endpoint, "cycle", "export", cycle_id, "--out", second.to_str().unwrap()]).await?;
+            assert_eq!(fs::read(second)?, retained);
+
+            // Download the Retained Cycle Report Twice and an Execution Report.
+            let report = directory.path().join("cycle.html");
+            let again = directory.path().join("cycle-again.html");
+            super::run(&["--endpoint", &endpoint, "cycle", "report", cycle_id, "--out", report.to_str().unwrap()]).await?;
+            super::run(&["--endpoint", &endpoint, "cycle", "report", cycle_id, "--out", again.to_str().unwrap()]).await?;
+            assert_eq!(fs::read(report)?, fs::read(again)?);
+            let report = directory.path().join("execution.html");
+            super::run(&["--endpoint", &endpoint, "execution", "report", execution, "--out", report.to_str().unwrap()]).await?;
+            assert!(!fs::read(report)?.is_empty());
 
             drop(plugin.stdin.take());
             assert!(plugin.wait().await?.success());

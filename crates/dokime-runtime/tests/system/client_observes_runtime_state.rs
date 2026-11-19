@@ -158,7 +158,7 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
             client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
             let mut terminal = false;
             while let Some(frame) = progress.next().await? {
-                terminal |= frame.finished;
+                terminal |= frame.sealed;
             }
             assert!(terminal);
 

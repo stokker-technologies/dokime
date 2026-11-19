@@ -192,7 +192,7 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
                 .await?;
         let mut terminal = false;
         while let Some(frame) = progress.next().await? {
-            if frame.finished {
+            if frame.sealed {
                 terminal = true;
             }
         }

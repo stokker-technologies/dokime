@@ -35,8 +35,8 @@ export type CycleGroupId = "attention" | "active" | "recent" | "archived";
 export type CycleRow = {
   attentionCount: number;
   caseCount: number;
-  /** The cases this cycle has actually finished, out of `caseCount`. */
-  finishedCount: number;
+  /** The cases this cycle has actually sealed, out of `caseCount`. */
+  sealedCount: number;
   /** When the cycle was created, as the row's fallback subtitle. */
   createdAtIso: string | null;
   cycleId: string;
@@ -69,7 +69,7 @@ export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMa
       caseCount: Number(cycle.caseCount),
       createdAtIso: isoOrNull(createdMs(cycle)),
       cycleId: cycle.cycleId,
-      finishedCount: finishedCases(cycle),
+      sealedCount: sealedCases(cycle),
       executionCount: Number(cycle.executionCount),
       label: cycle.metadata?.label || cycle.cycleId,
       phase:
@@ -185,16 +185,18 @@ function statePhase(cycle: CycleSummary): Parameters<typeof cycleState>[0] {
 }
 
 /**
- * The cases this cycle has finished, as its own result summary states them.
+ * The cases this cycle has sealed, as its own result summary states them.
  *
  * Execution Results Arrive Independently Of The Container Seal. Planned
- * Members Remain Unfinished Until The Cycle Seal Settles Them.
+ * Members Remain Unsealed Until The Cycle Seal Settles Them.
  */
-function finishedCases(cycle: CycleSummary): number {
+function sealedCases(cycle: CycleSummary): number {
   const result = cycle.result;
   if (!result) return 0;
-  const ended = result.passed + result.failed + result.blocked;
-  return statePhase(cycle) === "active" ? ended : ended + result.skipped;
+  return Math.min(
+    Number(cycle.caseCount),
+    result.passed + result.failed + result.blocked + result.notEvaluated + result.declared + result.skipped,
+  );
 }
 
 function isoOrNull(milliseconds: number | null): string | null {

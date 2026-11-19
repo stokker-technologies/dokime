@@ -86,7 +86,6 @@ pub struct Host {
     pub(crate) plugins: Arc<Mutex<HashMap<String, PluginEntry>>>,
     pub(crate) executions: crate::execution_manager::ExecutionManager,
     pub(crate) prompts: Arc<crate::prompts::PromptManager>,
-    pub(crate) reports: crate::reports::ReportManager,
     changed: tokio::sync::watch::Sender<u64>,
     root_lease: RootLease,
     pub(crate) assembly: Option<Arc<crate::services::Assembly>>,
@@ -134,14 +133,12 @@ impl Host {
             changed.clone(),
             root_lease.clone(),
         )?;
-        let reports = crate::reports::ReportManager::new(store.clone());
         Ok(Self {
             store,
             settings,
             plugins,
             executions,
             prompts,
-            reports,
             changed,
             root_lease,
             assembly: None,
@@ -490,9 +487,6 @@ impl Host {
     pub async fn shutdown(&self) -> Result<()> {
         let mut result = self.executions.shutdown().await;
         if let Err(error) = self.prompts.shutdown() {
-            result = Err(error);
-        }
-        if let Err(error) = self.reports.shutdown() {
             result = Err(error);
         }
         if let Err(error) = self.store.shutdown_samples().await {

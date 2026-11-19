@@ -40,6 +40,7 @@ mod cpp_plugin_matches_rust_thermal_evidence;
 #[cfg(target_os = "windows")]
 mod credentials_leave_with_discarded_roots;
 mod csharp_plugin_matches_rust_thermal_evidence;
+mod cycle_seal_retains_evidence;
 mod documents_and_reports;
 mod execution_capabilities;
 mod execution_isolation;

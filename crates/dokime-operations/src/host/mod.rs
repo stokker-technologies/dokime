@@ -50,13 +50,12 @@ pub use secrets::store::{register_redactions, remove_root_secrets};
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, future::Future, result, sync::Arc, time::Duration};
+use std::{collections::HashMap, future::Future, pin::Pin, result, sync::Arc, time::Duration};
 
 // Third Party Imports
 use async_trait::async_trait;
 use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model;
-use harmos_protocol::model::FileReference;
 use harmos_protocol::model::Receipt;
 use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost::Message;
@@ -78,7 +77,6 @@ use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::{Document, Origin, Suite, Value};
 use dokime_storage::ExecutionCut;
-use dokime_storage::Report;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -117,7 +115,7 @@ pub struct Context {
 pub struct Progress {
     pub revision: u64,
     pub phase: String,
-    pub finished: bool,
+    pub sealed: bool,
     pub failure: Option<String>,
 }
 #[derive(Clone)]
@@ -151,6 +149,7 @@ pub trait Host: Send + Sync {
     fn changes(&self) -> watch::Receiver<u64>;
     fn shutting_down(&self) -> bool;
     fn signal_change(&self);
+    fn spawn_work(&self, work: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
     async fn start_existing(&self, execution: &str, mode: ExecutionMode) -> Result<StartedCycle>;
     fn control_execution(&self, execution: &str, action: RunAction) -> Result<()>;
     async fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;
@@ -162,9 +161,6 @@ pub trait Host: Send + Sync {
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
     fn report_template(&self) -> &'static [u8];
-    fn retain_report(&self, reference: FileReference) -> Result<()>;
-    fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>>;
-    fn publish_report(&self, prepared: Report) -> Result<Report>;
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, Suite)>>;

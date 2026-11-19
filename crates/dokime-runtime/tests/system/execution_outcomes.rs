@@ -123,7 +123,7 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
                 ..Default::default()
             })?;
             store.close("declared", Termination::Completed, declared.clone())?;
-            store.seal("declared")?;
+            store.seal("declared", Default::default())?;
             let mut outcomes = result.executions.iter().map(|snapshot| snapshot.execution.outcome.as_ref().unwrap()).collect::<Vec<_>>();
             outcomes.push(&declared);
             assert_eq!(

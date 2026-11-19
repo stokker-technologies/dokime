@@ -144,7 +144,7 @@ impl ExecutionManager {
     pub(crate) fn run_phase(&self, execution: &str) -> Result<String> {
         let active = lock(&self.inner.active)?;
         let Some(active) = active.get(execution) else {
-            return Ok("finished".into());
+            return Ok("sealed".into());
         };
         let state = lock(&active.control.state)?;
         Ok(if state.paused {
@@ -312,7 +312,7 @@ impl ExecutionManager {
         };
         if !queued {
             receipt.phase = ExecutionCommandPhase::Interrupted as i32;
-            receipt.detail = Some("Submit Execution Command: Start a New Run; This Run Ended During Admission".into());
+            receipt.detail = Some("Submit Execution Command: Start a New Run; This Run Sealed During Admission".into());
             dokime_operations::host::executions::commands::save(&context, &receipt).await?;
         }
         self.signal_change();

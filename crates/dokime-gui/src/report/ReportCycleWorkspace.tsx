@@ -26,7 +26,7 @@ import {
   buildCycleCases,
   buildCycleExecutionRows,
   type CycleSelection,
-  finishedCaseCount,
+  sealedCaseCount,
   isUnstartedExecution,
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
@@ -132,7 +132,7 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
         <NodeSummary
           live={false}
           onRename={null}
-          progress={`${finishedCaseCount(cases)} of ${cases.length} cases finished`}
+          progress={`${sealedCaseCount(cases)} of ${cases.length} cases sealed`}
           status={reportOutcome(source)}
           subject="Cycle"
           title={plan.test_cycle.title}

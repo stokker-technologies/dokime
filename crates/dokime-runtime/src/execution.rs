@@ -23,6 +23,7 @@ use std::sync::{Arc, Weak, atomic::AtomicU32};
 use harmos_protocol::host::PluginEntry;
 use harmos_runtime::plugin::grpc::{self, ScopedBinding};
 use prost::Message;
+use prost_types::Timestamp;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -31,6 +32,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     Error, Result,
     capabilities::can_start,
+    clock,
     dispatch::Dispatch,
     execution_manager::{Active, ExecutionManager},
     host::lock,
@@ -38,6 +40,7 @@ use crate::{
     streams::{ExecutionTime, SampleScope},
 };
 use dokime_operations::Resources;
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::host::executions::ExecutionCommandPhase;
 use dokime_protocol::host::{EvaluatedOutcome, ExecutionMode, ExecutionOutcome, ResultStatus, UnevaluatedOutcome};
@@ -47,7 +50,7 @@ use dokime_protocol::plugin::{
     CriteriaEvaluateRequest, CriteriaEvaluateResponse, ExecutionsCleanupRequest, ExecutionsCleanupResponse, ExecutionsInitializeRequest,
     ExecutionsInitializeResponse, StepsExecuteRequest, StepsExecuteResponse,
 };
-use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
+use dokime_storage::{Execution, ExecutionSnapshot, ExecutionState, OutcomeCounts, Store};
 
 /* === Constants === */
 
@@ -60,10 +63,10 @@ use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
 pub struct Cycle {
     pub identifier: String,
     pub executions: Vec<String>,
-    store: dokime_storage::Store,
+    store: Store,
     result: Receiver<Result<Completed>>,
 }
-/// What a Finished Cycle Task Reports; Evidence Is Read Only When a Caller Waits for It.
+/// What a Sealed Cycle Task Reports; Evidence Is Read Only When a Caller Waits for It.
 struct Completed {
     executions: Vec<String>,
     states: Vec<RunState>,
@@ -94,9 +97,7 @@ pub enum RunState {
     Stepping,
     Evaluating,
     CleaningUp,
-    Finished,
-    Cancelled,
-    Interrupted,
+    Sealed,
 }
 
 /* === Traits === */
@@ -217,6 +218,14 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
 
 pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str, mode: ExecutionMode) -> Result<Cycle> {
     let cut = host.inner.store.cut(execution)?;
+    if let Some(cycle) = host.inner.store.client_cycle(&cut.execution.cycle)?
+        && (cycle.sealed || cycle.phase == CyclePhase::Sealing as i32)
+    {
+        return Err(Error::Invalid(format!(
+            "Start Execution {execution}: Cycle {} Is Sealed or Sealing; Create a New Cycle",
+            cycle.cycle_id
+        )));
+    }
     if !can_start(&cut, host.is_active(execution)?) {
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
     }
@@ -343,7 +352,7 @@ fn launch(
                     if result.is_err() {
                         host.settled(&execution).await?;
                         let cut = host.inner.store.cut(&execution)?;
-                        if cut.state == dokime_storage::ExecutionState::Open {
+                        if cut.state == ExecutionState::Open {
                             host.inner.store.close_streams(&execution)?;
                             host.inner.store.close(
                                 &execution,
@@ -355,19 +364,19 @@ fn launch(
                                     })),
                                 },
                             )?;
-                            host.inner.store.seal(&execution)?;
+                            host.inner.store.seal(&execution, clock::date(host.inner.settings.clock.now_ns()).into())?;
                         }
                     }
                     host.finish_progress(&execution, result.as_ref().err().map(ToString::to_string))?;
                     Ok::<_, Error>((index, result))
                 });
             }
-            let mut finished = Vec::new();
+            let mut settled = Vec::new();
             let mut failure = None;
             while let Some(result) = workers.join_next().await {
                 match result {
                     Ok(Ok((index, result))) => match result {
-                        Ok(result) => finished.push((index, result)),
+                        Ok(result) => settled.push((index, result)),
                         Err(error) => {
                             failure.get_or_insert(error);
                         }
@@ -383,11 +392,11 @@ fn launch(
             if let Some(error) = failure {
                 return Err(error);
             }
-            finished.sort_by_key(|(index, _)| *index);
+            settled.sort_by_key(|(index, _)| *index);
             let mut executions = Vec::new();
             let mut outcomes = Vec::new();
             let mut states = Vec::new();
-            for (_, (execution, execution_states)) in finished {
+            for (_, (execution, execution_states)) in settled {
                 outcomes.extend(host.inner.store.cut(&execution)?.execution.outcome);
                 executions.push(execution);
                 states.extend(execution_states);
@@ -403,9 +412,14 @@ fn launch(
             if let Err(error) = host.settled(&execution).await {
                 result = Err(error);
             }
+            let context = host.inner.context.get().and_then(Weak::upgrade);
+            let _finality = match context.as_ref() {
+                Some(context) => Some(context.administration.lock().await),
+                None => None,
+            };
             let settled = (|| -> Result<()> {
                 let cut = host.inner.store.cut(&execution)?;
-                if cut.state == dokime_storage::ExecutionState::Open {
+                if cut.state == ExecutionState::Open {
                     host.inner.store.close_streams(&execution)?;
                     host.inner.store.close(
                         &execution,
@@ -418,8 +432,8 @@ fn launch(
                         },
                     )?;
                 }
-                if host.inner.store.cut(&execution)?.state == dokime_storage::ExecutionState::Closed {
-                    host.inner.store.seal(&execution)?;
+                if host.inner.store.cut(&execution)?.state == ExecutionState::Closed {
+                    host.inner.store.seal(&execution, clock::date(host.inner.settings.clock.now_ns()).into())?;
                 }
                 Ok(())
             })();
@@ -550,7 +564,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                     command.phase = ExecutionCommandPhase::Running as i32;
                     command.attempt_id = Some(format!("{execution}/{position}"));
                     let now = host.now_ns();
-                    command.updated_at = Some(prost_types::Timestamp {
+                    command.updated_at = Some(Timestamp {
                         seconds: now.div_euclid(1_000_000_000),
                         nanos: now.rem_euclid(1_000_000_000) as i32,
                     });
@@ -576,7 +590,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                     command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Failed } as i32;
                     command.detail = result.as_ref().err().map(ToString::to_string);
                     let now = host.now_ns();
-                    command.updated_at = Some(prost_types::Timestamp {
+                    command.updated_at = Some(Timestamp {
                         seconds: now.div_euclid(1_000_000_000),
                         nanos: now.rem_euclid(1_000_000_000) as i32,
                     });
@@ -690,6 +704,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         resources.failure("streams", &source)?;
         interruption.get_or_insert(source);
     }
+    let _finality = resources.context.administration.lock().await;
     host.inner.store.close_streams(&execution)?;
     let attribution = if termination == Termination::Failed {
         Attribution::Evaluated(EvaluatedOutcome {
@@ -708,12 +723,8 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         })
     };
     host.inner.store.close(&execution, termination, ExecutionOutcome { attribution: Some(attribution) })?;
-    host.inner.store.seal(&execution)?;
-    states.push(match termination {
-        Termination::Cancelled => RunState::Cancelled,
-        Termination::Interrupted => RunState::Interrupted,
-        _ => RunState::Finished,
-    });
+    host.inner.store.seal(&execution, clock::date(host.inner.settings.clock.now_ns()).into())?;
+    states.push(RunState::Sealed);
     tracing::info!(execution = %execution, ?termination, "Sealed Execution");
     Ok((execution, states))
 }

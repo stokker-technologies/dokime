@@ -142,7 +142,7 @@ test.each([undefined, "8192", "0"])("Template Dialog Preserves Declared Types an
   const activeCycle: OpenCycle = {
     attentionCount: 0,
     caseCount: 0,
-    finishedCount: 0,
+    sealedCount: 0,
     createdAtIso: null,
     createdLabel: "",
     cycleId: "cycle",

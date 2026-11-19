@@ -557,8 +557,6 @@ pub struct ProgressWatchResponse {
     pub resolved_at: ::core::option::Option<::harmos_protocol::model::Position>,
     #[prost(string, tag = "4")]
     pub phase: ::prost::alloc::string::String,
-    #[prost(bool, tag = "5")]
-    pub finished: bool,
     #[prost(bool, tag = "6")]
     pub sealed: bool,
     #[prost(message, optional, tag = "7")]

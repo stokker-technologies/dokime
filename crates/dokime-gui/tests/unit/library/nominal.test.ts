@@ -63,7 +63,7 @@ function row(cycleId: string, label: string, phase: CycleRow["phase"], statusLab
     createdAtIso: "2026-10-20T20:03:00.000Z",
     cycleId,
     executionCount: 3,
-    finishedCount: 0,
+    sealedCount: 0,
     label,
     phase,
     status: "Ready",

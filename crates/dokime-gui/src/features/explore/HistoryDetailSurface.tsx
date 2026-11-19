@@ -296,14 +296,14 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         </div>
         <div>
           <dt className="text-muted-foreground">Acquisition</dt>
-          <dd>{query.data.acquisitionFinished ? "Finished" : "Incomplete"}</dd>
+          <dd>{query.data.acquisitionFinished ? "Sealed" : "Incomplete"}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Started</dt>
           <dd>{timestampIso(execution.startedAt) ?? "Not Recorded"}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Finished</dt>
+          <dt className="text-muted-foreground">Sealed</dt>
           <dd>{timestampIso(execution.finishedAt) ?? "Not Recorded"}</dd>
         </div>
       </dl>

@@ -67,7 +67,7 @@ fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> {
             let snapshot = &result.executions[0];
             assert_eq!(
                 result.states,
-                vec![RunState::Queued, RunState::Initializing, RunState::Stepping, RunState::CleaningUp, RunState::Cancelled]
+                vec![RunState::Queued, RunState::Initializing, RunState::Stepping, RunState::CleaningUp, RunState::Sealed]
             );
             assert_eq!(snapshot.state, ExecutionState::Sealed);
             assert_eq!(snapshot.execution.termination, Termination::Cancelled as i32);

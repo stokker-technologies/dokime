@@ -18,6 +18,8 @@ import runpy
 import shutil
 import tempfile
 import unittest
+from datetime import datetime
+from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol, cast
@@ -53,6 +55,8 @@ class Host(Protocol):
 class HostFactory(Protocol):
     async def start(self, story: unittest.IsolatedAsyncioTestCase) -> Host: ...
 
+    def fixture(self, name: str) -> Path: ...
+
 
 class StarterStory(unittest.IsolatedAsyncioTestCase):
     async def test_register_run_seal_and_save_retained_evidence(self) -> None:
@@ -83,7 +87,16 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         evidence = await cycle.evidence()
         archive = ZipFile(BytesIO(evidence))
         try:
-            self.assertTrue(archive.namelist())
+            self.assertIn("report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/data/records.json", archive.namelist())
+            self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
+            self.assertEqual(
+                json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
+                "record:capture.confirmation.confirmation",
+            )
+            self.assertEqual(await cycle.report(), archive.read("report.html"))
+            self.assertEqual(sha256(evidence).digest(), sha256(await cycle.evidence()).digest())
             self.assertIsNone(archive.testzip())
         finally:
             archive.close()
@@ -92,7 +105,9 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         # Create the Project Outside the Repository With the Built Command Line.
         repository = Path(__file__).resolve().parents[4]
         timeout = policy.load(repository).deadline("system")
-        binary = repository / "target/debug" / ("dokime.exe" if os.name == "nt" else "dokime")
+        support = Path(__file__).resolve().parents[1] / "support/host.py"
+        factory = cast(HostFactory, runpy.run_path(str(support))["Host"])
+        binary = factory.fixture("dokime")
         directory = Path(tempfile.mkdtemp(prefix="dokime-created-starter-"))
         self.addCleanup(shutil.rmtree, directory)
         project = directory / "created-starter"
@@ -136,8 +151,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(process.returncode, 0, output.decode())
 
         # Start the Product Host and Run the Shipped Client Without Modifying It.
-        support = Path(__file__).resolve().parents[1] / "support/host.py"
-        host = await cast(HostFactory, runpy.run_path(str(support))["Host"]).start(self)
+        host = await factory.start(self)
         environment["DOKIME_REMOTE"] = host.endpoint
         process = await asyncio.create_subprocess_exec(
             "uv",
@@ -228,7 +242,11 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         cycle = await host.client.cycles.get(execution.cycle.identifier)
         detail = await host.client._transport.cycles.get(cycle.identifier)
         self.assertTrue(detail.cycle.sealed)
-        saved = project / "_output" / f"{cycle.identifier}.zip"
+        saved_archives = list((project / "_output").glob("*.zip"))
+        self.assertEqual(len(saved_archives), 1)
+        saved = saved_archives[0]
+        started = datetime.strptime(detail.cycle.metadata.label.split(" ", 1)[1], "%Y-%m-%d %H:%M:%S")
+        self.assertEqual(saved.name, f"{started:%Y-%m-%d_%H-%M-%S}.zip")
         self.assertTrue(saved.is_file())
         archive = ZipFile(saved)
         retained = ZipFile(BytesIO(await cycle.evidence()))
@@ -236,6 +254,15 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(archive.testzip())
             self.assertEqual(archive.namelist(), retained.namelist())
             self.assertIn("manifest.json", archive.namelist())
+            self.assertIn("report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/report.html", archive.namelist())
+            self.assertIn("executions/01 Confirmation/data/records.json", archive.namelist())
+            self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
+            self.assertEqual(
+                json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
+                "record:capture.confirmation.confirmation",
+            )
+            self.assertEqual(archive.read("report.html"), await cycle.report())
             for name in archive.namelist():
                 self.assertEqual(archive.read(name), retained.read(name), name)
             print(f"Created Starter Archive: {archive.namelist()}")

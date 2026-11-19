@@ -96,7 +96,7 @@ async fn admit(client: &Client, template: &str, device: &Path, outside: &Path) -
 async fn settle(client: &Client, execution: &str) -> Result<i32, Box<dyn error::Error>> {
     let mut progress = client.executions.progress.watch(execution.to_owned()).await?;
     while let Some(frame) = progress.next().await? {
-        if frame.finished {
+        if frame.sealed {
             break;
         }
     }

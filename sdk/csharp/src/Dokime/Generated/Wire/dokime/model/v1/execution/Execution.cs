@@ -58,11 +58,12 @@ namespace Dokime;
             "ASABKAsyGS5kb2tpbWUubW9kZWwudjEuTWV0YWRhdGFSCG1ldGFkYXRhEhwK",
             "CW9wZXJhdGlvbhgCIAEoCVIJb3BlcmF0aW9uImIKFkV4ZWN1dGlvblByb2dy",
             "ZXNzVmFsdWUSHAoJY29tcGxldGVkGAEgASgEUgljb21wbGV0ZWQSFAoFdG90",
-            "YWwYAiABKARSBXRvdGFsEhQKBWxhYmVsGAMgASgJUgVsYWJlbCqVAQoLVGVy",
+            "YWwYAiABKARSBXRvdGFsEhQKBWxhYmVsGAMgASgJUgVsYWJlbCquAQoLVGVy",
             "bWluYXRpb24SGwoXVEVSTUlOQVRJT05fVU5TUEVDSUZJRUQQABIZChVURVJN",
             "SU5BVElPTl9DT01QTEVURUQQARIWChJURVJNSU5BVElPTl9GQUlMRUQQAhIZ",
             "ChVURVJNSU5BVElPTl9DQU5DRUxMRUQQAxIbChdURVJNSU5BVElPTl9JTlRF",
-            "UlJVUFRFRBAEQgmqAgZEb2tpbWViBnByb3RvMw=="));
+            "UlJVUFRFRBAEEhcKE1RFUk1JTkFUSU9OX05PVF9SVU4QBUIJqgIGRG9raW1l",
+            "YgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.MetadataReflection.Descriptor, global::Dokime.ScalarReflection.Descriptor, global::Google.Protobuf.WellKnownTypes.TimestampReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Termination), }, null, new pbr::GeneratedClrTypeInfo[] {
@@ -86,6 +87,7 @@ namespace Dokime;
     [pbr::OriginalName("TERMINATION_FAILED")] Failed = 2,
     [pbr::OriginalName("TERMINATION_CANCELLED")] Cancelled = 3,
     [pbr::OriginalName("TERMINATION_INTERRUPTED")] Interrupted = 4,
+    [pbr::OriginalName("TERMINATION_NOT_RUN")] NotRun = 5,
   }
 
   #endregion
