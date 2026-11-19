@@ -2,6 +2,7 @@
 from . import _authoring, _client, _connection, _errors, _plugin, _values
 
 Suite = _authoring.Suite
+Lane = _plugin.Lane
 Plugin = _plugin.Plugin
 Case = _client.Case
 Cases = _client.Cases

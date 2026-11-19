@@ -27,6 +27,8 @@
 /* === Public Declarations === */
 
 namespace dokime {
+using harmos::LaneDeclaration;
+
 struct DeclarationDescription {
   std::string identifier;
   std::string label;
@@ -45,6 +47,7 @@ struct OperationDescription {
   std::string request;
   std::string response;
   operations::Visibility visibility;
+  std::string lane;
 };
 struct PluginDescription {
   std::string identifier;
@@ -53,6 +56,7 @@ struct PluginDescription {
   std::vector<RecordDescription> records;
   std::vector<Prompt> prompts;
   std::vector<OperationDescription> operations;
+  std::vector<LaneDeclaration> lanes;
 };
 struct Suite : templates::Declaration {
   std::vector<templates::Template> templates;
@@ -73,6 +77,10 @@ class Plugin {
 public:
   Plugin(std::string identifier, std::string version, std::vector<Suite> suites = {});
   Plugin &suite(Suite suite);
+  Plugin &lane(const Lane &lane) {
+    native_.lane(lane);
+    return *this;
+  }
   virtual void initialize(operations::Context &) {}
   virtual void finalize(operations::Context &) {}
   template <class Q, class R> Plugin &operation(const operations::OperationValue<Q, R> &operation) {

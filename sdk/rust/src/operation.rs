@@ -26,7 +26,7 @@ use harmos::plugin;
 // Local Imports
 use crate::operations;
 use crate::templates::Context;
-use crate::{Error, Message, Payload, Result, context::Executions, stream::Registration};
+use crate::{Error, Lane, Message, Payload, Result, context::Executions, stream::Registration};
 
 /* === Constants === */
 
@@ -77,6 +77,10 @@ impl Operation {
             }),
             configure: Vec::new(),
         }
+    }
+    pub fn lane(self, lane: &Lane) -> Self {
+        let lane = lane.clone();
+        self.configure(move |operation| operation.lane(&lane))
     }
     pub fn replay_safe(self) -> Self {
         self.configure(|operation| operation.replay_safe())

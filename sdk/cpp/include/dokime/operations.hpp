@@ -26,6 +26,8 @@
 /* === Classes === */
 
 namespace dokime {
+using harmos::plugin::Lane;
+
 class Plugin;
 class Client;
 namespace detail {
@@ -99,6 +101,10 @@ public:
     policy_ = std::move(policy);
     return *this;
   }
+  OperationValue &lane(const Lane &lane) {
+    lane_ = lane;
+    return *this;
+  }
   OperationValue &replay_safe() {
     replay_safe_ = true;
     return *this;
@@ -113,6 +119,7 @@ private:
   std::function<R(Context &, Q)> handler_;
   std::optional<OperationPolicy> policy_;
   bool replay_safe_ = false;
+  std::optional<Lane> lane_;
   auto native(std::shared_ptr<dokime::detail::PluginState> plugin) const {
     std::function<decltype(templates::detail::payload_message<R>())(harmos::plugin::Context &,
                                                                     decltype(templates::detail::payload_message<Q>()))>
@@ -134,6 +141,8 @@ private:
       }
       operation.policy(policy);
     }
+    if (lane_)
+      operation.lane(*lane_);
     if (replay_safe_)
       operation.replay_safe();
     return operation;

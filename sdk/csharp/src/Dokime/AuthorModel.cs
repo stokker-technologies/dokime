@@ -13,6 +13,18 @@ using Dokime.Templates;
 
 namespace Dokime;
 
+public sealed class Lane
+{
+  private Lane(Harmos.Plugins.Lane native) => Native = native;
+  internal Harmos.Plugins.Lane Native
+  {
+    get;
+  }
+  public static Lane Serial(string name) => new(Harmos.Plugins.Lane.Serial(name));
+  public static Lane Concurrent(string name, uint width) => new(Harmos.Plugins.Lane.Concurrent(name, width));
+  public static Lane Unbounded(string name) => new(Harmos.Plugins.Lane.Unbounded(name));
+}
+
 public abstract class Plugin
 {
   private Plugins.Plugin? adapter;
@@ -60,6 +72,19 @@ public abstract class Plugin
     }
   }
 
+  public Plugin Lane(Lane lane)
+  {
+    Adapter.Lane(lane);
+    return this;
+  }
+
+  public Plugin Operation<TRequest, TResponse>(Dokime.Operations.Operation<TRequest, TResponse> operation,
+    Func<Dokime.Operations.Context, TRequest, Task<TResponse>> handler)
+  {
+    Adapter.Operation(operation, handler);
+    return this;
+  }
+
   public PluginDescription Describe()
   {
     var declarations = Adapter.Build().Declarations();
@@ -68,7 +93,9 @@ public abstract class Plugin
         suite.Templates.Select(template => new TemplateDescription(template.Definition.Metadata.Identifier,
           template.Definition.Metadata.Label, template.Steps.Select(declaration => template.Resolve(declaration)).ToArray(),
           template.Criteria.Select(declaration => template.Resolve(declaration)).ToArray(), template.Records.Select(declaration => template.Resolve(declaration)).ToArray())).ToArray())).ToArray(),
-      declarations.Operations.Select(operation => operation.Id).ToArray());
+      declarations.Operations.Select(operation => new OperationDescription(operation.Id, operation.Lane)).ToArray(),
+      declarations.Lanes.Select(lane => new LaneDescription(lane.Name, lane.Serial,
+        lane.CapacityCase == Harmos.LaneDeclaration.CapacityOneofCase.Concurrent ? lane.Concurrent : null, lane.Unbounded)).ToArray());
   }
 
   public Task RunAsync(ConnectionSettings? settings = null, CancellationToken cancellationToken = default)
@@ -92,7 +119,9 @@ public abstract class Suite
 }
 
 public sealed record PluginDescription(string Identifier, string Label, string Version, IReadOnlyList<SuiteDescription> Suites,
-  IReadOnlyList<string> Operations);
+  IReadOnlyList<OperationDescription> Operations, IReadOnlyList<LaneDescription> Lanes);
+public sealed record OperationDescription(string Identifier, string Lane);
+public sealed record LaneDescription(string Name, bool Serial, uint? Concurrent, bool Unbounded);
 public sealed record SuiteDescription(string Identifier, string Label, IReadOnlyList<TemplateDescription> Templates);
 public sealed record TemplateDescription(string Identifier, string Label, IReadOnlyList<string> Steps,
   IReadOnlyList<string> Criteria, IReadOnlyList<string> Records);

@@ -3,6 +3,10 @@
 `Dokime` provides .NET 10 authoring and bound asynchronous clients.
 The public homes are `Dokime`, `Dokime.Operations` and `Dokime.Templates`.
 
+## Operation Lanes
+
+`Dokime.Lane` forwards the library's three lane kinds: `Lane.Serial("instrument")`, `Lane.Concurrent("workers", 4)` and `Lane.Unbounded("independent")`. Register a lane with `plugin.Lane(instrument)` and a handler with `plugin.Operation(new Operation<double, double>("example.measure", lane: instrument), handler)`. The library validates declarations and rejects undeclared lane references. `Describe()` includes lane declarations and each operation's lane reference.
+
 ## Author a Plugin
 
 A `Plugin` subclass lists its suite types and annotated static operation delegates.
@@ -15,7 +19,7 @@ implements `IAsyncDisposable` is disposed after cleanup, including cleanup failu
 Plugin classes may override `InitializeAsync(Dokime.Operations.Context, CancellationToken)`
 and `FinalizeAsync(Dokime.Operations.Context, CancellationToken)`. The SDK encodes
 protected `<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
-Serial admission and settings groups remain open.
+Settings groups remain open.
 
 Identifiers strip `Plugin`, `Suite` and `TestTemplate` suffixes and convert word
 boundaries to underscores. Templates are always qualified by their suite, and
