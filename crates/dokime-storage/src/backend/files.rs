@@ -333,7 +333,7 @@ pub(super) fn checkpoints(state: &mut State, checkpoints: &[FileCheckpoint]) -> 
                 "Checkpoint File Production",
                 BackendFailure::Conflict,
                 io::Error::other(format!(
-                    "File '{}': Writer Generation {} Differs from Current Generation {generation}; Resume the Upload and Use Its Returned Writer",
+                    "File '{}': Writer Generation {} Differs from Current Generation {generation}; Stop the Fenced Writer and Use the Latest Returned Upload Writer",
                     checkpoint.session.id, checkpoint.session.generation,
                 )),
             ));
