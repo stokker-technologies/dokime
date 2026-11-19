@@ -52,7 +52,6 @@ sha2 = { workspace = true }
 # Serialization
 prost = { workspace = true }
 prost-reflect = { workspace = true }
-prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

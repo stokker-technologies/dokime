@@ -41,7 +41,6 @@ dokime = { path = "../../../sdk/rust" }
 # Logging
 
 # Utilities
-sha2 = { workspace = true }
 
 # Serialization
 prost-types = { workspace = true }

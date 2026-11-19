@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import tarfile
+import tomllib
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -45,7 +46,8 @@ parser.add_argument("--configuration", choices=("Debug", "Release"), default="Re
 parser.add_argument("--refresh-lock", action="store_true")
 arguments = parser.parse_args()
 
-revision: str = "e0f4e77860ec40aed4bfc06f47dc025a3590d44a"
+manifest = tomllib.loads((Path(__file__).resolve().parents[3] / "Cargo.toml").read_text(encoding="utf-8"))
+revision: str = manifest["workspace"]["dependencies"]["harmos"]["rev"]
 version: str = f"0.1.0-dev.{revision[:12]}"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"

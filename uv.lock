@@ -284,7 +284,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harmos-tools", git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=e0f4e77860ec40aed4bfc06f47dc025a3590d44a" },
+    { name = "harmos-tools", git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" },
     { name = "packaging", specifier = "==26.3" },
 ]
 
@@ -391,7 +391,7 @@ wheels = [
 [[package]]
 name = "harmos-tools"
 version = "0.0.0"
-source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=e0f4e77860ec40aed4bfc06f47dc025a3590d44a#e0f4e77860ec40aed4bfc06f47dc025a3590d44a" }
+source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=tools%2Fpython&rev=504877e36bf490db39efbd5c7ee5ed8f09e2b5a3#504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
 dependencies = [
     { name = "clang-format" },
     { name = "protobuf" },

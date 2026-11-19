@@ -64,20 +64,62 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
         "find_package(gRPC CONFIG REQUIRED)\n"
         "find_package(OpenSSL REQUIRED)\n"
         "include(FetchContent)\n"
+        "set(HARMOS_BUILD_TESTS ${DOKIME_BUILD_TESTS})\n"
         "# The Pinned Library Owns Its Internal Wire Headers and Generated Context.\n"
         "FetchContent_Declare(harmos\n"
         f"  URL {url}\n"
         f"  URL_HASH SHA256={checksum}\n"
         "  SOURCE_SUBDIR sdk/cpp DOWNLOAD_EXTRACT_TIMESTAMP TRUE)\n"
         "FetchContent_MakeAvailable(harmos)\n"
-        "# Build the Library SDK Without Its Standalone Examples.\n"
-        'set_property(DIRECTORY "${harmos_SOURCE_DIR}/sdk/cpp/examples/client" PROPERTY EXCLUDE_FROM_ALL TRUE)\n'
-        'set_property(DIRECTORY "${harmos_SOURCE_DIR}/sdk/cpp/examples/plugin" PROPERTY EXCLUDE_FROM_ALL TRUE)\n'
     )
     path = root / "sdk/cpp/cmake/Dependencies.cmake"
     if check:
         if path.read_bytes() != text.encode():
             raise ValueError("Check C++ Dependency: Run mise run generate -- --protocol to Refresh the Pinned Archive and Checksum")
+    else:
+        path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def library_dependencies(root: Path, *, check: bool = False) -> None:
+    """Generate or Verify Required Manifest Literals From the Workspace Pin."""
+    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+    dependency = manifest["workspace"]["dependencies"]["harmos"]
+    source = dependency["git"]
+    revision = dependency["rev"]
+    manifests = (
+        (Path("Cargo.toml"), ("workspace", "dependencies")),
+        (Path("sdk/rust/tests/consumer/Cargo.toml"), ("dev-dependencies",)),
+        (Path("tools/python/pyproject.toml"), ("tool", "uv", "sources")),
+    )
+    for relative, keys in manifests:
+        path = root / relative
+        original = path.read_text(encoding="utf-8")
+        declarations = tomllib.loads(original)
+        for key in keys:
+            declarations = declarations[key]
+        text = original
+        for declaration in declarations.values():
+            if isinstance(declaration, dict) and declaration.get("git") == source:
+                text = text.replace(f'rev = "{declaration["rev"]}"', f'rev = "{revision}"')
+        if check:
+            if text != original:
+                raise ValueError(f"Check Library Pin: Run mise run generate -- --protocol to Refresh {relative}")
+        else:
+            path.write_text(text, encoding="utf-8", newline="\n")
+
+    path = root / "sdk/python/pyproject.toml"
+    original = path.read_text(encoding="utf-8")
+    manifest = tomllib.loads(original)
+    requirements = manifest["project"]["dependencies"]
+    current = next(requirement for requirement in requirements if requirement.startswith(f"harmos-sdk @ git+{source}@"))
+    expected = f"harmos-sdk @ git+{source}@{revision}#subdirectory=sdk/python"
+    text = original.replace(current, expected)
+    if check:
+        if text != original:
+            raise ValueError("Check Library Pin: Run mise run generate -- --protocol to Refresh sdk/python/pyproject.toml")
+        archive = f"URL {source}/archive/{revision}.tar.gz\n"
+        if archive not in (root / "sdk/cpp/cmake/Dependencies.cmake").read_text(encoding="utf-8"):
+            raise ValueError("Check Library Pin: Run mise run generate -- --protocol to Refresh the C++ Archive")
     else:
         path.write_text(text, encoding="utf-8", newline="\n")
 
@@ -190,6 +232,7 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--language", choices=("python",))
     options = parser.parse_args()
+    library_dependencies(Path.cwd(), check=options.check)
     # Generate or Verify the C++ Archive Against the Workspace Pin.
     if options.language is None:
         cpp_dependency(Path.cwd(), check=options.check)

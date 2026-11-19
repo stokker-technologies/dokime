@@ -27,7 +27,7 @@ from unittest import mock
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol import cpp_dependency
+from dokime_tools.build.protocol import cpp_dependency, library_dependencies
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
@@ -42,6 +42,48 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
+    def test_manifest_pins_follow_workspace_and_reject_each_stale_consumer(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        try:
+            source = "https://example.test/library"
+            manifests = {
+                "Cargo.toml": (
+                    f'[workspace.dependencies]\nharmos = {{ git = "{source}", rev = "next" }}\n'
+                    f'library-runtime = {{ git = "{source}", rev = "previous" }}\n'
+                ),
+                "sdk/rust/tests/consumer/Cargo.toml": f'[dev-dependencies]\nlibrary-runtime = {{ git = "{source}", rev = "previous" }}\n',
+                "tools/python/pyproject.toml": f'[tool.uv.sources]\nlibrary-tools = {{ git = "{source}", rev = "previous" }}\n',
+                "sdk/python/pyproject.toml": f'[project]\ndependencies = ["harmos-sdk @ git+{source}@previous#subdirectory=sdk/python"]\n',
+            }
+            for relative, text in manifests.items():
+                path = scratch / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            archive = scratch / "sdk/cpp/cmake/Dependencies.cmake"
+            archive.parent.mkdir(parents=True)
+            archive.write_text(f"URL {source}/archive/next.tar.gz\n", encoding="utf-8")
+            library_dependencies(scratch)
+            library_dependencies(scratch, check=True)
+            for relative in manifests:
+                with self.subTest(manifest=relative):
+                    path = scratch / relative
+                    current = path.read_text(encoding="utf-8")
+                    if relative == "Cargo.toml":
+                        stale = current.replace(
+                            f'library-runtime = {{ git = "{source}", rev = "next"',
+                            f'library-runtime = {{ git = "{source}", rev = "previous"',
+                        )
+                    else:
+                        stale = current.replace("next", "previous")
+                    path.write_text(stale, encoding="utf-8")
+                    self.assertRaises(ValueError, library_dependencies, scratch, check=True)
+                    library_dependencies(scratch)
+                    self.assertEqual(path.read_text(encoding="utf-8"), current)
+            archive.write_text(f"URL {source}/archive/previous.tar.gz\n", encoding="utf-8")
+            self.assertRaises(ValueError, library_dependencies, scratch, check=True)
+        finally:
+            shutil.rmtree(scratch)
+
     def test_cpp_archive_follows_the_workspace_pin_and_refuses_stale_bytes(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         try:
