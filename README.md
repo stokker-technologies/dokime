@@ -147,6 +147,11 @@ normal system package installation.
 The desktop installer includes `dokime` beside the desktop executable but does
 not add it to PATH. Use mise for the command-line installation below.
 
+Organization installers can include plugin bundles in the installation's `plugins/`
+folder. Each host startup admits added or updated bundles and retires removed
+installation entries, while preserving user-installed plugins and their precedence.
+Rejected bundles appear in plugin health without blocking the other plugins.
+
 Add the command-line tool from the `nightly` release to a `mise.toml`:
 
 ```toml
