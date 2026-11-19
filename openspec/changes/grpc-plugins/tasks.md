@@ -183,4 +183,5 @@
 - [x] Prove Python Thermal Evidence Parity With the Locked Initialize Lifecycle and Preserve the Complete Evidence Comparison.
 - [x] Resolve the Plugin Class Identity Override Versus Resolved Instance Readback: Expose the Resolved Identifier on Each Instance Before and After Registration.
 - [x] Keep Unanswered Starter Prompts Pending Across the Host Mutation Deadline and Explicit Controlled-Clock Advancement; Answer Them to Seal Passed With Retained Evidence.
-- [ ] Complete the Requested Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff and the Library's Frozen Bundle Version Fix.
+- [x] Complete the Requested Native Windows Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff, the Library's Frozen Bundle Version Fix and Final Rust/TypeScript Lints.
+- [x] Rerun the Existing Scratch Python Project Against the Merged Host, Select Its Execution From CLI Summary JSON, Answer Through the CLI and Preserve Its Saved Archive Without Regenerating or Deleting Project Files.
