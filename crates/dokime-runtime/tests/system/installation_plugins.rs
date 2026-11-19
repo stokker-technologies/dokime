@@ -325,7 +325,7 @@ fn prepared_installer_layout_lists_and_runs_its_shipped_template() -> Result<(),
             fs::write(source.path().join("organization/icon.png"), icon)?;
             files.insert("organization/organization.toml".into(), organization.to_vec());
             files.insert("organization/icon.png".into(), icon.to_vec());
-            let files: BTreeMap<_, _> = files.into_iter().map(|(name, bytes)| (name, format!("{:x}", Sha256::digest(bytes)))).collect();
+            let files: BTreeMap<_, _> = files.into_iter().map(|(name, bytes)| (name, harmos_runtime::bundle::digest(&bytes))).collect();
             let metadata =
                 serde_json::json!({"schema":1,"version":env!("CARGO_PKG_VERSION"),"target":bundle::native_target(),"files":files});
             fs::write(source.path().join("distribution.json"), serde_json::to_vec(&metadata)?)?;
