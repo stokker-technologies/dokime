@@ -156,6 +156,14 @@ retained. It does not amend the decision that user-installed entries are never
 touched. The regression is
 `crates/dokime-runtime/tests/system/installation_plugins.rs::user_entry_reusing_installation_content_survives_reconciliation`.
 
+The startup candidate also fails the desktop's existing Send requirement. Calling
+the shared lending readiness callbacks from startup produces a higher-ranked Send
+error; omitting reconciliation isolates that failure but removes required behavior.
+The shared readiness boundary must support the spawned host startup without a
+second readiness loop or a separate desktop execution model. The compile-contract
+regression is
+`crates/dokime-runtime/tests/system/installation_plugins.rs::host_startup_future_can_cross_threads`.
+
 The current-user, no-elevation implementation applies to Windows NSIS. Linux
 DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format
 has not been selected.

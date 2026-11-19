@@ -39,7 +39,7 @@ use dokime_packaging::{
     installer::{self, PackageOptions},
 };
 use dokime_protocol::host::execution_outcome;
-use dokime_runtime::{HostSettings, services};
+use dokime_runtime::{Host, HostSettings, services};
 
 /* === Constants === */
 
@@ -473,4 +473,14 @@ fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(
         })
         .await?
     }))
+}
+
+#[test]
+fn host_startup_future_can_cross_threads() {
+    fn require_send(_: impl Send) {}
+    fn check(root: &Path) {
+        let startup = Host::open(root, support::settings(), support::service_settings());
+        require_send(startup);
+    }
+    check(Path::new("."));
 }
