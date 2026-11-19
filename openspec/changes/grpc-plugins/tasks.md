@@ -154,8 +154,8 @@
   - [x] Supply Rust, C# and C++ Starter Native Metadata and Icons, Stage C# Publish Companions Under Assets and Migrate Runtime Manifest Consumers.
   - [ ] Reconcile the Python Starter Source Inventory With Its Agreed Manifest Roots and Supply Native Metadata and Icons for That Inventory.
   - [ ] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
-  - [x] Complete Workspace Compilation, Packaging Units, Runtime Manifest Command Proof, Formatting, Package Lints and Created Rust/C# Bundle/Inspect Proof.
-  - [ ] Resolve Repository Public Surface Checks, CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.
+  - [x] Complete Workspace Compilation, Packaging Units, Runtime Manifest Command Proof, Formatting, Repository Checks, Package Lints and Created Rust/C# Bundle/Inspect Proof.
+  - [ ] Complete CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.
 - [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
   - [x] Replace the Owned Python Starter Sources With the Reference-Shaped Single Project, Its Host-Free Description Test and Explicit Project/Package Substitution Markers.
   - [x] Migrate the Client/Thermal Example Packages, Python Fixture Launchers, Typed Consumer and Three-Home/Strict Stub Inventories; Keep Repository Host Stories Outside the Starter.
