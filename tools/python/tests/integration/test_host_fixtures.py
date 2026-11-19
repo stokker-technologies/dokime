@@ -46,6 +46,30 @@ from dokime_tools.prepare import generated
 
 
 class HostFixtureTests(unittest.TestCase):
+    def test_selected_rust_fixture_skips_unrelated_producers(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        root = Path(temporary_directory.name)
+        try:
+            with (
+                patch.object(host_fixtures.configuration, "ROOT", root),
+                patch.object(host_fixtures.generated, "prepare") as prepare,
+                patch.object(host_fixtures.subprocess, "run") as run,
+                patch.object(host_fixtures.shutil, "copy2") as copy,
+            ):
+                host_fixtures.build("dev", "rust", "dokime-rust-plugin")
+                prepare.assert_not_called()
+                run.assert_called_once()
+                command = run.call_args.args[0]
+                self.assertEqual(command[command.index("--bin") + 1], "dokime-rust-plugin")
+                self.assertNotIn("--bins", command)
+                extension = ".exe" if os.name == "nt" else ""
+                copy.assert_called_once_with(
+                    root / "target/debug" / f"dokime-rust-plugin{extension}",
+                    paths.output(root, "build", "dev") / "fixtures/host" / f"dokime-rust-plugin{extension}",
+                )
+        finally:
+            temporary_directory.cleanup()
+
     def test_report_generation_failure_stops_native_consumers(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         try:
@@ -256,6 +280,7 @@ class HostFixtureTests(unittest.TestCase):
                     "dokime-rust-boundary",
                     "dokime-rust-secrets",
                     "dokime-rust-capture",
+                    "dokime-rust-plugin",
                     "dokime-host",
                     "plugin-obc",
                 )

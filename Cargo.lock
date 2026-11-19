@@ -2040,6 +2040,7 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-client-internal",
+ "dokime-packaging",
  "dokime-protocol",
  "dokime-runtime",
  "dokime-storage",

@@ -16,7 +16,9 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    path::{Component, Path},
+    env, fs,
+    path::{Component, Path, PathBuf},
+    str,
 };
 
 // Third Party Imports
@@ -96,7 +98,7 @@ pub fn resolve_directory(directory: Option<&Path>) -> Result<ResolvedPack, Strin
         None => bundled().iter().map(|(name, bytes)| ((*name).to_owned(), bytes.to_vec())).collect(),
     };
     let bytes = files.get("organization.toml").ok_or("the organization has no manifest")?;
-    let text = std::str::from_utf8(bytes).map_err(|_| "organization manifest is not UTF-8")?;
+    let text = str::from_utf8(bytes).map_err(|_| "organization manifest is not UTF-8")?;
     let manifest_path = directory.unwrap_or(Path::new("organization")).join("organization.toml");
     let manifest = parse_manifest(&manifest_path, text)?;
     let normalized = toml::to_string(&manifest).map_err(|error| error.to_string())?;
@@ -106,9 +108,9 @@ pub fn resolve_directory(directory: Option<&Path>) -> Result<ResolvedPack, Strin
     Ok(pack)
 }
 
-pub fn installation_directory() -> Option<std::path::PathBuf> {
-    let executable = std::env::current_exe().ok()?;
-    let directory = executable.parent()?.join("organization");
+pub fn installation_directory() -> Option<PathBuf> {
+    let executable = env::current_exe().ok()?;
+    let directory = dokime_packaging::installation::directory(&executable).ok()?.join("organization");
     directory.join("organization.toml").is_file().then_some(directory)
 }
 
@@ -176,7 +178,7 @@ fn validate_path(relative: &str) -> Result<(), String> {
 }
 
 fn collect_files(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec<u8>>) -> Result<(), String> {
-    for entry in std::fs::read_dir(directory).map_err(|error| error.to_string())? {
+    for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
         let kind = entry.file_type().map_err(|error| error.to_string())?;
@@ -188,7 +190,7 @@ fn collect_files(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec
         if kind.is_dir() {
             collect_files(root, &path, files)?;
         } else if kind.is_file() {
-            files.insert(relative, std::fs::read(path).map_err(|error| error.to_string())?);
+            files.insert(relative, fs::read(path).map_err(|error| error.to_string())?);
         }
     }
     Ok(())

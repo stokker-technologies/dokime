@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+mod installation;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -18,46 +20,45 @@
 // Standard Library Imports
 use std::{
     collections::HashMap,
+    fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, Weak},
 };
 
 // Third Party Imports
-use harmos_operations::plugins::Create;
-use harmos_operations::plugins::Delete;
-use harmos_operations::plugins::Watch;
-use harmos_protocol::host::PluginDescription;
-use harmos_protocol::host::PluginsDeleteRequest;
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginRemote};
-use harmos_protocol::host::{PluginState, PluginsWatchRequest};
-use harmos_protocol::host::{PluginValue, PluginsCreateRequest};
+use harmos_operations::plugins::{Create, Delete, Watch};
+use harmos_protocol::host::{
+    PluginDescription, PluginEntry, PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue, PluginsCreateRequest,
+    PluginsDeleteRequest, PluginsWatchRequest, plugin_placement,
+};
 use harmos_protocol::model::{FileMetadata, FileReference, Receipt};
 use harmos_runtime::bundle::Identity;
 use harmos_runtime::operations::StreamSettings;
 use prost::Message;
 use sha2::{Digest, Sha256};
-use tokio::sync::watch::Receiver;
+use tokio::sync::watch::{self, Receiver, Sender};
+use uuid::Uuid;
 
 // Local Imports
-use crate::ExecutionCapabilities;
-use crate::{CaptureSettings, Cycle, Error, PlacementSettings, Result, SchedulerClock};
+use crate::execution_manager::ExecutionManager;
+use crate::prompts::PromptManager;
+use crate::services::{self, Assembly, ClientSettings};
+use crate::{CaptureSettings, Cycle, Error, ExecutionCapabilities, PlacementSettings, Result, SchedulerClock, await_plugin_ready, process};
+use dokime_operations::host::content;
 use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_operations::host::evidence::archive;
+use dokime_operations::host::files::read;
 use dokime_operations::host::files::uploads::{append, create, publish};
-use dokime_protocol::host::ExecutionControls;
-use dokime_protocol::host::ExecutionMode;
-use dokime_protocol::host::PromptsCreateRequest;
-use dokime_protocol::host::PromptsCreateResponse;
+use dokime_packaging::bundle;
 use dokime_protocol::host::content::ExecutionFileMetadata;
-use dokime_protocol::host::executions::CommandsCreateRequest;
-use dokime_protocol::host::executions::ExecutionCommandReceipt;
+use dokime_protocol::host::executions::{CommandsCreateRequest, ExecutionCommandReceipt};
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsPublishRequest};
-use dokime_protocol::model::Origin;
-use dokime_protocol::model::Suites;
-use dokime_protocol::model::Value;
-use dokime_storage::OutcomeCounts;
-use dokime_storage::StorageSettings;
-use dokime_storage::{ExecutionSnapshot, Store};
+use dokime_protocol::host::{
+    EvidenceArchiveRequest, EvidenceSubject, ExecutionControls, ExecutionMode, FilesReadRequest, PromptsCreateRequest,
+    PromptsCreateResponse, evidence_subject,
+};
+use dokime_protocol::model::{Origin, Suites, Value};
+use dokime_storage::{self, ExecutionSnapshot, OutcomeCounts, StorageSettings, Store};
 
 /* === Constants === */
 
@@ -66,29 +67,35 @@ use dokime_storage::{ExecutionSnapshot, Store};
 /* === Type Aliases === */
 
 /// The Exclusive Lease on a Storage Root, Released at Shutdown or With Its Last Owner.
-pub(crate) type RootLease = Arc<Mutex<Option<std::fs::File>>>;
+pub(crate) type RootLease = Arc<Mutex<Option<File>>>;
 
 /* === Structs === */
 
 #[derive(Clone)]
 pub struct HostSettings {
+    /// Installation Folder Override; Unset Resolves Beside the Running Product Executable.
+    pub installation: Option<PathBuf>,
+
     pub placement: PlacementSettings,
     pub storage: StorageSettings,
     pub clock: Arc<dyn SchedulerClock>,
     pub capture: CaptureSettings,
+
     /// The Prefix of Every Native Credential the Host Owns; Default `dokime`.
     pub credentials: CredentialNamespace,
 }
+
 #[derive(Clone)]
 pub struct Host {
     pub(crate) store: Store,
     pub(crate) settings: HostSettings,
     pub(crate) plugins: Arc<Mutex<HashMap<String, PluginEntry>>>,
-    pub(crate) executions: crate::execution_manager::ExecutionManager,
-    pub(crate) prompts: Arc<crate::prompts::PromptManager>,
-    changed: tokio::sync::watch::Sender<u64>,
+    pub(crate) plugin_admission_failures: Arc<Mutex<Vec<(String, String)>>>,
+    pub(crate) executions: ExecutionManager,
+    pub(crate) prompts: Arc<PromptManager>,
+    changed: Sender<u64>,
     root_lease: RootLease,
-    pub(crate) assembly: Option<Arc<crate::services::Assembly>>,
+    pub(crate) assembly: Option<Arc<Assembly>>,
 }
 
 /* === Enums === */
@@ -98,45 +105,39 @@ pub struct Host {
 /* === Implementations === */
 
 impl Host {
-    pub async fn open(root: &Path, settings: HostSettings, operations: crate::services::ClientSettings) -> Result<Self> {
+    pub async fn open(root: &Path, settings: HostSettings, operations: ClientSettings) -> Result<Self> {
         // Every Host Entry Point Owns Its Descendants Before Any Plugin Starts.
-        crate::process::own_descendants()?;
+        process::own_descendants()?;
         let mut host = Self::open_store(root, settings)?;
-        host.assembly = Some(Arc::new(Box::pin(crate::services::assemble(&host, root, &operations)).await?));
+        host.assembly = Some(Arc::new(Box::pin(services::assemble(&host, root, &operations)).await?));
+        host.reconcile_installation_plugins().await;
         Ok(host)
     }
     fn open_store(root: &Path, settings: HostSettings) -> Result<Self> {
+        if settings.installation.as_ref().is_some_and(|directory| !directory.is_absolute()) {
+            return Err(Error::Invalid("Configure Installation Plugins: Supply an Absolute Installation Folder".into()));
+        }
         let root_error = |source| Error::RootIo { path: root.to_path_buf(), source };
-        std::fs::create_dir_all(root).map_err(root_error)?;
-        let lease = std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(root.join("local.lock"))
-            .map_err(root_error)?;
+        fs::create_dir_all(root).map_err(root_error)?;
+        let lease =
+            OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock")).map_err(root_error)?;
         match lease.try_lock() {
             Ok(()) => (),
-            Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
-            Err(std::fs::TryLockError::Error(error)) => return Err(root_error(error)),
+            Err(fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
+            Err(fs::TryLockError::Error(error)) => return Err(root_error(error)),
         }
         let root_lease: RootLease = Arc::new(Mutex::new(Some(lease)));
         let store = Store::open_with(root, settings.storage)?;
-        dokime_operations::host::content::validate_store(&store)?;
-        let changed = tokio::sync::watch::channel(0).0;
+        content::validate_store(&store)?;
+        let changed = watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
-        let prompts = Arc::new(crate::prompts::PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
-        let executions = crate::execution_manager::ExecutionManager::new(
-            store.clone(),
-            settings.clone(),
-            prompts.clone(),
-            changed.clone(),
-            root_lease.clone(),
-        )?;
+        let prompts = Arc::new(PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
+        let executions = ExecutionManager::new(store.clone(), settings.clone(), prompts.clone(), changed.clone(), root_lease.clone())?;
         Ok(Self {
             store,
             settings,
             plugins,
+            plugin_admission_failures: Arc::new(Mutex::new(Vec::new())),
             executions,
             prompts,
             changed,
@@ -148,7 +149,7 @@ impl Host {
         let placement = PluginPlacement {
             kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: endpoint.into() })),
         };
-        self.create_plugin(name.into(), placement).await
+        self.create_plugin(name.into(), placement, None).await
     }
     pub async fn add_managed(&self, name: &str, executable: &Path, assets: &[PathBuf]) -> Result<String> {
         let identity = Identity {
@@ -157,8 +158,26 @@ impl Host {
             description: String::new(),
             package: Default::default(),
         };
-        let bytes = dokime_packaging::bundle::create(executable, assets, identity, None)
+        let bytes = bundle::create(executable, assets, identity, None)
             .map_err(|source| Error::Invalid(format!("Create Plugin Bundle: {source}")))?;
+        let content = self
+            .upload_plugin_bundle(
+                &bytes,
+                FileMetadata {
+                    media_type: "application/x-tar".into(),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let placement = PluginPlacement {
+            kind: Some(plugin_placement::Kind::Managed(PluginManaged {
+                sha256: content.sha256.clone(),
+                content: Some(content),
+            })),
+        };
+        self.create_plugin(name.into(), placement, None).await
+    }
+    async fn upload_plugin_bundle(&self, bytes: &[u8], metadata: FileMetadata) -> Result<FileReference> {
         let context = self
             .executions
             .inner
@@ -169,11 +188,8 @@ impl Host {
         let created = create::handle(
             &context,
             UploadsCreateRequest {
-                request_id: uuid::Uuid::now_v7().to_string(),
-                metadata: Some(FileMetadata {
-                    media_type: "application/x-tar".into(),
-                    ..Default::default()
-                }),
+                request_id: Uuid::now_v7().to_string(),
+                metadata: Some(metadata),
             },
         )
         .await?;
@@ -186,7 +202,7 @@ impl Host {
                     upload: Some(upload),
                     offset,
                     data: chunk.to_vec(),
-                    request_id: uuid::Uuid::now_v7().to_string(),
+                    request_id: Uuid::now_v7().to_string(),
                 },
             )
             .await?;
@@ -198,22 +214,16 @@ impl Host {
             UploadsPublishRequest {
                 upload: Some(upload),
                 length: bytes.len() as u64,
-                sha256: Sha256::digest(&bytes).to_vec(),
-                request_id: uuid::Uuid::now_v7().to_string(),
+                sha256: Sha256::digest(bytes).to_vec(),
+                request_id: Uuid::now_v7().to_string(),
             },
         )
         .await?
         .upload
         .ok_or_else(|| Error::Invalid("Add Plugin: Publish Its Bundle".into()))?;
-        let placement = PluginPlacement {
-            kind: Some(plugin_placement::Kind::Managed(PluginManaged {
-                sha256: content.sha256.clone(),
-                content: Some(content),
-            })),
-        };
-        self.create_plugin(name.into(), placement).await
+        Ok(content)
     }
-    async fn create_plugin(&self, name: String, placement: PluginPlacement) -> Result<String> {
+    async fn create_plugin(&self, name: String, placement: PluginPlacement, origin: Option<String>) -> Result<String> {
         self.admit("Add Plugin")?;
         let context = self
             .executions
@@ -228,8 +238,8 @@ impl Host {
                 name: name.clone(),
                 placement: Some(placement),
                 value: Some(PluginValue { enabled: true }),
-                request_id: uuid::Uuid::now_v7().to_string(),
-                origin: None,
+                request_id: Uuid::now_v7().to_string(),
+                origin,
             })
             .await?;
         self.await_plugin_ready(&name).await?;
@@ -243,19 +253,23 @@ impl Host {
             .get()
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Await Plugin Ready: Assemble the Host Context".into()))?;
-        let mut watch = context.operations.download_protobuf::<Watch>(
+        let watch = context.operations.download_protobuf::<Watch>(
             PluginsWatchRequest { name: Some(name.into()), at: None },
             StreamSettings {
                 items: self.settings.placement.stream_window,
                 bytes: self.settings.placement.message_bytes,
             },
         )?;
-        let result = crate::await_plugin_ready(
-            async || {
-                context.host.refresh_plugin_states().await?;
-                Ok(lock(&self.plugins)?.get(name).cloned())
+        let mut readiness = (context, self.plugins.clone(), name.to_owned(), watch);
+        let result = await_plugin_ready(
+            &mut readiness,
+            |(context, plugins, name, _)| {
+                Box::pin(async move {
+                    context.host.refresh_plugin_states().await?;
+                    Ok(lock(plugins)?.get(name).cloned())
+                })
             },
-            async || Ok(watch.next().await?.is_some()),
+            |(_, _, _, watch)| Box::pin(async move { Ok(watch.next().await?.is_some()) }),
             |entry| {
                 if entry.state == PluginState::Stopped as i32 {
                     return None;
@@ -270,8 +284,8 @@ impl Host {
         )
         .await
         .map(|_| ());
-        watch.request_cancel();
-        let _ = watch.join().await;
+        readiness.3.request_cancel();
+        let _ = readiness.3.join().await;
         result
     }
     fn admit(&self, action: &str) -> Result<()> {
@@ -358,7 +372,7 @@ impl Host {
         self.executions.start_execution_mode(execution, mode).await
     }
     pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
-        self.start_execution_mode(execution, dokime_protocol::host::ExecutionMode::Automatic).await
+        self.start_execution_mode(execution, ExecutionMode::Automatic).await
     }
     pub async fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
         self.executions.submit_execution_command(request).await
@@ -386,11 +400,11 @@ impl Host {
             .get()
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Export Execution: Open the Host Before Reading Evidence".into()))?;
-        let response = dokime_operations::host::evidence::archive::handle(
+        let response = archive::handle(
             &context,
-            dokime_protocol::host::EvidenceArchiveRequest {
-                subject: Some(dokime_protocol::host::EvidenceSubject {
-                    kind: Some(dokime_protocol::host::evidence_subject::Kind::Execution(execution.into())),
+            EvidenceArchiveRequest {
+                subject: Some(EvidenceSubject {
+                    kind: Some(evidence_subject::Kind::Execution(execution.into())),
                 }),
                 at: None,
             },
@@ -399,9 +413,9 @@ impl Host {
         let file = response.file.ok_or_else(|| Error::Invalid("Export Execution: Restore Its Native Archive Reference".into()))?;
         let mut bytes = Vec::new();
         while (bytes.len() as u64) < file.length {
-            let response = dokime_operations::host::files::read::handle(
+            let response = read::handle(
                 &context,
-                dokime_protocol::host::FilesReadRequest {
+                FilesReadRequest {
                     file: Some(file.clone()),
                     offset: bytes.len() as u64,
                     max_bytes: 0,
@@ -424,9 +438,7 @@ impl Host {
             .get()
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Attach Execution File: Open the Host Before Registering Content".into()))?;
-        dokime_operations::host::content::attach_execution_file(&context, execution, metadata, file)
-            .await
-            .map_err(|source| Error::Invalid(source.to_string()))
+        content::attach_execution_file(&context, execution, metadata, file).await.map_err(|source| Error::Invalid(source.to_string()))
     }
     /// Replaces the folders plugins may capture from; captures opened afterwards use them.
     pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {

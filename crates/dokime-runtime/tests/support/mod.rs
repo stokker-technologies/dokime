@@ -25,27 +25,34 @@ pub use settings::{OPERATION_TIMEOUT, SYSTEM_HANG_GUARD, settings};
 
 // Standard Library Imports
 use std::collections::HashMap;
-use std::env::consts::{EXE_SUFFIX, OS};
+use std::env::{
+    self,
+    consts::{EXE_SUFFIX, OS},
+};
 use std::error::Error;
 use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
-use harmos_protocol::model::StorageTransferSettings;
+use harmos_protocol::host::{PluginEntry, PluginState};
+use harmos_protocol::model::{ReadCut, StorageTransferSettings};
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::process::Command;
 
 // Local Imports
-use dokime::Metadata;
 use dokime::Value;
-use dokime_client_internal::Client;
-use dokime_client_internal::ClientSettings;
-use dokime_client_internal::PlannedCase;
+use dokime::{FileMetadata, FileReference, Metadata};
+use dokime_client_internal::{
+    Client, ClientSettings, ExecutionsListOptions, PlannedCase, Plugins, PluginsWatchOptions, RegisteredSelection,
+    RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues,
+};
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::model::value::Kind;
 use dokime_runtime::Host;
-use dokime_runtime::services;
+use dokime_runtime::{process, services};
 
 /* === Constants === */
 
@@ -84,7 +91,7 @@ pub struct PythonPlugin {
 impl PythonPlugin {
     pub async fn start() -> Result<Self, Box<dyn Error>> {
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/tests/fixtures/python/thermal/plugin.py");
-        let mut child = Command::from(dokime_runtime::process::command(python()))
+        let mut child = Command::from(process::command(python()))
             .arg(script)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -106,11 +113,9 @@ impl PythonPlugin {
 
 /* === Public Functions === */
 
-pub async fn plugin_state(
-    plugins: &dokime_client_internal::Plugins, mut entry: harmos_protocol::host::PluginEntry, expected: harmos_protocol::host::PluginState,
-) -> Result<harmos_protocol::host::PluginEntry, Box<dyn Error>> {
+pub async fn plugin_state(plugins: &Plugins, mut entry: PluginEntry, expected: PluginState) -> Result<PluginEntry, Box<dyn Error>> {
     let mut watching = plugins
-        .watch_with(dokime_client_internal::PluginsWatchOptions {
+        .watch_with(PluginsWatchOptions {
             name: Some(entry.name.clone()),
             ..Default::default()
         })
@@ -119,7 +124,7 @@ pub async fn plugin_state(
         if entry.state == expected as i32 {
             return Ok(entry);
         }
-        if entry.failure.is_some() && expected == harmos_protocol::host::PluginState::Ready {
+        if entry.failure.is_some() && expected == PluginState::Ready {
             return Err(format!("Await Plugin {} Ready: {:?}", entry.name, entry.failure).into());
         }
         watching.next().await?.ok_or("Await Plugin State: Watch Closed Before the Requested Condition")?;
@@ -130,8 +135,6 @@ pub async fn plugin_state(
 pub async fn materialize(
     client: &Client, suite: impl Into<String>, template: impl Into<String>, parameters: HashMap<String, Vec<Value>>,
 ) -> Result<Vec<PlannedCase>, Box<dyn Error>> {
-    use dokime_client_internal::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
-
     // Preview the Complete Selection Without Registering Cases
     let parameters = parameters
         .into_iter()
@@ -155,8 +158,6 @@ pub async fn materialize(
 
 pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<String>, Box<dyn Error>> {
     // Admit Frozen Origins and Read the Executions at the Admission Receipt
-    use dokime_client_internal::ExecutionsListOptions;
-    use harmos_protocol::model::ReadCut;
     let origins = cases.into_iter().map(|case| case.origin.ok_or("Admit Story Cases: Missing Frozen Origin")).collect::<Result<_, _>>()?;
     let metadata = Metadata {
         label: "Story Cycle".into(),
@@ -178,7 +179,7 @@ pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<Strin
 }
 
 pub fn thermal_fixture() -> Result<PathBuf, Box<dyn Error>> {
-    let path = std::env::var_os("DOKIME_THERMAL_PLUGIN")
+    let path = env::var_os("DOKIME_THERMAL_PLUGIN")
         .map(PathBuf::from)
         .unwrap_or_else(|| fixture_root().join(format!("dokime-rust-thermal{}", EXE_SUFFIX)));
     if !path.is_file() {
@@ -198,6 +199,13 @@ pub fn execution_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let path = fixture_root().join(format!("dokime-rust-execution{}", EXE_SUFFIX));
     if !path.is_file() {
         return Err("Build the Execution Example with the SDK Task Before Running the Host Stories".into());
+    }
+    Ok(path)
+}
+pub fn ping_fixture() -> Result<PathBuf, Box<dyn Error>> {
+    let path = fixture_root().join(format!("dokime-rust-plugin{EXE_SUFFIX}"));
+    if !path.is_file() {
+        return Err("Build the Ping Fixture Through mise run build:host-fixtures -- --language rust --fixture dokime-rust-plugin".into());
     }
     Ok(path)
 }
@@ -223,8 +231,6 @@ pub fn boundary_fixture() -> Result<PathBuf, Box<dyn Error>> {
     Ok(path)
 }
 pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<String, Value> {
-    use dokime::Value;
-    use dokime_protocol::model::value::Kind;
     HashMap::from([
         ("value".into(), Value { kind: Some(Kind::Number(value)) }),
         (
@@ -249,8 +255,8 @@ pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> dok
 }
 
 pub fn host_fixture() -> Result<PathBuf, Box<dyn Error>> {
-    let executable = std::env::var_os("NEXTEST_BIN_EXE_dokime-host")
-        .or_else(|| std::env::var_os("CARGO_BIN_EXE_dokime-host"))
+    let executable = env::var_os("NEXTEST_BIN_EXE_dokime-host")
+        .or_else(|| env::var_os("CARGO_BIN_EXE_dokime-host"))
         .ok_or("Build the New Host Binary Before Running Its Client Stories")?;
     Ok(PathBuf::from(executable))
 }
@@ -262,7 +268,7 @@ pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn Error>> {
         "cpp" => "dokime-system-suite",
         _ => return Err("Select a Compiled SDK Fixture".into()),
     };
-    let path = std::env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| fixture_root().join(format!("{name}{}", EXE_SUFFIX)));
+    let path = env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| fixture_root().join(format!("{name}{}", EXE_SUFFIX)));
     if !path.is_file() {
         return Err(format!("Build the {language} Thermal Fixture Through Its SDK Mise Task: {}", path.display()).into());
     }
@@ -270,7 +276,7 @@ pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn Error>> {
 }
 
 pub fn python() -> PathBuf {
-    std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
+    env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
         let path = if OS == "windows" { ".venv/Scripts/python.exe" } else { ".venv/bin/python" };
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(path)
     })
@@ -301,7 +307,7 @@ pub fn service_settings() -> services::ClientSettings {
 }
 
 pub fn content_fixture() -> Result<PathBuf, Box<dyn Error>> {
-    let executable = std::env::var_os("DOKIME_CONTENT_PLUGIN")
+    let executable = env::var_os("DOKIME_CONTENT_PLUGIN")
         .map(PathBuf::from)
         .unwrap_or_else(|| fixture_root().join(format!("content_fixture{}", EXE_SUFFIX)));
     if !executable.is_file() {
@@ -310,9 +316,7 @@ pub fn content_fixture() -> Result<PathBuf, Box<dyn Error>> {
     Ok(executable)
 }
 
-pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8]) -> Result<dokime::FileReference, Box<dyn Error>> {
-    use dokime::FileMetadata;
-    use sha2::{Digest, Sha256};
+pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8]) -> Result<FileReference, Box<dyn Error>> {
     let created = client
         .files
         .uploads
@@ -341,7 +345,7 @@ pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8
 
 fn fixture_root() -> PathBuf {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+    let profile = env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
     let target = if OS == "windows" { "windows-x86_64" } else { "linux-x86_64" };
     repository.join("target/build").join(profile).join(target).join("fixtures/host")
 }

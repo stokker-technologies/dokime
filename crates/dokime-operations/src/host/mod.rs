@@ -162,6 +162,7 @@ pub trait Host: Send + Sync {
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
     fn report_template(&self) -> &'static [u8];
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
+    fn plugin_admission_failures(&self) -> Result<Vec<(String, String)>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, Suite)>>;
     async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin>;

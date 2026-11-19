@@ -107,11 +107,62 @@ The kit no longer carries identity/trust metadata; packaging uses the CLI build'
 product configuration for the default identifier and fixed updater verification key.
 Signing never reads an organization-supplied trust key.
 
+## Installation Plugin Admission
+
+Owner decision, 2026-11-19: admit the selected bundles shipped in the installation's
+`plugins/` folder at host startup. Resolve the installation beside the running
+product executable, including the real Linux executable under `/usr/lib/<slug>/`,
+through the same resolver as desktop installation resources. Host settings may
+supply an explicit installation folder for deterministic tests; no environment
+variable is added.
+
+Installation admission uses the existing managed upload, registry Create, staged
+Replace and Delete paths, with the same verification and lifecycle guarantees.
+Only a registry entry whose `origin` is `installation` is owned by startup
+reconciliation. Admission sets that origin on Create; List/Get return it, Replace
+preserves it and the library persists it. Content references carry ordinary bundle
+metadata, never ownership or filenames. There is no second registry. Verified
+bundles match entries by plugin identity and digest, independently of filenames.
+Missing bundles retire installation-owned entries; changed verified digests replace
+them. An incomplete or corrupt scan defers removals because it cannot establish the
+identity of every shipped file; valid files still admit. A corrupt replacement
+retains the last admitted bundle. A development installation without the folder
+admits nothing.
+
+Registry entry names are the management identity. A user-created entry has empty
+origin and always wins a name collision, including one reusing installation
+content. Startup reports that shipped bundle as not admitted and never replaces
+or removes the user's entry. User replacement preserves the entry's existing
+origin, so replacing an installation-owned entry does not transfer its ownership.
+Renaming a shipped file keeps its identity, settings and registry revision without
+an admission mutation. Changing a bundle identity retires the obsolete installation entry through
+Delete after a complete verified scan.
+
+An unchanged folder causes no admission mutation: reconciliation performs no
+upload, Create, Replace, Delete or content release. The restart regression counts
+these actions through existing operation-admission and file-transfer traces, with
+positive controls for initial admission, replacement and removal. Entry names,
+origins, bundle digests, versions and revisions remain identical across restart.
+This contract permits the library's ordinary persistence of activation and process
+state when plugins start. At pin `dae69cea0`, an unchanged restart observed nine
+registry writes because the library persists durable entries and live state
+together. Separating those concerns is a library follow-up after the product moves
+to the library's main line; product reconciliation adds no substitute registry or
+write-suppression layer. The library retains
+bounded replay receipts for Create and Replace; startup adds no parallel receipt
+policy. Superseded extracted copies use existing retirement paths. Superseded
+uploaded content is released through Files.Delete only when no registry entry
+references its storage position, including entries with empty origin.
+The shared-content regression uses disabled user entries: their content remains
+retained without trying to activate the same globally registered operations twice.
+
+Each failed bundle reports its path, reason and corrective action through existing
+plugin health events, Status health and the Status log, while other bundles are
+admitted. Preparation proof materializes the native payload before the installer
+tool boundary; it does not execute an installer or install the product.
+
 ## Remaining Owner Decisions
 
-The restored installer places selected verified bundles under the installation's
-`plugins/` folder. The current host admits bundles through its registry and has no
-startup scan of that folder; automatic admission needs a runtime-owned decision.
 The current-user, no-elevation implementation applies to Windows NSIS. Linux
 DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format
 has not been selected.

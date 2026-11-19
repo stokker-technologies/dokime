@@ -64,6 +64,14 @@ pub async fn handle(context: &Context, request: HealthEventsListRequest) -> Resu
             let include_global = request.selection.as_ref().is_none_or(|selection| selection.owner.is_none() || selection.include_context);
             let mut items = Vec::new();
             if include_global {
+                for (health_item_id, message) in context.host.plugin_admission_failures()? {
+                    items.push(HealthItem {
+                        health_item_id,
+                        message,
+                        severity: Severity::Failure as i32,
+                        ..Default::default()
+                    });
+                }
                 for plugin in context.host.plugins().await? {
                     if matches!(PluginState::try_from(plugin.state), Ok(PluginState::Stopped | PluginState::Ready)) {
                         continue;

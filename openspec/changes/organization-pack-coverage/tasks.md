@@ -17,3 +17,14 @@
 - [x] 6.2 Restore native artwork, licensing and explicit signing; replace the Windows machine-scope path with current-user-only install, update and uninstall.
 - [x] 6.3 Prove fabricated-kit preparation, manifest refusals, the command-line story, existing CLI stories, scoped compilation/lint, workspace compilation and repository checks.
 - [x] 6.4 Package a neutral example from the published Nightly kit without installing it; inspect the output and declared execution mode.
+
+- [x] 7.1 Record the owner decision to admit installation bundles, installation-relative resolution, registry reuse, provenance and user-entry precedence.
+- [x] 7.2 Reconcile installation bundles through the existing managed admission, staged replacement and deletion paths; surface file-specific failures without stopping host startup.
+- [x] 7.3 Add deterministic bundle/restart coverage for initial admission, unchanged content, replacement, removal, corruption, admission failure and retained user entries.
+- [x] 7.4 Add the host story from native packaging preparation through shipped-template execution without invoking an installer.
+- [x] 7.5 Run every installation-plugin regression and both existing plugin-management stories, compile dokime-runtime test targets, format touched Rust and TOML, and pass repository checks on Windows. Desktop testing proof is retained under 7.8; no desktop-used signature changes in this repair.
+- [ ] 7.6 Prove installation startup and prepared-layout execution on Linux.
+- [x] 7.7 Prove registry-owned entry provenance: a disabled user Create that reuses installation content remains user-owned, and shared content is not released while another entry uses it. Ownership comes only from PluginEntry.origin; disabled entries avoid duplicate activation of globally registered operations.
+- [x] 7.8 Prove the host startup future's Send contract through the compile-contract regression and desktop testing targets, preserving the shared readiness implementation and desktop execution model.
+- [x] 7.9 Prove an unchanged installation folder causes no admission mutation: count reconciliation's uploads, Create, Replace, Delete and content releases through existing operation-admission and file-transfer traces, assert identical entry names, origins, bundle digests, versions and revisions, and positively control the counters. Ordinary library persistence of activation/process state on host startup is allowed.
+- [ ] 7.10 Library: plugin registry persistence mixes durable entries with activation/process state, so every host start rewrites the registry (9 writes observed on an unchanged restart); separate durable from volatile state in the library after the product moves to the library's main line.

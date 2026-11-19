@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    error, io,
     num::NonZeroUsize,
     sync::{Arc, RwLock, Weak},
 };
@@ -52,15 +53,22 @@ pub(super) struct Facts {
 /* === Implementations === */
 
 impl Contribution for Facts {
-    fn health(&self) -> Result<Vec<HealthComponent>, Box<dyn std::error::Error + Send + Sync>> {
-        let host = self.host.upgrade().ok_or_else(|| std::io::Error::other("Read Host Health: Host Is Closed"))?;
+    fn health(&self) -> Result<Vec<HealthComponent>, Box<dyn error::Error + Send + Sync>> {
+        let host = self.host.upgrade().ok_or_else(|| io::Error::other("Read Host Health: Host Is Closed"))?;
         let state = if host.shutting_down() { ComponentState::Unavailable } else { ComponentState::Healthy };
         let mut components = vec![HealthComponent {
             name: "dokime.executions".into(),
             state: state as i32,
             reason: String::new(),
         }];
-        let plugins = self.plugins.read().map_err(|source| std::io::Error::other(format!("Read Plugin Health: {source}")))?;
+        for (name, reason) in host.plugin_admission_failures()? {
+            components.push(HealthComponent {
+                name: format!("dokime.installation.{name}"),
+                state: ComponentState::Degraded as i32,
+                reason,
+            });
+        }
+        let plugins = self.plugins.read().map_err(|source| io::Error::other(format!("Read Plugin Health: {source}")))?;
         for plugin in plugins.iter() {
             let state = if plugin.state == PluginState::Ready as i32 { ComponentState::Healthy } else { ComponentState::Degraded };
             components.push(HealthComponent {
@@ -71,8 +79,8 @@ impl Contribution for Facts {
         }
         Ok(components)
     }
-    fn diagnostics(&self) -> Result<Vec<Entry>, Box<dyn std::error::Error + Send + Sync>> {
-        let host = self.host.upgrade().ok_or_else(|| std::io::Error::other("Collect Host Diagnostics: Host Is Closed"))?;
+    fn diagnostics(&self) -> Result<Vec<Entry>, Box<dyn error::Error + Send + Sync>> {
+        let host = self.host.upgrade().ok_or_else(|| io::Error::other("Collect Host Diagnostics: Host Is Closed"))?;
         let identity = host.identity();
         let paths = host.bootstrap_paths();
         let entries = vec![
@@ -112,7 +120,7 @@ pub(super) fn settings(settings: &ClientSettings, host_id: String) -> StatusSett
     }
 }
 
-pub(super) fn failure(action: &str, source: impl std::error::Error + Send + Sync + 'static) -> crate::Error {
+pub(super) fn failure(action: &str, source: impl error::Error + Send + Sync + 'static) -> crate::Error {
     Error::OperationFailed {
         operation: action.into(),
         source: Arc::new(source),
