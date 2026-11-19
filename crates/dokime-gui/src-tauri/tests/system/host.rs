@@ -260,7 +260,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
         store.sample_batch("long", &samples)?;
         store.close_streams("long")?;
         store.close("long", Termination::Completed, ExecutionOutcome::default())?;
-        store.seal("long")?;
+        store.seal("long", Default::default())?;
         drop(store);
 
         // Assemble the Entire Document Without Rendering Invisible Plot Payloads.
