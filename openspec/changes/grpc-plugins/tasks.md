@@ -139,7 +139,7 @@
   - [x] Share Template/Client Record Query and Decode Ownership, Termination Values, Bound Operation Calls, Plugin-Owned Listener Activation and Artifact Publication; Complete Typed Statistics, Artifact Projection and Local Document Declaration Binding.
   - [ ] Admit Plugin Notes/Create and Resolve Complete Automatic Peer Requirements Against the Library's Frozen Activation Requirements; Authors Declare No Requirements.
   - [x] Complete Installed-Wheel Stub/Public-Home Consumer Proof With the Three Intentional Python Homes.
-  - [ ] Run the Required Authoring Host Stories on the Combined Candidate.
+  - [x] Run the Required Authoring Host Stories on the Combined Candidate.
 - [ ] (c) Implement the SDK Surface Specification's Python Bound Handles, Host Compositions and Configuration Precedence/Grammar With Secret Storage, Readback, Controls, Seal, Evidence, Notes, Artifacts and Explicit Close.
   - [x] Replace Owned Selector/Export Wrappers With Bound Client Resources, Current Host Compositions, Immutable Product Values, Structured Failures and Explicit Owned Registration Cleanup.
   - [x] Implement Working-Directory Configuration Precedence and the Shared Dotenv Grammar Without Dependencies or Environment Mutation; Preserve Ordered Pairing Attempts and Connection Budgets.
@@ -154,16 +154,16 @@
   - [x] Migrate the Eight Starter Manifests and Shared Command-Line Fixture Consumers While Preserving Current Entrypoints and Build Commands.
   - [x] Supply Rust, C# and C++ Starter Native Metadata and Icons, Stage C# Publish Companions Under Assets and Migrate Runtime Manifest Consumers.
   - [x] Reconcile the Python Starter Source Inventory With Its Agreed Manifest Roots and Supply Native Metadata and Icons for That Inventory.
-  - [ ] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
+  - [x] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
   - [x] Complete Workspace Compilation, Packaging Units, Runtime Manifest Command Proof, Formatting, Repository Checks, Package Lints and Created Rust/C# Bundle/Inspect Proof.
-  - [ ] Complete CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.
+  - [x] Complete CLI Units and Created Python/C++ Starter Stories After Their Source Inventory and SDK Artifacts Are Ready.
 - [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
   - [x] Replace the Owned Python Starter Sources With the Reference-Shaped Single Project, Its Host-Free Description Test and Explicit Project/Package Substitution Markers.
   - [x] Migrate the Client/Thermal Example Packages, Python Fixture Launchers, Typed Consumer and Three-Home/Strict Stub Inventories; Keep Repository Host Stories Outside the Starter.
   - [ ] Reconcile the Manifest/Asset and CLI Embedding Owners.
   - [x] Retire the Generated Public Client Facade Through Its Generator, Share One Three-Home Inventory and Complete Editable-Install Metadata and Listener-Address Readiness Support in the SDK.
   - [x] Complete Strict Installed Stubs, All Host-Free Integrations, Repository Checking, Isolated Editable Starter Checks and Native Listener/Interrupt Proof; Compose the Shared Capture Fixture From the Starter Suite.
-  - [ ] Run the Named Host Stories on the Combined Candidate: NativeAuthoringStory, StarterStory, EvidenceQueryStory, Runtime Thermal Client and Created Python Starter First-Hour Journeys; Complete Four-Language Capture Equivalence With Prepared Native Fixtures.
+  - [x] Run the Named Host Stories on the Combined Candidate: NativeAuthoringStory, StarterStory, EvidenceQueryStory, Runtime Thermal Client and Created Python Starter First-Hour Journeys; Complete Four-Language Capture Equivalence With Prepared Native Fixtures.
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
@@ -178,9 +178,9 @@
 - [x] Run the Unmodified Created Python Client With CLI Prompt Answers, Execution and Cycle Seals, and Member-Identical Host Archives.
 - [x] Run the Shared Capture Through a Product Host in All Four Languages While Retaining Their Current Authoring Surfaces.
 - [x] Refresh the Owner's Scratch Python Project From the Shipped Starter and Leave Its Validated Evidence Archive Under `_output/`.
-- [ ] Prove Positive Python Retry Policies in NativeAuthoringStory and Both Python Thermal Runtime Stories; Reject Non-Positive Backoff at Operation Declaration and Keep the Explicit Fixture Delay.
+- [x] Prove Positive Python Retry Policies in NativeAuthoringStory and Both Python Thermal Runtime Stories; Reject Non-Positive Backoff at Operation Declaration and Keep the Explicit Fixture Delay.
 - [x] Replace Python Template Setup With the Locked Initialize Lifecycle Across Declaration Binding, Execution Dispatch, Examples and Fixtures Without an Alias.
-- [ ] Prove Python Thermal Evidence Parity With the Locked Initialize Lifecycle and Preserve the Complete Evidence Comparison.
+- [x] Prove Python Thermal Evidence Parity With the Locked Initialize Lifecycle and Preserve the Complete Evidence Comparison.
 - [x] Resolve the Plugin Class Identity Override Versus Resolved Instance Readback: Expose the Resolved Identifier on Each Instance Before and After Registration.
 - [x] Keep Unanswered Starter Prompts Pending Across the Host Mutation Deadline and Explicit Controlled-Clock Advancement; Answer Them to Seal Passed With Retained Evidence.
 - [ ] Complete the Requested Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff and the Library's Frozen Bundle Version Fix.
