@@ -179,7 +179,7 @@ async fn concurrent_view_retention_converges_and_isolates_resources() -> StoryRe
         assert_eq!(applied, if keys[0] == keys[1] { 1 } else { 2 });
         let mut retained = Vec::new();
         for (index, key) in keys.iter().enumerate() {
-            let saved = storage.get_object::<Administration>(&key.to_string(), ObjectVersion::Latest).await?.unwrap();
+            let saved = storage.get_object::<Administration>(key, ObjectVersion::Latest).await?.unwrap();
             let file: FileReference = serde_json::from_slice(&saved.value.payload)?;
             if matches!(outcomes[index], CompareExchange::Conflict { .. }) {
                 let unused = StagedFile {
