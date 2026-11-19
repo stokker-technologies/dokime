@@ -70,6 +70,9 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
         f"  URL_HASH SHA256={checksum}\n"
         "  SOURCE_SUBDIR sdk/cpp DOWNLOAD_EXTRACT_TIMESTAMP TRUE)\n"
         "FetchContent_MakeAvailable(harmos)\n"
+        "# Build the Library SDK Without Its Standalone Examples.\n"
+        'set_property(DIRECTORY "${harmos_SOURCE_DIR}/sdk/cpp/examples/client" PROPERTY EXCLUDE_FROM_ALL TRUE)\n'
+        'set_property(DIRECTORY "${harmos_SOURCE_DIR}/sdk/cpp/examples/plugin" PROPERTY EXCLUDE_FROM_ALL TRUE)\n'
     )
     path = root / "sdk/cpp/cmake/Dependencies.cmake"
     if check:
@@ -105,6 +108,16 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
     try:
         # Apply Each Native SDK Owner's Projection to the Same Generated Inventory.
+        script = (
+            "import runpy\n"
+            "import sys\n"
+            "from pathlib import Path\n"
+            "from harmos_tools.build.resources import sdk\n"
+            "from dokime_tools.build.protocol import configuration\n"
+            "root, output, descriptors = map(Path, sys.argv[1:])\n"
+            "sdk.generate(root=output, descriptors=descriptors, configuration=configuration(root))\n"
+            "runpy.run_path(str(root / 'sdk/cpp/tools/generate.py'))['project'](output)\n"
+        )
         subprocess.run(
             [
                 "mise",
@@ -112,14 +125,7 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
                 "--",
                 sys.executable,
                 "-c",
-                "import runpy\n"
-                "import sys\n"
-                "from pathlib import Path\n"
-                "from harmos_tools.build.resources import sdk\n"
-                "from dokime_tools.build.protocol import configuration\n"
-                "root, output, descriptors = map(Path, sys.argv[1:])\n"
-                "sdk.generate(root=output, descriptors=descriptors, configuration=configuration(root))\n"
-                "runpy.run_path(str(root / 'sdk/cpp/tools/generate.py'))['project'](output)\n",
+                script,
                 str(root),
                 str(output),
                 str(descriptors),
