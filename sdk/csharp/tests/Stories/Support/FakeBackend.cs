@@ -94,11 +94,12 @@ internal sealed class FakeBackend : CallInvoker
     Calls.Add(method.FullName);
     var frames = new List<ProgressWatchResponse>
     {
-      new() { Phase = "Running", Value = new ExecutionProgressValue() },
-      new() { Phase = "Completed", Finished = true, Value = new ExecutionProgressValue { Completed = 1, Total = 1 } }
+      new() { Phase = "Running", Value = new ExecutionProgressValue() }
     };
     if (!EndBeforeSeal)
-      frames.Add(new ProgressWatchResponse { Phase = "Sealed", Finished = true, Sealed = true });
+      frames.Add(new ProgressWatchResponse { Phase = "Sealed", Sealed = true,
+        Value = new ExecutionProgressValue { Completed = 1, Total = 1 },
+        Outcome = new ExecutionOutcome { Evaluated = new EvaluatedOutcome { Status = ResultStatus.Passed } } });
     var values = frames.Select(frame => method.ResponseMarshaller.Deserializer(frame.ToByteArray())).ToArray();
     return new(new Reader<TResponse>(values), Task.FromResult(new Grpc.Core.Metadata()), () => Grpc.Core.Status.DefaultSuccess, () => new Grpc.Core.Metadata(), () => { });
   }

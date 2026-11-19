@@ -52,7 +52,7 @@ await cycle.SealAsync();
 
 // Save Evidence
 var evidence = await cycle.EvidenceAsync();
-var saved = $"_output/{cycle.Identifier}.zip";
+var saved = $"_output/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}-{cycle.Identifier}.zip";
 await File.WriteAllBytesAsync(saved, evidence);
 Console.WriteLine($"Saved {saved}");
 

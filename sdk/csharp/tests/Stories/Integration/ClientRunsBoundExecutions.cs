@@ -9,7 +9,7 @@ namespace Stories.Integration;
 public sealed class ClientRunsBoundExecutions
 {
   [Fact]
-  public async Task RunWaitsPastFinishedUntilSealedAndSealReturnsOutcome()
+  public async Task RunObservesAutomaticSealAndSealReturnsStableOutcome()
   {
     var backend = new FakeBackend();
     var client = Connect(backend);
@@ -19,9 +19,9 @@ public sealed class ClientRunsBoundExecutions
     var progress = new List<Progress>();
     await foreach (var frame in execution.RunAsync())
       progress.Add(frame);
-    Assert.Equal(3, progress.Count);
-    Assert.False(progress[1].Sealed);
-    Assert.True(progress[2].Sealed);
+    Assert.Equal(2, progress.Count);
+    Assert.False(progress[0].Sealed);
+    Assert.True(progress[1].Sealed);
     Assert.Equal(ResultStatus.Passed, (await execution.SealAsync()).Status);
     Assert.Equal(["/dokime.host.v1.Executions/Start", "/dokime.host.v1.executions.Progress/Watch", "/dokime.host.v1.Executions/Seal"], backend.Calls.TakeLast(3));
     await cycle.ExecutionAsync(testCase, requestId: "retained");

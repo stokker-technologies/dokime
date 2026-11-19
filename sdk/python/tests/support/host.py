@@ -145,7 +145,9 @@ class Host:
 
     @staticmethod
     def fixture(name: str) -> Path:
-        variable = "DOKIME_TEST_HOST" if name == "dokime-host" else "DOKIME_TEST_CLI"
+        variable = {"dokime-host": "DOKIME_TEST_HOST", "dokime": "DOKIME_TEST_CLI"}.get(
+            name, f"DOKIME_TEST_{name.upper().replace('-', '_')}"
+        )
         override = os.environ.get(variable)
         if override is not None:
             binary = Path(override)
@@ -156,7 +158,7 @@ class Host:
                 system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}[platform.system()]
                 machine = platform.machine().lower()
                 architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
-                home = "fixtures/host" if name == "dokime-host" else "bin"
+                home = "bin" if name == "dokime" else "fixtures/cli" if name == "rust" else "fixtures/host"
                 binary = repository / "target/build" / os.environ["TEST_PROFILE"] / f"{system}-{architecture}" / home / filename
             else:
                 binary = repository / "target/debug" / filename

@@ -52,9 +52,8 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         # Start the Product Host for All Four Current Authoring Surfaces.
         root = Path(__file__).resolve().parents[2]
-        host = await runpy.run_path(str(root / "sdk/python/tests/support/host.py"))[
-            "Host"
-        ].start(self)
+        factory = runpy.run_path(str(root / "sdk/python/tests/support/host.py"))["Host"]
+        host = await factory.start(self)
         client = host.client
 
         async def answer(question: PromptQuestion) -> PromptAnswer:
@@ -83,7 +82,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 sys.executable,
                 str(root / "sdk/tests/fixtures/python/capture/plugin.py"),
             ],
-            "rust": [str(root / f"target/debug/rust{extension}")],
+            "rust": [str(factory.fixture("rust"))],
             "csharp": [
                 dotnet,
                 str(

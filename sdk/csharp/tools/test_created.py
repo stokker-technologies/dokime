@@ -330,8 +330,9 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(detail.execution.seal)
         cycle = await host.client._transport.cycles.get(execution.cycle.identifier)
         self.assertTrue(cycle.cycle.sealed)
-        saved = project / "_output" / f"{execution.cycle.identifier}.zip"
-        self.assertTrue(saved.is_file())
+        archives = list((project / "_output").glob(f"*-{execution.cycle.identifier}.zip"))
+        self.assertEqual(len(archives), 1)
+        saved = archives[0]
         archive = ZipFile(saved)
         try:
             self.assertIsNone(archive.testzip())

@@ -97,6 +97,7 @@ dokime-client-internal = { workspace = true }
 dokime-test-support = { workspace = true }
 
 # Git
+harmos = { workspace = true }
 
 # Error Handling
 
