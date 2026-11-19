@@ -63,9 +63,9 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                     case.step("Read", self.measure, identifier=f"channel_{channel}", channel=channel)
                 case.criterion("All Channels", self.all_channels)
 
-            async def setup(self, ctx: Context) -> None:
+            async def initialize(self, ctx: Context) -> None:
                 self.measured: list[int] = []
-                cast(ChannelsPlugin, ctx.plugin).events.append((ctx.execution, "setup"))
+                cast(ChannelsPlugin, ctx.plugin).events.append((ctx.execution, "initialize"))
 
             @step("Measure")
             async def measure(self, ctx: Context, *, channel: int) -> None:
@@ -99,7 +99,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
             transport = plugin.Context(Request(scope=execution, attempt=1), author.identifier, {})
             for name, arguments in (
-                ("setup", {}),
+                ("initialize", {}),
                 ("measure", {"step": "channels.channels.channel_2"}),
                 ("measure", {"step": "channels.channels.channel_4"}),
                 ("all_channels", {"criterion": "channels.channels.all_channels"}),
@@ -111,7 +111,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 if name == "all_channels":
                     self.assertTrue(cast(Any, result).passed)
         self.assertEqual(
-            author.events, [(execution, item) for execution in ("first", "second") for item in ("setup", 2, 4, Termination.COMPLETED)]
+            author.events, [(execution, item) for execution in ("first", "second") for item in ("initialize", 2, 4, Termination.COMPLETED)]
         )
         self.assertFalse(author._sessions)
 
@@ -145,12 +145,12 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(hasattr(context, "execution"))
             self.assertFalse(hasattr(context, "parameters"))
 
-    async def test_cleanup_retains_partial_state_after_failed_or_cancelled_setup(self) -> None:
+    async def test_cleanup_retains_partial_state_after_failed_or_cancelled_initialization(self) -> None:
         for failure in (ValueError, asyncio.CancelledError):
             events: list[object] = []
 
             class PartialTestTemplate(TestTemplate):
-                async def setup(self, ctx: Context) -> None:
+                async def initialize(self, ctx: Context) -> None:
                     self.device = "partial"
                     cast(PartialPlugin, ctx.plugin).events.append(ctx.plugin)
                     raise cast(PartialPlugin, ctx.plugin).failure_type()
@@ -178,7 +178,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             origin = {"plugin_run": {"plugin": author.identifier, "template": template.identifier, "test_case": case}}
             transport = plugin.Context(Request(scope="execution", attempt=1), author.identifier, {})
             handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
-            definition, handler = handlers["partial.partial.setup"]
+            definition, handler = handlers["partial.partial.initialize"]
             request = cast(Any, definition.request)(execution="execution", test_case=case, origin=origin)
             try:
                 await handler(transport, request)
@@ -217,7 +217,7 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
                     case.step("Measure", self.measure, identifier=f"channel_{channel}", channel=channel)
                 case.criterion("All Channels", self.all_channels)
 
-            async def setup(self, ctx: Context) -> None:
+            async def initialize(self, ctx: Context) -> None:
                 instances.append(self.channels)
 
             @step("Measure", policy=OperationPolicy(retries=RetryPolicy(2, timedelta(milliseconds=100))))

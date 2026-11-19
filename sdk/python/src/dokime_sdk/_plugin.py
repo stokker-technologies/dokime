@@ -115,7 +115,7 @@ class Plugin:
         for index, template in enumerate(templates):
             methods[f"materialize_{index}"] = self._materialize(template)
             if template.definition().HasField("initialize"):
-                methods[f"initialize_{index}"] = self._execution(template, "setup")
+                methods[f"initialize_{index}"] = self._execution(template, "initialize")
             methods[f"cleanup_{index}"] = self._execution(template, "cleanup")
             lifecycle: Sequence[tuple[str, Sequence[Any]]] = (("step", template.steps), ("criterion", template.criteria))
             for kind, definitions in lifecycle:
@@ -239,7 +239,7 @@ class Plugin:
         contracts: dict[str, tuple[type[Message], type[Message]]] = {
             "step": (StepsExecuteRequest, StepsExecuteResponse),
             "criterion": (CriteriaEvaluateRequest, CriteriaEvaluateResponse),
-            "setup": (ExecutionsInitializeRequest, ExecutionsInitializeResponse),
+            "initialize": (ExecutionsInitializeRequest, ExecutionsInitializeResponse),
             "cleanup": (ExecutionsCleanupRequest, ExecutionsCleanupResponse),
         }
         request_type, response_type = contracts[kind]

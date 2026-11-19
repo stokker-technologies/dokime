@@ -45,7 +45,7 @@ class ThermalCycleTestTemplate(TestTemplate):
 
     door = record(Door, label="Door Check")
 
-    async def setup(self, ctx: Context) -> None:
+    async def initialize(self, ctx: Context) -> None:
         limit = ctx.parameters["limit"]
         if not isinstance(limit, (float, int)):
             raise TypeError("Initialize Thermal Cycle: Limit Must Be Numeric")

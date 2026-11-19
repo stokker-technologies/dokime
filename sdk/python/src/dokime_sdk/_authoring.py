@@ -145,7 +145,7 @@ class _Template:
         bound = copy(self)
         bound.identifier = build_identifier(local, prefix=prefix)
         bound._identifiers = {}
-        bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "setup", "cleanup")}
+        bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "initialize", "cleanup")}
         bound._prompts = {}
         names: list[str] = []
         declarations: list[tuple[object, str, str | None]] = []
@@ -206,8 +206,8 @@ class _Template:
             files=self.files,
             documents=[item.message for item in self.documents],
         )
-        if self._methods.get("setup") is not TestTemplate.setup:
-            value.initialize = self._lifecycle["setup"]
+        if self._methods.get("initialize") is not TestTemplate.initialize:
+            value.initialize = self._lifecycle["initialize"]
         # Declare the Procedure on the Template So Catalogs Show It Before Materialization.
         for declared in self.steps:
             entry = value.steps.add(
@@ -244,7 +244,7 @@ class TestTemplate:
     def __init__(self) -> None:
         pass
 
-    async def setup(self, ctx: "templates.Context") -> None:
+    async def initialize(self, ctx: "templates.Context") -> None:
         pass
 
     async def cleanup(self, ctx: "templates.Context") -> None:

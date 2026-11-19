@@ -134,7 +134,7 @@
 - [x] (a) Rename the Python Package Alone per the SDK Surface Specification Ownership Inventory; Regenerate Imports, Wheel Paths and Guards Without Keeping `dokime` Aliases.
 - [ ] (b) Implement the SDK Surface Specification's Python Authoring Classes, Separate Contexts, `ctx.plugin` and `plugin.serve()`; Resolve Its Named Capability Decisions Before Their Dependent Work.
   - [x] Bind Explicit Plugin, Suite and TestTemplate Classes, Derived Identities and Labels, Annotated Plain Operations and Separate Contexts; Move Documents, Plots and Parameters to Templates and Delete Replaced Authoring Entry Points.
-  - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Setup With Python-Only Tests.
+  - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Initialization With Python-Only Tests.
   - [ ] Resolve Carrier Activation Contexts and Stream Subscription Support; Prove Plugin initialize/finalize Order, Failed/Cancelled Initialization Finalization, Admission Draining and Repeated Shutdown.
   - [x] Share Template/Client Record Query and Decode Ownership, Termination Values, Bound Operation Calls, Plugin-Owned Listener Activation and Artifact Publication; Complete Typed Statistics, Artifact Projection and Local Document Declaration Binding.
   - [ ] Admit Plugin Notes/Create and Resolve Complete Automatic Peer Requirements Against the Library's Frozen Activation Requirements; Authors Declare No Requirements.
@@ -179,6 +179,8 @@
 - [x] Run the Shared Capture Through a Product Host in All Four Languages While Retaining Their Current Authoring Surfaces.
 - [x] Refresh the Owner's Scratch Python Project From the Shipped Starter and Leave Its Validated Evidence Archive Under `_output/`.
 - [ ] Prove Positive Python Retry Policies in NativeAuthoringStory and Both Python Thermal Runtime Stories; Reject Non-Positive Backoff at Operation Declaration and Keep the Explicit Fixture Delay.
+- [x] Replace Python Template Setup With the Locked Initialize Lifecycle Across Declaration Binding, Execution Dispatch, Examples and Fixtures Without an Alias.
+- [ ] Prove Python Thermal Evidence Parity With the Locked Initialize Lifecycle and Preserve the Complete Evidence Comparison.
 - [x] Resolve the Plugin Class Identity Override Versus Resolved Instance Readback: Expose the Resolved Identifier on Each Instance Before and After Registration.
 - [x] Keep Unanswered Starter Prompts Pending Across the Host Mutation Deadline and Explicit Controlled-Clock Advancement; Answer Them to Seal Passed With Retained Evidence.
 - [ ] Complete the Requested Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff and the Library's Frozen Bundle Version Fix.
