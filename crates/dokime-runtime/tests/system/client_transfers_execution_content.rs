@@ -18,7 +18,6 @@
 // Standard Library Imports
 use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
-use std::fs;
 use std::io::{Cursor, Read};
 
 // Third Party Imports
