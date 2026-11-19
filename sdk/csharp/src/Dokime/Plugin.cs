@@ -49,7 +49,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
   {
     if (built)
       throw new InvalidOperationException("Declare Setting: Plugin Is Already Built");
-    transport.Setting(name, defaultValue, title, description);
+    transport.Register(registrar => registrar.Register(name, defaultValue, title, description));
     return this;
   }
 
@@ -73,14 +73,14 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
   {
     if (built)
       throw new InvalidOperationException("Declare Operation: Create the Plugin Before Serving It");
-    operation.Register(transport, raw => new Dokime.Operations.Context(author, raw), handler);
+    transport.Register(registrar => operation.Register(registrar, raw => new Dokime.Operations.Context(author, raw), handler));
     return this;
   }
 
   public Plugin Requires<TRequest, TResponse>(Operation<TRequest, TResponse> operation)
       where TRequest : IMessage<TRequest>, new() where TResponse : IMessage<TResponse>, new()
   {
-    transport.Requires(operation);
+    transport.Register(registrar => registrar.Register(operation));
     return this;
   }
 
@@ -89,11 +89,18 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
   {
     if (built)
       return transport;
+    transport.Register(Register);
+    built = true;
+    return transport;
+  }
+
+  private void Register(Registrar registrar)
+  {
     foreach (var type in author.GetType().Assembly.GetTypes())
       foreach (var field in type.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
         if (typeof(Dokime.Operations.IOperationReference).IsAssignableFrom(field.FieldType)
           && field.GetValue(null) is Dokime.Operations.IOperationReference reference)
-          reference.Declare(transport);
+          reference.Declare(registrar);
     foreach (var operation in System.Enum.GetValues<HostOperation>())
       this.Requires(operation);
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
@@ -105,24 +112,24 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       foreach (var template in suite.Templates)
       {
         Unique(identifiers, template.Definition.Metadata.Identifier);
-        Register(template, definition, identifiers);
+        Register(registrar, template, definition, identifiers);
       }
       section.Suites_.Add(definition);
     }
     if (Suites.Count > 0)
-      transport.Section(section);
+      registrar.Register(section);
     if (records.Records.Count > 0)
-      transport.Section(records);
+      registrar.Register(records);
     if (prompts.Prompts.Count > 0)
-      transport.Section(prompts);
+      registrar.Register(prompts);
     if (secrets.Secrets.Count > 0)
-      transport.Section(secrets);
-    transport.Operation(new Operation<Empty, Empty>($"{identifier}.initialize", Visibility.Protected), async (raw, request) =>
+      registrar.Register(secrets);
+    registrar.Register(new Operation<Empty, Empty>($"{identifier}.initialize", Visibility.Protected), async (raw, request) =>
     {
       await author.InitializeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
       return new Empty();
     });
-    transport.Operation(new Operation<Empty, Empty>($"{identifier}.finalize", Visibility.Protected), async (raw, request) =>
+    registrar.Register(new Operation<Empty, Empty>($"{identifier}.finalize", Visibility.Protected), async (raw, request) =>
     {
       try
       {
@@ -134,16 +141,14 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         await DisposeResourcesAsync();
       }
     });
-    built = true;
-    return transport;
   }
 
-  public async Task ServeAsync(string? address = null, bool remote = false, CancellationToken cancellationToken = default)
+  public async Task RunAsync(string? address = null, bool remote = false, CancellationToken cancellationToken = default)
   {
-    await Build().ServeAsync(address, remote, cancellationToken);
+    await Build().RunAsync(address, remote, cancellationToken);
   }
 
-  private void Register(Template template, Dokime.SuiteDefinition suite, HashSet<string> identifiers)
+  private void Register(Registrar registrar, Template template, Dokime.SuiteDefinition suite, HashSet<string> identifiers)
   {
     var name = template.Definition.Metadata.Identifier;
     var definition = template.Definition.Clone();
@@ -163,7 +168,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       testCase.Steps.Add(new Dokime.Step { Metadata = new Metadata { Identifier = operation, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
       // Declare the Procedure on the Template So Catalogs Show It Before Materialization.
       definition.Steps.Add(testCase.Steps[^1].Clone());
-      transport.Operation(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: step.Policy, replaySafe: step.ReplaySafe), async (raw, request) =>
+      registrar.Register(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: step.Policy, replaySafe: step.ReplaySafe), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
         if (!request.TestCase.Steps.Any(item => item.Metadata.Identifier == request.Step && item.Operation == operation))
@@ -185,7 +190,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       var operation = template.Resolve(criterion);
       Unique(local, operation);
       testCase.Criteria.Add(new Dokime.Criterion { Metadata = new Metadata { Identifier = operation, Label = criterion.Label }, Operation = operation });
-      transport.Operation(new Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(operation, Visibility.Protected, policy: criterion.Policy), async (raw, request) =>
+      registrar.Register(new Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(operation, Visibility.Protected, policy: criterion.Policy), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
         if (!request.TestCase.Criteria.Any(item => item.Metadata.Identifier == request.Criterion && item.Operation == operation))
@@ -206,13 +211,13 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       var identity = template.Resolve(stream);
       Unique(identifiers, identity);
       testCase.Streams.Add(identity);
-      stream.Register(transport, identity, raw => ObserverContext(raw, template));
+      stream.Register(registrar, identity, raw => ObserverContext(raw, template));
     }
     foreach (var record in template.Records)
     {
       var identity = template.Resolve(record);
       Unique(identifiers, identity);
-      record.Register(transport, records, identity);
+      record.Register(registrar, records, identity);
     }
     foreach (var prompt in template.Prompts)
     {
@@ -225,7 +230,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       value.Template = name;
       prompts.Prompts.Add(value);
     }
-    transport.Operation(new Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(definition.Materialize, Visibility.Protected, policy: template.MaterializePolicy), (raw, request) =>
+    registrar.Register(new Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(definition.Materialize, Visibility.Protected, policy: template.MaterializePolicy), (raw, request) =>
     {
       try
       {
@@ -257,7 +262,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       return Task.FromResult(new TestCasesMaterializeResponse { TestCase = result });
     });
     if (definition.HasInitialize)
-      transport.Operation(new Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(definition.Initialize, Visibility.Protected, policy: template.InitializePolicy), async (raw, request) =>
+      registrar.Register(new Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(definition.Initialize, Visibility.Protected, policy: template.InitializePolicy), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, definition.Initialize);
         var context = await GetContextAsync(raw, template, request.TestCase);
@@ -265,7 +270,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
           await template.InitializeBody(context);
         return new ExecutionsInitializeResponse();
       });
-    transport.Operation(new Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(definition.Cleanup, Visibility.Protected, policy: template.CleanupPolicy), async (raw, request) =>
+    registrar.Register(new Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(definition.Cleanup, Visibility.Protected, policy: template.CleanupPolicy), async (raw, request) =>
     {
       Validate(raw, request.Execution, name, request.TestCase, request.Origin, definition.Cleanup);
       var key = $"{name}/{raw.Scope()}";

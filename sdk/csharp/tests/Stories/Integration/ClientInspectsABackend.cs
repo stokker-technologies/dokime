@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Dokime;
+using Google.Protobuf.WellKnownTypes;
 using Stories.Support;
 using Xunit;
 
@@ -8,6 +9,26 @@ namespace Stories.Integration;
 
 public sealed class ClientInspectsABackend
 {
+  [Fact]
+  public async Task ProductWrappersPreserveTypedOperationPayloadsAndAdmission()
+  {
+    var contract = new Harmos.Plugins.Operation<DoubleValue, DoubleValue>("example.echo", Harmos.Visibility.Public).Contract;
+    var backend = new FakeBackend { Operation = contract.Clone() };
+    var headers = new Grpc.Core.Metadata { { "authorization", "Bearer test-token" } };
+    await using var client = new Client(backend, headers: headers);
+    await client.Transport.Status.Get(client.Options());
+    var operation = client.Operation(new Dokime.Operations.Operation<double, double>("example.echo"));
+    Assert.Equal(42.5, await operation.CallAsync(42.5));
+    Assert.Equal(["/dokime.host.v1.Status/Get", "/dokime.host.v1.Operations/Get", "/dokime.host.v1.Invocations/Create"], backend.Calls);
+
+    backend.Operation.Fingerprint = Google.Protobuf.ByteString.CopyFromUtf8("different");
+    await Assert.ThrowsAsync<InvalidDataException>(() => operation.CallAsync(42.5));
+    backend.Operation = contract.Clone();
+    backend.Operation.Visibility = Harmos.Visibility.Protected;
+    await Assert.ThrowsAsync<InvalidDataException>(() => operation.CallAsync(42.5));
+    Assert.Equal(1, backend.Calls.Count(method => method == "/dokime.host.v1.Invocations/Create"));
+  }
+
   [Fact]
   public async Task BoundCaseReturnsProductValuesAndPreservesRefusal()
   {

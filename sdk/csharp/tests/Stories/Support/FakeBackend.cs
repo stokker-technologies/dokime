@@ -15,6 +15,10 @@ internal sealed class FakeBackend : CallInvoker
   private readonly Dictionary<string, PluginEntry> plugins = [];
   internal List<string> Calls { get; } = [];
   internal List<ExecutionBinding> Bindings { get; } = [];
+  internal Harmos.OperationContract? Operation
+  {
+    get; set;
+  }
   internal bool EndBeforeSeal
   {
     get; set;
@@ -32,6 +36,20 @@ internal sealed class FakeBackend : CallInvoker
     Calls.Add(method);
     if (options.Headers?.GetValue("authorization") != "Bearer test-token")
       throw new RpcException(new Grpc.Core.Status(StatusCode.Unauthenticated, "Call Fixture: Supply Credentials"));
+    if (method == "/dokime.host.v1.Status/Get" && request is StatusGetRequest)
+      return new StatusGetResponse();
+    if (method == "/dokime.host.v1.Operations/Get" && request is OperationsGetRequest operation)
+    {
+      if (Operation is null || Operation.Id != operation.Id)
+        throw new RpcException(new Grpc.Core.Status(StatusCode.NotFound, "Get Operation: Register the Fixture Contract"));
+      return new OperationsGetResponse { Operation = new Harmos.DiscoveredOperation { Contract = Operation.Clone() } };
+    }
+    if (method == "/dokime.host.v1.Invocations/Create" && request is InvocationsCreateRequest invocation)
+    {
+      if (Operation is null || Operation.Id != invocation.Operation || Operation.Fingerprint != invocation.Fingerprint)
+        throw new RpcException(new Grpc.Core.Status(StatusCode.InvalidArgument, "Invoke Operation: Select the Fixture Contract"));
+      return new InvocationsCreateResponse { Payload = invocation.Payload };
+    }
     if (request is CasesGetRequest selected)
     {
       if (selected.Name.Length == 0)
