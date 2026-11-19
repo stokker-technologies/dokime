@@ -77,7 +77,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 str(root / f"sdk/csharp/examples/Starter/src/Example.Plugin/bin/{configuration}/net10.0/Example.Plugin.dll"),
                 "--remote",
             ],
-            "cpp": [str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}"), "--address", "127.0.0.1:0"],
+            "cpp": [str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}")],
         }
         timeout = policy.load(root).deadline("integration")
         environment = dict(os.environ)
@@ -119,7 +119,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(records.records), 1, language)
                 suite = suites.suites[0]
                 self.assertEqual(len(suite.templates), 1, language)
-                expected = "capture.confirmation" if language == "python" else "capture"
+                expected = "capture.confirmation" if language in {"python", "cpp"} else "capture"
                 if language == "rust":
                     expected = "capture.confirmation"
                 if language == "csharp":

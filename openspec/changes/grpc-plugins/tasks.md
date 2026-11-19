@@ -181,6 +181,18 @@
 
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
+  - [x] Introduce Root Plugin/Suite Classes and Separate Operation/Template Context Homes, Explicit Suite/Template Composition, Type-Derived Identities and Product Description Values; Remove the Single-Template Shortcut and Public Carrier Context Access.
+  - [x] Implement UTF-8 Working-Directory Dotenv Parsing, Per-Key Address Precedence and Private Managed-Launch Precedence Without Process-Environment Mutation.
+  - [x] Preserve Template State Through Failed Initialization Until Cleanup, Carry Cleanup Termination and Share the Author Plugin Across Both Contexts.
+  - [x] Share Fenced Artifact Transfers Between Clients and Template Contexts; Add Capture, Environment, Copied Full Prompts and Mutation Identity Overrides and Declare Their Host Requirements Automatically.
+  - [ ] Complete the Remaining Authoring Capability Inventory, Context Notes, Typed Stream Subscription and Automatic Peer Requirements Without Adding Plugin Lifecycle Hooks, Serial Admission or Settings Groups.
+  - [ ] Resolve the Pinned Carrier's Missing Addressable, Closeable C++ Listener Before Owned Plugin Registration; Do Not Copy the Server or Add Address Polling.
+  - [x] Implement Connection/Pairing, Bound Case/Cycle/Execution Host Compositions, Lazy Run/Watch, Stable Seal Outcomes, Verified Evidence, Fixed-Cut Typed Readers, Controls, Prompt Answers and Structured Client Failures; Internalize Transfer Helpers.
+  - [ ] Complete Registration-Owned Template Bindings and Listener Cleanup and Bind Managed Bundle Upload After the Carrier Listener and Product Installation Contracts Land.
+  - [ ] Replace Both C++ Starter Roots With the Requested Single Two-Executable Project, Native Static Manifest Metadata and the Unmodified Bound-Client Flow; Migrate the C++ CLI Embedding Functions.
+  - [ ] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
+  - [x] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
+  - [ ] Complete Repository, Product-Host Shared Capture and Created-Project Bundle/Inspect/Dev/Client Proof; Linux Proof Remains Independent.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
 - [x] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
 
