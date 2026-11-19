@@ -10,6 +10,14 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
+    },
+    {
+      "name": "release",
+      "inherits": "development",
+      "displayName": "Bundle Plugin",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -17,6 +25,12 @@
       "name": "development",
       "configurePreset": "development",
       "configuration": "Debug",
+      "jobs": 4
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "configuration": "Release",
       "jobs": 4
     }
   ]

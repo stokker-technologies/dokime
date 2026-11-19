@@ -4,6 +4,10 @@ The C++20 authoring API uses explicit plugin, suite and template classes, ordina
 operation handlers, and separate operation and template contexts. The
 [capture example](examples/starter/src/plugin/main.cpp) serves a plugin without arguments.
 
+The starter's `mise run build` builds Release plugin and client binaries and stages
+the plugin's runtime files in `assets/plugin` for bundling. The `development`
+CMake preset keeps Debug outputs in the build directory.
+
 ## Author a Plugin
 
 ```cpp

@@ -16,7 +16,7 @@ ninja = "1.13.2"
 
 [tasks.build]
 description = "Build the Plugin and Client"
-run = ['cmake --preset development', 'cmake --build --preset development']
+run = ['cmake --preset release', 'cmake --build --preset release']
 
 [tasks.run]
 description = "Run the Test Client"

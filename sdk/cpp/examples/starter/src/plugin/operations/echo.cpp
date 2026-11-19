@@ -11,6 +11,7 @@
 
 #include "echo.hpp"
 
+using dokime::operations::Context;
 using std::string;
 
 /* === Macros === */
@@ -21,7 +22,7 @@ using std::string;
 /* === Public Functions === */
 
 namespace starter_project {
-string echo(dokime::operations::Context &, string request) {
+string echo(Context &, string request) {
   return request;
 }
 } // namespace starter_project

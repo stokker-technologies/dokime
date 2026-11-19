@@ -17,8 +17,12 @@
 #include <fstream>
 #include <iostream>
 
+using dokime::ResultStatus;
+using starter_project::ConfirmationTestTemplate;
+using starter_project::ExamplePlugin;
+using std::ios;
 using std::ofstream;
-using std::string;
+using std::streamsize;
 using std::to_string;
 using std::chrono::duration_cast;
 using std::chrono::milliseconds;
@@ -38,14 +42,14 @@ int main() {
   auto client = dokime::connect();
 
   // Initialize & Register Plugin
-  client.plugins().register_plugin(starter_project::ExamplePlugin{});
+  client.plugins().register_plugin(ExamplePlugin{});
 
   // Initialize Test Cycle
   const auto started = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
   auto cycle = client.cycle("Capture " + to_string(started));
 
   // Initialize Test Cases
-  const auto cases = client.cases().materialize<starter_project::ConfirmationTestTemplate>();
+  const auto cases = client.cases().materialize<ConfirmationTestTemplate>();
   for (const auto &test_case : cases) {
     // Initialize Test Execution
     auto execution = cycle.execution(test_case);
@@ -58,7 +62,7 @@ int main() {
 
     // Seal Test Execution & Report Outcome
     const auto outcome = execution.seal();
-    std::cout << "Passed: " << (outcome.status == dokime::ResultStatus::Passed) << '\n';
+    std::cout << "Passed: " << (outcome.status == ResultStatus::Passed) << '\n';
   }
 
   // Seal Test Cycle
@@ -69,9 +73,9 @@ int main() {
   std::filesystem::create_directories("_output");
   const auto archive = "_output/" + to_string(started) + "-" + cycle.identifier() + ".zip";
   ofstream output;
-  output.exceptions(std::ios::badbit | std::ios::failbit);
-  output.open(archive, std::ios::binary);
-  output.write(reinterpret_cast<const char *>(evidence.data()), static_cast<std::streamsize>(evidence.size()));
+  output.exceptions(ios::badbit | ios::failbit);
+  output.open(archive, ios::binary);
+  output.write(reinterpret_cast<const char *>(evidence.data()), static_cast<streamsize>(evidence.size()));
   output.close();
   std::cout << "Saved " << archive << '\n';
 

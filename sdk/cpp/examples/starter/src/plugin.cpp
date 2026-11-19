@@ -13,6 +13,10 @@
 #include "plugin/operations/echo.hpp"
 #include "plugin/suites/capture/capture.hpp"
 
+using dokime::Plugin;
+using dokime::operations::Visibility;
+using std::string;
+
 /* === Macros === */
 /* === Constants === */
 /* === Types === */
@@ -23,7 +27,7 @@
 namespace starter_project {
 ExamplePlugin::ExamplePlugin() : Plugin(Plugin::from<ExamplePlugin>("0.1.0")) {
   suite(CaptureSuite::definition());
-  operation(dokime::operations::operation<std::string, std::string>("example.echo", dokime::operations::Visibility::Public, echo));
+  operation(dokime::operations::operation<string, string>("example.echo", Visibility::Public, echo));
 }
 } // namespace starter_project
 

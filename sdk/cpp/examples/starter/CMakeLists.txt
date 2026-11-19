@@ -15,6 +15,6 @@ add_library(starter-project STATIC src/plugin.cpp src/plugin/operations/echo.cpp
 target_link_libraries(starter-project PUBLIC Dokime::Cpp)
 add_executable(dokime-plugin src/plugin/main.cpp)
 target_link_libraries(dokime-plugin PRIVATE starter-project)
-set_target_properties(dokime-plugin PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/plugin")
+set_target_properties(dokime-plugin PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/assets/plugin")
 add_executable(dokime-client src/client/main.cpp)
 target_link_libraries(dokime-client PRIVATE starter-project)

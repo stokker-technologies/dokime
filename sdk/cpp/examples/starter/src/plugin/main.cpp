@@ -11,6 +11,8 @@
 
 #include "../plugin.hpp"
 
+using starter_project::ExamplePlugin;
+
 /* === Macros === */
 /* === Constants === */
 /* === Types === */
@@ -21,6 +23,6 @@
 /* === Entry Point === */
 
 int main() {
-  starter_project::ExamplePlugin plugin;
+  ExamplePlugin plugin;
   plugin.serve();
 }
