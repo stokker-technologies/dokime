@@ -60,7 +60,9 @@ def main() -> None:
     environment.pop("HARMOS_ADDRESS", None)
     arguments = [plugin]
     if placement == "remote":
-        arguments += ["--address", "127.0.0.1:0"]
+        environment["DOKIME_PLUGIN_ADDRESS"] = "127.0.0.1:0"
+    else:
+        environment["HARMOS_ADDRESS"] = "127.0.0.1:0"
     creationflags = spawn_flags()
     process = subprocess.Popen(
         arguments,
@@ -79,7 +81,7 @@ def main() -> None:
     try:
         address = ready.get()
         if address is None:
-            raise RuntimeError("Start Plugin: Inspect the Plugin Output Above and Correct Its Startup Failure")
+            raise RuntimeError(f"Start Plugin: Inspect the Plugin Output Above and Correct Its Startup Failure (Exit {process.wait()})")
         subprocess.run(
             [story, address, placement],
             check=True,

@@ -184,7 +184,7 @@ impl HostOperation {
     ];
 }
 impl Plugin {
-    pub fn requires_host(self, operation: HostOperation) -> Self {
+    pub(crate) fn requires_host(self, operation: HostOperation) -> Self {
         match operation {
             HostOperation::BackendEnvironment => self.requires::<BackendEnvironmentRequest>(),
             HostOperation::ContentArtifactsCreate => self.requires::<ArtifactsCreateRequest>(),
@@ -227,7 +227,7 @@ impl Plugin {
     }
 }
 impl Context {
-    pub fn host(&self) -> HostRoot {
+    pub(crate) fn host(&self) -> HostRoot {
         HostRoot::new(self.clone())
     }
 }

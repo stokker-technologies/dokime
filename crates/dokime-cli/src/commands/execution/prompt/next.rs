@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{ExecutionsProgressWatchOptions, PromptView, PromptsListOptions};
+use dokime_client_internal::{ExecutionsProgressWatchOptions, PromptView, PromptsListOptions};
 
 /* === Constants === */
 

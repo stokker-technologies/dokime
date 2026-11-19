@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -37,6 +37,7 @@ use tokio::runtime::Runtime;
 
 // Local Imports
 use dokime::prelude::*;
+use dokime::templates::Context;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
@@ -188,7 +189,9 @@ pub fn serve() -> Result<()> {
         })
     })
     .every(Duration::from_millis(1));
-    let template = Template::new("capture", "Capture")
+    let template = Template::of::<()>()
+        .identifier("capture")
+        .label("Capture")
         .record(Record::<Produced>::new("produced", "Produced"))
         .prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"))
         .prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"))
@@ -211,7 +214,9 @@ pub fn serve() -> Result<()> {
         Ok(Pulse { value: index as f64 })
     })
     .every(Duration::from_millis(1));
-    let mut export = Template::new("export", "Export")
+    let mut export = Template::of::<()>()
+        .identifier("export")
+        .label("Export")
         .record(Record::<Produced>::new("produced", "Produced"))
         .prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"))
         .prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"))
@@ -227,10 +232,10 @@ pub fn serve() -> Result<()> {
     let spectrum = Stream::<Pulse>::new("spectrum", "Spectrum");
     let spectrum_observer = Observer::new(&spectrum, async |_: &Context| Ok(Pulse { value: 0.0 })).every(Duration::from_secs(86_400));
     export = export.stream(spectrum).observer(spectrum_observer);
-    Plugin::new("storage.benchmark", "1.0.0")
-        .suite(Suite::new("storage.benchmark", "Storage Benchmark").template(template).template(export))
-        .remote()
-        .serve()
+    Plugin::of::<()>("1.0.0")
+        .identifier("storage.benchmark")
+        .suite(Suite::of::<()>().identifier("storage.benchmark").label("Storage Benchmark").template(template).template(export))
+        .run()
 }
 
 pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {

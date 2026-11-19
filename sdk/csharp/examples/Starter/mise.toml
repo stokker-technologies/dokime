@@ -1,0 +1,55 @@
+# ***
+#
+# Starter Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Tools === #
+
+[tools]
+dotnet = "10.0.403"
+
+[tools."github:stokker-technologies/dokime"]
+version = "nightly"
+platforms.windows-x64 = { asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+platforms.linux-x64 = { asset_pattern = "dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz" }
+
+# === Prepare === #
+
+[tasks.build]
+description = "Build the Plugin and Client"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" build Example.slnx --configuration Debug',
+  '"{{tools.dotnet.path}}/dotnet" publish src/Example.Plugin/Example.Plugin.csproj --configuration Debug --no-build --output assets/plugin',
+]
+
+# === Check === #
+
+[tasks.check]
+description = "Check the Project"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" format Example.slnx --verify-no-changes',
+  '"{{tools.dotnet.path}}/dotnet" build Example.slnx --configuration Debug --no-restore',
+]
+
+[tasks.format]
+description = "Format the Project"
+run = '"{{tools.dotnet.path}}/dotnet" format Example.slnx'
+
+# === Test === #
+
+[tasks.test]
+description = "Describe the Plugin Without a Host"
+run = '"{{tools.dotnet.path}}/dotnet" run --project tests/Example.Tests --configuration Debug'
+
+# === Run === #
+
+[tasks.dev]
+description = "Start the Plugin in Dokime"
+run = 'dokime dev --plugin .'
+
+[tasks.run]
+description = "Run the Client"
+run = '"{{tools.dotnet.path}}/dotnet" run --project src/Example.Client --configuration Debug'

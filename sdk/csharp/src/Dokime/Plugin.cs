@@ -2,13 +2,15 @@
 
 using System.Collections.Concurrent;
 using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 using Harmos.Plugins;
 using Harmos;
+using Dokime.Templates;
 
 namespace Dokime.Plugins;
 
 /// <summary>Composed suites served through the exact-revision Harmos SDK.</summary>
-public sealed partial class Plugin(string identifier, string version, params Suite[] suites)
+internal sealed partial class Plugin(Dokime.Plugin author, string identifier, string version, params SuiteBinding[] suites)
 {
   private readonly Harmos.Plugins.Plugin transport = new(identifier, version);
   private readonly ConcurrentDictionary<string, Lazy<Task<ExecutionResource>>> resources = new();
@@ -16,21 +18,21 @@ public sealed partial class Plugin(string identifier, string version, params Sui
   private readonly SecretsDeclarations secrets = new();
   private readonly PromptDefinitions prompts = new();
   private bool built;
-  public IReadOnlyList<Suite> Suites { get; } = BindSuites(suites);
+  public IReadOnlyList<SuiteBinding> Suites { get; } = BindSuites(suites);
 
-  private static IReadOnlyList<Suite> BindSuites(Suite[] suites)
+  private static IReadOnlyList<SuiteBinding> BindSuites(SuiteBinding[] suites)
   {
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
-    var bound = new List<Suite>();
+    var bound = new List<SuiteBinding>();
     foreach (var suite in suites)
     {
       var identity = Identifiers.Build("", suite.Metadata.Identifier);
       Unique(identifiers, identity);
-      var templates = suite.Templates.Select(template => template.Bind(identity, suite.Single)).ToArray();
+      var templates = suite.Templates.Select(template => template.Bind(identity)).ToArray();
       var templateIdentifiers = new HashSet<string>(StringComparer.Ordinal);
       foreach (var template in templates)
         Unique(templateIdentifiers, template.Definition.Metadata.Identifier);
-      bound.Add(new Suite(identity, suite.Metadata.Label, templates) { Single = suite.Single });
+      bound.Add(new SuiteBinding(suite.Metadata, templates));
     }
     return bound;
   }
@@ -58,12 +60,12 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     return this;
   }
 
-  public Plugin Operation<TRequest, TResponse>(Dokime.Authoring.Operation<TRequest, TResponse> operation,
-      Func<Context, TRequest, Task<TResponse>> handler)
+  public Plugin Operation<TRequest, TResponse>(Dokime.Operations.Operation<TRequest, TResponse> operation,
+      Func<Dokime.Operations.Context, TRequest, Task<TResponse>> handler)
   {
     if (built)
       throw new InvalidOperationException("Declare Operation: Create the Plugin Before Serving It");
-    operation.Register(transport, raw => new Context(raw, new TestCase()), handler);
+    operation.Register(transport, raw => new Dokime.Operations.Context(author, raw), handler);
     return this;
   }
 
@@ -79,19 +81,22 @@ public sealed partial class Plugin(string identifier, string version, params Sui
   {
     if (built)
       return transport;
-    if (transport.Declarations().Requires.Count == 0)
-      foreach (var operation in Enum.GetValues<HostOperation>())
-        this.Requires(operation);
+    foreach (var type in author.GetType().Assembly.GetTypes())
+      foreach (var field in type.GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
+        if (typeof(Dokime.Operations.IOperationReference).IsAssignableFrom(field.FieldType)
+          && field.GetValue(null) is Dokime.Operations.IOperationReference reference)
+          reference.Declare(transport);
+    foreach (var operation in System.Enum.GetValues<HostOperation>())
+      this.Requires(operation);
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
     var section = new Suites();
     foreach (var suite in Suites)
     {
       Unique(identifiers, suite.Metadata.Identifier);
-      var definition = new Dokime.Suite { Metadata = suite.Metadata.Clone() };
+      var definition = new Dokime.SuiteDefinition { Metadata = suite.Metadata.Clone() };
       foreach (var template in suite.Templates)
       {
-        if (!suite.Single)
-          Unique(identifiers, template.Definition.Metadata.Identifier);
+        Unique(identifiers, template.Definition.Metadata.Identifier);
         Register(template, definition, identifiers);
       }
       section.Suites_.Add(definition);
@@ -104,31 +109,40 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       transport.Section(prompts);
     if (secrets.Secrets.Count > 0)
       transport.Section(secrets);
-    transport.OnStop(DisposeResourcesAsync);
+    transport.Operation(new Operation<Empty, Empty>($"{identifier}.initialize", Visibility.Protected), async (raw, request) =>
+    {
+      await author.InitializeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
+      return new Empty();
+    });
+    transport.Operation(new Operation<Empty, Empty>($"{identifier}.finalize", Visibility.Protected), async (raw, request) =>
+    {
+      try
+      {
+        await author.FinalizeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
+        return new Empty();
+      }
+      finally
+      {
+        await DisposeResourcesAsync();
+      }
+    });
     built = true;
     return transport;
   }
 
   public async Task ServeAsync(string? address = null, bool remote = false, CancellationToken cancellationToken = default)
   {
-    try
-    {
-      await Build().ServeAsync(address, remote, cancellationToken);
-    }
-    finally
-    {
-      await DisposeResourcesAsync();
-    }
+    await Build().ServeAsync(address, remote, cancellationToken);
   }
 
-  private void Register(Template template, Dokime.Suite suite, HashSet<string> identifiers)
+  private void Register(Template template, Dokime.SuiteDefinition suite, HashSet<string> identifiers)
   {
     var name = template.Definition.Metadata.Identifier;
     var definition = template.Definition.Clone();
     definition.Materialize = Identifiers.Build("", "materialize", name);
     // Cleanup Always Exists to Release SDK-Owned Resources.
     definition.Cleanup = Identifiers.Build("", "cleanup", name);
-    if (template.InitializeBody is not null || template.CreateResource is not null)
+    if (template.InitializeBody is not null)
       definition.Initialize = Identifiers.Build("", "initialize", name);
     suite.Templates.Add(definition);
 
@@ -147,7 +161,14 @@ public sealed partial class Plugin(string identifier, string version, params Sui
         if (!request.TestCase.Steps.Any(item => item.Metadata.Identifier == request.Step && item.Operation == operation))
           throw new ArgumentException($"{operation}: Step Does Not Match the Frozen Case");
         var context = await GetContextAsync(raw, template, request.TestCase);
-        await step.Run(context);
+        try
+        {
+          await step.Run(context);
+        }
+        catch (SdkError error)
+        {
+          throw new PluginFailureException(error.Failure.ToWire());
+        }
         return new StepsExecuteResponse();
       });
     }
@@ -162,7 +183,14 @@ public sealed partial class Plugin(string identifier, string version, params Sui
         if (!request.TestCase.Criteria.Any(item => item.Metadata.Identifier == request.Criterion && item.Operation == operation))
           throw new ArgumentException($"{operation}: Criterion Does Not Match the Frozen Case");
         var context = await GetContextAsync(raw, template, request.TestCase);
-        return new CriteriaEvaluateResponse { Passed = await criterion.Evaluate(context) };
+        try
+        {
+          return new CriteriaEvaluateResponse { Passed = await criterion.Evaluate(context) };
+        }
+        catch (SdkError error)
+        {
+          throw new PluginFailureException(error.Failure.ToWire());
+        }
       });
     }
     foreach (var stream in template.Streams)
@@ -201,7 +229,6 @@ public sealed partial class Plugin(string identifier, string version, params Sui
         throw new ArgumentException($"{definition.Materialize}: Materialization Requires the Named Template and No Execution Scope");
       var result = testCase.Clone();
       result.Parameters.Add(request.Parameters.ToDictionary(item => item.Key, item => item.Value.Clone()));
-      result = template.MaterializeBody?.Invoke(result, result.Parameters) ?? result;
       var materialized = new HashSet<string>(StringComparer.Ordinal);
       foreach (var step in result.Steps)
       {
@@ -239,41 +266,35 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       try
       {
         if (template.CleanupBody is not null)
-          await template.CleanupBody(new Context(raw, request.TestCase, owned?.Resource, template, owned?.Instance));
+          await template.CleanupBody(new Dokime.Templates.Context(author, raw, request.TestCase, template, owned?.Instance, request.Termination));
       }
       finally
       {
-        if (resources.TryRemove(key, out _) && owned?.Resource is { } resource)
+        if (resources.TryRemove(key, out _) && owned?.Instance is IAsyncDisposable resource)
           await resource.DisposeAsync();
       }
       return new ExecutionsCleanupResponse();
     });
   }
 
-  private async Task<Context> GetContextAsync(Harmos.Plugins.Context raw, Template template, TestCase testCase)
+  private async Task<Dokime.Templates.Context> GetContextAsync(Harmos.Plugins.Context raw, Template template, TestCase testCase)
   {
     var key = $"{template.Definition.Metadata.Identifier}/{raw.Scope()}";
-    var pending = resources.GetOrAdd(key, _ => new Lazy<Task<ExecutionResource>>(async () =>
-    {
-      var instance = template.CreateInstance();
-      var context = new Context(raw, testCase, template: template, instance: instance);
-      var resource = template.CreateResource is null ? null : await template.CreateResource(context);
-      return new ExecutionResource(testCase.Clone(), resource, instance);
-    }));
+    var pending = resources.GetOrAdd(key, _ => new Lazy<Task<ExecutionResource>>(() => Task.FromResult(new ExecutionResource(testCase.Clone(), template.CreateInstance()))));
     var owned = await pending.Value;
     if (!owned.TestCase.Equals(testCase))
       throw new ArgumentException("Read Execution Resource: Frozen Case Changed Within the Same Scope");
-    return new Context(raw, testCase, owned.Resource, template, owned.Instance);
+    return new Dokime.Templates.Context(author, raw, testCase, template, owned.Instance);
   }
 
-  private Context ObserverContext(Harmos.Plugins.Context raw, Template template)
+  private Dokime.Templates.Context ObserverContext(Harmos.Plugins.Context raw, Template template)
   {
     if (resources.TryGetValue($"{template.Definition.Metadata.Identifier}/{raw.Scope()}", out var pending) && pending.IsValueCreated && pending.Value.IsCompletedSuccessfully)
     {
       var owned = pending.Value.Result;
-      return new Context(raw, owned.TestCase, owned.Resource, template, owned.Instance);
+      return new Dokime.Templates.Context(author, raw, owned.TestCase, template, owned.Instance);
     }
-    return new Context(raw, new TestCase(), template: template, instance: template.CreateInstance());
+    return new Dokime.Templates.Context(author, raw, new TestCase(), template: template, instance: template.CreateInstance());
   }
 
   private void Validate(Harmos.Plugins.Context raw, string execution, string template, TestCase testCase, Origin origin, string action)
@@ -293,7 +314,7 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       try
       {
         var owned = await pending.Value;
-        if (owned.Resource is { } resource)
+        if (owned.Instance is IAsyncDisposable resource)
           await resource.DisposeAsync();
       }
       catch (Exception failure)
@@ -311,5 +332,5 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     if (!identifiers.Add(identifier))
       throw new ArgumentException($"Build Plugin: Duplicate Identifier {identifier}");
   }
-  private sealed record ExecutionResource(TestCase TestCase, IAsyncDisposable? Resource, object? Instance);
+  private sealed record ExecutionResource(TestCase TestCase, object? Instance);
 }

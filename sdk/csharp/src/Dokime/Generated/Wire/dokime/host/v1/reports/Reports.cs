@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/reports.proto</summary>
-  public static partial class ReportsReflection {
+  internal static partial class ReportsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/reports.proto</summary>
@@ -146,7 +146,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum ReportOrigin {
+  internal enum ReportOrigin {
     [pbr::OriginalName("REPORT_ORIGIN_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("REPORT_ORIGIN_SEALED")] Sealed = 1,
     [pbr::OriginalName("REPORT_ORIGIN_CURRENT")] Current = 2,
@@ -446,7 +446,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportsGetResponse : pb::IMessage<ReportsGetResponse>
+  internal sealed partial class ReportsGetResponse : pb::IMessage<ReportsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1026,7 +1026,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportsCreateResponse : pb::IMessage<ReportsCreateResponse>
+  internal sealed partial class ReportsCreateResponse : pb::IMessage<ReportsCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1689,7 +1689,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportsPublishResponse : pb::IMessage<ReportsPublishResponse>
+  internal sealed partial class ReportsPublishResponse : pb::IMessage<ReportsPublishResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1979,7 +1979,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportMetadata : pb::IMessage<ReportMetadata>
+  internal sealed partial class ReportMetadata : pb::IMessage<ReportMetadata>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2420,7 +2420,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportSubject : pb::IMessage<ReportSubject>
+  internal sealed partial class ReportSubject : pb::IMessage<ReportSubject>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2716,7 +2716,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportCapture : pb::IMessage<ReportCapture>
+  internal sealed partial class ReportCapture : pb::IMessage<ReportCapture>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3315,7 +3315,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportCase : pb::IMessage<ReportCase>
+  internal sealed partial class ReportCase : pb::IMessage<ReportCase>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3568,7 +3568,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportExecution : pb::IMessage<ReportExecution>
+  internal sealed partial class ReportExecution : pb::IMessage<ReportExecution>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4083,7 +4083,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportFile : pb::IMessage<ReportFile>
+  internal sealed partial class ReportFile : pb::IMessage<ReportFile>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

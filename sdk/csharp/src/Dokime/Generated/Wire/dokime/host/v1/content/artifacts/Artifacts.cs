@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.ContentResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/content/artifacts.proto</summary>
-  public static partial class ArtifactsReflection {
+  internal static partial class ArtifactsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/content/artifacts.proto</summary>
@@ -340,7 +340,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ArtifactsGetResponse : pb::IMessage<ArtifactsGetResponse>
+  internal sealed partial class ArtifactsGetResponse : pb::IMessage<ArtifactsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1049,7 +1049,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ArtifactsCreateResponse : pb::IMessage<ArtifactsCreateResponse>
+  internal sealed partial class ArtifactsCreateResponse : pb::IMessage<ArtifactsCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1601,7 +1601,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ArtifactsListResponse : pb::IMessage<ArtifactsListResponse>
+  internal sealed partial class ArtifactsListResponse : pb::IMessage<ArtifactsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2170,7 +2170,7 @@ namespace Dokime.Clients.ContentResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ArtifactsWatchResponse : pb::IMessage<ArtifactsWatchResponse>
+  internal sealed partial class ArtifactsWatchResponse : pb::IMessage<ArtifactsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

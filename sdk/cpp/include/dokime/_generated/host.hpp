@@ -1,6 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
-namespace dokime::plugin {
+namespace dokime::templates {
 enum class HostOperation {
   BackendEnvironment,
   ContentArtifactsCreate,
@@ -378,4 +378,4 @@ struct HostRoot {
   HostSecretsResource secrets;
   HostTimeResource time;
 };
-} // namespace dokime::plugin
+} // namespace dokime::templates

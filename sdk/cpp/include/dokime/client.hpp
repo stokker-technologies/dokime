@@ -11,30 +11,17 @@
 
 /* === Imports === */
 
-#include "dokime/_generated/client.hpp"
-#include "dokime/messages.hpp"
+#include "dokime/handles.hpp"
+#include "dokime/readers.hpp"
 
-#include <filesystem>
-#include <functional>
-#include <map>
+/* === Macros === */
 
-namespace dokime {
-using harmos::client::PluginPlacement;
-using harmos::client::PluginState;
-using harmos::client::PluginValue;
-} // namespace dokime
+/* === Constants === */
 
-namespace dokime::client {
-harmos::FileReference upload(Client &client, const std::filesystem::path &path,
-                             const std::function<void(grpc::ClientContext &)> &configure = {});
+/* === Types === */
 
-class FrozenSchemaCache {
-public:
-  static std::string message_name(const ExecutionDetail &detail, const std::string &identity);
-  std::shared_ptr<const google::protobuf::FileDescriptorSet> get(Client &client, const ExecutionDetail &detail,
-                                                                 const std::function<void(grpc::ClientContext &)> &configure = {});
+/* === Classes === */
 
-private:
-  std::map<std::string, std::shared_ptr<const google::protobuf::FileDescriptorSet>> sets_;
-};
-} // namespace dokime::client
+/* === Templates === */
+
+/* === Public Declarations === */

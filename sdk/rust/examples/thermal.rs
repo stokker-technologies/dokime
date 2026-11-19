@@ -24,6 +24,7 @@ use std::time::Duration;
 use dokime::RetryPolicy;
 use dokime::model::Section;
 use dokime::prelude::*;
+use dokime::templates::Context;
 use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, Severity, card, value};
 
 /* === Constants === */
@@ -33,6 +34,10 @@ use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotK
 /* === Type Aliases === */
 
 /* === Structs === */
+
+struct ThermalPlugin;
+struct ThermalSuite;
+struct CycleTestTemplate;
 
 #[derive(dokime::Row)]
 #[dokime(package = "thermal")]
@@ -97,7 +102,8 @@ fn main() -> Result<()> {
         unit: "°C".into(),
         ..Default::default()
     };
-    let template = Template::new("cycle", "Thermal Cycle")
+    let template = Template::of::<CycleTestTemplate>()
+        .label("Thermal Cycle")
         .record(door)
         .parameters(Parameters { limit: 85.0 })
         .initialize(initialize)
@@ -133,9 +139,8 @@ fn main() -> Result<()> {
                 ..Default::default()
             }),
         ));
-    let plugin = Plugin::new("thermal", "1.0.0").suite(Suite::new("thermal", "Thermal").template(template));
-    let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
-    plugin.serve()
+    let plugin = Plugin::of::<ThermalPlugin>("1.0.0").suite(Suite::of::<ThermalSuite>().template(template));
+    plugin.run()
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
@@ -152,7 +157,7 @@ async fn ramp(ctx: &Context) -> Result<()> {
 async fn hold(ctx: &Context) -> Result<()> {
     let answer = ctx.prompt("Is the Door Closed?", &["Yes", "No"]).await?;
     ctx.record(&Record::<Door>::new("door", "Door Check"), Door { closed: answer == "Yes" }).await?;
-    ctx.sleep(std::time::Duration::from_millis(2500)).await?;
+    ctx.sleep(Duration::from_millis(2500)).await?;
     ctx.progress(2, 2, "Hold").await
 }
 
@@ -168,18 +173,9 @@ async fn read_temperature(ctx: &Context) -> Result<Temperature> {
 }
 
 async fn within_limit(ctx: &Context) -> Result<bool> {
-    let stats = ctx
-        .statistics("temperature", "celsius", "hold")
-        .await?
-        .statistics
-        .ok_or_else(|| Error::Invalid("Read Statistics: Missing Payload".into()))?;
-    let records = ctx.records(&Record::<Door>::new("door", "Door Check")).step(hold).list(0).await?;
-    let closed = records
-        .last
-        .map(|record| <Door as dokime::encoding::Message>::decode(record.payload.as_slice()))
-        .transpose()
-        .map_err(|error| Error::Invalid(error.to_string()))?
-        .is_some_and(|door| door.closed);
+    let stats =
+        ctx.statistics("temperature", "celsius", "hold").await?.ok_or_else(|| Error::Invalid("Read Statistics: Missing Payload".into()))?;
+    let closed = ctx.records(&Record::<Door>::new("door", "Door Check")).step(hold).last_or_none().await?.is_some_and(|door| door.closed);
     Ok(stats.count > 0
         && matches!(stats.max.as_ref().and_then(|value| value.kind.as_ref()), Some(value::Kind::Number(value)) if *value <= ctx.get::<Bench>()?.limit)
         && closed)

@@ -243,7 +243,7 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
                 result = await result
             return pack(definition.response, cast(Payload, result))
         except _errors.SdkError as error:
-            raise harmos.Failure(_failure(error.failure)) from error
+            raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
 
     return plugin.operation(
         transport.id,
@@ -257,20 +257,6 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
 
 
 # === Private Functions === #
-
-
-def _failure(value: _errors.Failure) -> harmos.FailureValue:
-    return harmos.FailureValue(
-        classification="CLASSIFICATION_" + value.classification.upper().replace(" ", "_"),
-        code=value.code,
-        message=value.message,
-        action=value.action,
-        operation=value.operation,
-        plugin=value.plugin,
-        cause=_failure(value.cause) if value.cause is not None else None,
-        details=dict(value.details),
-        diagnostics=value.diagnostics,
-    )
 
 
 # === Entry Point === #

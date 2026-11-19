@@ -21,7 +21,10 @@
 use prost::Message;
 
 // Local Imports
-use super::support::{TestResult, plugin::Process};
+use super::support::{
+    TestResult,
+    plugin::{Placement, Process},
+};
 use dokime::Origin;
 use dokime::PluginRun;
 use dokime::Termination;
@@ -62,7 +65,7 @@ use dokime_protocol::host::executions::ProgressSetResponse;
 #[tokio::test]
 async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> TestResult {
     // Start a Managed Plugin and Preview Its Case Without an Execution.
-    let mut process = Process::start("dokime-rust-thermal", false).await?;
+    let mut process = Process::start("dokime-rust-thermal", Placement::Managed).await?;
     let description = process.describe().await?;
     let request = TestCasesMaterializeRequest {
         template: "thermal.cycle".into(),
@@ -215,7 +218,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     let log = cleanup.child().await?;
     cleanup.reply(log.call, LogsAppendResponse::default()).await?;
     cleanup.finish::<ExecutionsCleanupResponse>().await?;
-    process.stop(false).await?;
+    process.stop().await?;
     Ok(())
 }
 

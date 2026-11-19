@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.ExecutionsResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/executions/progress.proto</summary>
-  public static partial class ProgressReflection {
+  internal static partial class ProgressReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/executions/progress.proto</summary>
@@ -336,7 +336,7 @@ namespace Dokime.Clients.ExecutionsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ProgressGetResponse : pb::IMessage<ProgressGetResponse>
+  internal sealed partial class ProgressGetResponse : pb::IMessage<ProgressGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -870,7 +870,7 @@ namespace Dokime.Clients.ExecutionsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ProgressWatchResponse : pb::IMessage<ProgressWatchResponse>
+  internal sealed partial class ProgressWatchResponse : pb::IMessage<ProgressWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1612,7 +1612,7 @@ namespace Dokime.Clients.ExecutionsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ProgressSetResponse : pb::IMessage<ProgressSetResponse>
+  internal sealed partial class ProgressSetResponse : pb::IMessage<ProgressSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

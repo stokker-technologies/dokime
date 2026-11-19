@@ -41,7 +41,7 @@ environment.setdefault("HARMOS_CONFORMANCE_HOST", str(root / f"../../target/refe
 environment["DOKIME_CONFORMANCE_PLUGIN"] = str(
     root / f"../../target/cs/bin/Conformance/{configuration.lower()}/dokime-conformance-plugin{suffix}"
 )
-environment.setdefault("DOKIME_STARTER", str(root / f"../../target/cs/bin/Test/{configuration.lower()}/dokime-example-test{suffix}"))
+environment.setdefault("DOKIME_STARTER", str(root / f"examples/Starter/assets/plugin/Example.Plugin{suffix}"))
 subprocess.run(
     [
         sys.argv[1],

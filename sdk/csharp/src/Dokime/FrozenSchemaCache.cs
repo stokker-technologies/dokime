@@ -7,10 +7,10 @@ using Google.Protobuf.Reflection;
 using Grpc.Core;
 using Harmos;
 
-namespace Dokime;
+namespace Dokime.Transport;
 
 /// <summary>Fetch and verify descriptor pages once per immutable schema digest.</summary>
-public sealed class FrozenSchemaCache(PageRequest page)
+internal sealed class FrozenSchemaCache(PageRequest page)
 {
   private readonly PageRequest limits = page.Clone();
   private readonly Dictionary<ByteString, FileDescriptorSet> schemas = [];

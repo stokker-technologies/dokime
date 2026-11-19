@@ -22,6 +22,7 @@ use std::env;
 
 // Local Imports
 use dokime::prelude::*;
+use dokime::templates::Context;
 use dokime::{Metadata, SecretDeclaration, SettingDeclaration, SettingValue, setting_value};
 
 /* === Constants === */
@@ -58,12 +59,15 @@ struct ReadResult {
 fn main() -> Result<()> {
     let owner = env::var_os("DOKIME_SECRET_FIXTURE_OWNER").is_some();
     let (plugin, secret) = if owner { ("secret_owner", "secrets.other") } else { ("secret_reader", "secrets.owned") };
-    let template = Template::new("read", "Read Secret")
+    let template = Template::of::<()>()
+        .identifier("read")
+        .label("Read Secret")
         .record(Record::<ReadResult>::new("read_result", "Secret Read"))
         .parameters(Parameters { identifier: secret.into() })
         .step(Step::new("Read Secret", read));
-    Plugin::new(plugin, "1.0.0")
-        .suite(Suite::new(plugin, "Secret Reader").template(template))
+    Plugin::of::<()>("1.0.0")
+        .identifier(plugin)
+        .suite(Suite::of::<()>().identifier(plugin).label("Secret Reader").template(template))
         .secret(SecretDeclaration {
             metadata: Some(Metadata {
                 identifier: secret.into(),
@@ -80,17 +84,14 @@ fn main() -> Result<()> {
                 value: Some(setting_value::Value::Text(String::new())),
             }),
         })
-        .requires_host(HostOperation::SecretsGet)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .remote()
-        .serve()
+        .run()
 }
 
 async fn read(ctx: &Context) -> Result<()> {
     let identifier = ctx.parameters::<Parameters>()?.identifier;
-    let result = match ctx.host().secrets.get(identifier).await {
+    let result = match ctx.secret(&identifier).await {
         Ok(secret) => ReadResult {
-            value: String::from_utf8(secret.secret).map_err(|error| Error::Invalid(error.to_string()))?,
+            value: String::from_utf8(secret).map_err(|error| Error::Invalid(error.to_string()))?,
             refusal: String::new(),
         },
         Err(error) => ReadResult {

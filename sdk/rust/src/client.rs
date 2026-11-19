@@ -11,34 +11,50 @@
 
 /* === Modules === */
 
+mod connection;
 mod files;
+mod handles;
+pub(crate) mod mutations;
+pub(crate) mod queries;
+#[allow(dead_code, reason = "The Workspace Client Compiles This Same Internal Schema Decoder")]
 mod schemas;
 #[rustfmt::skip]
-mod resources;
+#[allow(dead_code, reason = "The Shared Generator Emits the Complete Internal Transport")]
+pub(crate) mod resources;
 #[rustfmt::skip]
+#[allow(unused_imports, reason = "The Shared Generator Emits the Complete Internal Type Inventory")]
 mod types;
 
 /* === Re-Exports === */
 
-pub use ::harmos::client::{CallOptions, ClientTransport, Watching};
-pub use resources::*;
-pub use types::*;
+pub(crate) use ::harmos::client::{CallOptions, Watching};
+pub use connection::{ConnectionSettings, connect, connect_with};
+pub use dokime_protocol::host::{CyclePhase, ExecutionState, ResultStatus};
+pub use handles::{
+    Attribution, Case, Cycle, CyclesQuery, Execution, ExecutionsQuery, Outcome, PluginRegisterOptions, Progress, ProgressStream,
+    RegisteredPlugin,
+};
+pub use mutations::{
+    ArtifactCreateOptions, CaseMaterializeOptions, CycleCreateOptions, CycleSealOptions, ExecutionCancelOptions, ExecutionCreateOptions,
+    ExecutionSealOptions, ExecutionStartOptions, ExecutionStopOptions, NoteCreateOptions,
+};
+pub use queries::{Records, Samples};
+pub(crate) use resources::*;
+pub(crate) use types::*;
 
-pub use schemas::FrozenSchemaCache;
+pub(crate) use schemas::FrozenSchemaCache;
 
-pub use ::harmos::ClientSettings;
-pub use ::harmos::client::{Input, Method, NoItems, Running};
+pub(crate) use ::harmos::ClientSettings;
+
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
-use prost_reflect::ReflectMessage;
 use tonic::transport::Channel;
 
 // Local Imports
-use crate::DiscoveredContract;
-use std::ops::Deref;
 
 /* === Constants === */
 
@@ -51,8 +67,9 @@ use std::ops::Deref;
 // A Thin Typed Client over Harmos's Generated-Message Transport.
 #[derive(Clone)]
 pub struct Client {
-    transport: ::harmos::Client,
     resources: resources::Root,
+    context: CallOptions,
+    lifetime: Arc<handles::Lifetime>,
 }
 
 /* === Enums === */
@@ -62,66 +79,14 @@ pub struct Client {
 /* === Implementations === */
 
 impl Client {
-    pub fn new(transport: ::harmos::Client) -> Self {
+    pub(crate) fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, tonic::Status> {
+        let transport = ::harmos::Client::new(channel, settings)?;
         let resources = resources::Root::new(transport.transport_handle());
-        Self { transport, resources }
-    }
-    pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, tonic::Status> {
-        Ok(Self::new(::harmos::Client::new(channel, settings)?))
-    }
-    pub fn transport(&self) -> &::harmos::Client {
-        &self.transport
-    }
-
-    // Bind Authoritative Host Discovery to Generated Dokime Messages, Checking Their Schema.
-    pub fn method<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
-        &self, contract: DiscoveredContract,
-    ) -> Result<Method<Q, R>, tonic::Status> {
-        Method::new(contract)
-    }
-
-    pub async fn call<Q, R>(&self, method: &Method<Q, R>, request: Q) -> Result<R, tonic::Status>
-    where
-        Q: prost::Message + Default + Send + 'static,
-        R: prost::Message + Default + Send + 'static,
-    {
-        self.transport.call(method, request).await
-    }
-    pub async fn call_with<Q, R>(&self, method: &Method<Q, R>, request: Q, context: CallOptions) -> Result<R, tonic::Status>
-    where
-        Q: prost::Message + Default + Send + 'static,
-        R: prost::Message + Default + Send + 'static,
-    {
-        self.transport.call_with(method, request, context).await
-    }
-
-    // Upload, Download, Watch and Duplex Calls Retain Harmos's Explicit Finish and Join.
-    pub async fn start<Q, R, I, O>(&self, method: &Method<Q, R, I, O>, request: Q) -> Result<Running<R, I, O>, tonic::Status>
-    where
-        Q: prost::Message + Default + Send + 'static,
-        R: prost::Message + Default + Send + 'static,
-        I: prost::Message + Default + Send + 'static,
-        O: prost::Message + Default + Send + 'static,
-    {
-        self.transport.start(method, request).await
-    }
-    pub async fn start_with<Q, R, I, O>(
-        &self, method: &Method<Q, R, I, O>, request: Q, context: CallOptions,
-    ) -> Result<Running<R, I, O>, tonic::Status>
-    where
-        Q: prost::Message + Default + Send + 'static,
-        R: prost::Message + Default + Send + 'static,
-        I: prost::Message + Default + Send + 'static,
-        O: prost::Message + Default + Send + 'static,
-    {
-        self.transport.start_with(method, request, context).await
-    }
-}
-
-impl Deref for Client {
-    type Target = resources::Root;
-    fn deref(&self) -> &Self::Target {
-        &self.resources
+        Ok(Self {
+            resources,
+            context: CallOptions::default(),
+            lifetime: Arc::new(handles::Lifetime::default()),
+        })
     }
 }
 

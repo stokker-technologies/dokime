@@ -36,7 +36,7 @@ use crate::connection::{
     ConnectRequest, ConnectionSession, ConnectionTarget,
     host::{Connection, Session},
 };
-use dokime_sdk::client::SettingsGetOptions;
+use dokime_client_internal::SettingsGetOptions;
 
 /* === Constants === */
 

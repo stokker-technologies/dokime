@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/backend.proto</summary>
-  public static partial class BackendReflection {
+  internal static partial class BackendReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/backend.proto</summary>
@@ -131,7 +131,7 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum LogoVariant {
+  internal enum LogoVariant {
     [pbr::OriginalName("LOGO_VARIANT_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("LOGO_VARIANT_TRANSPARENT_ON_LIGHT")] TransparentOnLight = 1,
     [pbr::OriginalName("LOGO_VARIANT_TRANSPARENT_ON_DARK")] TransparentOnDark = 2,
@@ -139,7 +139,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("LOGO_VARIANT_CONTAINED_ON_DARK")] ContainedOnDark = 4,
   }
 
-  public enum ThemeModePolicy {
+  internal enum ThemeModePolicy {
     [pbr::OriginalName("THEME_MODE_POLICY_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("THEME_MODE_POLICY_USER_OR_SYSTEM")] UserOrSystem = 1,
     [pbr::OriginalName("THEME_MODE_POLICY_FORCE_SYSTEM")] ForceSystem = 2,
@@ -147,7 +147,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("THEME_MODE_POLICY_FORCE_DARK")] ForceDark = 4,
   }
 
-  public enum AppearanceFailureKind {
+  internal enum AppearanceFailureKind {
     [pbr::OriginalName("APPEARANCE_FAILURE_KIND_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("APPEARANCE_FAILURE_KIND_ASSET_MISSING")] AssetMissing = 1,
     [pbr::OriginalName("APPEARANCE_FAILURE_KIND_ASSET_CHANGED")] AssetChanged = 2,
@@ -367,7 +367,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class BackendAppearanceResponse : pb::IMessage<BackendAppearanceResponse>
+  internal sealed partial class BackendAppearanceResponse : pb::IMessage<BackendAppearanceResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -827,7 +827,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class BackendEnvironmentResponse : pb::IMessage<BackendEnvironmentResponse>
+  internal sealed partial class BackendEnvironmentResponse : pb::IMessage<BackendEnvironmentResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1108,7 +1108,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AppearanceSnapshot : pb::IMessage<AppearanceSnapshot>
+  internal sealed partial class AppearanceSnapshot : pb::IMessage<AppearanceSnapshot>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1668,7 +1668,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class OrganizationIdentity : pb::IMessage<OrganizationIdentity>
+  internal sealed partial class OrganizationIdentity : pb::IMessage<OrganizationIdentity>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1968,7 +1968,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AppearanceLogo : pb::IMessage<AppearanceLogo>
+  internal sealed partial class AppearanceLogo : pb::IMessage<AppearanceLogo>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2263,7 +2263,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ThemeFamily : pb::IMessage<ThemeFamily>
+  internal sealed partial class ThemeFamily : pb::IMessage<ThemeFamily>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2801,7 +2801,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ThemeCornerRadii : pb::IMessage<ThemeCornerRadii>
+  internal sealed partial class ThemeCornerRadii : pb::IMessage<ThemeCornerRadii>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3370,7 +3370,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ThemeVariant : pb::IMessage<ThemeVariant>
+  internal sealed partial class ThemeVariant : pb::IMessage<ThemeVariant>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3583,7 +3583,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AppearanceFailure : pb::IMessage<AppearanceFailure>
+  internal sealed partial class AppearanceFailure : pb::IMessage<AppearanceFailure>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3781,7 +3781,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AppearanceAssetReference : pb::IMessage<AppearanceAssetReference>
+  internal sealed partial class AppearanceAssetReference : pb::IMessage<AppearanceAssetReference>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4053,7 +4053,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AppearanceAssetMetadata : pb::IMessage<AppearanceAssetMetadata>
+  internal sealed partial class AppearanceAssetMetadata : pb::IMessage<AppearanceAssetMetadata>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

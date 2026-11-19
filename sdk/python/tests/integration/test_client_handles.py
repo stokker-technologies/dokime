@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,10 +25,10 @@ from zipfile import ZipFile
 from google.protobuf.message import Message
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
-from harmos import FailureValue
 from harmos._wire.host.v1 import invocations_pb2, operations_pb2
 from harmos._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
 from harmos._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
+from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk._client import Case, Client
@@ -109,7 +109,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                 if previous != request:
                     await context.abort(StatusCode.FAILED_PRECONDITION, "Request Payload Differs")
                 if request.metadata.label == "Refuse":
-                    failure = FailureValue(
+                    failure = Failure(
                         classification="CLASSIFICATION_REFUSED",
                         code="sealed",
                         action="Choose an Active Cycle",

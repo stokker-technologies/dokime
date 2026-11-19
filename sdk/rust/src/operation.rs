@@ -19,12 +19,14 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 // Third Party Imports
-
-// Local Imports
-use crate::{Context, Message, Payload, Result, context::Executions, stream::Registration};
 use harmos::OperationPolicy;
 use harmos::Visibility;
 use harmos::plugin;
+
+// Local Imports
+use crate::operations;
+use crate::templates::Context;
+use crate::{Error, Message, Payload, Result, context::Executions, stream::Registration};
 
 /* === Constants === */
 
@@ -39,6 +41,7 @@ pub(crate) type Action<T> = Arc<dyn Handler<T>>;
 
 // An Ordinary Plugin Operation Composed by Value.
 pub struct Operation {
+    policy: Option<OperationPolicy>,
     register: Box<dyn FnOnce(Executions) -> plugin::Operation + Send>,
     configure: Vec<Box<dyn FnOnce(plugin::Operation) -> plugin::Operation + Send>>,
 }
@@ -60,13 +63,14 @@ impl Operation {
     where
         Q: Payload,
         R: Payload,
-        H: for<'a> AsyncFn(&'a Context, Q) -> Result<R> + Send + Sync + 'static,
+        H: for<'a> AsyncFn(&'a operations::Context, Q) -> Result<R> + Send + Sync + 'static,
     {
         let identifier = identifier.into();
         Self {
+            policy: None,
             register: Box::new(move |executions| {
                 wire(identifier, visibility, async move |transport: &plugin::Context, request: Q::Message| {
-                    let context = Context::invocation(transport, &executions)?;
+                    let context = operations::Context::invocation(transport, &executions)?;
                     let response = handler(&context, Q::from_message(request)).await?;
                     Ok(response.into_message())
                 })
@@ -77,8 +81,9 @@ impl Operation {
     pub fn replay_safe(self) -> Self {
         self.configure(|operation| operation.replay_safe())
     }
-    pub fn policy(self, policy: OperationPolicy) -> Self {
-        self.configure(move |operation| operation.policy(policy))
+    pub fn policy(mut self, policy: OperationPolicy) -> Self {
+        self.policy = Some(policy);
+        self
     }
     pub fn description(self, description: impl Into<String>) -> Self {
         let description = description.into();
@@ -88,14 +93,20 @@ impl Operation {
         self.configure.push(Box::new(configure));
         self
     }
-    pub(crate) fn registration(self) -> Registration {
-        Box::new(move |plugin, executions, _| {
+    pub(crate) fn registration(self) -> Result<Registration> {
+        if let Some(policy) = &self.policy {
+            validate_policy(policy)?;
+        }
+        Ok(Box::new(move |plugin, executions, _| {
             let mut operation = (self.register)(executions);
             for configure in self.configure {
                 operation = configure(operation);
             }
+            if let Some(policy) = self.policy {
+                operation = operation.policy(policy);
+            }
             plugin.operation(operation)
-        })
+        }))
     }
 }
 
@@ -129,6 +140,59 @@ where
     .visibility(visibility)
 }
 
+pub(crate) fn validate_policy(policy: &OperationPolicy) -> Result<()> {
+    let Some(retries) = policy.retries.as_ref() else {
+        return Ok(());
+    };
+    let positive = |duration: &prost_types::Duration| {
+        duration.seconds >= 0 && (0..1_000_000_000).contains(&duration.nanos) && (duration.seconds > 0 || duration.nanos > 0)
+    };
+    if retries.total_attempts == 0
+        || !retries.initial.as_ref().is_some_and(positive)
+        || retries.maximum.as_ref().is_some_and(|maximum| !positive(maximum))
+    {
+        return Err(Error::Invalid(
+            "Declare Retry Policy: Supply Positive Attempts and a Positive Initial Backoff, With a Positive Maximum When Present".into(),
+        ));
+    }
+    Ok(())
+}
+
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::validate_policy;
+    use crate::{OperationPolicy, RetryPolicy};
+    use prost_types::Duration;
+
+    #[test]
+    fn retries_require_positive_backoff_before_host_admission() {
+        assert!(validate_policy(&OperationPolicy::default()).is_ok());
+        for initial in [None, Some(Duration::default()), Some(Duration { seconds: -1, nanos: 0 }), Some(Duration { seconds: 0, nanos: -1 })]
+        {
+            let policy = OperationPolicy {
+                retries: Some(RetryPolicy {
+                    total_attempts: 2,
+                    initial,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            assert!(validate_policy(&policy).is_err());
+        }
+        let mut policy = OperationPolicy {
+            retries: Some(RetryPolicy {
+                total_attempts: 2,
+                initial: Some(Duration { seconds: 0, nanos: 1 }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(validate_policy(&policy).is_ok());
+        policy.retries.as_mut().unwrap().maximum = Some(Duration::default());
+        assert!(validate_policy(&policy).is_err());
+    }
+}

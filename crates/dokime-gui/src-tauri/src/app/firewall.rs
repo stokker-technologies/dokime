@@ -27,7 +27,7 @@ use crate::{
     connection::ConnectionSession,
     native_session::{BackendOwnership, DesktopSessionControl},
 };
-use dokime_sdk::client::AccessListenerGetOptions;
+use dokime_client_internal::AccessListenerGetOptions;
 
 /* === Constants === */
 
@@ -105,7 +105,7 @@ async fn run(app: AppHandle, action: &'static str, port: u16, bind_address: Stri
     }
     #[cfg(windows)]
     {
-        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        use base64::{Engine, engine::general_purpose::STANDARD};
         use tauri::Manager;
         let program = std::env::current_exe().map_err(|error| error.to_string())?;
         let identifier =

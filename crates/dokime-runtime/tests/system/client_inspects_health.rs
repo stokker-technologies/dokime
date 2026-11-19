@@ -20,13 +20,13 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::Client;
-use dokime::client::EvidenceHealthEventsListOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginState;
-use dokime::client::PluginValue;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use dokime_client_internal::Client;
+use dokime_client_internal::EvidenceHealthEventsListOptions;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginState;
+use dokime_client_internal::PluginValue;
+use harmos_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -81,7 +81,7 @@ fn client_inspects_health() -> Result<(), Box<dyn Error>> {
                 .create(
                     "unavailable",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: "http://127.0.0.1:0".into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: "http://127.0.0.1:0".into() })),
                     },
                     PluginValue { enabled: true },
                 )

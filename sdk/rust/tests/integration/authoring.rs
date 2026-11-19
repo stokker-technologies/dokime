@@ -23,7 +23,11 @@ use harmos_runtime::plugin::grpc::Placement;
 use prost::Message;
 
 // Local Imports
-use super::support::{TestResult, plugin::Process, reference};
+use super::support::{
+    TestResult,
+    plugin::{self, Process},
+    reference,
+};
 use dokime::Origin;
 use dokime::PluginRun;
 use dokime::Statistics;
@@ -94,7 +98,7 @@ struct Door {
 #[tokio::test]
 async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     // Start the SDK Sample as a Remote Plugin and Inspect Its Typed Declarations.
-    let mut process = Process::start("dokime-rust-thermal", true).await?;
+    let mut process = Process::start("dokime-rust-thermal", plugin::Placement::Remote).await?;
     let description = process.describe().await?;
     let declarations = description.declarations.as_ref().ok_or("Missing Declarations")?;
     let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").ok_or("Missing Suites")?;
@@ -328,7 +332,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.page.unwrap().page_size, 0);
+    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.record_type, "thermal.cycle.door");
     criterion
         .reply(
             records.call,
@@ -364,7 +368,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let log = cleanup.child().await?;
     cleanup.reply(log.call, LogsAppendResponse::default()).await?;
     cleanup.finish::<ExecutionsCleanupResponse>().await?;
-    process.stop(true).await?;
+    process.stop().await?;
     Ok(())
 }
 
@@ -372,7 +376,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
 
 #[tokio::test]
 async fn plain_operation_values_roundtrip_over_the_plugin_carrier() -> TestResult {
-    let mut process = Process::start("dokime-rust-plugin", true).await?;
+    let mut process = Process::start("dokime-rust-plugin", plugin::Placement::Remote).await?;
     let declarations = process.describe().await?.declarations.ok_or("Missing Declarations")?;
     let operation = declarations.operations.iter().find(|operation| operation.id == "example.ping").ok_or("Missing Echo")?;
     assert_eq!(
@@ -381,6 +385,6 @@ async fn plain_operation_values_roundtrip_over_the_plugin_carrier() -> TestResul
     );
     let invocation = process.invoke("example.ping", "", String::from("plain value")).await?;
     assert_eq!(invocation.finish::<String>().await?, "plain value");
-    process.stop(true).await?;
+    process.stop().await?;
     Ok(())
 }

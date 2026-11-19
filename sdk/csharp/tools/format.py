@@ -46,7 +46,7 @@ files: list[str] = [
     str(path.resolve())
     for folder in ("src", "tests", "examples")
     for path in (root / folder).rglob("*.cs")
-    if "Generated" not in path.parts
+    if not {"Generated", "bin", "obj"}.intersection(path.parts)
 ]
 command: list[str] = [options.dotnet, "format", "whitespace", str(root), "--folder", "--include", *files]
 if options.check:

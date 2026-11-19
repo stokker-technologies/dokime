@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/prompt_definitions.proto</summary>
-  public static partial class PromptDefinitionsReflection {
+  internal static partial class PromptDefinitionsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/prompt_definitions.proto</summary>
@@ -378,7 +378,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptDefinitionsGetResponse : pb::IMessage<PromptDefinitionsGetResponse>
+  internal sealed partial class PromptDefinitionsGetResponse : pb::IMessage<PromptDefinitionsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -875,7 +875,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class PromptDefinitionsListResponse : pb::IMessage<PromptDefinitionsListResponse>
+  internal sealed partial class PromptDefinitionsListResponse : pb::IMessage<PromptDefinitionsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

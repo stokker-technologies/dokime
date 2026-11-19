@@ -13,10 +13,10 @@
 #include <grpc/event_engine/event_engine.h>
 #include <iostream>
 
-using dokime::plugin::Context;
-using dokime::plugin::operation;
-using dokime::plugin::Plugin;
-using dokime::plugin::Visibility;
+using dokime::Plugin;
+using dokime::operations::Context;
+using dokime::operations::operation;
+using dokime::operations::Visibility;
 using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::cerr;
 using std::exception;
@@ -39,7 +39,7 @@ template <class T> void echo(Plugin &plugin, string name) {
   });
   plugin.operation(local);
   plugin.operation(operation<T, T>("values." + name, Visibility::Public, [local](Context &context, T request) {
-    return context.operation(local, request);
+    return context.operation(local)(request);
   }));
 }
 
@@ -49,7 +49,7 @@ template <class T> void echo(Plugin &plugin, string name) {
 
 /* === Entry Point === */
 
-int main(int argc, char **argv) {
+int main() {
   int result = 0;
   try {
     Plugin plugin("values", "1.0.0");
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
     echo<bool>(plugin, "flag");
     echo<int64_t>(plugin, "count");
     echo<double>(plugin, "number");
-    plugin.serve(argc == 3 && string(argv[1]) == "--address" ? argv[2] : "");
+    plugin.serve();
   } catch (const exception &error) {
     cerr << error.what() << '\n';
     result = 1;

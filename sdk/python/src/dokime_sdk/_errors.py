@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -15,11 +15,12 @@ from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
-# Third Party Imports
-import harmos
 from google.protobuf.message import DecodeError
 from grpc import StatusCode
 from grpc.aio import AioRpcError
+
+# Third Party Imports
+from harmos._wire.model.v1 import failure_pb2
 from harmos._wire.model.v1.failure_pb2 import Classification
 
 # Local Imports
@@ -72,7 +73,21 @@ def chain(failures: Sequence[Failure]) -> Failure | None:
     return cause
 
 
-def project_failure(value: harmos.FailureValue) -> Failure:
+def wire_failure(value: Failure) -> failure_pb2.Failure:
+    return failure_pb2.Failure(
+        classification="CLASSIFICATION_" + value.classification.upper().replace(" ", "_"),
+        code=value.code,
+        message=value.message,
+        action=value.action,
+        operation=value.operation,
+        plugin=value.plugin,
+        cause=wire_failure(value.cause) if value.cause is not None else None,
+        details=dict(value.details),
+        diagnostics=value.diagnostics,
+    )
+
+
+def project_failure(value: failure_pb2.Failure) -> Failure:
     classification = Classification.Name(value.classification)
     return Failure(
         classification.removeprefix("CLASSIFICATION_").replace("_", " ").title(),
@@ -117,7 +132,7 @@ def transport_error(operation: str, error: AioRpcError, request_id: str | None =
         if key != "grpc-status-details-bin" or not isinstance(value, bytes):
             continue
         try:
-            remote = harmos.FailureValue.FromString(value)
+            remote = failure_pb2.Failure.FromString(value)
         except DecodeError:
             continue
         if remote.classification:

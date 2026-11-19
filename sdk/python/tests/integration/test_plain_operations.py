@@ -23,6 +23,7 @@ from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int64Value, StringValue
 from grpc.aio import insecure_channel
+from harmos import VISIBILITY_PROTECTED
 from harmos._columns import columns_type
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse
 from harmos._wire.plugin.v1.instance_pb2 import (
@@ -52,6 +53,51 @@ from dokime_sdk.templates import Context, TestTemplate, criterion, observer, pro
 
 
 class PlainValueStory(unittest.IsolatedAsyncioTestCase):
+    async def test_plugin_hooks_are_protected_operations_with_the_author_context(self) -> None:
+        events: list[str] = []
+
+        class LifecyclePlugin(Plugin):
+            version = "1.0.0"
+
+            async def initialize(self, ctx: dokime_sdk.operations.Context) -> None:
+                self.assert_context(ctx)
+                events.append("initialize")
+
+            async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
+                self.assert_context(ctx)
+                events.append("finalize")
+
+            def assert_context(self, ctx: dokime_sdk.operations.Context) -> None:
+                if ctx.plugin is not self:
+                    raise ValueError("Invoke Lifecycle: Preserve the Author Plugin")
+
+        plugin = LifecyclePlugin()
+        declarations = plugin.declarations()
+        endpoint = await plugin._activate("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.close)
+        channel = insecure_channel(endpoint.address)
+        self.addAsyncCleanup(channel.close)
+        invoke = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Invoke",
+            request_serializer=InstanceInvokeRequest.SerializeToString,
+            response_deserializer=InstanceInvokeResponse.FromString,
+        )
+        for name in ("initialize", "finalize"):
+            identifier = f"{plugin.identifier}.{name}"
+            declaration = next(value for value in declarations.operations if value.id == identifier)
+            self.assertEqual(declaration.request, "google.protobuf.Empty")
+            self.assertEqual(declaration.response, "google.protobuf.Empty")
+            self.assertEqual(declaration.visibility, VISIBILITY_PROTECTED)
+            call = invoke()
+            try:
+                await call.write(InstanceInvokeRequest(request=Request(operation=identifier, invocation=name, attempt=1)))
+                response = await call.read()
+                assert isinstance(response, InstanceInvokeResponse)
+                self.assertFalse(response.response.HasField("failure"), response.response.failure)
+            finally:
+                call.cancel()
+        self.assertEqual(events, ["initialize", "finalize"])
+
     async def test_operations_use_plain_values_over_the_real_carrier(self) -> None:
         increment_operation = Operation("example.increment", int, int, Visibility.PRIVATE)
 

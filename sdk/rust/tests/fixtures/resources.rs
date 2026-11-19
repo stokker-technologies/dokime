@@ -11,9 +11,6 @@
 
 /* === Modules === */
 
-#[path = "../support/resources.rs"]
-mod resources;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -23,13 +20,15 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+use std::time::Duration;
 
 // Third Party Imports
 use tokio::sync::Notify;
 
 // Local Imports
 use dokime::prelude::*;
-use resources::ResourceState;
+use dokime::templates::Context;
+use dokime_rust_stories::ResourceState;
 
 /* === Constants === */
 
@@ -75,27 +74,32 @@ fn main() -> Result<()> {
             dropped: dropped.load(Ordering::SeqCst),
         })
     })
-    .every(std::time::Duration::from_secs(1));
-    let template = Template::new("case", "Resource Lifetime")
+    .every(Duration::from_secs(1));
+    let template = Template::of::<()>()
+        .identifier("case")
+        .label("Resource Lifetime")
         .initialize(async move |ctx: &Context| {
             ctx.set(Device(initialize_dropped.clone()));
             Ok(())
         })
         .stream(stream)
         .observer(observer);
-    let ready = Operation::new("resources.observer_ready", dokime::Visibility::Protected, async move |_: &Context, _: ()| {
-        entered.notified().await;
-        Ok(())
-    });
-    let release = Operation::new("resources.release_observer", dokime::Visibility::Protected, async move |_: &Context, _: ()| {
-        released.notify_one();
-        Ok(())
-    });
-    Plugin::new("resources", "1.0.0")
-        .suite(Suite::new("resources", "Resources").template(template))
+    let ready =
+        Operation::new("resources.observer_ready", dokime::Visibility::Protected, async move |_: &dokime::operations::Context, _: ()| {
+            entered.notified().await;
+            Ok(())
+        });
+    let release =
+        Operation::new("resources.release_observer", dokime::Visibility::Protected, async move |_: &dokime::operations::Context, _: ()| {
+            released.notify_one();
+            Ok(())
+        });
+    Plugin::of::<()>("1.0.0")
+        .identifier("resources")
+        .suite(Suite::of::<()>().identifier("resources").label("Resources").template(template))
         .operation(ready)
         .operation(release)
-        .serve()
+        .run()
 }
 
 /* === Tests === */

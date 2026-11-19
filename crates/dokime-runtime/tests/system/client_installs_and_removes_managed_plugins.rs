@@ -18,8 +18,8 @@
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
 use super::support::bundles::{bundle, upload};
-use dokime::Client;
-use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use dokime_client_internal::Client;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginState, PluginValue};
 use sha2::{Digest, Sha256};
 use std::error::Error;
@@ -60,7 +60,7 @@ fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
             let client = Client::from_channel(channel, support::client_settings())?;
             let content = upload(&client, first_archive.clone()).await?;
             let placement = PluginPlacement {
-                kind: Some(PlacementKind::Managed(PluginManaged {
+                kind: Some(plugin_placement::Kind::Managed(PluginManaged {
                     content: Some(content),
                     sha256: Sha256::digest(&first_archive).to_vec(),
                 })),
@@ -78,7 +78,7 @@ fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
             let second_archive = bundle(&executable, "thermal", "2.0.0")?;
             let content = upload(&client, second_archive.clone()).await?;
             let placement = PluginPlacement {
-                kind: Some(PlacementKind::Managed(PluginManaged {
+                kind: Some(plugin_placement::Kind::Managed(PluginManaged {
                     content: Some(content),
                     sha256: Sha256::digest(&second_archive).to_vec(),
                 })),
@@ -93,7 +93,7 @@ fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
             // A Bad Bundle Cannot Replace the Serving Entry
             let content = upload(&client, b"invalid bundle".to_vec()).await?;
             let invalid = PluginPlacement {
-                kind: Some(PlacementKind::Managed(PluginManaged {
+                kind: Some(plugin_placement::Kind::Managed(PluginManaged {
                     content: Some(content),
                     sha256: Sha256::digest(b"invalid bundle").to_vec(),
                 })),

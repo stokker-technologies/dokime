@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.EvidenceResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/evidence/health_events.proto</summary>
-  public static partial class HealthEventsReflection {
+  internal static partial class HealthEventsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/evidence/health_events.proto</summary>
@@ -378,7 +378,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HealthEventsListResponse : pb::IMessage<HealthEventsListResponse>
+  internal sealed partial class HealthEventsListResponse : pb::IMessage<HealthEventsListResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -947,7 +947,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HealthEventsWatchResponse : pb::IMessage<HealthEventsWatchResponse>
+  internal sealed partial class HealthEventsWatchResponse : pb::IMessage<HealthEventsWatchResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1263,7 +1263,7 @@ namespace Dokime.Clients.EvidenceResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HealthItem : pb::IMessage<HealthItem>
+  internal sealed partial class HealthItem : pb::IMessage<HealthItem>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

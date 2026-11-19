@@ -24,13 +24,13 @@ use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::Client;
-use dokime::client::ExecutionsGetOptions;
-use dokime::client::ReportOrigin;
-use dokime::client::ReportState;
-use dokime::client::ReportSubject;
-use dokime::client::ReportsCreateOptions;
-use dokime::client::ReportsPublishOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::ExecutionsGetOptions;
+use dokime_client_internal::ReportOrigin;
+use dokime_client_internal::ReportState;
+use dokime_client_internal::ReportSubject;
+use dokime_client_internal::ReportsCreateOptions;
+use dokime_client_internal::ReportsPublishOptions;
 use dokime_protocol::host::ReportsPublishRequest;
 use dokime_protocol::host::report_subject;
 use dokime_runtime::Host;

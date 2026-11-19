@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::settings::Settings;
-use dokime::client::PluginsSecretsListOptions;
+use dokime_client_internal::PluginsSecretsListOptions;
 
 /* === Constants === */
 

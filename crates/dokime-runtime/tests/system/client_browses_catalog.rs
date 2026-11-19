@@ -23,11 +23,11 @@ use harmos_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime::Client;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
-use dokime::client::SuitesListOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::SuitesListOptions;
 use dokime_runtime::PluginProcess;
 
 /* === Constants === */

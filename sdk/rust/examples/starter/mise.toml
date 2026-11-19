@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+[tools]
+rust = "1.99.0"
+[tasks.build]
+description = "Build the Plugin and Client"
+run = "cargo build --bins"
+[tasks.check]
+description = "Check the Project"
+run = "cargo check --all-targets"
+[tasks.format]
+description = "Format the Project"
+run = "cargo fmt"
+[tasks.test]
+description = "Describe the Plugin Without a Host"
+run = "cargo test"
+[tasks.dev]
+description = "Start the Plugin in Dokime"
+run = "dokime dev --plugin ."
+[tasks.run]
+description = "Run the Client"
+run = "cargo run --bin starter-project-client"

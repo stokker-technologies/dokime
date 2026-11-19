@@ -13,6 +13,7 @@
 
 # Standard Library Imports
 import argparse
+import runpy
 import shutil
 import subprocess
 import sys
@@ -71,6 +72,33 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
     try:
         sdk.generate(root=output, descriptors=descriptors, configuration=configuration)
+        # Apply Each Native SDK Owner's Projection to the Same Generated Inventory.
+        runpy.run_path(str(root / "sdk/csharp/tools/projection.py"))["project"](output)
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import runpy,sys; from pathlib import Path; runpy.run_path(sys.argv[1])['project'](Path(sys.argv[2]))",
+                str(root / "sdk/cpp/tools/generate.py"),
+                str(output),
+            ],
+            cwd=root / "sdk/cpp",
+            check=True,
+            creationflags=spawn_flags(),
+        )
+        # Keep Generated Host Calls Behind the Product Contexts.
+        rust = output / "sdk/rust/src/plugin"
+        host = rust / "host.rs"
+        host.write_text(
+            host.read_text().replace("pub fn host(", "pub(crate) fn host(").replace("pub fn requires_host(", "pub(crate) fn requires_host(")
+        )
+        exports = rust / "host_exports.rs"
+        exports.write_text(
+            exports.read_text().replace(
+                "pub use",
+                '#[allow(unused_imports, reason = "The Shared Generator Emits the Complete Internal Host Inventory")]\npub(crate) use',
+            )
+        )
         barrels = {
             Path("sdk/python/src/dokime_sdk/__init__.py"),
             Path("sdk/python/src/dokime_sdk/client.py"),

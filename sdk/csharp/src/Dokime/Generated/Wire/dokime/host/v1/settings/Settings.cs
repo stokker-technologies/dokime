@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/settings.proto</summary>
-  public static partial class SettingsReflection {
+  internal static partial class SettingsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/settings.proto</summary>
@@ -184,14 +184,14 @@ namespace Dokime.Clients;
 
   }
   #region Enums
-  public enum Density {
+  internal enum Density {
     [pbr::OriginalName("DENSITY_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("DENSITY_COMFORTABLE")] Comfortable = 1,
     [pbr::OriginalName("DENSITY_COMPACT")] Compact = 2,
     [pbr::OriginalName("DENSITY_TOUCH")] Touch = 3,
   }
 
-  public enum HostCardTone {
+  internal enum HostCardTone {
     [pbr::OriginalName("HOST_CARD_TONE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("HOST_CARD_TONE_NEUTRAL")] Neutral = 1,
     [pbr::OriginalName("HOST_CARD_TONE_INFO")] Info = 2,
@@ -200,7 +200,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("HOST_CARD_TONE_DANGER")] Danger = 5,
   }
 
-  public enum SettingsCardState {
+  internal enum SettingsCardState {
     [pbr::OriginalName("SETTINGS_CARD_STATE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("SETTINGS_CARD_STATE_READY")] Ready = 1,
     [pbr::OriginalName("SETTINGS_CARD_STATE_DISABLED")] Disabled = 2,
@@ -210,7 +210,7 @@ namespace Dokime.Clients;
     [pbr::OriginalName("SETTINGS_CARD_STATE_PERMISSION_DENIED")] PermissionDenied = 6,
   }
 
-  public enum ThemeMode {
+  internal enum ThemeMode {
     [pbr::OriginalName("THEME_MODE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("THEME_MODE_SYSTEM")] System = 1,
     [pbr::OriginalName("THEME_MODE_LIGHT")] Light = 2,
@@ -428,7 +428,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsGetResponse : pb::IMessage<SettingsGetResponse>
+  internal sealed partial class SettingsGetResponse : pb::IMessage<SettingsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -999,7 +999,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsSetResponse : pb::IMessage<SettingsSetResponse>
+  internal sealed partial class SettingsSetResponse : pb::IMessage<SettingsSetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1496,7 +1496,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsSchemaResponse : pb::IMessage<SettingsSchemaResponse>
+  internal sealed partial class SettingsSchemaResponse : pb::IMessage<SettingsSchemaResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1749,7 +1749,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ApplicationAppearance : pb::IMessage<ApplicationAppearance>
+  internal sealed partial class ApplicationAppearance : pb::IMessage<ApplicationAppearance>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2035,7 +2035,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ApplicationSettings : pb::IMessage<ApplicationSettings>
+  internal sealed partial class ApplicationSettings : pb::IMessage<ApplicationSettings>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2426,7 +2426,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class BootstrapPaths : pb::IMessage<BootstrapPaths>
+  internal sealed partial class BootstrapPaths : pb::IMessage<BootstrapPaths>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2735,7 +2735,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CachedRefresh : pb::IMessage<CachedRefresh>
+  internal sealed partial class CachedRefresh : pb::IMessage<CachedRefresh>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -2933,7 +2933,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ClientPreferences : pb::IMessage<ClientPreferences>
+  internal sealed partial class ClientPreferences : pb::IMessage<ClientPreferences>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3168,7 +3168,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardBlock : pb::IMessage<HostCardBlock>
+  internal sealed partial class HostCardBlock : pb::IMessage<HostCardBlock>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3375,7 +3375,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardBlockKind : pb::IMessage<HostCardBlockKind>
+  internal sealed partial class HostCardBlockKind : pb::IMessage<HostCardBlockKind>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3776,7 +3776,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardBody : pb::IMessage<HostCardBody>
+  internal sealed partial class HostCardBody : pb::IMessage<HostCardBody>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -3963,7 +3963,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardKeyValue : pb::IMessage<HostCardKeyValue>
+  internal sealed partial class HostCardKeyValue : pb::IMessage<HostCardKeyValue>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4249,7 +4249,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardKeyValueList : pb::IMessage<HostCardKeyValueList>
+  internal sealed partial class HostCardKeyValueList : pb::IMessage<HostCardKeyValueList>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4436,7 +4436,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardMetric : pb::IMessage<HostCardMetric>
+  internal sealed partial class HostCardMetric : pb::IMessage<HostCardMetric>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4773,7 +4773,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardMetrics : pb::IMessage<HostCardMetrics>
+  internal sealed partial class HostCardMetrics : pb::IMessage<HostCardMetrics>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -4960,7 +4960,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class HostCardStatus : pb::IMessage<HostCardStatus>
+  internal sealed partial class HostCardStatus : pb::IMessage<HostCardStatus>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5246,7 +5246,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ManualRefresh : pb::IMessage<ManualRefresh>
+  internal sealed partial class ManualRefresh : pb::IMessage<ManualRefresh>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5407,7 +5407,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class OnDemandRefresh : pb::IMessage<OnDemandRefresh>
+  internal sealed partial class OnDemandRefresh : pb::IMessage<OnDemandRefresh>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5568,7 +5568,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RemoteListenerSettings : pb::IMessage<RemoteListenerSettings>
+  internal sealed partial class RemoteListenerSettings : pb::IMessage<RemoteListenerSettings>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -5903,7 +5903,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ReportDefaults : pb::IMessage<ReportDefaults>
+  internal sealed partial class ReportDefaults : pb::IMessage<ReportDefaults>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6249,7 +6249,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsCard : pb::IMessage<SettingsCard>
+  internal sealed partial class SettingsCard : pb::IMessage<SettingsCard>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6775,7 +6775,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsCardRefreshPolicy : pb::IMessage<SettingsCardRefreshPolicy>
+  internal sealed partial class SettingsCardRefreshPolicy : pb::IMessage<SettingsCardRefreshPolicy>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -6982,7 +6982,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsCardRefreshPolicyPolicy : pb::IMessage<SettingsCardRefreshPolicyPolicy>
+  internal sealed partial class SettingsCardRefreshPolicyPolicy : pb::IMessage<SettingsCardRefreshPolicyPolicy>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7329,7 +7329,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsFrame : pb::IMessage<SettingsFrame>
+  internal sealed partial class SettingsFrame : pb::IMessage<SettingsFrame>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7588,7 +7588,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsSection : pb::IMessage<SettingsSection>
+  internal sealed partial class SettingsSection : pb::IMessage<SettingsSection>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -7957,7 +7957,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SettingsSectionOwner : pb::IMessage<SettingsSectionOwner>
+  internal sealed partial class SettingsSectionOwner : pb::IMessage<SettingsSectionOwner>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -8253,7 +8253,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class TelemetryPreferences : pb::IMessage<TelemetryPreferences>
+  internal sealed partial class TelemetryPreferences : pb::IMessage<TelemetryPreferences>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

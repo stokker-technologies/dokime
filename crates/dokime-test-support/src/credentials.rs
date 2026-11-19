@@ -1,0 +1,289 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Isolated Operating System Credential Store for Host Stories
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+#[cfg(target_os = "windows")]
+use std::fs::OpenOptions;
+#[cfg(target_os = "linux")]
+use std::process::{self, Child};
+use std::{
+    error::Error,
+    ffi::OsString,
+    io,
+    path::Path,
+    sync::{Arc, Mutex},
+};
+
+// Third Party Imports
+use tempfile::TempDir;
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+tokio::task_local! {
+    static ROOTS: Arc<Mutex<Vec<TempDir>>>;
+}
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+pub struct CredentialStore {
+    pub environment: Vec<(&'static str, OsString)>,
+
+    #[cfg(target_os = "linux")]
+    children: Vec<(&'static str, Child)>,
+
+    #[cfg(target_os = "linux")]
+    _home: TempDir,
+}
+
+pub struct Root(Option<TempDir>);
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl Root {
+    pub fn path(&self) -> &Path {
+        self.0.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for Root {
+    fn drop(&mut self) {
+        #[cfg(target_os = "windows")]
+        if let Err(error) = remove_credentials(self.path(), false) {
+            let root = self.0.take().unwrap();
+            let mut root = Some(root);
+            if ROOTS.try_with(|roots| roots.lock().unwrap().push(root.take().unwrap())).is_ok() {
+                return;
+            }
+            let retained = root.unwrap().keep();
+            if std::thread::panicking() {
+                eprintln!("Remove Story Credentials: {error}; Retained Root: {}", retained.display());
+            } else {
+                panic!("Remove Story Credentials: {error}; Retained Root: {}", retained.display());
+            }
+        }
+    }
+}
+
+impl CredentialStore {
+    pub async fn start(root: &Path) -> Result<Self, Box<dyn Error>> {
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = root;
+            Ok(Self { environment: Vec::new() })
+        }
+        #[cfg(target_os = "linux")]
+        {
+            use std::{
+                fs::Permissions,
+                io::{BufRead, BufReader, Write},
+                os::unix::fs::PermissionsExt,
+                process::Stdio,
+            };
+            use tokio::process::Command;
+
+            // Isolate Every Credential and Socket Under This Story's Root; the Keyring Accepts Only a 0700 Control Directory
+            let home = tempfile::Builder::new().permissions(Permissions::from_mode(0o700)).tempdir_in(root)?;
+            let mut store = Self {
+                environment: ["HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"]
+                    .into_iter()
+                    .map(|key| (key, home.path().as_os_str().to_owned()))
+                    .collect(),
+                children: Vec::new(),
+                _home: home,
+            };
+
+            // Start a Private Bus Without Inheriting the Desktop Session
+            let mut command = dokime_runtime::process::command("dbus-daemon");
+            command
+                .args(["--session", "--nofork", "--print-address=1"])
+                .envs(store.environment.iter().cloned())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit());
+            store.spawn(command, "dbus")?;
+            let stdout = store.children.last_mut().unwrap().1.stdout.take().ok_or("Start Story Bus: Missing Readiness Pipe")?;
+            let address = tokio::task::spawn_blocking(move || {
+                let mut address = String::new();
+                BufReader::new(stdout).read_line(&mut address)?;
+                Ok::<String, io::Error>(address)
+            })
+            .await??;
+            store.check_running()?;
+            if !address.ends_with('\n') {
+                return Err("Start Story Bus: Missing Readiness Event".into());
+            }
+            let address = address.trim().to_owned();
+            store.environment.push(("DBUS_SESSION_BUS_ADDRESS", address.into()));
+
+            // Unlock a Disposable Keyring Before Starting the Host
+            let mut command = dokime_runtime::process::command("gnome-keyring-daemon");
+            command
+                .args(["--foreground", "--components=secrets", "--unlock", "--control-directory"])
+                .arg(store._home.path())
+                .envs(store.environment.iter().cloned())
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::inherit());
+            store.spawn(command, "gnome-keyring")?;
+            store.children.last_mut().unwrap().1.stdin.take().unwrap().write_all(b"host-story-keyring-password")?;
+            loop {
+                store.check_running()?;
+                let result = Command::from(dokime_runtime::process::command("dbus-send"))
+                    .args([
+                        "--session",
+                        "--print-reply",
+                        "--dest=org.freedesktop.DBus",
+                        "/org/freedesktop/DBus",
+                        "org.freedesktop.DBus.NameHasOwner",
+                        "string:org.freedesktop.secrets",
+                    ])
+                    .envs(store.environment.iter().cloned())
+                    .kill_on_drop(true)
+                    .output()
+                    .await
+                    .map_err(|error| format!("Start Story Credential Store: Install the dbus Package: {error}"))?;
+                if result.status.success() && String::from_utf8_lossy(&result.stdout).contains("boolean true") {
+                    break;
+                }
+            }
+            Ok(store)
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn spawn(&mut self, mut command: process::Command, package: &'static str) -> Result<(), Box<dyn Error>> {
+        let child = command.spawn().map_err(|error| format!("Start Story Credential Store: Install the {package} Package: {error}"))?;
+        self.children.push((package, child));
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn check_running(&mut self) -> Result<(), Box<dyn Error>> {
+        for (package, child) in &mut self.children {
+            if let Some(status) = child.try_wait()? {
+                return Err(format!(
+                    "Start Story Credential Store: The {package} Daemon Exited During Startup ({status}); See Its Output Above"
+                )
+                .into());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for CredentialStore {
+    fn drop(&mut self) {
+        // Reap Only Owned Daemons Before Removing Their Private Storage
+        for (_, child) in self.children.iter_mut().rev() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/* === Public Functions === */
+
+/// This Story's Own Credential Namespace, So Stories Never Touch the Operator's Credentials.
+///
+/// Each story runs in its own process; its roots' credentials are removed inside this namespace only.
+/// A story's child process inherits the namespace through `DOKIME_CREDENTIAL_NAMESPACE`.
+pub fn namespace() -> dokime_runtime::CredentialNamespace {
+    static NAMESPACE: std::sync::OnceLock<dokime_runtime::CredentialNamespace> = std::sync::OnceLock::new();
+    NAMESPACE
+        .get_or_init(|| {
+            let namespace = std::env::var("DOKIME_CREDENTIAL_NAMESPACE").unwrap_or_else(|_| {
+                let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+                format!("dokime-story-{}-{unique}", std::process::id())
+            });
+            dokime_runtime::CredentialNamespace::new(namespace).expect("Name the Story Credential Namespace")
+        })
+        .clone()
+}
+
+pub fn run<T>(story: std::pin::Pin<Box<impl std::future::Future<Output = T>>>) -> T {
+    let roots = Arc::new(Mutex::new(Vec::new()));
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.block_on(ROOTS.scope(roots.clone(), story))));
+    drop(runtime);
+    #[cfg(target_os = "windows")]
+    let mut failures = Vec::<String>::new();
+    #[cfg(not(target_os = "windows"))]
+    let failures = Vec::<String>::new();
+    for root in std::mem::take(&mut *roots.lock().unwrap()) {
+        #[cfg(target_os = "windows")]
+        if let Err(error) = remove_credentials(root.path(), true) {
+            let retained = root.keep();
+            failures.push(format!("{error}; Retained Root: {}", retained.display()));
+        }
+        #[cfg(not(target_os = "windows"))]
+        drop(root);
+    }
+    if !failures.is_empty() {
+        let message = format!("Remove Story Credentials After Runtime Teardown: {}", failures.join("; "));
+        if result.is_err() {
+            eprintln!("{message}");
+        } else {
+            panic!("{message}");
+        }
+    }
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
+}
+
+pub fn tempdir() -> io::Result<Root> {
+    tempfile::tempdir().map(|root| Root(Some(root)))
+}
+
+/* === Private Functions === */
+
+#[cfg(target_os = "windows")]
+fn remove_credentials(root: &Path, runtime_closed: bool) -> Result<(), Box<dyn Error>> {
+    if root.join("backend-id").is_file() {
+        // Runtime-Owned Work Must Release the Root Before Credential Disposal.
+        let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
+        if runtime_closed {
+            lease.lock()?;
+        } else {
+            lease.try_lock()?;
+        }
+        // Unlock Before Closing, So Removal Finds the Root Free.
+        lease.unlock()?;
+        dokime_runtime::services::remove_credentials(root, &namespace())?;
+    }
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            remove_credentials(&entry.path(), runtime_closed)?;
+        }
+    }
+    Ok(())
+}
+
+/* === Tests === */

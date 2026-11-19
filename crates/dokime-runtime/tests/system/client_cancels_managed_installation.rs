@@ -17,8 +17,8 @@
 
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
-use dokime::Client;
-use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use dokime_client_internal::Client;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginValue};
 use sha2::{Digest, Sha256};
 use std::error::Error;
@@ -64,7 +64,7 @@ fn client_cancels_managed_installation() -> Result<(), Box<dyn Error>> {
             let client = Client::from_channel(channel, support::client_settings())?;
             let content = support::bundles::upload(&client, bytes.clone()).await?;
             let placement = PluginPlacement {
-                kind: Some(PlacementKind::Managed(PluginManaged {
+                kind: Some(plugin_placement::Kind::Managed(PluginManaged {
                     content: Some(content),
                     sha256: Sha256::digest(&bytes).to_vec(),
                 })),

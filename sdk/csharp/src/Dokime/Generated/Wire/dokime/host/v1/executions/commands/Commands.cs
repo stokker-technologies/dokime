@@ -12,7 +12,7 @@ using scg = global::System.Collections.Generic;
 namespace Dokime.Clients.ExecutionsResources;
 
   /// <summary>Holder for reflection information generated from dokime/host/v1/executions/commands.proto</summary>
-  public static partial class CommandsReflection {
+  internal static partial class CommandsReflection {
 
     #region Descriptor
     /// <summary>File descriptor for dokime/host/v1/executions/commands.proto</summary>
@@ -87,14 +87,14 @@ namespace Dokime.Clients.ExecutionsResources;
 
   }
   #region Enums
-  public enum ExecutionCommandAction {
+  internal enum ExecutionCommandAction {
     [pbr::OriginalName("EXECUTION_COMMAND_ACTION_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("EXECUTION_COMMAND_ACTION_NEXT")] Next = 1,
     [pbr::OriginalName("EXECUTION_COMMAND_ACTION_RUN_STEP")] RunStep = 2,
     [pbr::OriginalName("EXECUTION_COMMAND_ACTION_FINISH")] Finish = 3,
   }
 
-  public enum ExecutionCommandPhase {
+  internal enum ExecutionCommandPhase {
     [pbr::OriginalName("EXECUTION_COMMAND_PHASE_UNSPECIFIED")] Unspecified = 0,
     [pbr::OriginalName("EXECUTION_COMMAND_PHASE_ACCEPTED")] Accepted = 1,
     [pbr::OriginalName("EXECUTION_COMMAND_PHASE_DISPATCHING")] Dispatching = 2,
@@ -390,7 +390,7 @@ namespace Dokime.Clients.ExecutionsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CommandsGetResponse : pb::IMessage<CommandsGetResponse>
+  internal sealed partial class CommandsGetResponse : pb::IMessage<CommandsGetResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1003,7 +1003,7 @@ namespace Dokime.Clients.ExecutionsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class CommandsCreateResponse : pb::IMessage<CommandsCreateResponse>
+  internal sealed partial class CommandsCreateResponse : pb::IMessage<CommandsCreateResponse>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
@@ -1256,7 +1256,7 @@ namespace Dokime.Clients.ExecutionsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ExecutionCommandReceipt : pb::IMessage<ExecutionCommandReceipt>
+  internal sealed partial class ExecutionCommandReceipt : pb::IMessage<ExecutionCommandReceipt>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

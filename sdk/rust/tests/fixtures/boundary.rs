@@ -23,6 +23,7 @@ use std::time::Duration;
 
 // Local Imports
 use dokime::prelude::*;
+use dokime::templates::Context;
 
 /* === Constants === */
 
@@ -79,8 +80,10 @@ fn main() -> Result<()> {
         let index = published.count.fetch_add(1, Ordering::SeqCst);
         Ok(Reading { value: index as f64 })
     })
-    .every(std::time::Duration::from_millis(1));
-    let boundary = Template::new("boundary", "Publication Boundary")
+    .every(Duration::from_millis(1));
+    let boundary = Template::of::<()>()
+        .identifier("boundary")
+        .label("Publication Boundary")
         .parameters(CaptureRows { rows: 1024 })
         .initialize(async |context: &Context| {
             context.set(Published::default());
@@ -107,7 +110,9 @@ fn main() -> Result<()> {
     let host_observer = Observer::window(&host_stream, granted).every(Duration::from_millis(1));
     let setting_stream = Stream::<Reading>::new("window.setting", "Setting Window Samples");
     let setting_observer = Observer::window(&setting_stream, granted).every(Duration::from_millis(1)).window_setting("sample_window");
-    let windows = Template::new("windows", "Window Override")
+    let windows = Template::of::<()>()
+        .identifier("windows")
+        .label("Window Override")
         .parameters(CaptureRows { rows: 1000 })
         .step(
             Step::new("Capture", async |context: &Context| {
@@ -127,7 +132,9 @@ fn main() -> Result<()> {
     })
     .every(Duration::from_micros(1))
     .window_setting("overflow_window");
-    let overflow = Template::new("overflow", "Window Overflow")
+    let overflow = Template::of::<()>()
+        .identifier("overflow")
+        .label("Window Overflow")
         .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(10)).await).identifier("capture"))
         .stream(overflow_stream)
         .observer(overflow_observer);
@@ -141,7 +148,9 @@ fn main() -> Result<()> {
         Ok(ReadingColumns { value: vec![0.0; window.count as usize] })
     })
     .every(Duration::from_millis(1));
-    let lag = Template::new("lag", "Window Lag")
+    let lag = Template::of::<()>()
+        .identifier("lag")
+        .label("Window Lag")
         .initialize(async |context: &Context| {
             context.set(Lagging);
             Ok(())
@@ -149,7 +158,8 @@ fn main() -> Result<()> {
         .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(2)).await).identifier("capture"))
         .stream(lag_stream)
         .observer(lag_observer);
-    Plugin::new("execution", "1.0.0")
+    Plugin::of::<()>("1.0.0")
+        .identifier("execution")
         .setting(dokime::SettingDeclaration {
             name: "overflow_window".into(),
             title: "Overflow Window".into(),
@@ -166,9 +176,16 @@ fn main() -> Result<()> {
                 value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
             }),
         })
-        .suite(Suite::new("execution", "Execution").template(boundary).template(windows).template(overflow).template(lag))
-        .requires_host(HostOperation::TimeSleep)
-        .serve()
+        .suite(
+            Suite::of::<()>()
+                .identifier("execution")
+                .label("Execution")
+                .template(boundary)
+                .template(windows)
+                .template(overflow)
+                .template(lag),
+        )
+        .run()
 }
 
 /* === Tests === */

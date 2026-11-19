@@ -26,8 +26,8 @@ use tokio::sync::mpsc::UnboundedSender;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime::Client;
-use dokime::client::StatusWatchOptions;
+use dokime_client_internal::Client;
+use dokime_client_internal::StatusWatchOptions;
 use dokime_operations::host;
 use dokime_runtime::ControlledClock;
 use dokime_runtime::SchedulerClock;

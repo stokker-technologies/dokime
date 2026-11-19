@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-#[path = "../../../dokime-runtime/tests/support/credentials.rs"]
-mod credentials;
 mod first_hour;
 mod operator_calls_operation;
 mod operator_diagnoses_storage;
@@ -27,6 +25,8 @@ mod scaffold;
 
 /* === Re-Exports === */
 
+use dokime_test_support::credentials;
+
 /* === Imports === */
 
 // Standard Library Imports
@@ -35,7 +35,8 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use dokime::{ClientSettings, StorageTransferSettings};
+use dokime::StorageTransferSettings;
+use dokime_client_internal::ClientSettings;
 
 /* === Constants === */
 

@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{PluginsDeleteOptions, PluginsGetOptions};
+use dokime_client_internal::{PluginsDeleteOptions, PluginsGetOptions};
 
 /* === Constants === */
 

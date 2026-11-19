@@ -17,11 +17,15 @@
 
 // Standard Library Imports
 use std::{
+    any::TypeId,
     collections::{HashMap, HashSet},
     sync::Arc,
 };
 
 // Third Party Imports
+use harmos::OperationPolicy;
+use harmos::Visibility;
+use harmos::plugin;
 
 // Local Imports
 use crate::plugin::{
@@ -40,9 +44,6 @@ use crate::{
     stream::{Registration, Sampler},
 };
 use crate::{Document, FileParameter, Metadata, Parameter, TestCase, TestCaseTemplate, Value};
-use harmos::OperationPolicy;
-use harmos::Visibility;
-use harmos::plugin;
 
 /* === Constants === */
 
@@ -71,6 +72,7 @@ pub struct Criterion {
 
 // An Inert Template. Its Materializer Never Creates Execution Resources.
 pub struct Template {
+    pub(crate) marker: TypeId,
     definition: TestCaseTemplate,
     initialize: Option<Action<()>>,
     cleanup: Option<Action<()>>,
@@ -186,20 +188,19 @@ impl Criterion {
 }
 
 impl Template {
-    pub fn identifier(&self) -> &str {
+    pub(crate) fn id(&self) -> &str {
         &self.definition.metadata.as_ref().expect("Template Metadata").identifier
     }
-    pub(crate) fn label(&self) -> &str {
-        &self.definition.metadata.as_ref().expect("Template Metadata").label
-    }
 
-    pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        let identifier = identifier.into();
+    pub fn of<T: 'static>() -> Self {
+        let identifier = code_name::<T>(true);
+        let label = crate::authoring::type_label::<T>();
         Self {
+            marker: TypeId::of::<T>(),
             definition: TestCaseTemplate {
                 metadata: Some(Metadata {
                     identifier: identifier.clone(),
-                    label: label.into(),
+                    label,
                     description: String::new(),
                     ..Default::default()
                 }),
@@ -221,8 +222,13 @@ impl Template {
             prompts: Vec::new(),
         }
     }
-    pub fn of<T>(label: impl Into<String>) -> Self {
-        Self::new(code_name::<T>(true), label)
+    pub fn identifier(mut self, identifier: impl Into<String>) -> Self {
+        self.definition.metadata.as_mut().expect("Template Metadata").identifier = identifier.into();
+        self
+    }
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.definition.metadata.as_mut().expect("Template Metadata").label = label.into();
+        self
     }
 
     pub fn record<T: Payload>(mut self, record: Record<T>) -> Self {
@@ -236,8 +242,8 @@ impl Template {
         self
     }
 
-    pub(crate) fn bind(mut self, suite: &str, single: bool) -> Self {
-        if let Err(error) = validate_names([self.identifier()], "Template") {
+    pub(crate) fn bind(mut self, suite: &str) -> Self {
+        if let Err(error) = validate_names([self.id()], "Template") {
             self.errors.push(error.to_string());
         }
         if let Err(error) = validate_names(
@@ -252,8 +258,8 @@ impl Template {
         ) {
             self.errors.push(error.to_string());
         }
-        let local = self.identifier().to_owned();
-        let identifier = if single { suite.into() } else { build_identifier(suite, &local, false) };
+        let local = self.id().to_owned();
+        let identifier = build_identifier(suite, &local, false);
         self.definition.metadata.as_mut().expect("Template Metadata").identifier = identifier.clone();
         self.definition.materialize = build_identifier(&identifier, "materialize", false);
         self.definition.cleanup = Some(build_identifier(&identifier, "cleanup", false));
@@ -433,6 +439,7 @@ impl Template {
         };
         let mut steps = Vec::new();
         for step in self.steps {
+            operation::validate_policy(&step.policy)?;
             let operation = step.metadata.identifier.clone();
             case.steps.push(model::Step {
                 metadata: Some(step.metadata.clone()),
@@ -632,7 +639,9 @@ mod tests {
 
     #[test]
     fn parameter_builders_preserve_types_expansion_and_bounds() {
-        let template = Template::new("builders.test", "Builders")
+        let template = Template::of::<()>()
+            .identifier("builders.test")
+            .label("Builders")
             .parameter(Parameter::number("voltage", "Voltage").unit("V").default(230.0).range(0.0..=300.0))
             .parameter(Parameter::count("samples", "Samples").default(u64::MAX))
             .parameter(Parameter::flag("enabled", "Enabled").default(true))

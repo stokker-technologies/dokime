@@ -22,7 +22,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::Context;
+use dokime::templates::Context;
 use dokime::{Error, Result, SettingDeclaration, SettingValue, setting_value};
 
 /* === Constants === */
@@ -89,12 +89,7 @@ pub async fn images_directory(ctx: &Context) -> Result<PathBuf> {
 /* === Private Functions === */
 
 async fn value(ctx: &Context, name: &str) -> Result<setting_value::Value> {
-    let settings = ctx.host().plugins.settings.list().await?;
-    settings
-        .value
-        .and_then(|mut values| values.values.remove(name))
-        .and_then(|value| value.value)
-        .ok_or_else(|| Error::Invalid(format!("Read Setting {name}: Restore Its Value in the Plugin Settings")))
+    ctx.setting(name).await?.value.ok_or_else(|| Error::Invalid(format!("Read Setting {name}: Restore Its Value in the Plugin Settings")))
 }
 
 /* === Tests === */
