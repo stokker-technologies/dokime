@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{CyclePhase, CycleSelection, CyclesSealOptions, CyclesWatchOptions};
+use dokime::client::{ArchiveScope, CycleFilter, CyclePhase, CycleSelection, CyclesSealOptions, CyclesWatchOptions};
 
 /* === Constants === */
 
@@ -69,7 +69,18 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         context: settings.context()?,
         ..Default::default()
     };
-    let mut completion = client.cycles.watch_with(selection, Default::default(), Default::default(), options).await?;
+    let mut completion = client
+        .cycles
+        .watch_with(
+            selection,
+            CycleFilter {
+                archive: Some(ArchiveScope::All as i32),
+                ..Default::default()
+            },
+            Default::default(),
+            options,
+        )
+        .await?;
     while let Some(frame) = completion.next().await? {
         if let Some(failure) = frame.resync_required {
             return Err(failure.message.into());

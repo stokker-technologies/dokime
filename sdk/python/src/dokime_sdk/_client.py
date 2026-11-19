@@ -606,7 +606,9 @@ class Cycle:
         if self._summary.sealed:
             return
         watch = self._client._transport.cycles.watch(
-            client_types.CycleSelection(cycle_ids=[self.identifier]), client_types.CycleFilter(), client_types.CycleOrder()
+            client_types.CycleSelection(cycle_ids=[self.identifier]),
+            client_types.CycleFilter(archive=client_types.ARCHIVE_SCOPE_ALL),
+            client_types.CycleOrder(),
         )
         try:
             async for frame in watch:

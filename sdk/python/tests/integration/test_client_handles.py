@@ -65,6 +65,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.changed_binding = False
         self.settled_seal = False
+        self.archived_cycle = False
         self.seal_failure = False
         self.execution_sealed = False
         self.seal_release = asyncio.Event()
@@ -131,13 +132,18 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                     return cycles_pb2.CyclesSealResponse(
                         seal=b"settled", cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True}
                     )
-                return cycles_pb2.CyclesSealResponse(cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING"})
+                return cycles_pb2.CyclesSealResponse(
+                    cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING", "archived": owner.archived_cycle}
+                )
 
             async def Watch(
                 self, request: cycles_pb2.CyclesWatchRequest, context: ServicerContext
             ) -> AsyncIterator[cycles_pb2.CyclesWatchResponse]:
                 trace.append(request)
                 if request.selection.cycle_ids:
+                    if owner.archived_cycle and request.filter.archive != cycles_pb2.ARCHIVE_SCOPE_ALL:
+                        yield cycles_pb2.CyclesWatchResponse()
+                        return
                     yield cycles_pb2.CyclesWatchResponse(cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING"}])
                     owner.seal_started.set()
                     await owner.seal_release.wait()
@@ -146,7 +152,9 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                             cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEAL_FAILED", "seal_failure": "storage"}]
                         )
                     else:
-                        yield cycles_pb2.CyclesWatchResponse(cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True}])
+                        yield cycles_pb2.CyclesWatchResponse(
+                            cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True, "archived": owner.archived_cycle}]
+                        )
                     return
                 yield cycles_pb2.CyclesWatchResponse(cycles=[cycle])
                 cycle.phase = cycles_pb2.CYCLE_PHASE_SEALED
@@ -428,7 +436,8 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.trace, [cycles_pb2.CyclesSealRequest(name="cycle", request_id="settled-seal")])
         self.assertEqual(cycle.phase, "Sealed")
 
-    async def test_cycle_seal_waits_for_completion_and_surfaces_materialization_failure(self) -> None:
+    async def test_archived_cycle_seal_waits_for_completion_and_surfaces_materialization_failure(self) -> None:
+        self.archived_cycle = True
         cycle = await self.client.cycles.get("cycle")
         self.seal_release.clear()
         pending = asyncio.create_task(cycle.seal())
@@ -437,6 +446,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.seal_release.set()
         await pending
         self.assertTrue(cycle._summary.sealed)
+        self.assertTrue(cycle._summary.archived)
         self.seal_failure = True
         with self.assertRaises(SdkError):
             await cycle.seal()

@@ -15,7 +15,7 @@
 
 import * as rpc from "@/lib/host/client";
 import { required } from "@/lib/rpc/canonical";
-import { CyclePhase, ExecutionMode, ExecutionParameterSet } from "@host/model";
+import { ArchiveScope, CyclePhase, ExecutionMode, ExecutionParameterSet } from "@host/model";
 import { type NativeExecution, mapNativeExecution } from "./native-execution-projection";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -100,7 +100,7 @@ export async function cancelNativeTestExecution(session: SessionIdentity, execut
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
   const admitted = await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
   if (required(admitted.cycle, "Seal Cycle Admission").sealed) return;
-  const completion = await rpc.cyclesWatch(session, { selection: { cycleIds: [cycleId] } });
+  const completion = await rpc.cyclesWatch(session, { selection: { cycleIds: [cycleId] }, filter: { archive: ArchiveScope.ALL } });
   try {
     for await (const frame of completion) {
       if (frame.resyncRequired) throw new Error(frame.resyncRequired.message);

@@ -22,6 +22,7 @@ import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import {
+  ArchiveScope,
   CyclePhase,
   ExecutionMode,
   ExecutionState,
@@ -181,21 +182,25 @@ test("Durable Stop Seal", async () => {
   assert.ok(fixture.seal.mock.calls[0][1].requestId);
 });
 
-test("Cycle Seal Awaits Completion and Raises Materialization Failure", async () => {
-  fixture.seal.mockResolvedValue({ cycle: { cycleId: "cycle", phase: CyclePhase.SEALING } });
+test("Archived Cycle Seal Awaits Completion and Raises Materialization Failure", async () => {
+  fixture.seal.mockResolvedValue({ cycle: { cycleId: "cycle", phase: CyclePhase.SEALING, archived: true } });
   let finish!: () => void;
   const gate = new Promise<void>((resolve) => {
     finish = resolve;
   });
   const cancelled = vi.fn(async () => undefined);
-  fixture.watch.mockResolvedValue({
+  fixture.watch.mockImplementation(async (_identity, request) => ({
     cancel: cancelled,
     async *[Symbol.asyncIterator]() {
+      if (request.filter?.archive !== ArchiveScope.ALL) {
+        yield { cycles: [] };
+        return;
+      }
       yield { cycles: [{ cycleId: "cycle", phase: CyclePhase.SEALING, sealed: false }] };
       await gate;
       yield { cycles: [{ cycleId: "cycle", phase: CyclePhase.SEALED, sealed: true }] };
     },
-  });
+  }));
   let sealed = false;
   const pending = sealNativeTestCycle(session, "cycle").then(() => {
     sealed = true;
