@@ -55,6 +55,8 @@ class Host(Protocol):
 class HostFactory(Protocol):
     async def start(self, story: unittest.IsolatedAsyncioTestCase) -> Host: ...
 
+    def fixture(self, name: str) -> Path: ...
+
 
 class StarterStory(unittest.IsolatedAsyncioTestCase):
     async def test_register_run_seal_and_save_retained_evidence(self) -> None:
@@ -103,7 +105,9 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         # Create the Project Outside the Repository With the Built Command Line.
         repository = Path(__file__).resolve().parents[4]
         timeout = policy.load(repository).deadline("system")
-        binary = repository / "target/debug" / ("dokime.exe" if os.name == "nt" else "dokime")
+        support = Path(__file__).resolve().parents[1] / "support/host.py"
+        factory = cast(HostFactory, runpy.run_path(str(support))["Host"])
+        binary = factory.fixture("dokime")
         directory = Path(tempfile.mkdtemp(prefix="dokime-created-starter-"))
         self.addCleanup(shutil.rmtree, directory)
         project = directory / "created-starter"
@@ -148,8 +152,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(process.returncode, 0, output.decode())
 
         # Start the Product Host and Run the Shipped Client Without Modifying It.
-        support = Path(__file__).resolve().parents[1] / "support/host.py"
-        host = await cast(HostFactory, runpy.run_path(str(support))["Host"]).start(self)
+        host = await factory.start(self)
         environment["DOKIME_REMOTE"] = host.endpoint
         process = await asyncio.create_subprocess_exec(
             "uv",

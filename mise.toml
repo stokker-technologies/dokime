@@ -341,9 +341,22 @@ flag "--profile <profile>" default="dev"
 flag "--prepared"
 '''
 depends = [
+  "test:python:unit --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:python:integration --profile {{usage.profile}} --project tools/python{% if usage.prepared %} --prepared{% endif %}",
   "test:python:integration --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
   "test:python:system --profile {{usage.profile}}{% if usage.prepared %} --prepared{% endif %}",
+]
+
+[tasks."test:python:unit"]
+hide = true
+description = "Test Unit Python"
+usage = '''
+flag "--profile <profile>" default="dev"
+flag "--prepared"
+flag "--select <select>"
+'''
+run = [
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language python{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category unit {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:integration"]
@@ -703,11 +716,6 @@ run = "python tools/python/src/dokime_tools/ci/bootstrap.py --commands"
 hide = true
 description = "Install Selected Native CI Prerequisites"
 run = "python tools/python/src/dokime_tools/ci/bootstrap.py"
-
-[tasks."ci:docs"]
-hide = true
-description = "Check Guide Public Surfaces"
-run = "{{vars.tools}} dokime_tools.ci.docs"
 
 [tasks."ci:send"]
 hide = true

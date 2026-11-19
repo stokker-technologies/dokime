@@ -1,0 +1,78 @@
+# ***
+#
+# dokime-rust-workspace
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+
+"""Prepared SDK Fixture Selection"""
+
+# === Imports === #
+
+# Standard Library Imports
+import os
+import runpy
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest import TestCase
+from unittest.mock import patch
+
+# Third Party Imports
+# Local Imports
+from dokime_tools.build import paths
+
+# Type Checking Imports
+
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
+
+
+class HostFixtureStory(TestCase):
+    def test_sdk_fixture_lookup_uses_prepared_profiles_and_explicit_overrides(self) -> None:
+        root = Path(__file__).resolve().parents[4]
+        host = runpy.run_path(str(root / "sdk/python/tests/support/host.py"))["Host"]
+        extension = ".exe" if os.name == "nt" else ""
+        original = Path.is_file
+        for profile in ("dev", "release"):
+            for name, home in (("dokime-host", "fixtures/host"), ("dokime", "bin")):
+                expected = paths.output(root, "build", profile) / home / f"{name}{extension}"
+
+                def present(path: Path, expected: Path = expected) -> bool:
+                    return path == expected or original(path)
+
+                with (
+                    self.subTest(profile=profile, name=name),
+                    patch.dict(os.environ, {"TEST_PROFILE": profile}),
+                    patch.object(Path, "is_file", present),
+                ):
+                    os.environ.pop("DOKIME_TEST_HOST", None)
+                    os.environ.pop("DOKIME_TEST_CLI", None)
+                    self.assertEqual(host.fixture(name), expected)
+
+        temporary_directory = TemporaryDirectory()
+        try:
+            binary = Path(temporary_directory.name) / f"prepared{extension}"
+            binary.write_bytes(b"prepared")
+            for name, variable in (("dokime-host", "DOKIME_TEST_HOST"), ("dokime", "DOKIME_TEST_CLI")):
+                with patch.dict(os.environ, {"TEST_PROFILE": "release", variable: str(binary)}):
+                    self.assertEqual(host.fixture(name), binary)
+                    binary.unlink()
+                    self.assertRaises(RuntimeError, host.fixture, name)
+                    binary.write_bytes(b"prepared")
+        finally:
+            temporary_directory.cleanup()
+
+
+# === Public Functions === #
+
+# === Private Functions === #
+
+# === Entry Point === #

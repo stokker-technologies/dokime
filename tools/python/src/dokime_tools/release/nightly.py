@@ -14,9 +14,7 @@ import json
 import os
 import re
 import sys
-import tomllib
 import urllib.parse
-from datetime import UTC, datetime
 from pathlib import Path
 
 # isort: split
@@ -73,7 +71,7 @@ def publish(directory: Path, *, release_notes: str | None = None, report: bool =
     if not re.fullmatch(r"[0-9a-f]{40,64}", sha) or not identifier.isdecimal() or context.revision(directory) != sha:
         raise policy.ToolError(f"{TAG} checkout must match the source CI commit")
 
-    source_run = f"[{identifier}]({url})"
+    source_run = f"[run {identifier}]({url})"
     endpoint = f"releases/tags/{TAG}" if github else f"releases/{TAG}"
     previous = registry.provider.document(settings, endpoint, channel=True)
     previous_notes = (previous or {}).get("body" if github else "description", "")
@@ -102,8 +100,8 @@ def complete(directory: Path) -> bool:
     settings = policy.policy(directory, "release")
     sha, identifier, url = _source(settings["provider"] == "github")
     current = registry.provider.document(settings, "releases/tags/nightly", channel=True)
-    identity = f"| CI Run | [{identifier}]({url}) |"
-    if not current or identity not in current.get("body", "").splitlines() or current.get("target_commitish") != sha:
+    identity = rf"(?m)^Built from \[`{sha[:8]}`\]\([^\n)]+/commit/{sha}\) · \[run {identifier}\]\({re.escape(url)}\)$"
+    if not current or not re.search(identity, current.get("body", "")) or current.get("target_commitish") != sha:
         print("A Newer Run Replaced Nightly; Leaving Its Assets And Notes Unchanged")
         return False
     # Reuse The Draft Swap So Report Assets, Index And Checksums Change Together.
@@ -142,7 +140,7 @@ def _github_source() -> tuple[str, str, str]:
 
 
 def _superseded(release: dict | None, identifier: str, field: str) -> bool:
-    previous = re.search(r"(?m)^\| CI Run \| \[([0-9]+)\]", (release or {}).get(field, ""))
+    previous = re.search(r"(?m)^Built from \[`[0-9a-f]{8}`\]\([^\n)]+\) · \[run ([0-9]+)\]\(", (release or {}).get(field, ""))
     return previous is not None and int(previous[1]) > int(identifier)
 
 
@@ -152,40 +150,14 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
     base = "https://github.com" if github else settings.get("api_url", "https://gitlab.com/api/v4").removesuffix("/api/v4")
     project = f"{base}/{repository}"
     commit = f"{project}/commit/{sha}" if github else f"{project}/-/commit/{sha}"
-    subject = policy.execute(directory, ["git", "log", "-1", "--format=%s", sha], capture=True).strip().replace("|", "\\|")
-    version = policy.policy(directory, "version")["value"]
     lines = [
         SUMMARY,
         "",
-        "| | |",
-        "|---|---|",
-        f"| Commit | [`{sha[:8]}`]({commit}) {subject} |",
-        f"| Version | {version} ({PROFILE} profile) |",
+        f"Built from [`{sha[:8]}`]({commit}) · {source_run}",
+        "",
+        "### Use It",
+        "",
     ]
-    manifest = directory / "Cargo.toml"
-    if manifest.is_file():
-        cargo = tomllib.loads(manifest.read_text(encoding="utf-8"))
-        dependencies = {
-            **cargo.get("workspace", {}).get("dependencies", {}),
-            **cargo.get("dependencies", {}),
-        }
-        for name, dependency in sorted(dependencies.items()):
-            if isinstance(dependency, dict) and "git" in dependency:
-                url = dependency["git"].removesuffix(".git")
-                revision = dependency.get("rev")
-                pin = (
-                    f"[`{revision[:8]}`]({url}/commit/{revision})" if revision else dependency.get("tag", dependency.get("branch", "HEAD"))
-                )
-                lines.append(f"| {name.replace('-', ' ').title()} | {pin} (git) |")
-    lines.extend(
-        [
-            f"| Built | {datetime.now(UTC):%Y-%m-%d %H:%M UTC} |",
-            f"| CI Run | {source_run} |",
-            "",
-            "### Use It",
-            "",
-        ]
-    )
     if github:
         lines.extend(
             [
@@ -224,7 +196,7 @@ def _notes(directory: Path, settings: dict, sha: str, source_run: str, previous:
                 ["git", "log", "--format=- %s", "-20", f"{revision}..{sha}"],
                 capture=True,
             )
-            lines.extend(["### Changes Since The Previous Build", "", changes.strip(), ""])
+            lines.extend(["### Changes Since the Previous Build", "", changes.strip(), ""])
     lines.append("The tag and source archives identify this build; use the commit link for its permanent revision.")
     return "\n".join(lines) + "\n"
 
