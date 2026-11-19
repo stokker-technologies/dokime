@@ -25,12 +25,12 @@ use std::sync::Arc;
 use std::{error, result, time::Duration};
 
 // Third Party Imports
-use arrow_array::UInt64Array;
+use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
 use harmos_domain::config::SchemaSettings;
 use harmos_domain::journal::Position;
 use harmos_domain::schema::{Described, graph::Schema};
 use harmos_domain::{Identified, Message};
-use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
+use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnPredicate, ColumnSource};
 use harmos_query::index::{IndexDefinition, IndexRead};
 use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
 use harmos_storage::execution::Execution;
@@ -41,7 +41,7 @@ use harmos_storage::{
     FileChunk, FileMetadata, Identifier, ObjectPoint, ObjectVersion, PayloadEncoding, ReadLimits, RecoveryPosition, ScanPage, SchemaKey,
     StorageBatch, StorageCursor, StorageSchema, StoreHistory, StoredRecord, StoredRow,
 };
-use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
+use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectEntry, ObjectRetention, ObjectVersionToken, StoredObject};
 use harmos_storage::{StorageFuture, StorageManager, WorkerOwner};
 
 // Local Imports
@@ -166,6 +166,169 @@ async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reope
     assert!(page.complete);
     reopened.primary.delete_snapshot(&snapshot).await?;
     reopened.primary.delete_session().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn administration_prefix_matches_full_scan_at_a_retained_cut_without_rejected_payloads() -> StoryResult {
+    // Store Several Revisions of Mixed Keys in Shared Batches.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let (backends, lease) = Backend::open_with_execution(&store, persisted::catalog(), Execution::default())?;
+    let backend = &backends.primary;
+    backend.create_session().await?;
+    let definition = ObjectDefinition::of::<Administration>();
+    let schema = StorageSchema::new(
+        StorageCursor {
+            history: backend.get_history().clone(),
+            sequence: 1,
+        },
+        definition.schema()?,
+        Arc::new(definition.graph(&Default::default())?),
+    );
+    backend.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
+    let prefixes = ["note:", "note%", "note_", "é/", "view/", "prepared-report/"];
+    let mut entries = Vec::new();
+    let mut expected = Vec::new();
+    for prefix in prefixes {
+        for key in 0..4 {
+            for revision in 0..3 {
+                let value = Administration {
+                    key: format!("{prefix}{key}"),
+                    scope: Scope::Root("prefix-fixture").identifier()?,
+                    payload: vec![key, revision, 255, 0],
+                };
+                let value = persisted::catalog().encode(&value, limits().bytes)?;
+                let position = StorageCursor {
+                    history: backend.get_history().clone(),
+                    sequence: entries.len() as u64 + 2,
+                };
+                if prefix == "note:" && revision == 2 {
+                    expected.push((format!("{prefix}{key}"), value.scope.as_ref().unwrap().to_string(), vec![key, revision, 255, 0]));
+                }
+                entries.push(ObjectEntry {
+                    version: ObjectVersionToken::new(position.clone()),
+                    position,
+                    value,
+                });
+            }
+        }
+    }
+    let at = backend.append_object_revisions(StorageBatch::new(entries.clone())).await?;
+    let snapshot = backend.create_snapshot(&at).await?;
+
+    // Later Revisions Must Not Change the Issued Cut.
+    let mut later = entries[2].clone();
+    later.value = persisted::catalog().encode(
+        &Administration {
+            key: "note:0".into(),
+            scope: Scope::Root("prefix-fixture").identifier()?,
+            payload: vec![0, 99, 255, 0],
+        },
+        limits().bytes,
+    )?;
+    later.position.sequence = at.sequence + 1;
+    later.version = ObjectVersionToken::new(later.position.clone());
+    backend.append_object_revisions(StorageBatch::new(vec![later])).await?;
+    let mut scan = ArrowScan {
+        source: ColumnSource {
+            kind: ColumnKind::Objects,
+            schema: schema.key.clone(),
+        },
+        columns: vec!["payload.key".into(), "_storage.scope".into(), "payload.payload".into()],
+        predicate: None,
+        time: None,
+        start: 0,
+        after: None,
+        limits: ReadLimits {
+            rows: NonZeroUsize::new(2).unwrap(),
+            ..limits()
+        },
+        work: limits(),
+    };
+    let cancel = Cancellation::default();
+    let mut baseline = Vec::new();
+    let mut progression = Vec::new();
+    let mut baseline_payloads = 0;
+    loop {
+        let page = backend.list_column_rows(&snapshot, &scan, &cancel).await?;
+        let keys = page.batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        let scopes = page.batch.column(1).as_any().downcast_ref::<StringArray>().unwrap();
+        let payloads = page.batch.column(2).as_any().downcast_ref::<BinaryArray>().unwrap();
+        baseline.extend(
+            (0..keys.len()).map(|index| (keys.value(index).to_owned(), scopes.value(index).to_owned(), payloads.value(index).to_vec())),
+        );
+        baseline_payloads += page.payload_rows;
+        progression.push(page.next.as_ref().map(|next| next.position));
+        scan.after = page.next;
+        if page.complete {
+            break;
+        }
+    }
+    assert_eq!(baseline.iter().filter(|(key, _, _)| key.starts_with("note:")).cloned().collect::<Vec<_>>(), expected);
+    assert!(progression.len() > scan.limits.rows.get());
+    assert_eq!(baseline_payloads, entries.len());
+
+    // Push the Same Selection into the Durable Key Column.
+    for prefix in prefixes.into_iter().chain(["absent/"]) {
+        // An Absent Prefix Must Work Even When No Payload File Can Be Opened.
+        if prefix == "absent/" {
+            fs::rename(root.path().join("storage.arrow"), root.path().join("held.arrow"))?;
+        }
+        scan.after = None;
+        scan.predicate = Some(ColumnPredicate {
+            column: "_storage.item".into(),
+            lower: None,
+            upper: None,
+            prefix: Some(prefix.into()),
+        });
+        let mut selected = Vec::new();
+        let mut selected_progression = Vec::new();
+        let mut selected_payloads = 0;
+        loop {
+            let page = backend.list_column_rows(&snapshot, &scan, &cancel).await?;
+            let keys = page.batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+            let scopes = page.batch.column(1).as_any().downcast_ref::<StringArray>().unwrap();
+            let payloads = page.batch.column(2).as_any().downcast_ref::<BinaryArray>().unwrap();
+            selected.extend(
+                (0..keys.len()).map(|index| (keys.value(index).to_owned(), scopes.value(index).to_owned(), payloads.value(index).to_vec())),
+            );
+            selected_payloads += page.payload_rows;
+            if page.batch.num_rows() == 0 {
+                assert_eq!(page.payload_rows, 0);
+                assert_eq!(page.bytes_read, 0);
+            }
+            if let Some(next) = &page.next {
+                assert_eq!(next.snapshot, snapshot.token);
+                let mut changed = scan.clone();
+                changed.after = Some(next.clone());
+                changed.predicate.as_mut().unwrap().prefix = Some(format!("{prefix}changed"));
+                assert!(backend.list_column_rows(&snapshot, &changed, &cancel).await.is_err());
+            }
+            selected_progression.push(page.next.as_ref().map(|next| next.position));
+            scan.after = page.next;
+            if page.complete {
+                break;
+            }
+        }
+        let expected = baseline.iter().filter(|(key, _, _)| key.starts_with(prefix)).cloned().collect::<Vec<_>>();
+        assert_eq!(selected, expected);
+        assert_eq!(selected_progression, progression);
+        assert_eq!(selected_payloads, expected.len() * 3);
+        assert!(selected_payloads < baseline_payloads);
+        assert_eq!(snapshot.at, at);
+        if prefix == "absent/" {
+            fs::rename(root.path().join("held.arrow"), root.path().join("storage.arrow"))?;
+        }
+    }
+
+    // Reject the Wrong Column Kind Before Reading Any Payload.
+    scan.after = None;
+    scan.predicate.as_mut().unwrap().column = "payload.payload".into();
+    assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err());
+    backend.delete_snapshot(&snapshot).await?;
+    backend.delete_session().await?;
+    drop(lease);
     Ok(())
 }
 
