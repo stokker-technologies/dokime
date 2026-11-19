@@ -16,6 +16,7 @@ import unittest
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from hashlib import sha256
+from uuid import UUID
 
 # Third Party Imports
 from google.protobuf.message import Message
@@ -335,10 +336,18 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decode(request.plan.selections[0].parameters[0].value.values[0]), 2**64 - 1)
         self.assertEqual(request.plan.selections[0].files[0].value.kind.WhichOneof("kind"), "clear")
         execution = await cycle.execution(cases[0], request_id="execution-id")
-        self.assertEqual(
-            self.trace[-1],
-            executions_pb2.ExecutionsCreateRequest(parent="cycle", executions=[{"case_id": "case"}], request_id="execution-id"),
-        )
+        request = self.trace[-1]
+        assert isinstance(request, executions_pb2.ExecutionsCreateRequest)
+        self.assertEqual(request.parent, "cycle")
+        self.assertEqual(request.executions[0].case_id, "case")
+        self.assertEqual(request.request_id, "execution-id")
+        self.assertEqual(str(UUID(request.executions[0].execution_id)), request.executions[0].execution_id)
+        await cycle.execution(cases[0], request_id="execution-id")
+        self.assertEqual(self.trace[-1], request)
+        await cycle.execution(cases[0], request_id="another-execution")
+        another = self.trace[-1]
+        assert isinstance(another, executions_pb2.ExecutionsCreateRequest)
+        self.assertNotEqual(another.executions[0].execution_id, request.executions[0].execution_id)
         await execution.start(request_id="start-id")
         await execution.stop(request_id="stop-id")
         await execution.cancel(request_id="cancel-id")

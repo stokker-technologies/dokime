@@ -77,8 +77,12 @@ Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
 The [Python starter](sdk/python/examples/starter/) contains one uv project with
 a confirmation suite, an echo operation and a client flow. Its host-free
-`uv run python -m unittest` checks the plugin description. The client saves
-sealed evidence under `_output/`; answer its operator question in the desktop:
+`uv run python -m unittest` checks the plugin description. The folder name sets
+its project name, import package and display title: `my-project` becomes
+`my_project` and `My Project`. The client reads `DOKIME_REMOTE` from the
+process environment or the working directory's `.env` and saves sealed evidence
+under `_output/`. Answer its operator question in the desktop or through
+`dokime execution prompt next` and `dokime execution prompt answer`:
 
 ```sh
 mise -C sdk/python run build

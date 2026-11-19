@@ -16,7 +16,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, 
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 # Third Party Imports
 import harmos
@@ -578,7 +578,13 @@ class Cycle:
         reply = await call(
             "executions.create",
             self._client._transport.executions.create(
-                self.identifier, [client_types.ExecutionBinding(case_id=case.identifier)], request_id=identity
+                self.identifier,
+                [
+                    client_types.ExecutionBinding(
+                        case_id=case.identifier, execution_id=str(uuid5(NAMESPACE_URL, f"dokime/execution/{self.identifier}/{identity}"))
+                    )
+                ],
+                request_id=identity,
             ),
             identity,
         )

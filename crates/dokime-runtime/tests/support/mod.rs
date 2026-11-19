@@ -96,12 +96,14 @@ impl PythonPlugin {
             .kill_on_drop(true)
             .spawn()?;
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        let url = lines.next_line().await?.ok_or("Start Python Thermal Plugin: No Readiness Event")?;
+        let ready = lines.next_line().await?.ok_or("Start Python Thermal Plugin: Read Its Listener Announcement")?;
+        let address = ready.strip_prefix("harmos listening ").ok_or("Start Python Thermal Plugin: Announce Its Bound Listener")?;
+        let url = format!("http://{address}");
         Ok(Self { child, url })
     }
     pub async fn close(mut self) -> Result<(), Box<dyn Error>> {
-        drop(self.child.stdin.take());
-        assert!(self.child.wait().await?.success());
+        self.child.kill().await?;
+        self.child.wait().await?;
         Ok(())
     }
 }

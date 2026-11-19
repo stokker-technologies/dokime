@@ -45,6 +45,7 @@ class Host:
         self._client: Client | None = None
         self.process: Process | None = None
         self.binary: str | None = None
+        self.endpoint = ""
         self.environment = dict(os.environ)
         self.flags = 0x08000000 if os.name == "nt" else 0
 
@@ -150,6 +151,7 @@ class Host:
         url = (await host.process.stdout.readline()).decode().strip()
         if not url.startswith("http://127.0.0.1:"):
             raise RuntimeError("Start SDK Host: The Host Exited Before Announcing Its Listener")
+        host.endpoint = url
         host._client = await connect(url)
         return host
 

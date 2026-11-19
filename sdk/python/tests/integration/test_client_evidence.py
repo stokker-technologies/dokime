@@ -51,6 +51,10 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
         owner = self
         types = FileDescriptorSet()
         BoolValue.DESCRIPTOR.file.CopyToProto(types.file.add())
+        # Native Descriptors Omit Synthesized JSON Names.
+        for message in types.file[0].message_type:
+            for field in message.field:
+                field.ClearField("json_name")
         digest = sha256(types.SerializeToString()).digest()
         binding = executions_pb2.FrozenSchemas(
             digest=digest,

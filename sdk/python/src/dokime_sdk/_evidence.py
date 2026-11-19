@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
 
 # Third Party Imports
 from google.protobuf.descriptor_pb2 import DescriptorProto
-from google.protobuf.message import DecodeError
+from google.protobuf.message import DecodeError, Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import PageRequest, ReadCut
 
@@ -372,13 +372,24 @@ async def _decode[T: Payload](execution: "Execution | None", name: str, payload:
     if row_type is None:
         return cast(T, value)
     expected = message_type(row_type)
-    frozen = DescriptorProto()
-    value.DESCRIPTOR.CopyToProto(frozen)
-    declared = DescriptorProto()
-    expected.DESCRIPTOR.CopyToProto(declared)
+    frozen = _message_definition(type(value))
+    declared = _message_definition(expected)
     if value.DESCRIPTOR.full_name != expected.DESCRIPTOR.full_name or frozen != declared:
         raise invalid("evidence.decode", "The Frozen Message Binding Differs from the Declared Row Type")
     return unpack(row_type, expected.FromString(payload))
+
+
+def _message_definition(message_type: type[Message]) -> DescriptorProto:
+    descriptor = message_type.DESCRIPTOR
+    definition = DescriptorProto()
+    descriptor.CopyToProto(definition)
+    pending = [(definition, descriptor)]
+    while pending:
+        message, source = pending.pop()
+        for field in message.field:
+            field.json_name = source.fields_by_name[field.name].json_name
+        pending.extend((nested, source.nested_types_by_name[nested.name]) for nested in message.nested_type)
+    return definition
 
 
 def _nanoseconds(timestamp: Timestamp) -> int:

@@ -11,12 +11,19 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
+import json
+import os
 import runpy
+import shutil
+import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol, cast
 from zipfile import ZipFile
+
+from dokime_tools.test import policy
 
 # Third Party Imports
 from starter_project.plugin import ExamplePlugin
@@ -37,6 +44,8 @@ from dokime_sdk import Client, PromptAnswer, PromptQuestion, ResultStatus
 
 
 class Host(Protocol):
+    endpoint: str
+
     @property
     def client(self) -> Client: ...
 
@@ -77,6 +86,143 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(archive.namelist())
             self.assertIsNone(archive.testzip())
         finally:
+            archive.close()
+
+    async def test_created_project_runs_unmodified_client_and_saves_host_archive(self) -> None:
+        # Create the Project Outside the Repository With the Built Command Line.
+        repository = Path(__file__).resolve().parents[4]
+        timeout = policy.load(repository).deadline("system")
+        binary = repository / "target/debug" / ("dokime.exe" if os.name == "nt" else "dokime")
+        directory = Path(tempfile.mkdtemp(prefix="dokime-created-starter-"))
+        self.addCleanup(shutil.rmtree, directory)
+        project = directory / "created-starter"
+        environment = dict(os.environ)
+        environment.pop("UV_PROJECT_ENVIRONMENT", None)
+        environment.pop("VIRTUAL_ENV", None)
+        flags = 0x08000000 if os.name == "nt" else 0
+        process = await asyncio.create_subprocess_exec(
+            str(binary),
+            "new",
+            str(project),
+            "--lang",
+            "python",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=environment,
+            creationflags=flags,
+        )
+        output, _ = await asyncio.wait_for(process.communicate(), timeout)
+        self.assertEqual(process.returncode, 0, output.decode())
+
+        # Resolve This Worktree's SDK Only in the Disposable Consumer.
+        manifest = project / "pyproject.toml"
+        source = json.dumps(str(repository / "sdk/python"))
+        manifest.write_text(manifest.read_text() + f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n")
+        for arguments in [
+            ("sync", "--refresh-package", "dokime-sdk"),
+            ("run", "ruff", "check"),
+            ("run", "ruff", "format", "--check"),
+            ("run", "ty", "check"),
+        ]:
+            process = await asyncio.create_subprocess_exec(
+                "uv",
+                *arguments,
+                cwd=project,
+                env=environment,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                creationflags=flags,
+            )
+            output, _ = await asyncio.wait_for(process.communicate(), timeout)
+            self.assertEqual(process.returncode, 0, output.decode())
+
+        # Start the Product Host and Run the Shipped Client Without Modifying It.
+        support = Path(__file__).resolve().parents[1] / "support/host.py"
+        host = await cast(HostFactory, runpy.run_path(str(support))["Host"]).start(self)
+        environment["DOKIME_REMOTE"] = host.endpoint
+        process = await asyncio.create_subprocess_exec(
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "created_starter",
+            cwd=project,
+            env=environment,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            creationflags=flags,
+        )
+        completed = asyncio.create_task(process.communicate())
+        try:
+            # Observe the Pending Prompt, Then Answer Through the Operator Command.
+            watch = host.client._transport.prompts.watch("", True)
+            next_frame = None
+            try:
+                while True:
+                    next_frame = asyncio.create_task(anext(watch))
+                    done, _ = await asyncio.wait((next_frame, completed), timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+                    self.assertTrue(done, "Answer Starter Prompt: Inspect the Host for a Missing Prompt")
+                    if completed in done:
+                        output, _ = completed.result()
+                        self.fail(f"Run Starter: Client Exited Before Its Prompt: {output.decode()}")
+                    frame = next_frame.result()
+                    self.assertFalse(frame.HasField("resync_required"))
+                    pending = [view.prompt for view in frame.prompts if not view.HasField("response")]
+                    if pending:
+                        execution_id = pending[0].scope.execution_id
+                        break
+            finally:
+                if next_frame is not None:
+                    next_frame.cancel()
+                    await asyncio.gather(next_frame, return_exceptions=True)
+                await watch.aclose()
+            answer = await asyncio.create_subprocess_exec(
+                str(binary),
+                "--endpoint",
+                host.endpoint,
+                "execution",
+                "prompt",
+                "answer",
+                execution_id,
+                "--action",
+                "0",
+                "--accepted",
+                env=environment,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                creationflags=flags,
+            )
+            output, _ = await asyncio.wait_for(answer.communicate(), timeout)
+            self.assertEqual(answer.returncode, 0, output.decode())
+            output, _ = await asyncio.wait_for(completed, timeout)
+            self.assertEqual(process.returncode, 0, output.decode())
+        finally:
+            if process.returncode is None:
+                process.kill()
+            await process.wait()
+            await asyncio.gather(completed, return_exceptions=True)
+
+        # Verify Seals and Compare Every Saved Archive Member With the Host Archive.
+        execution = await host.client.executions.get(execution_id)
+        self.assertEqual((await execution.seal()).status, ResultStatus.PASSED)
+        detail = await host.client._transport.executions.get(execution_id)
+        self.assertTrue(detail.execution.seal)
+        cycle = await host.client.cycles.get(execution.cycle.identifier)
+        detail = await host.client._transport.cycles.get(cycle.identifier)
+        self.assertTrue(detail.cycle.sealed)
+        saved = project / "_output" / f"{cycle.identifier}.zip"
+        self.assertTrue(saved.is_file())
+        archive = ZipFile(saved)
+        retained = ZipFile(BytesIO(await cycle.evidence()))
+        try:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(archive.namelist(), retained.namelist())
+            self.assertIn("manifest.json", archive.namelist())
+            for name in archive.namelist():
+                self.assertEqual(archive.read(name), retained.read(name), name)
+            print(f"Created Starter Archive: {archive.namelist()}")
+        finally:
+            retained.close()
             archive.close()
 
 

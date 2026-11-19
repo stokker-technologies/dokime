@@ -168,7 +168,15 @@
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
-- [ ] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
+- [x] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
 
 - [x] Substitute Python Starter Display Titles With Style-Guide Title Case and Prove Name, Package and Display Substitution.
 - [x] Run Both Python First-Hour Journeys Through Product Development Commands Instead of a Hand-Launched Listener.
+
+- [x] Supply Replay-Stable Execution UUIDs From Bound Python Handles and Prove Native Descriptor Readback With Synthesized JSON Names.
+- [x] Return Frozen Admitted Suite and Template Metadata From Host Execution Readback; Prove Reopened Python Declaration Queries.
+- [x] Run the Unmodified Created Python Client With CLI Prompt Answers, Execution and Cycle Seals, and Member-Identical Host Archives.
+- [x] Run the Shared Capture Through a Product Host in All Four Languages While Retaining Their Current Authoring Surfaces.
+- [x] Refresh the Owner's Scratch Python Project From the Shipped Starter and Leave Its Validated Evidence Archive Under `_output/`.
+- [ ] Reconcile Python's Locked Nonnegative Retry Backoff With the Pinned Host's Positive-Only Policy Before NativeAuthoringStory and Both Python Thermal Runtime Stories Can Pass; Do Not Invent an Adapter Delay.
+- [ ] Resolve the Plugin Class Identity Override Versus Resolved Instance Readback: the Unmodified Reference Client Currently Prints `Plugin None Is Ready`.
