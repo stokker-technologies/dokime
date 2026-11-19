@@ -203,6 +203,8 @@
     - [ ] Pass Native Windows SDK Units, SDK Integration/Capture Tests, CLI Units/Stories, Formatting, Scoped/Workspace Compilation, Generated-Surface Checking, Repository Checking and Final All-Target Rust Lint on the Combined Candidate.
 
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
+  - [x] Prove the Created C# Starter Through Build, Bundle, Inspect, Headless Development, Its Unmodified Client and a Timestamped Retained Evidence Archive.
+  - [ ] Resolve the Duplicate Artifact Upload and Story Listener Owners Listed in the Design's Overlap Inventory Before Removing Either Implementation.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
   - [x] Introduce Root Plugin/Suite Classes and Separate Operation/Template Context Homes, Explicit Suite/Template Composition, Type-Derived Identities and Product Description Values; Remove the Single-Template Shortcut and Public Carrier Context Access.
   - [x] Implement UTF-8 Working-Directory Dotenv Parsing, Per-Key Address Precedence and Private Managed-Launch Precedence Without Process-Environment Mutation.
@@ -211,7 +213,8 @@
   - [ ] Complete the Remaining Authoring Capability Inventory, Context Notes, Typed Stream Subscription and Automatic Peer Requirements Without Serial Admission or Settings Groups.
   - [x] Adopt the Library-Owned Addressable, Closeable C++ Listener for Plugin Registration; Do Not Copy the Server or Add Address Polling.
   - [x] Implement Connection/Pairing, Bound Case/Cycle/Execution Host Compositions, Lazy Run/Watch, Stable Seal Outcomes, Verified Evidence, Fixed-Cut Typed Readers, Controls, Prompt Answers and Structured Client Failures; Internalize Transfer Helpers.
-  - [ ] Complete Registration-Owned Template Bindings and Listener Cleanup and Bind Managed Bundle Upload After the Carrier Listener and Product Installation Contracts Land.
+  - [x] Complete Registration-Owned Template Bindings and Listener Cleanup Through the Library-Owned Listener.
+  - [ ] Bind Managed Bundle Upload After the Product Installation Contract Lands.
   - [x] Replace Both C++ Starter Roots With the Requested Single Two-Executable Project, Native Static Manifest Metadata and the Unmodified Bound-Client Flow; Migrate the C++ CLI Embedding Functions.
   - [ ] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
   - [ ] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
