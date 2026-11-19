@@ -69,5 +69,5 @@ cycle state owns commitment. No upstream capability is required.
 
 ## 4. Validation and Delivery
 
-- [ ] 4.1 Focused host, desktop and command-line proof of every scenario.
+- [x] 4.1 Focused host, desktop and command-line proof of every scenario.
 - [ ] 4.2 Hosted validation after delivery.

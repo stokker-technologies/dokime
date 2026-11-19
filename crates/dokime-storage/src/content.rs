@@ -530,13 +530,13 @@ fn evidence_projection(archive: &ArchivedExecution) -> Result<BTreeMap<String, s
     if let Some(outcome) = &execution.outcome {
         kinds.get_mut("outcome").unwrap().push(project_message("dokime.host.v1.ExecutionOutcome", &outcome.encode_to_vec())?);
     }
-    if let Some(origin::Kind::PluginRun(run)) = execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-        if let Some(case) = &run.test_case {
-            kinds
-                .get_mut("parameters")
-                .unwrap()
-                .push(project_message("dokime.model.v1.MapValue", &MapValue { values: case.parameters.clone() }.encode_to_vec())?);
-        }
+    if let Some(origin::Kind::PluginRun(run)) = execution.origin.as_ref().and_then(|origin| origin.kind.as_ref())
+        && let Some(case) = &run.test_case
+    {
+        kinds
+            .get_mut("parameters")
+            .unwrap()
+            .push(project_message("dokime.model.v1.MapValue", &MapValue { values: case.parameters.clone() }.encode_to_vec())?);
     }
     Ok(kinds.into_iter().map(|(kind, values)| (kind, serde_json::Value::Array(values))).collect())
 }
@@ -679,7 +679,7 @@ mod tests {
         let ids = ["z-first", "a-second", "n-never-started"];
         store.save_cycle(&CycleSummary {
             cycle_id: "cycle".into(),
-            updated_at: Some(time.clone()),
+            updated_at: Some(time),
             ..Default::default()
         })?;
         for (index, id) in ids.iter().enumerate() {
@@ -692,7 +692,7 @@ mod tests {
                         plugin: "plugin".into(),
                         template: "confirmation".into(),
                         digest: vec![1],
-                        started_at: Some(time.clone()),
+                        started_at: Some(time),
                         test_case: Some(TestCase::default()),
                     })),
                 }),
@@ -798,7 +798,7 @@ mod tests {
                     seconds: time.seconds + (suffix[..2].parse::<i64>().unwrap() - 1) * 2,
                     nanos: 0,
                 },
-                _ => time.clone(),
+                _ => time,
             };
             assert_eq!(
                 entry.last_modified(),
@@ -867,7 +867,7 @@ mod tests {
             payload: value.encode_to_vec(),
             ..Default::default()
         };
-        let criterion = CriteriaEvaluateResponse { passed: true, ..Default::default() };
+        let criterion = CriteriaEvaluateResponse { passed: true };
         let prompt = PromptsCreateRequest {
             prompt: "confirm".into(),
             ..Default::default()

@@ -202,7 +202,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           })
         : null;
     previousActive.current = activeExecutionId;
-    if (target) onSelectionChange({ executionId: target });
+    if (target) {
+      onSelectionChange({ executionId: target });
+    }
   }, [activeExecutionId, executionId, followActive, live, onSelectionChange, selectedStatus, selection]);
 
   /* A command reports what happened, not what was attempted: the operator
@@ -286,7 +288,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           ? () =>
               run({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
                 const created = await rerunCase.rerun(selectedRow.case.caseId);
-                if (created) onSelectionChange({ executionId: created });
+                if (created) {
+                  onSelectionChange({ executionId: created });
+                }
               })
           : null,
       rerunRefusal: plan.test_cycle.phase === "active" ? undefined : "Only Active Cycles Accept New Attempts",
@@ -516,7 +520,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           description="The cycle's own settings. Continuation starts the next unstarted execution after one completes, whatever its verdict."
           onOpenChange={setSettingsOpen}
           onSubmit={async (values) => {
-            if (values.title !== plan.test_cycle.title) await commands.renameCycle.mutateAsync(values.title);
+            if (values.title !== plan.test_cycle.title) {
+              await commands.renameCycle.mutateAsync(values.title);
+            }
             if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
               await commands.updatePolicy.mutateAsync({ continueAutomatically: values.continueAutomatically });
             }
@@ -546,7 +552,9 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
             <Button
               disabled={confirmPending}
               onClick={() => {
-                if (!confirm || !confirming) return;
+                if (!confirm || !confirming) {
+                  return;
+                }
                 const kind = confirm.kind;
                 setConfirm(null);
                 run({ done: confirming.done, failed: confirming.failed }, async () => {

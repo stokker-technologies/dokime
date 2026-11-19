@@ -134,23 +134,17 @@ pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<
                 .ok_or_else(|| Error::Precondition("Delete File: Restore Its Stored Scope".into()))?;
             for scope in scopes.iter().flatten() {
                 let Some((kind, owner)) = scope.split_once('/') else { continue };
-                match kind {
-                    "cycle" | "cycle-seal" => {
-                        if context
-                            .host
-                            .store()
-                            .client_cycle(owner)?
-                            .is_some_and(|cycle| cycle.sealed || cycle.phase == CyclePhase::Sealing as i32)
-                        {
-                            return Ok(true);
-                        }
-                    }
-                    "execution" => {
-                        if context.host.store().metadata(owner)?.state != ExecutionState::Open {
-                            return Ok(true);
-                        }
-                    }
-                    _ => {}
+                let sealed = match kind {
+                    "cycle" | "cycle-seal" => context
+                        .host
+                        .store()
+                        .client_cycle(owner)?
+                        .is_some_and(|cycle| cycle.sealed || cycle.phase == CyclePhase::Sealing as i32),
+                    "execution" => context.host.store().metadata(owner)?.state != ExecutionState::Open,
+                    _ => false,
+                };
+                if sealed {
+                    return Ok(true);
                 }
                 execution_owned |= kind == "execution" || kind == "cycle";
             }

@@ -190,63 +190,58 @@ pub(crate) fn prepare(
     })
 }
 
-pub(crate) fn render<'a>(
-    context: &'a Context, request: &'a ReportsCreateRequest,
-) -> Pin<Box<dyn Future<Output = Result<(PreparedReport, ArchivedNativeFile)>> + Send + 'a>> {
-    Box::pin(async move {
-        let name = format!("prepared-report/{}", request.request_id);
-        let (capture, resolved_at, prepared) = Box::pin(capture::collect(context, request)).await?;
-        let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
-        let phase = Instant::now();
-        let template = context.host.report_template();
-        let marker = b"<!-- DOKIME_REPORT_DATA -->";
-        let insertion = template
-            .windows(marker.len())
-            .position(|window| window == marker)
-            .ok_or_else(|| Error::Invalid("Create Report: Rebuild the Template with `mise run generate`".into()))?;
-        let data = STANDARD.encode(capture.encode_to_vec());
-        tracing::debug!(phase = "serialization", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
-        let phase = Instant::now();
-        let mut file = tempfile::NamedTempFile::new()
-            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
-        file.write_all(&template[..insertion])
-            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
-        file.write_all(data.as_bytes()).map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
-        file.write_all(&template[insertion + marker.len()..])
-            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
-        file.rewind().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
-        let (retained, length, digest) = crate::host::content::transfer::temporary(
-            file.reopen().map_err(|source| Error::Invalid(format!("Create Report: Read Its Temporary HTML: {source}")))?,
-        )?;
-        drop(retained);
-        let retained = file.into_temp_path();
-        tracing::debug!(phase = "template", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
-        let digest =
-            (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
-        let scope = match &metadata.test_execution_id {
-            Some(execution) => Scope::Execution(execution),
-            None => Scope::Cycle(&metadata.test_cycle_id),
-        }
-        .identifier()?;
-        let mut prepared = prepared.unwrap_or_default();
-        prepared.response = Some(ReportsCreateResponse {
-            report: Some(metadata),
-            resolved_at: Some(resolved_at),
+pub(crate) async fn render(context: &Context, request: &ReportsCreateRequest) -> Result<(PreparedReport, ArchivedNativeFile)> {
+    let name = format!("prepared-report/{}", request.request_id);
+    let (capture, resolved_at, prepared) = Box::pin(capture::collect(context, request)).await?;
+    let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
+    let phase = Instant::now();
+    let template = context.host.report_template();
+    let marker = b"<!-- DOKIME_REPORT_DATA -->";
+    let insertion = template
+        .windows(marker.len())
+        .position(|window| window == marker)
+        .ok_or_else(|| Error::Invalid("Create Report: Rebuild the Template with `mise run generate`".into()))?;
+    let data = STANDARD.encode(capture.encode_to_vec());
+    tracing::debug!(phase = "serialization", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
+    let mut file =
+        tempfile::NamedTempFile::new().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+    file.write_all(&template[..insertion])
+        .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+    file.write_all(data.as_bytes()).map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+    file.write_all(&template[insertion + marker.len()..])
+        .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+    file.rewind().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+    let (retained, length, digest) = crate::host::content::transfer::temporary(
+        file.reopen().map_err(|source| Error::Invalid(format!("Create Report: Read Its Temporary HTML: {source}")))?,
+    )?;
+    drop(retained);
+    let retained = file.into_temp_path();
+    tracing::debug!(phase = "template", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let digest = (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
+    let scope = match &metadata.test_execution_id {
+        Some(execution) => Scope::Execution(execution),
+        None => Scope::Cycle(&metadata.test_cycle_id),
+    }
+    .identifier()?;
+    let mut prepared = prepared.unwrap_or_default();
+    prepared.response = Some(ReportsCreateResponse {
+        report: Some(metadata),
+        resolved_at: Some(resolved_at),
+        ..Default::default()
+    });
+    let reference = FileReference {
+        metadata: Some(FileMetadata {
+            id: name,
+            scope: Some(scope.to_string()),
+            media_type: "text/html".into(),
             ..Default::default()
-        });
-        let reference = FileReference {
-            metadata: Some(FileMetadata {
-                id: name,
-                scope: Some(scope.to_string()),
-                media_type: "text/html".into(),
-                ..Default::default()
-            }),
-            length,
-            sha256: digest,
-            ..Default::default()
-        };
-        Ok((prepared, ArchivedNativeFile { path: retained, reference }))
-    })
+        }),
+        length,
+        sha256: digest,
+        ..Default::default()
+    };
+    Ok((prepared, ArchivedNativeFile { path: retained, reference }))
 }
 
 /* === Private Functions === */
