@@ -7,7 +7,7 @@
  * ***
  */
 
-// Validate Installer Organization Inputs
+// Validate Organization Update Policy
 
 /* === Modules === */
 
@@ -166,3 +166,5 @@ fn validate_name(value: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+/* === Tests === */

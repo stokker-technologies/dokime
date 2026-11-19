@@ -7,7 +7,7 @@
  * ***
  */
 
-// Validate Installer Organization Inputs
+// Fabricate Installer Inputs
 
 /* === Modules === */
 

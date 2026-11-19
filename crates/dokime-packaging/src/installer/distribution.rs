@@ -50,8 +50,10 @@ pub struct Distribution {
     pub schema: u32,
     pub version: String,
     pub target: String,
+
     #[serde(skip)]
     pub identity: Identity,
+
     pub files: BTreeMap<String, String>,
 }
 

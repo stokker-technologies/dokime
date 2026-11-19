@@ -7,7 +7,7 @@
  * ***
  */
 
-// Validate Installer Organization Inputs
+// Stage Native Unix Executables
 
 /* === Modules === */
 

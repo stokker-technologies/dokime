@@ -136,6 +136,7 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
     let label =
         app.get("label").and_then(toml::Value::as_str).ok_or_else(|| Error::Invalid("Set app.label in organization.toml".into()))?;
     super::native::validate_label(label)?;
+    validate_appearance(app, &pack)?;
     if let Some(artwork) = app.get("artwork") {
         let artwork = artwork.as_table().ok_or_else(|| Error::Invalid("Use an app.artwork Table".into()))?;
         for (role, value) in artwork {
@@ -160,14 +161,84 @@ pub(super) fn read(directory: &Path) -> Result<ResolvedPack, Error> {
         let logos = logos.as_table().ok_or_else(|| Error::Invalid("Use an app.logos Table".into()))?;
         for group in logos.values() {
             for value in group.as_table().ok_or_else(|| Error::Invalid("Use Logo Variant Tables".into()))?.values() {
+                let name = value.as_str().ok_or_else(|| Error::Invalid("Set Logo Paths to Strings".into()))?;
+                let extension = Path::new(name).extension().and_then(|extension| extension.to_str());
+                if !matches!(extension, Some("svg" | "png")) {
+                    return Err(Error::Invalid("Supply SVG or PNG Organization Logos".into()));
+                }
                 asset(&pack, value)?;
             }
+        }
+    }
+    for name in ["theme/typography.css", "theme/base.css", "theme/light.css", "theme/dark.css"] {
+        if let Some(bytes) = pack.files.get(name) {
+            let css = str::from_utf8(bytes).map_err(|_| Error::Invalid(format!("Save {name} as UTF-8")))?;
+            validate_stylesheet(&pack, name, css)?;
         }
     }
     Ok(pack)
 }
 
 /* === Private Functions === */
+
+fn validate_appearance(app: &toml::map::Map<String, toml::Value>, pack: &ResolvedPack) -> Result<(), Error> {
+    if app.get("title_template").is_some_and(|value| !value.is_str()) {
+        return Err(Error::Invalid("Set app.title_template to a String".into()));
+    }
+    if let Some(value) = app.get("organization") {
+        let organization = value.as_table().ok_or_else(|| Error::Invalid("Use an app.organization Table".into()))?;
+        if organization.get("name").is_none_or(|value| !value.is_str()) {
+            return Err(Error::Invalid("Set app.organization.name to a String".into()));
+        }
+        for key in ["unit", "website"] {
+            if organization.get(key).is_some_and(|value| !value.is_str()) {
+                return Err(Error::Invalid(format!("Set app.organization.{key} to a String")));
+            }
+        }
+    }
+    if let Some(value) = pack.manifest.get("theme") {
+        let theme = value.as_table().ok_or_else(|| Error::Invalid("Use a theme Table".into()))?;
+        if let Some(value) = theme.get("corner_radii") {
+            let radii = value.as_table().ok_or_else(|| Error::Invalid("Use a theme.corner_radii Table".into()))?;
+            if radii.values().any(|value| !value.is_str()) {
+                return Err(Error::Invalid("Set Theme Corner Radii to Strings".into()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_stylesheet(pack: &ResolvedPack, name: &str, css: &str) -> Result<(), Error> {
+    let mut source = String::new();
+    let mut rest = css;
+    while let Some(start) = rest.find("/*") {
+        source.push_str(&rest[..start]);
+        let end = rest[start + 2..].find("*/").ok_or_else(|| Error::Invalid(format!("Close the Comment in {name}")))?;
+        rest = &rest[start + 2 + end + 2..];
+    }
+    source.push_str(rest);
+    if source.to_ascii_lowercase().contains("@import") {
+        return Err(Error::Invalid(format!("Inline Imported Stylesheets in {name}")));
+    }
+    let mut rest = source.as_str();
+    while let Some(start) = rest.to_ascii_lowercase().find("url(") {
+        let after = &rest[start + 4..];
+        let end = after.find(')').ok_or_else(|| Error::Invalid(format!("Close the url() Reference in {name}")))?;
+        let path = after[..end].trim().trim_matches(['\"', '\'']).trim();
+        if !path.starts_with("data:") {
+            let extension = Path::new(path).extension().and_then(|extension| extension.to_str());
+            if !matches!(extension, Some("woff2" | "svg" | "png")) {
+                return Err(Error::Invalid(format!("Use Pack-Relative WOFF2, SVG or PNG References in {name}")));
+            }
+            distribution::relative(path)?;
+            if !pack.files.contains_key(path) {
+                return Err(Error::Invalid(format!("Add {path} Referenced by {name} to the Pack")));
+            }
+        }
+        rest = &after[end + 1..];
+    }
+    Ok(())
+}
 
 fn validate_updates(value: &toml::Value) -> Result<(), Error> {
     let policy: UpdatePolicy =
@@ -218,7 +289,27 @@ mod tests {
             fs::write(root.path().join("organization.toml"), invalid)?;
             assert!(read(root.path()).is_err());
         }
+        for extra in
+            ["[app.organization]\nname=5", "[app.organization]\nname='Example Test Hub'\nunit=5", "[theme.corner_radii]\nbase=false"]
+        {
+            fs::write(root.path().join("organization.toml"), format!("{original}\n{extra}"))?;
+            assert!(read(root.path()).is_err());
+        }
         fs::write(root.path().join("organization.toml"), &original)?;
+        fs::create_dir(root.path().join("theme"))?;
+        for css in [
+            "@import 'outside.css';",
+            "a { src: url(https://example.test/icon.png) }",
+            "a { src: url(../icon.png) }",
+            "a { src: url(missing.png) }",
+            "/* unclosed",
+            "a { src: url(icon.png",
+        ] {
+            fs::write(root.path().join("theme/base.css"), css)?;
+            assert!(read(root.path()).is_err());
+        }
+        fs::write(root.path().join("theme/base.css"), "/* @import and url(missing.png) */ a { background: url(icon.png) }")?;
+        read(root.path())?;
         fs::write(root.path().join("icon.png"), b"not a PNG")?;
         assert!(read(root.path()).is_err());
         Ok(())
