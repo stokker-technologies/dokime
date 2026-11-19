@@ -109,7 +109,7 @@ impl Operation {
             if let Some(policy) = self.policy {
                 operation = operation.policy(policy);
             }
-            plugin.operation(operation)
+            plugin.register(|registrar| registrar.register(operation)).map_err(Error::from)
         }))
     }
 }

@@ -486,7 +486,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
                 worker.run().await?;
-                worker.cleanup().await
+                worker.finalize().await
             });
             Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })
@@ -706,7 +706,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
                 worker.run().await?;
-                worker.cleanup().await
+                worker.finalize().await
             });
             Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })
@@ -828,7 +828,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
                 worker.run().await?;
-                worker.cleanup().await
+                worker.finalize().await
             });
             Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })

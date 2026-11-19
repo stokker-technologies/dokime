@@ -36,6 +36,7 @@ use std::{
     any::{Any, TypeId},
     collections::HashSet,
     env,
+    marker::PhantomData,
     sync::Arc,
 };
 
@@ -53,10 +54,10 @@ use crate::host::Request;
 use crate::message::Wire;
 use crate::operation::{self, Operation};
 use crate::operations;
-use crate::stream::{Registration, Sampler};
+use crate::stream::{self, Sampler};
 use crate::template::validate_names;
 use crate::testing::Selected;
-use crate::{Declarations, Error, Lane, Message, OperationRequest, Result};
+use crate::{Declarations, Error, Lane, Message, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
 
 /* === Constants === */
@@ -64,6 +65,8 @@ use crate::{PromptDefinitions, RecordContracts, Suites};
 /* === Macros === */
 
 /* === Type Aliases === */
+
+type DependencyRegistration = Box<dyn FnOnce(&mut plugin::Registrar<'_>) -> harmos::Result<()> + Send>;
 
 /* === Structs === */
 
@@ -81,22 +84,62 @@ struct Assembly {
     state: Arc<dyn Any + Send + Sync>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
-    inner: plugin::Plugin,
+    dependencies: Vec<DependencyRegistration>,
     suites: Vec<Suite>,
     settings: Vec<SettingDeclaration>,
     secrets: Vec<SecretDeclaration>,
     lanes: Vec<Lane>,
-    registrations: Vec<Registration>,
+    registrations: Vec<stream::Registration>,
     errors: Vec<String>,
-    initialize: Registration,
-    finalize: Registration,
+    initialize: stream::Registration,
+    finalize: stream::Registration,
 }
+
+/// Product Registration Context for Generated Host Dependencies.
+pub struct Registrar<'a> {
+    dependencies: &'a mut Vec<DependencyRegistration>,
+    requirements: &'a mut Vec<&'static str>,
+}
+
+pub struct Dependency<T>(PhantomData<fn() -> T>);
 
 /* === Enums === */
 
 /* === Traits === */
 
+pub trait Registration {
+    fn register(self, registrar: &mut Registrar<'_>) -> Result<()>;
+}
+
 /* === Implementations === */
+
+impl Registrar<'_> {
+    pub fn register<T: Registration>(&mut self, item: T) -> Result<()> {
+        item.register(self)
+    }
+}
+
+impl<T> Dependency<T> {
+    pub fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<T> Default for Dependency<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: Request> Registration for Dependency<T> {
+    fn register(self, registrar: &mut Registrar<'_>) -> Result<()> {
+        if !registrar.requirements.contains(&T::ID) {
+            registrar.requirements.push(T::ID);
+            registrar.dependencies.push(Box::new(|registrar| registrar.register(plugin::Dependency::<Wire<T>>::new())));
+        }
+        Ok(())
+    }
+}
 
 impl Drop for Finalize {
     fn drop(&mut self) {
@@ -131,7 +174,7 @@ impl Plugin {
                 state: Arc::new(()),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
-                inner: plugin::Plugin::new(identifier, version),
+                dependencies: Vec::new(),
                 suites: Vec::new(),
                 settings: Vec::new(),
                 secrets: Vec::new(),
@@ -163,16 +206,24 @@ impl Plugin {
 }
 
 impl Plugin {
-    fn with_requirements(self) -> Self {
+    fn with_requirements(mut self) -> Self {
         if !self.assembly.requirements.is_empty() {
             return self;
         }
-        HostOperation::ALL.into_iter().fold(self, |plugin, operation| plugin.requires_host(operation))
+        let mut registrar = Registrar {
+            dependencies: &mut self.assembly.dependencies,
+            requirements: &mut self.assembly.requirements,
+        };
+        for dependency in HostOperation::ALL {
+            if let Err(error) = registrar.register(dependency) {
+                self.assembly.errors.push(error.to_string());
+            }
+        }
+        self
     }
 
     pub fn identifier(mut self, identifier: impl Into<String>) -> Self {
         self.assembly.identifier = identifier.into();
-        self.assembly.inner = plugin::Plugin::new(&self.assembly.identifier, &self.assembly.version);
         self
     }
     pub fn label(mut self, label: impl Into<String>) -> Self {
@@ -197,17 +248,6 @@ impl Plugin {
             Err(error) => self.assembly.errors.push(error.to_string()),
         }
         self
-    }
-    pub(crate) fn requires_operation<Q: OperationRequest>(mut self) -> Self {
-        if self.assembly.requirements.contains(&Q::ID) {
-            return self;
-        }
-        self.assembly.requirements.push(Q::ID);
-        self.assembly.inner = self.assembly.inner.requires::<Q>();
-        self
-    }
-    pub(crate) fn requires<Q: Request>(self) -> Self {
-        self.requires_operation::<Wire<Q>>()
     }
     pub fn setting(mut self, setting: SettingDeclaration) -> Self {
         self.assembly.settings.push(setting);
@@ -275,12 +315,12 @@ impl Plugin {
     fn assemble(self) -> Result<plugin::Plugin> {
         let Assembly {
             identifier,
-            version: _,
+            version,
             label: _,
             state,
             requirements: _,
             samplers: _,
-            mut inner,
+            dependencies,
             suites,
             settings,
             secrets,
@@ -293,6 +333,12 @@ impl Plugin {
         if !errors.is_empty() {
             return Err(Error::Invalid(errors.join("; ")));
         }
+        let mut inner = plugin::Plugin::new(&identifier, version).register(|registrar| {
+            for dependency in dependencies {
+                dependency(registrar)?;
+            }
+            Ok(())
+        })?;
         for lane in lanes {
             inner = inner.lane(lane);
         }
@@ -334,7 +380,7 @@ impl Plugin {
             .filter_map(|secret| secret.metadata.as_ref().map(|metadata| metadata.identifier.clone()))
             .collect::<HashSet<_>>();
         if !secrets.is_empty() {
-            inner = inner.section(Wire(SecretsDeclarations { secrets }));
+            inner = inner.register(|registrar| registrar.register(plugin::Contribution(Wire(SecretsDeclarations { secrets }))))?;
         }
         let executions = Executions::new(state, secret_names);
         let mut definitions = Vec::new();
@@ -347,22 +393,22 @@ impl Plugin {
             definitions.push(suite.definition);
         }
         if !definitions.is_empty() {
-            inner = inner.section(Wire(Suites { suites: definitions }));
+            inner = inner.register(|registrar| registrar.register(plugin::Contribution(Wire(Suites { suites: definitions }))))?;
         }
         if !records.is_empty() {
-            inner = inner.section(Wire(RecordContracts { records }));
+            inner = inner.register(|registrar| registrar.register(plugin::Contribution(Wire(RecordContracts { records }))))?;
         }
         if !prompts.is_empty() {
-            inner = inner.section(Wire(PromptDefinitions { prompts }));
+            inner = inner.register(|registrar| registrar.register(plugin::Contribution(Wire(PromptDefinitions { prompts }))))?;
         }
         if !settings.is_empty() {
-            inner = inner.settings(SettingsDeclarations { values: settings });
+            inner = inner.register(|registrar| registrar.register(SettingsDeclarations { values: settings }))?;
         }
         for register in registrations {
-            inner = register(inner, executions.clone(), "");
+            inner = register(inner, executions.clone(), "")?;
         }
-        inner = initialize(inner, executions.clone(), &identifier);
-        inner = finalize(inner, executions, &identifier);
+        inner = initialize(inner, executions.clone(), &identifier)?;
+        inner = finalize(inner, executions, &identifier)?;
         inner.declarations()?;
         Ok(inner)
     }
@@ -397,7 +443,7 @@ impl Plugin {
 
 /* === Private Functions === */
 
-fn lifecycle<H>(name: &'static str, handler: H) -> Registration
+fn lifecycle<H>(name: &'static str, handler: H) -> stream::Registration
 where
     H: for<'a> AsyncFn(&'a operations::Context) -> Result<()> + Send + Sync + 'static,
 {
@@ -408,7 +454,7 @@ where
                 let context = operations::Context::invocation(transport, &executions)?;
                 handler(&context).await
             });
-        plugin.operation(operation)
+        plugin.register(|registrar| registrar.register(operation)).map_err(Error::from)
     })
 }
 

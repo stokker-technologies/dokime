@@ -94,7 +94,7 @@ async fn controlled_receipts_survive_reopen_until_their_execution_clock_expires_
             .start_with(Arc::new(()), |mut worker| {
                 let task = tokio::spawn(async move {
                     worker.run().await?;
-                    worker.cleanup().await
+                    worker.finalize().await
                 });
                 Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
             })
@@ -127,7 +127,7 @@ async fn controlled_receipts_survive_reopen_until_their_execution_clock_expires_
             .start_with(Arc::new(()), |mut worker| {
                 let task = tokio::spawn(async move {
                     worker.run().await?;
-                    worker.cleanup().await
+                    worker.finalize().await
                 });
                 Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
             })
@@ -187,7 +187,7 @@ async fn keyed_replay_recovers_an_outcome_omitted_from_the_cache() -> Result<(),
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
                 worker.run().await?;
-                worker.cleanup().await
+                worker.finalize().await
             });
             Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
         })
@@ -228,7 +228,7 @@ async fn keyed_replay_recovers_an_outcome_omitted_from_the_cache() -> Result<(),
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
                 worker.run().await?;
-                worker.cleanup().await
+                worker.finalize().await
             });
             Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
         })

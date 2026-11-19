@@ -509,12 +509,12 @@ impl Memory {
             return Err(Error::Invalid(format!("Undeclared Requirement: {operation}")));
         }
         match operation {
-            "harmos.host.v1.Time/Get" => {
+            "harmos.plugin.v1.Time/Get" => {
                 TimeGetRequest::decode(request.as_slice()).map_err(decode)?;
                 let now = self.state.lock().map_err(|_| poisoned())?.now_ns;
                 Ok(TimeGetResponse { now: Some(timestamp(now)) }.encode_to_vec())
             }
-            "harmos.host.v1.Time/Sleep" => {
+            "harmos.plugin.v1.Time/Sleep" => {
                 let request = TimeSleepRequest::decode(request.as_slice()).map_err(decode)?;
                 self.advance(request.duration.map_or(0, duration_ns)).await?;
                 Ok(TimeSleepResponse {}.encode_to_vec())

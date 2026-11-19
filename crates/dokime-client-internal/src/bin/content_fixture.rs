@@ -21,7 +21,7 @@ use std::net::TcpStream;
 use std::{collections::HashMap, env, fmt, result};
 
 // Third Party Imports
-use harmos::plugin::{Context, Operation, Plugin};
+use harmos::plugin::{Context, Contribution, Dependency, Operation, Plugin};
 use harmos::{Error, Message, OperationRequest, Result, Visibility};
 use harmos_protocol::{model::FileMetadata, schema};
 use prost::{
@@ -132,18 +132,20 @@ fn main() -> Result<()> {
     }
 
     // Declare Three Protocol Fixtures Without an Authoring SDK.
-    let mut plugin = Plugin::new("content_fixture", "1.0.0")
-        .requires::<Wire<TraceabilityGetRequest>>()
-        .requires::<Wire<TraceabilitySetRequest>>()
-        .requires::<Wire<UploadsCreateRequest>>()
-        .requires::<Wire<UploadsAppendRequest>>()
-        .requires::<Wire<UploadsResumeRequest>>()
-        .requires::<Wire<UploadsPublishRequest>>()
-        .requires::<Wire<UploadsDeleteRequest>>()
-        .requires::<Wire<ArtifactsCreateRequest>>()
-        .requires::<Wire<ProgressGetRequest>>()
-        .requires::<Wire<ProgressSetRequest>>()
-        .requires::<Wire<PromptsCreateRequest>>();
+    let mut plugin = Plugin::new("content_fixture", "1.0.0").register(|registrar| {
+        registrar.register(Dependency::<Wire<TraceabilityGetRequest>>::new())?;
+        registrar.register(Dependency::<Wire<TraceabilitySetRequest>>::new())?;
+        registrar.register(Dependency::<Wire<UploadsCreateRequest>>::new())?;
+        registrar.register(Dependency::<Wire<UploadsAppendRequest>>::new())?;
+        registrar.register(Dependency::<Wire<UploadsResumeRequest>>::new())?;
+        registrar.register(Dependency::<Wire<UploadsPublishRequest>>::new())?;
+        registrar.register(Dependency::<Wire<UploadsDeleteRequest>>::new())?;
+        registrar.register(Dependency::<Wire<ArtifactsCreateRequest>>::new())?;
+        registrar.register(Dependency::<Wire<ProgressGetRequest>>::new())?;
+        registrar.register(Dependency::<Wire<ProgressSetRequest>>::new())?;
+        registrar.register(Dependency::<Wire<PromptsCreateRequest>>::new())?;
+        Ok(())
+    })?;
     let mut templates = Vec::new();
     for (name, label, step_label) in [
         ("capture", "Capture Content", "Capture"),
@@ -177,44 +179,50 @@ fn main() -> Result<()> {
             steps: vec![step],
             ..Default::default()
         });
-        plugin = plugin.operation(
-            Operation::new(materialize, async move |ctx: &Context, Wire(request): Wire<TestCasesMaterializeRequest>| {
-                if ctx.scope().is_ok() || request.template != identifier {
-                    return Err(Error::Invalid("Materialize Fixture: Supply Its Template Without an Execution Scope".into()));
-                }
-                let mut case = case.clone();
-                case.parameters = request.parameters;
-                Ok(Wire(TestCasesMaterializeResponse { test_case: Some(case) }))
-            })
-            .visibility(Visibility::Protected),
-        );
-        plugin = plugin.operation(
-            Operation::new(operation.clone(), async move |ctx: &Context, Wire(request): Wire<StepsExecuteRequest>| {
-                if ctx.scope()? != request.execution || request.step != operation {
-                    return Err(Error::Invalid("Execute Fixture: Supply Its Step and Bound Execution Scope".into()));
-                }
-                match name {
-                    "capture" => capture(ctx).await?,
-                    "progress" => revisioned_progress(ctx).await?,
-                    "traceability" => revisioned_traceability(ctx).await?,
-                    _ => unreachable!(),
-                }
-                Ok(Wire(StepsExecuteResponse {}))
-            })
-            .visibility(Visibility::Protected),
-        );
+        plugin = plugin.register(|registrar| {
+            registrar.register(
+                Operation::new(materialize, async move |ctx: &Context, Wire(request): Wire<TestCasesMaterializeRequest>| {
+                    if ctx.scope().is_ok() || request.template != identifier {
+                        return Err(Error::Invalid("Materialize Fixture: Supply Its Template Without an Execution Scope".into()));
+                    }
+                    let mut case = case.clone();
+                    case.parameters = request.parameters;
+                    Ok(Wire(TestCasesMaterializeResponse { test_case: Some(case) }))
+                })
+                .visibility(Visibility::Protected),
+            )
+        })?;
+        plugin = plugin.register(|registrar| {
+            registrar.register(
+                Operation::new(operation.clone(), async move |ctx: &Context, Wire(request): Wire<StepsExecuteRequest>| {
+                    if ctx.scope()? != request.execution || request.step != operation {
+                        return Err(Error::Invalid("Execute Fixture: Supply Its Step and Bound Execution Scope".into()));
+                    }
+                    match name {
+                        "capture" => capture(ctx).await?,
+                        "progress" => revisioned_progress(ctx).await?,
+                        "traceability" => revisioned_traceability(ctx).await?,
+                        _ => unreachable!(),
+                    }
+                    Ok(Wire(StepsExecuteResponse {}))
+                })
+                .visibility(Visibility::Protected),
+            )
+        })?;
     }
-    plugin = plugin.section(Wire(Suites {
-        suites: vec![Suite {
-            metadata: Some(Metadata {
-                identifier: "content".into(),
-                label: "Content".into(),
+    plugin = plugin.register(|registrar| {
+        registrar.register(Contribution(Wire(Suites {
+            suites: vec![Suite {
+                metadata: Some(Metadata {
+                    identifier: "content".into(),
+                    label: "Content".into(),
+                    ..Default::default()
+                }),
+                templates,
                 ..Default::default()
-            }),
-            templates,
-            ..Default::default()
-        }],
-    }));
+            }],
+        })))
+    })?;
     let plugin = if env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }

@@ -194,6 +194,21 @@ pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFacto
 
 pub fn registration(settings: &ClientSettings) -> Result<Registration> {
     let factories: &[(Factory, Duration)] = &[
+        (factory::<crate::wrappers::ListenerGet>, settings.read_timeout),
+        (factory::<crate::wrappers::ListenerSet>, settings.mutation_timeout),
+        (factory::<crate::wrappers::PairingsCreate>, settings.mutation_timeout),
+        (factory::<crate::wrappers::PairingsList>, settings.read_timeout),
+        (factory::<crate::wrappers::PairingsDelete>, settings.mutation_timeout),
+        (factory::<crate::wrappers::CertificatesCreate>, settings.mutation_timeout),
+        (factory::<crate::wrappers::StatusGet>, settings.read_timeout),
+        (factory::<crate::wrappers::StatusWatch>, settings.watch_timeout),
+        (factory::<crate::wrappers::LogsWatch>, settings.watch_timeout),
+        (factory::<crate::wrappers::TraceEventsList>, settings.read_timeout),
+        (factory::<crate::wrappers::TraceEventsWatch>, settings.watch_timeout),
+        (factory::<crate::wrappers::DiagnosticsGet>, settings.read_timeout),
+        (factory::<crate::wrappers::OperationsList>, settings.read_timeout),
+        (factory::<crate::wrappers::OperationsGet>, settings.read_timeout),
+        (factory::<crate::wrappers::InvocationsCreate>, settings.mutation_timeout),
         (factory::<host::backend::appearance::Operation>, settings.read_timeout),
         (factory::<host::backend::environment::Operation>, settings.mutation_timeout),
         (factory::<host::backend::overview::get::Operation>, settings.read_timeout),

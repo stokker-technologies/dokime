@@ -506,7 +506,7 @@ impl Host {
             result = Err(error.into());
         }
         if let Some(assembly) = &self.assembly {
-            if let Err(source) = assembly.runtime.shutdown_with_timeout(assembly.close_timeout).await {
+            if let Err(source) = assembly.runtime.stop_with_timeout(assembly.close_timeout).await {
                 result = Err(source.into());
             }
             if let Err(source) = assembly.backend_lease.close() {

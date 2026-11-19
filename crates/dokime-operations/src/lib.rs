@@ -15,6 +15,7 @@ mod error;
 pub mod host;
 pub mod native;
 mod resources;
+pub mod wrappers;
 
 /* === Re-Exports === */
 

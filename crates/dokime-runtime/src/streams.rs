@@ -29,23 +29,23 @@ use std::{
 use async_trait::async_trait;
 use harmos_domain::schema::json::JsonCodec;
 use harmos_protocol::model::Declarations;
+use harmos_runtime::BackendFailure;
 use harmos_runtime::operations::OperationOutcome;
 use harmos_runtime::operations::middleware::{AttemptObservation, Enter, Invocation, Middleware, Observation};
 use harmos_runtime::streams::{Definition, PublicationRow};
-use harmos_runtime::{BackendFailure, Error as RuntimeError};
 use harmos_runtime::{
-    clock::{Clock as RuntimeClock, Controller},
+    clock::{self, Controller},
     storage::{Batch, Cursor, StreamConsumer},
 };
 use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, Kind, MapKey, MessageDescriptor, Value as FieldValue};
+use prost_reflect::{self, DescriptorPool, DynamicMessage, Kind, MapKey, MessageDescriptor};
 use serde_json::Value;
 use tokio::sync::watch::{self, Sender};
 
 // Local Imports
 use crate::services::composition::Application;
-use crate::{Error, Result as HostResult, SchedulerClock};
-use dokime_operations::{Clock, Error as OperationError, Resources, Result};
+use crate::{Error, SchedulerClock};
+use dokime_operations::{Clock, Resources, Result};
 use dokime_storage::{Sample, Store};
 
 /* === Constants === */
@@ -57,7 +57,7 @@ use dokime_storage::{Sample, Store};
 /* === Structs === */
 
 pub(crate) struct ExecutionTime {
-    pub clock: RuntimeClock,
+    pub clock: clock::Clock,
     pub sleeping: Sender<BTreeSet<u64>>,
 }
 
@@ -123,9 +123,9 @@ impl Middleware for Timing {
             {
                 attempts
                     .start(&resources)
-                    .map_err(|source| RuntimeError::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
+                    .map_err(|source| harmos_runtime::Error::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
             }
-            if invocation.operation().id.as_str() == "harmos.host.v1.Time/Sleep"
+            if invocation.operation().id.as_str() == "harmos.plugin.v1.Time/Sleep"
                 && let Some(time) = invocation.context().get::<Arc<ExecutionTime>>()
             {
                 time.sleeping.send_modify(|active| {
@@ -144,16 +144,16 @@ impl Middleware for Timing {
                 resources.attempt.store(observation.attempt as u32 + 1, Ordering::SeqCst);
                 attempts
                     .start(&resources)
-                    .map_err(|source| RuntimeError::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
+                    .map_err(|source| harmos_runtime::Error::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
                 let kind = if observation.outcome == OperationOutcome::Succeeded { "attempt:succeeded" } else { "attempt:failed" };
                 resources
                     .evidence(kind, Vec::new(), None)
-                    .map_err(|source| RuntimeError::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
+                    .map_err(|source| harmos_runtime::Error::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
                 *attempts.start_ns.lock().expect("attempt clock lock is healthy") = resources.clock.now_ns();
                 resources.attempt.store(observation.attempt as u32 + 2, Ordering::SeqCst);
                 attempts.started.store(false, Ordering::SeqCst);
             }
-            if invocation.operation().id.as_str() == "harmos.host.v1.Time/Sleep"
+            if invocation.operation().id.as_str() == "harmos.plugin.v1.Time/Sleep"
                 && let Some(time) = invocation.context().get::<Arc<ExecutionTime>>()
             {
                 time.sleeping.send_modify(|active| {
@@ -164,7 +164,7 @@ impl Middleware for Timing {
         })
     }
     fn observe(&self, invocation: &Invocation, _: Observation) {
-        if invocation.operation().id.as_str() == "harmos.host.v1.Time/Sleep"
+        if invocation.operation().id.as_str() == "harmos.plugin.v1.Time/Sleep"
             && let Some(time) = invocation.context().get::<Arc<ExecutionTime>>()
         {
             time.sleeping.send_modify(|active| {
@@ -197,7 +197,7 @@ impl Clock for ExecutionTime {
             .unwrap_or_else(|value| -(value.duration().as_nanos() as i64))
     }
     async fn sleep(&self, duration_ns: i64) -> Result<()> {
-        let duration = u64::try_from(duration_ns).map_err(|source| OperationError::Invalid(format!("Sleep: {source}")))?;
+        let duration = u64::try_from(duration_ns).map_err(|source| dokime_operations::Error::Invalid(format!("Sleep: {source}")))?;
         self.clock.sleep(Duration::from_nanos(duration)).await;
         Ok(())
     }
@@ -231,7 +231,7 @@ impl StreamConsumer<Application> for Samples {
 }
 
 impl SampleScope {
-    pub fn new(catalog: &Declarations, streams: &[String]) -> HostResult<Self> {
+    pub fn new(catalog: &Declarations, streams: &[String]) -> crate::Result<Self> {
         let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Open Sample Scope: Declare Its Row Types".into()))?;
         let pool =
             DescriptorPool::from_file_descriptor_set(types).map_err(|source| Error::Invalid(format!("Open Sample Scope: {source}")))?;
@@ -293,7 +293,7 @@ impl Intake {
             }
         }
     }
-    fn ingest(&self, definition: &Definition, publication: &PublicationRow) -> HostResult<()> {
+    fn ingest(&self, definition: &Definition, publication: &PublicationRow) -> crate::Result<()> {
         let Some(context) = &publication.context else { return Ok(()) };
         let context: Value = serde_json::from_str(context).map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
         let Some(execution) = context["scope"].as_str() else { return Ok(()) };
@@ -343,7 +343,7 @@ impl Intake {
 
 /* === Private Functions === */
 
-fn message(descriptor: MessageDescriptor, value: &Value) -> HostResult<DynamicMessage> {
+fn message(descriptor: MessageDescriptor, value: &Value) -> crate::Result<DynamicMessage> {
     let mut message = DynamicMessage::new(descriptor.clone());
     for field in descriptor.fields() {
         let Some(value) = value.get(field.name()).filter(|value| !value.is_null()) else { continue };
@@ -355,22 +355,25 @@ fn message(descriptor: MessageDescriptor, value: &Value) -> HostResult<DynamicMe
             let mut values = HashMap::new();
             for entry in entries {
                 let key = match scalar(&key.kind(), &entry["key"])? {
-                    FieldValue::Bool(value) => MapKey::Bool(value),
-                    FieldValue::I32(value) => MapKey::I32(value),
-                    FieldValue::I64(value) => MapKey::I64(value),
-                    FieldValue::U32(value) => MapKey::U32(value),
-                    FieldValue::U64(value) => MapKey::U64(value),
-                    FieldValue::String(value) => MapKey::String(value),
+                    prost_reflect::Value::Bool(value) => MapKey::Bool(value),
+                    prost_reflect::Value::I32(value) => MapKey::I32(value),
+                    prost_reflect::Value::I64(value) => MapKey::I64(value),
+                    prost_reflect::Value::U32(value) => MapKey::U32(value),
+                    prost_reflect::Value::U64(value) => MapKey::U64(value),
+                    prost_reflect::Value::String(value) => MapKey::String(value),
                     _ => return Err(Error::Invalid("Decode Sample: Invalid Map Key".into())),
                 };
-                let value =
-                    if entry["value"].is_null() { FieldValue::default_value(&item.kind()) } else { scalar(&item.kind(), &entry["value"])? };
+                let value = if entry["value"].is_null() {
+                    prost_reflect::Value::default_value(&item.kind())
+                } else {
+                    scalar(&item.kind(), &entry["value"])?
+                };
                 values.insert(key, value);
             }
-            FieldValue::Map(values)
+            prost_reflect::Value::Map(values)
         } else if field.is_list() {
             let values = value.as_array().ok_or_else(|| Error::Invalid("Decode Sample: Expected a Repeated Field".into()))?;
-            FieldValue::List(values.iter().map(|value| scalar(&field.kind(), value)).collect::<HostResult<_>>()?)
+            prost_reflect::Value::List(values.iter().map(|value| scalar(&field.kind(), value)).collect::<crate::Result<_>>()?)
         } else {
             scalar(&field.kind(), value)?
         };
@@ -381,31 +384,102 @@ fn message(descriptor: MessageDescriptor, value: &Value) -> HostResult<DynamicMe
     Ok(message)
 }
 
-fn scalar(kind: &Kind, value: &Value) -> HostResult<FieldValue> {
+fn scalar(kind: &Kind, value: &Value) -> crate::Result<prost_reflect::Value> {
     let invalid = || Error::Invalid("Decode Sample: Value Does Not Match Its Declared Field".into());
     Ok(match kind {
-        Kind::Bool => FieldValue::Bool(value.as_bool().ok_or_else(invalid)?),
+        Kind::Bool => prost_reflect::Value::Bool(value.as_bool().ok_or_else(invalid)?),
         Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 => {
-            FieldValue::I32(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?)
+            prost_reflect::Value::I32(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?)
         }
-        Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => FieldValue::I64(value.as_i64().ok_or_else(invalid)?),
-        Kind::Uint32 | Kind::Fixed32 => FieldValue::U32(u32::try_from(value.as_u64().ok_or_else(invalid)?).map_err(|_| invalid())?),
-        Kind::Uint64 | Kind::Fixed64 => FieldValue::U64(value.as_u64().ok_or_else(invalid)?),
-        Kind::Float => FieldValue::F32(value.as_f64().ok_or_else(invalid)? as f32),
-        Kind::Double => FieldValue::F64(value.as_f64().ok_or_else(invalid)?),
-        Kind::String => FieldValue::String(value.as_str().ok_or_else(invalid)?.into()),
-        Kind::Bytes => FieldValue::Bytes(
+        Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => prost_reflect::Value::I64(value.as_i64().ok_or_else(invalid)?),
+        Kind::Uint32 | Kind::Fixed32 => {
+            prost_reflect::Value::U32(u32::try_from(value.as_u64().ok_or_else(invalid)?).map_err(|_| invalid())?)
+        }
+        Kind::Uint64 | Kind::Fixed64 => prost_reflect::Value::U64(value.as_u64().ok_or_else(invalid)?),
+        Kind::Float => prost_reflect::Value::F32(value.as_f64().ok_or_else(invalid)? as f32),
+        Kind::Double => prost_reflect::Value::F64(value.as_f64().ok_or_else(invalid)?),
+        Kind::String => prost_reflect::Value::String(value.as_str().ok_or_else(invalid)?.into()),
+        Kind::Bytes => prost_reflect::Value::Bytes(
             value
                 .as_array()
                 .ok_or_else(invalid)?
                 .iter()
                 .map(|value| u8::try_from(value.as_u64().ok_or_else(invalid)?).map_err(|_| invalid()))
-                .collect::<HostResult<Vec<_>>>()?
+                .collect::<crate::Result<Vec<_>>>()?
                 .into(),
         ),
-        Kind::Enum(_) => FieldValue::EnumNumber(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?),
-        Kind::Message(descriptor) => FieldValue::Message(message(descriptor.clone(), value)?),
+        Kind::Enum(_) => prost_reflect::Value::EnumNumber(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?),
+        Kind::Message(descriptor) => prost_reflect::Value::Message(message(descriptor.clone(), value)?),
     })
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{ExecutionTime, Timing};
+    use crate::ControlledClock;
+    use harmos_operations::facilities::{TimeGet, TimeSleep};
+    use harmos_protocol::host::{TimeGetRequest, TimeSleepRequest};
+    use harmos_runtime::operations::CallContext;
+    use harmos_runtime::{Application, Lifecycle, Runtime, Setup, Startup};
+    use std::convert::Infallible;
+    use std::sync::Arc;
+
+    struct Model;
+
+    impl Lifecycle for Model {
+        type Config = ();
+        type Error = Infallible;
+        type Context = Startup<Self>;
+
+        async fn prepare(_: (), _: &mut Setup<Self>) -> Result<Self, Self::Error> {
+            Ok(Self)
+        }
+    }
+
+    impl Application for Model {
+        type State = ();
+        type Transaction = harmos_runtime::state::Never;
+        type Record = ();
+    }
+
+    #[tokio::test]
+    async fn plugin_clock_facilities_advance_virtual_execution_time() -> Result<(), Box<dyn std::error::Error>> {
+        // Assemble a Virtual Execution Clock and Its Actual Timing Middleware.
+        let (time, controller) = ExecutionTime::open(&ControlledClock::new(7_000_000_000));
+        let controller = controller.unwrap();
+        let runtime = Runtime::<Model>::launch_with((), (), |setup| {
+            setup.settings().clock(time.clock.clone()).operation_middleware(Arc::new(Timing));
+        })
+        .await?;
+        let mut context = CallContext::default();
+        context.insert(time.clone())?;
+        let operations = runtime.operations.execution().with_context(context);
+        let before = operations.call_protobuf::<TimeGet>(TimeGetRequest {}).await?.now.unwrap();
+        let mut sleeping = time.sleeping.subscribe();
+
+        // Advance Only When the Plugin Sleep Has Entered the Execution's Sleeping Set.
+        let sleep = operations.call_protobuf::<TimeSleep>(TimeSleepRequest {
+            duration: Some(prost_types::Duration { seconds: 2, nanos: 0 }),
+        });
+        let advance = async {
+            while sleeping.borrow_and_update().is_empty() {
+                sleeping.changed().await?;
+            }
+            controller.advance_next().await;
+            Ok::<(), tokio::sync::watch::error::RecvError>(())
+        };
+        let (slept, advanced) = tokio::join!(sleep, advance);
+        slept?;
+        advanced?;
+
+        // Read the Same Plugin Clock and Prove Settlement Removed the Sleeping Invocation.
+        let after = operations.call_protobuf::<TimeGet>(TimeGetRequest {}).await?.now.unwrap();
+        assert_eq!(after.seconds - before.seconds, 2);
+        assert_eq!(after.nanos, before.nanos);
+        assert!(time.sleeping.borrow().is_empty());
+        runtime.stop().await?;
+        Ok(())
+    }
+}

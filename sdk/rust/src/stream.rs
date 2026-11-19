@@ -39,7 +39,7 @@ use harmos::plugin::Publisher;
 
 type ObserverFactory = Box<dyn FnOnce(Executions, &str) -> plugin::Observer + Send>;
 type Producer<T> = Box<dyn FnOnce(plugin::Stream<T>, Executions) -> plugin::Stream<T> + Send>;
-pub(crate) type Registration = Box<dyn FnOnce(plugin::Plugin, Executions, &str) -> plugin::Plugin + Send>;
+pub(crate) type Registration = Box<dyn FnOnce(plugin::Plugin, Executions, &str) -> Result<plugin::Plugin> + Send>;
 
 /* === Structs === */
 
@@ -128,7 +128,7 @@ impl<T: Message> Stream<T> {
                 Some(producer) => producer(stream, executions),
                 None => stream,
             };
-            plugin.stream(stream)
+            plugin.register(|registrar| registrar.register(stream)).map_err(Error::from)
         })
     }
 }
@@ -291,7 +291,7 @@ impl Observer {
             for configure in self.configure {
                 observer = configure(observer);
             }
-            plugin.observer(observer)
+            plugin.register(|registrar| registrar.register(observer)).map_err(Error::from)
         })
     }
 }
