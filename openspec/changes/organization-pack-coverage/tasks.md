@@ -12,3 +12,8 @@
 - [x] 4.4 Replace the removed runtime pack-import journey with installed-pack loading, ignored application-folder packs and retained update-policy coverage; remove Organization navigation from the settings journey.
 - [x] 4.5 Run the Windows merge-and-repair focused Rust tests, package checks, settings unit tests and Rust check.
 - [x] 5.1 Update the product guide's organization section and affected GUI, privacy and README claims for installer-only appearance.
+
+- [x] 6.1 Restore installer manifest parsing and the current CLI command, retain existing arguments and keys, and adapt verified kit acquisition and gRPC bundle staging.
+- [x] 6.2 Restore native artwork, licensing and explicit signing; replace the Windows machine-scope path with current-user-only install, update and uninstall.
+- [ ] 6.3 Prove fabricated-kit preparation, manifest refusals, the command-line story, existing CLI stories, scoped compilation/lint, workspace compilation and repository checks.
+- [ ] 6.4 Package a neutral example from the published Nightly kit without installing it; inspect the output and declared execution mode.

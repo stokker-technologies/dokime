@@ -18,6 +18,7 @@ mod doctor;
 mod download;
 mod execution;
 mod id_file;
+mod installer;
 mod new;
 mod operation;
 pub(crate) mod pairing;
@@ -52,6 +53,7 @@ use crate::{Result, settings::Settings};
 #[derive(clap::Subcommand)]
 pub(crate) enum Command {
     New(new::Args),
+    Installer(installer::Args),
     Server(server::Args),
     Dev(dev::Args),
 
@@ -94,6 +96,7 @@ impl Command {
     pub fn action(&self) -> &'static str {
         match self {
             Self::New(_) => "Create Project",
+            Self::Installer(_) => "Package Installer",
             Self::Server(_) => "Start Host",
             Self::Dev(_) => "Develop Plugin",
             Self::Plugin(command) => command.action(),
@@ -116,12 +119,19 @@ impl Command {
 pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: Settings) -> Result<()> {
     if !matches!(
         command,
-        Command::New(_) | Command::Dev(_) | Command::Server(_) | Command::Doctor(_) | Command::Version(_) | Command::Proto(_)
+        Command::Installer(_)
+            | Command::New(_)
+            | Command::Dev(_)
+            | Command::Server(_)
+            | Command::Doctor(_)
+            | Command::Version(_)
+            | Command::Proto(_)
     ) {
         settings.pairing = settings.remote.as_deref().map(pairing::File::read).transpose()?;
     }
     match command {
         Command::New(args) => new::run(args, settings).await,
+        Command::Installer(args) => installer::run(args).await,
         Command::Dev(args) => Box::pin(dev::run(args, settings)).await,
         Command::Server(args) => Box::pin(server::run(args, endpoint, settings)).await,
         Command::Plugin(command) => Box::pin(plugin::run(command, endpoint, settings)).await,

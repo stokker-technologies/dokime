@@ -11,6 +11,12 @@ compliance archive, one index `release.json` and `SHA256SUMS`.
 - **WHEN** a release or a Nightly finishes publication
 - **THEN** every published asset name matches an entry of the layout and no entry is missing
 
+#### Scenario: Organization Installer Consumes the Kit
+
+- **WHEN** `dokime installer package` resolves `[dokime] version = "nightly"`
+- **THEN** it selects the native `dokime-distribution-<version>-<target>.zip`, verifies `SHA256SUMS` and the kit inventory, selects requested gRPC bundles from the native `dokime-plugins` archive, and emits signed updater metadata as `release.json`.
+- **AND** deterministic installer tests supply fabricated local kits through `--artifacts` instead of resolving an earlier published release.
+
 ### Requirement: Compliance Archive
 
 Bills of materials and notices SHALL be published only inside

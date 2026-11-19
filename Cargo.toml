@@ -73,6 +73,7 @@ tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "registry"] }
 
 # Utilities
+time = { version = "0.3.55", features = ["formatting", "parsing"] }
 keyring = { version = "4.2.0" }
 libc = { version = "0.2.191" }
 num-bigint = { version = "0.5.1", features = ["serde"] }
@@ -109,6 +110,7 @@ zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2
 clap = { version = "4.6.7", features = ["derive"] }
 
 # Filesystem
+flate2 = { version = "1.1.9", default-features = false, features = ["zlib-rs"] }
 ignore = { version = "0.4.33" }
 # Uses zlib-rs, the inflate backend shared with the ZIP reader.
 tar = { version = "0.4.46" }
@@ -145,8 +147,12 @@ tonic-prost-build = { version = "=0.14.8", default-features = false }
 rusqlite = { version = "0.41.1", features = ["bundled", "limits"] }
 
 # UI
+image = { version = "0.25.10", default-features = false }
+tauri-bundler = { version = "2.10.4" }
+tauri-utils = { version = "2.10.2" }
 
 # Testing
+handlebars = { version = "6.4.4" }
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
 
 # === Workspace Lints === #
