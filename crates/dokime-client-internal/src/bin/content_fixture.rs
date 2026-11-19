@@ -23,7 +23,7 @@ use std::{collections::HashMap, env, fmt, result};
 // Third Party Imports
 use harmos::plugin::{Context, Operation, Plugin};
 use harmos::{Error, Message, OperationRequest, Result, Visibility};
-use harmos_protocol::model::FileMetadata;
+use harmos_protocol::{model::FileMetadata, schema};
 use prost::{
     DecodeError,
     bytes::{Buf, BufMut},
@@ -113,7 +113,7 @@ impl<T: ReflectMessage + Default + 'static> Message for Wire<T> {
         let types = FileDescriptorSet {
             file: descriptor.parent_pool().files().map(|file| file.file_descriptor_proto().clone()).collect(),
         };
-        harmos_protocol::schema::operation_types(&types, &[descriptor.full_name()]).expect("Protocol Fixture Message Descriptor")
+        schema::operation_types(&types, &[descriptor.full_name()]).expect("Protocol Fixture Message Descriptor")
     }
 }
 

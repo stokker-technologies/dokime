@@ -19,7 +19,6 @@ mod types;
 
 /* === Re-Exports === */
 
-use crate::operation::Operation;
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
 pub use crate::stream::{Observer, Stream};
@@ -41,7 +40,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::plugin;
+use harmos::{Visibility, plugin};
 
 // Local Imports
 use crate::SecretDeclaration;
@@ -52,6 +51,8 @@ use crate::context::{self, Executions};
 use crate::data;
 use crate::host::Request;
 use crate::message::Wire;
+use crate::operation::{self, Operation};
+use crate::operations;
 use crate::stream::{Registration, Sampler};
 use crate::template::validate_names;
 use crate::testing::Selected;
@@ -145,14 +146,14 @@ impl Plugin {
 impl Plugin {
     pub fn initialize<H>(mut self, handler: H) -> Self
     where
-        H: for<'a> AsyncFn(&'a crate::operations::Context) -> Result<()> + Send + Sync + 'static,
+        H: for<'a> AsyncFn(&'a operations::Context) -> Result<()> + Send + Sync + 'static,
     {
         self.assembly.initialize = lifecycle("initialize", handler);
         self
     }
     pub fn finalize<H>(mut self, handler: H) -> Self
     where
-        H: for<'a> AsyncFn(&'a crate::operations::Context) -> Result<()> + Send + Sync + 'static,
+        H: for<'a> AsyncFn(&'a operations::Context) -> Result<()> + Send + Sync + 'static,
     {
         self.assembly.finalize = lifecycle("finalize", handler);
         self
@@ -388,18 +389,15 @@ impl Plugin {
 
 fn lifecycle<H>(name: &'static str, handler: H) -> Registration
 where
-    H: for<'a> AsyncFn(&'a crate::operations::Context) -> Result<()> + Send + Sync + 'static,
+    H: for<'a> AsyncFn(&'a operations::Context) -> Result<()> + Send + Sync + 'static,
 {
     Box::new(move |plugin, executions, identifier| {
-        let operation = crate::operation::wire(
-            format!("{identifier}.{name}"),
-            harmos::Visibility::Protected,
-            async move |transport: &plugin::Context, (): ()| {
+        let operation =
+            operation::wire(format!("{identifier}.{name}"), Visibility::Protected, async move |transport: &plugin::Context, (): ()| {
                 let _cleanup = (name == "finalize").then(|| Finalize(executions.clone()));
-                let context = crate::operations::Context::invocation(transport, &executions)?;
+                let context = operations::Context::invocation(transport, &executions)?;
                 handler(&context).await
-            },
-        );
+            });
         plugin.operation(operation)
     })
 }
@@ -408,7 +406,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{HostOperation, Plugin};
+    use super::{HostOperation, Plugin, Visibility};
     use crate::{Error, Result};
     use dokime_protocol::descriptor_pool;
     use harmos_protocol::{model::Protobuf, schema};
@@ -422,7 +420,7 @@ mod tests {
             .declarations()?;
         for name in ["author.initialize", "author.finalize"] {
             let operation = declarations.operations.iter().find(|operation| operation.id == name).expect("Lifecycle Operation");
-            assert_eq!(operation.visibility, harmos::Visibility::Protected as i32);
+            assert_eq!(operation.visibility, Visibility::Protected as i32);
             assert_eq!(operation.request, "google.protobuf.Empty");
             assert_eq!(operation.response, "google.protobuf.Empty");
         }

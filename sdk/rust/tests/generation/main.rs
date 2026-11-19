@@ -20,9 +20,9 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::FileSource;
 use dokime::client::Client;
 use dokime::templates::Context;
-use dokime::FileSource;
 use std::error;
 
 /* === Constants === */

@@ -250,7 +250,11 @@ void Client::close() {
       if (!cleanup_failure)
         cleanup_failure = std::current_exception();
       if (registration->listener) {
-        registration->listener->close();
+        try {
+          registration->listener->close();
+        } catch (...) {
+          // Preserve the First Cleanup Failure While Closing Every Owned Listener.
+        }
         registration->listener.reset();
       }
     }
@@ -825,6 +829,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
     return registered;
   } catch (...) {
     const auto failure = std::current_exception();
+    std::exception_ptr cleanup_failure;
     client::PluginsGetOptions lookup;
     lookup.context = client_->context();
     try {
@@ -836,14 +841,22 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
       }
     } catch (const Error &error) {
       const auto status = error.failure.details.find("grpc_status");
-      if (status == error.failure.details.end() || status->second != "5") {
-        registration->listener->close();
-        throw;
-      }
+      if (status == error.failure.details.end() || status->second != "5")
+        cleanup_failure = std::current_exception();
+    } catch (...) {
+      cleanup_failure = std::current_exception();
     }
-    registration->listener->close();
+    try {
+      registration->listener->close();
+    } catch (...) {
+      if (!cleanup_failure)
+        cleanup_failure = std::current_exception();
+    }
     registration->listener.reset();
+    registration->plugin.reset();
     client_->registrations.erase(identifier);
+    if (cleanup_failure)
+      std::rethrow_exception(cleanup_failure);
     std::rethrow_exception(failure);
   }
 }

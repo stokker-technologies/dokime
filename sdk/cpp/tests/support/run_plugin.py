@@ -81,7 +81,7 @@ def main() -> None:
     try:
         address = ready.get()
         if address is None:
-            raise RuntimeError("Start Plugin: Inspect the Plugin Output Above and Correct Its Startup Failure")
+            raise RuntimeError(f"Start Plugin: Inspect the Plugin Output Above and Correct Its Startup Failure (Exit {process.wait()})")
         subprocess.run(
             [story, address, placement],
             check=True,

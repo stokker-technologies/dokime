@@ -1192,8 +1192,8 @@ class Plugin:
     settings: ClassVar[Sequence[SettingDeclaration | SettingGroup]] = ()  # Typed saved defaults.
     secrets: ClassVar[Sequence[SecretDeclaration]] = ()  # Declared Secret Storage slots.
     def __init__(self) -> None: ...  # Bind/validate declarations without I/O or author hooks.
-    async def start(self, ctx: operations.Context) -> None: ...  # Once per activation, before Ready.
-    async def stop(self, ctx: operations.Context) -> None: ...  # Release plugin state on every attempted start.
+    async def initialize(self, ctx: operations.Context) -> None: ...  # Host-invoked activation operation.
+    async def finalize(self, ctx: operations.Context) -> None: ...  # Host-invoked settled shutdown operation.
     async def serve(self, address: str | None = None) -> None: ...  # Start, serve until stopped, settle and release owned resources.
 
 class Suite:
@@ -1213,12 +1213,13 @@ class TestTemplate:
     async def cleanup(self, ctx: templates.Context) -> None: ...  # Release partial or complete state after every attempted initialize.
 ```
 
-`Plugin.start` is an author hook, never the removed endpoint-producing method.
-`serve()` and `plugins.register()` share one private activation owner, not two
-server implementations. Stop drains admitted calls, releases execution instances,
-then invokes the plugin hook; repeated shutdown does not invoke it again. A failed
-or cancelled start still invokes stop for partial acquisition. No hook runs during
-description or bundling inspection. A register call binds the *same* plugin object
+The SDK encodes plugin `initialize` and `finalize` as protected operations with
+well-known identifiers `<plugin>.initialize` and `<plugin>.finalize` and Empty
+requests and responses. Hooks use the ordinary operation context; no SDK stop
+callback or parallel activation dispatcher invokes them. `serve()` and
+`plugins.register()` share the library-owned listener. The library owns activation,
+admission draining, invocation order and settled shutdown, including finalization
+after attempted initialization. No hook runs during description or bundling inspection. A register call binds the *same* plugin object
 as `ctx.plugin`; execution handlers and observers additionally share the same
 execution template instance as `self`. No Python `ctx.set`/`ctx.get` store exists.
 
@@ -1371,7 +1372,7 @@ class PromptDeclaration:
 
 | Capability | Current Python Evidence | Expression in the Class Shape / Smallest Addition |
 |---|---|---|
-| Plugin lifecycle | NEW; `_plugin.py:330` only clears SDK sessions in a private stop callback. | `Plugin.start(ctx)` / `Plugin.stop(ctx)` above; no new public endpoint owner. |
+| Plugin lifecycle | NEW; `_plugin.py:330` only clears SDK sessions in a private stop callback. | `Plugin.initialize(ctx)` / `Plugin.finalize(ctx)` encoded as well-known operations above; no new public endpoint owner. |
 | Deadline and retries | Exists: `operations.py:61` policy, `:91` decorator; `_plugin.py:260` translates step retries. | `policy=` on operation/step/criterion; retain one policy owner, no hard-coded retry delay in the adapter. |
 | Serial admission | NEW; `operations.py:61` and `proto/harmos/model/v1/policy.proto:24` have no serial field. | Policy needs shared admission support; no product semaphore copied beside library admission. Owner decision S1 below blocks this extension alone. |
 | Operation requirements | Exists: `_plugin.py:78` accepts explicit requirements and `:88` infers all host operations. | Remove author `requires`; infer product host requirements and literal `ctx.operation(Operation(...))` declarations from decorated functions/template hooks. Runtime-selected declarations need S2 below. Preserve the host requirement check. |
@@ -2630,9 +2631,12 @@ orchestrator's choice and is reported to the owner for confirmation:
 - S2 is settled by the earlier owner decision on `requires` (Option A): authors
   never declare requirements and the SDK declares every operation the plugin can
   reference. No new class attribute is added.
-- S4: the plugin class uses the hook names the `plugin-lifecycle` change already
-  agreed, `initialize` and `finalize`; templates keep `setup` and `cleanup`. The
-  signatures in this section apply under those names.
+- S4: the plugin class uses `initialize` and `finalize`; the SDK encodes these as
+  the well-known lifecycle operations rather than stop callbacks. Templates use
+  `initialize` and `cleanup`. This owner decision supersedes the earlier
+  start/stop and setup/cleanup spellings without aliases. The library owns lifecycle
+  invocation and connection scopes; missing carrier capabilities remain dependencies,
+  not permission for an SDK-local lifecycle dispatcher.
 - S1 and S3 are not needed by the starter and stay open. Nothing in items
   (a)-(h) may implement serial admission or settings groups until the owner
   chooses.

@@ -170,7 +170,7 @@
   - [x] Separate Operation and Template Contexts, Share Plugin-Owned State, Return Record Ordinals and Migrate Owned Declarations.
   - [x] Implement Connection Settings, Working-Directory Dotenv Grammar and Precedence, Direct Origins and Ordered Pairing Attempts.
   - [x] Add Bound Case/Cycle/Execution Handles, Lazy Start/Watch Finality, Stable Seal Outcomes, Verified Archives and Client Notes/Artifacts.
-  - [x] Pin the Owned, Addressable, Closeable Rust Listener at f3c858c33efdebc94b33a44e112f28703932f4a1; Register, Await Ready, Unregister and Close With Explicit Listener Configuration Without Copying Its Server or Mutating Process Environment.
+  - [x] Pin the Owned, Addressable, Closeable Rust Listener at the Shared Maintenance Revision; Register, Await Ready, Unregister and Close With Explicit Listener Configuration Without Copying Its Server or Mutating Process Environment.
   - [ ] Complete Typed Runtime Operation References and Stream Subscription After Their Shared Library Capabilities Land.
     - [x] Remove the Legacy Public Static-Request Context Call and `OperationRequest` Re-Exports; Keep Unsupported Runtime References Unexposed.
   - [ ] Bind Bundle Upload After the Product Host Publishes Its Installation Contract and Regenerated Bindings; Shared Plugins/Create Currently Accepts Placements Rather Than Bundle Uploads.
@@ -190,7 +190,7 @@
   - [x] Prove Failed/Cancelled Product Initialization Cleanup Exactly Once With the Deterministic Runtime Story.
   - [x] Prove the Created Rust and C# Starters Through Build, Bundle, Inspect, Headless Development and Unmodified Client Runs; Prove Python Creation and Shared Four-Language Capture.
   - [ ] Complete CLI Units/Stories, SDK Units/Integrations, Generated Checking, Repository Checking, Formatting, Scoped/Workspace Compilation and Final Rust Lint on This Candidate.
-    - [ ] Move the Raw Protocol Fixture to `crates/dokime-client-internal/src/bin/content_fixture.rs` Without Any SDK Dependency; Preserve Every Trusted-Plugin Stale-Revision, Replay and Upload-Writer Fence Probe.
+    - [x] Move the Raw Protocol Fixture to `crates/dokime-client-internal/src/bin/content_fixture.rs` Without Any SDK Dependency; Preserve Every Trusted-Plugin Stale-Revision, Replay and Upload-Writer Fence Probe.
     - [x] Validate Rust Project Names Against Rust Keywords and SDK Shadowing, and Run Created-Project Compiler Processes Through the Existing Owned Process-Tree Runner Without Changing Deadlines.
     - [x] Migrate Runtime and Desktop Benchmark Source Consumers to Marker Constructors, Native Template Contexts, Standard Plugin Run and the Unpublished Product Client; Typecheck Them in the Dev Profile Without Building or Running Benchmarks.
   - [x] Preserve Separate SDK Harness and Product Execution Sequencing Per the Owner Decision; Run Product Cleanup After Attempted Initialization, Including Failure and Cancellation.
@@ -207,16 +207,16 @@
   - [x] Preserve Template State Through Failed Initialization Until Cleanup, Carry Cleanup Termination and Share the Author Plugin Across Both Contexts.
   - [x] Share Fenced Artifact Transfers Between Clients and Template Contexts; Add Capture, Environment, Copied Full Prompts and Mutation Identity Overrides and Declare Their Host Requirements Automatically.
   - [ ] Complete the Remaining Authoring Capability Inventory, Context Notes, Typed Stream Subscription and Automatic Peer Requirements Without Serial Admission or Settings Groups.
-  - [ ] Adopt the Library-Owned Addressable, Closeable C++ Listener for Plugin Registration; Do Not Copy the Server or Add Address Polling.
+  - [x] Adopt the Library-Owned Addressable, Closeable C++ Listener for Plugin Registration; Do Not Copy the Server or Add Address Polling.
   - [x] Implement Connection/Pairing, Bound Case/Cycle/Execution Host Compositions, Lazy Run/Watch, Stable Seal Outcomes, Verified Evidence, Fixed-Cut Typed Readers, Controls, Prompt Answers and Structured Client Failures; Internalize Transfer Helpers.
   - [ ] Complete Registration-Owned Template Bindings and Listener Cleanup and Bind Managed Bundle Upload After the Carrier Listener and Product Installation Contracts Land.
-  - [ ] Replace Both C++ Starter Roots With the Requested Single Two-Executable Project, Native Static Manifest Metadata and the Unmodified Bound-Client Flow; Migrate the C++ CLI Embedding Functions.
+  - [x] Replace Both C++ Starter Roots With the Requested Single Two-Executable Project, Native Static Manifest Metadata and the Unmodified Bound-Client Flow; Migrate the C++ CLI Embedding Functions.
   - [ ] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
   - [x] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
   - [ ] Complete Repository, Product-Host Shared Capture and Created-Project Bundle/Inspect/Dev/Client Proof; Linux Proof Remains Independent.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
-- [ ] Unify Rust, Tooling, Python, C# and C++ Library Pins at the Owner-Selected Maintenance Head and Regenerate Every Tracked Binding.
-- [ ] Encode Plugin Initialize and Finalize Hooks as Well-Known Operations in All Four SDKs and Remove Replaced Stop Callbacks.
+- [x] Unify Rust, Tooling, Python, C# and C++ Library Pins at the Owner-Selected Maintenance Head and Regenerate Every Tracked Binding.
+- [x] Encode Plugin Initialize and Finalize Hooks as Well-Known Operations in All Four SDKs and Remove Replaced Stop Callbacks.
 - [ ] Merge Current Dev Before Final Proof; Run Workspace Compilation, Rust Lint, Repository and Generation Checks, All SDK Units/Integrations, Four Created Projects and Capture, CLI Stories and the Requested Release Host/Python Stories.
 - [x] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
 
