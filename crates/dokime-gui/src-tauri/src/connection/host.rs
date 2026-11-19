@@ -546,6 +546,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
 
     ConnectionSettings {
         host: HostSettings {
+            installation: None,
             credentials,
             capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),

@@ -428,6 +428,7 @@ mod tests {
         let root = tempfile::tempdir()?;
         let store = Store::open(root.path())?;
         let settings = HostSettings {
+            installation: None,
             credentials: CredentialNamespace::new("dokime-seal-unit")?,
             storage: storage_defaults(),
             placement: PlacementSettings {

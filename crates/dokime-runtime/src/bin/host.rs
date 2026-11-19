@@ -100,6 +100,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
     let host_settings = HostSettings {
+        installation: None,
         credentials,
         storage: dokime_storage::storage_defaults(),
         clock,

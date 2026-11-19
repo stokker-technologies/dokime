@@ -147,6 +147,11 @@ normal system package installation.
 The desktop installer includes `dokime` beside the desktop executable but does
 not add it to PATH. Use mise for the command-line installation below.
 
+Organization installers can include plugin bundles in the installation's `plugins/`
+folder. The [startup admission contract](openspec/changes/organization-pack-coverage/proposal.md#installation-plugin-admission)
+records registry ownership, user-entry precedence and rejected-bundle reporting;
+its platform proof requirements are listed with the decision.
+
 Add the command-line tool from the `nightly` release to a `mise.toml`:
 
 ```toml

@@ -50,13 +50,16 @@ pub(super) use unix::executable;
 /* === Imports === */
 
 // Standard Library Imports
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 use std::{ffi::OsStr, process::Command};
 
 // Third Party Imports
+use tauri_bundler::Settings;
+use tempfile::TempDir;
 
 // Local Imports
+use crate::installation;
 
 /* === Constants === */
 
@@ -78,15 +81,30 @@ pub struct PackageOptions {
     pub target: Option<String>,
 }
 
+/// Verified Native Packaging Inputs, Prepared Without Invoking an Installer Tool.
+pub struct PreparedInstaller {
+    settings: Settings,
+    manifest: Manifest,
+    distribution: distribution::Distribution,
+    scratch: TempDir,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl PreparedInstaller {
+    /// Native Packaging Settings Borrow Their Prepared Resources Until This Owner Is Dropped.
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
+}
+
 /* === Public Functions === */
 
-pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBuf>, Error> {
+pub async fn prepare(path: &Path, options: &PackageOptions) -> Result<PreparedInstaller, Error> {
     let mut manifest = Manifest::read(path)?;
     if !options.formats.is_empty() {
         manifest.installer.formats = options.formats.clone();
@@ -114,7 +132,7 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     native::validate_signing(&manifest, options.sign)?;
     let mut selected = options.plugins.clone();
     if options.artifacts.is_some() && !names.is_empty() {
-        let directory = source.join("plugins");
+        let directory = source.join(installation::PLUGINS);
         let mut paths = Vec::new();
         for entry in
             fs::read_dir(&directory).map_err(|error| Error::Invalid(format!("Add Requested .dokime Bundles to {directory:?}: {error}")))?
@@ -132,9 +150,22 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
         selected.extend(paths);
     }
     let plugins = plugins::stage(&selected, scratch.path(), &distribution.target, &distribution.version)?;
-    let staged = scratch.path().join("installers");
+    let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
+    let authenticode = signing::authenticode_enabled(provider.as_deref())?;
+    let settings = native::prepare(&manifest, &distribution, &source, &plugins, scratch.path(), options, authenticode)?;
+    Ok(PreparedInstaller {
+        settings,
+        manifest,
+        distribution,
+        scratch,
+    })
+}
+
+pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBuf>, Error> {
+    let prepared = prepare(path, options).await?;
+    let staged = prepared.scratch.path().join("installers");
     fs::create_dir_all(&staged)?;
-    let outputs = native::assemble(&manifest, &distribution, &source, &plugins, scratch.path(), &staged, options)?;
+    let outputs = native::assemble(&prepared.manifest, &prepared.distribution, &prepared.settings, &staged, options)?;
     fs::create_dir_all(&options.output)?;
     let output = options.output.canonicalize()?;
     let mut published = Vec::new();
@@ -166,7 +197,7 @@ pub async fn package(path: &Path, options: &PackageOptions) -> Result<Vec<PathBu
     if staged.join("release.json").is_file() {
         fs::copy(staged.join("release.json"), output.join("release.json"))?;
     }
-    scratch.close()?;
+    prepared.scratch.close()?;
     Ok(published)
 }
 

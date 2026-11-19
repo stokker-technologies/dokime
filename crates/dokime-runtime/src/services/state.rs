@@ -162,6 +162,9 @@ impl host::Host for State {
         *self.catalogs.write().map_err(|source| Error::Unavailable(format!("List Plugins: {source}")))? = reply.entries.clone();
         Ok(reply.entries)
     }
+    fn plugin_admission_failures(&self) -> Result<Vec<(String, String)>> {
+        Ok(crate::host::lock(&self.host.plugin_admission_failures).map_err(convert)?.clone())
+    }
     async fn refresh_plugin_states(&self) -> Result<()> {
         self.plugins().await?;
         Ok(())

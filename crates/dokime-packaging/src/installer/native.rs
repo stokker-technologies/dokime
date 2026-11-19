@@ -38,6 +38,7 @@ use super::{
     license,
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
 };
+use crate::installation;
 
 /* === Constants === */
 
@@ -138,7 +139,7 @@ pub(super) fn prepare(
     }
     let mut resources = HashMap::new();
     for (name, staged) in plugins {
-        let relative = format!("plugins/{name}");
+        let relative = format!("{}/{name}", installation::PLUGINS);
         resources.insert(staged.to_string_lossy().into_owned(), relative.clone());
         let linux_path = PathBuf::from(format!("/{installed_resource_prefix}{relative}"));
         linux_files.insert(linux_path, staged.clone());
@@ -317,13 +318,9 @@ pub(super) fn prepare(
 }
 
 pub fn assemble(
-    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path,
-    options: &PackageOptions,
+    manifest: &Manifest, distribution: &Distribution, settings: &Settings, output: &Path, options: &PackageOptions,
 ) -> Result<Vec<PathBuf>, Error> {
-    let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
-    let authenticode = super::signing::authenticode_enabled(provider.as_deref())?;
-    let settings = prepare(manifest, distribution, source, plugins, scratch, options, authenticode)?;
-    let bundles = tauri_bundler::bundle_project(&settings).map_err(|error| {
+    let bundles = tauri_bundler::bundle_project(settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)
     })?;

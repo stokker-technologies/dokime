@@ -431,6 +431,7 @@ pub(super) fn credentials() -> CredentialNamespace {
 
 pub(super) fn settings() -> HostSettings {
     HostSettings {
+        installation: None,
         credentials: credentials(),
         clock: Arc::new(ControlledClock::new(1_788_220_800_000_000_000)),
         storage: storage_defaults(),

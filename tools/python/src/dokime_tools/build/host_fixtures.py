@@ -41,6 +41,15 @@ from dokime_tools.test import archive
 
 # === Constants === #
 
+RUST_FIXTURES = (
+    "dokime-rust-thermal",
+    "dokime-rust-execution",
+    "dokime-rust-boundary",
+    "dokime-rust-secrets",
+    "dokime-rust-capture",
+    "dokime-rust-plugin",
+)
+
 # === Types === #
 
 # === Classes === #
@@ -48,24 +57,29 @@ from dokime_tools.test import archive
 # === Public Functions === #
 
 
-def build(profile: str, language: str = "auto") -> None:
+def build(profile: str, language: str = "auto", fixture: str | None = None) -> None:
+    if fixture is not None and (fixture not in RUST_FIXTURES or language not in ("auto", "rust")):
+        raise ValueError("Build Host Fixture: Select a Declared Rust Fixture With --language rust")
     root = configuration.ROOT
     output = paths.output(root, "build", profile) / "fixtures/host"
     output.mkdir(parents=True, exist_ok=True)
     extension = ".exe" if os.name == "nt" else ""
     compiler_profile = "debug" if profile == "dev" else profile
 
-    languages = {language}
-    if language == "auto":
+    languages = {"rust"} if fixture else {language}
+    if language == "auto" and fixture is None:
         languages = {"rust", "python"}
         if shutil.which("dotnet"):
             languages.add("csharp")
         if shutil.which("cmake"):
             languages.add("cpp")
 
-    # Build the Rust Reference and Execution Fixtures
-    if "rust" in languages:
+    # Prepare Product Resources for the Complete Rust Producer.
+    if "rust" in languages and fixture is None:
         generated.prepare()
+
+    # Build the Rust SDK Fixtures.
+    if "rust" in languages:
         subprocess.run(
             [
                 "mise",
@@ -79,7 +93,7 @@ def build(profile: str, language: str = "auto") -> None:
                 "sdk/rust/tests/consumer/Cargo.toml",
                 "--package",
                 "dokime-rust-stories",
-                "--bins",
+                *(["--bin", fixture] if fixture else ["--bins"]),
                 "--profile",
                 profile,
             ],
@@ -91,9 +105,11 @@ def build(profile: str, language: str = "auto") -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        for name in ("dokime-rust-thermal", "dokime-rust-execution", "dokime-rust-boundary", "dokime-rust-secrets", "dokime-rust-capture"):
+        for name in (fixture,) if fixture else RUST_FIXTURES:
             shutil.copy2(root / "target" / compiler_profile / f"{name}{extension}", output / f"{name}{extension}")
 
+    # Build the Remaining Rust Host Fixtures Only for the Complete Producer.
+    if "rust" in languages and fixture is None:
         subprocess.run(
             [
                 "mise",
@@ -297,7 +313,8 @@ if __name__ == "__main__":
         default=os.environ.get("DOKIME_HOST_FIXTURE_LANGUAGE", "auto"),
     )
     parser.add_argument("--export", action="store_true", help="Export the Declared CI Artifact")
+    parser.add_argument("--fixture", choices=RUST_FIXTURES, help="Build and Stage Only One Rust Fixture")
     options = parser.parse_args()
-    build(options.profile, options.language)
+    build(options.profile, options.language, options.fixture)
     if options.export:
         transport.send(options.profile)
