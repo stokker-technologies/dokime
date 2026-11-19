@@ -215,12 +215,15 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let prompt_id = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
             assert_eq!(client.prompts.get(prompt_id.clone()).await?.prompt.unwrap().prompt.unwrap().prompt_id, prompt_id);
             client.prompts.answers.create(prompt_id, "0", MapValue::default(), true).await?;
+            let mut terminal = None;
             while let Some(frame) = progress.next().await? {
-                phases.push(frame.phase);
+                terminal = Some(frame);
             }
-            assert!(phases.iter().any(|phase| phase == "finished"));
+            let terminal = terminal.expect("Watch Thermal Progress: Return the Final Sealed Frame");
+            assert!(terminal.sealed);
             let reply = client.executions.get(execution_id.clone()).await?;
             let detail = reply.execution.unwrap();
+            assert_eq!(terminal.outcome, detail.outcome);
             assert_eq!(detail.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
             assert!(!detail.seal.is_empty());
             let result_status = match detail.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()) {
