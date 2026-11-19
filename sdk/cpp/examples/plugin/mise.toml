@@ -16,4 +16,4 @@ ninja = "1.13.2"
 
 [tasks.build]
 description = "Build the Managed Plugin Executable"
-run = ['cmake --preset release', 'cmake --build --preset release']
+run = ['cmake --preset development', 'cmake --build --preset development']

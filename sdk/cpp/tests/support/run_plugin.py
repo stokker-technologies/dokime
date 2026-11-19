@@ -60,7 +60,9 @@ def main() -> None:
     environment.pop("HARMOS_ADDRESS", None)
     arguments = [plugin]
     if placement == "remote":
-        arguments += ["--address", "127.0.0.1:0"]
+        environment["DOKIME_PLUGIN_ADDRESS"] = "127.0.0.1:0"
+    else:
+        environment["HARMOS_ADDRESS"] = "127.0.0.1:0"
     creationflags = spawn_flags()
     process = subprocess.Popen(
         arguments,

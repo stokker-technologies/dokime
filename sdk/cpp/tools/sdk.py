@@ -243,7 +243,7 @@ def main() -> None:
                 "cmake",
                 "--fresh",
                 "--preset",
-                "release",
+                "development",
                 "-S",
                 str(options.source or sdk / "examples/test"),
                 "-B",

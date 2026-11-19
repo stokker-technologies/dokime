@@ -4,7 +4,7 @@ target_link_libraries(dokime-generation PRIVATE Dokime::Cpp)
 
 find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
-add_executable(dokime-builders builders.cpp)
+add_executable(dokime-builders builders.cpp configuration.cpp)
 target_link_libraries(dokime-builders PRIVATE Dokime::Cpp Catch2::Catch2WithMain)
 add_test(NAME builders COMMAND dokime-builders)
 
@@ -54,3 +54,12 @@ add_test(NAME values_roundtrip
   COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/support/run_plugin.py"
     $<TARGET_FILE:dokime-value-plugin> $<TARGET_FILE:dokime-values-journey> managed)
 set_tests_properties(values_roundtrip PROPERTIES TIMEOUT 240)
+
+add_executable(dokime-lifecycle-plugin support/lifecycle_plugin.cpp)
+target_link_libraries(dokime-lifecycle-plugin PRIVATE Dokime::Cpp)
+add_executable(dokime-lifecycle-journey integration/failed_initialization.cpp)
+target_link_libraries(dokime-lifecycle-journey PRIVATE Dokime::Cpp Catch2::Catch2)
+add_test(NAME failed_initialization
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/support/run_plugin.py"
+    $<TARGET_FILE:dokime-lifecycle-plugin> $<TARGET_FILE:dokime-lifecycle-journey> managed)
+set_tests_properties(failed_initialization PROPERTIES TIMEOUT 240)

@@ -18,20 +18,14 @@
 #include <functional>
 #include <map>
 
-namespace dokime {
-using harmos::client::PluginPlacement;
-using harmos::client::PluginState;
-using harmos::client::PluginValue;
-} // namespace dokime
-
 namespace dokime::client {
-harmos::FileReference upload(Client &client, const std::filesystem::path &path,
+harmos::FileReference upload(detail::Transport &client, const std::filesystem::path &path,
                              const std::function<void(grpc::ClientContext &)> &configure = {});
 
 class FrozenSchemaCache {
 public:
   static std::string message_name(const ExecutionDetail &detail, const std::string &identity);
-  std::shared_ptr<const google::protobuf::FileDescriptorSet> get(Client &client, const ExecutionDetail &detail,
+  std::shared_ptr<const google::protobuf::FileDescriptorSet> get(detail::Transport &client, const ExecutionDetail &detail,
                                                                  const std::function<void(grpc::ClientContext &)> &configure = {});
 
 private:

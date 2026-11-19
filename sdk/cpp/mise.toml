@@ -62,5 +62,6 @@ usage = 'arg "[args]" var=#true'
 run = 'uv run --no-sync --project ../../tools/python python tools/sdk.py consumer {% for arg in usage.args %}"{{arg}}" {% endfor %}'
 
 [tasks.generate]
-description = "Check Frozen C++ Generation"
-run = ['mise -C ../csharp run prepare:protocol', 'uv run --no-sync --project ../../tools/python python tools/generate.py']
+description = "Generate or Check C++ Bindings"
+usage = 'arg "[args]" var=#true'
+run = 'uv run --no-sync --project ../../tools/python python tools/generate.py {% for arg in usage.args %}"{{arg}}" {% endfor %}'

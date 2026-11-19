@@ -14,10 +14,13 @@
 #include "dokime/plugin/v1/executions.pb.h"
 #include "dokime/plugin/v1/steps.pb.h"
 #include "dokime/plugin/v1/test_cases.pb.h"
+#include <cctype>
 #include <google/protobuf/util/message_differencer.h>
+#include <grpc/event_engine/event_engine.h>
 #include <limits>
 #include <regex>
 #include <set>
+#include <sstream>
 
 using dokime::plugin::v1::CriteriaEvaluateRequest;
 using dokime::plugin::v1::CriteriaEvaluateResponse;
@@ -67,27 +70,7 @@ using std::uint32_t;
 
 /* === Public Functions === */
 
-namespace dokime::plugin {
-namespace {
-template <class Q>
-Context execution_context(harmos::plugin::Context &transport, const Q &request, const string &template_id,
-                          const shared_ptr<detail::Executions> &executions, shared_ptr<const detail::Bindings> bindings,
-                          const string &action, string item = {}) {
-  const auto &origin = request.origin();
-  const bool same_case = MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
-  const bool has_entry = !origin.plugin_run().plugin().empty();
-  const bool same_template = origin.plugin_run().template_() == template_id;
-  if (request.execution().empty() || transport.scope() != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
-      !has_entry)
-    throw invalid_argument(action + ": Supply Matching Execution Scope, Template and Frozen Origin");
-  auto resources = executions->open(request.execution());
-  {
-    lock_guard lock(resources->mutex);
-    resources->test_case = request.test_case();
-  }
-  return Context(transport, request.test_case(), move(item), move(resources), move(bindings));
-}
-} // namespace
+namespace dokime::templates {
 
 Metadata metadata(string identifier, string label) {
   Metadata value;
@@ -101,7 +84,7 @@ string build_identifier(string name, optional<string> explicit_identifier, strin
     local = *explicit_identifier;
   } else {
     if (class_name) {
-      for (const auto &suffix : {string("Template"), string("Suite")})
+      for (const auto &suffix : {string("TestTemplate"), string("Plugin"), string("Suite")})
         if (name.ends_with(suffix)) {
           name.resize(name.size() - suffix.size());
           break;
@@ -116,6 +99,40 @@ string build_identifier(string name, optional<string> explicit_identifier, strin
     throw invalid_argument("Build Plugin: Supply a Nonempty Declaration Identifier");
   return prefix.empty() ? local : prefix + "." + local;
 }
+string build_label(string name) {
+  for (const auto &suffix : {string("TestTemplate"), string("Plugin"), string("Suite")}) {
+    if (!name.ends_with(suffix))
+      continue;
+    name.resize(name.size() - suffix.size());
+    break;
+  }
+  name = regex_replace(name, regex("([A-Z]+)([A-Z][a-z])"), "$1 $2");
+  name = regex_replace(name, regex("([a-z0-9])([A-Z])"), "$1 $2");
+  std::replace(name.begin(), name.end(), '_', ' ');
+  std::istringstream input(name);
+  vector<string> words;
+  for (string word; input >> word;)
+    words.push_back(move(word));
+  const set<string> minor{"a", "an", "the", "and", "but", "or", "nor", "as", "at", "by", "for", "in", "of", "on", "per", "to", "via"};
+  string result;
+  for (size_t index = 0; index < words.size(); ++index) {
+    auto word = words[index];
+    const bool uppercase = std::all_of(word.begin(), word.end(), [](unsigned char value) {
+      return !std::isalpha(value) || std::isupper(value);
+    });
+    if (!uppercase) {
+      std::transform(word.begin(), word.end(), word.begin(), [](unsigned char value) {
+        return static_cast<char>(std::tolower(value));
+      });
+      if (index == 0 || index + 1 == words.size() || !minor.contains(word))
+        word[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(word[0])));
+    }
+    if (!result.empty())
+      result += ' ';
+    result += word;
+  }
+  return result;
+}
 PromptDeclaration::PromptDeclaration(string name, string text, vector<string> choices, optional<string> identifier)
     : Declaration(move(name), text, move(identifier)) {
   value.set_message(text);
@@ -123,8 +140,11 @@ PromptDeclaration::PromptDeclaration(string name, string text, vector<string> ch
   value.mutable_metadata()->set_label(text);
   if (choices.empty())
     choices.push_back("OK");
+  set<string> labels;
   size_t index = 0;
   for (const auto &choice : choices) {
+    if (!labels.insert(choice).second)
+      throw invalid_argument("Declare Prompt: Supply Distinct Action Labels");
     auto *action = value.add_actions();
     action->set_identifier(to_string(index++));
     action->set_label(choice);
@@ -170,8 +190,39 @@ Case &Case::criterion(const Criterion &criterion, string label, optional<string>
   value->set_operation(operation);
   return *this;
 }
+} // namespace dokime::templates
+namespace dokime {
+using templates::build_identifier;
+using templates::Case;
+using templates::Context;
+using templates::Declaration;
+using templates::HostOperation;
+using templates::metadata;
+using templates::Template;
+
+template <class Q>
+templates::Context Plugin::execution_context(harmos::plugin::Context &transport, const Q &request, const string &template_id,
+                                             const shared_ptr<templates::detail::Executions> &executions,
+                                             shared_ptr<const templates::detail::Bindings> bindings, const string &action, string item,
+                                             shared_ptr<dokime::detail::PluginState> plugin) {
+  const auto &origin = request.origin();
+  const bool same_case = MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
+  const bool has_entry = !origin.plugin_run().plugin().empty();
+  const bool same_template = origin.plugin_run().template_() == template_id;
+  if (request.execution().empty() || transport.scope() != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
+      !has_entry)
+    throw invalid_argument(action + ": Supply Matching Execution Scope, Template and Frozen Origin");
+  auto resources = executions->open(request.execution());
+  {
+    lock_guard lock(resources->mutex);
+    resources->test_case = request.test_case();
+  }
+  return Context(transport, request.test_case(), move(item), move(resources), move(bindings), move(plugin));
+}
 Plugin::Plugin(string identifier, string version, vector<Suite> suites)
-    : native_(move(identifier), move(version)), executions_(make_shared<detail::Executions>()) {
+    : identifier_(identifier), version_(version), plugin_(make_shared<dokime::detail::PluginState>()),
+      native_(move(identifier), move(version)), executions_(make_shared<templates::detail::Executions>()) {
+  plugin_->plugin = this;
   native_.on_stop([state = executions_] {
     state->clear();
   });
@@ -187,16 +238,16 @@ Plugin &Plugin::suite(Suite suite) {
 
   // Validate Every Declaration Before Registering Operations.
   set<string> templates;
-  vector<shared_ptr<detail::Bindings>> bound;
+  vector<shared_ptr<templates::detail::Bindings>> bound;
   for (const auto &value : suite.templates) {
-    const auto id = suite.single ? suite_id : build_identifier(value.name, value.identifier, suite_id, true);
+    const auto id = build_identifier(value.name, value.identifier, suite_id, true);
     if (!templates.insert(id).second)
       throw invalid_argument("Build Plugin: Supply Unique Template Identifiers");
     for (const auto &existing : suites_.suites())
       for (const auto &previous : existing.templates())
         if (previous.metadata().identifier() == id)
           throw invalid_argument("Build Plugin: Supply Unique Template Identifiers");
-    auto bindings = make_shared<detail::Bindings>();
+    auto bindings = make_shared<templates::detail::Bindings>();
     bindings->template_id = id;
     set<string> names;
     for (const auto &name : {"materialize", "initialize", "cleanup"})
@@ -222,16 +273,18 @@ Plugin &Plugin::suite(Suite suite) {
       bind(stream.declaration);
     for (const auto &prompt : value.prompts)
       bind(prompt);
+    if (value.type != typeid(void))
+      bindings_[value.type].emplace_back(suite_id, id);
     bound.push_back(move(bindings));
   }
-  dokime::Suite declaration;
-  *declaration.mutable_metadata() = metadata(suite_id, suite.label.empty() ? suite.name : suite.label);
+  dokime::detail::payloads::Suite declaration;
+  *declaration.mutable_metadata() = metadata(suite_id, suite.label.empty() ? templates::build_label(suite.name) : suite.label);
   size_t index = 0;
   for (auto &value : suite.templates) {
     const auto bindings = bound[index++];
     const auto id = bindings->template_id;
     TestCaseTemplate definition;
-    *definition.mutable_metadata() = metadata(id, value.label.empty() ? value.name : value.label);
+    *definition.mutable_metadata() = metadata(id, value.label.empty() ? templates::build_label(value.name) : value.label);
     definition.mutable_parameters()->Assign(value.parameters.begin(), value.parameters.end());
     definition.mutable_documents()->Assign(value.documents.begin(), value.documents.end());
     definition.mutable_files()->Assign(value.files.begin(), value.files.end());
@@ -250,6 +303,7 @@ Plugin &Plugin::suite(Suite suite) {
       *prompts_.add_prompts() = move(prompt.value);
     }
     const auto state = executions_;
+    const auto plugin = plugin_;
     TestCase test_case;
     for (auto &step : value.steps) {
       const auto operation_id = bindings->identifiers.at(step.key);
@@ -260,13 +314,13 @@ Plugin &Plugin::suite(Suite suite) {
       const auto item = operation_id;
       Operation<StepsExecuteRequest, StepsExecuteResponse> operation(
           operation_id, VISIBILITY_PROTECTED,
-          [state, bindings, id, item, run = step.run](harmos::plugin::Context &transport, StepsExecuteRequest request) {
+          [state, plugin, bindings, id, item, run = step.run](harmos::plugin::Context &transport, StepsExecuteRequest request) {
             bool matches = false;
             for (const auto &step : request.test_case().steps())
               matches = matches || (step.metadata().identifier() == request.step() && step.operation() == item);
             if (!matches)
               throw invalid_argument("Execute Step: Supply the Item Bound to This Operation");
-            auto ctx = execution_context(transport, request, id, state, bindings, "Execute Step", request.step());
+            auto ctx = execution_context(transport, request, id, state, bindings, "Execute Step", request.step(), plugin);
             run(ctx);
             return StepsExecuteResponse{};
           });
@@ -287,13 +341,14 @@ Plugin &Plugin::suite(Suite suite) {
       const auto item = operation_id;
       native_.operation(Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(
           operation_id, VISIBILITY_PROTECTED,
-          [state, bindings, id, item, evaluate = criterion.evaluate](harmos::plugin::Context &transport, CriteriaEvaluateRequest request) {
+          [state, plugin, bindings, id, item, evaluate = criterion.evaluate](harmos::plugin::Context &transport,
+                                                                             CriteriaEvaluateRequest request) {
             bool matches = false;
             for (const auto &criterion : request.test_case().criteria())
               matches = matches || (criterion.metadata().identifier() == request.criterion() && criterion.operation() == item);
             if (!matches)
               throw invalid_argument("Evaluate Criterion: Supply the Item Bound to This Operation");
-            auto ctx = execution_context(transport, request, id, state, bindings, "Evaluate Criterion", request.criterion());
+            auto ctx = execution_context(transport, request, id, state, bindings, "Evaluate Criterion", request.criterion(), plugin);
             CriteriaEvaluateResponse response;
             response.set_passed(evaluate(ctx));
             return response;
@@ -301,7 +356,7 @@ Plugin &Plugin::suite(Suite suite) {
     }
     for (const auto &stream : value.streams) {
       test_case.add_streams(bindings->identifiers.at(stream.declaration.key));
-      stream.register_(native_, bindings, state);
+      stream.register_(native_, bindings, state, plugin);
     }
     definition.set_materialize(build_identifier("materialize", {}, id));
     native_.operation(Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(
@@ -334,15 +389,10 @@ Plugin &Plugin::suite(Suite suite) {
       definition.set_initialize(build_identifier("initialize", {}, id));
       native_.operation(Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(
           build_identifier("initialize", {}, id), VISIBILITY_PROTECTED,
-          [state, bindings, id, initialize = move(value.initialize)](harmos::plugin::Context &transport,
-                                                                     ExecutionsInitializeRequest request) {
-            auto ctx = execution_context(transport, request, id, state, bindings, "Initialize Execution");
-            try {
-              initialize(ctx);
-            } catch (...) {
-              state->close(request.execution());
-              throw;
-            }
+          [state, plugin, bindings, id, initialize = move(value.initialize)](harmos::plugin::Context &transport,
+                                                                             ExecutionsInitializeRequest request) {
+            auto ctx = execution_context(transport, request, id, state, bindings, "Initialize Execution", {}, plugin);
+            initialize(ctx);
             return ExecutionsInitializeResponse{};
           }));
     }
@@ -350,8 +400,9 @@ Plugin &Plugin::suite(Suite suite) {
     definition.set_cleanup(build_identifier("cleanup", {}, id));
     native_.operation(Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(
         build_identifier("cleanup", {}, id), VISIBILITY_PROTECTED,
-        [state, bindings, id, cleanup = move(value.cleanup)](harmos::plugin::Context &transport, ExecutionsCleanupRequest request) {
-          auto ctx = execution_context(transport, request, id, state, bindings, "Clean Up Execution");
+        [state, plugin, bindings, id, cleanup = move(value.cleanup)](harmos::plugin::Context &transport, ExecutionsCleanupRequest request) {
+          auto ctx = execution_context(transport, request, id, state, bindings, "Clean Up Execution", {}, plugin);
+          ctx.termination_ = request.termination();
           try {
             if (cleanup)
               cleanup(ctx);
@@ -382,6 +433,9 @@ Plugin &Plugin::context_operations() {
   requires_operation(HostOperation::EvidenceTraceabilityGet);
   requires_operation(HostOperation::EvidenceTraceabilitySet);
   requires_operation(HostOperation::DocumentsAppendParts);
+  requires_operation(HostOperation::EffectsCreate);
+  requires_operation(HostOperation::EffectsGet);
+  requires_operation(HostOperation::EffectsSet);
   requires_operation(HostOperation::TimeGet);
   requires_operation(HostOperation::TimeSleep);
   return *this;
@@ -405,10 +459,51 @@ Plugin &Plugin::secrets(SecretsDeclarations secrets) {
 Declarations Plugin::declarations() const {
   return compose().declarations();
 }
-void Plugin::serve(string address) const {
-  compose().serve(move(address));
+PluginDescription Plugin::describe() const {
+  PluginDescription description;
+  description.identifier = identifier_;
+  description.version = version_;
+  for (const auto &suite : suites_.suites()) {
+    SuiteDescription described;
+    described.identifier = suite.metadata().identifier();
+    described.label = suite.metadata().label();
+    for (const auto &value : suite.templates()) {
+      TemplateDescription item;
+      item.identifier = value.metadata().identifier();
+      item.label = value.metadata().label();
+      for (const auto &step : value.steps())
+        item.steps.push_back({step.metadata().identifier(), step.metadata().label()});
+      described.templates.push_back(move(item));
+    }
+    description.suites.push_back(move(described));
+  }
+  for (const auto &record : records_.records())
+    description.records.push_back({{record.metadata().identifier(), record.metadata().label()}, record.message()});
+  description.prompts.assign(prompts_.prompts().begin(), prompts_.prompts().end());
+  const auto catalog = declarations();
+  for (const auto &operation : catalog.operations())
+    description.operations.push_back(
+        {operation.id(), operation.request(), operation.response(), static_cast<operations::Visibility>(operation.visibility())});
+  return description;
 }
-} // namespace dokime::plugin
+Plugin::Plugin(Plugin &&other) noexcept
+    : identifier_(move(other.identifier_)), version_(move(other.version_)), plugin_(move(other.plugin_)), bindings_(move(other.bindings_)),
+      native_(move(other.native_)), suites_(move(other.suites_)), prompts_(move(other.prompts_)), records_(move(other.records_)),
+      secrets_(move(other.secrets_)), executions_(move(other.executions_)) {
+  plugin_->plugin = this;
+}
+void Plugin::serve(optional<string> address) const {
+  if (!address && dokime::detail::configuration::environment("HARMOS_ADDRESS")) {
+    compose().serve();
+    grpc_event_engine::experimental::ShutdownDefaultEventEngine();
+    return;
+  }
+  const auto values = dokime::detail::configuration::load();
+  const auto selected = dokime::detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
+  compose().serve(selected);
+  grpc_event_engine::experimental::ShutdownDefaultEventEngine();
+}
+} // namespace dokime
 
 /* === Private Functions === */
 

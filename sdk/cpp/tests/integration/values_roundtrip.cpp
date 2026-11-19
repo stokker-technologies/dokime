@@ -32,9 +32,9 @@ using std::string;
 /* === Templates === */
 
 template <class T> void roundtrip(PluginHost &host, const string &name, const T &value) {
-  auto request = dokime::plugin::detail::pack(value);
+  auto request = dokime::templates::detail::pack(value);
   const auto response = host.invoke<decltype(request)>("values." + name, request);
-  REQUIRE(dokime::plugin::detail::unpack<T>(response) == value);
+  REQUIRE(dokime::templates::detail::unpack<T>(response) == value);
 }
 
 /* === Public Functions === */

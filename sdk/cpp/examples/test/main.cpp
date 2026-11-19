@@ -10,22 +10,14 @@
 /* === Imports === */
 
 #include <dokime/plugin.hpp>
-#include <grpc/event_engine/event_engine.h>
-#include <iostream>
 
-using dokime::plugin::Context;
-using dokime::plugin::Criterion;
-using dokime::plugin::Plugin;
-using dokime::plugin::Record;
-using dokime::plugin::Step;
-using dokime::plugin::Suite;
-using dokime::plugin::Template;
-using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
-using std::cerr;
-
-using std::exception;
-using std::invalid_argument;
-using std::string;
+using dokime::Plugin;
+using dokime::Suite;
+using dokime::templates::Context;
+using dokime::templates::Criterion;
+using dokime::templates::Record;
+using dokime::templates::Step;
+using dokime::templates::Template;
 
 /* === Macros === */
 
@@ -36,7 +28,7 @@ using std::string;
 /* === Classes === */
 
 namespace example {
-class Capture {
+class ConfirmationTestTemplate : public dokime::templates::TestTemplate {
 public:
   inline static const Record<bool> confirmation{"confirmation", "Confirmation"};
 
@@ -45,12 +37,28 @@ public:
     context.record(confirmation, answer == "Yes");
   }
   bool confirmed(Context &context) {
-    return context.records<&Capture::confirm>(confirmation).last();
+    return context.records<&ConfirmationTestTemplate::confirm>(confirmation).last();
   }
-  static void declare(Template &value) {
+  static Template definition() {
+    auto value = Template::from<ConfirmationTestTemplate>();
     value.record(confirmation);
-    value.steps.push_back(Step::method<&Capture::confirm>("Confirm"));
-    value.criteria.push_back(Criterion::method<&Capture::confirmed>("Confirmed"));
+    value.steps.push_back(Step::method<&ConfirmationTestTemplate::confirm>("Confirm"));
+    value.criteria.push_back(Criterion::method<&ConfirmationTestTemplate::confirmed>("Confirmed"));
+    return value;
+  }
+};
+class CaptureSuite : public Suite {
+public:
+  static Suite definition() {
+    auto value = Suite::from<CaptureSuite>();
+    value.template_value(ConfirmationTestTemplate::definition());
+    return value;
+  }
+};
+class ExamplePlugin : public Plugin {
+public:
+  ExamplePlugin() : Plugin(Plugin::from<ExamplePlugin>("0.1.0")) {
+    suite(CaptureSuite::definition());
   }
 };
 } // namespace example
@@ -63,22 +71,7 @@ public:
 
 /* === Entry Point === */
 
-int main(int argc, char **argv) {
-  int result = 0;
-  try {
-    // Start the Sidecar.
-    Plugin plugin("example", "0.1.0", {Suite::from<example::Capture>("Capture")});
-    if (argc == 3 && string(argv[1]) == "--address")
-      plugin.serve(argv[2]);
-    else if (argc == 1)
-      plugin.serve();
-    else
-      throw invalid_argument("Serve Plugin: Expected [--address ADDRESS]");
-  } catch (const exception &error) {
-    cerr << error.what() << '\n';
-    result = 1;
-  }
-  // Drain EventEngine Work Before Windows Begins DLL Teardown.
-  ShutdownDefaultEventEngine();
-  return result;
+int main() {
+  example::ExamplePlugin plugin;
+  plugin.serve();
 }

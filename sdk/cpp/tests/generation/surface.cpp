@@ -15,7 +15,7 @@
 
 // Local Imports
 #include "dokime/client.hpp"
-#include "dokime/context.hpp"
+#include "dokime/templates.hpp"
 
 /* === Macros === */
 
@@ -30,13 +30,9 @@
 /* === Public Functions === */
 
 // Compiler Story: Calls Are Type-Checked Without Starting a Host.
-void generated_surface(dokime::Client &client, dokime::plugin::Context &context) {
-  auto plugins = client.plugins.list();
-  auto capture = context.host().files.capture(dokime::FileSource{}, "output");
-  (void)capture;
-  auto artifact = context.host().content.artifacts.create(harmos::FileReference{}, "capture.bin", "application/octet-stream");
+void generated_surface(dokime::detail::Transport &client) {
+  const auto plugins = client.plugins.list();
   (void)plugins;
-  (void)artifact;
 }
 
 /* === Private Functions === */

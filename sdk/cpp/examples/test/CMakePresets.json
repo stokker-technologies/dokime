@@ -2,21 +2,21 @@
   "version": 6,
   "configurePresets": [
     {
-      "name": "release",
+      "name": "development",
       "generator": "Ninja",
-      "displayName": "Release Plugin",
+      "displayName": "Development Plugin",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "release",
-      "configurePreset": "release",
-      "configuration": "Release",
+      "name": "development",
+      "configurePreset": "development",
+      "configuration": "Debug",
       "jobs": 2
     }
   ]

@@ -3131,7 +3131,8 @@ struct TimeResource {
     return response;
   }
 };
-struct Client {
+namespace detail {
+struct Transport {
   AccessResource access;
   AggregatesResource aggregates;
   BackendResource backend;
@@ -3160,15 +3161,15 @@ struct Client {
   StreamsResource streams;
   SuitesResource suites;
   TimeResource time;
-  explicit Client(std::shared_ptr<grpc::Channel> channel_value)
+  explicit Transport(std::shared_ptr<grpc::Channel> channel_value)
       : access(channel_value), aggregates(channel_value), backend(channel_value), cases(channel_value), content(channel_value),
         cycles(channel_value), documents(channel_value), evidence(channel_value), executions(channel_value), files(channel_value),
         invocations(channel_value), media(channel_value), operations(channel_value), plots(channel_value), plugins(channel_value),
         prompt_definitions(channel_value), prompts(channel_value), record_schemas(channel_value), reports(channel_value),
         schemas(channel_value), secrets(channel_value), settings(channel_value), status(channel_value), storage(channel_value),
         stream_schemas(channel_value), streams(channel_value), suites(channel_value), time(channel_value) {}
-  static Client connect(std::string address, const ::harmos::StorageTransferSettings &transfer = {},
-                        std::optional<int> message_bytes = {}) {
+  static Transport connect(std::string address, const ::harmos::StorageTransferSettings &transfer = {},
+                           std::optional<int> message_bytes = {}) {
     const auto maximum = ::harmos::transfer_message_bytes(transfer, message_bytes);
     grpc::ChannelArguments arguments;
     arguments.SetMaxSendMessageSize(maximum);
@@ -3176,7 +3177,8 @@ struct Client {
     if (address.starts_with("http://")) {
       address.erase(0, 7);
     }
-    return Client(grpc::CreateCustomChannel(address, grpc::InsecureChannelCredentials(), arguments));
+    return Transport(grpc::CreateCustomChannel(address, grpc::InsecureChannelCredentials(), arguments));
   }
 };
+} // namespace detail
 } // namespace dokime

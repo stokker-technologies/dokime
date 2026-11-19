@@ -307,7 +307,6 @@ using ::dokime::detail::payloads::SecretsGetResponse;
 using ::dokime::detail::payloads::SecretWritable;
 using ::dokime::detail::payloads::SectionRepeat;
 using ::dokime::detail::payloads::Statistics;
-using ::dokime::detail::payloads::Suite;
 using ::dokime::detail::payloads::Suites;
 using ::dokime::detail::payloads::Summary;
 using ::dokime::detail::payloads::SummaryTile;

@@ -53,7 +53,7 @@ using std::filesystem::path;
 /* === Public Functions === */
 
 namespace dokime::client {
-FileReference upload(Client &client, const path &path, const std::function<void(ClientContext &)> &configure) {
+FileReference upload(detail::Transport &client, const path &path, const std::function<void(ClientContext &)> &configure) {
   ifstream source(path, std::ios::binary);
   if (!source)
     throw runtime_error("Upload File: Open Its Path");
@@ -141,7 +141,7 @@ string FrozenSchemaCache::message_name(const ExecutionDetail &detail, const stri
       return stream.message_name();
   throw runtime_error("Decode Evidence: Missing Frozen Binding");
 }
-shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(Client &client, const ExecutionDetail &detail,
+shared_ptr<const FileDescriptorSet> FrozenSchemaCache::get(detail::Transport &client, const ExecutionDetail &detail,
                                                            const std::function<void(ClientContext &)> &configure) {
   if (!detail.has_schemas() || detail.schemas().digest().size() != 32)
     throw invalid_argument("Read Schemas: Supply a SHA-256 Digest");
