@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error;
 use std::sync::{Arc, Weak, atomic::AtomicU32};
 
 // Third Party Imports
@@ -29,6 +30,7 @@ use tokio_util::sync::CancellationToken;
 // Local Imports
 use crate::{
     Error, Result,
+    capabilities::can_start,
     dispatch::Dispatch,
     execution_manager::{Active, ExecutionManager},
     host::lock,
@@ -215,7 +217,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
 
 pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str, mode: ExecutionMode) -> Result<Cycle> {
     let cut = host.inner.store.cut(execution)?;
-    if cut.state != dokime_storage::ExecutionState::Open || cut.frontier != 0 {
+    if !can_start(&cut, host.is_active(execution)?) {
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
     }
     let origin = cut.execution.origin.ok_or_else(|| Error::Invalid("Start Execution: Supply a PluginRun Origin".into()))?;
@@ -230,10 +232,13 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
         return Err(Error::Invalid("Start Execution: Rematerialize the Changed Plugin Catalog into New Execution Evidence".into()));
     }
     host.register_cycle(&cut.execution.cycle)?;
+    let current = host.inner.store.cut(execution)?;
     {
         let mut active = lock(&host.inner.active)?;
-        if active.contains_key(execution) {
-            return Err(Error::Invalid("Start Execution: The Execution Already Has an Active Run".into()));
+        if !can_start(&current, active.contains_key(execution)) {
+            return Err(Error::Invalid(
+                "Start Execution: Reload Controls and Select Unstarted Open PluginRun Evidence Without an Active Run".into(),
+            ));
         }
         active.insert(
             execution.into(),
@@ -273,7 +278,7 @@ fn samples_settlement(action: &str, source: &grpc::Error, streams: &[String]) ->
     }
     // The Library Wraps a Failed Window Answer; Its Causes Say Why the Window Failed.
     let mut causes = vec![source.to_string()];
-    let mut cause = std::error::Error::source(source);
+    let mut cause = error::Error::source(source);
     while let Some(next) = cause {
         causes.push(next.to_string());
         cause = next.source();
@@ -287,9 +292,9 @@ fn samples_settlement(action: &str, source: &grpc::Error, streams: &[String]) ->
 /// The library reports a stream that fell behind its window end, a publication pool full of rows
 /// storage has not taken in, a window too large for that pool, a window the plugin failed, and a
 /// plugin that did not load within its deadline, possibly beneath other causes.
-fn stream_failure(action: &str, source: &(dyn std::error::Error + 'static)) -> Option<Error> {
+fn stream_failure(action: &str, source: &(dyn error::Error + 'static)) -> Option<Error> {
     const WINDOW: &str = "Shorten Its Window (the Observer's Window Setting or interval_window_ms)";
-    let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(source);
+    let mut cause: Option<&(dyn error::Error + 'static)> = Some(source);
     while let Some(current) = cause {
         let message = match current.downcast_ref::<grpc::Error>() {
             Some(grpc::Error::Lagging { stream, lag, limit }) => Some(format!(

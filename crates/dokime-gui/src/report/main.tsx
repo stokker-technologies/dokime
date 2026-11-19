@@ -44,25 +44,25 @@ function reportRoot(): Root {
   return window.__dokimeReportRoot__;
 }
 
-const root = reportRoot();
-
 async function start(): Promise<void> {
+  const root = reportRoot();
   const text = document.getElementById("hub-report-data")?.textContent?.trim();
   if (!text) throw new Error("Report data is unavailable.");
   const [{ readReportCapture, materializeReport }, { ReportApp }] = await Promise.all([import("./native-report"), import("./ReportApp")]);
   const capture = readReportCapture();
-  const { source, appearance } = await materializeReport(capture);
+  const { source, appearance, executionId } = await materializeReport(capture);
   const brand = applyReportAppearance(appearance);
   root.render(
     <StrictMode>
       <BrandProvider brand={brand}>
-        <ReportApp source={source} />
+        <ReportApp source={source} executionId={executionId} />
       </BrandProvider>
     </StrictMode>,
   );
 }
 
 void start().catch((error: unknown) => {
+  const root = reportRoot();
   root.render(
     <>
       <DokimeToaster />

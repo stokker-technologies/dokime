@@ -52,7 +52,7 @@ def build(profile: str) -> None:
 
     # Build the Current CLI Through Its Focused Project Task
     subprocess.run(
-        ["mise", "run", "build", "--", "--package", "dokime-cli"],
+        ["mise", "run", "build", "--", "--package", "dokime-cli", "--profile", profile],
         cwd=root,
         check=True,
         creationflags=spawn_flags(),
@@ -60,7 +60,8 @@ def build(profile: str) -> None:
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
-    cli = root / "target/debug" / f"dokime{extension}"
+    compiler_profile = "debug" if profile == "dev" else profile
+    cli = root / "target" / compiler_profile / f"dokime{extension}"
     shutil.copy2(cli, output / cli.name)
 
     # Bundle the Prepared Shared SDK Fixture Without Compiling in a Story

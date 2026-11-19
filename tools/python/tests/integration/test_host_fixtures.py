@@ -14,6 +14,7 @@
 # Standard Library Imports
 import io
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -128,7 +129,7 @@ class HostFixtureTests(unittest.TestCase):
                     commands = [call.args[0] for call in run.call_args_list]
                     self.assertEqual(
                         {command[2] for command in commands if command[1] == "-C"},
-                        set() if language == "none" else {f"sdk/{language}"},
+                        set() if language in ("none", "rust") else {f"sdk/{language}"},
                     )
                     stamp.assert_not_called()
                     if language == "cpp":
@@ -142,6 +143,10 @@ class HostFixtureTests(unittest.TestCase):
                         reference = next(command for command in commands if command[:2] == ["cargo", "install"])
                         self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
                         self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
+                        self.assertEqual(reference[reference.index("--profile") + 1], "release")
+                        for command in commands:
+                            if command[:3] == ["mise", "run", "build"]:
+                                self.assertEqual(command[command.index("--profile") + 1], "release")
             finally:
                 temporary_directory.cleanup()
 
@@ -181,9 +186,7 @@ class HostFixtureTests(unittest.TestCase):
                     }
                 )
                 host_fixtures.build("dev")
-                self.assertEqual(
-                    {call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust", "sdk/csharp", "sdk/python"}
-                )
+                self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/csharp", "sdk/python"})
                 expected = [
                     "existing",
                     (output / "fixture").relative_to(root).as_posix(),
@@ -193,7 +196,7 @@ class HostFixtureTests(unittest.TestCase):
                 self.assertEqual(inventory.call_args.args[3], {"owner": "tests"})
                 run.reset_mock()
                 host_fixtures.build("dev", "rust")
-                self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust"})
+                self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, set())
                 self.assertEqual(inventory.call_args.args[2], expected)
         finally:
             temporary_directory.cleanup()
@@ -210,6 +213,97 @@ class HostFixtureTests(unittest.TestCase):
                 host_fixtures.build("dev", "csharp")
         finally:
             temporary_directory.cleanup()
+
+    def test_desktop_selects_requested_cli_bytes_and_refuses_missing_profile(self) -> None:
+        extension = ".exe" if os.name == "nt" else ""
+        for profile in ("dev", "release"):
+            temporary_directory = tempfile.TemporaryDirectory()
+            try:
+                root = Path(temporary_directory.name)
+                for compiler_profile in ("debug", "release"):
+                    executable = root / "target" / compiler_profile / f"dokime{extension}"
+                    executable.parent.mkdir(parents=True)
+                    executable.write_bytes(compiler_profile.encode())
+                output = paths.output(root, "build", profile)
+                fixtures = output / "fixtures/host"
+                fixtures.mkdir(parents=True)
+                for name in ("dokime-rust-thermal", "plugin-obc"):
+                    (fixtures / f"{name}{extension}").write_bytes(b"plugin")
+                with (
+                    self.subTest(profile=profile),
+                    patch.object(desktop_fixtures.configuration, "ROOT", root),
+                    patch.object(desktop_fixtures.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stderr="")) as run,
+                    patch.object(desktop_fixtures.archive, "stamp"),
+                ):
+                    desktop_fixtures.build(profile)
+                    selected = "debug" if profile == "dev" else profile
+                    self.assertEqual((output / "fixtures/desktop" / f"dokime{extension}").read_bytes(), selected.encode())
+                    self.assertEqual(run.call_args_list[0].args[0][-2:], ["--profile", profile])
+                    (root / "target" / selected / f"dokime{extension}").unlink()
+                    self.assertRaises(FileNotFoundError, desktop_fixtures.build, profile)
+            finally:
+                temporary_directory.cleanup()
+
+    def test_host_selects_requested_rust_bytes_and_refuses_missing_profile(self) -> None:
+        extension = ".exe" if os.name == "nt" else ""
+        for profile in ("dev", "release"):
+            temporary_directory = tempfile.TemporaryDirectory()
+            try:
+                root = Path(temporary_directory.name)
+                names = (
+                    "dokime-rust-thermal",
+                    "dokime-rust-execution",
+                    "dokime-rust-boundary",
+                    "dokime-rust-secrets",
+                    "dokime-rust-capture",
+                    "dokime-host",
+                    "plugin-obc",
+                )
+                for compiler_profile in ("debug", "release"):
+                    directory = root / "target" / compiler_profile
+                    (directory / "examples").mkdir(parents=True)
+                    for name in names:
+                        (directory / f"{name}{extension}").write_bytes(compiler_profile.encode())
+                    (directory / "examples" / f"content_fixture{extension}").write_bytes(compiler_profile.encode())
+                (root / "Cargo.toml").write_text(
+                    '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n'
+                )
+                reference = root / "target/reference-host/bin" / f"harmos-conformance{extension}"
+                reference.parent.mkdir(parents=True)
+                reference.write_bytes(b"reference")
+                fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
+                fixture.parent.mkdir(parents=True)
+                fixture.write_bytes(b"source")
+                metadata = {
+                    "packages": [
+                        {
+                            "name": "harmos",
+                            "source": "git+https://example.test/library#fixture-revision",
+                            "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
+                        }
+                    ]
+                }
+                with (
+                    self.subTest(profile=profile),
+                    patch.object(host_fixtures.configuration, "ROOT", root),
+                    patch.object(host_fixtures.generated, "prepare"),
+                    patch.object(
+                        host_fixtures.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=json.dumps(metadata))
+                    ) as run,
+                ):
+                    host_fixtures.build(profile, "rust")
+                    selected = "debug" if profile == "dev" else profile
+                    output = paths.output(root, "build", profile) / "fixtures/host"
+                    for name in (*names, "content_fixture"):
+                        self.assertEqual((output / f"{name}{extension}").read_bytes(), selected.encode())
+                    commands = [call.args[0] for call in run.call_args_list if call.args[0][:2] != ["cargo", "metadata"]]
+                    for command in commands:
+                        self.assertEqual(command[command.index("--profile") + 1], profile)
+                    self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"], str(root / "target"))
+                    (root / "target" / selected / f"dokime-rust-thermal{extension}").unlink()
+                    self.assertRaises(FileNotFoundError, host_fixtures.build, profile, "rust")
+            finally:
+                temporary_directory.cleanup()
 
 
 # === Public Functions === #

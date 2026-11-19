@@ -28,21 +28,24 @@ import { ReportShell } from "./ReportShell";
 
 /* === Constants === */
 
-const reportRouter = createRouter({
-  history: createMemoryHistory({ initialEntries: ["/"] }),
-  routeTree: createRootRoute({ component: ReportSurface }),
-});
+/* === Types === */
+
+type ReportAppProps = {
+  source: CycleSnapshotSource;
+  executionId: string | null;
+};
 
 /* === Components === */
 
-export function ReportApp({ source }: { source: CycleSnapshotSource }) {
+export function ReportApp({ source, executionId }: ReportAppProps) {
   /* The snapshot is provided above the router, and the selection lives inside
      it: a component the router owns must hold its own state, or the router
      never re-renders it when that state changes. */
+  const [router] = useState(() => reportRouter(executionId));
   return (
     <>
       <CycleSnapshotProvider source={source}>
-        <RouterProvider router={reportRouter} />
+        <RouterProvider router={router} />
       </CycleSnapshotProvider>
       {/* Copy and download confirm themselves here as they do live. */}
       <DokimeToaster />
@@ -53,11 +56,9 @@ export function ReportApp({ source }: { source: CycleSnapshotSource }) {
 /* === Private Components === */
 
 /** The routed surface: the shell, the workspace, and which case is open. */
-function ReportSurface() {
+function ReportSurface({ executionId }: { executionId: string | null }) {
   const source = useCycleSnapshotSource();
-  const [selection, setSelection] = useState<CycleSelection>(
-    source?.executions.length === 1 ? { executionId: source.executions[0].test_execution_id } : {},
-  );
+  const [selection, setSelection] = useState<CycleSelection>(executionId ? { executionId } : {});
 
   if (!source) {
     return null;
@@ -69,11 +70,12 @@ function ReportSurface() {
 
   return (
     <ReportShell
+      executionId={executionId}
       frozen={{
         selection,
         cycleId,
         generatedAt: source.generatedAt,
-        onSelect: setSelection,
+        onSelect: executionId ? undefined : setSelection,
         title,
       }}
     >
@@ -92,3 +94,10 @@ function ReportSurface() {
 }
 
 /* === Private Functions === */
+
+function reportRouter(executionId: string | null) {
+  return createRouter({
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+    routeTree: createRootRoute({ component: () => <ReportSurface executionId={executionId} /> }),
+  });
+}

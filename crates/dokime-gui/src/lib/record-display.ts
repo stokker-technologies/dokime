@@ -56,16 +56,26 @@ export function recordLevelLabel(level: string): string {
 }
 
 export function recordLevelVariant(level: string): "outline" | "destructive" | "warning" {
-  if (level === "error") return "destructive";
-  if (level === "warning" || level === "warn") return "warning";
+  if (level === "error") {
+    return "destructive";
+  }
+  if (level === "warning" || level === "warn") {
+    return "warning";
+  }
   return "outline";
 }
 
 /** The text colour a dense console row gives a level; no pill, colour only. */
 export function recordLevelTextClass(level: string): string {
-  if (level === "error") return "text-destructive";
-  if (level === "warning" || level === "warn") return "text-warning";
-  if (level === "info") return "text-foreground";
+  if (level === "error") {
+    return "text-destructive";
+  }
+  if (level === "warning" || level === "warn") {
+    return "text-warning";
+  }
+  if (level === "info") {
+    return "text-foreground";
+  }
   return "text-muted-foreground";
 }
 
@@ -104,6 +114,10 @@ export function isDatetimeValue(value: unknown): value is DatetimeValue {
  * number honours a numeric format; anything else renders as plain text.
  */
 export function formatRecordValue(value: unknown, format?: Wire<ValueFormat> | null): string {
+  const exact = exactNumericText(value);
+  if (exact !== null) {
+    return exact;
+  }
   value = numericValue(value) ?? value;
   if (isDatetimeValue(value)) {
     const epochSeconds = Date.parse(value.$datetime) / 1000;
@@ -112,8 +126,6 @@ export function formatRecordValue(value: unknown, format?: Wire<ValueFormat> | n
   if (typeof value === "number" && Number.isFinite(value)) {
     return formatNumber(value, format ?? null);
   }
-  if (isRecord(value) && value.__dokime_native_exact__ === true && typeof value.decimal === "string") return value.decimal;
-  if (isRecord(value) && value.__dokime_native_integer__ === true && typeof value.decimal === "string") return value.decimal;
   if (value === null || value === undefined) {
     return "-";
   }
@@ -124,6 +136,21 @@ export function formatRecordValue(value: unknown, format?: Wire<ValueFormat> | n
     return value ? "true" : "false";
   }
   return JSON.stringify(value);
+}
+
+/** Read Lossless Numeric Text Before Any Floating-Point Projection. */
+export function exactNumericText(value: unknown): string | null {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (
+    isRecord(value) &&
+    (value.__dokime_native_integer__ === true || value.__dokime_native_exact__ === true) &&
+    typeof value.decimal === "string"
+  ) {
+    return value.decimal;
+  }
+  return null;
 }
 
 /* === Private Functions === */
@@ -140,8 +167,14 @@ function recordTone(value: string | null | undefined, severity: string): RecordT
   ) {
     return value;
   }
-  if (severity === "error") return "danger";
-  if (severity === "warning" || severity === "warn") return "warning";
-  if (severity === "debug") return "muted";
+  if (severity === "error") {
+    return "danger";
+  }
+  if (severity === "warning" || severity === "warn") {
+    return "warning";
+  }
+  if (severity === "debug") {
+    return "muted";
+  }
   return "neutral";
 }

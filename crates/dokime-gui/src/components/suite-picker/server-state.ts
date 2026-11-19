@@ -25,7 +25,6 @@ import { fetchNativeSuites } from "../../lib/host/suite-session";
 
 export const suiteQueryKeys = {
   all: ["suite"] as const,
-  preview: (request: PreviewTestCycleRequest) => [...suiteQueryKeys.all, "preview", request] as const,
   suites: () => [...suiteQueryKeys.all, "suites"] as const,
 };
 
@@ -54,8 +53,6 @@ export function useAppendTestCycleMutation() {
   return useMutation({
     mutationFn: ({ cycleId, selections }: { cycleId: string; selections: TestCycleSelection[] }) =>
       appendNativeTestCycle(session.identity, cycleId, selections),
-    onSuccess: async () => {
-      await Promise.all([invalidateWorkflowResourceQueries(queryClient), queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all })]);
-    },
+    onSuccess: () => invalidateWorkflowResourceQueries(queryClient),
   });
 }

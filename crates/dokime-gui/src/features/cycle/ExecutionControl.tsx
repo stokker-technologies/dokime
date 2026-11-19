@@ -12,10 +12,9 @@
  * `useExecutionActions` decides once, from the runtime's own statement of the
  * execution (`executionControlState`), what the card says and which actions
  * it offers; the card and the page bar's primary action both read that one
- * decision, so they never disagree. Start and Cancel belong to an attempt that
- * has not started: Cancel skips it, recording it Cancelled while the cycle
- * continues. Pause or Resume and Stop belong to a running attempt; Stop is the
- * only destructive action. Once the last step settles the card says it is
+ * decision, so they never disagree. The host admits Start for an unstarted
+ * attempt and Cancel for active work. Pause or Resume and Stop belong to a
+ * running attempt; Stop is the only destructive action. Once the last step settles the card says it is
  * finalizing and offers nothing until the attempt ends; an ended attempt
  * offers Re-Run, which appends a new attempt and selects it. The card exists
  * only while live: a file has nothing to command.
@@ -40,7 +39,7 @@ import type { PromptRequest, TestExecution } from "@/lib/types";
 import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
-import { type CycleExecutionRow, caseActionTooltip } from "./cycle-workspace-model";
+import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "./cycle-workspace-model";
 
 /* === Re-Exports === */
 
@@ -141,7 +140,7 @@ export function useExecutionActions({
 }): ExecutionActions | null {
   const commands = useCycleCommands(cycleId);
   const rerunCase = useRerunCase(cycleId);
-  const live = useExecutionProgress(execution?.test_execution_id ?? null);
+  const live = useExecutionProgress(execution && !isUnstartedExecution(execution.status) ? execution.test_execution_id : null);
   if (!execution) {
     return null;
   }
@@ -187,7 +186,7 @@ export function useExecutionActions({
     }
   };
   return {
-    disabled: (action) => !cycleActive || commandOf(action).pending,
+    disabled: (action) => (action !== "Start" && !cycleActive) || commandOf(action).pending,
     progress: state.phase === "running" || state.phase === "waiting" || state.phase === "paused" ? progress : null,
     refusal: cycleActive ? undefined : (caseActionTooltip(row.case) ?? "Only Active Cycles Accept Commands"),
     run: (action) => {

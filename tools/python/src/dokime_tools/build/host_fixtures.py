@@ -53,6 +53,7 @@ def build(profile: str, language: str = "auto") -> None:
     output = paths.output(root, "build", profile) / "fixtures/host"
     output.mkdir(parents=True, exist_ok=True)
     extension = ".exe" if os.name == "nt" else ""
+    compiler_profile = "debug" if profile == "dev" else profile
 
     languages = {language}
     if language == "auto":
@@ -62,12 +63,28 @@ def build(profile: str, language: str = "auto") -> None:
         if shutil.which("cmake"):
             languages.add("cpp")
 
-    # Build the Rust Reference and Execution Fixtures.
+    # Build the Rust Reference and Execution Fixtures
     if "rust" in languages:
         generated.prepare()
         subprocess.run(
-            ["mise", "-C", "sdk/rust", "run", "build"],
+            [
+                "mise",
+                "run",
+                "build",
+                "--",
+                "--cargo",
+                "build",
+                "--locked",
+                "--manifest-path",
+                "sdk/rust/tests/consumer/Cargo.toml",
+                "--package",
+                "dokime-rust-stories",
+                "--bins",
+                "--profile",
+                profile,
+            ],
             cwd=root,
+            env=dict(cargo.compiler_environment(profile), CARGO_TARGET_DIR=str(root / "target")),
             check=True,
             creationflags=spawn_flags(),
             stdin=sys.stdin,
@@ -75,7 +92,7 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
         for name in ("dokime-rust-thermal", "dokime-rust-execution", "dokime-rust-boundary", "dokime-rust-secrets", "dokime-rust-capture"):
-            shutil.copy2(root / "target/debug" / f"{name}{extension}", output / f"{name}{extension}")
+            shutil.copy2(root / "target" / compiler_profile / f"{name}{extension}", output / f"{name}{extension}")
 
         subprocess.run(
             [
@@ -86,6 +103,8 @@ def build(profile: str, language: str = "auto") -> None:
                 "--cargo",
                 "build",
                 "--locked",
+                "--profile",
+                profile,
                 "--package",
                 "dokime-runtime",
                 "--example",
@@ -100,11 +119,27 @@ def build(profile: str, language: str = "auto") -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
-        shutil.copy2(root / "target/debug" / f"dokime-host{extension}", output / f"dokime-host{extension}")
-        # Build the OBC Charger Plugin the Desktop Stories and Screenshots Install.
+        shutil.copy2(
+            root / "target" / compiler_profile / "examples" / f"content_fixture{extension}", output / f"content_fixture{extension}"
+        )
+        shutil.copy2(root / "target" / compiler_profile / f"dokime-host{extension}", output / f"dokime-host{extension}")
+        # Build the OBC Charger Plugin the Desktop Stories and Screenshots Install
         subprocess.run(
-            ["mise", "run", "build", "--", "--cargo", "build", "--locked", "--package", "plugin-obc", "--bin", "plugin-obc"],
+            [
+                "mise",
+                "run",
+                "build",
+                "--",
+                "--cargo",
+                "build",
+                "--locked",
+                "--package",
+                "plugin-obc",
+                "--bin",
+                "plugin-obc",
+                "--profile",
+                profile,
+            ],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
@@ -112,7 +147,7 @@ def build(profile: str, language: str = "auto") -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        shutil.copy2(root / "target/debug" / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
+        shutil.copy2(root / "target" / compiler_profile / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
 
         # Build the Reference Host From the Same Library Revision as the Product.
         # Its library crates are path dependencies of the pinned checkout. Cargo fingerprints their workspace-relative paths,
@@ -128,7 +163,8 @@ def build(profile: str, language: str = "auto") -> None:
                 "--rev",
                 library["rev"],
                 "--locked",
-                "--debug",
+                "--profile",
+                profile,
                 "--force",
                 "--root",
                 str(root / "target/reference-host"),
@@ -139,7 +175,7 @@ def build(profile: str, language: str = "auto") -> None:
                 "harmos-conformance",
             ],
             cwd=root,
-            env=cargo.compiler_environment("dev"),
+            env=cargo.compiler_environment(profile),
             check=True,
             creationflags=spawn_flags(),
             stdin=sys.stdin,

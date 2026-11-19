@@ -20,7 +20,7 @@ use std::{
     collections::BTreeMap,
     env,
     fmt::Debug,
-    fs,
+    fs::{self, OpenOptions},
     io::{self, Error, ErrorKind},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -33,7 +33,7 @@ use harmos_runtime::filesystem;
 use prost::Message;
 use prost_types::Timestamp;
 use sha2::{Digest, Sha256};
-use tempfile::NamedTempFile;
+use tempfile::{Builder, NamedTempFile};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
@@ -170,7 +170,7 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
     let plots = 116;
     boundary(
         &format!("Report Save, {plots} Distinct Streams, Eight Sections and Three Records"),
-        "fixed 1,024 samples per stream; native document/plot browsing prepared first; Create, Publish, Get, Files.Get, bounded Read, SHA-256 verification, adjacent staging, sync and two atomic publications; excludes interactive picker and WebDriver; not the current OBC recording",
+        "fixed 1,024 samples per stream; 306 native plot browsing views and their cut indexes prepared first; Create, Publish, Get, Files.Get, bounded Read, SHA-256 verification, adjacent staging, sync and two atomic publications; excludes interactive picker and WebDriver; not the current OBC recording",
     );
     group.bench_function(BenchmarkId::new("distinct_streams", plots), |b| {
         let (root, server, mut reports, mut files, frame_bytes) = executor.block_on(async {
@@ -334,6 +334,7 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
             let mut documents = DocumentsClient::connect(endpoint.clone()).await.unwrap();
             let mut snapshots = SnapshotsClient::connect(endpoint).await.unwrap();
             // Prepare Native Browsing Views Before the Save, Like the Desktop
+            let mut browsing = Vec::new();
             let mut at = None;
             let mut page_token = String::new();
             loop {
@@ -356,9 +357,11 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
                     let Some(document_binding_result::Kind::Plot(plot)) = binding.result.and_then(|result| result.kind) else {
                         continue;
                     };
+                    let request = plot.request.unwrap();
+                    browsing.push(request.clone());
                     snapshots
                         .list(SnapshotsListRequest {
-                            requests: vec![plot.request.unwrap()],
+                            requests: vec![request],
                             ..Default::default()
                         })
                         .await
@@ -370,6 +373,19 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
                     break;
                 }
             }
+            // Retain Distinct Viewport Selections as a Long-Lived Desktop Does
+            for index in browsing.len()..306 {
+                let mut request = browsing[index % browsing.len()].clone();
+                request.panel_width = Some(640 + index as u32);
+                snapshots
+                    .list(SnapshotsListRequest {
+                        requests: vec![request],
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+            }
+            println!("Report Browsing | 306 retained plot views with native files and view-at indexes beside report objects");
             (root, server, reports, files, frame_bytes)
         });
         let mut sequence = 0;
@@ -431,7 +447,7 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
                     let selection = selecting.elapsed();
 
                     // Stream, Verify and Durably Publish Beside the Destination
-                    let staged = tempfile::Builder::new().prefix(".report-").tempfile_in(root.path())?.into_temp_path();
+                    let staged = Builder::new().prefix(".report-").tempfile_in(root.path())?.into_temp_path();
                     fs::remove_file(&staged)?;
                     let output = NamedTempFile::new_in(root.path())?;
                     let mut file = File::from_std(output.reopen()?);
@@ -477,7 +493,7 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
                     file.sync_all().await?;
                     drop(file);
                     output.persist_noclobber(&staged).map_err(|source| source.error)?;
-                    let input = fs::OpenOptions::new().read(true).write(true).open(&staged)?;
+                    let input = OpenOptions::new().read(true).write(true).open(&staged)?;
                     input.sync_all()?;
                     drop(input);
                     filesystem::publication::install(&staged, &root.path().join(format!("report-{sequence}.html")))

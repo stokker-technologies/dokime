@@ -513,6 +513,219 @@ than increasing a timeout. This changes the check's effective workflow bound and
 requires approval under the task's no-lengthening rule. Keep the existing bound
 until that decision; a prior successful capture does not replace final proof.
 
+## Administration Prefix Predicate at the Pinned Revision
+
+Task 4.4w uses library revision `05bd25a017a54b8af7f53553927e6af24054723b`
+for all Rust workspace dependencies and the Rust SDK consumer. `Cargo.toml` pins
+`harmos`, `harmos-domain`, `harmos-operations`, `harmos-packaging`, `harmos-protocol`,
+`harmos-query`, `harmos-runtime` and `harmos-storage`; the consumer manifest pins
+`harmos-protocol` and `harmos-runtime`. Both Cargo locks are refreshed through Cargo;
+`harmos-sdk-derive` follows the new source transitively. The Python tooling
+pin remains `e8df78630c1cb401e8fdadf7f50fc578b8f0509e`; the Python, C# and C++ SDK
+pins remain `c2cfb153ab136159f07741d1061fcb3a1191e86c` under their separate owners.
+The library's single `ColumnPredicate` now carries either numeric bounds or a
+nonempty case-sensitive text prefix, validates column kinds, and binds the predicate
+to continuation identity. No product predicate family is introduced.
+
+`crates/dokime-operations/src/host/storage/administration.rs::scan` passes the prefix
+on `_storage.item`, the durable native key whose equality to `Administration.key`
+is covered by the envelope round trip. It no longer filters decoded payloads.
+`crates/dokime-storage/src/backend/columns.rs::scan` validates the predicate against
+the schema before pruning, then checks the existing `storage_rows.item` metadata
+with a byte-exact prefix comparison. Object chunks contain one key, so rejected
+chunks never open an Arrow payload file. This needs no schema change or migration.
+The shared library `finish_page`/`finish_scan` owns row filtering, page bounds and
+continuation validation; output projection follows durable key pruning. Payload-projection visits
+are reported through `ArrowPage.payload_rows`, including physical chunk visits.
+No cache crosses requests and no bound, setting or operation deadline changes.
+
+The six call sites in four files still enumerate collections: legacy artifact
+presence, committed artifacts, execution files, command recovery, notes and latest
+prepared report for a cycle. None is an exact-key lookup; named report Get already
+uses keyed administration access. Their public result ordering remains key-sorted.
+The deterministic backend fixture compares the old full-scan/filter result with
+prefix selection across six mixed prefixes, Unicode and literal wildcard bytes,
+three revisions per key, page boundaries and a later matching write beyond the
+issued cut. It compares ordered entries and continuation positions, checks token
+predicate binding and wrong-kind refusal, and counts rejected payload exclusion.
+An absent-prefix read also runs with the Arrow directory unavailable. The focused
+backend selection passes 18 tests, including this equivalence story. A full scan
+projects 72 revision payload rows; each matching prefix projects 12 and an absent
+prefix projects zero. Entries, page-position progression and the issued cut agree.
+
+### Payload Storage Overlap for Owner Review
+
+`crates/dokime-storage/src/backend/rows.rs::{append_object_revisions,append_records}`
+and `backend/objects.rs::exchange` persist complete encoded envelopes in
+`storage_rows.data`, while `backend/columns.rs::store` also persists their payloads
+in Arrow chunks. `StorageBackend::{get_object,list_object_revisions,list_records}`
+read the SQL envelopes; `StorageBackend::list_column_rows` reads the Arrow copy.
+Replay comparison in `rows.rs::insert` and object-history retention also consume the
+SQL envelope. Prefer deleting the SQL payload copies after migrating those readers,
+replay and retention to one Arrow payload owner, proving original-byte identity and
+preserving the existing SQL identity/key metadata. Keep both until the owner decides;
+this prefix repair reads only SQL key metadata when pruning and introduces no new
+payload store or reader.
+
+### Populated Release Measurement Baseline
+
+The report benchmark now prepares 306 native plot views and their cut indexes
+before timing the same eight-section, 116-stream, 118,784-sample, three-record save.
+The previous full-save fixture already warmed 116 plot views; the 17-object
+administration inventory in the original attribution belongs to its isolated example,
+not this full-save fixture. Do not compare those different workloads as a scan repair.
+One optimized release iteration before and one after prefix repair give these
+observations over the same populated fixture (milliseconds):
+
+| Stage | Populated Baseline | After Prefix Repair |
+| --- | ---: | ---: |
+| Execution Files | 2,597.203 | 373.085 |
+| Notes | 1,042.240 | 254.559 |
+| Artifacts | 1,055.980 | 335.724 |
+| Host Create | 6,818.570 | 1,993.882 |
+| Complete Save | 7,417.382 | 2,594.546 |
+
+The release benchmark is built through the focused project task with
+`--package dokime-runtime --bench storage --profile release`; no bench-profile build
+is used. The executable runs once with `DOKIME_BENCH_ONCE=1` and
+`--bench --test reports/save`. The baseline is recorded in
+`target/benchmarks/storage/rscan-release.log`; the after-repair observation and its
+compiler records are `target/benchmarks/storage/prefix-release.log` and
+`prefix-release-compiler.json`. All owned compilation and validation were idle for
+the measurement. These are single observations, not statistical estimates.
+
+The single after-repair release `native-desktop` run passes nine tests. Thermal
+contains 2,502 samples and one record. The earlier two release observations and the
+after-repair run give these timings, not a controlled desktop comparison (milliseconds):
+
+| Stage | Supplied Release Observation | Prior Release Observation | After Prefix Repair |
+| --- | ---: | ---: | ---: |
+| Execution Files | 148.195 | 196.987 | Not Captured |
+| Notes | 124.468 | 148.929 | Not Captured |
+| Artifacts | 166.479 | 190.125 | Not Captured |
+| Host Create | 571.076 | 709.428 | 388.809 |
+| Complete Save | 4,627.801 | 3,716.160 | 2,923.046 |
+
+The after-repair picker takes 1,831.517 ms, publication 23.985 ms, transfer
+46.103 ms and write/publication 202.884 ms. The prior picker was 2,053.517 ms
+versus 3,316.512 ms in the supplied observation. The new run retained only the
+INFO Report Created/Published events, so debug stage timings, generic native-call
+admission and RPC overhead are unavailable; no second desktop run was made.
+The prior run captured admission 0.0021 ms and RPC overhead 3.0639 ms. Its evidence
+is `target/tests/release/windows-x86_64/system-typescript/native-desktop-2XcfS0/`
+and `target/native-desktop-rscan-release.log`; the after-repair evidence is
+`target/tests/release/windows-x86_64/system-typescript/native-desktop-nomNmh/`
+and `target/native-desktop-prefix-release.log`.
+
+### Requested Local Validation
+
+The focused operations selection passes five tests; reports/views have no unit test
+modules in that crate. The 18 backend tests include mixed-prefix equivalence and
+payload exclusion. The native desktop story covers the report/view operation paths
+and passes all nine tests. Workspace compilation, repository configuration checks,
+formatting and the three requested scoped Rust lints pass. Release product, Rust SDK
+consumer, host/reference and desktop fixture builds pass. Native Linux and hosted
+CI/Nightly proof remain in tasks 6.5–6.6; no push or delivery is authorized here.
+
+```powershell
+mise run test -- --package dokime-operations --target lib --filterset 'test(host::storage::administration) | test(host::content) | test(host::evidence::notes) | test(host::executions::commands) | test(host::reports) | test(host::views)'
+mise run test -- --package dokime-storage --target integration --story backend
+mise run build -- --cargo check --workspace --all-targets
+mise run check:repository
+mise run format:rust -- --check
+mise run lint:rust -- --package dokime-operations
+mise run lint:rust -- --package dokime-storage
+mise run lint:rust -- --package dokime-runtime
+mise run test:typescript:system -- --profile release --select native-desktop
+```
+
+The existing `tools/python/src/dokime_tools/build/lint.py::desktop` regenerates all
+frontend assets through `prepare/generated.py::prepare` for every scoped Rust lint,
+even a storage-only lint. Prefer separating asset preparation from pure Rust lint
+in the tooling owner. The eager export fixture and duplicate span collectors remain
+in the existing ownership reviews below; no second preparation or query mechanism
+is introduced by this repair.
+
+Previously release fixture producers staged debug Rust SDK/host/content/plugin
+and desktop CLI bytes, while the shipping GUI was release. Rust test harnesses
+and their native host supplied through `NEXTEST_BIN_EXE` intentionally use the
+unoptimized test profile; they are distinct from those auxiliary fixtures.
+The reference conformance host also explicitly installed with the debug profile.
+All these auxiliary producers now select the requested profile and fail if its
+binary is missing. C# defaults to Release, C++ uses its release preset, and pure
+Python has no compiler profile. The supplied attribution explicitly selected actual
+release executables, so the producer defect does not explain that measured gap.
+
+The earlier native run proved the helper's correction for the formatter's quoted
+operation field. Setup failures from missing prepared tooling/driver and concurrent
+frontend/host generation were REAL preparation errors; sequential preparation and
+the final checks pass. No test, deadline or bound was weakened. The explicitly
+requested release measurements and scoped Rust lint take precedence over the generic
+worker prohibitions on release profiles and lint.
+
+## Browsing View Retention Ownership
+
+`crates/dokime-operations/src/host/views.rs::read` retains a native file index per
+resource/content digest and a separate `view-at` index per resource/evidence position.
+Both carry the supplied resource scope. `retain` removes only a newly produced file
+that lost a publication race; no normal read, page completion, disconnect or shutdown
+releases a published view or either index. Administration uses `ObjectRetention::All`.
+This explains growth during a desktop session and across restarts: viewport selections
+change resource keys, response changes create content revisions, and new evidence
+positions create additional cut indexes even for unchanged response bytes.
+
+The native backend's `backend/compound.rs::delete_scope` can tombstone scoped objects
+and files. `host/cases/storage.rs::delete` already calls native `DeleteScope` for C,
+so deleting an unexecuted case releases that case's view ownership; `cases/get.rs`
+and `cases/parameters.rs` assign their views to C. `host/executions/delete.rs` still calls the SQL ledger's
+`history.rs::delete_sealed_execution`, which deletes SQL `resource_values` and
+`resource_requests`, not native view indexes or native files. This is a lifecycle
+REWORK finding, not permission to add a second deletion path. Native scope deletion
+and SQL execution deletion coexist while the coupled storage cutover remains open;
+prefer deleting the SQL execution cleanup after migrating lifecycle, seal and archive
+callers to the native scope transaction.
+
+No request/session lifetime is defined for the durable cuts: `read` intentionally
+reopens indexed views and refuses unavailable cuts with a resynchronization error.
+The owner must choose between explicit client/session release (requiring ownership
+and cut invalidation semantics), request-only views with explicit durable captures,
+or durable resource views with an explicit release operation. Prefer explicit release
+of client-owned views while retaining separately owned report/evidence captures, as
+part of the coupled view cutover. No retention lifetime, expiry, bound or automatic
+deletion is introduced by the administration performance repair.
+
+The same `views.rs::read` has two retained-reference lookup paths: position-only
+client cuts select `view-at:{resource}:{epoch}:{sequence}`, while returned cuts with
+a resource revision select `view:{resource}:{digest}`. Both resolve a native file
+through `retained`; catalog, document, content, plot and report read operations call
+this function with their client's cut. Prefer deleting the position-only lookup and
+`view-at` index family after canonical cuts and their consumers migrate, subject to
+the owner's contract decision. Keep both paths and their existing accepted cuts now.
+
+## Administration Reader Ownership Review
+
+The scan callers enumerate collections: `content/mod.rs::validate_root` checks legacy
+artifact presence; `artifact_payloads` lists committed artifacts; `execution_files`
+lists an execution's logical files; `evidence/notes/list.rs` selects notes; and
+`executions/commands/mod.rs::recover` examines interrupted command receipts.
+`reports/get.rs` scans prepared reports only to select the latest one for a cycle;
+its named prepared/published report reads already use keyed administration access.
+Report capture lists files/artifacts and then uses their existing keyed Get operations.
+None of these prefix scans is an exact-key lookup. File/artifact continuation reads
+reopen retained views without rescanning; note continuations previously rescanned the
+same prefix. Capture now selects notes once and pages that request-local image through
+the same page operation, without retaining a cache across Create requests.
+
+| Overlap | Callers and Purpose | Preferred Removal |
+| --- | --- | --- |
+| `crates/dokime-storage/src/administration.rs` and `crates/dokime-operations/src/host/storage/administration.rs` | SQL keyed protobuf administration serves runtime root claims/access credentials and the secret journal; native administration serves content, notes, commands, views and prepared reports. | Delete SQL administration after migrating its remaining root/security owners with their durable replay and cleanup semantics. Keep both pending the coupled storage cutover. |
+| `crates/dokime-storage/src/notes.rs` and `crates/dokime-operations/src/host/evidence/notes/{create,get,set,list,watch}.rs` | SQL note persistence has no current operation callers; native note operations own Create/Get/Set/List/Watch. Native Create/List still call SQL-backed `Store::note_owner` for owner validation. | Delete unused SQL note persistence after the owner's decision; preserve/migrate owner validation. |
+| `tools/python/src/dokime_tools/build/{desktop_fixtures,host_fixtures}.py::build` raw executable-path selection and `build/outputs.py::executables` compiler-record selection | Desktop/host fixture tasks map dev to debug and otherwise use the requested profile directory. The native Product builder selects non-test executable paths from Cargo compiler messages through `outputs.executables`. | Prefer deleting the fixture path inference after the owner agrees that fixture builds should emit compiler records consumed by the existing selector. Keep independent Product/Tests builds; do not add a second selector or make Tests depend on Product. |
+
+The storage benchmark's `main.rs` also prepares an unrelated 16,384-row export
+fixture even when Criterion selects only `reports/save`. Prefer lazy fixture setup
+in that benchmark owner; it is outside this worker's report-fixture ownership.
+
 ## Report Retention Ownership Review
 
 The report-creation performance task leaves the listed overlaps intact for the owner.

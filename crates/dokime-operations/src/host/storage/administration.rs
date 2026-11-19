@@ -20,7 +20,7 @@ use std::{fmt::Display, num::NonZeroUsize};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray};
-use harmos_operations::storage::{ColumnKind, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
+use harmos_operations::storage::{ColumnKind, ColumnPredicate, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
 use harmos_operations::storage::{GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
@@ -28,6 +28,7 @@ use harmos_query::arrow::ArrowBatch;
 use harmos_runtime::Identifier;
 use harmos_runtime::storage::{ObjectDefinition, ReadLimits};
 use prost::Message;
+use uuid::Uuid;
 
 // Local Imports
 use crate::host::Context;
@@ -130,7 +131,12 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                         schema: schema.clone(),
                     }),
                     columns: vec!["payload.key".into(), "_storage.scope".into(), "payload.payload".into()],
-                    predicate: None,
+                    predicate: Some(ColumnPredicate {
+                        column: "_storage.item".into(),
+                        lower: None,
+                        upper: None,
+                        prefix: Some(prefix.into()),
+                    }),
                     time: None,
                     start: 0,
                     work: Some(ReadLimits {
@@ -166,13 +172,11 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                 if keys.is_null(index) || scopes.is_null(index) || values.is_null(index) {
                     return Err(Error::Precondition("List Administration: Restore Its Complete Object".into()));
                 }
-                if keys.value(index).starts_with(prefix) {
-                    entries.push(Administration {
-                        key: keys.value(index).into(),
-                        scope: Identifier::new(scopes.value(index)).map_err(|cause| invalid("List Administration", cause))?,
-                        payload: values.value(index).to_vec(),
-                    });
-                }
+                entries.push(Administration {
+                    key: keys.value(index).into(),
+                    scope: Identifier::new(scopes.value(index)).map_err(|cause| invalid("List Administration", cause))?,
+                    payload: values.value(index).to_vec(),
+                });
             }
         }
         token = response.next_page_token;
@@ -195,7 +199,7 @@ pub async fn retain<T: Message + Default>(context: &Context, key: &str, scope: I
     if !revision.is_empty() {
         return Ok(saved);
     }
-    let request_id = uuid::Uuid::now_v7().to_string();
+    let request_id = Uuid::now_v7().to_string();
     let payload = value.encode_to_vec();
     match replace(context, key, scope, Vec::new(), &request_id, payload).await {
         Ok((saved, _)) => Ok(T::decode(saved.payload.as_slice())?),
@@ -245,6 +249,7 @@ mod tests {
                 bound,
             )
             .unwrap();
+        assert_eq!(encoded.item.as_str(), original.key);
         assert_ne!(encoded.item, other.item);
         assert_eq!(catalog().decode::<Administration>(&encoded, bound).unwrap(), original);
     }
