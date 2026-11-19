@@ -49,6 +49,7 @@ use crate::{
     Error, Result,
     host::{Context, files, storage::administration},
 };
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::content::{ArtifactsCreateRequest, ArtifactsCreateResponse, ExecutionFileMetadata, ExecutionFileState};
 use dokime_protocol::model::{ArtifactMetadata, ArtifactScope, ArtifactState};
@@ -104,20 +105,6 @@ pub async fn validate_root(context: &Context) -> Result<()> {
 
 pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<bool> {
     let metadata = file.metadata.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Stored Identifier".into()))?;
-    if let Some((kind, owner)) = metadata.scope.as_deref().and_then(|scope| scope.split_once('/')) {
-        if kind == "cycle"
-            && context
-                .host
-                .store()
-                .client_cycle(owner)?
-                .is_some_and(|cycle| cycle.sealed || cycle.phase == dokime_protocol::host::CyclePhase::Sealing as i32)
-        {
-            return Ok(true);
-        }
-        if kind == "execution" && context.host.store().metadata(owner)?.state != ExecutionState::Open {
-            return Ok(true);
-        }
-    }
     let item = Identifier::new(metadata.id.clone()).map_err(|source| Error::Invalid(format!("Delete File: {source}")))?;
     let mut token = String::new();
     let mut at = None;
@@ -145,7 +132,28 @@ pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<
                 .column_by_name("scope")
                 .and_then(|column| column.as_any().downcast_ref::<StringArray>())
                 .ok_or_else(|| Error::Precondition("Delete File: Restore Its Stored Scope".into()))?;
-            execution_owned |= scopes.iter().flatten().any(|scope| scope.starts_with("execution/") || scope.starts_with("cycle/"));
+            for scope in scopes.iter().flatten() {
+                let Some((kind, owner)) = scope.split_once('/') else { continue };
+                match kind {
+                    "cycle" | "cycle-seal" => {
+                        if context
+                            .host
+                            .store()
+                            .client_cycle(owner)?
+                            .is_some_and(|cycle| cycle.sealed || cycle.phase == CyclePhase::Sealing as i32)
+                        {
+                            return Ok(true);
+                        }
+                    }
+                    "execution" => {
+                        if context.host.store().metadata(owner)?.state != ExecutionState::Open {
+                            return Ok(true);
+                        }
+                    }
+                    _ => {}
+                }
+                execution_owned |= kind == "execution" || kind == "cycle";
+            }
         }
         token = response.next_page_token;
         if token.is_empty() {

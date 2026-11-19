@@ -73,6 +73,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync, task};
 
 // Local Imports
+use crate::persisted::Scope;
 
 /* === Constants === */
 
@@ -173,7 +174,7 @@ impl Backend {
                 if cycle.sealed {
                     continue;
                 }
-                let scope = crate::persisted::Scope::CycleSeal(&cycle.cycle_id).identifier()?;
+                let scope = Scope::CycleSeal(&cycle.cycle_id).identifier()?;
                 let files = {
                     let mut query =
                         state.connection.prepare("SELECT id FROM storage_files WHERE scope=?1 AND finished IS NULL").map_err(db)?;
@@ -936,11 +937,9 @@ mod tests {
         let (backends, lease) = Backend::open_with_execution(&store, persisted::catalog(), Execution::default())?;
         backends.primary.create_session().await?;
         let mut files = Vec::new();
-        for (id, scope) in [
-            ("attempt", persisted::Scope::CycleSeal("open")),
-            ("committed", persisted::Scope::CycleSeal("sealed")),
-            ("on-demand", persisted::Scope::Cycle("open")),
-        ] {
+        for (id, scope) in
+            [("attempt", Scope::CycleSeal("open")), ("committed", Scope::CycleSeal("sealed")), ("on-demand", Scope::Cycle("open"))]
+        {
             let file = backends
                 .primary
                 .create_file_production(&FileMetadata {

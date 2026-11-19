@@ -67,13 +67,19 @@ report insertion, proves the latch still rejects writes after removal of the
 fault, reopens the host and seals successfully. Neither failure story leaves a
 retained report or archive, and each retry publishes exactly one of each.
 
-## Atomic Publication Decision
+## Commit Record Decision
 
-The cycle seal is the publication and recovery owner. Its report and archive are
-staged unpublished and become visible with Sealed in one existing native storage
-compound/scoped mutation. Reopening discards abandoned staging. A late archive
-publication failure retains neither output; reopening preserves Seal Failed and
-its cause and a retry retains exactly one report and one archive.
+The cycle seal owns a scope separate from on-demand cycle reports. Its existing
+uploads materialize the report, prepared capture and archive in that attempt
+scope. One cycle-state write carrying both references commits Sealed; before it,
+neither output is reachable through the cycle. Cross-store atomicity is not
+required. Before another attempt and on host open, the owner deletes dead
+attempt scopes with existing scoped deletion, abandoning incomplete native
+uploads before recovery. A late archive publication failure leaves the cycle
+unsealed with Seal Failed and its cause. After reopening, neither failed output
+is reachable or stored; an earlier on-demand report survives unchanged and a
+retry retains exactly one report and one archive. No sweeper or second recovery
+mechanism is introduced.
 
 ## Archive Layout Decision
 
@@ -88,6 +94,10 @@ content at their root. The encoded evidence file has no product reader and is
 replaced by JSON, including frozen execution metadata and declarations.
 Manifests hash every content member; their own bytes are excluded from their own
 hash inventory to avoid self-reference. Entry times use the owner's seal time.
+No explicit directory entries or empty folders are retained. Logs, progress,
+traceability, capture gaps, statistics reads, document parts and execution, stream
+and cleanup failures have their own named JSON projections; no remainder bucket
+is emitted.
 
 The shipped Python starter adds its approved 100 ms temperature observer and
 names its cycle and saved ZIP from one datetime captured at cycle creation.

@@ -7,15 +7,14 @@ See proposal.md for the agreed publication and archive contracts.
 Cycle state currently persists through `crates/dokime-storage/src/cycles.rs`
 in `execution.sqlite3`. Native file productions, prepared-report objects and
 compound mutations persist in `storage.sqlite3` through
-`crates/dokime-storage/src/backend/`. The cycle materializer currently calls
-report preparation, archive materialization and cycle-state saving independently.
-A late archive persistence failure therefore retains an earlier report.
+`crates/dokime-storage/src/backend/`. These separate stores require a cycle-state
+commit record and attempt-owned cleanup rather than a cross-store transaction.
 
 ## Goals / Non-Goals
 
 The cycle seal owns a commit record for its report and archive. The single
-Sealed-state write carries both references; cross-store atomicity is not required. This delivery preserves the existing fatal persistence latch and operation
-policies. Other open changes remain outside this worker's ownership.
+Sealed-state write carries both references; cross-store atomicity is not required.
+This delivery preserves the existing fatal persistence latch and operation policies. Other open changes remain outside this worker's ownership.
 
 ## Decisions
 

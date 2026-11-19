@@ -144,6 +144,8 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let retained = settlement(&client, &name).await?;
             assert!(retained.sealed, "{:?}", retained.seal_failure);
             assert!(retained.seal_failure.is_none());
+            assert!(client.files.delete(retained.report_file.clone().unwrap()).await.is_err());
+            assert!(client.files.delete(retained.evidence_file.clone().unwrap()).await.is_err());
             assert_eq!(retained.result.as_ref().map(|result| (result.passed, result.failed)), Some((0, 0)));
             let not_run = client.executions.get(unstarted.clone()).await?.execution.unwrap();
             assert_eq!(not_run.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
