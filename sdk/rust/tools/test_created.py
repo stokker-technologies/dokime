@@ -80,7 +80,6 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         ):
             environment.pop(variable, None)
         environment["CARGO_TARGET_DIR"] = str(repository / "target")
-        environment["CARGO_BUILD_JOBS"] = "6"
         environment["MISE_LOCKED"] = "0"
         process = await asyncio.create_subprocess_exec(
             str(binary),
