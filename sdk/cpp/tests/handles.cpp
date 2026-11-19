@@ -25,9 +25,21 @@
 #include "dokime/host/v1/executions.grpc.pb.h"
 #include "dokime/host/v1/executions/progress.grpc.pb.h"
 #include "dokime/host/v1/executions/schemas.grpc.pb.h"
+#include "dokime/host/v1/plugins.grpc.pb.h"
 #include "dokime/host/v1/prompts.grpc.pb.h"
 #include "dokime/host/v1/prompts/answers.grpc.pb.h"
 
+using dokime::host::v1::PLUGIN_STATE_CONNECTING;
+using dokime::host::v1::PLUGIN_STATE_READY;
+using dokime::host::v1::PluginEntry;
+using dokime::host::v1::PluginsCreateRequest;
+using dokime::host::v1::PluginsCreateResponse;
+using dokime::host::v1::PluginsDeleteRequest;
+using dokime::host::v1::PluginsDeleteResponse;
+using dokime::host::v1::PluginsGetRequest;
+using dokime::host::v1::PluginsGetResponse;
+using dokime::host::v1::PluginsWatchRequest;
+using dokime::host::v1::PluginsWatchResponse;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::ServerWriter;
@@ -288,6 +300,48 @@ public:
     return Status::OK;
   }
 };
+class PluginsService final : public dokime::host::v1::Plugins::Service {
+public:
+  PluginsCreateRequest created;
+  PluginsDeleteRequest deleted;
+  PluginEntry entry;
+  Status Create(ServerContext *, const PluginsCreateRequest *request, PluginsCreateResponse *response) override {
+    created = *request;
+    entry.set_name(request->name());
+    entry.set_revision("created");
+    *entry.mutable_placement() = request->placement();
+    *entry.mutable_value() = request->value();
+    entry.mutable_description()->set_id(request->name());
+    entry.mutable_description()->set_version("1.0.0");
+    entry.set_state(PLUGIN_STATE_CONNECTING);
+    *response->mutable_entry() = entry;
+    return Status::OK;
+  }
+  Status Watch(ServerContext *, const PluginsWatchRequest *request, ServerWriter<PluginsWatchResponse> *writer) override {
+    if (request->name() != entry.name())
+      return {StatusCode::INVALID_ARGUMENT, "Watch Plugin: Select the Registered Entry"};
+    entry.set_state(PLUGIN_STATE_READY);
+    entry.set_revision("ready");
+    PluginsWatchResponse frame;
+    *frame.mutable_snapshot()->add_entries() = entry;
+    writer->Write(frame);
+    return Status::OK;
+  }
+  Status Get(ServerContext *, const PluginsGetRequest *request, PluginsGetResponse *response) override {
+    if (request->name() != entry.name())
+      return {StatusCode::NOT_FOUND, "Get Plugin: Register the Entry First"};
+    *response->mutable_entry() = entry;
+    return Status::OK;
+  }
+  Status Delete(ServerContext *, const PluginsDeleteRequest *request, PluginsDeleteResponse *response) override {
+    if (request->name() != entry.name() || request->expected_revision() != entry.revision())
+      return {StatusCode::FAILED_PRECONDITION, "Delete Plugin: Read the Current Entry Revision"};
+    deleted = *request;
+    entry.Clear();
+    response->mutable_receipt();
+    return Status::OK;
+  }
+};
 class Host {
 public:
   CasesService cases;
@@ -299,6 +353,7 @@ public:
   SamplesService samples;
   PromptsService prompts;
   AnswersService answers;
+  PluginsService plugins;
   std::unique_ptr<grpc::Server> server;
   string endpoint;
   Host() {
@@ -314,6 +369,7 @@ public:
     builder.RegisterService(&samples);
     builder.RegisterService(&prompts);
     builder.RegisterService(&answers);
+    builder.RegisterService(&plugins);
     *executions.value.mutable_schemas() = schemas.bindings;
     server = builder.BuildAndStart();
     if (!server)
@@ -333,6 +389,29 @@ public:
 /* === Private Functions === */
 
 /* === Entry Point === */
+
+TEST_CASE("Plugin Handles Register Watch Read and Delete Product Entries") {
+  Host host;
+  dokime::ConnectionSettings settings;
+  settings.remote = host.endpoint;
+  auto client = dokime::connect(settings);
+  auto registered = client.plugins().register_plugin(dokime::Plugin("example", "1.0.0"), "127.0.0.1:0", "plugin-request");
+  REQUIRE(host.plugins.created.name() == "example");
+  REQUIRE(host.plugins.created.request_id() == "plugin-request");
+  REQUIRE(host.plugins.created.placement().remote().url().starts_with("http://127.0.0.1:"));
+  REQUIRE(host.plugins.created.value().enabled());
+  REQUIRE_FALSE(host.plugins.created.has_origin());
+  REQUIRE(registered.identifier() == "example");
+  REQUIRE(registered.label() == "example");
+  REQUIRE(registered.version() == "1.0.0");
+  REQUIRE(registered.state() == "Ready");
+  REQUIRE(client.plugins().get("example").state() == "Ready");
+  registered.unregister();
+  REQUIRE(host.plugins.deleted.name() == "example");
+  REQUIRE(host.plugins.deleted.expected_revision() == "ready");
+  registered.unregister();
+  client.close();
+}
 
 TEST_CASE("Bound Handles Compose Materialization, Lazy Run and Seal") {
   Host host;

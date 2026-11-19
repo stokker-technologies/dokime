@@ -9,6 +9,16 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+#include <atomic>
+
+// Third Party Imports
+#include "harmos/harmos.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <google/protobuf/empty.pb.h>
+#include <google/protobuf/wrappers.pb.h>
+
+// Local Imports
 #include "../support/backend.hpp"
 #include "../support/check.hpp"
 #include "dokime/client.hpp"
@@ -16,11 +26,6 @@
 #include "dokime/host/v1/evidence.grpc.pb.h"
 #include "dokime/host/v1/executions/schemas.grpc.pb.h"
 #include "dokime/host/v1/plots/snapshots.grpc.pb.h"
-#include "harmos/harmos.hpp"
-#include <atomic>
-#include <catch2/catch_test_macros.hpp>
-#include <google/protobuf/empty.pb.h>
-#include <google/protobuf/wrappers.pb.h>
 
 using dokime::EvidenceScope;
 using dokime::client::EvidenceStatisticsOptions;
@@ -28,6 +33,9 @@ using dokime::client::ExecutionDetail;
 using dokime::client::PlotRequest;
 using dokime::client::StatusGetOptions;
 using dokime::client::StatusLogsWatchOptions;
+using dokime::client::host::PLUGIN_STATE_CONNECTING;
+using dokime::client::host::PluginPlacement;
+using dokime::client::host::PluginValue;
 using dokime::detail::FrozenSchemaCache;
 using dokime::detail::Transport;
 using dokime::host::v1::EvidenceStatisticsRequest;
@@ -44,9 +52,6 @@ using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
 using grpc::StatusCode;
-using harmos::client::PLUGIN_STATE_CONNECTING;
-using harmos::client::PluginPlacement;
-using harmos::client::PluginValue;
 
 using std::atomic;
 using std::make_shared;
@@ -184,7 +189,7 @@ TEST_CASE("Transport Reads the Backend") {
   }
   check(refused, "Missing Suite Became an Empty Success");
 
-  // Create a Remote Entry and Read Its Canonical Library Placement.
+  // Create a Remote Entry and Read Its Product Placement.
   PluginPlacement placement;
   placement.mutable_remote()->set_url("http://127.0.0.1:7001");
   PluginValue value;

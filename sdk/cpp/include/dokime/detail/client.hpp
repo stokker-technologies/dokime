@@ -85,7 +85,7 @@ struct ExecutionState {
 };
 struct RegistrationState {
   std::shared_ptr<ClientState> client;
-  harmos::client::PluginEntry entry;
+  client::host::PluginEntry entry;
   bool detached = false;
   std::shared_ptr<Plugin> plugin;
   std::optional<harmos::plugin::Listener> listener;
