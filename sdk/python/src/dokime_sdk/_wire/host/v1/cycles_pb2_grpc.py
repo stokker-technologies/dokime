@@ -66,7 +66,7 @@ class CyclesStub:
                 request_serializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesCreateRequest.SerializeToString,
                 response_deserializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesCreateResponse.FromString,
                 _registered_method=True)
-        self.Seal = channel.unary_stream(
+        self.Seal = channel.unary_unary(
                 '/dokime.host.v1.Cycles/Seal',
                 request_serializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesSealRequest.SerializeToString,
                 response_deserializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesSealResponse.FromString,
@@ -119,7 +119,7 @@ class CyclesServicer:
         raise NotImplementedError('Method not implemented!')
 
     def Seal(self, request, context):
-        """Seal the cycle and retain its report and evidence; observe Sealing then its terminal completion.
+        """Admit cycle sealing and return once; observe completion through Cycles.Watch.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -153,7 +153,7 @@ def add_CyclesServicer_to_server(servicer, server):
                     request_deserializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesCreateRequest.FromString,
                     response_serializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesCreateResponse.SerializeToString,
             ),
-            'Seal': grpc.unary_stream_rpc_method_handler(
+            'Seal': grpc.unary_unary_rpc_method_handler(
                     servicer.Seal,
                     request_deserializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesSealRequest.FromString,
                     response_serializer=dokime_dot_host_dot_v1_dot_cycles__pb2.CyclesSealResponse.SerializeToString,
@@ -322,7 +322,7 @@ class Cycles:
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(
+        return grpc.experimental.unary_unary(
             request,
             target,
             '/dokime.host.v1.Cycles/Seal',

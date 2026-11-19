@@ -30,7 +30,6 @@ use dokime::Metadata;
 use dokime::Termination;
 use dokime::client::CasesCreateOptions;
 use dokime::client::CasesListOptions;
-use dokime::client::CyclePhase;
 use dokime::client::CyclesCreateOptions;
 use dokime::client::CyclesGetOptions;
 use dokime::client::CyclesSealOptions;
@@ -54,6 +53,7 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime::client::RegisteredSelection;
 use dokime::client::SelectionPlan;
+use dokime::client::{CyclePhase, CycleSelection};
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
@@ -543,7 +543,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 },
             )
             .await?;
-        let mut completion = cycles
+        cycles
             .seal_with(
                 cycle.cycle_id.clone(),
                 CyclesSealOptions {
@@ -552,8 +552,12 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 },
             )
             .await?;
+        let mut completion = cycles.watch(CycleSelection { cycle_ids: vec![cycle.cycle_id.clone()], ..Default::default() }, Default::default(), Default::default()).await?;
         while let Some(frame) = completion.next().await? {
-            assert_ne!(frame.cycle.unwrap().phase, CyclePhase::SealFailed as i32);
+            assert!(frame.resync_required.is_none());
+            let cycle = &frame.cycles[0];
+            assert_ne!(cycle.phase, CyclePhase::SealFailed as i32);
+            if cycle.sealed { break; }
         }
         let sealed = cycles.get_with(cycle.cycle_id.clone(), CyclesGetOptions { at: None, ..Default::default() }).await?.cycle.unwrap();
         assert!(sealed.sealed && sealed.archived);

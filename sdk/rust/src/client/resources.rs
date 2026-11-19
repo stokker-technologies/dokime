@@ -3451,12 +3451,10 @@ impl Cycles {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn seal(&self, name: impl Into<String>) -> Result<Watching<CyclesSealResponse>, tonic::Status> {
+    pub async fn seal(&self, name: impl Into<String>) -> Result<CyclesSealResponse, tonic::Status> {
         self.seal_with(name, CyclesSealOptions::default()).await
     }
-    pub async fn seal_with(
-        &self, name: impl Into<String>, options: CyclesSealOptions,
-    ) -> Result<Watching<CyclesSealResponse>, tonic::Status> {
+    pub async fn seal_with(&self, name: impl Into<String>, options: CyclesSealOptions) -> Result<CyclesSealResponse, tonic::Status> {
         let value = CyclesSealRequest {
             name: name.into(),
             request_id: match options.request_id {
@@ -3467,14 +3465,14 @@ impl Cycles {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<CyclesSealRequest, CyclesSealResponse>(
+            .unary::<CyclesSealRequest, CyclesSealResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.Cycles/Seal"),
                 request,
                 CyclesSealResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("cycles.seal", error))?;
-        let response = response.with_action("cycles.seal");
+        let response = response.into_inner();
         Ok(response)
     }
 }

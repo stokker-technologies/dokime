@@ -125,27 +125,29 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                     next_page_token="next" if not request.page.page_token else "",
                 )
 
-            async def Seal(
-                self, request: cycles_pb2.CyclesSealRequest, context: ServicerContext
-            ) -> AsyncIterator[cycles_pb2.CyclesSealResponse]:
+            async def Seal(self, request: cycles_pb2.CyclesSealRequest, context: ServicerContext) -> cycles_pb2.CyclesSealResponse:
                 trace.append(request)
-                if not owner.settled_seal:
-                    yield cycles_pb2.CyclesSealResponse(cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING"})
-                owner.seal_started.set()
-                await owner.seal_release.wait()
-                if owner.seal_failure:
-                    yield cycles_pb2.CyclesSealResponse(
-                        cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEAL_FAILED", "seal_failure": "storage"}
-                    )
-                else:
-                    yield cycles_pb2.CyclesSealResponse(
+                if owner.settled_seal:
+                    return cycles_pb2.CyclesSealResponse(
                         seal=b"settled", cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True}
                     )
+                return cycles_pb2.CyclesSealResponse(cycle={"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING"})
 
             async def Watch(
                 self, request: cycles_pb2.CyclesWatchRequest, context: ServicerContext
             ) -> AsyncIterator[cycles_pb2.CyclesWatchResponse]:
                 trace.append(request)
+                if request.selection.cycle_ids:
+                    yield cycles_pb2.CyclesWatchResponse(cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALING"}])
+                    owner.seal_started.set()
+                    await owner.seal_release.wait()
+                    if owner.seal_failure:
+                        yield cycles_pb2.CyclesWatchResponse(
+                            cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEAL_FAILED", "seal_failure": "storage"}]
+                        )
+                    else:
+                        yield cycles_pb2.CyclesWatchResponse(cycles=[{"cycle_id": "cycle", "phase": "CYCLE_PHASE_SEALED", "sealed": True}])
+                    return
                 yield cycles_pb2.CyclesWatchResponse(cycles=[cycle])
                 cycle.phase = cycles_pb2.CYCLE_PHASE_SEALED
                 cycle.sealed = True
@@ -418,7 +420,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(execution.case.identifier, "case")
         self.assertEqual(execution._detail.summary.case_id, "case")
 
-    async def test_settled_cycle_seal_consumes_its_completion_without_extra_readback(self) -> None:
+    async def test_settled_cycle_seal_needs_no_observation(self) -> None:
         cycle = await self.client.cycles.get("cycle")
         self.settled_seal = True
         self.trace.clear()

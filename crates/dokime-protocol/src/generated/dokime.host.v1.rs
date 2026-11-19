@@ -1105,7 +1105,7 @@ pub mod cycles_client {
             &mut self,
             request: impl tonic::IntoRequest<super::CyclesSealRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::CyclesSealResponse>>,
+            tonic::Response<super::CyclesSealResponse>,
             tonic::Status,
         > {
             self.inner
@@ -1123,7 +1123,7 @@ pub mod cycles_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("dokime.host.v1.Cycles", "Seal"));
-            self.inner.server_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
     }
 }
@@ -1178,16 +1178,13 @@ pub mod cycles_server {
             tonic::Response<super::CyclesCreateResponse>,
             tonic::Status,
         >;
-        /// Server streaming response type for the Seal method.
-        type SealStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::CyclesSealResponse, tonic::Status>,
-            >
-            + std::marker::Send
-            + 'static;
         async fn seal(
             &self,
             request: tonic::Request<super::CyclesSealRequest>,
-        ) -> std::result::Result<tonic::Response<Self::SealStream>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::CyclesSealResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct CyclesServer<T> {
@@ -1488,14 +1485,11 @@ pub mod cycles_server {
                 "/dokime.host.v1.Cycles/Seal" => {
                     #[allow(non_camel_case_types)]
                     struct SealSvc<T: Cycles>(pub Arc<T>);
-                    impl<
-                        T: Cycles,
-                    > tonic::server::ServerStreamingService<super::CyclesSealRequest>
+                    impl<T: Cycles> tonic::server::UnaryService<super::CyclesSealRequest>
                     for SealSvc<T> {
                         type Response = super::CyclesSealResponse;
-                        type ResponseStream = T::SealStream;
                         type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
+                            tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
@@ -1526,7 +1520,7 @@ pub mod cycles_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.server_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

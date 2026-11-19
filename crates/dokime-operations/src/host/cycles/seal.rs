@@ -19,14 +19,9 @@
 
 // Third Party Imports
 use harmos_protocol::model::FileReference;
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 
 // Local Imports
-use crate::{
-    Error, Result,
-    host::{Context, Output},
-};
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::CyclesSealRequest;
 use dokime_protocol::host::CyclesSealResponse;
@@ -51,8 +46,7 @@ pub const ID: &str = "dokime.host.v1.Cycles/Seal";
 
 /* === Public Functions === */
 
-pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Output<CyclesSealResponse>> {
-    let mut changes = context.host.changes();
+pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<CyclesSealResponse> {
     let first = crate::host::complete(ID, context.settings.mutation_timeout, async {
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Seal Cycle: Supply a Request ID".into()));
@@ -117,44 +111,7 @@ pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Out
         Ok(cycle)
     })
     .await?;
-    let (sender, output) = mpsc::channel(context.settings.stream_buffer.saturating_add(1));
-    sender
-        .try_send(Ok(response(context, first.clone(), &request.request_id)?))
-        .map_err(|_| Error::Precondition("Seal Cycle: Reopen Its Completion Stream".into()))?;
-    if first.sealed || first.phase == CyclePhase::SealFailed as i32 {
-        return Ok(ReceiverStream::new(output));
-    }
-    let work = context.clone();
-    context.host.spawn_work(Box::pin(async move {
-        loop {
-            changes.borrow_and_update();
-            let cycle = match work.host.store().client_cycle(&request.name) {
-                Ok(Some(cycle)) => cycle,
-                Ok(None) => {
-                    let _ = sender.send(Err(tonic::Status::not_found("Seal Cycle: Restore Its Saved State"))).await;
-                    return;
-                }
-                Err(source) => {
-                    let _ = sender.send(Err(crate::host::status(source.into()))).await;
-                    return;
-                }
-            };
-            if cycle.sealed || cycle.phase == CyclePhase::SealFailed as i32 {
-                let finality = response(&work, cycle, &request.request_id).map_err(crate::host::status);
-                let _ = sender.send(finality).await;
-                return;
-            }
-            if work.host.shutting_down() {
-                let _ = sender.send(Err(tonic::Status::unavailable("Seal Cycle: Reconnect to Inspect Its Retained Completion"))).await;
-                return;
-            }
-            tokio::select! {
-                _ = sender.closed() => return,
-                changed = changes.changed() => if changed.is_err() { return; },
-            }
-        }
-    }))?;
-    Ok(ReceiverStream::new(output))
+    response(context, first, &request.request_id)
 }
 
 /* === Private Functions === */
@@ -204,4 +161,4 @@ async fn materialize(context: &Context, name: &str) -> Result<(FileReference, Fi
 
 /* === Tests === */
 
-crate::native::download!(CyclesSealRequest, CyclesSealResponse, "dokime.host.v1", "Cycles", "Seal");
+crate::native::unary!(CyclesSealRequest, CyclesSealResponse, context, "dokime.host.v1", "Cycles", "Seal");

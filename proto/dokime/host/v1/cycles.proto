@@ -51,8 +51,8 @@ service Cycles {
   rpc Create(.dokime.host.v1.CyclesCreateRequest) returns (.dokime.host.v1.CyclesCreateResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
-  // Seal the cycle and retain its report and evidence; observe Sealing then its terminal completion.
-  rpc Seal(.dokime.host.v1.CyclesSealRequest) returns (stream .dokime.host.v1.CyclesSealResponse) {
+  // Admit cycle sealing and return once; observe completion through Cycles.Watch.
+  rpc Seal(.dokime.host.v1.CyclesSealRequest) returns (.dokime.host.v1.CyclesSealResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
 }
@@ -148,7 +148,7 @@ message CyclesSealRequest {
 message CyclesSealResponse {
   bytes seal = 1;
   .harmos.model.v1.Receipt receipt = 2;
-  // Sealing, Sealed or Seal Failed; a failed seal includes its actionable cause.
+  // State at admission; Cycles.Watch carries Sealing, Sealed and Seal Failed with its cause.
   .dokime.host.v1.CycleSummary cycle = 3;
 }
 

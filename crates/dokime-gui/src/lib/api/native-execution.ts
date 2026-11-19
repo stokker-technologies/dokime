@@ -98,17 +98,19 @@ export async function cancelNativeTestExecution(session: SessionIdentity, execut
 }
 
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
-  const completion = await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
-  let sealed = false;
+  const admitted = await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
+  if (required(admitted.cycle, "Seal Cycle Admission").sealed) return;
+  const completion = await rpc.cyclesWatch(session, { selection: { cycleIds: [cycleId] } });
   try {
     for await (const frame of completion) {
-      const cycle = required(frame.cycle, "Seal Cycle Completion");
-      if (cycle.cycleId !== cycleId || sealed) throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
+      if (frame.resyncRequired) throw new Error(frame.resyncRequired.message);
+      const cycle = frame.cycles.find((cycle) => cycle.cycleId === cycleId);
+      if (!cycle) throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
       if (cycle.phase === CyclePhase.SEAL_FAILED)
         throw new Error(cycle.sealFailure || "Seal Cycle: Resolve Its Materialization Failure and Retry Seal");
-      sealed = cycle.sealed && cycle.phase === CyclePhase.SEALED && frame.seal.length > 0;
+      if (cycle.sealed && cycle.phase === CyclePhase.SEALED) return;
     }
-    if (!sealed) throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
+    throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
   } finally {
     await completion.cancel();
   }

@@ -62,6 +62,7 @@ const fixture = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
   seal: vi.fn(),
+  watch: vi.fn(),
 }));
 
 const session = { generation: "lifecycle", isCurrent: () => true };
@@ -90,8 +91,8 @@ beforeEach(() => {
   fixture.extra.mockReset();
   fixture.stream.mockReset();
   fixture.stream.mockImplementation(async (path, _input, _output, identity, request) => {
-    assert.equal(path, "/dokime.host.v1.Cycles/Seal");
-    return fixture.seal(identity, request);
+    assert.equal(path, "/dokime.host.v1.Cycles/Watch");
+    return fixture.watch(identity, request);
   });
   fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
@@ -181,17 +182,18 @@ test("Durable Stop Seal", async () => {
 });
 
 test("Cycle Seal Awaits Completion and Raises Materialization Failure", async () => {
+  fixture.seal.mockResolvedValue({ cycle: { cycleId: "cycle", phase: CyclePhase.SEALING } });
   let finish!: () => void;
   const gate = new Promise<void>((resolve) => {
     finish = resolve;
   });
   const cancelled = vi.fn(async () => undefined);
-  fixture.seal.mockResolvedValue({
+  fixture.watch.mockResolvedValue({
     cancel: cancelled,
     async *[Symbol.asyncIterator]() {
-      yield { cycle: { cycleId: "cycle", phase: CyclePhase.SEALING, sealed: false }, seal: new Uint8Array() };
+      yield { cycles: [{ cycleId: "cycle", phase: CyclePhase.SEALING, sealed: false }] };
       await gate;
-      yield { cycle: { cycleId: "cycle", phase: CyclePhase.SEALED, sealed: true }, seal: new Uint8Array([1]) };
+      yield { cycles: [{ cycleId: "cycle", phase: CyclePhase.SEALED, sealed: true }] };
     },
   });
   let sealed = false;
@@ -204,10 +206,10 @@ test("Cycle Seal Awaits Completion and Raises Materialization Failure", async ()
   await pending;
   assert.equal(sealed, true);
   assert.equal(cancelled.mock.calls.length, 1);
-  fixture.seal.mockResolvedValue({
+  fixture.watch.mockResolvedValue({
     cancel: cancelled,
     async *[Symbol.asyncIterator]() {
-      yield { cycle: { cycleId: "cycle", phase: CyclePhase.SEAL_FAILED, sealed: false, sealFailure: "storage" }, seal: new Uint8Array() };
+      yield { cycles: [{ cycleId: "cycle", phase: CyclePhase.SEAL_FAILED, sealed: false, sealFailure: "storage" }] };
     },
   });
   await assert.rejects(sealNativeTestCycle(session, "cycle"));
