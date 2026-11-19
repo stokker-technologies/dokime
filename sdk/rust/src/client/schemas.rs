@@ -24,6 +24,7 @@ use std::{
 // Third Party Imports
 use prost::Message;
 use prost_types::FileDescriptorSet;
+use prost_reflect::{DescriptorPool, DynamicMessage};
 use sha2::{Digest, Sha256};
 use tonic::Status;
 
@@ -53,6 +54,26 @@ pub struct FrozenSchemaCache {
 /* === Implementations === */
 
 impl FrozenSchemaCache {
+    /// Decode a Record Alias or Stream Identity Using Its Frozen Binding.
+    pub async fn decode(
+        &mut self, client: &Client, detail: &ExecutionDetail, identity: &str, payload: &[u8],
+    ) -> Result<DynamicMessage, Status> {
+        let types = self.get(client, detail).await?;
+        let schemas = detail.schemas.as_ref().ok_or_else(|| Status::invalid_argument("Decode Evidence: Supply Frozen Bindings"))?;
+        let name = schemas
+            .records
+            .iter()
+            .find(|record| record.record_type == identity)
+            .map(|record| record.message_name.as_str())
+            .or_else(|| schemas.streams.iter().find(|stream| stream.stream == identity).map(|stream| stream.message_name.as_str()))
+            .ok_or_else(|| Status::not_found("Decode Evidence: Select a Frozen Schema Identity"))?;
+        let pool = DescriptorPool::from_file_descriptor_set(types.as_ref().clone())
+            .map_err(|error| Status::data_loss(format!("Decode Evidence: Restore Frozen Descriptors: {error}")))?;
+        let message = pool.get_message_by_name(name).ok_or_else(|| Status::data_loss("Decode Evidence: Bound Message Is Missing"))?;
+        DynamicMessage::decode(message, payload).map_err(|error| Status::data_loss(format!("Decode Evidence: Invalid Payload: {error}")))
+    }
+
+
     /// Fetch Every Descriptor Page on a Miss; Reuse Equal Digests Across Executions.
     pub async fn get(&mut self, client: &Client, detail: &ExecutionDetail) -> Result<Arc<FileDescriptorSet>, Status> {
         let digest =

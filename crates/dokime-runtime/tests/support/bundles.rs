@@ -21,12 +21,11 @@
 use harmos_runtime::bundle::Manifest;
 
 // Local Imports
-use dokime::Client;
+use dokime_client_internal::Client;
 use dokime::FileReference;
 use std::env::consts::EXE_SUFFIX;
 use std::env::consts::OS;
 use std::error::Error;
-use tempfile::NamedTempFile;
 
 /* === Constants === */
 
@@ -77,11 +76,7 @@ pub fn bundle(executable: &[u8], name: &str, version: &str) -> Result<Vec<u8>, B
     Ok(archive.into_inner()?)
 }
 pub async fn upload(client: &Client, bytes: Vec<u8>) -> Result<FileReference, Box<dyn Error>> {
-    use std::io::Write;
-    // Stage Fixture Bytes for the SDK's Bounded Upload Journey
-    let mut file = NamedTempFile::new()?;
-    file.write_all(&bytes)?;
-    Ok(client.files.upload(file.path()).await?)
+    super::native_file(client, "", "", &bytes).await
 }
 
 /* === Private Functions === */

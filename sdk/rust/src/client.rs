@@ -16,6 +16,7 @@ mod files;
 mod handles;
 pub(crate) mod mutations;
 pub(crate) mod queries;
+#[allow(dead_code, reason = "The Workspace Client Compiles This Same Internal Schema Decoder")]
 mod schemas;
 #[rustfmt::skip]
 #[allow(dead_code, reason = "The Shared Generator Emits the Complete Internal Transport")]
@@ -28,15 +29,18 @@ mod types;
 
 pub(crate) use ::harmos::client::{CallOptions, Watching};
 pub use connection::{ConnectionSettings, connect, connect_with};
-pub use handles::{Attribution, Case, Cycle, CyclesQuery, Execution, ExecutionsQuery, Outcome, Progress, ProgressStream, RegisteredPlugin, PluginRegisterOptions};
+pub use dokime_protocol::host::{CyclePhase, ExecutionState, ResultStatus};
+pub use handles::{
+    Attribution, Case, Cycle, CyclesQuery, Execution, ExecutionsQuery, Outcome, PluginRegisterOptions, Progress, ProgressStream,
+    RegisteredPlugin,
+};
 pub use mutations::{
-    ArtifactCreateOptions, CycleCreateOptions, CycleSealOptions, ExecutionCancelOptions, ExecutionCreateOptions, ExecutionSealOptions,
-    ExecutionStartOptions, ExecutionStopOptions, NoteCreateOptions,
+    ArtifactCreateOptions, CaseMaterializeOptions, CycleCreateOptions, CycleSealOptions, ExecutionCancelOptions, ExecutionCreateOptions,
+    ExecutionSealOptions, ExecutionStartOptions, ExecutionStopOptions, NoteCreateOptions,
 };
 pub use queries::{Records, Samples};
 pub(crate) use resources::*;
 pub(crate) use types::*;
-pub use dokime_protocol::host::{CyclePhase, ExecutionState, ResultStatus};
 
 pub(crate) use schemas::FrozenSchemaCache;
 
@@ -78,7 +82,11 @@ impl Client {
     pub(crate) fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, tonic::Status> {
         let transport = ::harmos::Client::new(channel, settings)?;
         let resources = resources::Root::new(transport.transport_handle());
-        Ok(Self { resources, context: CallOptions::default(), lifetime: Arc::new(handles::Lifetime::default()) })
+        Ok(Self {
+            resources,
+            context: CallOptions::default(),
+            lifetime: Arc::new(handles::Lifetime::default()),
+        })
     }
 }
 

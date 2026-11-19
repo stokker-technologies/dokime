@@ -20,10 +20,10 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_client_internal::PluginsCreateOptions;
+use dokime_client_internal::plugin_placement::Kind;
+use dokime_client_internal::{PluginPlacement, PluginRemote, PluginValue};
 use crate::{Result, output, settings::Settings};
-use crate::client::PluginsCreateOptions;
-use crate::client::plugin_placement::Kind;
-use crate::client::{PluginPlacement, PluginRemote, PluginValue};
 
 /* === Constants === */
 

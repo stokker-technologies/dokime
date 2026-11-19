@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_client_internal::CyclesCreateOptions;
 use dokime::Metadata;
-use crate::client::CyclesCreateOptions;
 
 /* === Constants === */
 

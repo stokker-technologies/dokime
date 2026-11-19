@@ -20,9 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::Client;
-use dokime::client::BackendAppearanceOptions;
-use dokime::client::ThemeModePolicy;
+use dokime_client_internal::Client;
+use dokime_client_internal::BackendAppearanceOptions;
+use dokime_client_internal::ThemeModePolicy;
 use std::error::Error;
 use tonic::transport::Endpoint;
 

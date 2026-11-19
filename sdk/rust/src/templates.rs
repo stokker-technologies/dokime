@@ -23,12 +23,13 @@ pub use crate::template::{Criterion, Step, Template};
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
 
 // Third Party Imports
 
 // Local Imports
 use crate::model::Section;
-use crate::{CaptureGap, CapturedArtifact, Card};
+use crate::{CaptureGap, CapturedArtifact, Card, ReadCut, Statistics, Value};
 
 /* === Constants === */
 
@@ -38,10 +39,21 @@ use crate::{CaptureGap, CapturedArtifact, Card};
 
 /* === Structs === */
 
+#[derive(Default)]
+pub struct StatisticsReadOptions {
+    pub at: Option<ReadCut>,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct StatisticsSnapshot {
+    pub value: Option<Statistics>,
+    pub at: Option<ReadCut>,
+}
+
 pub struct PromptAnswer {
     pub accepted: bool,
     pub action: String,
-    pub values: std::collections::HashMap<String, crate::Value>,
+    pub values: HashMap<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

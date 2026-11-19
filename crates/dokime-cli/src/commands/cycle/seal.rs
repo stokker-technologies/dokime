@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::client::CyclesSealOptions;
+use dokime_client_internal::CyclesSealOptions;
 
 /* === Constants === */
 

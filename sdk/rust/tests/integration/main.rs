@@ -11,11 +11,7 @@
 
 /* === Modules === */
 
-// The Process Owner Formats This Shared Source.
-#[rustfmt::skip]
-#[path = "../../../../crates/dokime-runtime/src/process/mod.rs"]
-pub mod process;
-
+pub use dokime_runtime::process;
 
 mod authoring;
 
@@ -24,7 +20,6 @@ mod resource_release;
 mod resources;
 mod testing;
 
-#[path = "../support/mod.rs"]
 mod support;
 
 /* === Re-Exports === */

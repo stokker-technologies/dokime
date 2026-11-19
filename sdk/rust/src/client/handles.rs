@@ -51,9 +51,7 @@ use super::{
 };
 use super::{PluginsDeleteOptions, PluginsGetOptions, PluginsListOptions};
 use super::{Watching, queries::Paging};
-use crate::{
-    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value,
-};
+use crate::{ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value};
 
 /* === Constants === */
 
@@ -232,15 +230,33 @@ impl Client {
         for registration in owned.iter_mut() {
             if !registration.detached.load(Ordering::Acquire) {
                 let removed = async {
-                    let entry = self.resources.plugins.get_with(&registration.identifier, PluginsGetOptions {
-                        context: self.context.clone(), ..Default::default()
-                    }).await?.entry.ok_or_else(|| invalid("Close Client", "Read the Owned Plugin Entry"))?;
-                    self.resources.plugins.delete_with(&registration.identifier, entry.revision, PluginsDeleteOptions {
-                        context: self.context.clone()
-                    }).await?;
+                    let reply = self
+                        .resources
+                        .plugins
+                        .get_with(
+                            &registration.identifier,
+                            PluginsGetOptions {
+                                context: self.context.clone(),
+                                ..Default::default()
+                            },
+                        )
+                        .await;
+                    let entry = match reply {
+                        Ok(reply) => reply.entry.ok_or_else(|| invalid("Close Client", "Read the Owned Plugin Entry"))?,
+                        Err(status) if status.code() == tonic::Code::NotFound => {
+                            registration.detached.store(true, Ordering::Release);
+                            return Ok(());
+                        }
+                        Err(status) => return Err(status.into()),
+                    };
+                    self.resources
+                        .plugins
+                        .delete_with(&registration.identifier, entry.revision, PluginsDeleteOptions { context: self.context.clone() })
+                        .await?;
                     registration.detached.store(true, Ordering::Release);
                     Result::Ok(())
-                }.await;
+                }
+                .await;
                 if let Err(error) = removed {
                     failures.push(error.to_string());
                 }
@@ -264,22 +280,41 @@ impl Plugins {
     }
 
     pub async fn register_with(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
+        let plugins = Plugins { client: self.client.clone() };
+        // A Cancelled Caller Leaves Admission Owned Until Close Can Unregister It.
+        tokio::spawn(async move { plugins.register_owned(plugin, options).await }).await
+            .map_err(|error| invalid("Register Plugin", &format!("Inspect the Interrupted Registration Task: {error}")))?
+    }
+
+    async fn register_owned(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
         let mut owned = self.client.lifetime.owned.lock().await;
         self.client.ensure_open()?;
+        let request_id = mutations::request_id(options.request_id)?;
         let values = crate::configuration::load()?;
         let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", options.address.as_deref(), &values)?;
         let identifier = plugin.registration_identifier().to_owned();
         let bindings = plugin.template_bindings();
         let plugin = plugin.into_harmos()?.remote();
         let mut listener = plugin.start(address).await?;
-        let placement = super::PluginPlacement { kind: Some(super::plugin_placement::Kind::Remote(super::PluginRemote {
-            url: format!("http://{}", listener.address()),
-        })) };
-        let created = self.client.resources.plugins.create_with(&identifier, placement, super::PluginValue {
-            enabled: true, ..Default::default()
-        }, super::PluginsCreateOptions {
-            request_id: Some(mutations::request_id(options.request_id)?), context: self.client.context.clone()
-        }).await;
+        let placement = super::PluginPlacement {
+            kind: Some(super::plugin_placement::Kind::Remote(super::PluginRemote {
+                url: format!("http://{}", listener.address()),
+            })),
+        };
+        let created = self
+            .client
+            .resources
+            .plugins
+            .create_with(
+                &identifier,
+                placement,
+                super::PluginValue { enabled: true, ..Default::default() },
+                super::PluginsCreateOptions {
+                    request_id: Some(request_id),
+                    context: self.client.context.clone(),
+                },
+            )
+            .await;
         let reply = match created {
             Ok(reply) => reply,
             Err(error) => {
@@ -289,26 +324,46 @@ impl Plugins {
         };
         let entry = reply.entry.ok_or_else(|| invalid("Register Plugin", "Return Its Registry Entry"))?;
         let detached = Arc::new(AtomicBool::new(false));
-        owned.push(OwnedRegistration { identifier: entry.name.clone(), listener, detached: detached.clone(), bindings });
-        let mut registered = RegisteredPlugin { client: self.client.clone(), entry, detached };
+        owned.push(OwnedRegistration {
+            identifier: entry.name.clone(),
+            listener,
+            detached: detached.clone(),
+            bindings,
+        });
+        let mut registered = RegisteredPlugin {
+            client: self.client.clone(),
+            entry,
+            detached,
+        };
         drop(owned);
         let readiness = async {
+            if !matches!(registered.state()?, PluginState::Ready | PluginState::Connecting) {
+                return Err(invalid("Register Plugin", "Resolve the Plugin Activation Failure and Register Again"));
+            }
             if registered.state()? == PluginState::Ready {
                 return Ok(());
             }
-            let mut watch = self.client.resources.plugins.watch_with(super::PluginsWatchOptions {
-                name: Some(registered.identifier().into()), context: self.client.context.clone(), ..Default::default()
-            }).await?;
+            let mut watch = self
+                .client
+                .resources
+                .plugins
+                .watch_with(super::PluginsWatchOptions {
+                    name: Some(registered.identifier().into()),
+                    context: self.client.context.clone(),
+                    ..Default::default()
+                })
+                .await?;
             while let Some(_frame) = watch.next().await? {
                 registered.refresh().await?;
                 match registered.state()? {
                     PluginState::Ready => return Ok(()),
-                    PluginState::Connecting => {},
+                    PluginState::Connecting => {}
                     _ => return Err(invalid("Register Plugin", "Resolve the Plugin Activation Failure and Register Again")),
                 }
             }
             Err(invalid("Register Plugin", "Keep the Host Connected Until the Plugin Is Ready"))
-        }.await;
+        }
+        .await;
         if let Err(error) = readiness {
             registered.unregister().await?;
             return Err(error);
@@ -395,6 +450,11 @@ impl RegisteredPlugin {
             Ok(value) => value,
             Err(Error::Harmos(harmos::Error::Transport(status))) if status.code() == tonic::Code::NotFound => {
                 self.detached.store(true, Ordering::Release);
+                let mut owned = self.client.lifetime.owned.lock().await;
+                if let Some(registration) = owned.iter_mut().find(|registration| registration.identifier == self.identifier()) {
+                    registration.detached.store(true, Ordering::Release);
+                    registration.listener.close().await?;
+                }
                 return Ok(());
             }
             Err(error) => return Err(error),
@@ -407,6 +467,7 @@ impl RegisteredPlugin {
         self.detached.store(true, Ordering::Release);
         let mut owned = self.client.lifetime.owned.lock().await;
         if let Some(registration) = owned.iter_mut().find(|registration| registration.identifier == self.identifier()) {
+            registration.detached.store(true, Ordering::Release);
             registration.listener.close().await?;
         }
         Ok(())
@@ -431,12 +492,17 @@ impl Cases {
         page.cases.into_iter().map(|summary| Case::bind(self.client.clone(), summary, String::new())).collect()
     }
     pub async fn materialize<T: 'static>(&self) -> Result<Vec<Case>> {
+        self.materialize_with::<T>(super::CaseMaterializeOptions::default()).await
+    }
+    pub async fn materialize_with<T: 'static>(&self, options: super::CaseMaterializeOptions) -> Result<Vec<Case>> {
         self.client.ensure_open()?;
         let mut matches = Vec::new();
         let owned = self.client.lifetime.owned.lock().await;
         for registration in owned.iter().filter(|entry| !entry.detached.load(Ordering::Acquire)) {
             for (marker, suite, template) in &registration.bindings {
-                if *marker == TypeId::of::<T>() { matches.push((suite.clone(), template.clone())); }
+                if *marker == TypeId::of::<T>() {
+                    matches.push((suite.clone(), template.clone()));
+                }
             }
         }
         drop(owned);
@@ -444,12 +510,23 @@ impl Cases {
             return Err(invalid("Materialize Cases", "Register Exactly One Plugin Containing the Selected Template Type"));
         }
         let (suite_id, template_id) = matches.remove(0);
-        self.materialize_selection(suite_id, template_id).await
+        self.materialize_selection(suite_id, template_id, options).await
     }
-    async fn materialize_selection(&self, suite_id: String, template_id: String) -> Result<Vec<Case>> {
+    async fn materialize_selection(
+        &self, suite_id: String, template_id: String, options: super::CaseMaterializeOptions,
+    ) -> Result<Vec<Case>> {
+        let mut parameters = options.parameters.into_iter().collect::<Vec<_>>();
+        parameters.sort_by(|left, right| left.0.cmp(&right.0));
         let selection = RegisteredSelection {
             suite_id,
             template_id,
+            parameters: parameters
+                .into_iter()
+                .map(|(key, values)| super::RegisteredSelectionParametersEntry {
+                    key,
+                    value: Some(super::SelectionValues { values }),
+                })
+                .collect(),
             ..Default::default()
         };
         let reply = self
@@ -463,6 +540,7 @@ impl Cases {
                 },
                 false,
                 CasesCreateOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
                     context: self.client.context.clone(),
                     ..Default::default()
                 },

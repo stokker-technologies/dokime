@@ -31,9 +31,9 @@ use tonic::Status;
 
 // Local Imports
 
+use dokime_client_internal::Client;
+use dokime_client_internal::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
 use crate::{Result, settings::Settings};
-use crate::client::Client;
-use crate::client::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 
@@ -174,7 +174,15 @@ mod tests {
         for (language, folder) in [("python", ""), ("rust", ""), ("csharp", ""), ("cpp", "test")] {
             let destination = root.path().join(language);
             let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize()?;
-            let arguments = vec!["dokime".into(), "new".into(), destination.to_string_lossy().into_owned(), "--lang".into(), language.into(), "--from".into(), repository.to_string_lossy().into_owned()];
+            let arguments = vec![
+                "dokime".into(),
+                "new".into(),
+                destination.to_string_lossy().into_owned(),
+                "--lang".into(),
+                language.into(),
+                "--from".into(),
+                repository.to_string_lossy().into_owned(),
+            ];
             let cli = Cli::try_parse_from(arguments).unwrap();
             commands::run(cli.command, None, Settings::default()).await?;
             let folders: &[&str] = if folder.is_empty() {

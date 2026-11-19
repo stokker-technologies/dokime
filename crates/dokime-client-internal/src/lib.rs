@@ -11,6 +11,10 @@
 
 /* === Modules === */
 
+mod wire { pub(crate) use dokime_protocol::host; }
+mod schemas { include!(concat!(env!("OUT_DIR"), "/client_schemas.rs")); }
+
+
 #[rustfmt::skip]
 #[allow(dead_code, reason = "The Shared Generator Emits the Complete Internal Transport")]
 mod resources {
@@ -24,9 +28,11 @@ mod types {
 
 /* === Re-Exports === */
 
-pub(crate) use resources::*;
-pub(crate) use types::*;
-pub(crate) use ::harmos::{ClientSettings, client::CallOptions};
+pub use ::harmos::{ClientSettings, client::CallOptions};
+pub use schemas::FrozenSchemaCache;
+pub use harmos_protocol::model::PageRequest;
+pub use resources::*;
+pub use types::*;
 
 /* === Imports === */
 
@@ -42,9 +48,10 @@ use tonic::transport::Channel;
 /* === Structs === */
 
 #[derive(Clone)]
-pub(crate) struct Client {
+pub struct Client {
     transport: ::harmos::Client,
     resources: resources::Root,
+    context: CallOptions,
 }
 
 /* === Enums === */
@@ -56,10 +63,7 @@ pub(crate) struct Client {
 impl Client {
     pub fn new(transport: ::harmos::Client) -> Self {
         let resources = resources::Root::new(transport.transport_handle());
-        Self {
-            transport,
-            resources,
-        }
+        Self { transport, resources, context: CallOptions::default() }
     }
     pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, tonic::Status> {
         Ok(Self::new(::harmos::Client::new(channel, settings)?))
@@ -67,7 +71,6 @@ impl Client {
     pub fn transport(&self) -> &::harmos::Client {
         &self.transport
     }
-
 }
 
 impl Deref for Client {

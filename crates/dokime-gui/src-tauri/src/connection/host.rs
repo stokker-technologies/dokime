@@ -42,15 +42,15 @@ use tonic::{Request, Status, transport::Endpoint};
 // Local Imports
 
 use dokime_sdk::StorageTransferSettings;
-use dokime_sdk::client::BackendOverviewGetOptions;
-use dokime_sdk::client::OperationsListOptions;
-use dokime_sdk::client::StatusGetOptions;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_client_internal::BackendOverviewGetOptions;
+use dokime_client_internal::OperationsListOptions;
+use dokime_client_internal::StatusGetOptions;
+use dokime_client_internal::plugin_placement;
 
 use super::ConnectionTarget;
 use dokime_sdk::FileReference;
-use dokime_sdk::client::{CallOptions, PluginEntry, PluginsCreateOptions};
-use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginState, PluginValue, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::{CallOptions, PluginEntry, PluginsCreateOptions};
+use dokime_client_internal::{PluginManaged, PluginPlacement, PluginState, PluginValue, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_runtime::{HostSettings, services};
 
@@ -60,8 +60,8 @@ use dokime_runtime::ControlledClock;
 #[cfg(not(feature = "testing"))]
 use dokime_runtime::services::WallClock;
 
-use dokime_sdk::client::StatusGetResponse;
-use dokime_sdk::{Client, client::ClientSettings};
+use dokime_client_internal::StatusGetResponse;
+use dokime_client_internal::{Client, ClientSettings};
 
 /* === Constants === */
 
@@ -185,7 +185,7 @@ impl Session {
     pub async fn install_plugin(&self, name: &str, file: FileReference) -> Result<PluginEntry, Error> {
         let sha256 = file.sha256.clone();
         let placement = PluginPlacement {
-            kind: Some(PluginPlacementKind::Managed(PluginManaged { content: Some(file), sha256 })),
+            kind: Some(plugin_placement::Kind::Managed(PluginManaged { content: Some(file), sha256 })),
         };
         let options = PluginsCreateOptions {
             request_id: Some(format!("desktop-install-{name}")),

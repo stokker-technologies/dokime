@@ -22,6 +22,10 @@ usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integrat
 dir = "../.."
 run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused test --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
 
+[tasks."test:created"]
+description = "Run the Created Rust Project Against Prepared Product Bytes"
+run = "uv run --no-sync --project ../../tools/python python tools/test_created.py"
+
 [tasks."check"]
 description = "Prove Protocol-Only SDK Product Dependencies"
 run = "python tools/dependency_tree.py"
@@ -34,7 +38,7 @@ run = "cargo update --manifest-path tests/consumer/Cargo.toml --package dokime"
 [tasks.format]
 description = "Format Rust SDK Sources and Manifests"
 run = [
-  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs examples/execution.rs examples/starter/src/lib.rs examples/starter/src/main.rs examples/starter/src/bin/client.rs examples/starter/tests/description.rs tests/integration/main.rs tests/consumer/src/main.rs tests/consumer/src/lib.rs tests/fixtures/resources.rs tests/fixtures/secrets.rs tests/fixtures/boundary.rs tests/fixtures/capture.rs tests/fixtures/history.rs tests/consumer/src/capture.rs tests/fixtures/confirmation/main.rs tests/fixtures/plugin.rs",
+  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs examples/execution.rs examples/starter/src/lib.rs examples/starter/src/main.rs examples/starter/src/bin/client.rs examples/starter/tests/description.rs tests/integration/main.rs tests/consumer/src/main.rs tests/consumer/src/lib.rs tests/fixtures/resources.rs tests/fixtures/secrets.rs tests/fixtures/boundary.rs tests/fixtures/capture.rs tests/fixtures/history.rs tests/consumer/src/capture.rs tests/fixtures/plugin.rs",
   "taplo fmt --config ../../tools/config/taplo.toml --option column_width=140 Cargo.toml derive/Cargo.toml tests/consumer/Cargo.toml mise.toml examples/starter/Cargo.toml examples/starter/mise.toml examples/starter/dokime.toml",
   "uv run --no-sync --project ../../tools/python ruff format tools",
 ]

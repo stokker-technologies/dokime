@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -33,15 +31,11 @@ use dokime::{Result, Visibility};
 
 /* === Structs === */
 
-
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-
-
 
 /* === Public Functions === */
 
@@ -56,5 +50,3 @@ async fn echo(_ctx: &Context, request: String) -> Result<String> {
 }
 
 /* === Tests === */
-
-

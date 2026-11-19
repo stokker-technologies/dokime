@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -22,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::{Result, Suites};
 use dokime::encoding::Message;
+use dokime::{Result, Suites};
 use starter_project::plugin::plugin;
 
 /* === Constants === */
@@ -34,23 +32,15 @@ use starter_project::plugin::plugin;
 
 /* === Structs === */
 
-
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-
-
 /* === Public Functions === */
 
-
-
 /* === Private Functions === */
-
-
 
 /* === Tests === */
 

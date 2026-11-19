@@ -12,6 +12,7 @@
 /* === Modules === */
 
 #[rustfmt::skip]
+#[allow(dead_code, reason = "The Shared Generator Emits the Complete Internal Host Transport")]
 mod host;
 #[rustfmt::skip]
 mod types;
@@ -32,7 +33,12 @@ include!("host_exports.rs");
 /* === Imports === */
 
 // Standard Library Imports
-use std::{any::Any, collections::HashSet, env, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    collections::HashSet,
+    env,
+    sync::Arc,
+};
 
 // Third Party Imports
 use harmos::plugin;
@@ -91,11 +97,15 @@ impl Plugin {
         &self.assembly.identifier
     }
 
-    pub(crate) fn template_bindings(&self) -> Vec<(std::any::TypeId, String, String)> {
-        self.assembly.suites.iter().flat_map(|suite| {
-            let identifier = suite.definition.metadata.as_ref().expect("Suite Metadata").identifier.clone();
-            suite.templates.iter().map(move |template| (template.marker, identifier.clone(), template.id().into()))
-        }).collect()
+    pub(crate) fn template_bindings(&self) -> Vec<(TypeId, String, String)> {
+        self.assembly
+            .suites
+            .iter()
+            .flat_map(|suite| {
+                let identifier = suite.definition.metadata.as_ref().expect("Suite Metadata").identifier.clone();
+                suite.templates.iter().map(move |template| (template.marker, identifier.clone(), template.id().into()))
+            })
+            .collect()
     }
 
     pub fn of<T>(version: impl Into<String>) -> Self {
@@ -319,16 +329,20 @@ impl Plugin {
     pub fn run(self) -> Result<()> {
         // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
         let managed = env::var_os("HARMOS_ADDRESS").is_some();
-        let plugin = self.into_harmos()?;
-        let plugin = if managed { plugin } else { plugin.remote() };
-        plugin.serve().map_err(Error::from)
+        if managed {
+            return self.into_harmos()?.serve().map_err(Error::from);
+        }
+        let values = crate::configuration::load()?;
+        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", None, &values)?;
+        self.run_with(address)
     }
 
     pub fn run_with(self, address: impl Into<String>) -> Result<()> {
-        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+        // The Listener Owns Its Runtime; This Thread Only Waits for Shutdown.
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
         runtime.block_on(async move {
             let mut listener = self.into_harmos()?.remote().start(address).await?;
-            println!("Plugin Listening on {}", listener.address());
+            println!("harmos listening {}", listener.address());
             tokio::signal::ctrl_c().await?;
             listener.close().await?;
             Ok(())
@@ -341,3 +355,36 @@ impl Plugin {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{HostOperation, Plugin};
+    use crate::{Error, Result};
+    use dokime_protocol::descriptor_pool;
+    use harmos_protocol::{model::Protobuf, schema};
+
+    #[test]
+    fn default_host_requirements_preserve_protocol_operation_kinds() -> Result<()> {
+        // Compose the Complete Default Inventory Without Starting a Host.
+        let declarations = Plugin::of::<()>("1.0.0").identifier("requirements").declarations()?;
+        assert_eq!(declarations.requires.len(), HostOperation::ALL.len());
+
+        // Fingerprint Each Requirement From the Authoritative Protocol Kind.
+        let pool = descriptor_pool();
+        for requirement in declarations.requires {
+            let (service, name) = requirement.id.split_once('/').expect("Host Operation Identity");
+            let service = pool.get_service_by_name(service).expect("Host Service Descriptor");
+            let method = service.methods().find(|method| method.name() == name).expect("Host Method Descriptor");
+            let contract = Protobuf {
+                descriptors: pool.encode_to_vec(),
+                request: method.input().full_name().into(),
+                response: method.output().full_name().into(),
+                input: method.is_client_streaming().then(|| method.input().full_name().into()),
+                output: method.is_server_streaming().then(|| method.output().full_name().into()),
+            };
+            let fingerprint = schema::host_fingerprint(&requirement.id, &contract).map_err(|error| Error::Invalid(error.to_string()))?;
+            assert_eq!(requirement.fingerprint, fingerprint, "{}", requirement.id);
+        }
+        Ok(())
+    }
+}

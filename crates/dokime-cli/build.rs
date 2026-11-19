@@ -50,14 +50,6 @@ const UNKNOWN: &str = "unknown";
 
 fn main() {
     embed_examples();
-    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo Manifest Directory"));
-    let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo Build Output"));
-    fs::copy(manifest.join("src/client.rs"), output.join("cli_client.rs")).expect("Compile the Private CLI Client in Stories");
-    for (source, destination) in [("resources.rs", "client_resources.rs"), ("types.rs", "client_types.rs")] {
-        let path = manifest.join("../../sdk/rust/src/client").join(source);
-        println!("cargo:rerun-if-changed={}", path.display());
-        fs::copy(path, output.join(destination)).expect("Compile Shared Generated Client Bindings Privately in the CLI");
-    }
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=Cargo.toml");
@@ -94,7 +86,7 @@ fn embed_examples() {
                 let excluded_directory = path.components().any(|component| {
                     matches!(
                         component.as_os_str().to_str(),
-                        Some("target" | "build" | "bin" | "obj" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials")
+                        Some("target" | "build" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials")
                     )
                 });
                 if excluded_directory

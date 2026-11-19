@@ -11,13 +11,6 @@
 
 /* === Modules === */
 
-#[allow(dead_code, unused_imports)]
-mod client {
-    include!(concat!(env!("OUT_DIR"), "/cli_client.rs"));
-}
-mod wire { pub(crate) use dokime_protocol::host; }
-
-
 #[path = "../../../dokime-runtime/tests/support/credentials.rs"]
 mod credentials;
 mod first_hour;
@@ -42,7 +35,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use crate::client::ClientSettings;
+use dokime_client_internal::ClientSettings;
 use dokime::StorageTransferSettings;
 
 /* === Constants === */

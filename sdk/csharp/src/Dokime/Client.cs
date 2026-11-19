@@ -258,14 +258,14 @@ public sealed class Client : IAsyncDisposable
   internal async Task<byte[]> DownloadAsync(FileReference file, CancellationToken cancellationToken)
   {
     var selected = await Transport.Files.Get(file, context: Options(cancellationToken));
-    if (selected.File != file || selected.ChunkBytes == 0 || selected.ChunkBytes >= selected.MessageBytes)
+    if (!Equals(selected.File, file) || selected.ChunkBytes == 0 || selected.ChunkBytes >= selected.MessageBytes)
       throw new InvalidDataException("Read File: Request Valid Transfer Limits and an Unchanged File");
     using var data = new MemoryStream();
     while ((ulong)data.Length < file.Length)
     {
       var reply = await Transport.Files.Read(file, (ulong)data.Length, selected.ChunkBytes, selected.ResolvedAt, Options(cancellationToken));
       if (reply.TotalLength != file.Length || reply.Sha256 != file.Sha256 || reply.Data.Length == 0
-        || reply.ResolvedAt != selected.ResolvedAt || (ulong)reply.Data.Length > file.Length - (ulong)data.Length)
+        || !Equals(reply.ResolvedAt, selected.ResolvedAt) || (ulong)reply.Data.Length > file.Length - (ulong)data.Length)
         throw new InvalidDataException("Read File: Request an Unchanged File at Its Retained Cut");
       await data.WriteAsync(reply.Data.Memory, cancellationToken);
     }

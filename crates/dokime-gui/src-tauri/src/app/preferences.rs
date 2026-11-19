@@ -16,7 +16,7 @@
 /* === Imports === */
 
 use dokime_protocol::host::SettingsSetRequest;
-use dokime_sdk::client::{AccessListenerGetOptions, RemoteListenerSettings, SettingsGetOptions, SettingsSetOptions, host};
+use dokime_client_internal::{AccessListenerGetOptions, RemoteListenerSettings, SettingsGetOptions, SettingsSetOptions, host};
 
 use crate::connection::{ConnectionSession, host::Session};
 use crate::native_session::DesktopSessionControl;

@@ -55,10 +55,6 @@ name = "dokime-rust-history"
 path = "../fixtures/history.rs"
 
 [[bin]]
-name = "dokime-rust-test"
-path = "../fixtures/confirmation/main.rs"
-
-[[bin]]
 name = "dokime-sdk-consumer"
 path = "src/main.rs"
 
@@ -112,6 +108,7 @@ tokio = { version = "1.50.0", features = ["macros", "sync", "rt-multi-thread", "
 [dev-dependencies]
 # Local
 dokime-protocol = { path = "../../../../crates/dokime-protocol" }
+dokime-runtime = { path = "../../../../crates/dokime-runtime" }
 
 # Git
 harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "f3c858c33efdebc94b33a44e112f28703932f4a1" }

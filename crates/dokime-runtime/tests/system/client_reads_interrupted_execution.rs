@@ -21,20 +21,20 @@
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::Client;
+use dokime_client_internal::Client;
 use dokime::EvidenceScope;
 use dokime::Termination;
-use dokime::client::EvidenceSamplesListOptions;
-use dokime::client::ExecutionState;
-use dokime::client::ExecutionsProgressWatchOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginState;
-use dokime::client::PluginValue;
+use dokime_client_internal::EvidenceSamplesListOptions;
+use dokime_client_internal::ExecutionState;
+use dokime_client_internal::ExecutionsProgressWatchOptions;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginState;
+use dokime_client_internal::PluginValue;
 use dokime_protocol::host::evidence::SamplesListRequest;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
+use dokime_protocol::host::execution_outcome;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -75,7 +75,7 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .create(
                 "execution",
                 PluginPlacement {
-                    kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                    kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                 },
                 PluginValue { enabled: true },
             )
@@ -146,7 +146,7 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .unwrap();
         assert_eq!(recovered.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
         assert!(matches!(recovered.outcome.as_ref().unwrap().attribution.as_ref(),
-                        Some(ExecutionOutcomeAttribution::NotEvaluated(outcome)) if outcome.termination == Termination::Interrupted as i32));
+                        Some(execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::Interrupted as i32));
         let controls = recovered.controls.as_ref().unwrap();
         assert!(controls.can_rerun && controls.can_inspect && controls.can_export);
         assert!(!controls.can_start && !controls.can_cancel);

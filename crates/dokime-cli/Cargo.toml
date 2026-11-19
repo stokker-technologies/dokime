@@ -31,13 +31,12 @@ path = "src/main.rs"
 [dependencies]
 # Local
 dokime = { version = "0.1.5", path = "../../sdk/rust" }
+dokime-client-internal = { workspace = true }
 dokime-packaging = { workspace = true }
 dokime-protocol = { workspace = true }
 dokime-runtime = { workspace = true }
 
 # Git
-harmos = { workspace = true }
-harmos-protocol = { workspace = true }
 harmos-runtime = { workspace = true }
 
 # Error Handling

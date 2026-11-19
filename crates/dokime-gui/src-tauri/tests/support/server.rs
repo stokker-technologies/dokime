@@ -18,18 +18,18 @@ use std::path::Path;
 
 // Local Imports
 
-use dokime_sdk::client::PluginPlacement;
-use dokime_sdk::client::PluginRemote;
-use dokime_sdk::client::PluginValue;
-use dokime_sdk::client::PluginsCreateOptions;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
-use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::PluginsCreateOptions;
+use dokime_client_internal::plugin_placement;
+use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
 use dokime_sdk::Import;
 use dokime_sdk::Origin;
-use dokime_sdk::origin::Kind as OriginKind;
+use dokime_sdk::origin;
 
 /* === Constants === */
 
@@ -66,7 +66,7 @@ impl Fixture {
                 identifier: "desktop-content".into(),
                 cycle: "desktop-cycle".into(),
                 origin: Some(Origin {
-                    kind: Some(OriginKind::Import(Import::default())),
+                    kind: Some(origin::Kind::Import(Import::default())),
                 }),
                 ..Default::default()
             })
@@ -107,7 +107,7 @@ impl Fixture {
             ..Default::default()
         };
         let placement = PluginPlacement {
-            kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+            kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
             .execute(session.client().plugins.create_with("desktop_thermal", placement, PluginValue { enabled: true }, options))

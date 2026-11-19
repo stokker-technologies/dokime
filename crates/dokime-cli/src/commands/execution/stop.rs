@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::client::ExecutionsStopOptions;
+use dokime_client_internal::ExecutionsStopOptions;
 
 /* === Constants === */
 

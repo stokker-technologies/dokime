@@ -46,8 +46,8 @@ use dokime_sdk::Grpc;
 
 use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
 use dokime_protocol::host::backend::OverviewGetRequest;
-use dokime_sdk::client::OverviewGetResponse;
-use dokime_sdk::client::RuntimeShellSnapshot;
+use dokime_client_internal::OverviewGetResponse;
+use dokime_client_internal::RuntimeShellSnapshot;
 use harmos_protocol::host;
 
 /* === Constants === */

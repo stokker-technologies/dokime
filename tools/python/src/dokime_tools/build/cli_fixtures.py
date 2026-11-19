@@ -97,8 +97,12 @@ def build(profile: str, language: str = "rust") -> None:
             # Build the Generated Source Against the SDK Candidate.
             result = subprocess.run(
                 ["mise", "-C", str(example), "run", "build"],
-                cwd=root, env=environment, check=False, capture_output=True,
-                text=True, creationflags=spawn_flags(),
+                cwd=root,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+                creationflags=spawn_flags(),
             )
             print(result.stdout, flush=True)
             print(result.stderr, flush=True)
@@ -106,7 +110,7 @@ def build(profile: str, language: str = "rust") -> None:
             shutil.copytree(project, output / "rust", dirs_exist_ok=True)
         finally:
             scratch_directory.cleanup()
-        shutil.copy2(root / "target/debug" / f"rust{extension}", output / f"dokime-example-test{extension}")
+        shutil.copy2(root / "target/debug" / f"rust{extension}", output / f"rust{extension}")
     else:
         scratch_directory = tempfile.TemporaryDirectory(prefix="dokime-cli-")
         scratch = scratch_directory.name

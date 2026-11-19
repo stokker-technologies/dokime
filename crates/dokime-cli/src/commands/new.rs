@@ -17,8 +17,7 @@
 
 // Standard Library Imports
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -138,9 +137,14 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
                 match str::from_utf8(bytes) {
                     Ok(text) => fs::write(
                         destination,
-                        local_dependency(args.lang, &relative, text.replace("starter_project", package)
-                            .replace("starter-project", name)
-                            .replace("Starter Project", &python_title(name)), checkout.as_deref())?,
+                        local_dependency(
+                            args.lang,
+                            &relative,
+                            text.replace("starter_project", package)
+                                .replace("starter-project", name)
+                                .replace("Starter Project", &python_title(name)),
+                            checkout.as_deref(),
+                        )?,
                     )?,
                     Err(_) => fs::write(destination, bytes)?,
                 }
@@ -165,9 +169,21 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
 /* === Private Functions === */
 
 fn source_checkout(argument: Option<PathBuf>, environment: Option<PathBuf>) -> Result<Option<PathBuf>> {
-    argument.or(environment).map(|path| {
-        path.canonicalize().map_err(|error| format!("Create Project: Choose a Readable SDK Checkout {}: {error}", path.display()).into())
-    }).transpose()
+    argument
+        .or(environment)
+        .map(|path| -> Result<PathBuf> {
+            let path = path.canonicalize()
+                .map_err(|error| format!("Create Project: Choose a Readable SDK Checkout {}: {error}", path.display()))?;
+            let text = path.to_string_lossy();
+            // Native Build Tools Normalize Relative Project References After This Boundary.
+            let path = if let Some(server) = text.strip_prefix(r"\\?\UNC\") {
+                PathBuf::from(format!(r"\\{server}"))
+            } else if let Some(local) = text.strip_prefix(r"\\?\") {
+                PathBuf::from(local)
+            } else { path };
+            Ok(path)
+        })
+        .transpose()
 }
 
 fn starter_files(language: Language, embedded: &[(&str, &[u8])], checkout: Option<&Path>) -> Result<Vec<(String, Vec<u8>)>> {
@@ -180,21 +196,21 @@ fn starter_files(language: Language, embedded: &[(&str, &[u8])], checkout: Optio
         Language::Csharp => "sdk/csharp/examples/Starter",
         Language::Cpp => return cpp_starter_files(checkout),
     };
-    read_starter(&checkout.join(folder))
+    read_starter(&checkout.join(folder), language)
 }
 
 // The C++ Owner Replaces This Two-Folder Selection When Its Single Starter Lands.
 fn cpp_starter_files(checkout: &Path) -> Result<Vec<(String, Vec<u8>)>> {
     let mut files = Vec::new();
     for folder in ["plugin", "test"] {
-        for (relative, bytes) in read_starter(&checkout.join("sdk/cpp/examples").join(folder))? {
+        for (relative, bytes) in read_starter(&checkout.join("sdk/cpp/examples").join(folder), Language::Cpp)? {
             files.push((format!("{folder}/{relative}"), bytes));
         }
     }
     Ok(files)
 }
 
-fn read_starter(root: &Path) -> Result<Vec<(String, Vec<u8>)>> {
+fn read_starter(root: &Path, language: Language) -> Result<Vec<(String, Vec<u8>)>> {
     if !root.is_dir() {
         return Err(format!("Create Project: Starter Is Missing at {}; Choose a Checkout Containing That Starter", root.display()).into());
     }
@@ -205,21 +221,30 @@ fn read_starter(root: &Path) -> Result<Vec<(String, Vec<u8>)>> {
             let entry = entry?;
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if matches!(name.as_ref(), "target" | "build" | "bin" | "obj" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials")
-                || name == ".env" || (name.starts_with(".env.") && name != ".env.example")
+            if matches!(
+                name.as_ref(),
+                "target" | "build" | ".git" | ".venv" | "__pycache__" | "_input" | "_output" | "credentials"
+            ) || (matches!(language, Language::Csharp) && matches!(name.as_ref(), "bin" | "obj")) || name == ".env"
+                || (name.starts_with(".env.") && name != ".env.example")
                 || matches!(name.as_ref(), "uv.lock" | "Cargo.lock" | "packages.lock.json")
-                || [".key", ".pem", ".pair", ".dokime", ".pyc"].iter().any(|suffix| name.ends_with(suffix)) {
+                || [".key", ".pem", ".pair", ".dokime", ".pyc"].iter().any(|suffix| name.ends_with(suffix))
+            {
                 continue;
             }
             let path = entry.path();
             let relative = path.strip_prefix(root).expect("Starter File Remains Below Its Root").to_string_lossy().replace('\\', "/");
-            if relative.starts_with("assets/plugin/") { continue; }
+            if relative.starts_with("assets/plugin/") {
+                continue;
+            }
             let kind = entry.file_type()?;
             if kind.is_symlink() {
                 return Err(format!("Create Project: Replace Starter Symlink {} With a Regular File", path.display()).into());
             }
-            if kind.is_dir() { pending.push(path); }
-            else if kind.is_file() { files.push((relative, fs::read(path)?)); }
+            if kind.is_dir() {
+                pending.push(path);
+            } else if kind.is_file() {
+                files.push((relative, fs::read(path)?));
+            }
         }
     }
     files.sort_by(|left, right| left.0.cmp(&right.0));
@@ -227,29 +252,52 @@ fn read_starter(root: &Path) -> Result<Vec<(String, Vec<u8>)>> {
 }
 
 fn local_dependency(language: Language, relative: &str, text: String, checkout: Option<&Path>) -> Result<String> {
-    let Some(checkout) = checkout else { return Ok(text); };
-    let directory = checkout.join("sdk").join(match language { Language::Rust => "rust", Language::Python => "python", Language::Csharp => "csharp", Language::Cpp => "cpp" });
+    let Some(checkout) = checkout else {
+        return Ok(text);
+    };
+    let directory = checkout.join("sdk").join(match language {
+        Language::Rust => "rust",
+        Language::Python => "python",
+        Language::Csharp => "csharp",
+        Language::Cpp => "cpp",
+    });
     let path = directory.to_string_lossy().replace('\\', "/");
     let literal = serde_json::to_string(&path)?;
     match language {
         Language::Python if relative == "pyproject.toml" => Ok(format!("{text}\n[tool.uv.sources]\ndokime-sdk = {{ path = {literal} }}\n")),
         Language::Rust if relative == "Cargo.toml" => {
             let mut manifest: toml::Value = toml::from_str(&text)?;
-            let dependencies = manifest.get_mut("dependencies").and_then(toml::Value::as_table_mut).ok_or("Create Rust Project: Declare dependencies.dokime in the Starter Cargo.toml")?;
-            dependencies.insert("dokime".into(), toml::Value::Table(toml::map::Map::from_iter([("path".into(), toml::Value::String(path))])));
-            Ok(toml::to_string_pretty(&manifest).map_err(|error| format!("Create Rust Project: Write the Local SDK Dependency: {error}"))?)
+            let dependencies = manifest
+                .get_mut("dependencies")
+                .and_then(toml::Value::as_table_mut)
+                .ok_or("Create Rust Project: Declare dependencies.dokime in the Starter Cargo.toml")?;
+            dependencies
+                .insert("dokime".into(), toml::Value::Table(toml::map::Map::from_iter([("path".into(), toml::Value::String(path))])));
+            Ok(toml::to_string_pretty(&manifest)
+                .map_err(|error| format!("Create Rust Project: Write the Local SDK Dependency: {error}"))?)
         }
         Language::Csharp if relative.ends_with(".csproj") => {
             let local = format!("{path}/src/Dokime/Dokime.csproj").replace('&', "&amp;").replace('"', "&quot;");
-            Ok(text.lines().map(|line| {
-                if line.contains("<PackageReference Include=\"Dokime\"") { format!("    <ProjectReference Include=\"{local}\" />\n") }
-                else { format!("{line}\n") }
-            }).collect())
+            Ok(text
+                .lines()
+                .map(|line| {
+                    if line.contains("<PackageReference Include=\"Dokime\"") {
+                        format!("    <ProjectReference Include=\"{local}\" />\n")
+                    } else {
+                        format!("{line}\n")
+                    }
+                })
+                .collect())
         }
         Language::Cpp if relative.ends_with("CMakeLists.txt") => {
             let start = text.find("if(DOKIME_SDK_URL)").ok_or("Create C++ Project: Declare the SDK Source Selection in CMakeLists.txt")?;
-            let end = text.find("find_package(Dokime CONFIG REQUIRED)").ok_or("Create C++ Project: Declare the Dokime CMake Dependency")? + "find_package(Dokime CONFIG REQUIRED)".len();
-            Ok(format!("{}set(DOKIME_BUILD_TESTS OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory({literal} \"${{CMAKE_BINARY_DIR}}/dokime-sdk\"){}", &text[..start], &text[end..]))
+            let end = text.find("find_package(Dokime CONFIG REQUIRED)").ok_or("Create C++ Project: Declare the Dokime CMake Dependency")?
+                + "find_package(Dokime CONFIG REQUIRED)".len();
+            Ok(format!(
+                "{}set(DOKIME_BUILD_TESTS OFF CACHE BOOL \"\" FORCE)\nadd_subdirectory({literal} \"${{CMAKE_BINARY_DIR}}/dokime-sdk\"){}",
+                &text[..start],
+                &text[end..]
+            ))
         }
         _ => Ok(text),
     }
@@ -276,7 +324,15 @@ fn csharp_project(directory: &Path, files: Vec<(String, Vec<u8>)>, checkout: Opt
             let destination = directory.join(&relative);
             fs::create_dir_all(destination.parent().expect("A starter file has a project directory"))?;
             match str::from_utf8(bytes) {
-                Ok(text) => fs::write(destination, local_dependency(Language::Csharp, &relative, text.replace("Example", &namespace).replace("Starter Project", &python_title(name)), checkout)?)?,
+                Ok(text) => fs::write(
+                    destination,
+                    local_dependency(
+                        Language::Csharp,
+                        &relative,
+                        text.replace("Example", &namespace).replace("Starter Project", &python_title(name)),
+                        checkout,
+                    )?,
+                )?,
                 Err(_) => fs::write(destination, bytes)?,
             }
         }
@@ -403,8 +459,11 @@ mod tests {
     fn checkout_argument_wins_over_environment() -> Result<(), Box<dyn Error>> {
         let argument = tempfile::tempdir()?;
         let environment = tempfile::tempdir()?;
-        assert_eq!(super::source_checkout(Some(argument.path().into()), Some(environment.path().into()))?, Some(argument.path().canonicalize()?));
-        assert_eq!(super::source_checkout(None, Some(environment.path().into()))?, Some(environment.path().canonicalize()?));
+        assert_eq!(
+            super::source_checkout(Some(argument.path().into()), Some(environment.path().into()))?.map(|path| path.canonicalize()).transpose()?,
+            Some(argument.path().canonicalize()?)
+        );
+        assert_eq!(super::source_checkout(None, Some(environment.path().into()))?.map(|path| path.canonicalize()).transpose()?, Some(environment.path().canonicalize()?));
         assert_eq!(super::source_checkout(None, None)?, None);
         Ok(())
     }
@@ -415,8 +474,18 @@ mod tests {
         for (language, relative, input, expected) in [
             (Language::Python, "pyproject.toml", "[project]\nname = 'example'\n", "dokime-sdk = { path = "),
             (Language::Rust, "Cargo.toml", "[dependencies]\ndokime = '0.1.5'\n", "[dependencies.dokime]"),
-            (Language::Csharp, "src/Example/Example.csproj", "<Project>\n<PackageReference Include=\"Dokime\" Version=\"0.1.0-dev\" />\n</Project>", "<ProjectReference Include="),
-            (Language::Cpp, "plugin/CMakeLists.txt", "if(DOKIME_SDK_URL)\nendif()\nfind_package(Dokime CONFIG REQUIRED)", "add_subdirectory("),
+            (
+                Language::Csharp,
+                "src/Example/Example.csproj",
+                "<Project>\n<PackageReference Include=\"Dokime\" Version=\"0.1.0-dev\" />\n</Project>",
+                "<ProjectReference Include=",
+            ),
+            (
+                Language::Cpp,
+                "plugin/CMakeLists.txt",
+                "if(DOKIME_SDK_URL)\nendif()\nfind_package(Dokime CONFIG REQUIRED)",
+                "add_subdirectory(",
+            ),
         ] {
             let text = super::local_dependency(language, relative, input.into(), Some(checkout.path()))?;
             assert!(text.contains(expected), "{text}");
@@ -430,18 +499,22 @@ mod tests {
     #[test]
     fn missing_checkout_starter_names_the_required_path() -> Result<(), Box<dyn Error>> {
         let checkout = tempfile::tempdir()?;
-        for (language, folder) in [(Language::Rust, "rust/examples/starter"), (Language::Python, "python/examples/starter"), (Language::Csharp, "csharp/examples/Starter"), (Language::Cpp, "cpp/examples/plugin")] {
+        for (language, folder) in [
+            (Language::Rust, "rust/examples/starter"),
+            (Language::Python, "python/examples/starter"),
+            (Language::Csharp, "csharp/examples/Starter"),
+            (Language::Cpp, "cpp/examples/plugin"),
+        ] {
             let missing = checkout.path().join("sdk").join(folder);
             let error = super::starter_files(language, &[], Some(checkout.path())).unwrap_err().to_string();
-            assert!(error.contains(&missing.display().to_string()), "{error}");
+            assert!(error.replace('\\', "/").contains(&missing.to_string_lossy().replace('\\', "/")), "{error}");
         }
         Ok(())
     }
 
     #[test]
     fn every_buildable_starter_embeds_project_configuration() {
-        for (files, folders) in [(RUST, &[""][..]), (PYTHON, &[""][..]), (CSHARP, &[""][..]), (CPP, &["plugin", "test"][..])]
-        {
+        for (files, folders) in [(RUST, &[""][..]), (PYTHON, &[""][..]), (CSHARP, &[""][..]), (CPP, &["plugin", "test"][..])] {
             for folder in folders {
                 for name in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
                     let relative = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
@@ -501,7 +574,7 @@ mod tests {
             path: project.clone(),
             lang: Language::Python,
             from: None,
-                sdk_url: None,
+            sdk_url: None,
             sdk_sha256: None,
         };
         run(args, Settings::default()).await?;

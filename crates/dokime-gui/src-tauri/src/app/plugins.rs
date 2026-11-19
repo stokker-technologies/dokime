@@ -25,7 +25,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime_sdk::client::{
+use dokime_client_internal::{
     FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginEntry,
 };
 use dokime_sdk::{FileMetadata, Upload};

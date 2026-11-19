@@ -21,8 +21,8 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use crate::client::report_subject::Kind;
-use crate::client::{ReportSubject, ReportsCreateOptions};
+use dokime_client_internal::report_subject::Kind;
+use dokime_client_internal::{ReportSubject, ReportsCreateOptions};
 
 /* === Constants === */
 

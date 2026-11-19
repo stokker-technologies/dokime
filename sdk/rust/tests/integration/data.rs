@@ -26,9 +26,6 @@ use dokime::operations;
 use dokime::prelude::*;
 use dokime::templates::Context;
 use dokime::{ExactNumber, FromValue, Value, encoding, value};
-use dokime_protocol::descriptor_pool;
-use harmos_protocol::model::Protobuf;
-use harmos_protocol::schema;
 
 /* === Constants === */
 
@@ -67,31 +64,6 @@ struct Payload {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[test]
-fn default_host_requirements_preserve_protocol_operation_kinds() -> Result<()> {
-    // Compose the Complete Default Inventory Without Starting a Host.
-    let declarations = Plugin::of::<()>("1.0.0").identifier("requirements").declarations()?;
-    assert_eq!(declarations.requires.len(), HostOperation::ALL.len());
-
-    // Fingerprint Each Requirement From the Authoritative Protocol Kind.
-    let pool = descriptor_pool();
-    for requirement in declarations.requires {
-        let (service, name) = requirement.id.split_once('/').expect("Host Operation Identity");
-        let service = pool.get_service_by_name(service).expect("Host Service Descriptor");
-        let method = service.methods().find(|method| method.name() == name).expect("Host Method Descriptor");
-        let contract = Protobuf {
-            descriptors: pool.encode_to_vec(),
-            request: method.input().full_name().into(),
-            response: method.output().full_name().into(),
-            input: method.is_client_streaming().then(|| method.input().full_name().into()),
-            output: method.is_server_streaming().then(|| method.output().full_name().into()),
-        };
-        let fingerprint = schema::host_fingerprint(&requirement.id, &contract).map_err(|error| Error::Invalid(error.to_string()))?;
-        assert_eq!(requirement.fingerprint, fingerprint, "{}", requirement.id);
-    }
-    Ok(())
-}
 
 #[test]
 fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()> {

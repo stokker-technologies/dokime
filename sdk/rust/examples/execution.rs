@@ -24,8 +24,8 @@ use std::time::Duration;
 // Local Imports
 use dokime::RetryPolicy;
 use dokime::model::Section;
-use dokime::plugin::HostEvidenceStatisticsOptions;
 use dokime::templates::Context;
+use dokime::templates::StatisticsReadOptions;
 use dokime::{Classification, Plot, PlotKind, prelude::*};
 use dokime::{Document, FieldReference, Severity, value::Kind};
 
@@ -53,6 +53,8 @@ struct Parameters {
     value: f64,
     fail_attempts: u32,
     evaluate: bool,
+    initialize_failure: bool,
+    initialize_question: bool,
 }
 
 #[derive(dokime::Record)]
@@ -60,7 +62,6 @@ struct Parameters {
 struct Attempt {
     value: f64,
     attempt: u32,
-    scope_refused: bool,
 }
 
 struct Bench {
@@ -97,6 +98,8 @@ fn main() -> Result<()> {
             value: 10.0,
             fail_attempts: 0,
             evaluate: true,
+            initialize_failure: false,
+            initialize_question: false,
         })
         .initialize(initialize)
         .step(Step::new("Baseline", baseline).identifier("baseline"))
@@ -149,6 +152,12 @@ async fn initialize(ctx: &Context) -> Result<()> {
         value: parameters.value,
         fail_attempts: parameters.fail_attempts,
     });
+    if parameters.initialize_failure {
+        return Err(Error::Invalid("Initialize Execution: Resolve the Fixture's Requested Initialization Failure".into()));
+    }
+    if parameters.initialize_question {
+        ctx.prompt("Continue Initialization?", &["Continue"]).await?;
+    }
     ctx.log(Severity::Info, parameters.value.to_string()).await
 }
 
@@ -161,15 +170,11 @@ async fn measure(ctx: &Context) -> Result<()> {
         ctx.prompt("Continue the Measurement?", &["Continue"]).await?;
     }
     let bench = ctx.get::<Bench>()?;
-    let refused =
-        ctx.host().evidence.logs.append("missing-execution".into(), Severity::Info, "out-of-scope".into(), ctx.now().await?).await;
-    let scope_refused = refused.is_err_and(|error| error.to_string().contains("Append"));
     ctx.record(
         &Record::<Attempt>::new("attempt", "Attempt"),
         Attempt {
             value: bench.value,
             attempt: ctx.attempt(),
-            scope_refused,
         },
     )
     .await?;
@@ -185,36 +190,24 @@ async fn read(ctx: &Context) -> Result<Reading> {
 }
 
 async fn own_measurements(ctx: &Context) -> Result<bool> {
-    let stats = ctx.host().evidence.statistics_with(ctx.resolve("reading")?, "value".into(), HostEvidenceStatisticsOptions { step: Some(ctx.resolve("measure")?), ..Default::default() }).await?;
-    let repeated = ctx
-        .host()
-        .evidence
-        .statistics_with(
-            ctx.resolve("reading")?,
-            "value".into(),
-            HostEvidenceStatisticsOptions {
-                step: Some(ctx.resolve("measure")?),
-                at: stats.resolved_at.clone(),
-                ..Default::default()
-            },
-        )
-        .await?;
-    let mut latest = ctx.host().evidence.statistics_with(ctx.resolve("reading")?, "value".into(), HostEvidenceStatisticsOptions { step: Some(ctx.resolve("measure")?), ..Default::default() }).await?;
-    let advanced = latest.resolved_at.as_ref().zip(stats.resolved_at.as_ref()).is_some_and(|(latest, first)| {
+    let stats = ctx.statistics_with("reading", "value", "measure", StatisticsReadOptions::default()).await?;
+    let repeated = ctx.statistics_with("reading", "value", "measure", StatisticsReadOptions { at: stats.at.clone() }).await?;
+    let mut latest = ctx.statistics_with("reading", "value", "measure", StatisticsReadOptions::default()).await?;
+    let advanced = latest.at.as_ref().zip(stats.at.as_ref()).is_some_and(|(latest, first)| {
         latest.positions.iter().any(|current| {
             first.positions.iter().any(|previous| current.history == previous.history && current.sequence > previous.sequence)
         })
     });
-    latest.resolved_at = stats.resolved_at.clone();
+    latest.at = stats.at.clone();
     let attempt = ctx.records(&Record::<Attempt>::new("attempt", "Attempt")).step(measure).last_or_none().await?;
     Ok(stats == repeated
         && stats == latest
         && advanced
-        && stats.statistics.as_ref().is_some_and(|statistics| statistics.count > 0)
-        && stats.statistics.as_ref().and_then(|statistics| statistics.min.as_ref()).and_then(|value| value.kind.as_ref())
+        && stats.value.as_ref().is_some_and(|statistics| statistics.count > 0)
+        && stats.value.as_ref().and_then(|statistics| statistics.min.as_ref()).and_then(|value| value.kind.as_ref())
             == Some(&Kind::Number(ctx.get::<Bench>()?.value))
-        && stats.statistics.as_ref().map(|statistics| &statistics.max) == stats.statistics.as_ref().map(|statistics| &statistics.min)
-        && attempt.is_some_and(|record| record.scope_refused))
+        && stats.value.as_ref().map(|statistics| &statistics.max) == stats.value.as_ref().map(|statistics| &statistics.min)
+        && attempt.is_some_and(|record| record.value == ctx.get::<Bench>().map(|bench| bench.value).unwrap_or_default()))
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

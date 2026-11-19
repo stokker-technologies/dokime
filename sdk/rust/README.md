@@ -1,7 +1,7 @@
 # Dokime Rust SDK
 
 Author executable test plugins and call a running host with the `dokime` crate.
-The [Capture Suite](examples/test/src/suite.rs) owns its records, steps and criteria.
+The [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its records, steps and criteria.
 
 ## Author a Suite
 
@@ -74,19 +74,34 @@ returns a typed value and refuses an empty result. `.step(handler)` or
 
 ## Run the Examples
 
-The [Plugin Entry Point](examples/test/src/main.rs) only serves the sidecar.
-The separate [Client Flow](examples/client/src/main.rs) starts a compiled plugin,
-attaches it to a host, reads its suites and detaches it before joining the child.
+The [Starter](examples/starter/) is one Cargo package with a plugin binary and a
+[Client Flow](examples/starter/src/bin/client.rs). The client connects through
+`DOKIME_REMOTE`, registers its owned listener, materializes the confirmation case,
+runs it, seals the execution and cycle, saves a timestamped archive in `_output/`
+and closes the registration and listener.
 
 ```powershell
 mise -C sdk/rust run build
 mise -C sdk/rust run test -- --layer unit
 mise -C sdk/rust run test
-# With a host already running:
-./target/debug/dokime-rust-client http://127.0.0.1:7000 ./target/debug/dokime-rust-test
+# Create a standalone consumer of this checkout:
+./target/debug/dokime new my-project --lang rust --from .
+cd my-project
+mise trust
+mise run build
+# With DOKIME_REMOTE naming a running host:
+mise run run
 ```
 
-To run only the sidecar, run `./target/debug/dokime-rust-test`. Its native entry calls `plugin.run()`.
+`--from` (or `DOKIME_NEW_FROM`) selects the checkout's starter and writes a Cargo
+path dependency on its Rust SDK. The explicit argument wins over the environment.
+Without either, the command uses its embedded starter and published dependency.
+The plugin binary calls `plugin()?.run()` without parsing arguments.
+`register_with` accepts a `PluginRegisterOptions` address override; otherwise
+`DOKIME_PLUGIN_ADDRESS` in the process environment, then `.env`, then
+`127.0.0.1:0` selects its owned listener. `client.close()` unregisters owned
+plugins and joins their listeners; repeated close is safe.
+
 `dokime::testing::Harness` runs a template against an in-memory host
 with a controlled clock, without hardware.
 Cleanup runs after attempted initialization, including failure and cancellation,

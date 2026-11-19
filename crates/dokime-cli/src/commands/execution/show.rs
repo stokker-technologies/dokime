@@ -24,8 +24,8 @@ use prost_reflect::{DynamicMessage, Value};
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use dokime_client_internal::{ExecutionsGetOptions, ExecutionsSchemasGetOptions};
 use dokime::PageRequest;
-use crate::client::{ExecutionsGetOptions, ExecutionsSchemasGetOptions};
 
 /* === Constants === */
 

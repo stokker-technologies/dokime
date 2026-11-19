@@ -12,10 +12,6 @@
 /* === Modules === */
 
 mod cli;
-mod client;
-mod wire {
-    pub(crate) use dokime_protocol::host;
-}
 mod commands;
 mod environment;
 mod error;

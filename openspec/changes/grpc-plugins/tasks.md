@@ -169,7 +169,7 @@
   - [x] Separate Operation and Template Contexts, Share Plugin-Owned State, Return Record Ordinals and Migrate Owned Declarations.
   - [x] Implement Connection Settings, Working-Directory Dotenv Grammar and Precedence, Direct Origins and Ordered Pairing Attempts.
   - [x] Add Bound Case/Cycle/Execution Handles, Lazy Start/Watch Finality, Stable Seal Outcomes, Verified Archives and Client Notes/Artifacts.
-  - [ ] Resolve the Pinned Library's Missing Addressable, Closeable Rust Listener API Before Plugin Registration and Explicit Listener Configuration; Do Not Copy Its Server or Mutate Process Environment.
+  - [x] Pin the Owned, Addressable, Closeable Rust Listener at f3c858c33efdebc94b33a44e112f28703932f4a1; Register, Await Ready, Unregister and Close With Explicit Listener Configuration Without Copying Its Server or Mutating Process Environment.
   - [ ] Complete Typed Runtime Operation References and Stream Subscription After Their Shared Library Capabilities Land.
     - [x] Remove the Legacy Public Static-Request Context Call and `OperationRequest` Re-Exports; Keep Unsupported Runtime References Unexposed.
   - [ ] Bind Bundle Upload After the Product Host Publishes Its Installation Contract and Regenerated Bindings; Shared Plugins/Create Currently Accepts Placements Rather Than Bundle Uploads.
@@ -177,15 +177,20 @@
     - [x] Share Client/Template Artifact Uploads, Preserve Writer Fences and Mutation Identities, Verify Publication and Abandon Only Unpublished Uploads.
     - [x] Add Plugin-Wide Per-Sample and Whole-Window Observers With Operation Contexts and Shared Plugin State; Refuse Template Contexts at Plugin Scope.
     - [ ] Bind Template Notes After `Notes/Create` Admits Trusted Plugin Callers; Its Current Protocol Annotation Is `CLIENTS` Only.
-    - [ ] Resolve the Unowned OBC Measurement Observer's Lifetime: `plugins/sidecars/obc/src/streams/measurement.rs:86` Registers It on the Plugin While Its Handler Reads Execution State.
-    - [ ] Migrate Unowned OBC Raw Record/Statistics Consumers Before Retiring the Remaining Context Wire Responses; Do Not Keep a Compatibility API Beside Typed Queries.
-  - [ ] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Remove Generated Host/Transport Escape Hatches With the Production Consumer and Generator Owners.
+    - [x] Scope the OBC Measurement Observer and Stream to Each Capturing Template; Keep Execution State Out of Plugin-Wide Observers.
+    - [x] Migrate OBC to Typed Context Record/Statistics, Settings, Prompt, Artifact and Traceability Readers; Retire Context Wire Responses and Generated Host Escape Hatches.
+  - [x] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Keep CLI and Product-Test Raw Calls in the Unpublished Workspace Client Crate and Remove Generated Host/Transport Escape Hatches From the SDK.
     - [x] Add Bound Case Lists, Fixed-Cut Cycle/Execution Lists, Refresh Operations and Frozen Typed Record/Sample Readers With Digest Verification and Continuation Validation.
     - [x] Add Operation-Specific Mutation Identity Overrides for Cycle/Execution Creation and Controls, Notes and Artifacts; Derive Replay-Stable Execution UUIDs From Request Identities.
     - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability, Documents and Effect Preparation/Confirmation Without Policy Overrides.
   - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
-  - [ ] Resolve Duplicated SDK Harness and Product Execution Sequencing With the Owner; Product Cleanup Still Requires Successful Initialization at `crates/dokime-runtime/src/execution.rs:643`.
-  - [ ] Replace Both Rust Starter Roots With the Owner-Requested Single Two-Binary Project and Migrate CLI Embedding; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
+  - [x] Create All Four Languages With `--from` or `DOKIME_NEW_FROM`, Checkout Starter Sources and Native Local SDK Dependencies; Keep Argument Precedence and Actionable Missing-Starter Errors.
+  - [x] Migrate Starter-Creation Stories and Fixture Tooling to `--from`; Remove Test-Owned SDK Dependency Overrides and C++ Archive Coordinates.
+  - [ ] Prove Failed/Cancelled Product Initialization Cleanup Exactly Once With the Deterministic Runtime Story.
+  - [ ] Prove the Created Rust and C# Starters Through Build, Bundle, Inspect, Headless Development and Unmodified Client Runs; Prove Python Creation and Shared Four-Language Capture.
+  - [ ] Complete CLI Units/Stories, SDK Units/Integrations, Generated Checking, Repository Checking, Formatting, Scoped/Workspace Compilation and Final Rust Lint on This Candidate.
+  - [x] Preserve Separate SDK Harness and Product Execution Sequencing Per the Owner Decision; Run Product Cleanup After Attempted Initialization, Including Failure and Cancellation.
+  - [x] Replace the Three Rust Example Roots With One Two-Binary Starter, Migrate Their Consumers and Embed That Starter With Project Name Substitution; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
   - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
   - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
     - [x] Refresh the Root Cargo Lock and Validate the Consumer Lock; Build the Native Windows Product Host/CLI and Prove Shared Capture in All Four Languages, Including Rust Frozen Typed Record Reads and Verified Execution/Cycle ZIP Downloads.

@@ -21,8 +21,8 @@ use std::num::NonZeroU32;
 // Third Party Imports
 
 // Local Imports
+use dokime_client_internal::ExecutionsListOptions;
 use dokime::PageRequest;
-use crate::client::ExecutionsListOptions;
 
 /* === Constants === */
 

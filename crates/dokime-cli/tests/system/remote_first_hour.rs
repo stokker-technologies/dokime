@@ -29,9 +29,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tonic::transport::Endpoint;
 
 // Local Imports
-use crate::client::Client;
+use dokime_client_internal::Client;
+use dokime_client_internal::{CyclesCreateOptions, ExecutionBinding, FilesReadOptions, ReportSubject, report_subject};
 use dokime::Metadata;
-use crate::client::{CyclesCreateOptions, ExecutionBinding, FilesReadOptions, ReportSubject, report_subject};
 use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 /* === Constants === */
@@ -66,7 +66,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 super::run(&["new", project.to_str().unwrap(), "--lang", language, "--from", super::root().to_str().unwrap()]).await?;
                 // Select the Development Input
                 let input = if language == "rust" {
-                    let executable = super::fixtures().join(format!("dokime-example-test{}", EXE_SUFFIX));
+                    let executable = super::fixtures().join(format!("rust{}", EXE_SUFFIX));
                     let prepared = directory.path().join("prepared-plugin");
                     fs::create_dir(&prepared)?;
                     fs::copy(&executable, prepared.join(format!("plugin{EXE_SUFFIX}")))?;

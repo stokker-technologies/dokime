@@ -1,0 +1,92 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-client-internal"
+description = "Workspace-only generated client for product commands and host stories."
+autotests = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime-protocol = { workspace = true }
+
+# Git
+harmos = { workspace = true }
+harmos-protocol = { workspace = true }
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+prost = { workspace = true }
+prost-reflect = { workspace = true }
+prost-types = { workspace = true }
+
+# Cryptography
+sha2 = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+tonic = { workspace = true }
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

@@ -22,7 +22,8 @@
 // Local Imports
 use dokime::client::Client;
 use dokime::templates::Context;
-use dokime::{FileReference, FileSource};
+use dokime::FileSource;
+use std::error;
 
 /* === Constants === */
 
@@ -41,12 +42,11 @@ use dokime::{FileReference, FileSource};
 /* === Public Functions === */
 
 // Compiler Story: No Host, Runtime, Storage or Fixtures Are Required.
-pub async fn generated_surface(client: &Client, context: &Context) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn generated_surface(client: &Client, context: &Context) -> Result<(), Box<dyn error::Error>> {
     let _ = client.plugins().list().await?;
-    let host = context.host();
-    let _ = host.files.capture(FileSource::default(), String::new()).await?;
-    let _ = host.content.artifacts.create(FileReference::default(), "capture.bin".into(), "application/octet-stream".into()).await?;
-    let _ = host.evidence.statistics(String::new(), String::new()).await?;
+    let _ = context.capture(FileSource::default(), String::new()).await?;
+    let _ = context.artifact("capture.bin", Vec::new(), "application/octet-stream").await?;
+    let _ = context.statistics(String::new(), String::new(), String::new()).await?;
     Ok(())
 }
 

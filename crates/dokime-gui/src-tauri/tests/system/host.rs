@@ -23,13 +23,13 @@ use std::{error::Error, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Durat
 
 // Local Imports
 
-use dokime_sdk::client::DocumentScope;
-use dokime_sdk::client::PluginPlacement;
-use dokime_sdk::client::PluginRemote;
-use dokime_sdk::client::PluginValue;
-use dokime_sdk::client::PluginsCreateOptions;
-use dokime_sdk::client::plugin_placement;
-use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::DocumentScope;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::PluginsCreateOptions;
+use dokime_client_internal::plugin_placement;
+use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use dokime_protocol::host::CasesCreateRequest;
@@ -64,31 +64,31 @@ use dokime_sdk::Metadata;
 use dokime_sdk::Origin;
 use dokime_sdk::RecordsListResponse;
 use dokime_sdk::Termination;
-use dokime_sdk::client::AnswersCreateResponse;
-use dokime_sdk::client::CasesCreateResponse;
-use dokime_sdk::client::CyclesCreateResponse;
-use dokime_sdk::client::DocumentsGetResponse;
-use dokime_sdk::client::ExecutionOutcome;
-use dokime_sdk::client::ExecutionState;
-use dokime_sdk::client::ExecutionsGetResponse;
-use dokime_sdk::client::ExecutionsListResponse;
-use dokime_sdk::client::OverviewGetResponse;
-use dokime_sdk::client::PlotRequest;
-use dokime_sdk::client::ProgressWatchResponse;
-use dokime_sdk::client::PromptsListResponse;
-use dokime_sdk::client::RegisteredSelection;
-use dokime_sdk::client::ReportSubject;
-use dokime_sdk::client::ReportsCreateResponse;
-use dokime_sdk::client::ReportsGetResponse;
-use dokime_sdk::client::ReportsPublishResponse;
-use dokime_sdk::client::SamplesListResponse;
-use dokime_sdk::client::SelectionPlan;
-use dokime_sdk::client::SnapshotsListResponse;
-use dokime_sdk::client::SnapshotsWatchResponse;
-use dokime_sdk::client::SuitesGetResponse;
-use dokime_sdk::client::SuitesListResponse;
-use dokime_sdk::client::document_frame_frame;
-use dokime_sdk::client::report_subject;
+use dokime_client_internal::AnswersCreateResponse;
+use dokime_client_internal::CasesCreateResponse;
+use dokime_client_internal::CyclesCreateResponse;
+use dokime_client_internal::DocumentsGetResponse;
+use dokime_client_internal::ExecutionOutcome;
+use dokime_client_internal::ExecutionState;
+use dokime_client_internal::ExecutionsGetResponse;
+use dokime_client_internal::ExecutionsListResponse;
+use dokime_client_internal::OverviewGetResponse;
+use dokime_client_internal::PlotRequest;
+use dokime_client_internal::ProgressWatchResponse;
+use dokime_client_internal::PromptsListResponse;
+use dokime_client_internal::RegisteredSelection;
+use dokime_client_internal::ReportSubject;
+use dokime_client_internal::ReportsCreateResponse;
+use dokime_client_internal::ReportsGetResponse;
+use dokime_client_internal::ReportsPublishResponse;
+use dokime_client_internal::SamplesListResponse;
+use dokime_client_internal::SelectionPlan;
+use dokime_client_internal::SnapshotsListResponse;
+use dokime_client_internal::SnapshotsWatchResponse;
+use dokime_client_internal::SuitesGetResponse;
+use dokime_client_internal::SuitesListResponse;
+use dokime_client_internal::document_frame_frame;
+use dokime_client_internal::report_subject;
 use dokime_sdk::value;
 use dokime_sdk::{card, origin};
 use prost::Message;
@@ -105,14 +105,16 @@ use dokime_protocol::host::{DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 
 use dokime_sdk::StorageTransferSettings;
-use dokime_sdk::client::document_binding_result;
-use dokime_sdk::client::{ClientSettings, FrozenSchemaCache};
+use dokime_client_internal::document_binding_result;
+use dokime_client_internal::{ClientSettings, FrozenSchemaCache};
 use dokime_sdk::model::Section;
-use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Suite, Suites, TestCaseTemplate};
+use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Suites, TestCaseTemplate};
 use dokime_storage::{Execution, Sample, Store};
 use harmos_protocol::model;
 use harmos_protocol::model::{Declarations, StreamDeclaration};
 use prost_types::FileDescriptorSet;
+
+use dokime_protocol::model::Suite;
 
 /* === Constants === */
 

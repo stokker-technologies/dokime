@@ -45,7 +45,7 @@ use dokime_sdk::ArtifactMetadata;
 use dokime_sdk::ArtifactState;
 use dokime_sdk::FilesGetResponse;
 use dokime_sdk::FilesReadResponse;
-use dokime_sdk::client::ArtifactsGetResponse;
+use dokime_client_internal::ArtifactsGetResponse;
 
 /* === Constants === */
 

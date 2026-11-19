@@ -26,19 +26,19 @@ use tokio::time;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use dokime::Client;
+use dokime_client_internal::Client;
 use dokime::Metadata;
 use dokime::RecordScope;
 use dokime::SecretWritable;
 use dokime::Value;
-use dokime::client::EvidenceRecordsListOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginState;
-use dokime::client::PluginValue;
-use dokime::client::PluginsSecretsListOptions;
-use dokime::client::SecretsDeleteOptions;
-use dokime::client::SecretsSetOptions;
+use dokime_client_internal::EvidenceRecordsListOptions;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginState;
+use dokime_client_internal::PluginValue;
+use dokime_client_internal::PluginsSecretsListOptions;
+use dokime_client_internal::SecretsDeleteOptions;
+use dokime_client_internal::SecretsSetOptions;
 use dokime::record_scope;
 use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;

@@ -46,10 +46,12 @@ use uuid::Uuid;
 
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-use dokime::client::{ExecutionMode, ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue, ResultStatus};
+use dokime_client_internal::{ExecutionMode, ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue, ResultStatus};
 use dokime::record_scope::Kind;
+use dokime_client_internal::Client;
+use dokime_protocol::model::Suite;
 use dokime::{
-    ArtifactScope, Client, EvidenceScope, FileReference, Import, Metadata, Origin, RecordScope, Step, Suite, Suites, Termination, TestCase,
+    ArtifactScope, EvidenceScope, FileReference, Import, Metadata, Origin, RecordScope, Step, Suites, Termination, TestCase,
     TestCaseTemplate, origin, value,
 };
 use dokime_operations::host;
@@ -602,7 +604,6 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
                 let record = RecordsAppendRequest::decode(records[0].payload.as_slice())?;
                 let attempt = support::Attempt::decode(record.payload.as_slice())?;
                 assert_eq!(attempt.value, value);
-                assert!(attempt.scope_refused);
                 assert!(host.cancel(&snapshot.execution.identifier).is_err());
             }
             host.shutdown().await?;

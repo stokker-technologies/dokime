@@ -20,14 +20,14 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::Client;
+use dokime_client_internal::Client;
 use dokime::Import;
 use dokime::Origin;
 use dokime::Termination;
-use dokime::client::DeclaredOutcome;
-use dokime::client::ExecutionOutcome;
-use dokime::client::ExecutionSelection;
-use dokime::client::ResultStatus;
+use dokime_client_internal::DeclaredOutcome;
+use dokime_client_internal::ExecutionOutcome;
+use dokime_client_internal::ExecutionSelection;
+use dokime_client_internal::ResultStatus;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::model::origin;
 use dokime_runtime::Host;

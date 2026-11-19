@@ -32,20 +32,20 @@ use tonic::transport::Endpoint;
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
 use super::support::bundles::upload;
-use dokime::Client;
+use dokime_client_internal::Client;
 use dokime::EvidenceScope;
 use dokime::MapValue;
 use dokime::RecordScope;
 use dokime::Value;
-use dokime::client::DocumentScope;
-use dokime::client::DocumentsGetOptions;
-use dokime::client::EvidenceRecordsListOptions;
-use dokime::client::EvidenceStatisticsOptions;
-use dokime::client::ExecutionState;
-use dokime::client::FrozenSchemaCache;
-use dokime::client::RegisteredSelection;
-use dokime::client::ResultStatus;
-use dokime::client::SelectionPlan;
+use dokime_client_internal::DocumentScope;
+use dokime_client_internal::DocumentsGetOptions;
+use dokime_client_internal::EvidenceRecordsListOptions;
+use dokime_client_internal::EvidenceStatisticsOptions;
+use dokime_client_internal::ExecutionState;
+use dokime_client_internal::FrozenSchemaCache;
+use dokime_client_internal::RegisteredSelection;
+use dokime_client_internal::ResultStatus;
+use dokime_client_internal::SelectionPlan;
 use dokime::record_scope;
 use dokime_protocol::host::document_binding_result;
 use dokime_protocol::host::document_frame_frame;
@@ -268,7 +268,7 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             };
             let inrush = client
                 .evidence
-                .statistics_with("obc.measurement", "current_rms_a", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
+                .statistics_with("obc.transient.startup.measurement", "current_rms_a", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
                 .await?
                 .statistics
                 .unwrap();

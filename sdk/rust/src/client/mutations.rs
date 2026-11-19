@@ -16,13 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use uuid::{Builder, Uuid};
 
 // Local Imports
-use crate::{Error, Result};
+use crate::{Error, Result, Value};
 
 /* === Constants === */
 
@@ -31,6 +32,12 @@ use crate::{Error, Result};
 /* === Type Aliases === */
 
 /* === Structs === */
+
+#[derive(Default)]
+pub struct CaseMaterializeOptions {
+    pub request_id: Option<String>,
+    pub parameters: HashMap<String, Vec<Value>>,
+}
 
 #[derive(Default)]
 pub struct CycleCreateOptions {

@@ -1444,11 +1444,10 @@ version = "0.1.5"
 dependencies = [
  "clap",
  "dokime",
+ "dokime-client-internal",
  "dokime-packaging",
  "dokime-protocol",
  "dokime-runtime",
- "harmos",
- "harmos-protocol",
  "harmos-runtime",
  "prost",
  "prost-reflect",
@@ -1465,6 +1464,20 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "dokime-client-internal"
+version = "0.1.5"
+dependencies = [
+ "dokime-protocol",
+ "harmos",
+ "harmos-protocol",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "sha2 0.11.1",
+ "tonic",
 ]
 
 [[package]]
@@ -1485,6 +1498,7 @@ dependencies = [
  "base64 0.23.1",
  "criterion",
  "dokime",
+ "dokime-client-internal",
  "dokime-protocol",
  "dokime-runtime",
  "dokime-storage",
@@ -1613,6 +1627,7 @@ dependencies = [
  "base64 0.23.1",
  "criterion",
  "dokime",
+ "dokime-client-internal",
  "dokime-operations",
  "dokime-packaging",
  "dokime-protocol",

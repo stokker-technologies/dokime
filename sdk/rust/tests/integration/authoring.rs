@@ -332,7 +332,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.page.unwrap().page_size, 0);
+    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.record_type, "thermal.cycle.door");
     criterion
         .reply(
             records.call,

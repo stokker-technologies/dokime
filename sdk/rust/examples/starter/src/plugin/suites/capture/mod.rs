@@ -22,8 +22,8 @@ pub mod confirmation;
 // Third Party Imports
 
 // Local Imports
-use dokime::{Result, Suite};
 use confirmation::ConfirmationTestTemplate;
+use dokime::{Result, Suite};
 
 /* === Constants === */
 
@@ -41,8 +41,6 @@ pub struct CaptureSuite;
 
 /* === Implementations === */
 
-
-
 /* === Public Functions === */
 
 pub fn suite() -> Result<Suite> {
@@ -51,8 +49,4 @@ pub fn suite() -> Result<Suite> {
 
 /* === Private Functions === */
 
-
-
 /* === Tests === */
-
-

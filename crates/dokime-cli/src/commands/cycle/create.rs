@@ -22,8 +22,8 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
+use dokime_client_internal::CyclesCreateOptions;
 use dokime::Metadata;
-use crate::client::CyclesCreateOptions;
 use dokime_protocol::host::CasesCreateResponse;
 
 /* === Constants === */

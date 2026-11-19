@@ -31,15 +31,15 @@ use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::Client;
+use dokime_client_internal::Client;
 use dokime::MapValue;
 use dokime::RecordScope;
-use dokime::client::EvidenceRecordsListOptions;
-use dokime::client::ExecutionsSchemasGetOptions;
-use dokime::client::FrozenSchemaCache;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
+use dokime_client_internal::EvidenceRecordsListOptions;
+use dokime_client_internal::ExecutionsSchemasGetOptions;
+use dokime_client_internal::FrozenSchemaCache;
+use dokime_client_internal::PluginPlacement;
+use dokime_client_internal::PluginRemote;
+use dokime_client_internal::PluginValue;
 use dokime::record_scope;
 use dokime_protocol::host::executions::SchemasGetRequest;
 use dokime_runtime::PluginProcess;

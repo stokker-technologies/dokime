@@ -378,19 +378,38 @@ impl Context {
 
     pub async fn setting(&self, identifier: &str) -> Result<crate::SettingValue> {
         let response = self.host().plugins.settings.list().await?;
-        response.value.and_then(|mut settings| settings.values.remove(identifier))
+        response
+            .value
+            .and_then(|mut settings| settings.values.remove(identifier))
             .ok_or_else(|| Error::Invalid(format!("Read Setting: Declare and Configure {identifier}")))
     }
 
-    pub async fn prompt_answer(&self, prompt: impl Into<Prompt>, values: HashMap<String, crate::Value>) -> Result<crate::templates::PromptAnswer> {
+    pub async fn prompt_answer(
+        &self, prompt: impl Into<Prompt>, values: HashMap<String, crate::Value>,
+    ) -> Result<crate::templates::PromptAnswer> {
         let prompt = prompt.into();
         let mut definition = prompt.definition;
         let metadata = definition.metadata.as_mut().expect("Prompt Metadata");
         metadata.identifier = self.resolve(&metadata.identifier)?;
         let identifier = metadata.identifier.clone();
-        let answer = self.host().prompts.create_with(identifier.clone(), if prompt.declared { identifier } else { String::new() }, values,
-            HostPromptsCreateOptions { definition: Some(definition), ..Default::default() }).await?;
-        Ok(crate::templates::PromptAnswer { accepted: answer.accepted, action: answer.action, values: answer.values })
+        let answer = self
+            .host()
+            .prompts
+            .create_with(
+                identifier.clone(),
+                if prompt.declared { identifier } else { String::new() },
+                values,
+                HostPromptsCreateOptions {
+                    definition: if prompt.declared { None } else { Some(definition) },
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(crate::templates::PromptAnswer {
+            accepted: answer.accepted,
+            action: answer.action,
+            values: answer.values,
+        })
     }
 
     pub fn resolve(&self, local: &str) -> Result<String> {
@@ -468,22 +487,33 @@ impl Context {
     pub async fn statistics(
         &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>,
     ) -> Result<Option<crate::Statistics>> {
+        Ok(self.statistics_with(stream, field, step, crate::templates::StatisticsReadOptions::default()).await?.value)
+    }
+
+    pub async fn statistics_with(
+        &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>, options: crate::templates::StatisticsReadOptions,
+    ) -> Result<crate::templates::StatisticsSnapshot> {
         let step = step.into();
-        let response = self.call_with(
-            EvidenceStatisticsRequest {
-                stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
-                    stream.as_ref().into()
-                } else {
-                    self.resolve(stream.as_ref())?
+        let response = self
+            .call_with(
+                EvidenceStatisticsRequest {
+                    stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
+                        stream.as_ref().into()
+                    } else {
+                        self.resolve(stream.as_ref())?
+                    },
+                    field: field.into(),
+                    at: options.at,
+                    step: if step.is_empty() { step } else { self.resolve(&step)? },
+                    ..Default::default()
                 },
-                field: field.into(),
-                step: if step.is_empty() { step } else { self.resolve(&step)? },
-                ..Default::default()
-            },
-            None,
-        )
-        .await?;
-        Ok(response.statistics)
+                None,
+            )
+            .await?;
+        Ok(crate::templates::StatisticsSnapshot {
+            value: response.statistics,
+            at: response.resolved_at,
+        })
     }
     pub async fn progress(&self, completed: u64, total: u64, label: impl Into<String>) -> Result<()> {
         self.progress_with(completed, total, label, ProgressSetOptions::default()).await
@@ -746,14 +776,33 @@ impl<T: Payload> RecordsQuery<'_, T> {
         let mut paging = crate::client::queries::Paging::default();
         let mut rows = Vec::new();
         loop {
-            let page = self.context.call_with(RecordsListRequest {
-                record_type: self.context.resolve(self.record.identifier())?, step: step.clone(),
-                at: paging.at.clone(), page: Some(PageRequest { page_token: paging.token.clone(), ..Default::default() }), ..Default::default()
-            }, None).await?;
+            let page = self
+                .context
+                .call_with(
+                    RecordsListRequest {
+                        record_type: self.context.resolve(self.record.identifier())?,
+                        step: step.clone(),
+                        at: paging.at.clone(),
+                        page: Some(PageRequest {
+                            page_token: paging.token.clone(),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await?;
             for record in page.records {
-                rows.push(crate::templates::RecordRow { identifier: record.record_id, ordinal: record.sequence, timestamp: record.timestamp, value: payload::decode(&record.payload)? });
+                rows.push(crate::templates::RecordRow {
+                    identifier: record.record_id,
+                    ordinal: record.sequence,
+                    timestamp: record.timestamp,
+                    value: payload::decode(&record.payload)?,
+                });
             }
-            if !paging.advance(page.resolved_at, page.next_page_token)? { return Ok(rows); }
+            if !paging.advance(page.resolved_at, page.next_page_token)? {
+                return Ok(rows);
+            }
         }
     }
 

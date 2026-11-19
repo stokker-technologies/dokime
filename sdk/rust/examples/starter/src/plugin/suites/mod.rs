@@ -23,7 +23,6 @@ pub mod capture;
 
 // Local Imports
 
-
 /* === Constants === */
 
 /* === Macros === */
@@ -32,24 +31,14 @@ pub mod capture;
 
 /* === Structs === */
 
-
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-
-
 /* === Public Functions === */
-
-
 
 /* === Private Functions === */
 
-
-
 /* === Tests === */
-
-

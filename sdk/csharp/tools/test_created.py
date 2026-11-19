@@ -58,15 +58,40 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         timeout = policy.load(repository).deadline("system")
         suffix = ".exe" if os.name == "nt" else ""
         binary = repository / "target/debug" / f"dokime{suffix}"
-        self.assertTrue(binary.is_file(), "Create C# Project: Build dokime-cli Through the Project Task")
+        self.assertTrue(
+            binary.is_file(),
+            "Create C# Project: Build dokime-cli Through the Project Task",
+        )
         scratch = Path(tempfile.mkdtemp(prefix="dokime-csharp-created-"))
         self.addCleanup(shutil.rmtree, scratch)
         project = scratch / "created-starter"
         environment = dict(os.environ)
-        for variable in ("UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV", "PYTHONPATH", "DOKIME_REMOTE"):
+        for variable in (
+            "UV_PROJECT_ENVIRONMENT",
+            "VIRTUAL_ENV",
+            "PYTHONPATH",
+            "DOKIME_REMOTE",
+        ):
             environment.pop(variable, None)
         environment["DOKIME_CSHARP_CONFIGURATION"] = "Debug"
         environment["NUGET_PACKAGES"] = str(repository / "target/cs/packages")
+        locating = await asyncio.create_subprocess_exec(
+            "mise",
+            "-C",
+            str(repository / "sdk/csharp"),
+            "which",
+            "dotnet",
+            env=environment,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            creationflags=spawn_flags(),
+        )
+        self.addAsyncCleanup(_close, locating)
+        output, _ = await asyncio.wait_for(locating.communicate(), timeout)
+        self.assertEqual(locating.returncode, 0, output.decode())
+        dotnet = output.decode().strip()
+        environment["PATH"] = str(Path(dotnet).parent) + os.pathsep + environment.get("PATH", "")
+        environment["DOTNET_ROOT"] = str(Path(dotnet).parent)
         process = await asyncio.create_subprocess_exec(
             str(binary),
             "new",
@@ -151,6 +176,7 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             str(binary),
             "plugin",
             "inspect",
+            "--bundle",
             str(bundle),
             env=environment,
             stdout=asyncio.subprocess.PIPE,
@@ -179,7 +205,10 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             assert process.stdout is not None
             while True:
                 line = await asyncio.wait_for(process.stdout.readline(), timeout)
-                self.assertTrue(line, "Develop C# Project: Keep the Host Running Until Its Endpoint Is Announced")
+                self.assertTrue(
+                    line,
+                    "Develop C# Project: Keep the Host Running Until Its Endpoint Is Announced",
+                )
                 if line.decode().strip().startswith("http://127.0.0.1:"):
                     break
             assert process.stdin is not None
@@ -195,24 +224,12 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         support = repository / "sdk/python/tests/support/host.py"
         host = await cast(HostFactory, runpy.run_path(str(support))["Host"]).start(self)
         environment["DOKIME_REMOTE"] = host.endpoint
-        locating = await asyncio.create_subprocess_exec(
-            "mise",
-            "-C",
-            str(repository / "sdk/csharp"),
-            "which",
-            "dotnet",
-            env=environment,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            creationflags=spawn_flags(),
-        )
-        self.addAsyncCleanup(_close, locating)
-        output, _ = await asyncio.wait_for(locating.communicate(), timeout)
-        self.assertEqual(locating.returncode, 0, output.decode())
-        dotnet = output.decode().strip()
         process = await asyncio.create_subprocess_exec(
             dotnet,
-            str(project / "src/CreatedStarter.Client/bin/Debug/net10.0/CreatedStarter.Client.dll"),
+            str(
+                project
+                / "src/CreatedStarter.Client/bin/Debug/net10.0/CreatedStarter.Client.dll"
+            ),
             cwd=project,
             env=environment,
             stdout=asyncio.subprocess.PIPE,
@@ -228,14 +245,26 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             try:
                 while True:
                     next_frame = asyncio.create_task(anext(watch))
-                    done, _ = await asyncio.wait((next_frame, completed), timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
-                    self.assertTrue(done, "Answer C# Prompt: Inspect the Host for a Missing Prompt")
+                    done, _ = await asyncio.wait(
+                        (next_frame, completed),
+                        timeout=timeout,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    self.assertTrue(
+                        done, "Answer C# Prompt: Inspect the Host for a Missing Prompt"
+                    )
                     if completed in done:
                         output, _ = completed.result()
-                        self.fail(f"Run C# Client: It Exited Before the Operator Question: {output.decode()}")
+                        self.fail(
+                            f"Run C# Client: It Exited Before the Operator Question: {output.decode()}"
+                        )
                     frame = next_frame.result()
                     self.assertFalse(frame.HasField("resync_required"))
-                    pending = [view.prompt for view in frame.prompts if not view.HasField("response")]
+                    pending = [
+                        view.prompt
+                        for view in frame.prompts
+                        if not view.HasField("response")
+                    ]
                     if pending:
                         execution_id = pending[0].scope.execution_id
                         break
@@ -262,7 +291,9 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
             output, _ = await asyncio.wait_for(listed.communicate(), timeout)
             self.assertEqual(listed.returncode, 0, output.decode())
             rows = json.loads(output)["executions"]
-            self.assertIn(execution_id, [row["summary"]["execution_id"] for row in rows])
+            self.assertIn(
+                execution_id, [row["summary"]["execution_id"] for row in rows]
+            )
             answer = await asyncio.create_subprocess_exec(
                 str(binary),
                 "--endpoint",

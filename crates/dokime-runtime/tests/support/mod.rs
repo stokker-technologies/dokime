@@ -38,11 +38,11 @@ use tokio::process::Child;
 use tokio::process::Command;
 
 // Local Imports
-use dokime::Client;
-use dokime::ClientSettings;
+use dokime_client_internal::Client;
+use dokime_client_internal::ClientSettings;
 use dokime::Metadata;
 use dokime::Value;
-use dokime::client::PlannedCase;
+use dokime_client_internal::PlannedCase;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_runtime::Host;
@@ -69,9 +69,6 @@ pub struct Attempt {
 
     #[prost(uint32, tag = "2")]
     pub attempt: u32,
-
-    #[prost(bool, tag = "3")]
-    pub scope_refused: bool,
 }
 
 pub struct PythonPlugin {
@@ -111,10 +108,10 @@ impl PythonPlugin {
 /* === Public Functions === */
 
 pub async fn plugin_state(
-    plugins: &dokime::client::Plugins, mut entry: harmos_protocol::host::PluginEntry, expected: harmos_protocol::host::PluginState,
+    plugins: &dokime_client_internal::Plugins, mut entry: harmos_protocol::host::PluginEntry, expected: harmos_protocol::host::PluginState,
 ) -> Result<harmos_protocol::host::PluginEntry, Box<dyn Error>> {
     let mut watching = plugins
-        .watch_with(dokime::client::PluginsWatchOptions {
+        .watch_with(dokime_client_internal::PluginsWatchOptions {
             name: Some(entry.name.clone()),
             ..Default::default()
         })
@@ -134,7 +131,7 @@ pub async fn plugin_state(
 pub async fn materialize(
     client: &Client, suite: impl Into<String>, template: impl Into<String>, parameters: HashMap<String, Vec<Value>>,
 ) -> Result<Vec<PlannedCase>, Box<dyn Error>> {
-    use dokime::client::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
+    use dokime_client_internal::{RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues};
 
     // Preview the Complete Selection Without Registering Cases
     let parameters = parameters
@@ -159,7 +156,7 @@ pub async fn materialize(
 
 pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<String>, Box<dyn Error>> {
     // Admit Frozen Origins and Read the Executions at the Admission Receipt
-    use dokime::client::ExecutionsListOptions;
+    use dokime_client_internal::ExecutionsListOptions;
     use harmos_protocol::model::ReadCut;
     let origins = cases.into_iter().map(|case| case.origin.ok_or("Admit Story Cases: Missing Frozen Origin")).collect::<Result<_, _>>()?;
     let metadata = Metadata {
@@ -322,7 +319,7 @@ pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8
         .uploads
         .create(FileMetadata {
             id: id.into(),
-            scope: Some(format!("execution/{execution}")),
+            scope: if execution.is_empty() { None } else { Some(format!("execution/{execution}")) },
             media_type: "application/octet-stream".into(),
             expected_length: Some(bytes.len() as u64),
             expected_sha256: Some(Sha256::digest(bytes).to_vec()),

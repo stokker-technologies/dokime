@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::client::SuitesListOptions;
+use dokime_client_internal::SuitesListOptions;
 
 /* === Constants === */
 

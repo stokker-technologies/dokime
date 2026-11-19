@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -22,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::templates::{Context, Criterion, Record, Step, Template};
 use dokime::Result;
+use dokime::templates::{Context, Criterion, Record, Step, Template};
 
 /* === Constants === */
 
@@ -61,16 +59,8 @@ impl ConfirmationTestTemplate {
     }
 }
 
-
-
 /* === Public Functions === */
-
-
 
 /* === Private Functions === */
 
-
-
 /* === Tests === */
-
-

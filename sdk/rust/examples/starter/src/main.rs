@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -33,19 +31,13 @@ use starter_project::plugin::plugin;
 
 /* === Structs === */
 
-
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-
-
 /* === Public Functions === */
-
-
 
 /* === Private Functions === */
 
@@ -54,5 +46,3 @@ fn main() -> Result<()> {
 }
 
 /* === Tests === */
-
-

@@ -74,7 +74,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         dotnet = output.decode().strip()
         commands = {
             "python": [sys.executable, str(root / "sdk/tests/fixtures/python/capture/plugin.py")],
-            "rust": [str(root / f"target/debug/dokime-rust-test{extension}")],
+            "rust": [str(root / f"target/debug/rust{extension}")],
             "csharp": [
                 dotnet,
                 str(root / f"sdk/csharp/examples/Starter/src/Example.Plugin/bin/{configuration}/net10.0/Example.Plugin.dll"),

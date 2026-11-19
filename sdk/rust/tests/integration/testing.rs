@@ -90,9 +90,7 @@ fn plugin() -> Plugin {
         .cleanup(async |ctx: &Context| ctx.log(Severity::Info, format!("{:?}", ctx.termination())).await)
         .stream(temperature)
         .observer(observer);
-    Plugin::of::<()>("1.0.0")
-        .identifier("oven")
-        .suite(Suite::of::<()>().identifier("oven").label("Oven").template(soak))
+    Plugin::of::<()>("1.0.0").identifier("oven").suite(Suite::of::<()>().identifier("oven").label("Oven").template(soak))
 }
 
 async fn soak(ctx: &Context) -> Result<()> {

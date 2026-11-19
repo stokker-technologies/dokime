@@ -11,8 +11,6 @@
 
 /* === Modules === */
 
-
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -22,9 +20,12 @@
 // Third Party Imports
 
 // Local Imports
-use std::{fs, time::{SystemTime, UNIX_EPOCH}};
 use dokime::{Result, ResultStatus, connect};
 use starter_project::plugin::{plugin, suites::capture::confirmation::ConfirmationTestTemplate};
+use std::{
+    fs,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 /* === Constants === */
 
@@ -34,19 +35,13 @@ use starter_project::plugin::{plugin, suites::capture::confirmation::Confirmatio
 
 /* === Structs === */
 
-
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-
-
 /* === Public Functions === */
-
-
 
 /* === Private Functions === */
 
@@ -96,5 +91,3 @@ async fn main() -> Result<()> {
 }
 
 /* === Tests === */
-
-

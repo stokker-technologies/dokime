@@ -41,21 +41,14 @@ pub struct ExamplePlugin;
 
 /* === Implementations === */
 
-
-
 /* === Public Functions === */
 
 pub fn plugin() -> Result<Plugin> {
-    let plugin = Plugin::of::<ExamplePlugin>(env!("CARGO_PKG_VERSION"))
-        .suite(suites::capture::suite()?)
-        .operation(operations::echo::operation());
+    let plugin =
+        Plugin::of::<ExamplePlugin>(env!("CARGO_PKG_VERSION")).suite(suites::capture::suite()?).operation(operations::echo::operation());
     Ok(plugin)
 }
 
 /* === Private Functions === */
 
-
-
 /* === Tests === */
-
-

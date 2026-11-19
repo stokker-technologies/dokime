@@ -45,12 +45,12 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
     super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             let directory = super::credentials::tempdir()?;
-            for (language, folders) in [
-                ("rust", &[""][..]), ("python", &[""][..]), ("csharp", &[""][..]), ("cpp", &["plugin", "test"][..]),
-            ] {
+            let repository = super::root();
+            for (language, folders) in [("rust", &[""][..]), ("python", &[""][..]), ("csharp", &[""][..]), ("cpp", &["plugin", "test"][..])]
+            {
                 // Create the Checkout's Starter With Its Native Local Dependency.
                 let project = directory.path().join(language);
-                let arguments = ["new", project.to_str().unwrap(), "--lang", language, "--from", super::root().to_str().unwrap()];
+                let arguments = ["new", project.to_str().unwrap(), "--lang", language, "--from", repository.to_str().unwrap()];
                 super::run(&arguments).await?;
                 for folder in folders {
                     for file in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
@@ -60,7 +60,10 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                 match language {
                     "rust" => {
                         let manifest: toml::Value = toml::from_str(&fs::read_to_string(project.join("Cargo.toml"))?)?;
-                        assert_eq!(manifest["dependencies"]["dokime"]["path"].as_str(), Some(super::root().join("sdk/rust").to_str().unwrap().replace('\\', "/").as_str()));
+                        assert_eq!(
+                            manifest["dependencies"]["dokime"]["path"].as_str(),
+                            Some(super::root().join("sdk/rust").to_str().unwrap().replace('\\', "/").as_str())
+                        );
                         assert!(project.join("src/bin/client.rs").is_file());
                     }
                     "python" => {

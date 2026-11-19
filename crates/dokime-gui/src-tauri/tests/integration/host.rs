@@ -31,7 +31,7 @@ use futures_util::FutureExt;
 
 // Local Imports
 
-use dokime_sdk::client::StatusGetOptions;
+use dokime_client_internal::StatusGetOptions;
 
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::CyclesGetRequest;
@@ -42,11 +42,11 @@ use dokime_protocol::host::evidence::TraceabilityWatchRequest;
 use dokime_sdk::EvidenceScope;
 use dokime_sdk::Metadata;
 use dokime_sdk::TraceabilityGetResponse;
-use dokime_sdk::client::CyclesCreateResponse;
-use dokime_sdk::client::CyclesGetResponse;
-use dokime_sdk::client::OverviewWatchResponse;
-use dokime_sdk::client::SuitesListResponse;
-use dokime_sdk::client::TraceabilityWatchResponse;
+use dokime_client_internal::CyclesCreateResponse;
+use dokime_client_internal::CyclesGetResponse;
+use dokime_client_internal::OverviewWatchResponse;
+use dokime_client_internal::SuitesListResponse;
+use dokime_client_internal::TraceabilityWatchResponse;
 use prost::Message;
 use tokio_stream::StreamExt;
 use tonic::Code;
@@ -56,7 +56,7 @@ use dokime_gui::connection::host::{Connection, ConnectionSettings, Error, Pairin
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, credentials, services};
 use dokime_sdk::PageRequest;
 use dokime_sdk::StorageTransferSettings;
-use dokime_sdk::client::ClientSettings;
+use dokime_client_internal::ClientSettings;
 use harmos_protocol::host::status::{
     DiagnosticsGetRequest, DiagnosticsGetResponse, Event, TraceEventsListRequest, TraceEventsListResponse, TraceEventsWatchRequest,
     TraceEventsWatchResponse,
