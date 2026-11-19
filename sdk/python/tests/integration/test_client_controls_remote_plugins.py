@@ -1,40 +1,33 @@
 # ***
 #
-# Dokime
+# dokime-rust-workspace
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-"""A Client Creates, Lists and Deletes a Composed Library Plugin Entry."""
+"""Host-Free Bound Client Compositions"""
 
 # === Imports === #
 
+# Standard Library Imports
 import asyncio
-import json
 import unittest
 from collections.abc import AsyncIterator
-from pathlib import Path
-from tempfile import TemporaryDirectory
 
+# Third Party Imports
 from grpc import StatusCode
-from grpc.aio import AioRpcError, ServicerContext, UsageError, server
-from harmos._wire.host.v1.plugins_pb2 import (
-    PluginsCreateRequest,
-    PluginsCreateResponse,
-    PluginsDeleteRequest,
-    PluginsDeleteResponse,
-    PluginsListRequest,
-    PluginsListResponse,
-)
+from grpc.aio import ServicerContext, server
+from harmos._wire.host.v1 import plugins_pb2
 from harmos._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
-from harmos._wire.host.v1.status.logs_pb2 import Event, LogsWatchRequest, LogsWatchResponse
-from harmos._wire.host.v1.status.logs_pb2_grpc import LogsServicer, add_LogsServicer_to_server
-from harmos._wire.host.v1.status_pb2 import HostIdentity, HostStatus, StatusGetRequest, StatusGetResponse
-from harmos._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
-from harmos.client import PluginEntry, PluginPlacement, PluginRemote, PluginValue
 
-from dokime.connection import connect
+# Local Imports
+import dokime_sdk.operations
+from dokime_sdk._connection import connect
+from dokime_sdk._errors import SdkError
+from dokime_sdk._plugin import Plugin
+
+# Type Checking Imports
 
 # === Public Exports === #
 
@@ -46,132 +39,204 @@ from dokime.connection import connect
 
 
 class ClientStory(unittest.IsolatedAsyncioTestCase):
-    async def test_create_list_delete_and_close(self) -> None:
-        entries: dict[str, PluginEntry] = {}
-        pairing_key = "pair-key" * 4
-        authorization: list[str | bytes | None] = []
-        identities: list[str] = []
-        watching = asyncio.Event()
-        released = asyncio.Event()
+    async def asyncSetUp(self) -> None:
+        self.entries: dict[str, plugins_pb2.PluginEntry] = {}
+        self.trace: list[str] = []
+        self.observing = asyncio.Event()
+        self.ready = asyncio.Event()
+        self.fail_ready = False
+        self.refuse_delete: set[str] = set()
+        owner = self
 
         class Plugins(PluginsServicer):
-            async def Create(self, request: PluginsCreateRequest, context: ServicerContext) -> PluginsCreateResponse:
-                authorization.append(dict(context.invocation_metadata() or ()).get("authorization"))
-                if not request.placement.remote.url.startswith("http://"):
-                    await context.abort(StatusCode.INVALID_ARGUMENT, "Create Plugin: Supply a Remote URL")
-                identities.append(request.request_id)
-                entry = entries.setdefault(
-                    request.name, PluginEntry(name=request.name, placement=request.placement, value=request.value, revision=b"first")
+            async def Create(
+                self, request: plugins_pb2.PluginsCreateRequest, context: ServicerContext
+            ) -> plugins_pb2.PluginsCreateResponse:
+                owner.trace.append("Create")
+                owner.entries[request.name] = plugins_pb2.PluginEntry(
+                    name=request.name,
+                    placement=request.placement,
+                    value=request.value,
+                    state="PLUGIN_STATE_CONNECTING",
+                    revision=b"created",
+                    description={"id": request.name, "version": "1.0.0"},
                 )
-                return PluginsCreateResponse(entry=entry)
+                return plugins_pb2.PluginsCreateResponse(entry=owner.entries[request.name])
 
-            async def List(self, request: PluginsListRequest, context: ServicerContext) -> PluginsListResponse:
-                return PluginsListResponse(entries=entries.values())
+            async def Watch(
+                self, request: plugins_pb2.PluginsWatchRequest, context: ServicerContext
+            ) -> AsyncIterator[plugins_pb2.PluginsWatchResponse]:
+                owner.trace.append("Watch")
+                yield plugins_pb2.PluginsWatchResponse(snapshot={"entries": [owner.entries[request.name]]})
+                owner.observing.set()
+                await owner.ready.wait()
+                entry = owner.entries[request.name]
+                if owner.fail_ready:
+                    entry.state = plugins_pb2.PLUGIN_STATE_UNAVAILABLE
+                    entry.failure.CopyFrom(
+                        type(entry.failure)(
+                            classification="CLASSIFICATION_REFUSED",
+                            code="setup_failed",
+                            message="Setup Failed",
+                            action="Repair Setup",
+                            cause={"classification": "CLASSIFICATION_PERMANENT", "code": "device", "details": {"port": "1"}},
+                        )
+                    )
+                else:
+                    entry.state = plugins_pb2.PLUGIN_STATE_READY
+                yield plugins_pb2.PluginsWatchResponse(change={"entry": entry})
 
-            async def Delete(self, request: PluginsDeleteRequest, context: ServicerContext) -> PluginsDeleteResponse:
-                if entries.pop(request.name, None) is None:
-                    await context.abort(StatusCode.NOT_FOUND, "Delete Plugin: Entry Is Absent")
-                return PluginsDeleteResponse(receipt={})
+            async def Get(self, request: plugins_pb2.PluginsGetRequest, context: ServicerContext) -> plugins_pb2.PluginsGetResponse:
+                owner.trace.append("Get")
+                if request.name not in owner.entries:
+                    await context.abort(StatusCode.NOT_FOUND, "Entry Is Absent")
+                return plugins_pb2.PluginsGetResponse(entry=owner.entries[request.name])
 
-        class Status(StatusServicer):
-            async def Get(self, request: StatusGetRequest, context: ServicerContext) -> StatusGetResponse:
-                if dict(context.invocation_metadata() or ()).get("authorization") not in ("Bearer test-key", f"Bearer {pairing_key}"):
-                    await context.abort(StatusCode.UNAUTHENTICATED, "Read Status: Supply Credentials")
-                return StatusGetResponse(status=HostStatus(identity=HostIdentity(host_id="bench"), available=True))
+            async def Delete(
+                self, request: plugins_pb2.PluginsDeleteRequest, context: ServicerContext
+            ) -> plugins_pb2.PluginsDeleteResponse:
+                owner.trace.append("Delete")
+                if request.name in owner.refuse_delete:
+                    await context.abort(StatusCode.FAILED_PRECONDITION, "Running Execution Refuses Detach")
+                if request.expected_revision != owner.entries[request.name].revision:
+                    await context.abort(StatusCode.ABORTED, "Revision Changed")
+                del owner.entries[request.name]
+                return plugins_pb2.PluginsDeleteResponse(receipt={})
 
-        class Logs(LogsServicer):
-            async def Watch(self, request: LogsWatchRequest, context: ServicerContext) -> AsyncIterator[LogsWatchResponse]:
-                authorization.append(dict(context.invocation_metadata() or ()).get("authorization"))
-                yield LogsWatchResponse()
-                if request.max_events == 1:
-                    watching.set()
-                    try:
-                        await asyncio.Event().wait()
-                    finally:
-                        released.set()
-                    return
-                yield LogsWatchResponse(events=[Event(sequence=1)])
+        self.host = server()
+        add_PluginsServicer_to_server(Plugins(), self.host)
+        port = self.host.add_insecure_port("127.0.0.1:0")
+        await self.host.start()
+        self.addAsyncCleanup(self.host.stop, None)
+        self.endpoint = f"http://127.0.0.1:{port}"
+        self.client = await connect(self.endpoint)
+        self.addAsyncCleanup(self.client.close)
 
-        # Start the Host Fixture and Connect Through the Public Client.
-        host = server()
-        add_PluginsServicer_to_server(Plugins(), host)
-        add_StatusServicer_to_server(Status(), host)
-        add_LogsServicer_to_server(Logs(), host)
-        port = host.add_insecure_port("127.0.0.1:0")
-        await host.start()
-        self.addAsyncCleanup(host.stop, None)
-        client = await connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="bench")
-        self.addAsyncCleanup(client.close)
+    async def test_register_waits_for_ready_then_close_unregisters_only_owned_entries(self) -> None:
+        class ExamplePlugin(Plugin):
+            version = "1.0.0"
 
-        # Connect Through the Same Portable File the Desktop Exports.
-        directory = TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        pairing = Path(directory.name) / "operator.pair"
-        pairing.write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "endpoints": [f"http://127.0.0.1:{port}"],
-                    "backend_identifier": "bench",
-                    "label": "Operator",
-                    "certificate_pem": None,
-                    "access_key": pairing_key,
-                }
-            ),
-            encoding="utf-8",
-        )
-        paired = await connect(pairing)
-        self.addAsyncCleanup(paired.close)
-        self.assertEqual((await paired.status.get()).status.identity.host_id, "bench")
+        plugin = ExamplePlugin()
+        self.assertEqual(plugin.identifier, "example")
+        registration = asyncio.create_task(self.client.plugins.register(plugin, address="127.0.0.1:0", request_id="register"))
+        await self.observing.wait()
+        self.assertFalse(registration.done())
+        self.ready.set()
+        registered = await registration
+        self.assertEqual(plugin.identifier, registered.identifier)
+        self.assertEqual((registered.identifier, registered.version, registered.state), ("example", "1.0.0", "Ready"))
+        self.entries["other"] = plugins_pb2.PluginEntry(name="other", revision=b"other", state="PLUGIN_STATE_READY")
+        await self.client.plugins.get("other")
+        await registered.refresh()
+        self.trace.clear()
+        await self.client.close()
+        await self.client.close()
+        self.assertEqual(self.trace, ["Get", "Delete"])
+        self.assertEqual(list(self.entries), ["other"])
+        self.assertIsNone(registered._endpoint)
 
-        # A File With Another Extension Is Not an Endpoint or a Pairing File.
-        unselected = pairing.with_suffix(".json")
-        unselected.write_bytes(pairing.read_bytes())
-        with self.assertRaises(ValueError):
-            await connect(unselected)
+    async def test_lookup_of_an_owned_entry_preserves_its_sidecar_lifetime(self) -> None:
+        class LookedUpPlugin(Plugin):
+            identifier = "lookup"
+            version = "1.0.0"
+            label = "Display Label"
 
-        # Refuse a Foreign Paired Host.
-        with self.assertRaises(ValueError):
-            await connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="foreign")
+        self.ready.set()
+        registered = await self.client.plugins.register(LookedUpPlugin(), address="127.0.0.1:0")
+        looked_up = await self.client.plugins.get(registered.identifier)
+        self.assertIs(looked_up, registered)
+        self.assertEqual(looked_up.label, "Display Label")
+        await looked_up.unregister()
+        self.assertIsNone(registered._endpoint)
+        self.assertEqual(self.entries, {})
+        self.assertEqual(self.client.plugins._owned, {})
 
-        # Create Idempotently and Read the Canonical Library Entry.
-        placement = PluginPlacement(remote=PluginRemote(url="http://127.0.0.1:7001"))
-        created = await client.plugins.create("example", placement, PluginValue(), request_id="create-example")
-        repeated = await client.plugins.create("example", placement, PluginValue(), request_id="create-example")
-        self.assertEqual(created.entry, repeated.entry)
-        self.assertEqual(list((await client.plugins.list()).entries), [created.entry])
-        self.assertEqual(identities, ["create-example", "create-example"])
-        self.assertEqual(authorization, ["Bearer test-key", "Bearer test-key"])
+    async def test_close_unwinds_registration_that_is_waiting_for_readiness(self) -> None:
+        class PendingPlugin(Plugin):
+            identifier = "pending"
+            version = "1.0.0"
 
-        # Drain a Library Watch Through the Same Authenticated Connection.
-        frames = [frame async for frame in client.status.logs.watch(max_events=8, max_bytes=4096)]
-        self.assertEqual(len(frames), 2)
-        self.assertEqual(frames[1].events[0].sequence, 1)
-        self.assertEqual(authorization[-1], "Bearer test-key")
-
-        # Preserve Transport Refusals with Their Causes.
-        with self.assertRaises(AioRpcError) as failed:
-            await client.plugins.create("invalid", PluginPlacement(remote=PluginRemote(url="invalid")), PluginValue())
-        self.assertEqual(failed.exception.code(), StatusCode.INVALID_ARGUMENT)
-        self.assertIsInstance(failed.exception.__cause__, AioRpcError)
-
-        # Delete the Entry and Close the Owned Connection Twice.
-        await client.plugins.delete(created.entry.name, created.entry.revision)
-        self.assertEqual(list((await client.plugins.list()).entries), [])
-
-        # Closing the Connection Cancels an Active Watch and Releases Its Handler.
-        watch = client.status.logs.watch(max_events=1, max_bytes=4096)
-        await anext(watch)
-        pending = asyncio.create_task(anext(watch))
-        await watching.wait()
-        await client.close()
+        registration = asyncio.create_task(self.client.plugins.register(PendingPlugin(), address="127.0.0.1:0"))
+        await self.observing.wait()
+        await self.client.close()
         with self.assertRaises(asyncio.CancelledError):
-            await pending
-        await watch.aclose()
-        await released.wait()
-        await client.close()
-        with self.assertRaises(UsageError):
-            await client.plugins.list()
+            await registration
+        self.assertEqual(self.entries, {})
+        self.assertEqual(self.client.plugins._owned, {})
+
+    async def test_close_reports_refusal_attempts_every_entry_and_closes_the_channel_last(self) -> None:
+        class RunningPlugin(Plugin):
+            identifier = "running"
+            version = "1.0.0"
+
+        class IdlePlugin(Plugin):
+            identifier = "idle"
+            version = "1.0.0"
+
+        client = await connect(self.endpoint)
+        self.addAsyncCleanup(client._transport.close)
+        self.ready.set()
+        running = await client.plugins.register(RunningPlugin(), address="127.0.0.1:0")
+        assert running._endpoint is not None
+        self.addAsyncCleanup(running._endpoint.close)
+        await client.plugins.register(IdlePlugin(), address="127.0.0.1:0")
+        self.refuse_delete.add("running")
+        self.trace.clear()
+        with self.assertRaises(SdkError) as failed:
+            await client.close()
+        self.assertEqual(self.trace, ["Get", "Delete", "Get", "Delete"])
+        self.assertEqual(list(self.entries), ["running"])
+        self.assertIsNotNone(running._endpoint)
+        assert running._endpoint is not None
+        await running._endpoint.close()
+        with self.assertRaises(SdkError) as repeated:
+            await client.close()
+        self.assertIs(failed.exception, repeated.exception)
+
+    async def test_reported_readiness_failure_keeps_causes_and_unwinds(self) -> None:
+        class FailingPlugin(Plugin):
+            identifier = "failing"
+            version = "1.0.0"
+
+        self.fail_ready = True
+        self.ready.set()
+        with self.assertRaises(SdkError) as failed:
+            await self.client.plugins.register(FailingPlugin(), address="127.0.0.1:0", request_id="register-failure")
+        self.assertEqual(failed.exception.request_id, "register-failure")
+        cause = failed.exception.failure.cause
+        self.assertIsNotNone(cause)
+        assert cause is not None
+        self.assertEqual(cause.details, {"port": "1"})
+        self.assertEqual(self.entries, {})
+        self.assertEqual(self.trace[-2:], ["Get", "Delete"])
+
+    async def test_cancelling_registration_releases_its_sidecar_and_entry(self) -> None:
+        class WaitingPlugin(Plugin):
+            identifier = "waiting"
+            version = "1.0.0"
+
+        registration = asyncio.create_task(self.client.plugins.register(WaitingPlugin(), address="127.0.0.1:0"))
+        await self.observing.wait()
+        registration.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await registration
+        self.assertEqual(self.entries, {})
+        self.assertEqual(self.client.plugins._owned, {})
+
+    async def test_registration_and_serve_share_the_lifecycle_activation_refusal(self) -> None:
+        class LifecyclePlugin(Plugin):
+            version = "1.0.0"
+
+            async def initialize(self, ctx: "dokime_sdk.operations.Context") -> None:
+                raise AssertionError("Library Activation Must Own This Hook")
+
+        author = LifecyclePlugin()
+        with self.assertRaises(ValueError):
+            await self.client.plugins.register(author, address="127.0.0.1:0")
+        with self.assertRaises(ValueError):
+            await author.serve("127.0.0.1:0")
+        self.assertEqual(self.trace, [])
+        self.assertEqual(self.entries, {})
 
 
 # === Public Functions === #

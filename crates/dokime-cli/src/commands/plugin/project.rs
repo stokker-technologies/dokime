@@ -44,7 +44,7 @@ use dokime_runtime::PluginProcess;
 
 pub(in crate::commands) async fn prepare(root: &Path) -> Result<PluginProject> {
     let project = PluginProject::read(root)?;
-    if let Some(build) = &project.manifest.build {
+    if let Some(build) = &project.manifest.scripts.build {
         let command = PluginProcess::command(&project, build)?;
         let status = Command::from(command).stdin(Stdio::null()).kill_on_drop(true).status().await.map_err(|source| {
             if source.kind() == ErrorKind::NotFound {
@@ -78,7 +78,7 @@ mod tests {
     async fn missing_build_program_names_what_to_install() -> crate::Result<()> {
         let root = tempfile::tempdir()?;
         let program = "./absent-build-program";
-        fs::write(root.path().join("dokime.toml"), format!("build = ['{program}']\nlaunch = ['fixture']\n"))?;
+        fs::write(root.path().join("dokime.toml"), format!("[plugin]\n[scripts]\nbuild = ['{program}']\nlaunch = ['fixture']\n"))?;
         let error = prepare(root.path()).await.unwrap_err();
         assert!(matches!(error, Error::Invalid(ref message) if message.contains(program)));
         Ok(())

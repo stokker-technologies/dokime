@@ -364,7 +364,11 @@ pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
     let reports = context.host.store().reports(name)?;
     let schemas = projection::schemas(&snapshot)?;
     let (started_at, finished_at) = context.host.store().execution_times(name)?;
+    let (admitted_suite, admitted_template) =
+        template_metadata(&snapshot)?.map(|(suite, template)| (suite, Some(template))).unwrap_or_default();
     Ok(ExecutionDetail {
+        admitted_suite,
+        admitted_template,
         progress: Some(ExecutionProgressValue::decode(progress.payload.as_slice())?),
         resolved_at: Some(progress.resolved_at),
         started_at: started_at.map(projection::timestamp),

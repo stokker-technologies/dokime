@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::env::{self, consts::EXE_SUFFIX};
+use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
 use std::fs;
 use std::process::Stdio;
@@ -70,24 +70,18 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     let prepared = directory.path().join("prepared-plugin");
                     fs::create_dir(&prepared)?;
                     fs::copy(&executable, prepared.join(format!("plugin{EXE_SUFFIX}")))?;
-                    fs::write(prepared.join("dokime.toml"), "executable = 'plugin'\n")?;
+                    fs::write(prepared.join("dokime.toml"), "[plugin]\n[scripts]\nexecutable = 'plugin'\n")?;
                     let bundle = directory.path().join("starter.dokime");
                     super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
                     super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
                     bundle
                 } else {
                     // Resolve the SDK Candidate Exported by This Worktree.
-                    let input = project.join("test");
-                    let profile = env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
-                    let wheel = super::root()
-                        .join("target/build")
-                        .join(profile)
-                        .join("any/python")
-                        .join(format!("dokime_sdk-{}-py3-none-any.whl", env!("CARGO_PKG_VERSION")));
-                    let source = serde_json::to_string(&wheel.to_string_lossy())?;
+                    let input = project.clone();
+                    let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
                     let manifest = input.join("pyproject.toml");
                     let contents = fs::read_to_string(&manifest)?;
-                    fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n"))?;
+                    fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
                     input
                 };
 
@@ -125,7 +119,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         "--suite",
                         suite,
                         "--template",
-                        "capture",
+                        if language == "python" { "capture.confirmation" } else { "capture" },
                         "--out",
                         cases.to_str().unwrap(),
                     ];

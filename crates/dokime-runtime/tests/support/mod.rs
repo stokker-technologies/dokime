@@ -29,9 +29,11 @@ use std::collections::HashMap;
 use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
 use std::path::PathBuf;
+use std::process::Stdio;
 
 // Third Party Imports
 use harmos_protocol::model::StorageTransferSettings;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::process::Command;
 
@@ -85,10 +87,7 @@ pub struct PythonPlugin {
 
 impl PythonPlugin {
     pub async fn start() -> Result<Self, Box<dyn Error>> {
-        use std::process::Stdio;
-        use tokio::io::AsyncBufReadExt;
-        use tokio::io::BufReader;
-        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/python/examples/thermal/plugin.py");
+        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/tests/fixtures/python/thermal/plugin.py");
         let mut child = Command::from(dokime_runtime::process::command(python()))
             .arg(script)
             .stdin(Stdio::piped())
@@ -97,12 +96,14 @@ impl PythonPlugin {
             .kill_on_drop(true)
             .spawn()?;
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        let url = lines.next_line().await?.ok_or("Start Python Thermal Plugin: No Readiness Event")?;
+        let ready = lines.next_line().await?.ok_or("Start Python Thermal Plugin: Read Its Listener Announcement")?;
+        let address = ready.strip_prefix("harmos listening ").ok_or("Start Python Thermal Plugin: Announce Its Bound Listener")?;
+        let url = format!("http://{address}");
         Ok(Self { child, url })
     }
     pub async fn close(mut self) -> Result<(), Box<dyn Error>> {
-        drop(self.child.stdin.take());
-        assert!(self.child.wait().await?.success());
+        self.child.kill().await?;
+        self.child.wait().await?;
         Ok(())
     }
 }

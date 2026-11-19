@@ -19,7 +19,7 @@
 use std::{
     collections::BTreeMap,
     env::consts::{ARCH, OS},
-    fs,
+    error, fs,
     io::Read,
     path::{Path, PathBuf},
 };
@@ -60,7 +60,8 @@ pub fn development_input(path: &Path) -> Result<DevelopmentInput> {
         PluginProject::read(path)?;
         return Ok(DevelopmentInput::Project);
     }
-    if path.is_file() && inspect(path).is_ok() {
+    if path.is_file() {
+        inspect(path)?;
         return Ok(DevelopmentInput::Bundle);
     }
     Err("Develop Plugin: Supply a Bundle File or a Plugin Folder Containing dokime.toml".into())
@@ -68,38 +69,139 @@ pub fn development_input(path: &Path) -> Result<DevelopmentInput> {
 
 pub fn create_project(project: &PluginProject, identity: Identity, description: Option<&[u8]>) -> Result<Vec<u8>> {
     project.validate_inputs()?;
-    if project.manifest.executable.is_some() {
-        let executable = project.executable()?;
-        let assets = project.manifest.assets.iter().map(|asset| project.path(asset)).collect::<Result<Vec<_>>>()?;
-        return create(&executable, &assets, identity, description);
-    }
-    let launch = project.manifest.launch.as_deref().ok_or("Create Plugin Bundle: Set launch in dokime.toml")?;
+    project.check_compatibility(env!("CARGO_PKG_VERSION"))?;
+    let (identity, resolved) = project.resolve(identity)?;
     let limits = Limits::default();
     let mut contents = BTreeMap::new();
-    let mut walker = WalkBuilder::new(&project.root);
-    walker
-        .hidden(false)
-        .parents(false)
-        .ignore(false)
-        .git_global(false)
-        .git_exclude(false)
-        .require_git(false)
-        .filter_entry(|entry| entry.file_name() != ".git");
-    for entry in walker.build() {
-        let entry = entry?;
-        if entry.file_type().is_some_and(|kind| kind.is_dir()) {
-            continue;
+    let executable = if project.manifest.scripts.executable.is_some() { Some(project.executable()?) } else { None };
+    if executable.is_some() && native_target() == "unsupported" {
+        return Err("Create Plugin Bundle: Select a Supported Native Target".into());
+    }
+    let entrypoint = executable
+        .as_ref()
+        .map(|path| {
+            let name = path.file_name().and_then(|name| name.to_str()).ok_or("Create Plugin Bundle: Use a UTF-8 Executable Filename")?;
+            Ok::<_, Box<dyn error::Error + Send + Sync>>(format!("bin/{name}"))
+        })
+        .transpose()?;
+    if let (Some(executable), Some(entrypoint)) = (&executable, &entrypoint) {
+        insert(&mut contents, entrypoint.clone(), executable, limits)?;
+    } else {
+        let mut walker = WalkBuilder::new(&project.root);
+        walker
+            .hidden(false)
+            .parents(false)
+            .ignore(false)
+            .git_global(false)
+            .git_exclude(false)
+            .require_git(false)
+            .filter_entry(|entry| !excluded(entry.file_name().to_str().unwrap_or("")));
+        for entry in walker.build() {
+            let entry = entry?;
+            if entry.file_type().is_some_and(|kind| kind.is_dir()) {
+                continue;
+            }
+            let relative = entry.path().strip_prefix(&project.root)?;
+            project.path(relative)?;
+            let name = relative.to_str().ok_or("Create Plugin Bundle: Use UTF-8 File Paths")?.replace('\\', "/");
+            if matches!(name.as_str(), "manifest.json" | "dokime.json" | "description.pb") {
+                return Err(format!("Create Plugin Bundle: Rename Reserved Root File {name}").into());
+            }
+            insert(&mut contents, name, entry.path(), limits)?;
         }
-        let relative = entry.path().strip_prefix(&project.root)?;
-        let name = relative.to_str().ok_or("Create Plugin Bundle: Use UTF-8 File Paths")?.replace('\\', "/");
-        if matches!(name.as_str(), "manifest.json" | "dokime.json" | "description.pb") {
-            return Err(format!("Create Plugin Bundle: Rename Reserved Root File {name}").into());
+        // Metadata and Lock Inputs Are Required Even When Ignored by Git.
+        for path in project.source_metadata()? {
+            let name =
+                path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Metadata Paths")?.replace('\\', "/");
+            if !contents.contains_key(&name) {
+                insert(&mut contents, name, &path, limits)?;
+            }
         }
-        insert(&mut contents, name, entry.path(), limits)?;
+        // A Launch Input Must Not Disappear Because of a User's Ignore Rules.
+        for argument in project.manifest.scripts.launch.as_deref().unwrap_or_default().iter().skip(1) {
+            let path = project.root.join(argument);
+            let local_input = argument.contains(['/', '\\']) || argument.ends_with(".py") || argument.ends_with(".dll");
+            if local_input && !argument.starts_with('-') && !path.is_file() {
+                return Err(format!("Create Plugin Bundle: Build Required scripts.launch Input {argument} or Correct Its Path").into());
+            }
+            if path.is_file() {
+                let path = project.path(Path::new(argument))?;
+                let name =
+                    path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Launch Paths")?.replace('\\', "/");
+                if !contents.contains_key(&name) && !name.starts_with("assets/") {
+                    return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Input {}", path.display()).into());
+                }
+            }
+        }
+        let module =
+            project.manifest.scripts.launch.as_ref().and_then(|launch| launch.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]));
+        if let Some(module) = module {
+            let module = module.replace('.', "/");
+            let candidates =
+                [format!("src/{module}/__main__.py"), format!("src/{module}.py"), format!("{module}/__main__.py"), format!("{module}.py")];
+            let ignored =
+                candidates.iter().find(|input| project.root.join(input).is_file()).filter(|input| !contents.contains_key(input.as_str()));
+            if let Some(input) = ignored {
+                return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Module {input}").into());
+            }
+        }
+    }
+    // Assets Bypass Ignore Rules but Never Path Confinement or Sensitive Inputs.
+    let assets = project.path(Path::new("assets"))?;
+    if assets.exists() {
+        if !fs::symlink_metadata(&assets)?.file_type().is_dir() {
+            return Err("Create Plugin Bundle: Replace assets With a Regular Directory Inside the Project".into());
+        }
+        let mut pending = vec![assets];
+        while let Some(directory) = pending.pop() {
+            for entry in fs::read_dir(directory)? {
+                let entry = entry?;
+                if excluded(entry.file_name().to_str().unwrap_or("")) {
+                    continue;
+                }
+                let relative = entry.path().strip_prefix(&project.root)?.to_path_buf();
+                let path = project.path(&relative)?;
+                let kind = entry.file_type()?;
+                if kind.is_dir() {
+                    pending.push(path);
+                    continue;
+                }
+                let name = relative.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Asset Filenames")?.replace('\\', "/");
+                if !contents.contains_key(&name) {
+                    insert(&mut contents, name, &path, limits)?;
+                }
+            }
+        }
+    }
+    for relative in [&project.manifest.plugin.icon, &project.manifest.plugin.readme].into_iter().flatten() {
+        if relative.components().any(|part| excluded(part.as_os_str().to_str().unwrap_or(""))) {
+            return Err("Create Plugin Bundle: Move Referenced Metadata Outside Private Input Folders".into());
+        }
+        let path = project.path(relative)?;
+        let name = path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Metadata Paths")?.replace('\\', "/");
+        if !contents.contains_key(&name) {
+            insert(&mut contents, name, &path, limits)?;
+        }
     }
     metadata(&mut contents, description)?;
-    let sources = contents.iter().map(|(path, bytes)| Source { path, bytes, executable: None }).collect::<Vec<_>>();
-    let bundle = bundle::build(identity, &sources, Some(launch), limits)?;
+    let requirement = project.manifest.compatibility.as_ref().and_then(|value| value.dokime.as_deref());
+    contents.insert(
+        "dokime.json".into(),
+        serde_json::to_vec(&serde_json::json!({"schema":1,"requires_dokime":requirement,"plugin":resolved}))?,
+    );
+    let sources = contents
+        .iter()
+        .map(|(path, bytes)| Source {
+            path,
+            bytes,
+            executable: entrypoint.as_ref().filter(|entrypoint| *entrypoint == path).map(|_| Executable {
+                facility: Facility::Sidecar,
+                target: native_target().into(),
+                registrations: Vec::new(),
+            }),
+        })
+        .collect::<Vec<_>>();
+    let bundle = bundle::build(identity, &sources, project.manifest.scripts.launch.as_deref(), limits)?;
     Ok(bundle.bytes().to_vec())
 }
 
@@ -165,10 +267,40 @@ pub fn inspect(path: &Path) -> Result<Value> {
     let limits = Limits::default();
     let bytes = read(path, limits.archive_bytes as u64)?;
     let bundle = Bundle::inspect(&bytes, limits)?;
+    if let Some(metadata) = bundle.file("dokime.json") {
+        let metadata: Value = serde_json::from_slice(metadata)?;
+        let requirement = match metadata.get("requires_dokime") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(value)) => Some(value.as_str()),
+            _ => return Err("Inspect Plugin Bundle: Set requires_dokime to a Version Requirement".into()),
+        };
+        crate::project::check_compatibility(requirement, env!("CARGO_PKG_VERSION"))?;
+    }
     Ok(serde_json::to_value(bundle.manifest())?)
 }
 
 /* === Private Functions === */
+
+fn excluded(name: &str) -> bool {
+    matches!(
+        name,
+        ".git"
+            | ".venv"
+            | ".env"
+            | "_input"
+            | "_output"
+            | "__pycache__"
+            | "credentials"
+            | "credentials.json"
+            | ".netrc"
+            | ".pypirc"
+            | "id_rsa"
+            | "id_ed25519"
+    ) || (name.starts_with(".env.") && name != ".env.example")
+        || name.ends_with(".pair")
+        || name.ends_with(".pem")
+        || name.ends_with(".key")
+}
 
 fn insert(contents: &mut BTreeMap<String, Vec<u8>>, name: String, path: &Path, limits: Limits) -> Result<()> {
     if !fs::symlink_metadata(path)?.file_type().is_file() {
@@ -326,10 +458,10 @@ mod tests {
         assert!(super::development_input(root.path()).is_err());
         fs::write(root.path().join("pyproject.toml"), "[project]\nname='fixture'\nversion='0.1.0'\n")?;
         assert!(super::development_input(root.path()).is_err());
-        fs::write(root.path().join("dokime.toml"), "executable = 'target/debug/plugin'\n")?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nexecutable = 'target/debug/plugin'\n")?;
         fs::remove_file(root.path().join("pyproject.toml"))?;
         assert_eq!(super::development_input(root.path())?, DevelopmentInput::Project);
-        fs::write(root.path().join("dokime.toml"), "launch = ['fixture', 'entry']\n")?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch = ['fixture', 'entry']\n")?;
         assert_eq!(super::development_input(root.path())?, DevelopmentInput::Project);
         let bytes = b"native executable";
         let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": ""},
@@ -367,6 +499,153 @@ mod tests {
         assert_eq!(executable.facility, Facility::Sidecar);
         assert_eq!(executable.target, super::native_target());
         assert!(executable.registrations.is_empty());
+        Ok(())
+    }
+    #[test]
+    fn launch_assets_are_complete_while_private_inputs_are_excluded() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::write(
+            root.path().join("dokime.toml"),
+            "[plugin]\nversion='2.3.4'\nlabel='A Label'\npublisher='your-organization'\nicon='assets/icon.svg'\nreadme='README.md'\n[compatibility]\ndokime='>=0.1.0'\n[scripts]\nlaunch=['fixture','entry.bin']\n",
+        )?;
+        fs::write(root.path().join("entry.bin"), b"entry")?;
+        fs::write(root.path().join("README.md"), b"Readme")?;
+        fs::write(root.path().join(".gitignore"), "assets/\ndokime.toml\nREADME.md\nignored.bin\n")?;
+        fs::write(root.path().join("ignored.bin"), b"ignored")?;
+        fs::create_dir_all(root.path().join("assets/nested"))?;
+        fs::write(root.path().join("assets/icon.svg"), b"icon")?;
+        fs::write(root.path().join("assets/nested/ignored.bin"), b"asset")?;
+        for name in [".git", ".venv", "_input", "_output", "credentials"] {
+            fs::create_dir(root.path().join(name))?;
+            fs::write(root.path().join(name).join("private"), b"private")?;
+        }
+        fs::write(root.path().join(".env"), b"private")?;
+        fs::write(root.path().join("operator.pair"), b"private")?;
+        let project = crate::project::PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "class-identifier".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = super::create_project(&project, identity, None)?;
+        let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
+        let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
+        assert_eq!(
+            inventory,
+            [".gitignore", "README.md", "assets/icon.svg", "assets/nested/ignored.bin", "dokime.json", "dokime.toml", "entry.bin"]
+        );
+        assert_eq!(bundle.manifest().identity.name, "class-identifier");
+        assert_eq!(bundle.manifest().identity.version.to_string(), "2.3.4");
+        let metadata: Value = serde_json::from_slice(bundle.file("dokime.json").unwrap())?;
+        assert_eq!(metadata["requires_dokime"], ">=0.1.0");
+        assert_eq!(metadata["plugin"]["label"], "A Label");
+        assert_eq!(metadata["plugin"]["publisher"], "your-organization");
+        Ok(())
+    }
+
+    #[test]
+    fn managed_launch_keeps_staged_runtime_companions() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::create_dir_all(root.path().join("assets/plugin"))?;
+        fs::write(root.path().join(".gitignore"), "assets/\n")?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch=['dotnet','assets/plugin/example.dll']\n")?;
+        for name in ["example.dll", "example.deps.json", "example.runtimeconfig.json", "dependency.dll"] {
+            fs::write(root.path().join("assets/plugin").join(name), name.as_bytes())?;
+        }
+        let project = crate::project::PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "managed".into(),
+            version: "1.2.3".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = super::create_project(&project, identity, None)?;
+        let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
+        assert_eq!(bundle.manifest().launch.as_deref(), project.manifest.scripts.launch.as_deref());
+        for name in ["example.dll", "example.deps.json", "example.runtimeconfig.json", "dependency.dll"] {
+            assert_eq!(bundle.file(&format!("assets/plugin/{name}")), Some(name.as_bytes()));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn native_inventory_contains_only_executable_assets_and_referenced_metadata() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\nversion='1.0.0'\nreadme='README.md'\n[scripts]\nexecutable='plugin'\n")?;
+        fs::write(root.path().join("plugin"), b"executable")?;
+        fs::write(root.path().join("unrelated.dll"), b"unrelated")?;
+        fs::write(root.path().join("README.md"), b"readme")?;
+        fs::create_dir_all(root.path().join("assets/runtime"))?;
+        fs::write(root.path().join("assets/runtime/companion.dll"), b"companion")?;
+        let project = crate::project::PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "native".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = super::create_project(&project, identity, None)?;
+        let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
+        assert_eq!(
+            bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>(),
+            ["README.md", "assets/runtime/companion.dll", "bin/plugin", "dokime.json"]
+        );
+        assert!(bundle.manifest().files.iter().find(|file| file.path == "bin/plugin").unwrap().executable.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn ignored_required_launch_inputs_are_refused_and_missing_assets_are_valid() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch=['fixture','entry.bin']\n")?;
+        fs::write(root.path().join("entry.bin"), b"entry")?;
+        fs::write(root.path().join(".gitignore"), "entry.bin\n")?;
+        let project = crate::project::PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "launch".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        assert!(super::create_project(&project, identity.clone(), None).is_err());
+        fs::write(root.path().join(".gitignore"), "")?;
+        super::create_project(&project, identity, None)?;
+        Ok(())
+    }
+
+    #[test]
+    fn source_lock_is_preserved_and_included_even_when_ignored() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch=['uv','run','python','plugin.py']\n")?;
+        fs::write(root.path().join("pyproject.toml"), "[project]\nname='fixture'\nversion='1.0.0'")?;
+        fs::write(root.path().join("plugin.py"), b"entry")?;
+        fs::write(root.path().join("uv.lock"), b"user-owned-lock")?;
+        fs::write(root.path().join(".gitignore"), "uv.lock\npyproject.toml\n")?;
+        let project = crate::project::PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "launch".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = super::create_project(&project, identity, None)?;
+        let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
+        assert_eq!(bundle.file("uv.lock"), Some(b"user-owned-lock".as_slice()));
+        assert_eq!(fs::read(root.path().join("uv.lock"))?, b"user-owned-lock");
+        assert!(bundle.file("pyproject.toml").is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn inspect_refuses_unmet_compatibility_before_install_or_dev() -> crate::Result<()> {
+        let metadata = br#"{"schema":1,"requires_dokime":">=999.0.0"}"#;
+        let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": ""},
+            "files": [{"path":"dokime.json","size":metadata.len(),"sha256":digest(metadata)}]});
+        let file = bundle(&[("dokime.json", metadata)], &manifest)?;
+        assert!(inspect(file.path()).is_err());
+        let error = super::development_input(file.path()).unwrap_err().to_string();
+        assert!(error.contains(">=999.0.0"), "{error}");
         Ok(())
     }
 }

@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Exact Scalars Survive Statistics and Plot Serialization."""
 
 # === Imports === #
@@ -17,12 +16,11 @@ from unittest import TestCase
 
 # Third Party Imports
 # Local Imports
-from dokime import Statistics, Value
-from dokime.client import PlotColumn
-from dokime.values import decode, encode
+from dokime_sdk._generated.client_types import PlotColumn
+from dokime_sdk._generated.shared import Statistics, Value
+from dokime_sdk._values import decode, encode
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 

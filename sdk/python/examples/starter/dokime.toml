@@ -1,0 +1,32 @@
+# ***
+#
+# Starter Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Plugin === #
+
+[plugin]
+label = "Starter Project"
+tags = ["example", "confirmation"]
+
+# Read from `pyproject.toml`; State a Key Here Instead to Override It.
+dynamic = ["version", "description", "authors", "license", "repository"]
+
+# Shown by Dokime and a Plugin Catalog; Every Key Below Is Optional.
+publisher = "your-organization"
+icon = "assets/icon.svg"
+readme = "README.md"
+
+# === Compatibility === #
+
+[compatibility]
+dokime = ">=0.1.5"
+
+# === Scripts === #
+
+[scripts]
+build = ["uv", "sync"]
+launch = ["uv", "run", "python", "-m", "starter_project.plugin"]

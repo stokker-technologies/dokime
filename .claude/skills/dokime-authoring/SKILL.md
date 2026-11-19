@@ -98,15 +98,15 @@ Benchmark templates isolate streams, plots, heavy observers and exact values.
 
 ## Python
 
-Use ordinary values from `dokime.authoring`, `dokime.parameters`, `dokime.plot`
-and `dokime.documents`. Keep execution resources on the template instance and
+Use ordinary values from `dokime_sdk.authoring`, `dokime_sdk.parameters`, `dokime_sdk.plot`
+and `dokime_sdk.documents`. Keep execution resources on the template instance and
 close them explicitly in cleanup. Keep unique evidence definitions with the
 owning template and share only definitions used by several templates.
 
 ```python
-from dokime.parameters import Parameter
-from dokime.plot import Plot
-from dokime.documents import plot_card, records_card
+from dokime_sdk.parameters import Parameter
+from dokime_sdk.plot import Plot
+from dokime_sdk.documents import plot_card, records_card
 
 voltage = Parameter.number("ac_voltage_v", "AC RMS Voltage").unit("V").default(230.0).range(0.0, 300.0).build()
 loads = Parameter.sweep("load_ohm", "Load Resistance", [80.0, 100.0]).build()

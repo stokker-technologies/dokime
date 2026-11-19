@@ -96,18 +96,18 @@ class RecordingServer:
 def main() -> None:
     root = Path(__file__).resolve().parents[3]
     sources = root / "proto"
-    manifest = json.loads(files("dokime").joinpath("_wire").joinpath("sources.json").read_text())
+    manifest = json.loads(files("dokime_sdk").joinpath("_wire").joinpath("sources.json").read_text())
     expected = {path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")}
     if manifest != expected:
         raise ValueError("Installed generated surface differs from proto/; rebuild and reinstall the SDK wheel")
     channel = RecordingChannel()
     server = RecordingServer()
     services: set[str] = set()
-    descriptors = FileDescriptorSet.FromString(files("dokime").joinpath("_wire/surface.pb").read_bytes())
+    descriptors = FileDescriptorSet.FromString(files("dokime_sdk").joinpath("_wire/surface.pb").read_bytes())
     for definition in descriptors.file:
         if not definition.package.startswith("dokime.") or not definition.service:
             continue
-        module = definition.name.removesuffix(".proto").replace("/", ".").replace("dokime.", "dokime._wire.", 1)
+        module = definition.name.removesuffix(".proto").replace("/", ".").replace("dokime.", "dokime_sdk._wire.", 1)
         stubs = import_module(module + "_pb2_grpc")
         for service in definition.service:
             getattr(stubs, service.name + "Stub")(channel)
@@ -123,7 +123,8 @@ def main() -> None:
             continue
         module = definition.name.removesuffix(".proto").replace("/", ".")
         for owner in ("dokime", "harmos"):
-            module = module.replace(owner + ".", owner + "._wire.", 1) if module.startswith(owner + ".") else module
+            package = "dokime_sdk" if owner == "dokime" else owner
+            module = module.replace(owner + ".", package + "._wire.", 1) if module.startswith(owner + ".") else module
         import_module(module + "_pb2")
         runtime = descriptor_pool.Default().FindFileByName(definition.name)
         actual_definition = descriptor_pb2.FileDescriptorProto()

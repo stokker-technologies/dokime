@@ -1291,7 +1291,7 @@ class Visibility(IntEnum):
 @dataclass(frozen=True)
 class RetryPolicy:
     total_attempts: int               # Positive; includes the first attempt.
-    initial: timedelta               # Nonnegative host-clock backoff.
+    initial: timedelta               # Positive host-clock backoff.
     maximum: timedelta | None = None # If supplied, bounded exponential backoff.
     deterministic_jitter: bool = False
 
@@ -1342,8 +1342,9 @@ class SecretDeclaration:
 
 The NEW product policy/settings values use the existing canonical fields and
 translate once at the SDK boundary; they do not duplicate policy execution or
-setting storage. Validate positive finite policy durations and nonnegative
-backoff; None means inheritance. S1's serial admission field is intentionally
+setting storage. Validate positive finite policy durations and retry backoff at
+operation declaration, naming the operation and invalid field; zero backoff is
+invalid. None means inheritance. S1's serial admission field is intentionally
 absent until the owner defines its scope; no implementer should infer its shape.
 
 ```python
@@ -1390,9 +1391,9 @@ class PromptDeclaration:
 `OperationPolicy` retains total invocation timeout, attempt timeout, cancellation
 timeout and `RetryPolicy(total_attempts, initial, maximum,
 deterministic_jitter)` as typed duration values. No retries without explicit
-replay safety. A nonzero `step(retries=n)` means `n+1` total attempts; if `policy`
-already supplies retries, refuse the two sources rather than silently combine
-them. Absent policy inherits the operation owner's configured policy, never a
+replay safety. Retried steps declare `policy.retries` with an explicit positive
+`initial` backoff; `step(retries=n)` cannot express that policy and is refused
+with guidance naming the operation and field. Absent policy inherits the operation owner's configured policy, never a
 caller-created timeout. Private execution remains local and still uses the same
 policy and cancellation machinery. Visibility must be explicitly PRIVATE,
 PROTECTED or PUBLIC; no default or integer/module-constant substitute.

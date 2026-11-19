@@ -16,11 +16,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::env;
 use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
@@ -28,11 +26,9 @@ use harmos_runtime::bundle::{Bundle, Facility, Limits};
 use prost_reflect::{DynamicMessage, SerializeOptions};
 use serde_json::{Deserializer, Serializer, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 use tokio::time;
 
 // Local Imports
-use dokime_runtime::process;
 
 /* === Constants === */
 
@@ -52,6 +48,43 @@ use dokime_runtime::process;
 
 /* === Private Functions === */
 
+/* === Tests === */
+
+#[test]
+fn managed_installation_preserves_resolved_bundle_version() -> Result<(), Box<dyn Error>> {
+    super::credentials::run(Box::pin(async {
+        time::timeout(super::HANG_GUARD, async {
+            // Bundle a Native Starter with an Explicit Version Override.
+            let directory = super::credentials::tempdir()?;
+            let project = directory.path().join("plugin");
+            fs::create_dir(&project)?;
+            fs::copy(super::fixtures().join(format!("dokime-example-test{EXE_SUFFIX}")), project.join(format!("plugin{EXE_SUFFIX}")))?;
+            fs::write(project.join("dokime.toml"), "[plugin]\nversion = '8.7.6'\n[scripts]\nexecutable = 'plugin'\n")?;
+            let output = directory.path().join("overridden.dokime");
+            super::run(&["plugin", "bundle", project.to_str().unwrap(), "--out", output.to_str().unwrap()]).await?;
+
+            // Verify Both Frozen Versions Before Installing the Bundle.
+            let bytes = fs::read(&output)?;
+            let bundle = Bundle::inspect(&bytes, Limits::default())?;
+            let version = bundle.manifest().identity.version.to_string();
+            assert_eq!(version, "8.7.6");
+            let descriptor = dokime_protocol::descriptor_pool().get_message_by_name("harmos.plugin.v1.InstanceGetResponse").unwrap();
+            let description =
+                DynamicMessage::decode(descriptor, bundle.file("description.pb").ok_or("Bundle Plugin: Freeze Its Description")?)?;
+            assert_eq!(description.get_field_by_name("version").unwrap().as_ref(), &prost_reflect::Value::String(version.clone()));
+
+            // Read the Installed Version After the Host Reports Readiness.
+            let host = super::HostProcess::start().await?;
+            let installed = super::run(&["--endpoint", &host.endpoint, "plugin", "install", output.to_str().unwrap(), "--json"]).await;
+            host.close().await?;
+            let installed: Value = serde_json::from_str(&installed?)?;
+            assert_eq!(installed["entry"]["description"]["version"], version);
+            Ok(())
+        })
+        .await?
+    }))
+}
+
 #[test]
 fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
@@ -68,7 +101,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             let prepared = directory.path().join("prepared-plugin");
             fs::create_dir(&prepared)?;
             fs::copy(&executable, prepared.join(format!("plugin{EXE_SUFFIX}")))?;
-            fs::write(prepared.join("dokime.toml"), "executable = 'plugin'\n")?;
+            fs::write(prepared.join("dokime.toml"), "[plugin]\n[scripts]\nexecutable = 'plugin'\n")?;
             let bundle = directory.path().join("first.dokime");
             super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
             super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
@@ -91,7 +124,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             assert_eq!(entrypoint.executable.as_ref().unwrap().facility, Facility::Sidecar);
             assert_eq!(packed.file(&entrypoint.path), Some(fs::read(&executable)?.as_slice()));
 
-            // Start a Host With an Explicit Endpoint and Controlled Clock
+            // Start a Host with an Explicit Endpoint and Controlled Clock
             let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
             let storage = directory.path().join("storage");
             let mut host = super::command()
@@ -208,22 +241,23 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 // Create and Serve the Pure Python Starter Remotely
                 let project = directory.path().join("first-python");
                 super::run(&["new", project.to_str().unwrap(), "--lang", "python"]).await?;
-                let python = env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
-                    super::root().join(if cfg!(target_os = "windows") { ".venv/Scripts/python.exe" } else { ".venv/bin/python" })
-                });
+                let source = serde_json::to_string(&super::root().join("sdk/python").to_string_lossy())?;
+                let manifest = project.join("pyproject.toml");
+                let contents = fs::read_to_string(&manifest)?;
+                fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source}, editable = true }}\n"))?;
                 remote_plugin = Some(
-                    Command::from(process::command(python))
-                        .arg(project.join("test/plugin.py"))
-                        .current_dir(&project)
+                    super::command()
+                        .envs(credentials.environment.iter().cloned())
+                        .args(["dev", "--plugin", project.to_str().unwrap(), "--no-desktop"])
+                        .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::inherit())
-                        .kill_on_drop(true)
                         .spawn()?,
                 );
                 let plugin = remote_plugin.as_mut().unwrap();
                 let mut lines = BufReader::new(plugin.stdout.take().unwrap()).lines();
-                let url = lines.next_line().await?.ok_or("Serve Python: Missing Listener Announcement")?;
-                super::run(&["--endpoint", &endpoint, "plugin", "add", &url]).await?;
+                let endpoint = lines.next_line().await?.ok_or("Develop Python: Read the Host Endpoint")?;
+                lines.next_line().await?.ok_or("Develop Python: Read the Storage Root")?;
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
                 let suite = suites["values"].as_array().unwrap().last().unwrap()["metadata"]["identifier"].as_str().unwrap();
                 let cases = directory.path().join("python-cases.pb");
@@ -237,7 +271,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "capture",
+                    "capture.confirmation",
                     "--out",
                     cases.to_str().unwrap(),
                     "--parameters",
@@ -272,8 +306,8 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             drop(host.stdin.take());
             let host_status = host.wait().await?;
             if let Some(mut plugin) = remote_plugin {
-                plugin.kill().await?;
-                plugin.wait().await?;
+                drop(plugin.stdin.take());
+                assert!(plugin.wait().await?.success());
             }
             result?;
             assert!(host_status.success());
@@ -285,5 +319,3 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
         .await?
     }))
 }
-
-/* === Tests === */

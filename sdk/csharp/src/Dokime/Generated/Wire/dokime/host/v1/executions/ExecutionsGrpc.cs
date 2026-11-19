@@ -78,6 +78,10 @@ namespace Dokime.Internal.Client;
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Dokime.Clients.ExecutionsCancelResponse> __Marshaller_dokime_host_v1_ExecutionsCancelResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.ExecutionsCancelResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Dokime.Clients.ExecutionsSealRequest> __Marshaller_dokime_host_v1_ExecutionsSealRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.ExecutionsSealRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Dokime.Clients.ExecutionsSealResponse> __Marshaller_dokime_host_v1_ExecutionsSealResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.ExecutionsSealResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Dokime.Clients.ExecutionsDeleteRequest> __Marshaller_dokime_host_v1_ExecutionsDeleteRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.ExecutionsDeleteRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Dokime.Clients.ExecutionsDeleteResponse> __Marshaller_dokime_host_v1_ExecutionsDeleteResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.ExecutionsDeleteResponse.Parser));
@@ -153,6 +157,14 @@ namespace Dokime.Internal.Client;
         "Cancel",
         __Marshaller_dokime_host_v1_ExecutionsCancelRequest,
         __Marshaller_dokime_host_v1_ExecutionsCancelResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Dokime.Clients.ExecutionsSealRequest, global::Dokime.Clients.ExecutionsSealResponse> __Method_Seal = new grpc::Method<global::Dokime.Clients.ExecutionsSealRequest, global::Dokime.Clients.ExecutionsSealResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "Seal",
+        __Marshaller_dokime_host_v1_ExecutionsSealRequest,
+        __Marshaller_dokime_host_v1_ExecutionsSealResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Dokime.Clients.ExecutionsDeleteRequest, global::Dokime.Clients.ExecutionsDeleteResponse> __Method_Delete = new grpc::Method<global::Dokime.Clients.ExecutionsDeleteRequest, global::Dokime.Clients.ExecutionsDeleteResponse>(
@@ -232,6 +244,12 @@ namespace Dokime.Internal.Client;
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.ExecutionsCancelResponse> Cancel(global::Dokime.Clients.ExecutionsCancelRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.ExecutionsSealResponse> Seal(global::Dokime.Clients.ExecutionsSealRequest request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -434,6 +452,26 @@ namespace Dokime.Internal.Client;
         return CallInvoker.AsyncUnaryCall(__Method_Cancel, null, options, request);
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Dokime.Clients.ExecutionsSealResponse Seal(global::Dokime.Clients.ExecutionsSealRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return Seal(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Dokime.Clients.ExecutionsSealResponse Seal(global::Dokime.Clients.ExecutionsSealRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_Seal, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.ExecutionsSealResponse> SealAsync(global::Dokime.Clients.ExecutionsSealRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SealAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.ExecutionsSealResponse> SealAsync(global::Dokime.Clients.ExecutionsSealRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_Seal, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::Dokime.Clients.ExecutionsDeleteResponse Delete(global::Dokime.Clients.ExecutionsDeleteRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
       {
         return Delete(request, new grpc::CallOptions(headers, deadline, cancellationToken));
@@ -515,6 +553,7 @@ namespace Dokime.Internal.Client;
           .AddMethod(__Method_Start, serviceImpl.Start)
           .AddMethod(__Method_Stop, serviceImpl.Stop)
           .AddMethod(__Method_Cancel, serviceImpl.Cancel)
+          .AddMethod(__Method_Seal, serviceImpl.Seal)
           .AddMethod(__Method_Delete, serviceImpl.Delete)
           .AddMethod(__Method_Parameters, serviceImpl.Parameters)
           .AddMethod(__Method_Steps, serviceImpl.Steps).Build();
@@ -535,6 +574,7 @@ namespace Dokime.Internal.Client;
       serviceBinder.AddMethod(__Method_Start, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsStartRequest, global::Dokime.Clients.ExecutionsStartResponse>(serviceImpl.Start));
       serviceBinder.AddMethod(__Method_Stop, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsStopRequest, global::Dokime.Clients.ExecutionsStopResponse>(serviceImpl.Stop));
       serviceBinder.AddMethod(__Method_Cancel, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsCancelRequest, global::Dokime.Clients.ExecutionsCancelResponse>(serviceImpl.Cancel));
+      serviceBinder.AddMethod(__Method_Seal, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsSealRequest, global::Dokime.Clients.ExecutionsSealResponse>(serviceImpl.Seal));
       serviceBinder.AddMethod(__Method_Delete, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsDeleteRequest, global::Dokime.Clients.ExecutionsDeleteResponse>(serviceImpl.Delete));
       serviceBinder.AddMethod(__Method_Parameters, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsParametersRequest, global::Dokime.Clients.ExecutionsParametersResponse>(serviceImpl.Parameters));
       serviceBinder.AddMethod(__Method_Steps, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.ExecutionsStepsRequest, global::Dokime.Clients.ExecutionsStepsResponse>(serviceImpl.Steps));

@@ -8,6 +8,7 @@ package dokime.host.v1.executions;
 
 // === Imports === //
 
+import "dokime/host/v1/executions.proto";
 import "dokime/model/v1/execution.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/position.proto";
@@ -29,7 +30,9 @@ service Progress {
   rpc Get(.dokime.host.v1.executions.ProgressGetRequest) returns (.dokime.host.v1.executions.ProgressGetResponse) {
     option (harmos.model.v1.callers) = ALL;
   }
-  // Observe durable changes to the Progress resource; admission and policy are owned by the executor.
+  // Observe current progress and updates through seal, then end after one sealed frame.
+  // An already sealed execution yields one terminal frame. Clients require sealed=true
+  // before accepting stream completion; an earlier end or error is incomplete observation.
   rpc Watch(.dokime.host.v1.executions.ProgressWatchRequest) returns (stream .dokime.host.v1.executions.ProgressWatchResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
@@ -68,6 +71,10 @@ message ProgressWatchResponse {
   .harmos.model.v1.Position resolved_at = 3;
   string phase = 4;
   bool finished = 5;
+  // True only in the final frame, after the execution and its outcome are durably sealed.
+  bool sealed = 6;
+  // Present in the sealed frame, including its evaluated/declared status or unevaluated termination.
+  .dokime.host.v1.ExecutionOutcome outcome = 7;
 }
 
 // ProgressSetRequest for Progress.Set.

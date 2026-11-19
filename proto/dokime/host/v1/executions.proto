@@ -65,6 +65,11 @@ service Executions {
   rpc Cancel(.dokime.host.v1.ExecutionsCancelRequest) returns (.dokime.host.v1.ExecutionsCancelResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
+  // Return the outcome automatically sealed by a completed run; repetition returns the same outcome.
+  // Refuse running and never-started executions without starting, cancelling or waiting for work.
+  rpc Seal(.dokime.host.v1.ExecutionsSealRequest) returns (.dokime.host.v1.ExecutionsSealResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
   // Delete the Executions resource; admission and policy are owned by the executor.
   rpc Delete(.dokime.host.v1.ExecutionsDeleteRequest) returns (.dokime.host.v1.ExecutionsDeleteResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
@@ -195,6 +200,19 @@ message ExecutionsCancelRequest {
 // ExecutionsCancelResponse for Executions.Cancel.
 message ExecutionsCancelResponse {
   .dokime.host.v1.ExecutionDetail execution = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
+
+// ExecutionsSealRequest for Executions.Seal.
+message ExecutionsSealRequest {
+  string name = 1;
+  string request_id = 2;
+}
+
+// ExecutionsSealResponse for Executions.Seal.
+message ExecutionsSealResponse {
+  // The immutable outcome also returned by Executions.Get in execution.outcome.
+  .dokime.host.v1.ExecutionOutcome outcome = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
 

@@ -48,6 +48,7 @@ def configuration(root: Path) -> Configuration:
     """Declare Product Names, Compiler Inputs and Public Call Selectors."""
     return Configuration(
         namespace="dokime",
+        python_package="dokime_sdk",
         csharp_namespace="Dokime",
         csharp_tools=root / "target/cs/packages/grpc.tools/2.76.0/tools",
         rustfmt=root / "rustfmt.toml",
@@ -65,14 +66,21 @@ def configuration(root: Path) -> Configuration:
     )
 
 
-def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration) -> None:
+def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration, language: str | None = None) -> None:
     """Publish Shared Projections Except the SDK-Owned Python Barrels."""
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
     try:
         sdk.generate(root=output, descriptors=descriptors, configuration=configuration)
-        barrels = {Path("sdk/python/src/dokime/__init__.py"), Path("sdk/python/src/dokime/plugin/__init__.py")}
+        barrels = {
+            Path("sdk/python/src/dokime_sdk/__init__.py"),
+            Path("sdk/python/src/dokime_sdk/client.py"),
+            Path("sdk/python/src/dokime_sdk/plugin/__init__.py"),
+        }
         expected = sdk.inventory(output, configuration) - barrels
         existing = sdk.inventory(root, configuration) - barrels
+        if language == "python":
+            expected = {path for path in expected if path.parts[:2] == ("sdk", "python")}
+            existing = {path for path in existing if path.parts[:2] == ("sdk", "python")}
         if check:
             differences = [str(path) for path in sorted(expected ^ existing)]
             differences.extend(
@@ -105,8 +113,9 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--language", choices=("python",))
     options = parser.parse_args()
-    if options.check:
+    if options.check and options.language is None:
         # Verify Protocol Output Against Its Generator.
         command = ["mise", "run", "test", "--", "--package", "dokime-protocol", "--target", "integration"]
         subprocess.run(
@@ -117,7 +126,7 @@ def main() -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-    else:
+    elif options.language is None:
         status = cargo.focused(Path.cwd(), "run", ["--locked", "--package", "dokime-protocol-generator"])
         if status:
             raise SystemExit(status)
@@ -138,6 +147,7 @@ def main() -> None:
         root=root,
         descriptors=root / "crates/dokime-protocol/src/descriptors.bin",
         configuration=selected,
+        language=options.language,
     )
     # Generate or Verify Python Wire Modules Through Their SDK Owner.
     command = ["mise", "-C", "sdk/python", "run", "generate"]

@@ -6,5 +6,15 @@
 #
 # ***
 
+[plugin]
+label = "Example"
+tags = ["example"]
+icon = "assets/icon.svg"
+dynamic = ["version", "description", "authors", "license", "repository"]
+
+[compatibility]
+dokime = ">=0.1.5"
+
+[scripts]
 build = ["mise", "run", "build"]
 executable = "target/debug/dokime-example-plugin"

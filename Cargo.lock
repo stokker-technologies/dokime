@@ -117,7 +117,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -128,7 +128,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1369,7 +1369,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1560,9 +1560,13 @@ dependencies = [
  "harmos-packaging",
  "harmos-runtime",
  "ignore",
+ "reqwest",
+ "roxmltree",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "spdx",
  "tar",
  "tempfile",
  "toml 1.1.8+spec-1.1.0",
@@ -1805,7 +1809,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2397,7 +2401,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2418,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "harmos-domain"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "harmos-protocol",
  "harmos-sdk-derive",
@@ -2436,7 +2440,7 @@ dependencies = [
 [[package]]
 name = "harmos-operations"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -2462,7 +2466,7 @@ dependencies = [
 [[package]]
 name = "harmos-packaging"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "harmos-domain",
  "harmos-operations",
@@ -2480,7 +2484,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -2495,7 +2499,7 @@ dependencies = [
 [[package]]
 name = "harmos-query"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -2518,7 +2522,7 @@ dependencies = [
 [[package]]
 name = "harmos-runtime"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2559,7 +2563,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
@@ -2571,7 +2575,7 @@ dependencies = [
 [[package]]
 name = "harmos-storage"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=05bd25a017a54b8af7f53553927e6af24054723b#05bd25a017a54b8af7f53553927e6af24054723b"
+source = "git+https://github.com/stokker-technologies/harmos?rev=a037b73e7a60e5fd4be50dbff72779c95ef7cc45#a037b73e7a60e5fd4be50dbff72779c95ef7cc45"
 dependencies = [
  "arrow-array",
  "arrow-data",
@@ -3589,7 +3593,7 @@ dependencies = [
  "png",
  "serde",
  "thiserror 2.0.21",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3688,7 +3692,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4806,6 +4810,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "roxmltree"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da7f59328b09405b181fee1018925fad50f157afb43c0c0f5c522c256dd5907"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "rsqlite-vfs"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4864,7 +4877,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4921,7 +4934,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5362,7 +5375,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5411,6 +5424,15 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "spdx"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "646c5a367da914e3babcb9cd8e91c37ccaac42325b8f86f036513ad103f2a716"
+dependencies = [
+ "smallvec",
 ]
 
 [[package]]
@@ -5994,7 +6016,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6519,7 +6541,7 @@ dependencies = [
  "png",
  "serde",
  "thiserror 2.0.21",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6554,7 +6576,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6919,7 +6941,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6940,7 +6962,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-quartz-core",
  "raw-window-handle",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
  "windows-version",
 ]
 
@@ -7334,7 +7356,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
 dependencies = [
  "cfg-if",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -6,6 +6,19 @@
 #
 # ***
 
+[plugin]
+label = "Example"
+tags = ["example"]
+icon = "assets/icon.svg"
+version = "0.1.0"
+description = "Example Plugin"
+authors = [{ name = "Your Name" }]
+license = "Apache-2.0"
+repository = "https://github.com/your-organization/your-project"
+
+[compatibility]
+dokime = ">=0.1.5"
+
+[scripts]
 build = ["mise", "run", "build"]
 executable = "build/dokime-plugin"
-assets = ["build"]

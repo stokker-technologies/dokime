@@ -549,6 +549,16 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.ExecutionsCancelResponse").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::ExecutionsSealRequest {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.ExecutionsSealRequest").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::ExecutionsSealResponse {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.ExecutionsSealResponse").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::dokime::host::v1::ExecutionsDeleteRequest {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.ExecutionsDeleteRequest").expect("generated protocol descriptor")

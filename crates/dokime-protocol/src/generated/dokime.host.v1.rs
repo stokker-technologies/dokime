@@ -3354,6 +3354,22 @@ pub struct ExecutionsCancelResponse {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecutionsSealRequest {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub request_id: ::prost::alloc::string::String,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecutionsSealResponse {
+    #[prost(message, optional, tag = "1")]
+    pub outcome: ::core::option::Option<ExecutionOutcome>,
+    #[prost(message, optional, tag = "2")]
+    pub receipt: ::core::option::Option<::harmos_protocol::model::Receipt>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ExecutionsDeleteRequest {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
@@ -4319,6 +4335,30 @@ pub mod executions_client {
                 .insert(GrpcMethod::new("dokime.host.v1.Executions", "Cancel"));
             self.inner.unary(req, path, codec).await
         }
+        pub async fn seal(
+            &mut self,
+            request: impl tonic::IntoRequest<super::ExecutionsSealRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExecutionsSealResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.host.v1.Executions/Seal",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.host.v1.Executions", "Seal"));
+            self.inner.unary(req, path, codec).await
+        }
         pub async fn delete(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecutionsDeleteRequest>,
@@ -4463,6 +4503,13 @@ pub mod executions_server {
             request: tonic::Request<super::ExecutionsCancelRequest>,
         ) -> std::result::Result<
             tonic::Response<super::ExecutionsCancelResponse>,
+            tonic::Status,
+        >;
+        async fn seal(
+            &self,
+            request: tonic::Request<super::ExecutionsSealRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExecutionsSealResponse>,
             tonic::Status,
         >;
         async fn delete(
@@ -4910,6 +4957,51 @@ pub mod executions_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = CancelSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/dokime.host.v1.Executions/Seal" => {
+                    #[allow(non_camel_case_types)]
+                    struct SealSvc<T: Executions>(pub Arc<T>);
+                    impl<
+                        T: Executions,
+                    > tonic::server::UnaryService<super::ExecutionsSealRequest>
+                    for SealSvc<T> {
+                        type Response = super::ExecutionsSealResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::ExecutionsSealRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Executions>::seal(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SealSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

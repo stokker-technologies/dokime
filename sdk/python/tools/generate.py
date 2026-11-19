@@ -13,9 +13,9 @@
 # Standard Library Imports
 
 import argparse
-import ast
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +34,114 @@ from grpc_tools import protoc
 
 # === Constants === #
 
+ROOT_EXPORTS = {
+    "_authoring": ["Suite"],
+    "_plugin": ["Plugin"],
+    "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
+    "_connection": ["connect"],
+    "_errors": ["Failure", "SdkError"],
+    "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
+}
+
+PUBLIC_HOMES = {
+    "": frozenset(name for names in ROOT_EXPORTS.values() for name in names),
+    # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
+    "operations": frozenset(
+        [
+            "BoundOperation",
+            "Context",
+            "FailureError",
+            "Operation",
+            "OperationPolicy",
+            "Payload",
+            "RetryPolicy",
+            "SecretDeclaration",
+            "SettingDeclaration",
+            "SettingValue",
+            "StreamSubscription",
+            "Visibility",
+            "operation",
+        ]
+    ),
+    "templates": frozenset(
+        [
+            "Aggregate",
+            "AxisScale",
+            "BarArrangement",
+            "CaptureGap",
+            "CaptureMode",
+            "CaptureResult",
+            "CapturedArtifact",
+            "Card",
+            "Context",
+            "ContourRender",
+            "DataExpression",
+            "Document",
+            "Environment",
+            "Expression",
+            "FileLocation",
+            "FileParameter",
+            "FileRule",
+            "FileRuleAction",
+            "FileSelection",
+            "FileSource",
+            "FtpLocation",
+            "GridAxisEntry",
+            "GridHighlight",
+            "LineField",
+            "LineMarker",
+            "LineMatcher",
+            "Materialization",
+            "MirrorCapture",
+            "Parameter",
+            "ParameterDefinition",
+            "Plot",
+            "PlotStyle",
+            "Prompt",
+            "PromptDeclaration",
+            "Record",
+            "RecordRow",
+            "RecordsQuery",
+            "Reduction",
+            "ReferenceBand",
+            "ReferenceLine",
+            "SampleRow",
+            "SamplesQuery",
+            "Section",
+            "Severity",
+            "Statistics",
+            "Stream",
+            "StreamCapture",
+            "Summary",
+            "Termination",
+            "TestTemplate",
+            "Window",
+            "XyInterval",
+            "bar",
+            "box_plot",
+            "contour",
+            "criterion",
+            "field",
+            "frequency_series",
+            "grid_chart",
+            "histogram",
+            "materialize",
+            "observer",
+            "pie",
+            "plot_card",
+            "prompt",
+            "record",
+            "records_card",
+            "step",
+            "stream",
+            "time_series",
+            "trajectory",
+            "window_observer",
+            "xy",
+        ]
+    ),
+}
+
 # === Types === #
 
 # === Classes === #
@@ -46,7 +154,8 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
     root = sdk.parents[1]
     bundled_protocols = sdk / "proto"
     protocols = bundled_protocols if bundled_protocols.is_dir() else root / "proto"
-    source = sdk / "src/dokime"
+    python_package = "dokime_sdk"
+    source = sdk / "src" / python_package
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))
     try:
         if not exports_only:
@@ -78,13 +187,22 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                 if not check:
                     target.parent.mkdir(parents=True, exist_ok=True)
                 text = path.read_text(encoding="utf-8")
+                if path.suffix == ".pyi":
+                    # Fields Are Managed by the Protobuf Metaclass, Not Python Slots.
+                    text = ("from google.protobuf.reflection import GeneratedProtocolMessageType\nfrom typing import final\n\n") + text
+                    text = re.sub(
+                        r"(?m)^( *)class (\w+)\(_message.Message\):\n +__slots__ = [^\n]+\n",
+                        r"\1@final\n\1class \2(_message.Message, metaclass=GeneratedProtocolMessageType):\n\1    __slots__: tuple[str, ...]\n",
+                        text,
+                    )
                 for owner in ("dokime", "harmos"):
+                    package = python_package if owner == "dokime" else owner
                     for executor in ("model", "host", "plugin"):
-                        text = text.replace(f"from {owner}.{executor}", f"from {owner}._wire.{executor}")
-                        text = text.replace(f"import {owner}.{executor}.", f"import {owner}._wire.{executor}.")
+                        text = text.replace(f"from {owner}.{executor}", f"from {package}._wire.{executor}")
+                        text = text.replace(f"import {owner}.{executor}.", f"import {package}._wire.{executor}.")
                         text = text.replace(
                             f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}.{executor}.",
-                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{owner}._wire.{executor}.",
+                            f"BuildTopDescriptorsAndMessages(DESCRIPTOR, '{package}._wire.{executor}.",
                         )
                 if check:
                     if not target.is_file() or target.read_text(encoding="utf-8") != text:
@@ -113,81 +231,27 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                     raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
             else:
                 (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
-        # Compose the Product Authoring Barrel From the Generated Model Export Inventory.
-        shared = ast.parse((source / "_generated/shared.py").read_text(encoding="utf-8"))
-        names = sorted(
-            {
-                item.name
-                for node in shared.body
-                if isinstance(node, ast.ImportFrom)
-                for item in node.names
-                if item.name != "Visibility" and not item.name.startswith("VISIBILITY_")
-            }
-        )
-        additions = {
-            "._context": ["Context"],
-            "._plugin": ["Plugin"],
-            ".authoring": [
-                "Case",
-                "Template",
-                "criterion",
-                "materialize",
-                "observer",
-                "prompt",
-                "record",
-                "step",
-                "stream",
-                "suite",
-                "window_observer",
-            ],
-            ".operations": ["Operation", "Visibility", "operation"],
-            "harmos.plugin": ["Window"],
-            "harmos": ["FailureValue"],
-        }
-        lines = [
-            "# @generated from protocol descriptors and product authoring exports; do not edit.",
-            "from harmos._invocation import FailureError",
-        ]
-        lines.extend(f"from ._generated.shared import {name}" for name in names)
-        for module, exports in additions.items():
-            lines.extend(f"from {module} import {name}" for name in exports)
-        exports = sorted({"FailureError", *names, *(name for values in additions.values() for name in values)})
-        lines.extend(["", "__all__ = " + repr(exports), ""])
+        # Retire the Shared Generator's Public Transport Facade.
+        facade = source / "client.py"
+        if check and facade.exists():
+            raise ValueError("Check Python Exports: Retire client.py With mise -C sdk/python run generate")
+        if not check:
+            facade.unlink(missing_ok=True)
+        # Generate the Closed Product Root; Operations and Templates Own Their Contexts.
+        lines = ["# @generated from the product public-home inventory; do not edit."]
+        lines.extend(f"from . import {module}" for module in ROOT_EXPORTS)
+        lines.append("")
+        for module, names in ROOT_EXPORTS.items():
+            lines.extend(f"{name} = {module}.{name}" for name in names)
         barrel = output / "__init__.py"
-        barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+        barrel.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         subprocess.run(
-            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)],
+            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I", "--fix", str(barrel)],
             check=True,
         )
         subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
         text = barrel.read_text(encoding="utf-8")
         target = source / "__init__.py"
-        if check:
-            if target.read_text(encoding="utf-8") != text:
-                raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
-        else:
-            target.write_text(text, encoding="utf-8", newline="\n")
-
-        # Compose the Plugin Barrel Without Duplicating the Root Authoring Exports.
-        plugin_types = ast.parse((source / "_generated/plugin_types.py").read_text(encoding="utf-8"))
-        names = sorted({item.name for node in plugin_types.body if isinstance(node, ast.ImportFrom) for item in node.names})
-        lines = [
-            "# @generated from protocol descriptors; do not edit.",
-            "from .._generated.host import HostOperation, HostRoot",
-            *(f"from .._generated.plugin_types import {name}" for name in names),
-            "",
-            "__all__ = " + repr(["HostOperation", "HostRoot", *names]),
-            "",
-        ]
-        barrel = output / "plugin.py"
-        barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-        subprocess.run(
-            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)],
-            check=True,
-        )
-        subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
-        text = barrel.read_text(encoding="utf-8")
-        target = source / "plugin/__init__.py"
         if check:
             if target.read_text(encoding="utf-8") != text:
                 raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")

@@ -13,10 +13,11 @@ description = "Prepare the Python Environment"
 run = ['uv sync --locked --all-groups --project ../../tools/python', { task = "build" }, { task = "install" }]
 
 [tasks.format]
+usage = 'arg "[paths]..."'
 description = "Format the Python SDK"
 run = [
-  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix .',
-  'uv run --no-sync --project ../../tools/python ruff format .',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix {% if usage.paths %}{{usage.paths | join(sep=" ")}}{% else %}.{% endif %}',
+  'uv run --no-sync --project ../../tools/python ruff format {% if usage.paths %}{{usage.paths | join(sep=" ")}}{% else %}.{% endif %}',
 ]
 
 [tasks.check]
@@ -25,7 +26,9 @@ run = [
   'uv run --no-sync --project ../../tools/python ruff format --check .',
   'uv run --no-sync --project ../../tools/python ruff check .',
   'uv run --no-sync --project ../../tools/python ty check --project .',
-  'uv run --no-sync --project ../../tools/python ty check --project . --no-force-exclude --extra-search-path examples/test/tests --extra-search-path examples/test examples/test/tests/host.py examples/test/tests/test_capture.py',
+  'uv run --no-sync --project ../../tools/python python tools/stubs.py',
+  'uv run --no-sync --project ../../tools/python python -c "from pathlib import Path; from dokime_tools.build.protocol_callers import check_public_surfaces; check_public_surfaces(Path.cwd().parents[1])"',
+
 ]
 
 [tasks.build]
@@ -43,10 +46,11 @@ run = 'uv run --no-sync --project ../../tools/python python tools/installed.py i
 
 [tasks.test]
 description = "Test the Installed Python SDK"
-usage = 'flag "--layer <layer>" { choices "unit" "integration" }'
+usage = 'flag "--layer <layer>" { choices "unit" "integration" "system" }; flag "--select <select>" help="Run Matching Python Tests"'
 run = [
-  '{% if not usage.layer or usage.layer == "unit" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v{% endif %}',
-  '{% if not usage.layer or usage.layer == "integration" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v{% endif %}',
+  '{% if not usage.layer or usage.layer == "unit" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v{% if usage.select %} -k "{{usage.select}}"{% endif %}{% endif %}',
+  '{% if not usage.layer or usage.layer == "integration" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v{% if usage.select %} -k "{{usage.select}}"{% endif %}{% endif %}',
+  '{% if usage.layer == "system" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -v{% if usage.select %} -k "{{usage.select}}"{% endif %}{% endif %}',
 ]
 
 [tasks.wheel]
@@ -61,9 +65,9 @@ run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 
 [tasks.example-test]
 hide = true
-description = "Test the Test Examples"
-dir = "examples/test"
-run = 'uv run --no-sync --project ../../../../tools/python python -m unittest discover -s tests -v'
+description = "Test the Starter Description Without a Host"
+dir = "examples/starter"
+run = 'uv run --no-sync --project ../../../../tools/python python -m unittest'
 
 [tasks.generate]
 description = "Generate Typed Python Protocol Packages"

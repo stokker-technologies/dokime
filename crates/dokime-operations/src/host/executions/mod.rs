@@ -20,6 +20,7 @@ pub mod list;
 pub mod parameters;
 pub mod progress;
 pub mod schemas;
+pub mod seal;
 pub mod set;
 pub mod start;
 pub mod steps;

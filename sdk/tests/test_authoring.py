@@ -6,14 +6,14 @@
 #
 # ***
 
-"""Compare the Four Installed SDKs' Shared Capture Description."""
+"""Run Each SDK Capture Through the Product Host With Its Current Authoring Shape."""
 
 # === Imports === #
 
 # Standard Library Imports
 import asyncio
 import os
-import subprocess
+import runpy
 import sys
 import unittest
 from pathlib import Path
@@ -22,13 +22,14 @@ from pathlib import Path
 
 # Third Party Imports
 from grpc.aio import insecure_channel
-from harmos._wire.model.v1.description_pb2 import Declarations
 from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetResponse
 
 # isort: split
 
 # Local Imports
-from dokime import RecordContracts, Suites
+from dokime_sdk import PromptAnswer, PromptQuestion, ResultStatus
+from dokime_sdk._generated import client_types
+from dokime_sdk._generated.shared import RecordContracts, Suites
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
 
@@ -44,26 +45,41 @@ from dokime_tools.test import policy
 
 
 class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
-    async def test_shared_capture_identifiers_and_record_contracts_match(self) -> None:
+    async def test_four_languages_capture_prompt_record_and_sealed_outcome(self) -> None:
+        # Start the Product Host for All Four Current Authoring Surfaces.
         root = Path(__file__).resolve().parents[2]
+        host = await runpy.run_path(str(root / "sdk/python/tests/support/host.py"))["Host"].start(self)
+        client = host.client
+
+        async def answer(question: PromptQuestion) -> PromptAnswer:
+            return PromptAnswer(question.choices[0])
+
+        client.on_prompt(answer)
         extension = ".exe" if os.name == "nt" else ""
         configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release").lower()
-        dotnet = subprocess.check_output(
-            ["mise", "-C", str(root / "sdk/csharp"), "which", "dotnet"],
-            text=True,
+        locating = await asyncio.create_subprocess_exec(
+            "mise",
+            "-C",
+            str(root / "sdk/csharp"),
+            "which",
+            "dotnet",
+            stdout=asyncio.subprocess.PIPE,
             creationflags=spawn_flags(),
-        ).strip()
+        )
+        output, _ = await locating.communicate()
+        self.assertEqual(locating.returncode, 0, "Locate C# Fixture: Install Its Declared Tool With Mise")
+        dotnet = output.decode().strip()
         commands = {
-            "python": [sys.executable, str(root / "sdk/python/examples/test/plugin.py"), "--address", "127.0.0.1:0"],
+            "python": [sys.executable, str(root / "sdk/tests/fixtures/python/capture/plugin.py")],
             "rust": [str(root / f"target/debug/dokime-rust-test{extension}"), "--remote"],
             "csharp": [dotnet, str(root / f"target/cs/bin/Test/{configuration}/dokime-example-test.dll"), "--remote"],
             "cpp": [str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}"), "--address", "127.0.0.1:0"],
         }
-        descriptions = {}
         timeout = policy.load(root).deadline("integration")
         environment = dict(os.environ)
         environment.pop("HARMOS_ADDRESS", None)
         for language, command in commands.items():
+            # Launch the Prepared Fixture and Observe Its Bound Listener.
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdin=asyncio.subprocess.PIPE,
@@ -72,77 +88,78 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 creationflags=spawn_flags(),
             )
             try:
-                async with asyncio.timeout(timeout):
-                    assert process.stdout is not None
-                    while True:
-                        line = (await process.stdout.readline()).decode().strip()
-                        if not line:
-                            raise RuntimeError(f"Describe {language} Capture: Build and Correct the Example Plugin")
-                        if line.startswith("harmos listening "):
-                            address = line.removeprefix("harmos listening ")
-                            break
-                        if line.startswith("http://"):
-                            address = line
-                            break
-                    channel = insecure_channel(address.removeprefix("http://"))
+                assert process.stdout is not None
+                line = (await asyncio.wait_for(process.stdout.readline(), timeout)).decode().strip()
+                address = line.removeprefix("harmos listening ").removeprefix("http://")
+                self.assertTrue(address, f"Describe {language}: Announce the Bound Listener")
+                channel = insecure_channel(address)
+                try:
+                    get = channel.unary_unary(
+                        "/harmos.plugin.v1.Instance/Get",
+                        request_serializer=InstanceGetRequest.SerializeToString,
+                        response_deserializer=InstanceGetResponse.FromString,
+                    )
+                    response = await get(InstanceGetRequest(revision=1, host="authoring_equivalence", host_version="1.0.0"))
+                finally:
+                    await channel.close()
+
+                # Preserve Each Native Identity and the Shared Boolean Record Contract.
+                suites = Suites()
+                records = RecordContracts()
+                for section in response.declarations.sections:
+                    if section.type == suites.DESCRIPTOR.full_name:
+                        suites.ParseFromString(section.payload)
+                    if section.type == records.DESCRIPTOR.full_name:
+                        records.ParseFromString(section.payload)
+                self.assertEqual(len(suites.suites), 1, language)
+                self.assertEqual(len(records.records), 1, language)
+                suite = suites.suites[0]
+                self.assertEqual(len(suite.templates), 1, language)
+                expected = "capture.confirmation" if language == "python" else "capture"
+                self.assertEqual(suite.templates[0].metadata.identifier, expected, language)
+                record = records.records[0]
+                self.assertEqual(record.metadata.identifier, f"{expected}.confirmation", language)
+                self.assertEqual(record.message, "google.protobuf.BoolValue", language)
+
+                # Register the Fixture and Wait on Host Readiness.
+                created = await client._transport.plugins.create(
+                    response.id,
+                    client_types.PluginPlacement(remote=client_types.PluginRemote(url=f"http://{address}")),
+                    client_types.PluginValue(enabled=True),
+                )
+                try:
+                    watching = client._transport.plugins.watch(name=created.entry.name)
                     try:
-                        get = channel.unary_unary(
-                            "/harmos.plugin.v1.Instance/Get",
-                            request_serializer=InstanceGetRequest.SerializeToString,
-                            response_deserializer=InstanceGetResponse.FromString,
-                        )
-                        response = await get(InstanceGetRequest(revision=1, host="authoring_equivalence", host_version="1.0.0"))
-                        descriptions[language] = contracts(response.declarations)
+                        async for frame in watching:
+                            observed = await client._transport.plugins.get(created.entry.name)
+                            self.assertFalse(observed.entry.HasField("failure"), str(observed.entry.failure))
+                            if observed.entry.state == client_types.PLUGIN_STATE_READY:
+                                break
                     finally:
-                        await channel.close()
+                        await watching.aclose()
+
+                    # Run the Shared Operator Flow and Read Its Frozen Boolean Evidence.
+                    cases = await client.cases.materialize(expected, plugin=created.entry.name, suite=suite.metadata.identifier)
+                    self.assertEqual(len(cases), 1, language)
+                    cycle = await client.cycle(label=f"{language.title()} Capture")
+                    execution = await cycle.execution(cases[0])
+                    async for progress in execution.run():
+                        pass
+                    self.assertEqual((await execution.seal()).status, ResultStatus.PASSED, language)
+                    self.assertTrue(await execution.records(record.metadata.identifier, row_type=bool).last(), language)
+                    self.assertEqual(await execution.records(record.metadata.identifier, row_type=bool).count(), 1, language)
+                    await cycle.seal()
+                    print(f"Capture Host Story: {language}: Passed", flush=True)
+                finally:
+                    current = await client._transport.plugins.get(created.entry.name)
+                    await client._transport.plugins.delete(created.entry.name, current.entry.revision)
             finally:
                 if process.returncode is None:
                     process.terminate()
                 await process.wait()
-        expected = descriptions["python"]
-        self.assertEqual(expected["operations"], ["capture.cleanup", "capture.confirm", "capture.confirmed", "capture.materialize"])
-        self.assertEqual(expected["records"], [("capture.confirmation", "google.protobuf.BoolValue")])
-        self.assertEqual(
-            expected["suites"],
-            [("capture", [("capture", "capture.materialize", "", "capture.cleanup", [("capture.confirm", "capture.confirm")])])],
-        )
-        for language, description in descriptions.items():
-            self.assertEqual(description, expected, language)
 
 
 # === Public Functions === #
-
-
-def contracts(declarations: Declarations) -> dict[str, object]:
-    suites = Suites()
-    records = RecordContracts()
-    for section in declarations.sections:
-        if section.type == suites.DESCRIPTOR.full_name:
-            suites.ParseFromString(section.payload)
-        if section.type == records.DESCRIPTOR.full_name:
-            records.ParseFromString(section.payload)
-    return {
-        "operations": sorted(operation.id for operation in declarations.operations),
-        "streams": sorted(stream.id for stream in declarations.streams),
-        "records": sorted((record.metadata.identifier, record.message) for record in records.records),
-        "suites": [
-            (
-                suite.metadata.identifier,
-                [
-                    (
-                        template.metadata.identifier,
-                        template.materialize,
-                        template.initialize,
-                        template.cleanup,
-                        [(step.metadata.identifier, step.operation) for step in template.steps],
-                    )
-                    for template in suite.templates
-                ],
-            )
-            for suite in suites.suites
-        ],
-    }
-
 
 # === Private Functions === #
 

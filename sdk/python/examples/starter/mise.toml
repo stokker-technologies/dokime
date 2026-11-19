@@ -1,0 +1,49 @@
+# ***
+#
+# Starter Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Tools === #
+
+[tools]
+uv = "latest"
+
+[tools."github:stokker-technologies/dokime"]
+version = "nightly"
+platforms.windows-x64 = { asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+platforms.linux-x64 = { asset_pattern = "dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz" }
+
+# === Prepare === #
+
+[tasks.build]
+description = "Install the Project and Its Tools"
+run = "uv sync"
+
+# === Check === #
+
+[tasks.check]
+description = "Lint, Check Formatting and Check Types"
+run = ["uv run ruff check", "uv run ruff format --check", "uv run ty check"]
+
+[tasks.format]
+description = "Format and Apply Safe Lint Fixes"
+run = ["uv run ruff check --fix", "uv run ruff format"]
+
+# === Run === #
+
+[tasks.dev]
+description = "Run the Plugin in a Temporary Dokime"
+run = "dokime dev --plugin ."
+
+[tasks.run]
+description = "Drive the Plugin Through a Running Dokime"
+run = "uv run python -m starter_project"
+
+# === Test === #
+
+[tasks.test]
+description = "Check the Plugin Description Without a Host"
+run = "uv run python -m unittest"

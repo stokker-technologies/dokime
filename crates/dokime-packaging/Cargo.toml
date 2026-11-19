@@ -28,6 +28,8 @@ harmos-runtime = { workspace = true }
 # Logging
 
 # Utilities
+semver = { workspace = true }
+spdx = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -40,12 +42,14 @@ toml = { workspace = true }
 ignore = { workspace = true }
 
 # Parsing
+roxmltree = { workspace = true }
 
 # Concurrency
 
 # Async
 
 # Networking
+reqwest = { workspace = true }
 
 # Storage
 

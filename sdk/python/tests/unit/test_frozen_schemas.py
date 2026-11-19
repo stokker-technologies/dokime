@@ -1,6 +1,6 @@
 # ***
 #
-# Dokime
+# dokime-rust-workspace
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,9 +23,10 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from harmos import PageRequest, Position
 
 # Local Imports
-from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest
-from dokime.client import ExecutionDetail, SchemasGetResponse
-from dokime.schemas import FrozenSchemaCache
+from dokime_sdk._errors import SdkError
+from dokime_sdk._generated.client_types import ExecutionDetail, SchemasGetResponse
+from dokime_sdk._schemas import FrozenSchemaCache
+from dokime_sdk._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest
 
 # Type Checking Imports
 
@@ -86,7 +87,7 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
             else:
                 damaged.types.file[0].package = "changed"
             self.get.return_value = damaged
-            with self.assertRaises(ValueError):
+            with self.assertRaises(SdkError):
                 await cache.get(self.client, self.detail)
             self.get.return_value = self.reply
             self.assertEqual(await cache.get(self.client, self.detail), self.types)
@@ -120,12 +121,12 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decoded.SerializeToString(), b"\x0a\x02\x08\x01")
         self.assertEqual([request.page.page_token for request in seen], ["", "next"])
         self.assertTrue(all(request.at == self.detail.resolved_at for request in seen))
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SdkError):
             await cache.decode(self.client, self.detail, "example.Absent", b"")
 
     async def test_repeated_page_token_is_refused(self) -> None:
         self.reply.next_page_token = "same"
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SdkError):
             await FrozenSchemaCache().get(self.client, self.detail)
         self.assertEqual(self.get.await_count, 2)
 

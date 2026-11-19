@@ -43,6 +43,23 @@ def main() -> None:
         check=True,
         creationflags=spawn_flags(),
     )
+    # Install the Example Distributions Without Replacing the Selected SDK Wheel.
+    subprocess.run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
+            "--no-deps",
+            "--reinstall",
+            str(root / "sdk/python/examples/client"),
+            str(root / "sdk/python/examples/starter"),
+            str(root / "sdk/python/examples/thermal"),
+        ],
+        check=True,
+        creationflags=spawn_flags(),
+    )
 
 
 # === Private Functions === #

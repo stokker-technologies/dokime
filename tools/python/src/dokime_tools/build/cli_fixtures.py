@@ -118,7 +118,7 @@ def build(profile: str, language: str = "rust") -> None:
         scratch = scratch_directory.name
         try:
             project = Path(scratch) / language
-            example = project / ("Test" if language == "csharp" else "test")
+            example = project if language == "python" else project / ("Test" if language == "csharp" else "test")
             arguments = [str(cli), "new", str(project), "--lang", language]
             if language == "cpp":
                 sdk = root / "target/cp/tests/dokime-cpp.tar.gz"

@@ -1,0 +1,43 @@
+# ***
+#
+# Starter Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Project === #
+
+[project]
+name = "starter-project"
+version = "0.1.0"
+description = "Confirm a step with the operator and echo text."
+authors = [{ name = "Your Name", email = "you@example.com" }]
+license = "Apache-2.0"
+requires-python = ">=3.13"
+dependencies = ["dokime-sdk @ git+https://github.com/stokker-technologies/dokime@nightly#subdirectory=sdk/python", "rich"]
+
+[project.urls]
+Repository = "https://github.com/your-organization/starter-project"
+
+[dependency-groups]
+dev = ["ruff", "ty"]
+
+# === Build === #
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+# === Lint and Format === #
+
+[tool.ruff]
+line-length = 140
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+# The CLI Substitutes Both the Project Name and This Import Package.
+[tool.uv.build-backend]
+module-name = "starter_project"

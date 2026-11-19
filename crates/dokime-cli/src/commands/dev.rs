@@ -84,9 +84,9 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
     let result: Result<()> = async {
         let endpoint = {
             let activate = async {
-                if input == DevelopmentInput::Project {
-                    super::plugin::project::prepare(&plugin).await?;
-                }
+                let project = if input == DevelopmentInput::Project {
+                    Some(super::plugin::project::prepare(&plugin).await?)
+                } else { None };
                 let started = super::server::start(root.path(), Some("127.0.0.1:0".into()), false, None, &settings, true).await?;
                 let endpoint = format!("http://{}", started.endpoint());
                 server = Some(started);
@@ -96,6 +96,8 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
                     }
                     DevelopmentInput::Project => {
                         process = Some(PluginProcess::start(&plugin, true, &settings.placement()).await?);
+                        let description = process.as_mut().ok_or("Develop Plugin: Retain Its Process")?.describe().await?;
+                        project.as_ref().ok_or("Develop Plugin: Retain Its Manifest")?.resolve_metadata(&description.version)?;
                         let url = process.as_ref().ok_or("Develop Plugin: Retain Its Process")?.endpoint().to_owned();
                         super::plugin::add::attach(url, Some(endpoint.clone()), &settings, None).await?;
                     }
