@@ -312,7 +312,7 @@ class Plugin:
             response=response_type,
             visibility=VISIBILITY_PROTECTED,
             policy=wire_policy,
-            replay_safe=bool(retries),
+            replay_safe=bool(retries or policy is not None and policy.retries is not None),
         )(execute)
 
     def _stream(

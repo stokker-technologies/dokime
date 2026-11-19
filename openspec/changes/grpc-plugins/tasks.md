@@ -178,7 +178,7 @@
 - [x] Run the Unmodified Created Python Client With CLI Prompt Answers, Execution and Cycle Seals, and Member-Identical Host Archives.
 - [x] Run the Shared Capture Through a Product Host in All Four Languages While Retaining Their Current Authoring Surfaces.
 - [x] Refresh the Owner's Scratch Python Project From the Shipped Starter and Leave Its Validated Evidence Archive Under `_output/`.
-- [ ] Reconcile Python's Locked Nonnegative Retry Backoff With the Pinned Host's Positive-Only Policy Before NativeAuthoringStory and Both Python Thermal Runtime Stories Can Pass; Do Not Invent an Adapter Delay.
+- [ ] Prove Positive Python Retry Policies in NativeAuthoringStory and Both Python Thermal Runtime Stories; Reject Non-Positive Backoff at Operation Declaration and Keep the Explicit Fixture Delay.
 - [x] Resolve the Plugin Class Identity Override Versus Resolved Instance Readback: Expose the Resolved Identifier on Each Instance Before and After Registration.
 - [x] Keep Unanswered Starter Prompts Pending Across the Host Mutation Deadline and Explicit Controlled-Clock Advancement; Answer Them to Seal Passed With Retained Evidence.
-- [ ] Complete the Requested Python Shape Proof Set; the Locked Nonnegative Retry Contract and the Library's Frozen Bundle Version Remain Unresolved.
+- [ ] Complete the Requested Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff and the Library's Frozen Bundle Version Fix.

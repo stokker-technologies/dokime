@@ -12,11 +12,13 @@
 
 # Standard Library Imports
 import asyncio
+from datetime import timedelta
 
 # isort: split
 
 # Third Party Imports
 from dokime_sdk import Plugin, Suite
+from dokime_sdk.operations import OperationPolicy, RetryPolicy
 from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
 from google.protobuf.message import Message
 
@@ -50,7 +52,7 @@ class ThermalCycleTestTemplate(TestTemplate):
         self.limit = limit
         await ctx.log("Initialized")
 
-    @step("Ramp to Target", identifier="ramp", retries=2)
+    @step("Ramp to Target", identifier="ramp", policy=OperationPolicy(retries=RetryPolicy(3, timedelta(milliseconds=100))))
     async def ramp(self, ctx: Context) -> None:
         await ctx.progress(1, 2, label="Ramp to Target")
 

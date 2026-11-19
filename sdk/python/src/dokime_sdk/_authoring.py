@@ -374,6 +374,8 @@ def step[**P, R](
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
             raise TypeError("Register Definition: Supply a Function")
+        if policy is not None:
+            policy._validate(build_identifier(handler.__name__, identifier))
         vars(handler)["__dokime_step__"] = Step(label, handler, identifier, retries, repeatable, policy)
         return handler
 
@@ -386,6 +388,8 @@ def criterion[**P, R](
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
             raise TypeError("Register Definition: Supply a Function")
+        if policy is not None:
+            policy._validate(build_identifier(handler.__name__, identifier))
         vars(handler)["__dokime_criterion__"] = Criterion(label, handler, identifier, policy)
         return handler
 

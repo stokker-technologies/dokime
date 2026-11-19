@@ -69,10 +69,6 @@ class RetryPolicy:
     def __post_init__(self) -> None:
         if type(self.total_attempts) is not int or self.total_attempts < 1:
             raise ValueError("Declare Retry Policy: Supply Positive total_attempts")
-        if not math.isfinite(self.initial.total_seconds()) or self.initial < timedelta():
-            raise ValueError("Declare Retry Policy: Supply a Nonnegative Initial Backoff")
-        if self.maximum is not None and self.maximum < self.initial:
-            raise ValueError("Declare Retry Policy: Set maximum at Least initial")
 
 
 @dataclass(frozen=True)
@@ -86,6 +82,14 @@ class OperationPolicy:
         for duration in (self.timeout, self.attempt_timeout, self.cancellation_timeout):
             if duration is not None and (not math.isfinite(duration.total_seconds()) or duration <= timedelta()):
                 raise ValueError("Declare Operation Policy: Supply Positive Finite Durations")
+
+    def _validate(self, operation: str) -> None:
+        if self.retries is None:
+            return
+        if not math.isfinite(self.retries.initial.total_seconds()) or self.retries.initial <= timedelta():
+            raise ValueError(f"Declare Operation {operation}: Set retries.initial to a Positive Finite Backoff")
+        if self.retries.maximum is not None and self.retries.maximum < self.retries.initial:
+            raise ValueError(f"Declare Operation {operation}: Set retries.maximum at Least retries.initial")
 
     def _definition(self) -> shared.OperationPolicy:
         value = shared.OperationPolicy()
@@ -170,6 +174,8 @@ class Operation[Q: Payload, R: Payload]:
             raise TypeError("Declare Operation: Supply a Visibility Member")
         if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*", self.identifier):
             raise ValueError("Declare Operation: Supply a Lowercase Dotted Identifier")
+        if self.policy is not None:
+            self.policy._validate(self.identifier)
         if self.policy is not None and self.policy.retries is not None and not self.replay_safe:
             raise ValueError("Declare Operation: Mark Retried Operations replay_safe")
         message_type(self.request)

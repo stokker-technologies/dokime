@@ -212,11 +212,27 @@ class AuthoringStory(unittest.TestCase):
         self.assertRaises(TypeError, Operation, "wrong_visibility", int, int, cast(Any, 2))
 
     def test_policy_has_one_retry_source_and_requires_replay_safety(self) -> None:
-        policy = OperationPolicy(retries=RetryPolicy(2, timedelta()))
+        policy = OperationPolicy(retries=RetryPolicy(2, timedelta(milliseconds=100)))
         self.assertRaises(ValueError, step, "Measure", retries=1, policy=policy)
         self.assertRaises(ValueError, Operation, "read", int, int, Visibility.PUBLIC, policy)
         self.assertRaises(ValueError, RetryPolicy, 0, timedelta())
         self.assertRaises(ValueError, OperationPolicy, timeout=timedelta())
+
+    def test_retry_backoff_is_positive_at_operation_declaration(self) -> None:
+        async def measure(ctx: dokime_sdk.templates.Context) -> None:
+            pass
+
+        async def evaluate(ctx: dokime_sdk.templates.Context) -> bool:
+            return True
+
+        for initial in (timedelta(), timedelta(milliseconds=-1)):
+            policy = OperationPolicy(retries=RetryPolicy(2, initial))
+            error = r"Declare Operation measure:.*retries\.initial.*Positive"
+            self.assertRaisesRegex(ValueError, error, step("Measure", policy=policy), measure)
+            self.assertRaisesRegex(
+                ValueError, r"Declare Operation evaluate:.*retries\.initial.*Positive", criterion("Evaluate", policy=policy), evaluate
+            )
+            self.assertRaisesRegex(ValueError, error, Operation, "measure", int, int, Visibility.PUBLIC, policy, replay_safe=True)
 
     def test_operation_and_template_contexts_are_distinct(self) -> None:
         operations = dokime_sdk.operations.Context

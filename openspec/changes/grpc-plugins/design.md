@@ -1291,7 +1291,7 @@ class Visibility(IntEnum):
 @dataclass(frozen=True)
 class RetryPolicy:
     total_attempts: int               # Positive; includes the first attempt.
-    initial: timedelta               # Nonnegative host-clock backoff.
+    initial: timedelta               # Positive host-clock backoff.
     maximum: timedelta | None = None # If supplied, bounded exponential backoff.
     deterministic_jitter: bool = False
 
@@ -1342,8 +1342,9 @@ class SecretDeclaration:
 
 The NEW product policy/settings values use the existing canonical fields and
 translate once at the SDK boundary; they do not duplicate policy execution or
-setting storage. Validate positive finite policy durations and nonnegative
-backoff; None means inheritance. S1's serial admission field is intentionally
+setting storage. Validate positive finite policy durations and retry backoff at
+operation declaration, naming the operation and invalid field; zero backoff is
+invalid. None means inheritance. S1's serial admission field is intentionally
 absent until the owner defines its scope; no implementer should infer its shape.
 
 ```python

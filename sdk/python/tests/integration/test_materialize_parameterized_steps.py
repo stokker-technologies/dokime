@@ -15,6 +15,7 @@ import asyncio
 import runpy
 import unittest
 from collections.abc import Mapping
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
@@ -25,6 +26,7 @@ from harmos._wire.plugin.v1.invocation_pb2 import Request
 # Local Imports
 import dokime_sdk.operations
 from dokime_sdk import Client, Failure, Plugin, ResultStatus, Scalar, Suite
+from dokime_sdk.operations import OperationPolicy, RetryPolicy
 from dokime_sdk.templates import (
     Context,
     Materialization,
@@ -218,7 +220,7 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             async def setup(self, ctx: Context) -> None:
                 instances.append(self.channels)
 
-            @step("Measure", retries=1)
+            @step("Measure", policy=OperationPolicy(retries=RetryPolicy(2, timedelta(milliseconds=100))))
             async def measure(self, ctx: Context, *, channel: int) -> None:
                 attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
