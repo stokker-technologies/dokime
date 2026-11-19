@@ -21,7 +21,6 @@ mod installation;
 use std::{
     collections::HashMap,
     fs::{self, File, OpenOptions},
-    io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, Weak},
 };
@@ -150,7 +149,7 @@ impl Host {
         let placement = PluginPlacement {
             kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: endpoint.into() })),
         };
-        self.create_plugin(name.into(), placement).await
+        self.create_plugin(name.into(), placement, None).await
     }
     pub async fn add_managed(&self, name: &str, executable: &Path, assets: &[PathBuf]) -> Result<String> {
         let identity = Identity {
@@ -176,7 +175,7 @@ impl Host {
                 content: Some(content),
             })),
         };
-        self.create_plugin(name.into(), placement).await
+        self.create_plugin(name.into(), placement, None).await
     }
     async fn upload_plugin_bundle(&self, bytes: &[u8], metadata: FileMetadata) -> Result<FileReference> {
         let context = self
@@ -224,7 +223,7 @@ impl Host {
         .ok_or_else(|| Error::Invalid("Add Plugin: Publish Its Bundle".into()))?;
         Ok(content)
     }
-    async fn create_plugin(&self, name: String, placement: PluginPlacement) -> Result<String> {
+    async fn create_plugin(&self, name: String, placement: PluginPlacement, origin: Option<String>) -> Result<String> {
         self.admit("Add Plugin")?;
         let context = self
             .executions
@@ -240,7 +239,7 @@ impl Host {
                 placement: Some(placement),
                 value: Some(PluginValue { enabled: true }),
                 request_id: Uuid::now_v7().to_string(),
-                origin: None,
+                origin,
             })
             .await?;
         self.await_plugin_ready(&name).await?;
@@ -525,11 +524,6 @@ impl Host {
     }
 }
 /* === Public Functions === */
-
-/// Resolve Resources Beside the Installed Product Executable, Including Linux's Real Binary.
-pub fn installation_directory(executable: &Path) -> io::Result<&Path> {
-    executable.parent().ok_or_else(|| io::Error::other("Resolve Installation: Use a Product Executable With a Parent Folder"))
-}
 
 /* === Private Functions === */
 

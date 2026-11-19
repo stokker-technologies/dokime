@@ -118,27 +118,34 @@ variable is added.
 
 Installation admission uses the existing managed upload, registry Create, staged
 Replace and Delete paths, with the same verification and lifecycle guarantees.
-The managed content reference records installation provenance and the bundle
-filename in its media-type parameters, inside the existing registry entry.
-There is no second registry. Missing bundles retire installation-owned entries;
-changed verified bundle digests replace them. A corrupt replacement retains the
-last admitted bundle. A development installation without the folder admits nothing.
+Only a registry entry whose `origin` is `installation` is owned by startup
+reconciliation. Admission sets that origin on Create; List/Get return it, Replace
+preserves it and the library persists it. Content references carry ordinary bundle
+metadata, never ownership or filenames. There is no second registry. Verified
+bundles match entries by plugin identity and digest, independently of filenames.
+Missing bundles retire installation-owned entries; changed verified digests replace
+them. An incomplete or corrupt scan defers removals because it cannot establish the
+identity of every shipped file; valid files still admit. A corrupt replacement
+retains the last admitted bundle. A development installation without the folder
+admits nothing.
 
-Registry entry names are the management identity. The existing Create operation
-refuses a second entry of the same name: a user-owned entry therefore wins a
-collision and is never replaced or removed by startup reconciliation. A later
-user replacement carries user-upload metadata and is likewise outside the
-installation-owned set. Renaming a shipped file uses Replace to retain its management identity and
-settings. Changing a bundle identity retires the obsolete installation entry
-through Delete.
+Registry entry names are the management identity. A user-created entry has empty
+origin and always wins a name collision, including one reusing installation
+content. Startup reports that shipped bundle as not admitted and never replaces
+or removes the user's entry. User replacement preserves the entry's existing
+origin, so replacing an installation-owned entry does not transfer its ownership.
+Renaming a shipped file keeps its identity, settings and registry revision without
+a write. Changing a bundle identity retires the obsolete installation entry through
+Delete after a complete verified scan.
 
-An unchanged folder performs no upload, Create, Replace or Delete. Existing library
-restoration still persists activation state on every host open, so the required
-zero-registry-write restart guarantee remains unfulfilled by this candidate. This
-does not weaken the owner's idempotency requirement. The library also
-retains bounded replay receipts for Create and Replace. Startup adds no parallel
-receipt policy. Superseded extracted copies use the existing retirement paths;
-superseded uploaded content is released through Files.Delete.
+An unchanged folder performs no upload, Create, Replace or Delete and causes no
+registry writes during restore or reconciliation. The regression counts registry
+writes through SQLite storage triggers, independently of filesystem timestamps,
+and verifies the counter observes actual later mutations. The library retains
+bounded replay receipts for Create and Replace; startup adds no parallel receipt
+policy. Superseded extracted copies use existing retirement paths. Superseded
+uploaded content is released through Files.Delete only when no registry entry
+references its storage position, including entries with empty origin.
 
 Each failed bundle reports its path, reason and corrective action through existing
 plugin health events, Status health and the Status log, while other bundles are
@@ -146,24 +153,6 @@ admitted. Preparation proof materializes the native payload before the installer
 tool boundary; it does not execute an installer or install the product.
 
 ## Remaining Owner Decisions
-
-The pinned library registry has no entry-owned installation provenance. The
-candidate's content-reference marker follows a bundle reference when a user
-creates a separate entry from already uploaded installation content. That entry
-can then be mistaken for installation ownership and removed, also releasing
-content still referenced by another entry. This is unresolved REWORK: provenance
-must belong to the registry entry at Create/Replace, and shared content must stay
-retained. It does not amend the decision that user-installed entries are never
-touched. The regression is
-`crates/dokime-runtime/tests/system/installation_plugins.rs::user_entry_reusing_installation_content_survives_reconciliation`.
-
-The startup candidate also fails the desktop's existing Send requirement. Calling
-the shared lending readiness callbacks from startup produces a higher-ranked Send
-error; omitting reconciliation isolates that failure but removes required behavior.
-The shared readiness boundary must support the spawned host startup without a
-second readiness loop or a separate desktop execution model. The compile-contract
-regression is
-`crates/dokime-runtime/tests/system/installation_plugins.rs::host_startup_future_can_cross_threads`.
 
 The current-user, no-elevation implementation applies to Windows NSIS. Linux
 DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format

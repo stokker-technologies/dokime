@@ -15,7 +15,7 @@
 
 // Standard Library Imports
 use std::{
-    env, io,
+    env, fs, io, path,
     path::{Path, PathBuf},
 };
 
@@ -93,7 +93,7 @@ impl DistributionIdentity {
 /* === Implementations === */
 
 impl ApplicationPaths {
-    pub fn resolve(application_id: &str) -> std::io::Result<Self> {
+    pub fn resolve(application_id: &str) -> io::Result<Self> {
         let executable = env::current_exe()?;
         Self::resolve_for(&executable, application_id, None)
     }
@@ -145,7 +145,7 @@ impl ApplicationPaths {
     fn resolve_with(application_id: &str, root: Option<PathBuf>, windows: bool, get: impl Fn(&str) -> Option<PathBuf>) -> io::Result<Self> {
         let distribution = DistributionIdentity::new(application_id).map_err(io::Error::other)?;
         if let Some(root) = root {
-            let root = std::path::absolute(root)?;
+            let root = path::absolute(root)?;
             let mut paths = Self::new(root);
             paths.distribution = distribution;
             return Ok(paths);
@@ -175,8 +175,8 @@ impl ApplicationPaths {
 /* === Public Functions === */
 
 pub fn distribution_identity(executable: &Path, compiled_identifier: &str) -> io::Result<DistributionIdentity> {
-    let directory = dokime_runtime::installation_directory(executable)?;
-    let bytes = match std::fs::read(directory.join("distribution.json")) {
+    let directory = dokime_packaging::installation::directory(executable)?;
+    let bytes = match fs::read(directory.join("distribution.json")) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return DistributionIdentity::new(compiled_identifier).map_err(io::Error::other);

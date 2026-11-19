@@ -28,16 +28,15 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 // Local Imports
-use super::{Host, installation_directory, lock};
+use super::{Host, lock};
 use crate::{Error, Result};
 use dokime_operations::host::files::delete;
-use dokime_packaging::bundle;
+use dokime_packaging::{bundle, installation};
 use dokime_protocol::host::FilesDeleteRequest;
 
 /* === Constants === */
 
-// Provenance Lives in the Managed Content Reference Already Persisted by the Registry.
-const INSTALLATION_SOURCE: &str = "application/x-tar; source=installation; file=";
+const INSTALLATION_ORIGIN: &str = "installation";
 
 /* === Macros === */
 
@@ -55,15 +54,15 @@ impl Host {
     pub(super) async fn reconcile_installation_plugins(&self) {
         let directory = match &self.settings.installation {
             Some(directory) => directory.clone(),
-            None => match env::current_exe().and_then(|executable| installation_directory(&executable).map(Path::to_path_buf)) {
+            None => match env::current_exe().and_then(|executable| installation::directory(&executable).map(Path::to_path_buf)) {
                 Ok(directory) => directory,
                 Err(error) => {
-                    self.report_plugin_admission_failure(Path::new("plugins"), error);
+                    self.report_plugin_admission_failure(Path::new(installation::PLUGINS), error);
                     return;
                 }
             },
         };
-        let directory = directory.join("plugins");
+        let directory = directory.join(installation::PLUGINS);
         if let Err(error) = self.reconcile_directory(&directory).await {
             self.report_plugin_admission_failure(&directory, error);
         }
@@ -94,20 +93,12 @@ impl Host {
         }
         files.sort();
         let mut names = BTreeSet::new();
-        let mut unverified = BTreeSet::new();
         for path in files {
-            let Some(filename) = path.file_name() else {
-                // Do Not Interpret an Unreadable Filename as Removing a Previously Shipped Bundle.
-                complete = false;
-                self.report_plugin_admission_failure(&path, "Select a Named Bundle File");
-                continue;
-            };
-            let filename = filename.as_encoded_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-            let source = format!("{INSTALLATION_SOURCE}{filename}");
             let bundle = match bundle::open(&path) {
                 Ok(bundle) => bundle,
                 Err(error) => {
-                    unverified.insert(source);
+                    // An Unverified File Cannot Establish Which Previously Admitted Identity It Replaces.
+                    complete = false;
                     self.report_plugin_admission_failure(&path, error);
                     continue;
                 }
@@ -116,7 +107,7 @@ impl Host {
                 self.report_plugin_admission_failure(&path, "Give Each Shipped Bundle a Distinct Plugin Identity");
                 continue;
             }
-            if let Err(error) = self.admit_installation_bundle(&bundle, &source).await {
+            if let Err(error) = self.admit_installation_bundle(&bundle).await {
                 self.report_plugin_admission_failure(&path, error);
             }
         }
@@ -130,9 +121,7 @@ impl Host {
             .ok_or_else(|| Error::Invalid("Reconcile Installation Plugins: Assemble the Host Context".into()))?;
         let entries = context.operations.call_protobuf::<List>(PluginsListRequest { at: None }).await?.entries;
         for entry in entries {
-            let Some(content) = installation_content(&entry) else { continue };
-            let source = &content.metadata.as_ref().expect("installation metadata").media_type;
-            if !complete || names.contains(&entry.name) || unverified.contains(source) {
+            if entry.origin != INSTALLATION_ORIGIN || !complete || names.contains(&entry.name) {
                 continue;
             }
             if let Err(error) = self.remove_installation_plugin(&entry).await {
@@ -143,7 +132,7 @@ impl Host {
         Ok(())
     }
 
-    async fn admit_installation_bundle(&self, bundle: &Bundle, source: &str) -> Result<()> {
+    async fn admit_installation_bundle(&self, bundle: &Bundle) -> Result<()> {
         let name = bundle.manifest().identity.name.clone();
         let digest = Sha256::digest(bundle.bytes()).to_vec();
         let context = self
@@ -156,16 +145,14 @@ impl Host {
         let entries = context.operations.call_protobuf::<List>(PluginsListRequest { at: None }).await?.entries;
         let previous = entries.into_iter().find(|entry| entry.name == name);
         if let Some(entry) = &previous {
-            let owned = installation_content(entry).is_some();
+            let owned = entry.origin == INSTALLATION_ORIGIN;
             if !owned {
                 return Err(Error::Invalid(format!(
                     "Admit Installation Plugin {name}: Entry Already Exists; Keep the User Entry and Give the Shipped Bundle an Unused Name"
                 )));
             }
-            let same_source = installation_content(entry)
-                .is_some_and(|content| content.metadata.as_ref().is_some_and(|metadata| metadata.media_type == source));
             let same_digest = managed(entry).is_some_and(|managed| managed.sha256 == digest);
-            if same_source && same_digest {
+            if same_digest {
                 if entry.value.as_ref().is_some_and(|value| value.enabled) {
                     self.await_plugin_ready(&name).await?;
                 }
@@ -177,7 +164,7 @@ impl Host {
             .upload_plugin_bundle(
                 bundle.bytes(),
                 FileMetadata {
-                    media_type: source.into(),
+                    media_type: "application/x-tar".into(),
                     ..Default::default()
                 },
             )
@@ -208,11 +195,11 @@ impl Host {
                 }
                 return Err(run);
             }
-            if let Some(content) = installation_content(&entry) {
-                self.release_bundle(content.clone()).await?;
+            if let Some(content) = managed(&entry).and_then(|managed| managed.content.as_ref()) {
+                self.release_unretained_bundle(content.clone()).await?;
             }
         } else {
-            let result = self.create_plugin(name.clone(), placement).await;
+            let result = self.create_plugin(name.clone(), placement, Some(INSTALLATION_ORIGIN.into())).await;
             if let Err(error) = result {
                 // Create Persists Failed Admissions Too; Keep Their Content and Registry Failure.
                 if let Err(close) = self.release_unretained_bundle(content).await {
@@ -228,28 +215,14 @@ impl Host {
     }
 
     async fn remove_installation_plugin(&self, entry: &PluginEntry) -> Result<()> {
-        let content = installation_content(entry)
-            .ok_or_else(|| Error::Invalid("Remove Installation Plugin: Keep the User-Installed Entry".into()))?;
+        if entry.origin != INSTALLATION_ORIGIN {
+            return Err(Error::Invalid("Remove Installation Plugin: Keep the User-Installed Entry".into()));
+        }
+        let content = managed(entry).and_then(|managed| managed.content.clone());
         self.remove_plugin(&entry.name).await?;
-        self.release_bundle(content.clone()).await
-    }
-
-    async fn release_bundle(&self, file: FileReference) -> Result<()> {
-        let context = self
-            .executions
-            .inner
-            .context
-            .get()
-            .and_then(Weak::upgrade)
-            .ok_or_else(|| Error::Invalid("Release Plugin Bundle: Assemble the Host Context".into()))?;
-        delete::handle(
-            &context,
-            FilesDeleteRequest {
-                file: Some(file),
-                request_id: Uuid::now_v7().to_string(),
-            },
-        )
-        .await?;
+        if let Some(content) = content {
+            self.release_unretained_bundle(content).await?;
+        }
         Ok(())
     }
 
@@ -267,9 +240,17 @@ impl Host {
             .await?
             .entries
             .iter()
-            .any(|entry| managed(entry).and_then(|managed| managed.content.as_ref()) == Some(&file));
+            .filter_map(|entry| managed(entry).and_then(|managed| managed.content.as_ref()))
+            .any(|content| content.position == file.position);
         if !retained {
-            self.release_bundle(file).await?;
+            delete::handle(
+                &context,
+                FilesDeleteRequest {
+                    file: Some(file),
+                    request_id: Uuid::now_v7().to_string(),
+                },
+            )
+            .await?;
         }
         Ok(())
     }
@@ -310,11 +291,6 @@ fn managed(entry: &PluginEntry) -> Option<&PluginManaged> {
         plugin_placement::Kind::Managed(managed) => Some(managed),
         _ => None,
     }
-}
-
-fn installation_content(entry: &PluginEntry) -> Option<&FileReference> {
-    let content = managed(entry)?.content.as_ref()?;
-    content.metadata.as_ref()?.media_type.starts_with(INSTALLATION_SOURCE).then_some(content)
 }
 
 /* === Tests === */

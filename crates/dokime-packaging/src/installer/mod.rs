@@ -59,6 +59,7 @@ use tauri_bundler::Settings;
 use tempfile::TempDir;
 
 // Local Imports
+use crate::installation;
 
 /* === Constants === */
 
@@ -131,7 +132,7 @@ pub async fn prepare(path: &Path, options: &PackageOptions) -> Result<PreparedIn
     native::validate_signing(&manifest, options.sign)?;
     let mut selected = options.plugins.clone();
     if options.artifacts.is_some() && !names.is_empty() {
-        let directory = source.join("plugins");
+        let directory = source.join(installation::PLUGINS);
         let mut paths = Vec::new();
         for entry in
             fs::read_dir(&directory).map_err(|error| Error::Invalid(format!("Add Requested .dokime Bundles to {directory:?}: {error}")))?

@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub mod bundle;
+pub mod installation;
 
 #[cfg(feature = "installer")]
 pub mod installer;

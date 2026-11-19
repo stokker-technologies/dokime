@@ -94,6 +94,8 @@ tonic = { workspace = true, features = ["tls-ring"] }
 # Local
 dokime = { path = "../../sdk/rust" }
 dokime-client-internal = { workspace = true }
+# Native Payload Preparation Is Test-Only; Shipping Hosts Do Not Link Installer Tooling.
+dokime-packaging = { workspace = true, features = ["installer"] }
 dokime-test-support = { workspace = true }
 
 # Git

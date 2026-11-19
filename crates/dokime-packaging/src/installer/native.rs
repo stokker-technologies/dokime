@@ -38,6 +38,7 @@ use super::{
     license,
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
 };
+use crate::installation;
 
 /* === Constants === */
 
@@ -138,7 +139,7 @@ pub(super) fn prepare(
     }
     let mut resources = HashMap::new();
     for (name, staged) in plugins {
-        let relative = format!("plugins/{name}");
+        let relative = format!("{}/{name}", installation::PLUGINS);
         resources.insert(staged.to_string_lossy().into_owned(), relative.clone());
         let linux_path = PathBuf::from(format!("/{installed_resource_prefix}{relative}"));
         linux_files.insert(linux_path, staged.clone());

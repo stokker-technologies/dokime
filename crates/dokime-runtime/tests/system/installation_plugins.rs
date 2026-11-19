@@ -27,13 +27,14 @@ use std::{
 // Third Party Imports
 use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginState, PluginValue, plugin_placement};
 use harmos_runtime::bundle::Identity;
+use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use tonic::transport::Endpoint;
 
 // Local Imports
 use super::support;
-use dokime::client::{ExecutionState, ResultStatus};
-use dokime::{Client, MapValue};
+use dokime::MapValue;
+use dokime_client_internal::{Client, ExecutionState, ResultStatus};
 use dokime_packaging::{
     bundle,
     installer::{self, PackageOptions},
@@ -125,19 +126,35 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             let executable = support::thermal_fixture()?;
             let mut first_path = plugins.join("first.dokime");
             fs::write(&first_path, shipped_bundle(&executable, "com.example.testhub", "1.0.0")?)?;
-            fs::write(plugins.join("second.dokime"), shipped_bundle(&executable, "example-pack", "1.0.0")?)?;
+            fs::write(plugins.join("second.dokime"), shipped_bundle(&executable, "example_pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             let first = inventory(&client).await?;
             assert_eq!(first.len(), 2);
             for entry in first.values() {
-                assert!(content(entry).content.as_ref().unwrap().metadata.as_ref().unwrap().media_type.contains("source=installation"));
+                assert_eq!(entry.origin, "installation");
             }
 
             // Keep a User Install Beside the Shipped Set.
-            let user = install_user(&client, shipped_bundle(&executable, "example-pack-user", "1.0.0")?, "example-pack-user").await?;
+            let user = install_user(&client, shipped_bundle(&executable, "example_pack_user", "1.0.0")?, "example_pack_user").await?;
             let installed_copies = copies(root.path())?;
             assert_eq!(installed_copies.len(), 3);
             server.close().await?;
+
+            // Count Registry Writes at the Existing SQLite Storage Boundary, Including In-Place Updates.
+            let database = Connection::open(root.path().join("storage.sqlite3"))?;
+            database.execute_batch(
+                "CREATE TABLE registry_writes(count INTEGER NOT NULL);
+                 INSERT INTO registry_writes VALUES(0);
+                 CREATE TRIGGER count_registry_inserts AFTER INSERT ON storage_rows
+                   WHEN NEW.schema_id='harmos.plugins.registry'
+                   BEGIN UPDATE registry_writes SET count=count+1; END;
+                 CREATE TRIGGER count_registry_updates AFTER UPDATE ON storage_rows
+                   WHEN NEW.schema_id='harmos.plugins.registry'
+                   BEGIN UPDATE registry_writes SET count=count+1; END;
+                 CREATE TRIGGER count_registry_deletes AFTER DELETE ON storage_rows
+                   WHEN OLD.schema_id='harmos.plugins.registry'
+                   BEGIN UPDATE registry_writes SET count=count+1; END;",
+            )?;
 
             // Restart Without Uploading, Replacing or Re-extracting Unchanged Bundles.
             let (server, client) = open(root.path(), installation.path()).await?;
@@ -146,11 +163,13 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
                 assert_eq!(unchanged[name].revision, entry.revision);
                 assert_eq!(unchanged[name].placement, entry.placement);
             }
-            assert_eq!(unchanged["example-pack-user"].placement, user.placement);
+            assert_eq!(unchanged["example_pack_user"].placement, user.placement);
             assert_eq!(copies(root.path())?, installed_copies);
             server.close().await?;
+            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
+            assert_eq!(writes, 0, "An Unchanged Restart Must Not Write the Plugin Registry");
 
-            // A Renamed Bundle Keeps Its Management Identity and Enablement Through Replace.
+            // A Renamed Bundle Keeps Its Management Identity and Enablement Without a Write.
             let renamed = plugins.join("renamed.dokime");
             fs::rename(&first_path, &renamed)?;
             first_path = renamed;
@@ -172,12 +191,16 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             assert_ne!(updated["com.example.testhub"].revision, first["com.example.testhub"].revision);
             assert_ne!(updated["com.example.testhub"].placement, first["com.example.testhub"].placement);
             assert_eq!(updated["com.example.testhub"].description.as_ref().unwrap().version, "2.0.0");
-            assert_eq!(updated["example-pack-user"].placement, user.placement);
+            assert_eq!(updated["example_pack_user"].placement, user.placement);
             assert_eq!(copies(root.path())?.len(), 2);
             for entry in first.values() {
                 assert!(client.files.get(content(entry).content.clone().unwrap()).await.is_err());
             }
             server.close().await?;
+
+            // Confirm the Counter Observes Actual Registry Mutations.
+            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
+            assert!(writes > 0);
 
             // Removing the Whole Folder Retires Only Installation Entries.
             fs::remove_file(&first_path)?;
@@ -185,7 +208,7 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             let (server, client) = open(root.path(), installation.path()).await?;
             let remaining = inventory(&client).await?;
             assert_eq!(remaining.len(), 1);
-            assert_eq!(remaining["example-pack-user"].placement, user.placement);
+            assert_eq!(remaining["example_pack_user"].placement, user.placement);
             assert_eq!(copies(root.path())?.len(), 1);
             server.close().await?;
             Ok::<(), Box<dyn Error>>(())
@@ -205,7 +228,7 @@ fn corrupt_installation_bundle_reports_health_and_keeps_valid_bundles() -> Resul
             fs::create_dir_all(&plugins)?;
             let corrupt = plugins.join("a-corrupt.dokime");
             fs::write(&corrupt, b"corrupt archive")?;
-            fs::write(plugins.join("z-valid.dokime"), shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
+            fs::write(plugins.join("z-valid.dokime"), shipped_bundle(&support::thermal_fixture()?, "example_pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             assert!(client.status.get().await?.status.unwrap().available);
             assert_eq!(inventory(&client).await?.len(), 1);
@@ -231,25 +254,25 @@ fn user_plugin_wins_a_shipped_name_collision() -> Result<(), Box<dyn Error>> {
             let (server, client) = open(root.path(), installation.path()).await?;
             assert!(inventory(&client).await?.is_empty());
             assert!(client.evidence.health_events.list(Default::default()).await?.events.is_empty());
-            let user = install_user(&client, shipped_bundle(&executable, "example-pack", "1.0.0")?, "example-pack").await?;
+            let user = install_user(&client, shipped_bundle(&executable, "example_pack", "1.0.0")?, "example_pack").await?;
             server.close().await?;
 
             // An Installer Cannot Replace a User Entry of the Same Identity.
             let plugins = installation.path().join("plugins");
             fs::create_dir_all(&plugins)?;
-            fs::write(plugins.join("example-pack.dokime"), shipped_bundle(&executable, "example-pack", "2.0.0")?)?;
+            fs::write(plugins.join("example_pack.dokime"), shipped_bundle(&executable, "example_pack", "2.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             let current = inventory(&client).await?;
             assert_eq!(current.len(), 1);
-            assert_eq!(current["example-pack"].placement, user.placement);
-            assert_eq!(current["example-pack"].revision, user.revision);
+            assert_eq!(current["example_pack"].placement, user.placement);
+            assert_eq!(current["example_pack"].revision, user.revision);
             assert_eq!(client.evidence.health_events.list(Default::default()).await?.events.len(), 1);
             server.close().await?;
 
             // Removing the Shipped Bundle Also Leaves the User Entry Untouched.
-            fs::remove_file(plugins.join("example-pack.dokime"))?;
+            fs::remove_file(plugins.join("example_pack.dokime"))?;
             let (server, client) = open(root.path(), installation.path()).await?;
-            assert_eq!(inventory(&client).await?["example-pack"].placement, user.placement);
+            assert_eq!(inventory(&client).await?["example_pack"].placement, user.placement);
             server.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })
@@ -266,16 +289,16 @@ fn corrupt_update_preserves_the_previously_admitted_bundle() -> Result<(), Box<d
             let installation = tempfile::tempdir()?;
             let plugins = installation.path().join("plugins");
             fs::create_dir_all(&plugins)?;
-            let path = plugins.join("example-pack.dokime");
-            fs::write(&path, shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
+            let path = plugins.join("example_pack.dokime");
+            fs::write(&path, shipped_bundle(&support::thermal_fixture()?, "example_pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
-            let original = inventory(&client).await?.remove("example-pack").unwrap();
+            let original = inventory(&client).await?.remove("example_pack").unwrap();
             server.close().await?;
 
             // Verification Failure Retains the Existing Entry and Reports the File.
             fs::write(&path, b"corrupt replacement")?;
             let (server, client) = open(root.path(), installation.path()).await?;
-            let retained = inventory(&client).await?.remove("example-pack").unwrap();
+            let retained = inventory(&client).await?.remove("example_pack").unwrap();
             assert_eq!(retained.placement, original.placement);
             assert_eq!(retained.revision, original.revision);
             assert_eq!(copies(root.path())?.len(), 1);
@@ -283,11 +306,11 @@ fn corrupt_update_preserves_the_previously_admitted_bundle() -> Result<(), Box<d
             server.close().await?;
 
             // A Verified but Unlaunchable Replacement Also Rolls Back and Releases Its Candidate.
-            let invalid = installation.path().join(format!("example-pack{EXE_SUFFIX}"));
+            let invalid = installation.path().join(format!("example_pack{EXE_SUFFIX}"));
             fs::write(&invalid, b"invalid native executable")?;
-            fs::write(&path, shipped_bundle(&invalid, "example-pack", "2.0.0")?)?;
+            fs::write(&path, shipped_bundle(&invalid, "example_pack", "2.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
-            let retained = inventory(&client).await?.remove("example-pack").unwrap();
+            let retained = inventory(&client).await?.remove("example_pack").unwrap();
             assert_eq!(retained.placement, original.placement);
             assert_eq!(retained.revision, original.revision);
             assert_eq!(copies(root.path())?.len(), 1);
@@ -330,8 +353,8 @@ fn prepared_installer_layout_lists_and_runs_its_shipped_template() -> Result<(),
             let metadata =
                 serde_json::json!({"schema":1,"version":env!("CARGO_PKG_VERSION"),"target":bundle::native_target(),"files":files});
             fs::write(source.path().join("distribution.json"), serde_json::to_vec(&metadata)?)?;
-            let plugin = source.path().join("example-pack.dokime");
-            fs::write(&plugin, shipped_bundle(&executable, "example-pack", "1.0.0")?)?;
+            let plugin = source.path().join("example_pack.dokime");
+            fs::write(&plugin, shipped_bundle(&executable, "example_pack", "1.0.0")?)?;
             let format = if cfg!(target_os = "windows") { "nsis" } else { "deb" };
             let manifest = source.path().join("installer.toml");
             fs::write(
@@ -367,12 +390,12 @@ fn prepared_installer_layout_lists_and_runs_its_shipped_template() -> Result<(),
                 }
                 installation.path().join("usr/lib/com-example-testhub")
             };
-            assert!(directory.join("plugins/example-pack.dokime").is_file());
+            assert!(directory.join("plugins/example_pack.dokime").is_file());
 
             // List the Shipped Entry and Run Its Template Through the Host Client.
             let product = directory.join(format!("dokime{EXE_SUFFIX}"));
             assert!(product.is_file());
-            let directory = dokime_runtime::installation_directory(&product)?;
+            let directory = dokime_packaging::installation::directory(&product)?;
             let (server, client) = open(root.path(), directory).await?;
             assert_eq!(inventory(&client).await?.len(), 1);
             let suite = client.suites.list(String::new()).await?.values.remove(0);
@@ -413,16 +436,16 @@ fn failed_admission_does_not_block_other_installation_plugins() -> Result<(), Bo
             let installation = tempfile::tempdir()?;
             let plugins = installation.path().join("plugins");
             fs::create_dir_all(&plugins)?;
-            let invalid = installation.path().join(format!("example-pack{EXE_SUFFIX}"));
+            let invalid = installation.path().join(format!("example_pack{EXE_SUFFIX}"));
             fs::write(&invalid, b"invalid native executable")?;
             let failed = plugins.join("a-failed.dokime");
             fs::write(&failed, shipped_bundle(&invalid, "com.example.testhub", "1.0.0")?)?;
-            fs::write(plugins.join("z-valid.dokime"), shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
+            fs::write(plugins.join("z-valid.dokime"), shipped_bundle(&support::thermal_fixture()?, "example_pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             assert!(client.status.get().await?.status.unwrap().available);
             let entries = client.plugins.list().await?.entries;
             assert_eq!(entries.len(), 2);
-            assert_eq!(entries.iter().find(|entry| entry.name == "example-pack").unwrap().state, PluginState::Ready as i32);
+            assert_eq!(entries.iter().find(|entry| entry.name == "example_pack").unwrap().state, PluginState::Ready as i32);
             let unavailable = entries.iter().find(|entry| entry.name == "com.example.testhub").unwrap();
             assert_eq!(unavailable.state, PluginState::Unavailable as i32);
             assert!(unavailable.failure.is_some());
@@ -444,10 +467,11 @@ fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(
             let installation = tempfile::tempdir()?;
             let plugins = installation.path().join("plugins");
             fs::create_dir_all(&plugins)?;
-            fs::write(plugins.join("example-pack.dokime"), shipped_bundle(&support::thermal_fixture()?, "example-pack", "1.0.0")?)?;
+            fs::write(plugins.join("example_pack.dokime"), shipped_bundle(&support::thermal_fixture()?, "example_pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
-            let shipped = inventory(&client).await?.remove("example-pack").unwrap();
+            let shipped = inventory(&client).await?.remove("example_pack").unwrap();
             let file = content(&shipped).content.clone().unwrap();
+            assert_eq!(shipped.origin, "installation");
 
             // A User Creates an Independent Entry From Already Uploaded Content.
             let user = client
@@ -456,19 +480,48 @@ fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(
                 .await?
                 .entry
                 .unwrap();
-            support::plugin_state(&client.plugins, user, PluginState::Ready).await?;
+            let user = support::plugin_state(&client.plugins, user, PluginState::Ready).await?;
+            assert!(user.origin.is_empty());
             server.close().await?;
 
             // Startup Must Preserve Both Entries and Their Shared Immutable Content.
             let (server, client) = open(root.path(), installation.path()).await?;
             let entries = inventory(&client).await?;
-            let content_available = client.files.get(file).await.is_ok();
+            let content_available = client.files.get(file.clone()).await.is_ok();
             let health = client.evidence.health_events.list(Default::default()).await?;
             server.close().await?;
             assert!(entries.contains_key("com.example.testhub"));
-            assert!(entries.contains_key("example-pack"));
+            assert!(entries.contains_key("example_pack"));
             assert!(content_available);
             assert!(health.events.is_empty());
+
+            // Replacing the Shipped Bundle Must Keep Content Still Referenced by the User Entry.
+            fs::write(plugins.join("example_pack.dokime"), shipped_bundle(&support::thermal_fixture()?, "example_pack", "2.0.0")?)?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let entries = inventory(&client).await?;
+            assert_eq!(entries["example_pack"].origin, "installation");
+            assert_eq!(entries["com.example.testhub"].revision, user.revision);
+            assert_eq!(entries["com.example.testhub"].placement, user.placement);
+            assert!(client.files.get(file.clone()).await.is_ok());
+            let current = entries["example_pack"].clone();
+            let current_file = content(&current).content.clone().unwrap();
+            let sharing =
+                client.plugins.create("example.current", current.placement.unwrap(), PluginValue { enabled: true }).await?.entry.unwrap();
+            let sharing = support::plugin_state(&client.plugins, sharing, PluginState::Ready).await?;
+            assert!(sharing.origin.is_empty());
+            server.close().await?;
+
+            // Removing the Shipped Bundle Retires Only Its Entry, Preserving the User's Shared Content.
+            fs::remove_file(plugins.join("example_pack.dokime"))?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let entries = inventory(&client).await?;
+            assert_eq!(entries.len(), 2);
+            assert_eq!(entries["example.current"].placement, sharing.placement);
+            assert_eq!(entries["com.example.testhub"].revision, user.revision);
+            assert_eq!(entries["com.example.testhub"].placement, user.placement);
+            assert!(client.files.get(file).await.is_ok());
+            assert!(client.files.get(current_file).await.is_ok());
+            server.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
