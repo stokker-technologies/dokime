@@ -25,10 +25,15 @@ from pathlib import Path
 from typing import Protocol, cast
 from zipfile import ZipFile
 
+# isort: split
+
 # Third Party Imports
 from dokime_sdk import Client, ResultStatus
 
+# isort: split
+
 # Local Imports
+import dokime_tools.test.execution
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
 
@@ -105,26 +110,15 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         output, _ = await asyncio.wait_for(process.communicate(), timeout)
         self.assertEqual(process.returncode, 0, output.decode())
 
-        # Build the Created Project Through the C++ SDK's Owned Compiler Task.
-        process = await asyncio.create_subprocess_exec(
-            "mise",
-            "-C",
-            str(repository / "sdk/cpp"),
-            "run",
-            "consumer",
-            "--",
-            "--preset",
-            "tests",
-            "--source",
-            str(project),
-            env=environment,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            creationflags=spawn_flags(),
+        # Build Through the Created Project's Own Task, Reused by Bundle and Dev.
+        status = await asyncio.to_thread(
+            dokime_tools.test.execution.execute,
+            ["mise", "-C", str(project), "run", "build"],
+            project,
+            environment,
+            timeout_s=timeout,
         )
-        self.addAsyncCleanup(_close, process)
-        output, _ = await asyncio.wait_for(process.communicate(), timeout)
-        self.assertEqual(process.returncode, 0, output.decode())
+        self.assertEqual(status, 0)
 
         # Build and Inspect the Bundle Through the Product Command.
         bundle = scratch / "created.dokime"
@@ -195,7 +189,7 @@ class CreatedProjectStory(unittest.IsolatedAsyncioTestCase):
         host = await factory.start(self)
         environment["DOKIME_REMOTE"] = host.endpoint
         process = await asyncio.create_subprocess_exec(
-            str(repository / "target/cp/consumer" / f"dokime-client{suffix}"),
+            str(project / "build" / f"dokime-client{suffix}"),
             cwd=project,
             env=environment,
             stdout=asyncio.subprocess.PIPE,
