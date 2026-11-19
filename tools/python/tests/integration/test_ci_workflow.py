@@ -212,7 +212,7 @@ class WorkflowTests(unittest.TestCase):
     def test_nightly_report_requires_exact_publication_identity(self) -> None:
         sha = "a" * 40
         url = "https://example.test/run"
-        identity = f"| CI Run | [7]({url}) |"
+        identity = f"Built from [`{sha[:8]}`](https://example.test/commit/{sha}) · [run 7]({url})"
         notes = identity + "\n"
         release = {"body": notes + "\n<!-- nightly-results -->\n{}\n<!-- /nightly-results -->\n", "target_commitish": sha}
         with (
@@ -225,7 +225,12 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue(nightly.complete(Path.cwd()))
             self.assertEqual(publish.call_count, 2)
             self.assertEqual(publish.call_args.kwargs["release_notes"], notes)
-            for body, revision in ((identity.replace("[7]", "[70]"), sha), (identity, "b" * 40)):
+            for body, revision in (
+                (identity.replace("[run 7]", "[run 70]"), sha),
+                (identity.replace(url, url + "/other"), sha),
+                (identity.replace(sha, "b" * 40), sha),
+                (identity, "b" * 40),
+            ):
                 release.update(body=body, target_commitish=revision)
                 self.assertFalse(nightly.complete(Path.cwd()))
             self.assertEqual(publish.call_count, 2)
