@@ -135,6 +135,7 @@ use prost_types::FileDescriptorSet;
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
+            installation: None,
             credentials: test_support::credentials(),
             capture: dokime_runtime::CaptureSettings::default(),
             clock: Arc::new(ControlledClock::new(0)),

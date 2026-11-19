@@ -84,6 +84,7 @@ use harmos_protocol::host::{StatusGetRequest, StatusGetResponse};
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
+            installation: None,
             credentials: dokime_gui::test_support::credentials(),
             capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),

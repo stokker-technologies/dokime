@@ -108,7 +108,7 @@ pub fn resolve_directory(directory: Option<&Path>) -> Result<ResolvedPack, Strin
 
 pub fn installation_directory() -> Option<std::path::PathBuf> {
     let executable = std::env::current_exe().ok()?;
-    let directory = executable.parent()?.join("organization");
+    let directory = dokime_runtime::installation_directory(&executable).ok()?.join("organization");
     directory.join("organization.toml").is_file().then_some(directory)
 }
 

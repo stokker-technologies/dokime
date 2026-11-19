@@ -107,11 +107,44 @@ The kit no longer carries identity/trust metadata; packaging uses the CLI build'
 product configuration for the default identifier and fixed updater verification key.
 Signing never reads an organization-supplied trust key.
 
+## Installation Plugin Admission
+
+Owner decision, 2026-11-19: admit the selected bundles shipped in the installation's
+`plugins/` folder at host startup. Resolve the installation beside the running
+product executable, including the real Linux executable under `/usr/lib/<slug>/`,
+through the same resolver as desktop installation resources. Host settings may
+supply an explicit installation folder for deterministic tests; no environment
+variable is added.
+
+Installation admission uses the existing managed upload, registry Create, staged
+Replace and Delete paths, with the same verification and lifecycle guarantees.
+The managed content reference records installation provenance and the bundle
+filename in its media-type parameters, inside the existing registry entry.
+There is no second registry. Missing bundles retire installation-owned entries;
+changed verified bundle digests replace them. A corrupt replacement retains the
+last admitted bundle. A development installation without the folder admits nothing.
+
+Registry entry names are the management identity. The existing Create operation
+refuses a second entry of the same name: a user-owned entry therefore wins a
+collision and is never replaced or removed by startup reconciliation. A later
+user replacement carries user-upload metadata and is likewise outside the
+installation-owned set. Renaming a shipped file or changing its identity retires
+the obsolete installation entry through Delete.
+
+An unchanged folder performs no upload, Create, Replace or Delete. Existing library
+restoration still persists activation state on every host open; zero total registry
+writes across a restart is not a guarantee of that existing path. The library also
+retains bounded replay receipts for Create and Replace. Startup adds no parallel
+receipt policy. Superseded extracted copies use the existing retirement paths;
+superseded uploaded content is released through Files.Delete.
+
+Each failed bundle reports its path, reason and corrective action through existing
+plugin health events, Status health and the Status log, while other bundles are
+admitted. Preparation proof materializes the native payload before the installer
+tool boundary; it does not execute an installer or install the product.
+
 ## Remaining Owner Decisions
 
-The restored installer places selected verified bundles under the installation's
-`plugins/` folder. The current host admits bundles through its registry and has no
-startup scan of that folder; automatic admission needs a runtime-owned decision.
 The current-user, no-elevation implementation applies to Windows NSIS. Linux
 DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format
 has not been selected.

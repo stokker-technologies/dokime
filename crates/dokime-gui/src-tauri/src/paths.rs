@@ -175,7 +175,7 @@ impl ApplicationPaths {
 /* === Public Functions === */
 
 pub fn distribution_identity(executable: &Path, compiled_identifier: &str) -> io::Result<DistributionIdentity> {
-    let directory = executable.parent().ok_or_else(|| io::Error::other("executable has no parent directory"))?;
+    let directory = dokime_runtime::installation_directory(executable)?;
     let bytes = match std::fs::read(directory.join("distribution.json")) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {

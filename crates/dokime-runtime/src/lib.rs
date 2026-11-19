@@ -36,7 +36,7 @@ pub use dokime_operations::host::files::captures::CaptureSettings;
 pub use dokime_storage::{StorageSettings, storage_defaults};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
-pub use host::{Host, HostSettings};
+pub use host::{Host, HostSettings, installation_directory};
 pub use plugin::{
     INTERVAL_LAG, INTERVAL_WINDOW, PLUGINS_TIMEOUT, PlacementSettings, PluginProcess, STOP_GRACE, await_plugin_ready, describe_plugin,
     plugin_settings,

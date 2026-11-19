@@ -317,13 +317,9 @@ pub(super) fn prepare(
 }
 
 pub fn assemble(
-    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path, output: &Path,
-    options: &PackageOptions,
+    manifest: &Manifest, distribution: &Distribution, settings: &Settings, output: &Path, options: &PackageOptions,
 ) -> Result<Vec<PathBuf>, Error> {
-    let provider = env::var("DOKIME_AUTHENTICODE_PROVIDER").ok();
-    let authenticode = super::signing::authenticode_enabled(provider.as_deref())?;
-    let settings = prepare(manifest, distribution, source, plugins, scratch, options, authenticode)?;
-    let bundles = tauri_bundler::bundle_project(&settings).map_err(|error| {
+    let bundles = tauri_bundler::bundle_project(settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)
     })?;

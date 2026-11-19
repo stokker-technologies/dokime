@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+mod installation;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -18,6 +20,8 @@
 // Standard Library Imports
 use std::{
     collections::HashMap,
+    fs::{self, File, OpenOptions},
+    io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, Weak},
 };
@@ -37,7 +41,8 @@ use harmos_runtime::bundle::Identity;
 use harmos_runtime::operations::StreamSettings;
 use prost::Message;
 use sha2::{Digest, Sha256};
-use tokio::sync::watch::Receiver;
+use tokio::sync::watch::{self, Receiver, Sender};
+use uuid::Uuid;
 
 // Local Imports
 use crate::ExecutionCapabilities;
@@ -66,27 +71,33 @@ use dokime_storage::{ExecutionSnapshot, Store};
 /* === Type Aliases === */
 
 /// The Exclusive Lease on a Storage Root, Released at Shutdown or With Its Last Owner.
-pub(crate) type RootLease = Arc<Mutex<Option<std::fs::File>>>;
+pub(crate) type RootLease = Arc<Mutex<Option<File>>>;
 
 /* === Structs === */
 
 #[derive(Clone)]
 pub struct HostSettings {
+    /// Installation Folder Override; Unset Resolves Beside the Running Product Executable.
+    pub installation: Option<PathBuf>,
+
     pub placement: PlacementSettings,
     pub storage: StorageSettings,
     pub clock: Arc<dyn SchedulerClock>,
     pub capture: CaptureSettings,
+
     /// The Prefix of Every Native Credential the Host Owns; Default `dokime`.
     pub credentials: CredentialNamespace,
 }
+
 #[derive(Clone)]
 pub struct Host {
     pub(crate) store: Store,
     pub(crate) settings: HostSettings,
     pub(crate) plugins: Arc<Mutex<HashMap<String, PluginEntry>>>,
+    pub(crate) plugin_admission_failures: Arc<Mutex<Vec<(String, String)>>>,
     pub(crate) executions: crate::execution_manager::ExecutionManager,
     pub(crate) prompts: Arc<crate::prompts::PromptManager>,
-    changed: tokio::sync::watch::Sender<u64>,
+    changed: Sender<u64>,
     root_lease: RootLease,
     pub(crate) assembly: Option<Arc<crate::services::Assembly>>,
 }
@@ -103,27 +114,23 @@ impl Host {
         crate::process::own_descendants()?;
         let mut host = Self::open_store(root, settings)?;
         host.assembly = Some(Arc::new(Box::pin(crate::services::assemble(&host, root, &operations)).await?));
+        host.reconcile_installation_plugins().await;
         Ok(host)
     }
     fn open_store(root: &Path, settings: HostSettings) -> Result<Self> {
         let root_error = |source| Error::RootIo { path: root.to_path_buf(), source };
-        std::fs::create_dir_all(root).map_err(root_error)?;
-        let lease = std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(root.join("local.lock"))
-            .map_err(root_error)?;
+        fs::create_dir_all(root).map_err(root_error)?;
+        let lease =
+            OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock")).map_err(root_error)?;
         match lease.try_lock() {
             Ok(()) => (),
-            Err(std::fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
-            Err(std::fs::TryLockError::Error(error)) => return Err(root_error(error)),
+            Err(fs::TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_path_buf())),
+            Err(fs::TryLockError::Error(error)) => return Err(root_error(error)),
         }
         let root_lease: RootLease = Arc::new(Mutex::new(Some(lease)));
         let store = Store::open_with(root, settings.storage)?;
         dokime_operations::host::content::validate_store(&store)?;
-        let changed = tokio::sync::watch::channel(0).0;
+        let changed = watch::channel(0).0;
         let plugins = Arc::new(Mutex::new(HashMap::new()));
         let prompts = Arc::new(crate::prompts::PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
         let executions = crate::execution_manager::ExecutionManager::new(
@@ -137,6 +144,7 @@ impl Host {
             store,
             settings,
             plugins,
+            plugin_admission_failures: Arc::new(Mutex::new(Vec::new())),
             executions,
             prompts,
             changed,
@@ -159,6 +167,24 @@ impl Host {
         };
         let bytes = dokime_packaging::bundle::create(executable, assets, identity, None)
             .map_err(|source| Error::Invalid(format!("Create Plugin Bundle: {source}")))?;
+        let content = self
+            .upload_plugin_bundle(
+                &bytes,
+                FileMetadata {
+                    media_type: "application/x-tar".into(),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let placement = PluginPlacement {
+            kind: Some(plugin_placement::Kind::Managed(PluginManaged {
+                sha256: content.sha256.clone(),
+                content: Some(content),
+            })),
+        };
+        self.create_plugin(name.into(), placement).await
+    }
+    async fn upload_plugin_bundle(&self, bytes: &[u8], metadata: FileMetadata) -> Result<FileReference> {
         let context = self
             .executions
             .inner
@@ -169,11 +195,8 @@ impl Host {
         let created = create::handle(
             &context,
             UploadsCreateRequest {
-                request_id: uuid::Uuid::now_v7().to_string(),
-                metadata: Some(FileMetadata {
-                    media_type: "application/x-tar".into(),
-                    ..Default::default()
-                }),
+                request_id: Uuid::now_v7().to_string(),
+                metadata: Some(metadata),
             },
         )
         .await?;
@@ -186,7 +209,7 @@ impl Host {
                     upload: Some(upload),
                     offset,
                     data: chunk.to_vec(),
-                    request_id: uuid::Uuid::now_v7().to_string(),
+                    request_id: Uuid::now_v7().to_string(),
                 },
             )
             .await?;
@@ -198,20 +221,14 @@ impl Host {
             UploadsPublishRequest {
                 upload: Some(upload),
                 length: bytes.len() as u64,
-                sha256: Sha256::digest(&bytes).to_vec(),
-                request_id: uuid::Uuid::now_v7().to_string(),
+                sha256: Sha256::digest(bytes).to_vec(),
+                request_id: Uuid::now_v7().to_string(),
             },
         )
         .await?
         .upload
         .ok_or_else(|| Error::Invalid("Add Plugin: Publish Its Bundle".into()))?;
-        let placement = PluginPlacement {
-            kind: Some(plugin_placement::Kind::Managed(PluginManaged {
-                sha256: content.sha256.clone(),
-                content: Some(content),
-            })),
-        };
-        self.create_plugin(name.into(), placement).await
+        Ok(content)
     }
     async fn create_plugin(&self, name: String, placement: PluginPlacement) -> Result<String> {
         self.admit("Add Plugin")?;
@@ -228,7 +245,7 @@ impl Host {
                 name: name.clone(),
                 placement: Some(placement),
                 value: Some(PluginValue { enabled: true }),
-                request_id: uuid::Uuid::now_v7().to_string(),
+                request_id: Uuid::now_v7().to_string(),
             })
             .await?;
         self.await_plugin_ready(&name).await?;
@@ -511,6 +528,11 @@ impl Host {
     }
 }
 /* === Public Functions === */
+
+/// Resolve Resources Beside the Installed Product Executable, Including Linux's Real Binary.
+pub fn installation_directory(executable: &Path) -> io::Result<&Path> {
+    executable.parent().ok_or_else(|| io::Error::other("Resolve Installation: Use a Product Executable With a Parent Folder"))
+}
 
 /* === Private Functions === */
 

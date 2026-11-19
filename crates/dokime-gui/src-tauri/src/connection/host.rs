@@ -45,7 +45,7 @@ use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::BackendOverviewGetOptions;
 use dokime_sdk::client::OperationsListOptions;
 use dokime_sdk::client::StatusGetOptions;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::plugin_placement;
 
 use super::ConnectionTarget;
 use dokime_sdk::FileReference;
@@ -185,7 +185,7 @@ impl Session {
     pub async fn install_plugin(&self, name: &str, file: FileReference) -> Result<PluginEntry, Error> {
         let sha256 = file.sha256.clone();
         let placement = PluginPlacement {
-            kind: Some(PluginPlacementKind::Managed(PluginManaged { content: Some(file), sha256 })),
+            kind: Some(plugin_placement::Kind::Managed(PluginManaged { content: Some(file), sha256 })),
         };
         let options = PluginsCreateOptions {
             request_id: Some(format!("desktop-install-{name}")),
@@ -545,6 +545,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
 
     ConnectionSettings {
         host: HostSettings {
+            installation: None,
             credentials,
             capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),

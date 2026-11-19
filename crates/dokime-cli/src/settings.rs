@@ -162,6 +162,7 @@ impl Settings {
     pub fn host(&self, controlled: bool) -> Result<HostSettings> {
         let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
         Ok(HostSettings {
+            installation: None,
             credentials: self.credentials()?,
             clock,
             placement: self.placement(),
