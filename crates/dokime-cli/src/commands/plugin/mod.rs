@@ -11,12 +11,12 @@
 
 /* === Modules === */
 
-pub(super) mod add;
 mod bundle;
 mod inspect;
 pub(super) mod install;
 mod list;
 pub(super) mod project;
+pub(super) mod register;
 mod remove;
 mod secrets;
 
@@ -52,7 +52,11 @@ pub(crate) enum Command {
     List(list::Args),
     Bundle(bundle::Args),
     Inspect(inspect::Args),
-    Add(add::Args),
+
+    /// Register a Remote gRPC Plugin by Address.
+    Register(register::Args),
+
+    /// Install a Managed Plugin Bundle.
     Install(install::Args),
 }
 
@@ -65,7 +69,7 @@ impl Command {
         match self {
             Self::Bundle(_) => "Bundle Plugin",
             Self::Inspect(_) => "Inspect Plugin",
-            Self::Add(_) => "Add Plugin",
+            Self::Register(_) => "Register Plugin",
             Self::Install(_) => "Install Plugin",
             Self::List(_) => "List Plugins",
             Self::Remove(_) => "Remove Plugin",
@@ -83,7 +87,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
         Command::List(args) => list::run(args, endpoint, settings).await,
         Command::Bundle(args) => bundle::run(args, endpoint, settings).await,
         Command::Inspect(args) => inspect::run(args, endpoint, settings).await,
-        Command::Add(args) => add::run(args, endpoint, settings).await,
+        Command::Register(args) => register::run(args, endpoint, settings).await,
         Command::Install(args) => install::run(args, endpoint, settings).await,
     }
 }
@@ -153,6 +157,15 @@ mod tests {
     use harmos_runtime::bundle::{Bundle, Identity, Limits};
 
     use crate::{Result, cli::Cli, commands, settings::Settings};
+
+    #[test]
+    fn remote_plugins_register_and_bundles_install() {
+        let cli = Cli::try_parse_from(["dokime", "plugin", "register", "http://127.0.0.1:7001", "--json"]).unwrap();
+        assert!(matches!(cli.command, commands::Command::Plugin(super::Command::Register(_))));
+        let cli = Cli::try_parse_from(["dokime", "plugin", "install", "plugin.dokime"]).unwrap();
+        assert!(matches!(cli.command, commands::Command::Plugin(super::Command::Install(_))));
+        assert!(Cli::try_parse_from(["dokime", "plugin", "add", "http://127.0.0.1:7001"]).is_err());
+    }
 
     #[test]
     fn development_command_replaces_plugin_dev() {

@@ -685,14 +685,30 @@ and SQL execution deletion coexist while the coupled storage cutover remains ope
 prefer deleting the SQL execution cleanup after migrating lifecycle, seal and archive
 callers to the native scope transaction.
 
-No request/session lifetime is defined for the durable cuts: `read` intentionally
-reopens indexed views and refuses unavailable cuts with a resynchronization error.
-The owner must choose between explicit client/session release (requiring ownership
-and cut invalidation semantics), request-only views with explicit durable captures,
-or durable resource views with an explicit release operation. Prefer explicit release
-of client-owned views while retaining separately owned report/evidence captures, as
-part of the coupled view cutover. No retention lifetime, expiry, bound or automatic
-deletion is introduced by the administration performance repair.
+Owner decision, 2026-11-19: a retained browsing view belongs to the client session
+that reads it. Disconnect, explicit close and host observation of a lost connection
+end that scope. Release its indexes and native file when the last live session
+referencing the content ends. At host start, release every client view left by the
+previous process; no client view survives a restart. Durable evidence/report captures
+retain their execution/cycle owner and survive session end and restart. Represent
+client views and durable captures with distinct types and ownership, rather than
+inferring their kind from a key prefix. A released cut returns the existing
+resynchronization error, so the client re-reads. There is no expiry timer, size cap,
+clock-based sweeper or independent connection poller.
+
+Implementation prerequisite at the pinned Harmos revision
+`a037b73e7a60e5fd4be50dbff72779c95ef7cc45`: its
+`crates/harmos-runtime/src/grpc/middleware.rs::Session` is an RPC scope, not a
+connection scope. `Invocation` exposes a peer address and transport extensions;
+`listener.rs::Connection` owns the socket, but exports only `TcpConnectInfo` and
+does not notify product middleware on EOF/drop. Releasing an RPC context would
+invalidate cuts between pages while the client is connected. Keeping a map keyed
+by peer address cannot observe the end of an idle connection. The library must
+expose a connection-scoped identity and end notification/lease to both plaintext
+and access/TLS listeners before the product can implement the complete rule.
+Preserve that transport owner; do not add a second product listener or infer
+connection loss from an operation error. No partial retention repair is implemented
+while this prerequisite is unresolved.
 
 The same `views.rs::read` has two retained-reference lookup paths: position-only
 client cuts select `view-at:{resource}:{epoch}:{sequence}`, while returned cuts with

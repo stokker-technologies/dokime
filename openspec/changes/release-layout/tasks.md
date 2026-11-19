@@ -8,5 +8,6 @@
 - [x] 2.7 Attach `benchmarks.json` to Nightly under its fixed name.
 - [x] 2.8 Extract the shared validation, publish and verify jobs as reusable workflows and make Nightly call them with the nightly channel.
 - [x] 2.9 Align the Nightly contract with Harmos: triggers, cancellation, freshness, names, artifact interface, publish entry point, verification and report.
+- [x] 2.10 Apply the 2026-11-19 owner decision: inventory earlier-release/history consumers, remove publication freshness from Nightly validation dependencies, retain legitimate publication operations and fabricated fixture tests, and record the C++ candidate scaffolding coordinates requirement.
 - [ ] 3.1 Run the release rehearsal and one Nightly, and compare the published asset list with the layout.
 - [ ] 3.2 Verify stable signing/publishing credentials, updater signatures, provenance and checksums against exact packaged/published bytes on Windows and Linux; workflow wiring alone is not provider or publication proof.
