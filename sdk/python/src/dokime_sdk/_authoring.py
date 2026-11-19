@@ -168,7 +168,7 @@ class _Template:
         if len(names) != len(set(names)) or len(declarations) != len({id(member) for member, _, _ in declarations}):
             raise ValueError("Build Plugin: Give Every Template Member a Unique Declaration and Identifier")
         if any(name in bound._lifecycle.values() for name in names):
-            raise ValueError("Build Plugin: Rename Members That Collide With Lifecycle Operations")
+            raise ValueError("Build Plugin: Rename Members That Collide with Lifecycle Operations")
         bound.documents = tuple(deepcopy(item) for item in self.documents)
         document_ids: set[str] = set()
         for declaration, document in zip(self.documents, bound.documents, strict=True):
@@ -376,7 +376,7 @@ def step[**P, R](
             raise TypeError("Register Definition: Supply a Function")
         if retries:
             identity = build_identifier(handler.__name__, identifier)
-            raise ValueError(f"Declare Operation {identity}: Supply policy.retries.initial With a Positive Backoff Instead of retries")
+            raise ValueError(f"Declare Operation {identity}: Supply policy.retries.initial with a Positive Backoff Instead of retries")
         if policy is not None:
             policy._validate(build_identifier(handler.__name__, identifier))
         vars(handler)["__dokime_step__"] = Step(label, handler, identifier, retries, repeatable, policy)
@@ -420,7 +420,7 @@ def observer[**P, R](
 def window_observer[**P, R](
     *, columns: type[Message], interval_ms: float = 1000, interval_setting: str = "", window_setting: str = ""
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    """Answer a Whole Host Window per Call With `columns`, Which Repeats Every Field of the Row.
+    """Answer a Whole Host Window per Call with `columns`, Which Repeats Every Field of the Row.
 
     The method receives the context and the `SampleWindow`; sample `i` is due at
     `window.start + i * window.period`, and every column holds `window.count` values.

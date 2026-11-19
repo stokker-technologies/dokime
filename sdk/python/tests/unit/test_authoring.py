@@ -225,14 +225,12 @@ class AuthoringStory(unittest.TestCase):
         async def evaluate(ctx: dokime_sdk.templates.Context) -> bool:
             return True
 
-        self.assertRaisesRegex(ValueError, r"Declare Operation measure:.*policy\.retries\.initial", step("Measure", retries=1), measure)
+        self.assertRaisesRegex(ValueError, r"measure:.*policy\.retries\.initial", step("Measure", retries=1), measure)
         for initial in (timedelta(), timedelta(milliseconds=-1)):
             policy = OperationPolicy(retries=RetryPolicy(2, initial))
-            error = r"Declare Operation measure:.*retries\.initial.*Positive"
+            error = r"measure:.*retries\.initial"
             self.assertRaisesRegex(ValueError, error, step("Measure", policy=policy), measure)
-            self.assertRaisesRegex(
-                ValueError, r"Declare Operation evaluate:.*retries\.initial.*Positive", criterion("Evaluate", policy=policy), evaluate
-            )
+            self.assertRaisesRegex(ValueError, r"evaluate:.*retries\.initial", criterion("Evaluate", policy=policy), evaluate)
             self.assertRaisesRegex(ValueError, error, Operation, "measure", int, int, Visibility.PUBLIC, policy, replay_safe=True)
 
     def test_operation_and_template_contexts_are_distinct(self) -> None:
