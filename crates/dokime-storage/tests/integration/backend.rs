@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod concurrent_view_retention;
 mod receipt_history_reopens;
 
 /* === Re-Exports === */
