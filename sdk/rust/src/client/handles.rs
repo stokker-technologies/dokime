@@ -69,7 +69,7 @@ pub(super) struct Lifetime {
 
 struct OwnedRegistration {
     identifier: String,
-    listener: harmos::plugin::Listener,
+    listener: ::harmos::plugin::Listener,
     detached: Arc<AtomicBool>,
     bindings: Vec<(TypeId, String, String)>,
 }
@@ -450,7 +450,7 @@ impl RegisteredPlugin {
         self.client.ensure_open()?;
         let value = match self.client.plugins().get(self.identifier()).await {
             Ok(value) => value,
-            Err(Error::Harmos(harmos::Error::Transport(status))) if status.code() == tonic::Code::NotFound => {
+            Err(Error::Harmos(::harmos::Error::Transport(status))) if status.code() == tonic::Code::NotFound => {
                 self.detached.store(true, Ordering::Release);
                 let mut owned = self.client.lifetime.owned.lock().await;
                 if let Some(registration) = owned.iter_mut().find(|registration| registration.identifier == self.identifier()) {

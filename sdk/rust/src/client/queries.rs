@@ -304,7 +304,7 @@ impl<T: Payload> Decoder<T> {
             .map(|record| record.message_name.as_str())
             .or_else(|| bindings.streams.iter().find(|stream| stream.stream == identifier).map(|stream| stream.message_name.as_str()))
             .ok_or_else(|| Error::Invalid("Decode Evidence: Select a Frozen Record or Stream Identity".into()))?;
-        let expected = <T::Message as harmos::Message>::name();
+        let expected = <T::Message as ::harmos::Message>::name();
         if name != expected {
             return Err(Error::Invalid(format!("Decode Evidence: Select the Frozen Row Type {name}, Rather Than {expected}")));
         }
@@ -330,7 +330,7 @@ impl<T: Payload> Decoder<T> {
 
 fn validate_schema<T: Payload>(types: &FileDescriptorSet, name: &str) -> Result<()> {
     let frozen = schema::message_types(types, name).map_err(|error| Error::Invalid(format!("Read Frozen Schema: {error}")))?;
-    let declared = schema::message_types(&<T::Message as harmos::Message>::types(), name)
+    let declared = schema::message_types(&<T::Message as ::harmos::Message>::types(), name)
         .map_err(|error| Error::Invalid(format!("Read Requested Row Schema: {error}")))?;
     if frozen != declared {
         return Err(Error::Invalid("Decode Evidence: Choose a Row Type Matching the Frozen Schema".into()));
@@ -364,8 +364,8 @@ mod tests {
 
     #[test]
     fn matching_names_do_not_hide_changed_frozen_field_types() {
-        let mut types = <<bool as Payload>::Message as harmos::Message>::types();
-        let name = <<bool as Payload>::Message as harmos::Message>::name();
+        let mut types = <<bool as Payload>::Message as ::harmos::Message>::types();
+        let name = <<bool as Payload>::Message as ::harmos::Message>::name();
         assert!(validate_schema::<bool>(&types, &name).is_ok());
         let message = types
             .file

@@ -27,9 +27,9 @@ use crate::authoring;
 use crate::operation::{self, Action, FutureResult};
 use crate::operations;
 use crate::{Context, Error, Message, Result, context::Executions};
-use harmos::plugin;
+use ::harmos::plugin;
 
-use harmos::plugin::Publisher;
+use ::harmos::plugin::Publisher;
 
 /* === Constants === */
 
@@ -115,7 +115,7 @@ impl<T: Message> Stream<T> {
         self.producer = Some(Box::new(move |stream, executions| {
             stream.publish_on(async move |transport: &plugin::Context, publisher| {
                 let context = Context::publication(transport, &executions)?;
-                handler(&context, publisher).await.map_err(harmos::Error::from)
+                handler(&context, publisher).await.map_err(::harmos::Error::from)
             })
         }));
         self
@@ -183,7 +183,7 @@ impl Observer {
                     } else {
                         Context::invocation(transport, &executions)?
                     };
-                    action.execute(&context).await.map_err(harmos::Error::from)
+                    action.execute(&context).await.map_err(::harmos::Error::from)
                 })
             }),
             configure: Vec::new(),
@@ -247,7 +247,7 @@ impl Observer {
                     } else {
                         Context::invocation(transport, &executions)?
                     };
-                    handler(&context, window).await.map_err(harmos::Error::from)
+                    handler(&context, window).await.map_err(::harmos::Error::from)
                 })
             }),
             configure: Vec::new(),

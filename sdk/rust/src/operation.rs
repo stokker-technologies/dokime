@@ -19,9 +19,9 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 // Third Party Imports
-use harmos::OperationPolicy;
-use harmos::Visibility;
-use harmos::plugin;
+use ::harmos::OperationPolicy;
+use ::harmos::Visibility;
+use ::harmos::plugin;
 
 // Local Imports
 use crate::operations;
@@ -139,7 +139,7 @@ where
     H: for<'a> AsyncFn(&'a plugin::Context, Q) -> Result<R> + Send + Sync + 'static,
 {
     plugin::Operation::new(identifier, async move |context: &plugin::Context, request| {
-        handler(context, request).await.map_err(harmos::Error::from)
+        handler(context, request).await.map_err(::harmos::Error::from)
     })
     .visibility(visibility)
 }

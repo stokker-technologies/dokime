@@ -117,8 +117,8 @@ mod tests {
         let message = value.into_message();
         let bytes = message.encode_to_vec();
         assert_eq!(decode::<T>(&bytes).unwrap(), expected);
-        let pool = DescriptorPool::from_file_descriptor_set(<T::Message as harmos::Message>::types()).unwrap();
-        let descriptor = pool.get_message_by_name(&<T::Message as harmos::Message>::name()).unwrap();
+        let pool = DescriptorPool::from_file_descriptor_set(<T::Message as ::harmos::Message>::types()).unwrap();
+        let descriptor = pool.get_message_by_name(&<T::Message as ::harmos::Message>::name()).unwrap();
         let dynamic = prost_reflect::DynamicMessage::decode(descriptor, bytes.as_slice()).unwrap();
         assert_eq!(dynamic.encode_to_vec(), bytes);
     }

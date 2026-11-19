@@ -99,7 +99,7 @@ pub mod encoding {
     /* === Re-Exports === */
 
     pub mod contract {
-        pub use harmos::Message;
+        pub use ::harmos::Message;
     }
     pub use crate::message::Wire;
     pub use ::harmos::encoding::*;

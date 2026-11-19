@@ -24,8 +24,8 @@ pub use crate::record::Record;
 pub use crate::stream::{Observer, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
-pub use harmos::plugin::Publisher;
-pub use harmos::plugin::Window;
+pub use ::harmos::plugin::Publisher;
+pub use ::harmos::plugin::Window;
 pub use types::*;
 include!("host_exports.rs");
 
@@ -41,7 +41,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos::{Visibility, plugin};
+use ::harmos::{Visibility, plugin};
 
 // Local Imports
 use crate::SecretDeclaration;
@@ -66,7 +66,7 @@ use crate::{PromptDefinitions, RecordContracts, Suites};
 
 /* === Type Aliases === */
 
-type DependencyRegistration = Box<dyn FnOnce(&mut plugin::Registrar<'_>) -> harmos::Result<()> + Send>;
+type DependencyRegistration = Box<dyn FnOnce(&mut plugin::Registrar<'_>) -> ::harmos::Result<()> + Send>;
 
 /* === Structs === */
 
@@ -419,7 +419,7 @@ impl Plugin {
         // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
         let managed = env::var_os("HARMOS_ADDRESS").is_some();
         if managed {
-            return self.into_harmos()?.serve().map_err(Error::from);
+            return self.into_harmos()?.run().map_err(Error::from);
         }
         let values = crate::configuration::load()?;
         let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", None, &values)?;

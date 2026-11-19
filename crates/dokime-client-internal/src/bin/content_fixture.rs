@@ -224,7 +224,7 @@ fn main() -> Result<()> {
         })))
     })?;
     let plugin = if env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
-    plugin.serve()
+    plugin.run()
 }
 
 async fn revisioned_progress(ctx: &Context) -> Result<()> {

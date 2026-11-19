@@ -41,7 +41,7 @@ pub enum Error {
     Invalid(String),
 
     #[error(transparent)]
-    Harmos(#[from] harmos::Error),
+    Harmos(#[from] ::harmos::Error),
 }
 
 /* === Traits === */
@@ -50,14 +50,14 @@ pub enum Error {
 
 impl Error {
     pub fn failure(
-        classification: harmos::Classification, code: impl Into<String>, message: impl Into<String>, action: impl Into<String>,
+        classification: ::harmos::Classification, code: impl Into<String>, message: impl Into<String>, action: impl Into<String>,
     ) -> Self {
-        harmos::Error::failure(classification, code, message, action).into()
+        ::harmos::Error::failure(classification, code, message, action).into()
     }
 }
 
-impl From<harmos::Failure> for Error {
-    fn from(failure: harmos::Failure) -> Self {
+impl From<::harmos::model::Failure> for Error {
+    fn from(failure: ::harmos::model::Failure) -> Self {
         Self::Harmos(failure.into())
     }
 }
@@ -80,7 +80,7 @@ impl From<transport::Error> for Error {
     }
 }
 
-impl From<Error> for harmos::Error {
+impl From<Error> for ::harmos::Error {
     fn from(error: Error) -> Self {
         match error {
             Error::Invalid(message) => Self::Invalid(message),
