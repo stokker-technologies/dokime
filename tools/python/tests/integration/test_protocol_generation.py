@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import runpy
 import shutil
 import tempfile
 import unittest
@@ -24,7 +25,7 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol_callers import PYTHON_PUBLIC_HOMES, check_public_surfaces
+from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
 
@@ -50,6 +51,9 @@ class GenerationContracts(unittest.TestCase):
                 scratch = tempfile.TemporaryDirectory()
                 try:
                     root = Path(scratch.name)
+                    generator = root / "sdk/python/tools/generate.py"
+                    generator.parent.mkdir(parents=True)
+                    shutil.copy2(Path(__file__).resolve().parents[4] / "sdk/python/tools/generate.py", generator)
                     path = root / "sdk/python/src" / name
                     path.parent.mkdir(parents=True)
                     path.write_text(source, encoding="utf-8")
@@ -60,8 +64,12 @@ class GenerationContracts(unittest.TestCase):
     def test_three_public_homes_have_one_inventory(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         try:
+            generator = scratch / "sdk/python/tools/generate.py"
+            generator.parent.mkdir(parents=True)
+            shutil.copy2(Path(__file__).resolve().parents[4] / "sdk/python/tools/generate.py", generator)
+            homes = runpy.run_path(str(generator))["PUBLIC_HOMES"]
             package = scratch / "sdk/python/src/dokime_sdk"
-            for module, names in PYTHON_PUBLIC_HOMES.items():
+            for module, names in homes.items():
                 relative = f"{module}/__init__.py" if module == "templates" else f"{module}.py" if module else "__init__.py"
                 path = package / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,6 +103,9 @@ class GenerationContracts(unittest.TestCase):
         scratch = scratch_directory.name
         try:
             root = Path(scratch)
+            generator = root / "sdk/python/tools/generate.py"
+            generator.parent.mkdir(parents=True)
+            shutil.copy2(Path(__file__).resolve().parents[4] / "sdk/python/tools/generate.py", generator)
             readme = root / "README.md"
             readme.write_text("/application.host.v1.Resource/Call", encoding="utf-8")
             internal = root / "sdk/cpp/include/detail/messages.hpp"

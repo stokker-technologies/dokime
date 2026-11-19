@@ -7,7 +7,7 @@
  * ***
  */
 
-// Upload a Bundle Through the Host Plugin Service
+// Install a Bundle Through the Host Plugin Service
 
 /* === Modules === */
 

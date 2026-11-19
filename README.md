@@ -60,6 +60,8 @@ mise run build -- --package dokime-cli
 ./target/debug/dokime dev --no-desktop --plugin ./bench
 ./target/debug/dokime plugin bundle ./bench --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
+./target/debug/dokime --endpoint http://127.0.0.1:7000 plugin register http://127.0.0.1:7001
+./target/debug/dokime --endpoint http://127.0.0.1:7000 plugin install ./bench.dokime
 ./target/debug/dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.pair
 ./target/debug/dokime --remote operator.pair --connect-timeout 10 status --json
 ```
@@ -170,7 +172,8 @@ with `dokime plugin bundle . --out ../my-project.dokime`.
 
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
-managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
+managed `.dokime` bundle with `plugin install` or register a remote plugin URL with
+`plugin register`, materialize a case and run it.
 
 For development, `dokime dev --plugin <bundle-or-plugin-folder>` reads `dokime.toml` in
 plugin folders, runs their configured build, and starts a disposable host with console
