@@ -2675,6 +2675,7 @@ When implementation lands, these current statements need reconciliation:
 | `docs/sdk-cpp.md:13`, `:26`, `:85` | Author classes and blocking bound handles hide carrier types and require no starter argument parsing. |
 | `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
 
-README impact belongs to implementation owners: root README's Python import,
-connection and starter path claims need the integrating owner's update; each SDK
-owner updates its package README and examples. Do not edit unrelated prose.
+The root README and SDK package READMEs describe the product imports, bound
+connection/client flow, protected lifecycle operations and single starter roots.
+The documentation changes above remain with the owner; workers do not edit
+`docs/` or unrelated prose.
