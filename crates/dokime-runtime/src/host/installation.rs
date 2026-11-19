@@ -100,8 +100,8 @@ impl Host {
             Err(error) => return Err(error.into()),
         }
         files.sort();
-        let mut present = BTreeSet::new();
-        let mut candidates = Vec::new();
+        let mut names = BTreeSet::new();
+        let mut unverified = BTreeSet::new();
         for path in files {
             let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
                 // Do Not Interpret an Unreadable Filename as Removing a Previously Shipped Bundle.
@@ -111,8 +111,21 @@ impl Host {
             };
             let filename = filename.as_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             let source = format!("{INSTALLATION_SOURCE}{filename}");
-            present.insert(source.clone());
-            candidates.push((path, source));
+            let bundle = match read_bundle(&path) {
+                Ok(bundle) => bundle,
+                Err(error) => {
+                    unverified.insert(source);
+                    self.report_plugin_admission_failure(&path, error);
+                    continue;
+                }
+            };
+            if !names.insert(bundle.manifest().identity.name.clone()) {
+                self.report_plugin_admission_failure(&path, "Give Each Shipped Bundle a Distinct Plugin Identity");
+                continue;
+            }
+            if let Err(error) = self.admit_installation_bundle(&bundle, &source).await {
+                self.report_plugin_admission_failure(&path, error);
+            }
         }
 
         let context = self
@@ -126,22 +139,11 @@ impl Host {
         for entry in entries {
             let Some(content) = installation_content(&entry) else { continue };
             let source = &content.metadata.as_ref().expect("installation metadata").media_type;
-            if !complete || present.contains(source) {
+            if !complete || names.contains(&entry.name) || unverified.contains(source) {
                 continue;
             }
-            let result = self.remove_installation_plugin(&entry).await;
-            if let Err(error) = result {
+            if let Err(error) = self.remove_installation_plugin(&entry).await {
                 self.report_plugin_admission_failure(directory, format!("Remove {}: {error}", entry.name));
-            }
-        }
-        for (path, source) in candidates {
-            let result = async {
-                let bundle = read_bundle(&path)?;
-                self.admit_installation_bundle(&bundle, &source).await
-            }
-            .await;
-            if let Err(error) = result {
-                self.report_plugin_admission_failure(&path, error);
             }
         }
         context.host.refresh_plugin_states().await?;
@@ -159,24 +161,18 @@ impl Host {
             .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Admit Installation Plugin: Assemble the Host Context".into()))?;
         let entries = context.operations.call_protobuf::<List>(PluginsListRequest { at: None }).await?.entries;
-        for entry in &entries {
-            let replaced_identity = entry.name != name
-                && installation_content(entry)
-                    .is_some_and(|content| content.metadata.as_ref().is_some_and(|metadata| metadata.media_type == source));
-            if replaced_identity {
-                self.remove_installation_plugin(entry).await?;
-            }
-        }
         let previous = entries.into_iter().find(|entry| entry.name == name);
         if let Some(entry) = &previous {
-            let owned = installation_content(entry)
-                .is_some_and(|content| content.metadata.as_ref().is_some_and(|metadata| metadata.media_type == source));
+            let owned = installation_content(entry).is_some();
             if !owned {
                 return Err(Error::Invalid(format!(
                     "Admit Installation Plugin {name}: Entry Already Exists; Keep the User Entry and Give the Shipped Bundle an Unused Name"
                 )));
             }
-            if managed(entry).is_some_and(|managed| managed.sha256 == digest) {
+            let same_source = installation_content(entry)
+                .is_some_and(|content| content.metadata.as_ref().is_some_and(|metadata| metadata.media_type == source));
+            let same_digest = managed(entry).is_some_and(|managed| managed.sha256 == digest);
+            if same_source && same_digest {
                 if entry.value.as_ref().is_some_and(|value| value.enabled) {
                     self.await_plugin_ready(&name).await?;
                 }

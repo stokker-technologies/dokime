@@ -128,8 +128,9 @@ Registry entry names are the management identity. The existing Create operation
 refuses a second entry of the same name: a user-owned entry therefore wins a
 collision and is never replaced or removed by startup reconciliation. A later
 user replacement carries user-upload metadata and is likewise outside the
-installation-owned set. Renaming a shipped file or changing its identity retires
-the obsolete installation entry through Delete.
+installation-owned set. Renaming a shipped file uses Replace to retain its management identity and
+settings. Changing a bundle identity retires the obsolete installation entry
+through Delete.
 
 An unchanged folder performs no upload, Create, Replace or Delete. Existing library
 restoration still persists activation state on every host open; zero total registry

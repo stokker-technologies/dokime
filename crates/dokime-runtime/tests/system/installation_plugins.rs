@@ -123,7 +123,8 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             let plugins = installation.path().join("plugins");
             fs::create_dir_all(&plugins)?;
             let executable = support::thermal_fixture()?;
-            fs::write(plugins.join("first.dokime"), shipped_bundle(&executable, "com.example.testhub", "1.0.0")?)?;
+            let mut first_path = plugins.join("first.dokime");
+            fs::write(&first_path, shipped_bundle(&executable, "com.example.testhub", "1.0.0")?)?;
             fs::write(plugins.join("second.dokime"), shipped_bundle(&executable, "example-pack", "1.0.0")?)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             let first = inventory(&client).await?;
@@ -149,8 +150,21 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             assert_eq!(copies(root.path())?, installed_copies);
             server.close().await?;
 
+            // A Renamed Bundle Keeps Its Management Identity and Enablement Through Replace.
+            let renamed = plugins.join("renamed.dokime");
+            fs::rename(&first_path, &renamed)?;
+            first_path = renamed;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let renamed = inventory(&client).await?;
+            assert_eq!(renamed.len(), 3);
+            assert_eq!(renamed["com.example.testhub"].name, first["com.example.testhub"].name);
+            assert_eq!(renamed["com.example.testhub"].value, first["com.example.testhub"].value);
+            assert_eq!(renamed["com.example.testhub"].description.as_ref().unwrap().version, "1.0.0");
+            assert_eq!(copies(root.path())?.len(), 3);
+            server.close().await?;
+
             // Replace Changed Content and Uninstall a Removed Shipped Bundle.
-            fs::write(plugins.join("first.dokime"), shipped_bundle(&executable, "com.example.testhub", "2.0.0")?)?;
+            fs::write(&first_path, shipped_bundle(&executable, "com.example.testhub", "2.0.0")?)?;
             fs::remove_file(plugins.join("second.dokime"))?;
             let (server, client) = open(root.path(), installation.path()).await?;
             let updated = inventory(&client).await?;
@@ -166,7 +180,7 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             server.close().await?;
 
             // Removing the Whole Folder Retires Only Installation Entries.
-            fs::remove_file(plugins.join("first.dokime"))?;
+            fs::remove_file(&first_path)?;
             fs::remove_dir(&plugins)?;
             let (server, client) = open(root.path(), installation.path()).await?;
             let remaining = inventory(&client).await?;
