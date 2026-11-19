@@ -33,7 +33,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.ci import bootstrap, native, signing, tasks, transport, workflow
+from dokime_tools.ci import bootstrap, compiler, native, signing, tasks, transport, workflow
 from dokime_tools.release import guard, nightly, registry
 
 # Type Checking Imports
@@ -48,6 +48,27 @@ from dokime_tools.release import guard, nightly, registry
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_compiler_cache_resolves_the_project_wrapper_before_entering_a_consumer(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            wrapper = root / "tools/sccache"
+            environment = {"COMPILER_CACHE_BACKEND": "disk", "SCCACHE_DIR": str(root / "cache"), "RUSTC_WRAPPER": "sccache"}
+            with (
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(compiler.subprocess, "check_output", return_value=str(wrapper) + "\n") as resolve,
+                patch.object(compiler, "_execute", return_value=7) as execute,
+            ):
+                self.assertEqual(compiler.run(["mise", "-C", str(root / "consumer"), "run", "build"]), 7)
+            self.assertEqual(resolve.call_args.args[0], ["mise", "which", "sccache"])
+            self.assertEqual(resolve.call_args.kwargs["cwd"], Path(compiler.__file__).resolve().parents[5])
+            selected = execute.call_args.args[2]
+            self.assertEqual(selected["RUSTC_WRAPPER"], str(wrapper))
+            self.assertEqual(selected["SCCACHE_DIR"], str((root / "cache").resolve()))
+            self.assertEqual(execute.call_args.args[3], "disk")
+        finally:
+            temporary.cleanup()
+
     def test_sdk_operations_install_pinned_tools_before_selected_tasks(self) -> None:
         for language, operation, expected in (
             ("csharp", "sdk-check", ["install", "restore", "check"]),
