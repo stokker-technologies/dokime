@@ -145,6 +145,54 @@ class WorkflowTests(unittest.TestCase):
             finally:
                 temporary.cleanup()
 
+    def test_cpp_environment_keeps_resolved_tools_and_msvc_with_a_long_parent_path(self) -> None:
+        sdk = runpy.run_path(str(Path(__file__).resolve().parents[4] / "sdk/cpp/tools/sdk.py"))
+        prepare = sdk["environment"]
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            manifest = json.loads((sdk["ROOT"] / "sdk/cpp/vcpkg.json").read_text())
+            revision = manifest["builtin-baseline"]
+            checkout = root / "vcpkg" / revision[:12]
+            checkout.mkdir(parents=True)
+            (checkout / "vcpkg.exe").touch()
+            tools = {tool: root / "tools" / tool / f"{tool}.exe" for tool in ("cmake", "ninja")}
+            parent = str(root / "parent")
+            native_path = str(root / "msvc")
+            long_path = os.pathsep.join([parent] * 1000)
+            environment = {"PATH": long_path, "PROGRAMFILES(X86)": str(root), "SYSTEMROOT": str(root / "Windows")}
+
+            def output(command: list[str] | str, **options: object) -> str:
+                if command == ["mise", "cache", "path"]:
+                    return str(root)
+                if isinstance(command, list) and command[:2] == ["mise", "which"]:
+                    self.assertEqual(options["cwd"], sdk["ROOT"] / "sdk/cpp")
+                    return str(tools[command[2]])
+                if isinstance(command, list):
+                    self.assertEqual(command, ["git", "-C", str(checkout), "rev-parse", "HEAD"])
+                    return revision
+                selected = options["env"]
+                if not isinstance(selected, dict):
+                    self.fail("Pass the Native Setup Environment to the Developer Command")
+                self.assertNotIn(parent, selected["PATH"])
+                return f"PATH={native_path}\nINCLUDE=native-headers\nLIB=native-libraries\nVCINSTALLDIR={native_path}\n"
+
+            with (
+                patch.dict(
+                    prepare.__globals__, os=SimpleNamespace(name="nt", environ=environment, pathsep=os.pathsep), visual_studio=lambda: root
+                ),
+                patch.object(subprocess, "check_output", side_effect=output),
+                patch.object(subprocess, "run") as run,
+            ):
+                selected = prepare()
+            self.assertEqual(selected["PATH"].split(os.pathsep), [str(path.parent) for path in tools.values()] + [native_path, parent])
+            self.assertEqual(selected["INCLUDE"], "native-headers")
+            self.assertEqual(selected["LIB"], "native-libraries")
+            self.assertEqual(selected["VCPKG_ROOT"], str(checkout))
+            run.assert_not_called()
+        finally:
+            temporary.cleanup()
+
     def test_cpp_plugin_output_is_drained_after_readiness_and_on_startup_failure(self) -> None:
         support = runpy.run_path(str(Path(__file__).resolve().parents[4] / "sdk/cpp/tests/support/run_plugin.py"))
         for lines, address in (

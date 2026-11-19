@@ -92,6 +92,18 @@ def run(command: list[str], *, action: str, cwd: Path, env: dict[str, str], log:
 
 def environment() -> dict[str, str]:
     environment = dict(os.environ)
+    # Resolve Native Build Tools Before vcpkg Enters Its Dependency Workspace.
+    tool_directories = []
+    for tool in ("cmake", "ninja"):
+        executable = subprocess.check_output(
+            ["mise", "which", tool],
+            cwd=ROOT / "sdk/cpp",
+            text=True,
+            stderr=sys.stderr,
+            creationflags=spawn_flags(),
+        ).strip()
+        tool_directories.append(str(Path(executable).parent))
+
     # Locate the Pinned Dependency Checkout.
     print("Prepare C++ Dependencies: Locate the Mise Cache", flush=True)
     cache = subprocess.check_output(["mise", "cache", "path"], text=True, stderr=sys.stderr, creationflags=spawn_flags()).strip()
@@ -150,15 +162,18 @@ def environment() -> dict[str, str]:
         subprocess.run(bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=spawn_flags())
 
     # Ninja Uses the Native MSVC Environment on Windows.
+    tool_path = environment["PATH"]
     if os.name == "nt" and not environment.get("VCINSTALLDIR"):
         print("Prepare C++ Compiler: Load the MSVC Developer Environment", flush=True)
-        tool_path = environment["PATH"]
         installer = Path(environment["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer"
         developer = visual_studio() / "Common7/Tools/VsDevCmd.bat"
+        # cmd.exe Cannot Inherit a PATH Longer Than Its Command-Line Limit.
+        system = Path(environment["SYSTEMROOT"])
+        developer_path = os.pathsep.join((str(installer), str(system / "System32"), str(system)))
         output = subprocess.check_output(
             f'cmd /d /s /c ""{developer}" -no_logo -arch=x64 -host_arch=x64 >nul && set"',
             text=True,
-            env=dict(environment, PATH=str(installer) + os.pathsep + environment["PATH"]),
+            env=dict(environment, PATH=developer_path),
             stderr=sys.stderr,
             creationflags=spawn_flags(),
         )
@@ -168,8 +183,9 @@ def environment() -> dict[str, str]:
             if "=" in line and not line.startswith("=")
             for key, value in [line.split("=", 1)]
         )
-        environment["PATH"] = tool_path + os.pathsep + environment["PATH"]
-    environment["VCPKG_ROOT"] = str(checkout)
+    environment["PATH"] = os.pathsep.join(
+        dict.fromkeys([*tool_directories, *environment["PATH"].split(os.pathsep), *tool_path.split(os.pathsep)])
+    )
     return environment
 
 
