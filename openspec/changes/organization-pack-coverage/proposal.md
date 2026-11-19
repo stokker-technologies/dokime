@@ -135,13 +135,18 @@ content. Startup reports that shipped bundle as not admitted and never replaces
 or removes the user's entry. User replacement preserves the entry's existing
 origin, so replacing an installation-owned entry does not transfer its ownership.
 Renaming a shipped file keeps its identity, settings and registry revision without
-a write. Changing a bundle identity retires the obsolete installation entry through
+an admission mutation. Changing a bundle identity retires the obsolete installation entry through
 Delete after a complete verified scan.
 
-An unchanged folder performs no upload, Create, Replace or Delete and causes no
-registry writes during restore or reconciliation. The regression counts registry
+An unchanged folder performs no upload, Create, Replace or Delete and must cause
+no registry writes during restore or reconciliation. The regression counts registry
 writes through SQLite storage triggers, independently of filesystem timestamps,
-and verifies the counter observes actual later mutations. The library retains
+with a positive control for later mutations. At pin `dae69cea0`, the isolated
+restart regression observes nine row writes instead of zero: restoration changes
+activation state before saving, and admission/health persist live process state.
+The unchanged-payload save guard does not suppress those changed payloads. Task
+7.9 stays open for the library fix; product reconciliation adds no substitute
+registry or write-suppression layer. The library retains
 bounded replay receipts for Create and Replace; startup adds no parallel receipt
 policy. Superseded extracted copies use existing retirement paths. Superseded
 uploaded content is released through Files.Delete only when no registry entry

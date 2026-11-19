@@ -140,22 +140,6 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             assert_eq!(installed_copies.len(), 3);
             server.close().await?;
 
-            // Count Registry Writes at the Existing SQLite Storage Boundary, Including In-Place Updates.
-            let database = Connection::open(root.path().join("storage.sqlite3"))?;
-            database.execute_batch(
-                "CREATE TABLE registry_writes(count INTEGER NOT NULL);
-                 INSERT INTO registry_writes VALUES(0);
-                 CREATE TRIGGER count_registry_inserts AFTER INSERT ON storage_rows
-                   WHEN NEW.schema_id='harmos.plugins.registry'
-                   BEGIN UPDATE registry_writes SET count=count+1; END;
-                 CREATE TRIGGER count_registry_updates AFTER UPDATE ON storage_rows
-                   WHEN NEW.schema_id='harmos.plugins.registry'
-                   BEGIN UPDATE registry_writes SET count=count+1; END;
-                 CREATE TRIGGER count_registry_deletes AFTER DELETE ON storage_rows
-                   WHEN OLD.schema_id='harmos.plugins.registry'
-                   BEGIN UPDATE registry_writes SET count=count+1; END;",
-            )?;
-
             // Restart Without Uploading, Replacing or Re-extracting Unchanged Bundles.
             let (server, client) = open(root.path(), installation.path()).await?;
             let unchanged = inventory(&client).await?;
@@ -166,8 +150,6 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             assert_eq!(unchanged["example_pack_user"].placement, user.placement);
             assert_eq!(copies(root.path())?, installed_copies);
             server.close().await?;
-            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
-            assert_eq!(writes, 0, "An Unchanged Restart Must Not Write the Plugin Registry");
 
             // A Renamed Bundle Keeps Its Management Identity and Enablement Without a Write.
             let renamed = plugins.join("renamed.dokime");
@@ -198,10 +180,6 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             }
             server.close().await?;
 
-            // Confirm the Counter Observes Actual Registry Mutations.
-            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
-            assert!(writes > 0);
-
             // Removing the Whole Folder Retires Only Installation Entries.
             fs::remove_file(&first_path)?;
             fs::remove_dir(&plugins)?;
@@ -211,6 +189,61 @@ fn installation_plugins_mirror_bundles_across_restarts() -> Result<(), Box<dyn E
             assert_eq!(remaining["example_pack_user"].placement, user.placement);
             assert_eq!(copies(root.path())?.len(), 1);
             server.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
+fn unchanged_restart_does_not_write_the_plugin_registry() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Admit One Shipped Bundle.
+            let root = support::tempdir()?;
+            let installation = tempfile::tempdir()?;
+            let plugins = installation.path().join("plugins");
+            fs::create_dir_all(&plugins)?;
+            let executable = support::thermal_fixture()?;
+            let path = plugins.join("example_pack.dokime");
+            fs::write(&path, shipped_bundle(&executable, "example_pack", "1.0.0")?)?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let original = inventory(&client).await?;
+            server.close().await?;
+
+            // Count Registry Writes at the Existing SQLite Storage Boundary, Including In-Place Updates.
+            let database = Connection::open(root.path().join("storage.sqlite3"))?;
+            database.execute_batch(
+                "CREATE TABLE registry_writes(count INTEGER NOT NULL);
+                 INSERT INTO registry_writes VALUES(0);
+                 CREATE TRIGGER count_registry_inserts AFTER INSERT ON storage_rows
+                   WHEN NEW.schema_id='harmos.plugins.registry'
+                   BEGIN UPDATE registry_writes SET count=count+1; END;
+                 CREATE TRIGGER count_registry_updates AFTER UPDATE ON storage_rows
+                   WHEN NEW.schema_id='harmos.plugins.registry'
+                   BEGIN UPDATE registry_writes SET count=count+1; END;
+                 CREATE TRIGGER count_registry_deletes AFTER DELETE ON storage_rows
+                   WHEN OLD.schema_id='harmos.plugins.registry'
+                   BEGIN UPDATE registry_writes SET count=count+1; END;",
+            )?;
+
+            // Restore the Unchanged Folder Without Registry Writes.
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let unchanged = inventory(&client).await?;
+            assert_eq!(unchanged["example_pack"].revision, original["example_pack"].revision);
+            assert_eq!(unchanged["example_pack"].placement, original["example_pack"].placement);
+            server.close().await?;
+            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
+            assert_eq!(writes, 0, "An Unchanged Restart Must Not Write the Plugin Registry");
+
+            // Confirm the Counter Observes an Actual Replacement.
+            fs::write(&path, shipped_bundle(&executable, "example_pack", "2.0.0")?)?;
+            let (server, client) = open(root.path(), installation.path()).await?;
+            let updated = inventory(&client).await?;
+            assert_ne!(updated["example_pack"].revision, original["example_pack"].revision);
+            server.close().await?;
+            let writes: i64 = database.query_row("SELECT count FROM registry_writes", [], |row| row.get(0))?;
+            assert!(writes > 0);
             Ok::<(), Box<dyn Error>>(())
         })
         .await?

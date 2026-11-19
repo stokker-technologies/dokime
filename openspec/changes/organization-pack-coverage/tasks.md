@@ -19,11 +19,11 @@
 - [x] 6.4 Package a neutral example from the published Nightly kit without installing it; inspect the output and declared execution mode.
 
 - [x] 7.1 Record the owner decision to admit installation bundles, installation-relative resolution, registry reuse, provenance and user-entry precedence.
-- [ ] 7.2 Reconcile installation bundles through the existing managed admission, staged replacement and deletion paths; surface file-specific failures without stopping host startup.
+- [x] 7.2 Reconcile installation bundles through the existing managed admission, staged replacement and deletion paths; surface file-specific failures without stopping host startup.
 - [x] 7.3 Add deterministic bundle/restart coverage for initial admission, unchanged content, replacement, removal, corruption, admission failure and retained user entries.
 - [x] 7.4 Add the host story from native packaging preparation through shipped-template execution without invoking an installer.
-- [ ] 7.5 Run new and existing focused plugin proof, touched-package compilation including test targets and desktop testing, formatting and repository checks on Windows.
+- [ ] 7.5 Run new and existing focused plugin proof, touched-package compilation including test targets and desktop testing, formatting and repository checks on Windows. The prepared-layout story and both existing plugin stories pass; the mirror and shared-content stories remain blocked by duplicate thermal fixture operation identities, and the isolated zero-write regression fails at the pinned library.
 - [ ] 7.6 Prove installation startup and prepared-layout execution on Linux.
 - [ ] 7.7 Resolve registry-owned entry provenance: a user Create that reuses installation content must remain user-owned, and shared content must not be released while another entry uses it. Ownership comes only from PluginEntry.origin; do not add a parallel registry.
-- [x] 7.8 Restore the host startup future's Send contract: installation admission reaches the lending readiness callbacks, and the desktop's spawned startup and compile-contract regression currently fail to compile. Preserve the shared readiness implementation and desktop execution model.
-- [ ] 7.9 Prove an unchanged installation folder causes no registry writes across restart using the existing storage seam to count registry writes, with a positive control for later mutations.
+- [x] 7.8 Prove the host startup future's Send contract through the compile-contract regression and desktop testing targets, preserving the shared readiness implementation and desktop execution model.
+- [ ] 7.9 Prove an unchanged installation folder causes no registry writes across restart using the existing storage seam to count registry writes, with a positive control for later mutations. The isolated regression currently observes nine writes at pin dae69cea0 because library restore/admission persist live activation/process state.
