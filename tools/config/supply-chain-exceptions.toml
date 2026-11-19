@@ -41,6 +41,68 @@ expires = 2026-12-16
 
 [[advisory]]
 ecosystem = "cargo"
+id = "RUSTSEC-2024-0436"
+package = "paste"
+version = "1.0.15"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "Reviewed 2026-11-19: RUSTSEC-2024-0436 lists no patched paste version; cargo update -p paste retains 1.0.15. dokime-packaging -> tauri-bundler 2.10.6 -> image 0.25.10 -> ravif 0.13.0 -> rav1e 0.8.1 -> paste 1.0.15. tauri-bundler requires image ^0.25 with its default AVIF feature, and rav1e requires paste ^1.0; tauri-bundler exposes no AVIF feature switch and no newer compatible patch is available. No finding-free version is reachable within tauri-bundler 2.10.6's requirements. The product never requests AVIF encoding: crates/dokime-packaging/src/installer/native.rs:205-207 writes PNG/ICO icons and :225-234 passes only those icons; artwork.rs:49-55 encodes ICO frames as PNG and :72 writes BMP. Accept this exact build-time macro dependency until upstream replaces paste or makes AVIF optional. Advisory: https://rustsec.org/advisories/RUSTSEC-2024-0436.html."
+owner = "orchestrator"
+expires = 2026-12-19
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2026-0387"
+package = "crypto-bigint"
+version = "0.5.5"
+fixed = ">=0.7.6"
+category = "vulnerability"
+reason = "Reviewed 2026-11-19: RUSTSEC-2026-0387 is fixed in crypto-bigint >=0.7.6; cargo update -p crypto-bigint retains 0.5.5. dokime-packaging -> tauri-bundler 2.10.6 -> rpm 0.30.2 (default signature-pgp) -> pgp 0.20.0 -> cx448 0.1.1 -> crypto-bigint 0.5.5; pgp also reaches crypto-bigint through elliptic-curve 0.13.8. cx448 requires ^0.5.5 and elliptic-curve requires ^0.5, excluding 0.7.6; no fixed version is reachable within tauri-bundler 2.10.6's requirements and no newer compatible bundler patch is available. The product never asks the bundler to PGP-sign RPMs: crates/dokime-packaging/src/installer/native.rs:231-237 leaves RPM signing settings at defaults, :309 passes no_sign(true), and :352-360 rejects inherited TAURI_SIGNING_RPM_KEY and passphrase before bundling. The bundler's RPM signer requires that environment key; explicit product RPM signing invokes external rpmsign at native.rs:694-699. Accept this exact version while the unused internal signer remains unreachable. Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0387.html."
+owner = "orchestrator"
+expires = 2026-12-19
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2025-0144"
+package = "ml-dsa"
+version = "0.0.4"
+fixed = ">=0.1.0-rc.3"
+category = "vulnerability"
+reason = "Reviewed 2026-11-19: RUSTSEC-2025-0144 is fixed in ml-dsa >=0.1.0-rc.3; cargo update -p ml-dsa retains 0.0.4. dokime-packaging -> tauri-bundler 2.10.6 -> rpm 0.30.2 (default signature-pgp) -> pgp 0.20.0 (draft-pqc) -> ml-dsa 0.0.4. tauri-bundler requires rpm ^0.30, rpm requires pgp ^0.20.0 with draft-pqc, and pgp requires ml-dsa ^0.0.4, excluding 0.1.0-rc.3; no fixed version is reachable within tauri-bundler 2.10.6's requirements and no newer compatible bundler patch is available. The product never asks the bundler to PGP-sign RPMs: crates/dokime-packaging/src/installer/native.rs:231-237 leaves RPM signing settings at defaults, :309 passes no_sign(true), and :352-360 rejects inherited TAURI_SIGNING_RPM_KEY and passphrase before bundling. The bundler's RPM signer requires that environment key; explicit product RPM signing invokes external rpmsign at native.rs:694-699. Accept this exact version while the unused internal signer remains unreachable. Advisory: https://rustsec.org/advisories/RUSTSEC-2025-0144.html."
+owner = "orchestrator"
+expires = 2026-12-19
+
+[[advisory]]
+ecosystem = "cargo"
+id = "RUSTSEC-2023-0071"
+package = "rsa"
+version = "0.9.10"
+fixed = ">=0.10.0"
+category = "vulnerability"
+reason = "Reviewed 2026-11-19: RUSTSEC-2023-0071 is fixed in rsa >=0.10.0; cargo update -p rsa retains 0.9.10. dokime-packaging -> tauri-bundler 2.10.6 -> rpm 0.30.2 (default signature-pgp) -> pgp 0.20.0 -> rsa 0.9.10, and dokime-packaging -> tauri-bundler 2.10.6 -> tauri-macos-sign 2.4.3 -> rsa 0.9.10. pgp requires rsa ^0.9.10 and tauri-macos-sign requires ^0.9, excluding 0.10.0; no fixed version is reachable within tauri-bundler 2.10.6's requirements and no newer compatible bundler patch is available. The product never asks the bundler to PGP-sign RPMs or sign for macOS: crates/dokime-packaging/src/installer/native.rs:290-292 selects only NSIS/DEB/RPM, :309 passes no_sign(true), and :352-360 rejects inherited TAURI_SIGNING_RPM_KEY and passphrase before bundling. The bundler's RPM signer requires that environment key; explicit product RPM signing invokes external rpmsign at native.rs:694-699. Accept this exact version while both internal signing paths remain unreachable. Advisory: https://rustsec.org/advisories/RUSTSEC-2023-0071.html."
+owner = "orchestrator"
+expires = 2026-12-19
+
+[[license]]
+package = "libbz2-rs-sys"
+version = "0.2.7"
+license = "bzip2-1.0.6"
+fixed = "replace upstream dependency or license"
+reason = "Reviewed 2026-11-19: dokime-packaging -> tauri-bundler 2.10.6 -> rpm 0.30.2 (bzip2-compression) -> bzip2 0.6.1 -> libbz2-rs-sys 0.2.7; rpm's default signature-pgp also reaches bzip2 through pgp 0.20.0. cargo update -p libbz2-rs-sys advances 0.2.6 to 0.2.7, which retains bzip2-1.0.6; no license-clean version is reachable within tauri-bundler 2.10.6's requirements and no newer compatible bundler patch is available. The bundler exposes no RPM compression dependency switch. crates/dokime-packaging/src/installer/native.rs:231-237 leaves RPM compression at its default gzip and :262-281 changes only files/dependencies; :352-360 rejects internal PGP signing keys. Accept the permissive bzip2-1.0.6 terms only for this exact crate/version and retain its complete license text in generated notices. Cargo Deny has the matching per-crate exception; Cargo About consumes this entry as its per-crate accepted license."
+owner = "orchestrator"
+expires = 2026-12-19
+
+[[license]]
+package = "libfuzzer-sys"
+version = "0.4.13"
+license = "NCSA"
+fixed = "replace upstream dependency or license"
+reason = "Reviewed 2026-11-19: dokime-packaging -> tauri-bundler 2.10.6 -> image 0.25.10 (default AVIF) -> ravif 0.13.0 -> rav1e 0.8.1 -> libfuzzer-sys 0.4.13 under cfg(fuzzing). cargo update -p libfuzzer-sys retains 0.4.13 with NCSA; no license-clean version is reachable within tauri-bundler 2.10.6's requirements and no newer compatible bundler patch is available. The bundler exposes no AVIF dependency switch. The fuzzing-only crate is not compiled for product builds, and the product never requests AVIF encoding: crates/dokime-packaging/src/installer/native.rs:205-207 writes PNG/ICO icons and :225-234 passes only those icons; artwork.rs:49-55 encodes ICO frames as PNG and :72 writes BMP. Accept the permissive NCSA terms only for this exact crate/version and retain its complete license text in generated notices. Cargo Deny has the matching per-crate exception; Cargo About consumes this entry as its per-crate accepted license."
+owner = "orchestrator"
+expires = 2026-12-19
+
+[[advisory]]
+ecosystem = "cargo"
 id = "RUSTSEC-2026-0371"
 package = "zbus_names"
 version = "4.3.4"
