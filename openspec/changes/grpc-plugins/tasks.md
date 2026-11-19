@@ -171,20 +171,25 @@
   - [x] Add Bound Case/Cycle/Execution Handles, Lazy Start/Watch Finality, Stable Seal Outcomes, Verified Archives and Client Notes/Artifacts.
   - [ ] Resolve the Pinned Library's Missing Addressable, Closeable Rust Listener API Before Plugin Registration and Explicit Listener Configuration; Do Not Copy Its Server or Mutate Process Environment.
   - [ ] Complete Typed Runtime Operation References and Stream Subscription After Their Shared Library Capabilities Land.
+    - [x] Remove the Legacy Public Static-Request Context Call and `OperationRequest` Re-Exports; Keep Unsupported Runtime References Unexposed.
   - [ ] Bind Bundle Upload After the Product Host Publishes Its Installation Contract and Regenerated Bindings; Shared Plugins/Create Currently Accepts Placements Rather Than Bundle Uploads.
   - [ ] Complete the Remaining Declaration/Context Capability Surface and Catalog Validation, Including Operation-Scoped Observers, Typed Query Values and Template Notes/Artifacts.
     - [x] Share Client/Template Artifact Uploads, Preserve Writer Fences and Mutation Identities, Verify Publication and Abandon Only Unpublished Uploads.
+    - [x] Add Plugin-Wide Per-Sample and Whole-Window Observers With Operation Contexts and Shared Plugin State; Refuse Template Contexts at Plugin Scope.
     - [ ] Bind Template Notes After `Notes/Create` Admits Trusted Plugin Callers; Its Current Protocol Annotation Is `CLIENTS` Only.
+    - [ ] Resolve the Unowned OBC Measurement Observer's Lifetime: `plugins/sidecars/obc/src/streams/measurement.rs:86` Registers It on the Plugin While Its Handler Reads Execution State.
+    - [ ] Migrate Unowned OBC Raw Record/Statistics Consumers Before Retiring the Remaining Context Wire Responses; Do Not Keep a Compatibility API Beside Typed Queries.
   - [ ] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Remove Generated Host/Transport Escape Hatches With the Production Consumer and Generator Owners.
     - [x] Add Bound Case Lists, Fixed-Cut Cycle/Execution Lists, Refresh Operations and Frozen Typed Record/Sample Readers With Digest Verification and Continuation Validation.
     - [x] Add Operation-Specific Mutation Identity Overrides for Cycle/Execution Creation and Controls, Notes and Artifacts; Derive Replay-Stable Execution UUIDs From Request Identities.
+    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability, Documents and Effect Preparation/Confirmation Without Policy Overrides.
   - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
   - [ ] Resolve Duplicated SDK Harness and Product Execution Sequencing With the Owner; Product Cleanup Still Requires Successful Initialization at `crates/dokime-runtime/src/execution.rs:643`.
   - [ ] Replace Both Rust Starter Roots With the Owner-Requested Single Two-Binary Project and Migrate CLI Embedding; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
   - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
   - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
     - [x] Refresh the Root Cargo Lock and Validate the Consumer Lock; Build the Native Windows Product Host/CLI and Prove Shared Capture in All Four Languages, Including Rust Frozen Typed Record Reads and Verified Execution/Cycle ZIP Downloads.
-    - [x] Pass Native Windows SDK Units (12), SDK Integration/Capture Tests (14), Formatting, Scoped All-Target Compilation, Generated-Surface Checking, Repository Checking and Scoped Rust Lint.
+    - [x] Pass Native Windows SDK Units (16), SDK Integration/Capture Tests (14), Formatting, Scoped All-Target Compilation, Generated-Surface Checking, Repository Checking and Scoped Rust Lint.
 
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.

@@ -172,6 +172,11 @@ impl Plugin {
         self
     }
     pub fn observer(mut self, observer: Observer) -> Self {
+        if observer.execution {
+            self.assembly
+                .errors
+                .push("Declare Plugin Observer: Use Observer::operation or Observer::operation_window With an Operation Context".into());
+        }
         self.assembly.samplers.push(observer.sampler.clone());
         self.assembly.registrations.push(observer.registration());
         self

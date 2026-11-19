@@ -26,7 +26,7 @@ use prost_types::Timestamp;
 
 // Local Imports
 use crate::context::Executions;
-use crate::{Message, OperationRequest, Result};
+use crate::{Message, Result};
 
 /* === Constants === */
 
@@ -48,6 +48,9 @@ pub struct Context {
 /* === Implementations === */
 
 impl Context {
+    pub(crate) fn from_inner(inner: crate::context::Context) -> Self {
+        Self { inner }
+    }
     pub(crate) fn invocation(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
         Ok(Self {
             inner: crate::context::Context::invocation(transport, executions)?,
@@ -73,9 +76,6 @@ impl Context {
     }
     pub async fn settings<T: Message>(&self) -> Result<T> {
         self.inner.settings::<T>().await
-    }
-    pub async fn operation<Q: OperationRequest>(&self, request: Q) -> Result<Q::Response> {
-        self.inner.operation(request).await
     }
 }
 

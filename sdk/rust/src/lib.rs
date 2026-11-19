@@ -42,7 +42,7 @@ mod transfers;
 
 /* === Re-Exports === */
 
-pub use ::harmos::OperationRequest;
+use ::harmos::OperationRequest;
 pub use client::{
     Attribution, Case, Client, ClientSettings, ConnectionSettings, Cycle, Execution, Outcome, Progress, ProgressStream, connect,
     connect_with,

@@ -25,6 +25,7 @@ use prost_types::FileDescriptorSet;
 // Local Imports
 use crate::authoring;
 use crate::operation::{self, Action, FutureResult};
+use crate::operations;
 use crate::{Context, Error, Message, Result, context::Executions};
 use harmos::plugin;
 
@@ -54,6 +55,7 @@ pub struct Observer {
     register: ObserverFactory,
     configure: Vec<Box<dyn FnOnce(plugin::Observer) -> plugin::Observer + Send>>,
     pub(crate) sampler: Sampler,
+    pub(crate) execution: bool,
 }
 
 // The Same Observer Handler, Retained for In-Process Sampling Without a Host.
@@ -144,6 +146,30 @@ impl Observer {
         T: Message,
         H: for<'a> AsyncFn(&'a Context) -> Result<T> + Send + Sync + 'static,
     {
+        Self::sample(stream, handler, true)
+    }
+
+    /// Observe Plugin-Owned State Without Exposing Template Capabilities.
+    pub fn operation<T, H>(stream: &Stream<T>, handler: H) -> Self
+    where
+        T: Message,
+        H: for<'a> AsyncFn(&'a operations::Context) -> Result<T> + Send + Sync + 'static,
+    {
+        Self::sample(
+            stream,
+            async move |inner: &Context| {
+                let context = operations::Context::from_inner(inner.clone());
+                handler(&context).await
+            },
+            false,
+        )
+    }
+
+    fn sample<T, H>(stream: &Stream<T>, handler: H, execution: bool) -> Self
+    where
+        T: Message,
+        H: for<'a> AsyncFn(&'a Context) -> Result<T> + Send + Sync + 'static,
+    {
         let identifier = stream.identifier.clone();
         let action = operation::action(handler);
         let sampler = Sampler::new::<T>(&identifier, Arc::new(Encoded(action.clone())));
@@ -152,12 +178,17 @@ impl Observer {
                 let identifier = authoring::build_identifier(prefix, &identifier, false);
                 let stream = plugin::Stream::<T>::new(identifier);
                 plugin::Observer::new(&stream, async move |transport: &plugin::Context| {
-                    let context = Context::publication(transport, &executions)?;
+                    let context = if execution {
+                        Context::publication(transport, &executions)?
+                    } else {
+                        Context::invocation(transport, &executions)?
+                    };
                     action.execute(&context).await.map_err(harmos::Error::from)
                 })
             }),
             configure: Vec::new(),
             sampler,
+            execution,
         }
     }
 
@@ -166,6 +197,32 @@ impl Observer {
     /// Sample `i` of the window is due at `window.start + i * window.period`; the returned
     /// columns hold one value per sample in every field.
     pub fn window<T, C, H>(stream: &Stream<T>, handler: H) -> Self
+    where
+        T: Message,
+        C: Message,
+        H: for<'a> AsyncFn(&'a Context, &'a plugin::Window) -> Result<C> + Send + Sync + 'static,
+    {
+        Self::windowed(stream, handler, true)
+    }
+
+    /// Answer a Plugin-Wide Window Using Only Operation Capabilities.
+    pub fn operation_window<T, C, H>(stream: &Stream<T>, handler: H) -> Self
+    where
+        T: Message,
+        C: Message,
+        H: for<'a> AsyncFn(&'a operations::Context, &'a plugin::Window) -> Result<C> + Send + Sync + 'static,
+    {
+        Self::windowed(
+            stream,
+            async move |inner: &Context, window: &plugin::Window| {
+                let context = operations::Context::from_inner(inner.clone());
+                handler(&context, window).await
+            },
+            false,
+        )
+    }
+
+    fn windowed<T, C, H>(stream: &Stream<T>, handler: H, execution: bool) -> Self
     where
         T: Message,
         C: Message,
@@ -185,12 +242,17 @@ impl Observer {
                 let identifier = authoring::build_identifier(prefix, &identifier, false);
                 let stream = plugin::Stream::<T>::new(identifier);
                 plugin::Observer::window(&stream, async move |transport: &plugin::Context, window: &plugin::Window| {
-                    let context = Context::publication(transport, &executions)?;
+                    let context = if execution {
+                        Context::publication(transport, &executions)?
+                    } else {
+                        Context::invocation(transport, &executions)?
+                    };
                     handler(&context, window).await.map_err(harmos::Error::from)
                 })
             }),
             configure: Vec::new(),
             sampler,
+            execution,
         }
     }
 
@@ -302,3 +364,68 @@ fn columns_rows<T: Message, C: Message>(columns: &[u8], count: u64) -> Result<Ve
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{Observer, Stream};
+    use crate::operations;
+    use crate::plugin::Window;
+    use crate::templates::{Context, Step, Template};
+    use crate::testing::Harness;
+    use crate::{Plugin, Result, Suite};
+
+    #[derive(crate::Row)]
+    struct Reading {
+        value: u32,
+    }
+
+    #[derive(crate::Message)]
+    struct Columns {
+        value: Vec<u32>,
+    }
+
+    struct State {
+        value: u32,
+    }
+
+    #[tokio::test]
+    async fn plugin_observers_use_operation_context_and_share_the_author_state() -> Result<()> {
+        for windowed in [false, true] {
+            let stream = Stream::<Reading>::new("shared.reading", "Shared Reading");
+            let observer = if windowed {
+                Observer::operation_window(&stream, async |context: &operations::Context, window: &Window| {
+                    Ok(Columns {
+                        value: vec![context.plugin::<State>()?.value; window.count as usize],
+                    })
+                })
+            } else {
+                Observer::operation(&stream, async |context: &operations::Context| Ok(Reading { value: context.plugin::<State>()?.value }))
+            }
+            .every(Duration::from_millis(1));
+            let template = Template::of::<()>()
+                .identifier("sample")
+                .uses_stream("shared.reading")
+                .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(3)).await).identifier("sample"));
+            let plugin = Plugin::of::<()>("1.0.0")
+                .identifier("observer")
+                .state(State { value: 23 })
+                .stream(stream)
+                .observer(observer)
+                .suite(Suite::of::<()>().identifier("capture").template(template));
+            let report = Harness::new(plugin, "capture.sample").run().await?;
+            assert!(report.failure().is_none(), "{report:?}");
+            let samples = report.samples::<Reading>("shared.reading")?;
+            assert_eq!(samples.iter().map(|sample| sample.value.value).collect::<Vec<_>>(), [23, 23, 23]);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn plugin_observers_refuse_template_context_handlers() {
+        let stream = Stream::<Reading>::new("shared.reading", "Shared Reading");
+        let observer = Observer::new(&stream, async |_: &Context| Ok(Reading { value: 0 })).every(Duration::from_millis(1));
+        assert!(Plugin::of::<()>("1.0.0").stream(stream).observer(observer).declarations().is_err());
+    }
+}

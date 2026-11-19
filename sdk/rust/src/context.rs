@@ -32,7 +32,6 @@ use std::{
 use harmos::plugin;
 use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
-use uuid::Uuid;
 
 // Local Imports
 use crate::EvidenceStatisticsResponse;
@@ -42,7 +41,14 @@ use crate::RecordsListResponse;
 use crate::client::{ArtifactCreateOptions, mutations};
 use crate::operation::FutureResult;
 use crate::plugin::{CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
+use crate::plugin::{
+    HostEffectsCreateOptions, HostEffectsSetOptions, HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions,
+};
 use crate::templates::{CaptureResult, Environment};
+use crate::templates::{
+    DocumentAppendOptions, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions,
+    TraceabilitySetOptions,
+};
 use crate::{FileSource, Metadata, TraceabilityEntry};
 
 use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};
@@ -52,7 +58,7 @@ use crate::{
     ArtifactMetadata,
     transfers::{self, Uploads},
 };
-use crate::{Error, Message, OperationRequest, Result, data, host, host::Wire};
+use crate::{Error, Message, Result, data, host, host::Wire};
 use crate::{ExecutionProgressValue, PageRequest, Severity};
 use crate::{Origin, Termination, TestCase, origin};
 use crate::{Payload, authoring::build_identifier, payload};
@@ -328,14 +334,6 @@ impl Context {
         T::from_value(value).map_err(|error| Error::Invalid(format!("Parameter {identifier}: {error}")))
     }
 
-    // Route a typed operation to the host; its requirement must be declared on Plugin.
-    pub async fn operation<Q: OperationRequest>(&self, request: Q) -> Result<Q::Response> {
-        match &self.transport {
-            Transport::Harmos(transport) => transport.call(request).await.map_err(Error::from),
-            Transport::Local(_) => Err(unsimulated(Q::ID)),
-        }
-    }
-
     pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
         match &self.transport {
             Transport::Harmos(transport) => Ok(transport.call_with(Wire(request), policy).await?.0),
@@ -350,7 +348,12 @@ impl Context {
             Transport::Harmos(transport) => Ok(Watching {
                 incoming: transport.watch(Wire(request), max_item_bytes).await?,
             }),
-            Transport::Local(_) => Err(unsimulated(Q::ID)),
+            Transport::Local(_) => Err(Error::failure(
+                harmos::Classification::Refused,
+                "testing_host_unsupported",
+                format!("Testing Host: {} Is Not Simulated", Q::ID),
+                "Exercise This Operation Against a Real Host",
+            )),
         }
     }
 
@@ -420,6 +423,9 @@ impl Context {
     }
 
     pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<u64> {
+        self.record_with(record, value, RecordAppendOptions::default()).await
+    }
+    pub async fn record_with<T: Payload>(&self, record: &Record<T>, value: T, options: RecordAppendOptions) -> Result<u64> {
         let kind = self.resolve(record.identifier())?;
         self.call_with(
             RecordsAppendRequest {
@@ -427,7 +433,7 @@ impl Context {
                 kind,
                 payload: prost::Message::encode_to_vec(&value.into_message()),
                 source_at: None,
-                request_id: Uuid::now_v7().to_string(),
+                request_id: mutations::request_id(options.request_id)?,
             },
             None,
         )
@@ -463,18 +469,35 @@ impl Context {
         .await
     }
     pub async fn progress(&self, completed: u64, total: u64, label: impl Into<String>) -> Result<()> {
+        self.progress_with(completed, total, label, ProgressSetOptions::default()).await
+    }
+    pub async fn progress_with(&self, completed: u64, total: u64, label: impl Into<String>, options: ProgressSetOptions) -> Result<()> {
         let current = self.host().executions.progress.get().await?;
-        self.host().executions.progress.set(ExecutionProgressValue { completed, total, label: label.into() }, current.revision).await?;
+        self.host()
+            .executions
+            .progress
+            .set_with(
+                ExecutionProgressValue { completed, total, label: label.into() },
+                current.revision,
+                HostExecutionsProgressSetOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
+            .await?;
         Ok(())
     }
     pub async fn log(&self, severity: Severity, message: impl Into<String>) -> Result<()> {
+        self.log_with(severity, message, LogAppendOptions::default()).await
+    }
+    pub async fn log_with(&self, severity: Severity, message: impl Into<String>, options: LogAppendOptions) -> Result<()> {
         self.call_with(
             LogsAppendRequest {
                 execution: self.execution_id().into(),
                 severity: severity as i32,
                 message: message.into(),
                 at: None,
-                request_id: Uuid::now_v7().to_string(),
+                request_id: mutations::request_id(options.request_id)?,
             },
             None,
         )
@@ -533,6 +556,21 @@ impl Context {
         &self, identifier: impl Into<String>, value: crate::Value, label: impl Into<String>, source: impl Into<String>,
         unit: impl Into<String>,
     ) -> Result<()> {
+        self.traceability_with(
+            identifier,
+            value,
+            TraceabilitySetOptions {
+                label: label.into(),
+                source: source.into(),
+                unit: unit.into(),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+    pub async fn traceability_with(
+        &self, identifier: impl Into<String>, value: crate::Value, options: TraceabilitySetOptions,
+    ) -> Result<()> {
         let identifier = identifier.into();
         let host = self.host();
         let current = host
@@ -546,20 +584,40 @@ impl Context {
         let entry = TraceabilityEntry {
             metadata: Some(Metadata {
                 identifier: identifier.clone(),
-                label: label.into(),
+                label: options.label,
                 ..Default::default()
             }),
             value: Some(value),
-            source: source.into(),
-            unit: unit.into(),
+            source: options.source,
+            unit: options.unit,
         };
-        host.evidence.traceability.set(entry, current.revision, identifier).await?;
+        host.evidence
+            .traceability
+            .set_with(
+                entry,
+                current.revision,
+                identifier,
+                HostEvidenceTraceabilitySetOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
+            .await?;
         Ok(())
     }
     pub async fn document(
         &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
     ) -> Result<()> {
-        let mut options = HostDocumentsAppendPartsOptions::default();
+        self.document_with(document, part, section, DocumentAppendOptions::default()).await
+    }
+    pub async fn document_with(
+        &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
+        mutation: DocumentAppendOptions,
+    ) -> Result<()> {
+        let mut options = HostDocumentsAppendPartsOptions {
+            request_id: Some(mutations::request_id(mutation.request_id)?),
+            ..Default::default()
+        };
         match part {
             crate::templates::DocumentPart::Section(value) => options.subsection = Some(*value),
             crate::templates::DocumentPart::Card(value) => options.card = Some(*value),
@@ -570,10 +628,25 @@ impl Context {
     pub async fn prepare_effect<T: Message>(
         &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
     ) -> Result<String> {
+        self.prepare_effect_with(resource, inverse_operation, inverse, description, EffectCreateOptions::default()).await
+    }
+    pub async fn prepare_effect_with<T: Message>(
+        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
+        options: EffectCreateOptions,
+    ) -> Result<String> {
         let reply = self
             .host()
             .effects
-            .create(resource.into(), inverse_operation.into(), prost::Message::encode_to_vec(&inverse), description.into())
+            .create_with(
+                resource.into(),
+                inverse_operation.into(),
+                prost::Message::encode_to_vec(&inverse),
+                description.into(),
+                HostEffectsCreateOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
+            )
             .await?;
         if reply.name.is_empty() {
             return Err(Error::Invalid("Prepare Effect: Return Its Recovery Ticket Before Applying the Effect".into()));
@@ -581,10 +654,15 @@ impl Context {
         Ok(reply.name)
     }
     pub async fn confirm_effect(&self, ticket: &str, at: Option<Timestamp>, restored: bool) -> Result<()> {
+        self.confirm_effect_with(ticket, at, restored, EffectConfirmOptions::default()).await
+    }
+    pub async fn confirm_effect_with(
+        &self, ticket: &str, at: Option<Timestamp>, restored: bool, options: EffectConfirmOptions,
+    ) -> Result<()> {
         let host = self.host();
         let current = host.effects.get(ticket.into()).await?;
         host.effects
-            .set(
+            .set_with(
                 ticket.into(),
                 crate::plugin::EffectWritable {
                     applied_at: Some(match at {
@@ -594,6 +672,10 @@ impl Context {
                     restored,
                 },
                 current.revision,
+                HostEffectsSetOptions {
+                    request_id: Some(mutations::request_id(options.request_id)?),
+                    ..Default::default()
+                },
             )
             .await?;
         Ok(())
@@ -663,13 +745,132 @@ pub(crate) fn clear(executions: &Executions) -> Result<()> {
 
 /* === Private Functions === */
 
-fn unsimulated(operation: &str) -> Error {
-    Error::failure(
-        harmos::Classification::Refused,
-        "testing_host_unsupported",
-        format!("Testing Host: {operation} Is Not Simulated"),
-        "Exercise This Operation Against a Real Host",
-    )
-}
-
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use prost::Message;
+    use prost_types::Timestamp;
+
+    use super::{Context, Execution, Local, LocalHost};
+    use crate::operation::FutureResult;
+    use crate::templates::{
+        DocumentAppendOptions, DocumentPart, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions,
+        RecordAppendOptions, TraceabilitySetOptions,
+    };
+    use crate::wire::host::evidence::{
+        LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, TraceabilityGetResponse,
+        TraceabilitySetRequest, TraceabilitySetResponse,
+    };
+    use crate::wire::host::executions::{ProgressGetResponse, ProgressSetRequest, ProgressSetResponse};
+    use crate::wire::host::{
+        DocumentsAppendPartsRequest, DocumentsAppendPartsResponse, EffectsCreateRequest, EffectsCreateResponse, EffectsGetResponse,
+        EffectsSetRequest, EffectsSetResponse,
+    };
+    use crate::{Error, Origin, PluginRun, Record, Result, Severity, TestCase, Value, origin};
+
+    #[derive(Default)]
+    struct Host(Mutex<Vec<String>>);
+
+    impl LocalHost for Host {
+        fn call<'a>(&'a self, operation: &'static str, request: Vec<u8>) -> FutureResult<'a, Vec<u8>> {
+            Box::pin(async move {
+                let decode = |error| Error::Invalid(format!("Decode Context Fixture: {error}"));
+                let (identity, response) = match operation {
+                    "dokime.host.v1.evidence.Records/Append" => {
+                        let request = RecordsAppendRequest::decode(request.as_slice()).map_err(decode)?;
+                        assert_eq!(request.execution, "execution");
+                        (request.request_id, RecordsAppendResponse { ordinal: 1, ..Default::default() }.encode_to_vec())
+                    }
+                    "dokime.host.v1.executions.Progress/Get" => return Ok(ProgressGetResponse::default().encode_to_vec()),
+                    "dokime.host.v1.executions.Progress/Set" => {
+                        let request = ProgressSetRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, ProgressSetResponse::default().encode_to_vec())
+                    }
+                    "dokime.host.v1.evidence.Logs/Append" => {
+                        let request = LogsAppendRequest::decode(request.as_slice()).map_err(decode)?;
+                        assert_eq!(request.execution, "execution");
+                        (request.request_id, LogsAppendResponse::default().encode_to_vec())
+                    }
+                    "dokime.host.v1.evidence.Traceability/Get" => return Ok(TraceabilityGetResponse::default().encode_to_vec()),
+                    "dokime.host.v1.evidence.Traceability/Set" => {
+                        let request = TraceabilitySetRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, TraceabilitySetResponse::default().encode_to_vec())
+                    }
+                    "dokime.host.v1.Documents/AppendParts" => {
+                        let request = DocumentsAppendPartsRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, DocumentsAppendPartsResponse { receipt: Some(Default::default()) }.encode_to_vec())
+                    }
+                    "dokime.host.v1.Effects/Create" => {
+                        let request = EffectsCreateRequest::decode(request.as_slice()).map_err(decode)?;
+                        (
+                            request.request_id,
+                            EffectsCreateResponse {
+                                name: "ticket".into(),
+                                ..Default::default()
+                            }
+                            .encode_to_vec(),
+                        )
+                    }
+                    "dokime.host.v1.Effects/Get" => return Ok(EffectsGetResponse::default().encode_to_vec()),
+                    "dokime.host.v1.Effects/Set" => {
+                        let request = EffectsSetRequest::decode(request.as_slice()).map_err(decode)?;
+                        (request.request_id, EffectsSetResponse::default().encode_to_vec())
+                    }
+                    _ => panic!("Unexpected Context Operation: {operation}"),
+                };
+                self.0.lock().unwrap().push(identity);
+                Ok(response)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn context_mutations_preserve_explicit_request_identities() -> Result<()> {
+        let host = Arc::new(Host::default());
+        let origin = Origin {
+            kind: Some(origin::Kind::PluginRun(PluginRun {
+                template: "capture.confirmation".into(),
+                ..Default::default()
+            })),
+        };
+        let context = Context::local(
+            Local {
+                host: host.clone(),
+                scope: "execution".into(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), origin),
+            Arc::new(()),
+        );
+
+        context
+            .record_with(&Record::<bool>::new("result", "Result"), true, RecordAppendOptions { request_id: Some("record".into()) })
+            .await?;
+        context.progress_with(1, 2, "", ProgressSetOptions { request_id: Some("progress".into()) }).await?;
+        context.log_with(Severity::Info, "", LogAppendOptions { request_id: Some("log".into()) }).await?;
+        context
+            .traceability_with(
+                "serial",
+                Value::default(),
+                TraceabilitySetOptions {
+                    request_id: Some("traceability".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        context
+            .document_with("report", DocumentPart::Card(Box::default()), "", DocumentAppendOptions { request_id: Some("document".into()) })
+            .await?;
+        let ticket = context
+            .prepare_effect_with("relay", "relay.restore", (), "", EffectCreateOptions { request_id: Some("prepare".into()) })
+            .await?;
+        context
+            .confirm_effect_with(&ticket, Some(Timestamp::default()), false, EffectConfirmOptions { request_id: Some("confirm".into()) })
+            .await?;
+        assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document", "prepare", "confirm"]);
+        Ok(())
+    }
+}

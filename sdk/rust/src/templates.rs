@@ -50,6 +50,44 @@ pub struct Environment {
     pub in_step: bool,
 }
 
+#[derive(Default)]
+pub struct RecordAppendOptions {
+    pub request_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct ProgressSetOptions {
+    pub request_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct LogAppendOptions {
+    pub request_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct TraceabilitySetOptions {
+    pub request_id: Option<String>,
+    pub label: String,
+    pub source: String,
+    pub unit: String,
+}
+
+#[derive(Default)]
+pub struct DocumentAppendOptions {
+    pub request_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct EffectCreateOptions {
+    pub request_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct EffectConfirmOptions {
+    pub request_id: Option<String>,
+}
+
 /* === Enums === */
 
 pub enum DocumentPart {

@@ -46,6 +46,10 @@ Operation handlers receive `dokime::operations::Context`; template handlers rece
 `dokime::templates::Context`. Both read plugin-owned state through `plugin::<T>()`.
 Template state uses `set(value)` and `get::<T>()` and lasts for one execution.
 Authors do not declare host requirements.
+Template observers use `Observer::new` or `Observer::window` with the template
+context. Plugin-wide observers use `Observer::operation` or
+`Observer::operation_window` with the operation context; they read plugin-owned
+state and have no execution-only methods.
 
 ## Values and Operations
 
@@ -110,3 +114,5 @@ Reuse a request identity with identical inputs when replaying a mutation.
 Execution creation derives the same execution UUID from that identity.
 Template contexts also support `artifact()` and `artifact_with()`; they share the
 client's fenced upload implementation and attach only to the calling execution.
+Context records, progress, logs, traceability, documents and effect mutations
+also accept operation-specific request identity options through `_with` methods.

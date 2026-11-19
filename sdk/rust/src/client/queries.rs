@@ -19,9 +19,10 @@
 use std::{collections::HashSet, marker::PhantomData};
 
 // Third Party Imports
+use harmos_protocol::schema;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
-use prost_types::Timestamp;
+use prost_types::{FileDescriptorSet, Timestamp};
 
 // Local Imports
 use super::{EvidenceRecordsListOptions, EvidenceSamplesListOptions, Execution, ExecutionsGetOptions, FrozenSchemaCache, sample_row};
@@ -307,6 +308,7 @@ impl<T: Payload> Decoder<T> {
         if name != expected {
             return Err(Error::Invalid(format!("Decode Evidence: Select the Frozen Row Type {name}, Rather Than {expected}")));
         }
+        validate_schema::<T>(&types, name)?;
         let pool = DescriptorPool::from_file_descriptor_set(types.as_ref().clone())
             .map_err(|error| Error::Invalid(format!("Read Frozen Schemas: {error}")))?;
         let descriptor = pool
@@ -326,11 +328,24 @@ impl<T: Payload> Decoder<T> {
 
 /* === Private Functions === */
 
+fn validate_schema<T: Payload>(types: &FileDescriptorSet, name: &str) -> Result<()> {
+    let frozen = schema::message_types(types, name).map_err(|error| Error::Invalid(format!("Read Frozen Schema: {error}")))?;
+    let declared = schema::message_types(&<T::Message as harmos::Message>::types(), name)
+        .map_err(|error| Error::Invalid(format!("Read Requested Row Schema: {error}")))?;
+    if frozen != declared {
+        return Err(Error::Invalid("Decode Evidence: Choose a Row Type Matching the Frozen Schema".into()));
+    }
+    Ok(())
+}
+
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
-    use super::Paging;
+    use prost_types::field_descriptor_proto::Type;
+
+    use super::{Paging, validate_schema};
+    use crate::Payload;
     use crate::{Position, ReadCut};
 
     #[test]
@@ -345,5 +360,20 @@ mod tests {
         assert!(paging.advance(Some(ReadCut::default()), "third".into()).is_err());
         assert!(paging.advance(None, String::new()).is_err());
         assert!(!paging.advance(Some(cut), String::new()).unwrap());
+    }
+
+    #[test]
+    fn matching_names_do_not_hide_changed_frozen_field_types() {
+        let mut types = <<bool as Payload>::Message as harmos::Message>::types();
+        let name = <<bool as Payload>::Message as harmos::Message>::name();
+        assert!(validate_schema::<bool>(&types, &name).is_ok());
+        let message = types
+            .file
+            .iter_mut()
+            .flat_map(|file| &mut file.message_type)
+            .find(|message| message.name.as_deref() == Some("BoolValue"))
+            .unwrap();
+        message.field[0].r#type = Some(Type::Int64 as i32);
+        assert!(validate_schema::<bool>(&types, &name).is_err());
     }
 }
