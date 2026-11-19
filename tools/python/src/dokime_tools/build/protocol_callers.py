@@ -62,7 +62,7 @@ def check_public_surfaces(root: Path) -> None:
     """Keep Protocol Implementation Names Out of Consumer Entry Points.
 
     Allow internal generated directories (detail, _generated, _wire), canonical
-    gRPC method paths. The separate ci:docs task checks guides.
+    gRPC method paths.
     """
     wire = re.compile(r"\b_wire\b|\w+_wire\b|\b(?:Harmos|Dokime)\.Internal\b|\b(?:[A-Za-z_]\w*(?:\.|::))+v\d+\b|[/\\]v\d+[/\\]")
     grpc_path = re.compile(r"/?[a-zA-Z_]\w*(?:\.\w+)*\.v\d+(?:\.\w+)*/[A-Za-z_]\w*")
