@@ -47,7 +47,7 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 
 ### CLI
 
-`dokime` creates SDK projects, packages executable plugins, hosts Dokime and
+`dokime` creates SDK projects, packages executable plugins and organization installers, hosts Dokime and
 controls a running host. `dokime new --lang python` embeds one Python project;
 the other languages embed their plugin and test projects. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
 
@@ -59,6 +59,7 @@ mise run build -- --package dokime-cli
 ./target/debug/dokime dev --plugin ./bench
 ./target/debug/dokime dev --no-desktop --plugin ./bench
 ./target/debug/dokime plugin bundle ./bench --out ./bench.dokime
+./target/debug/dokime installer package --manifest ./installer.toml --output ./dist
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
 ./target/debug/dokime --endpoint http://127.0.0.1:7000 plugin register http://127.0.0.1:7001
 ./target/debug/dokime --endpoint http://127.0.0.1:7000 plugin install ./bench.dokime

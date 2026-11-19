@@ -22,6 +22,7 @@ use harmos_runtime::Failure;
 use tonic::Status;
 
 // Local Imports
+use dokime_packaging::installer;
 
 /* === Constants === */
 
@@ -52,6 +53,9 @@ pub enum Error {
 
     #[error(transparent)]
     Transport(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    Installer(#[from] dokime_packaging::installer::Error),
 
     #[error(transparent)]
     Runtime(#[from] dokime_runtime::Error),
@@ -95,6 +99,7 @@ impl Error {
     pub fn exit_code(&self) -> u8 {
         match self {
             Self::Invalid(_) | Self::Endpoint(_) => 2,
+            Self::Installer(installer::Error::Invalid(_) | installer::Error::License { .. } | installer::Error::SigningConfiguration) => 2,
             Self::Capacity(_) => 4,
             Self::Status(status) if status.code() == tonic::Code::ResourceExhausted => 4,
             Self::Status(status) if status.code() == tonic::Code::InvalidArgument => 2,
