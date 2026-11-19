@@ -30,18 +30,18 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Archive, LockKeyhole, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
+import { ErrorCard } from "@/components/ErrorCard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import type { TestExecution } from "@/lib/types";
 import { useRerunNoticeStore } from "@/stores/rerun-notice-store";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -547,12 +547,10 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               disabled={confirmPending}
               onClick={() => {
                 if (!confirm || !confirming) return;
+                const kind = confirm.kind;
+                setConfirm(null);
                 run({ done: confirming.done, failed: confirming.failed }, async () => {
-                  try {
-                    await (confirm.kind === "archive" ? commands.archiveCycle.mutateAsync(true) : commands.sealCycle.mutateAsync());
-                  } finally {
-                    setConfirm(null);
-                  }
+                  await (kind === "archive" ? commands.archiveCycle.mutateAsync(true) : commands.sealCycle.mutateAsync());
                 });
               }}
               variant="danger"
