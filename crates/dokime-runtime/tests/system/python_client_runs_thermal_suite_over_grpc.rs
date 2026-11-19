@@ -35,11 +35,10 @@ use tokio::{
 use tonic::transport::Endpoint;
 
 // Local Imports
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
 use dokime_client_internal::Client;
 use dokime_protocol::host::{ResultStatus, execution_outcome};
-use dokime_runtime::process;
-use dokime_runtime::{ControlledClock, SchedulerClock, services};
+use dokime_runtime::{ControlledClock, SchedulerClock, process, services};
 
 /* === Constants === */
 
@@ -109,37 +108,40 @@ impl Source for PromptTime {
 
 #[test]
 fn unanswered_python_starter_prompt_survives_operation_deadlines() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Start a Host With an Explicitly Advanced Execution Clock.
-            let root = super::support::tempdir()?;
+            let root = support::tempdir()?;
             let scheduler = Arc::new(ControlledClock::new(0));
             let host_clock = Arc::new(ControlledClock::new(0));
             let execution = clock::Clock::with_clock(PromptTime {
                 scheduler: scheduler.clone(),
                 origin: Instant::now(),
             });
-            let mut settings = super::support::settings();
+            let mut settings = support::settings();
             settings.clock = Arc::new(PromptClock { scheduler: host_clock.clone(), execution });
-            let server =
-                services::serve("127.0.0.1:0".parse()?, &root.path().join("store"), settings, super::support::service_settings()).await?;
+            let server = services::serve("127.0.0.1:0".parse()?, &root.path().join("store"), settings, support::service_settings()).await?;
             let endpoint = format!("http://{}", server.endpoint());
             let channel = Endpoint::from_shared(endpoint.clone())?.connect().await?;
-            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let client = Client::from_channel(channel, support::client_settings())?;
 
-            // Run the Shipped Client, Including Its Plugin Listener and Progress Observer.
+            // Run the Stream-Free Confirmation Fixture With Its Plugin Listener and Progress Observer.
             let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
             let directory = if EXE_SUFFIX.is_empty() { ".venv/bin" } else { ".venv/Scripts" };
             let python = repository.join(directory).join(format!("python{EXE_SUFFIX}"));
+            let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/system/prompt_deadline.py");
+            let fixture = repository.join("sdk/python/tests/generation/test_surface.py");
             let mut command = process::command(&python);
             command
-                .args(["-u", "-m", "starter_project"])
+                .arg("-u")
+                .arg(&script)
+                .arg(&fixture)
                 .current_dir(root.path())
                 .env("DOKIME_REMOTE", &endpoint)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit());
             let mut child = Command::from(command).kill_on_drop(true).spawn()?;
-            let mut output = BufReader::new(child.stdout.take().ok_or("Run Starter: Capture Its Output")?).lines();
+            let mut output = BufReader::new(child.stdout.take().ok_or("Run Confirmation: Capture Its Output")?).lines();
             while let Some(line) = output.next_line().await? {
                 if line.trim() == "prompt" {
                     break;
@@ -147,18 +149,21 @@ fn unanswered_python_starter_prompt_survives_operation_deadlines() -> Result<(),
             }
             let pending = client.prompts.list("", true).await?;
             assert_eq!(pending.prompts.len(), 1);
-            let prompt = pending.prompts[0].prompt.as_ref().ok_or("Observe Starter: Read Its Pending Prompt")?;
+            let prompt = pending.prompts[0].prompt.as_ref().ok_or("Observe Confirmation: Read Its Pending Prompt")?;
             let prompt_id = prompt.prompt_id.clone();
-            let execution_id =
-                prompt.scope.as_ref().and_then(|scope| scope.execution_id.clone()).ok_or("Observe Starter: Read Its Execution Scope")?;
+            let execution_id = prompt
+                .scope
+                .as_ref()
+                .and_then(|scope| scope.execution_id.clone())
+                .ok_or("Observe Confirmation: Read Its Execution Scope")?;
 
             // Cross Every Default Execution Deadline Without Answering or Waiting on Wall Time.
             scheduler.wait_until(7_200_000_000_000).await?;
             host_clock.wait_until(31_000_000_000).await?;
-            let pending = client.prompts.get(prompt_id.clone()).await?.prompt.ok_or("Observe Starter: Retain Its Prompt")?;
+            let pending = client.prompts.get(prompt_id.clone()).await?.prompt.ok_or("Observe Confirmation: Retain Its Prompt")?;
             assert!(pending.response.is_none());
             let mut progress = client.executions.progress.watch(execution_id.clone()).await?;
-            let state = progress.next().await?.ok_or("Observe Starter: Retain Its Progress")?;
+            let state = progress.next().await?.ok_or("Observe Confirmation: Retain Its Progress")?;
             assert_eq!(state.phase, "prompt");
             assert!(!state.sealed);
             assert!(child.try_wait()?.is_none());
@@ -168,7 +173,7 @@ fn unanswered_python_starter_prompt_survives_operation_deadlines() -> Result<(),
             client.prompts.answers.create(prompt_id, "0", Default::default(), true).await?;
             while output.next_line().await?.is_some() {}
             assert!(child.wait().await?.success());
-            let outcome = client.executions.get(execution_id).await?.execution.ok_or("Read Starter: Retain Its Execution")?;
+            let outcome = client.executions.get(execution_id).await?.execution.ok_or("Read Confirmation: Retain Its Execution")?;
             assert!(!outcome.seal.is_empty());
             assert!(
                 matches!(outcome.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
@@ -186,12 +191,12 @@ fn unanswered_python_starter_prompt_survives_operation_deadlines() -> Result<(),
 
 #[test]
 fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
-            let root = super::support::tempdir()?;
-            let credential_root = super::support::tempdir()?;
-            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
             let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
             let python = env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
                 let directory = if EXE_SUFFIX.is_empty() { ".venv/bin" } else { ".venv/Scripts" };
