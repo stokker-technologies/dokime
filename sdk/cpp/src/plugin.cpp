@@ -32,13 +32,22 @@ using dokime::plugin::v1::StepsExecuteRequest;
 using dokime::plugin::v1::StepsExecuteResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
+using std::all_of;
 using std::find_if;
 using std::function;
+using std::isalpha;
+using std::istringstream;
+using std::isupper;
 using std::optional;
 using std::regex;
 using std::regex_replace;
+using std::replace;
 using std::size_t;
 using std::to_string;
+using std::tolower;
+using std::toupper;
+using std::transform;
 using std::vector;
 
 using google::protobuf::util::MessageDifferencer;
@@ -108,8 +117,8 @@ string build_label(string name) {
   }
   name = regex_replace(name, regex("([A-Z]+)([A-Z][a-z])"), "$1 $2");
   name = regex_replace(name, regex("([a-z0-9])([A-Z])"), "$1 $2");
-  std::replace(name.begin(), name.end(), '_', ' ');
-  std::istringstream input(name);
+  replace(name.begin(), name.end(), '_', ' ');
+  istringstream input(name);
   vector<string> words;
   for (string word; input >> word;)
     words.push_back(move(word));
@@ -117,15 +126,15 @@ string build_label(string name) {
   string result;
   for (size_t index = 0; index < words.size(); ++index) {
     auto word = words[index];
-    const bool uppercase = std::all_of(word.begin(), word.end(), [](unsigned char value) {
-      return !std::isalpha(value) || std::isupper(value);
+    const bool uppercase = all_of(word.begin(), word.end(), [](unsigned char value) {
+      return !isalpha(value) || isupper(value);
     });
     if (!uppercase) {
-      std::transform(word.begin(), word.end(), word.begin(), [](unsigned char value) {
-        return static_cast<char>(std::tolower(value));
+      transform(word.begin(), word.end(), word.begin(), [](unsigned char value) {
+        return static_cast<char>(tolower(value));
       });
       if (index == 0 || index + 1 == words.size() || !minor.contains(word))
-        word[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(word[0])));
+        word[0] = static_cast<char>(toupper(static_cast<unsigned char>(word[0])));
     }
     if (!result.empty())
       result += ' ';
@@ -495,13 +504,13 @@ Plugin::Plugin(Plugin &&other) noexcept
 void Plugin::serve(optional<string> address) const {
   if (!address && dokime::detail::configuration::environment("HARMOS_ADDRESS")) {
     compose().serve();
-    grpc_event_engine::experimental::ShutdownDefaultEventEngine();
+    ShutdownDefaultEventEngine();
     return;
   }
   const auto values = dokime::detail::configuration::load();
   const auto selected = dokime::detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
   compose().serve(selected);
-  grpc_event_engine::experimental::ShutdownDefaultEventEngine();
+  ShutdownDefaultEventEngine();
 }
 } // namespace dokime
 

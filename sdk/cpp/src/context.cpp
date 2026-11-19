@@ -15,10 +15,14 @@ using std::invalid_argument;
 using std::lock_guard;
 using std::make_shared;
 using std::move;
+using std::optional;
 using std::shared_ptr;
 using std::string;
 using std::unordered_map;
 using std::vector;
+using std::chrono::duration_cast;
+using std::chrono::nanoseconds;
+using std::chrono::system_clock;
 
 /* === Macros === */
 
@@ -92,12 +96,12 @@ void Context::document(string document, Card part, string section) {
 string Context::prepare_effect(string resource, string inverse_operation, const google::protobuf::Message &inverse, string description) {
   return host().effects.create(resource, inverse_operation, inverse.SerializeAsString(), description).name();
 }
-void Context::confirm_effect(string ticket, std::optional<std::chrono::system_clock::time_point> at, bool restored) {
+void Context::confirm_effect(string ticket, optional<system_clock::time_point> at, bool restored) {
   const auto current = host().effects.get(ticket);
   auto value = current.value();
   const auto applied = at ? *at : now();
   const auto instant = applied.time_since_epoch();
-  const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(instant).count();
+  const auto elapsed = duration_cast<nanoseconds>(instant).count();
   value.mutable_applied_at()->set_seconds(elapsed / 1000000000);
   value.mutable_applied_at()->set_nanos(static_cast<int>(elapsed % 1000000000));
   value.set_restored(restored);

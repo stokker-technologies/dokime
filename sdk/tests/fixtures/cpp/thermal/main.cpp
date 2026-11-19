@@ -14,6 +14,7 @@ using dokime::templates::Record;
 using dokime::templates::Step;
 using dokime::templates::Stream;
 using dokime::templates::Template;
+using dokime::templates::TestTemplate;
 using dokime::templates::WindowObserver;
 using dokime::templates::sampling::Window;
 using google::protobuf::Duration;
@@ -23,12 +24,13 @@ using std::exception;
 using std::move;
 using std::string;
 using std::uint64_t;
+using std::chrono::milliseconds;
 using thermal::v1::Counter;
 using thermal::v1::CounterColumns;
 using thermal::v1::Door;
 using thermal::v1::Temperature;
 
-class ThermalTestTemplate : public dokime::templates::TestTemplate {
+class ThermalTestTemplate : public TestTemplate {
 public:
   inline static const Record<Door> door{"door", "Door Check"};
   inline static const Stream<Temperature> temperature_stream{"temperature", "Temperature [°C]"};
@@ -46,7 +48,7 @@ public:
     Door reading;
     reading.set_closed(answer == "Yes");
     ctx.record(door, reading);
-    ctx.sleep(std::chrono::milliseconds(2500));
+    ctx.sleep(milliseconds(2500));
     ctx.progress(2, 2, "Hold");
   }
   bool within_limit(Context &ctx) {

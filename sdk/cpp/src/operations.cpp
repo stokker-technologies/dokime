@@ -17,6 +17,7 @@
 
 using dokime::host::v1::SecretsGetRequest;
 using dokime::host::v1::SecretsGetResponse;
+using google::protobuf::Duration;
 using harmos::host::v1::plugins::SettingsListRequest;
 using harmos::host::v1::plugins::SettingsListResponse;
 using harmos::plugin::Operation;
@@ -42,12 +43,12 @@ using std::chrono::system_clock;
 /* === Public Functions === */
 
 namespace dokime::operations {
-google::protobuf::Duration detail::encode_duration(duration<double> duration) {
+Duration detail::encode_duration(duration<double> duration) {
   if (!std::isfinite(duration.count()) || duration.count() < 0 || duration.count() > 315576000000.0)
     throw invalid_argument("Configure Duration: Supply Finite Nonnegative Seconds Within the Protobuf Duration Range");
   const auto whole = duration_cast<seconds>(duration);
   const auto fraction = duration_cast<nanoseconds>(duration - whole);
-  google::protobuf::Duration request;
+  Duration request;
   request.set_seconds(whole.count());
   request.set_nanos(static_cast<int>(fraction.count()));
   return request;

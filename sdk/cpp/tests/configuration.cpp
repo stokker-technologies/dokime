@@ -11,9 +11,12 @@
 
 #include "dokime/configuration.hpp"
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 
 using dokime::detail::configuration::parse;
+using dokime::detail::configuration::resolve;
 using std::invalid_argument;
+using std::map;
 using std::string;
 
 /* === Macros === */
@@ -50,6 +53,26 @@ TEST_CASE("Dotenv Refuses Duplicate Malformed and Non UTF-8 Assignments") {
   } catch (const invalid_argument &error) {
     REQUIRE(string(error.what()).starts_with("Read settings.env:2:"));
   }
+}
+
+TEST_CASE("Address Resolution Honors Explicit Environment and File Values Without Mutation") {
+#ifdef _WIN32
+  REQUIRE(_putenv_s("DOKIME_PLUGIN_ADDRESS", "environment") == 0);
+#else
+  REQUIRE(setenv("DOKIME_PLUGIN_ADDRESS", "environment", 1) == 0);
+#endif
+  const map<string, string> values{{"DOKIME_PLUGIN_ADDRESS", "file"}};
+  REQUIRE(resolve("DOKIME_PLUGIN_ADDRESS", "explicit", values) == "explicit");
+  REQUIRE(resolve("DOKIME_PLUGIN_ADDRESS", {}, values) == "environment");
+  REQUIRE_THROWS_AS(resolve("DOKIME_PLUGIN_ADDRESS", "", values), invalid_argument);
+  REQUIRE(dokime::detail::configuration::environment("DOKIME_PLUGIN_ADDRESS") == "environment");
+#ifdef _WIN32
+  REQUIRE(_putenv_s("DOKIME_PLUGIN_ADDRESS", "") == 0);
+#else
+  REQUIRE(unsetenv("DOKIME_PLUGIN_ADDRESS") == 0);
+#endif
+  REQUIRE(resolve("DOKIME_PLUGIN_ADDRESS", {}, values) == "file");
+  REQUIRE_THROWS_AS(resolve("DOKIME_PLUGIN_ADDRESS", {}, {{"DOKIME_PLUGIN_ADDRESS", ""}}), invalid_argument);
 }
 
 /* === Private Functions === */

@@ -21,13 +21,13 @@ from pathlib import Path
 # isort: split
 
 # Third Party Imports
+from harmos_tools.build.resources import sdk
 
 # isort: split
 
 # Local Imports
 from dokime_tools.build.protocol import configuration
 from dokime_tools.process import spawn_flags
-from harmos_tools.build.resources import sdk
 
 # Type Checking Imports
 
