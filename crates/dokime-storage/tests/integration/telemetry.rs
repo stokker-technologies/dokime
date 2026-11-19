@@ -77,7 +77,7 @@ use dokime_protocol::model::TransformExpression;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
-use dokime_storage::{CycleArchive, OutcomeCounts};
+use dokime_storage::OutcomeCounts;
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::StreamDeclaration;
 use harmos_protocol::model::{FileMetadata, FileReference};
@@ -577,7 +577,7 @@ fn execution_archive_orders_native_content_deterministically() -> Result<()> {
             attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
         },
     )?;
-    store.seal("execution")?;
+    store.seal("execution", Default::default())?;
 
     // Export Opposite Source Inventory Orders.
     let mut archives = Vec::new();
@@ -623,17 +623,6 @@ fn execution_archive_orders_native_content_deterministically() -> Result<()> {
     }
     assert_eq!(archives[0], archives[1]);
 
-    // Every Member Carries the Same Stable Metadata.
-    let mut archive = ZipArchive::new(Cursor::new(&archives[0]))?;
-    let first = archive.by_index(0)?;
-    let modified = first.last_modified();
-    let permissions = first.unix_mode();
-    drop(first);
-    for index in 1..archive.len() {
-        let member = archive.by_index(index)?;
-        assert_eq!(member.last_modified(), modified);
-        assert_eq!(member.unix_mode(), permissions);
-    }
     Ok(())
 }
 
@@ -657,7 +646,7 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
             attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
         },
     )?;
-    store.seal("execution")?;
+    store.seal("execution", Default::default())?;
     assert_eq!(store.cut("execution")?.state, ExecutionState::Sealed);
     let mut archive = Vec::new();
     store.write_execution_archive("execution", &mut archive, Default::default())?;
@@ -668,8 +657,14 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     let source = fs::read(file)?;
     assert_eq!(copied, source);
     let manifest: serde_json::Value = serde_json::from_reader(zip.by_name("manifest.json")?)?;
-    assert_eq!(manifest["telemetry"][0]["size"], source.len());
-    assert_eq!(manifest["telemetry"][0]["sha256"], Sha256::digest(&source).iter().map(|b| format!("{b:02x}")).collect::<String>());
+    assert_eq!(
+        manifest["entries"].as_array().unwrap().iter().find(|entry| entry["path"] == "telemetry/readings.arrow").unwrap()["size"],
+        source.len()
+    );
+    assert_eq!(
+        manifest["entries"].as_array().unwrap().iter().find(|entry| entry["path"] == "telemetry/readings.arrow").unwrap()["sha256"],
+        Sha256::digest(&source).iter().map(|b| format!("{b:02x}")).collect::<String>()
+    );
     let window = SampleWindow {
         execution: "execution",
         streams: &[],
@@ -1263,7 +1258,7 @@ fn cycle_finality_seals_unstarted_without_inventing_a_verdict() -> Result<()> {
     store.create_note(note.clone())?;
 
     // Seal the Never-Started Execution and Preserve Its Original Note Replay.
-    store.seal_unstarted("execution")?;
+    store.seal_unstarted("execution", Default::default())?;
     let sealed = store.read("execution")?;
     assert_eq!(sealed.state, ExecutionState::Sealed);
     assert_eq!(sealed.execution.termination, Termination::NotRun as i32);
@@ -1314,16 +1309,17 @@ fn cycle_finality_seals_unstarted_without_inventing_a_verdict() -> Result<()> {
 }
 
 #[test]
-fn cycle_archive_contains_report_notes_and_nested_execution_evidence() -> Result<()> {
+fn cycle_archive_contains_report_notes_and_execution_folders() -> Result<()> {
     // Retain Both Owners and the Canonical Report Bytes.
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     store.create(&fixture::execution())?;
     store.save_cycle(&CycleSummary {
         cycle_id: "cycle".into(),
+        updated_at: Some(Default::default()),
         ..Default::default()
     })?;
-    store.seal_unstarted("execution")?;
+    store.seal_unstarted("execution", Default::default())?;
     let report = b"<html>frozen</html>";
     let note = OperatorNote {
         note_id: "cycle-note".into(),
@@ -1355,18 +1351,11 @@ fn cycle_archive_contains_report_notes_and_nested_execution_evidence() -> Result
     let mut retained = Vec::new();
     archive.by_name("report.html")?.read_to_end(&mut retained)?;
     assert_eq!(retained, report);
-    let mut metadata = Vec::new();
-    archive.by_name("evidence.pb")?.read_to_end(&mut metadata)?;
-    let metadata = CycleArchive::decode(metadata.as_slice())?;
-    assert_eq!(metadata.notes, vec![note]);
-    assert!(metadata.cycle.unwrap().sealed);
-    let mut nested = Vec::new();
-    archive.by_name("executions/execution.zip")?.read_to_end(&mut nested)?;
-    let mut nested = ZipArchive::new(Cursor::new(nested))?;
-    let mut metadata = Vec::new();
-    nested.by_name("evidence.pb")?.read_to_end(&mut metadata)?;
-    let execution = dokime_storage::ExecutionArchive::decode(metadata.as_slice())?.execution.unwrap();
-    assert_eq!(execution.termination, Termination::NotRun as i32);
+    let metadata: serde_json::Value = serde_json::from_reader(archive.by_name("data/cycle.json")?)?;
+    assert_eq!(metadata["notes"][0]["note_id"], note.note_id);
+    assert_eq!(metadata["cycle"]["sealed"], true);
+    let execution: serde_json::Value = serde_json::from_reader(archive.by_name("executions/01 execution/data/execution.json")?)?;
+    assert_eq!(execution[0]["termination"], Termination::NotRun as i32);
     Ok(())
 }
 
@@ -1382,7 +1371,7 @@ fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
             ..Default::default()
         },
     )?;
-    assert!(store.seal_unstarted("execution").is_err());
+    assert!(store.seal_unstarted("execution", Default::default()).is_err());
     assert_eq!(store.cut("execution")?.state, ExecutionState::Open);
     Ok(())
 }

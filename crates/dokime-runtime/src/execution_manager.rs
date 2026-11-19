@@ -41,7 +41,6 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use crate::execution;
 use crate::run_control::RunControl;
 use crate::services::composition::Application;
 use crate::streams::SampleScope;
@@ -50,6 +49,7 @@ use crate::{
     host::{RootLease, lock},
     prompts::PromptManager,
 };
+use crate::{clock, execution};
 use dokime_operations::host::{Context, Progress};
 use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::execution_outcome::Attribution;
@@ -121,9 +121,9 @@ impl ExecutionManager {
                         })),
                     },
                 )?;
-                store.seal(&identifier)?;
+                store.seal(&identifier, clock::date(settings.clock.now_ns()).into())?;
             } else if snapshot.state == ExecutionState::Closed && is_run {
-                store.seal(&identifier)?;
+                store.seal(&identifier, clock::date(settings.clock.now_ns()).into())?;
             }
         }
 
@@ -533,7 +533,7 @@ mod tests {
             })),
         };
         manager.inner.store.close("execution", Termination::Interrupted, outcome.clone())?;
-        manager.inner.store.seal("execution")?;
+        manager.inner.store.seal("execution", Default::default())?;
         manager.finish_progress("execution", None)?;
         progress.changed().await?;
         assert!(progress.borrow_and_update().sealed);
@@ -554,7 +554,7 @@ mod tests {
             })),
         };
         manager.inner.store.close("execution", Termination::Completed, outcome.clone())?;
-        manager.inner.store.seal("execution")?;
+        manager.inner.store.seal("execution", Default::default())?;
 
         // Return a Terminal Snapshot Without Waiting for a Runtime Update
         let mut progress = manager.progress("execution")?;

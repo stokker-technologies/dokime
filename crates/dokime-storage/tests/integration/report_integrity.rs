@@ -67,7 +67,7 @@ fn report_seal_retains_stored_document_bytes() -> Result<()> {
         ..Default::default()
     })?;
     store.close("report", Termination::Completed, ExecutionOutcome::default())?;
-    store.seal("report")?;
+    store.seal("report", Default::default())?;
     let seal = store.cut("report")?.seal;
     let document = Document {
         metadata: Some(Metadata {

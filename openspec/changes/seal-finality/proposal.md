@@ -1,7 +1,7 @@
 # Seal Finality
 
-Status: locked by the owner on 2026-11-18. Implementation waits behind the
-administration scan repair (operation-boundary task 4.4w).
+Status: Locked by the owner on 2026-11-18, with publication and archive
+decisions extended on 2026-11-19. Implementation and proof are tracked in tasks.md.
 
 ## Why
 
@@ -37,8 +37,8 @@ is final, for executions and cycles alike.
 Host operations for cycles, executions, notes, file uploads, reports and the
 evidence archive; the execution and cycle projections; desktop and
 command-line wording; every client surface that reports a terminal state.
-Storage formats are unchanged: the execution's terminal state is already
-`Sealed`.
+Stored execution states remain unchanged. Development storage and evidence
+baselines remain v1.
 
 ## Retry and Observation Decisions
 
@@ -67,18 +67,27 @@ report insertion, proves the latch still rejects writes after removal of the
 fault, reopens the host and seals successfully. Neither failure story leaves a
 retained report or archive, and each retry publishes exactly one of each.
 
-## Publication Ownership Needs an Owner Decision
+## Atomic Publication Decision
 
-The current cycle materializer calls the independently publishing report
-preparation operation, then the independently publishing archive operation,
-then saves the cycle's final state. A persistence error at archive publication
-can therefore leave the earlier report live after reopening. The late-failure
-story records this counterexample. The two early-failure stories do not prove
-cleanup of this later publication boundary.
+The cycle seal is the publication and recovery owner. Its report and archive are
+staged unpublished and become visible with Sealed in one existing native storage
+compound/scoped mutation. Reopening discards abandoned staging. A late archive
+publication failure retains neither output; reopening preserves Seal Failed and
+its cause and a retry retains exactly one report and one archive.
 
-The clean shape gives the cycle materialization attempt one publication and
-recovery owner for both files and the sealed state. Reusing report capture and
-archive construction should not independently publish partially completed
-cycle output. Choosing the native compound-publication boundary or an explicitly
-owned recoverable attempt belongs to the owner; no second cleanup registry is
-introduced here.
+## Archive Layout Decision
+
+Cycle archives contain root report.html and manifest.json and ordered folders
+executions/<NN> <Template Label>/. Windows/Linux-invalid filename characters in
+labels become dashes; other characters remain. Every folder, including not-run
+executions, contains its own report.html, manifest.json and readable evidence in
+data/ (steps/attempts, records, criteria, prompts/answers, notes, parameters and
+outcome). Finalized Arrow streams use dashed identifiers under telemetry/;
+retained bytes live in files/ and artifacts/. Standalone archives use the same
+content at their root. The encoded evidence file has no product reader and is
+replaced by JSON, including frozen execution metadata and declarations.
+Manifests hash every content member; their own bytes are excluded from their own
+hash inventory to avoid self-reference. Entry times use the owner's seal time.
+
+The shipped Python starter adds its approved 100 ms temperature observer and
+names its cycle and saved ZIP from one datetime captured at cycle creation.

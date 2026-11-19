@@ -144,7 +144,7 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
 
     // Deleting Sealed Evidence Explicitly Invalidates a Returned Global Cut.
     store.close("first", Termination::Completed, ExecutionOutcome::default())?;
-    store.seal("first")?;
+    store.seal("first", Default::default())?;
     let seal = store.cut("first")?.seal;
     store.delete_sealed_execution("delete", "first", &seal, &ExecutionsDeleteResponse::default())?;
     assert!(store.evidence_position(Some(&cut)).is_err());

@@ -18,14 +18,11 @@
 // Standard Library Imports
 use std::error::Error;
 use std::io::Cursor;
-use std::io::Read;
 
 // Third Party Imports
-use prost::Message;
 
 // Local Imports
 use dokime_runtime::Host;
-use dokime_storage::ExecutionArchive;
 
 /* === Constants === */
 
@@ -72,10 +69,8 @@ fn execution_capabilities() -> Result<(), Box<dyn Error>> {
             assert!(host.start_execution(&execution).await.is_err());
             assert!(host.cancel(&execution).unwrap_err().to_string().to_lowercase().contains("cancel"));
             let mut archive = zip::ZipArchive::new(Cursor::new(host.export_execution(&execution).await?))?;
-            let mut metadata = Vec::new();
-            Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
-            let exported = ExecutionArchive::decode(metadata.as_slice())?;
-            assert_eq!(exported.execution.as_ref().unwrap().identifier, execution);
+            let exported: serde_json::Value = serde_json::from_reader(archive.by_name("data/execution.json")?)?;
+            assert_eq!(exported[0]["identifier"], execution);
 
             // Rerun Creates New Evidence and Preserves the Earlier Execution
             let before = host.execution(&execution)?;

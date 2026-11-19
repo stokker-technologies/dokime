@@ -157,7 +157,20 @@ pub(crate) fn materialize(
                     }
                     for execution in executions {
                         after = execution.clone();
-                        files.insert(execution.clone(), content(context, &execution).await?);
+                        let mut content = content(context, &execution).await?;
+                        let (_, report) = crate::host::reports::create::render(
+                            context,
+                            &ReportsCreateRequest {
+                                subject: Some(ReportSubject {
+                                    kind: Some(report_subject::Kind::Execution(execution.clone())),
+                                }),
+                                request_id: format!("archive-execution/{execution}"),
+                                ..Default::default()
+                            },
+                        )
+                        .await?;
+                        content.report = Some(report);
+                        files.insert(execution.clone(), content);
                     }
                 }
                 let mut owned = ArchivedContent {
@@ -255,7 +268,10 @@ fn subject_scope(subject: &EvidenceSubject) -> Result<Identifier> {
 async fn content(context: &Context, execution: &str) -> Result<ArchivedContent> {
     let execution_files = crate::host::content::execution_files(context, execution).await?;
     let files = native_files(context, Scope::Execution(execution).identifier()?).await?;
+    let snapshot = crate::host::execution_state::read(context, execution)?;
+    let template_label = crate::host::execution_state::template_metadata(&snapshot)?.map(|(_, template)| template.label);
     Ok(ArchivedContent {
+        template_label,
         files,
         execution_files,
         ..Default::default()

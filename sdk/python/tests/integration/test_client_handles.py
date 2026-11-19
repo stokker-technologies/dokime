@@ -12,11 +12,14 @@
 
 # Standard Library Imports
 import asyncio
+import json
 import unittest
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from hashlib import sha256
+from io import BytesIO
 from uuid import UUID
+from zipfile import ZipFile
 
 # Third Party Imports
 from google.protobuf.message import Message
@@ -31,6 +34,7 @@ from harmos._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_Ope
 from dokime_sdk._client import Case, Client
 from dokime_sdk._connection import connect
 from dokime_sdk._errors import SdkError
+from dokime_sdk._transfers import verify_archive
 from dokime_sdk._values import Outcome, PromptAnswer, PromptQuestion, ResultStatus, Termination, decode
 from dokime_sdk._wire.host.v1 import cases_pb2, cycles_pb2, evidence_pb2, executions_pb2, files_pb2, prompts_pb2, reports_pb2
 from dokime_sdk._wire.host.v1.cases_pb2_grpc import CasesServicer, add_CasesServicer_to_server
@@ -83,7 +87,15 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             admitted_suite={"identifier": "suite"},
             admitted_template={"identifier": "suite.template"},
         )
-        self.data = b"retained archive"
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        archive.writestr("report.html", b"retained report")
+        archive.writestr(
+            "manifest.json",
+            json.dumps({"version": 1, "entries": [{"path": "report.html", "size": 15, "sha256": sha256(b"retained report").hexdigest()}]}),
+        )
+        archive.close()
+        self.data = buffer.getvalue()
         data = self.data
         digest = sha256(data).digest()
 
@@ -593,6 +605,42 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.end_unsealed = True
         with self.assertRaises(SdkError):
             [value async for value in execution.watch()]
+
+
+class ArchiveIntegrityStory(unittest.TestCase):
+    def test_manifest_verifies_nested_content_and_rejects_corruption(self) -> None:
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        content = b"execution report"
+        member = {"path": "report.html", "size": len(content), "sha256": sha256(content).hexdigest()}
+        nested = json.dumps({"version": 1, "entries": [member]}).encode()
+        prefix = "executions/01 Confirmation/"
+        archive.writestr(prefix + "report.html", content)
+        archive.writestr(prefix + "manifest.json", nested)
+        entries = [
+            {**member, "path": prefix + "report.html"},
+            {"path": prefix + "manifest.json", "size": len(nested), "sha256": sha256(nested).hexdigest()},
+        ]
+        archive.writestr("manifest.json", json.dumps({"version": 1, "entries": entries}))
+        archive.close()
+        data = buffer.getvalue()
+        self.assertEqual(verify_archive(data), data)
+
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        archive.writestr("report.html", b"corrupt report")
+        archive.writestr("manifest.json", json.dumps({"version": 1, "entries": [member]}))
+        archive.close()
+        with self.assertRaises(SdkError):
+            verify_archive(buffer.getvalue())
+
+        buffer = BytesIO()
+        archive = ZipFile(buffer, "w")
+        archive.writestr("unlisted", b"evidence")
+        archive.writestr("manifest.json", json.dumps({"version": 1, "entries": []}))
+        archive.close()
+        with self.assertRaises(SdkError):
+            verify_archive(buffer.getvalue())
 
 
 # === Public Functions === #

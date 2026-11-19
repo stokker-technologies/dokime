@@ -404,7 +404,7 @@ pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
 
 /* === Private Functions === */
 
-fn template_metadata(snapshot: &ExecutionSnapshot) -> Result<Option<(Option<Metadata>, Metadata)>> {
+pub(crate) fn template_metadata(snapshot: &ExecutionSnapshot) -> Result<Option<(Option<Metadata>, Metadata)>> {
     let Some(Kind::PluginRun(run)) = snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) else {
         return Ok(None);
     };

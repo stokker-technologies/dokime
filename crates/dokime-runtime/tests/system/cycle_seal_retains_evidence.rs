@@ -26,7 +26,6 @@ use std::{
 // Third Party Imports
 use harmos_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::FileMetadata;
-use prost::Message;
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use tonic::{Code, transport::Endpoint};
@@ -42,7 +41,6 @@ use dokime_protocol::host::{
 };
 use dokime_protocol::model::{ArtifactScope, Metadata, Termination};
 use dokime_runtime::PluginProcess;
-use dokime_storage::{CycleArchive, ExecutionArchive};
 
 /* === Constants === */
 
@@ -144,7 +142,7 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let admission = client.cycles.seal(name.clone()).await?;
             assert_eq!(admission.cycle.unwrap().phase, CyclePhase::Sealing as i32);
             let retained = settlement(&client, &name).await?;
-            assert!(retained.sealed);
+            assert!(retained.sealed, "{:?}", retained.seal_failure);
             assert!(retained.seal_failure.is_none());
             assert_eq!(retained.result.as_ref().map(|result| (result.passed, result.failed)), Some((0, 0)));
             let not_run = client.executions.get(unstarted.clone()).await?.execution.unwrap();
@@ -187,20 +185,13 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
             let mut html = Vec::new();
             archive.by_name("report.html")?.read_to_end(&mut html)?;
             assert_eq!(html, reports[0]);
-            let mut metadata = Vec::new();
-            archive.by_name("evidence.pb")?.read_to_end(&mut metadata)?;
-            let metadata = CycleArchive::decode(metadata.as_slice())?;
-            assert!(metadata.notes.iter().any(|saved| saved.note_id == note.note_id));
-            assert!(metadata.artifacts.iter().any(|bytes| dokime_storage::StoredArtifact::decode(bytes.as_slice()).unwrap().artifact.unwrap().artifact_id == artifact.artifact_id));
-            let mut nested = Vec::new();
-            let member = format!("executions/{running}.zip");
-            archive.by_name(&member)?.read_to_end(&mut nested)?;
-            let mut nested = ZipArchive::new(Cursor::new(nested))?;
-            let mut metadata = Vec::new();
-            nested.by_name("evidence.pb")?.read_to_end(&mut metadata)?;
-            let metadata = ExecutionArchive::decode(metadata.as_slice())?;
-            assert!(metadata.notes.iter().any(|saved| saved.note_id == before.note_id));
-            assert_eq!(metadata.artifacts.len(), 1);
+            let metadata: serde_json::Value = serde_json::from_reader(archive.by_name("data/cycle.json")?)?;
+            assert_eq!(metadata["cycle"]["updated_at"]["seconds"], retained.updated_at.as_ref().unwrap().seconds);
+            assert!(metadata["notes"].as_array().unwrap().iter().any(|saved| saved["note_id"] == note.note_id));
+            assert!(metadata["artifacts"].as_array().unwrap().iter().any(|saved| saved["artifact"]["artifact_id"] == artifact.artifact_id));
+            let member = archive.file_names().filter_map(Result::ok).find(|member| member.starts_with("executions/01 ") && member.ends_with("/data/notes.json")).unwrap().into_owned();
+            let metadata: serde_json::Value = serde_json::from_reader(archive.by_name(&member)?)?;
+            assert!(metadata.as_array().unwrap().iter().any(|saved| saved["note_id"] == before.note_id));
 
             // Retained Downloads Survive Host Restart.
             process.close().await?;

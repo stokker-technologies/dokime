@@ -313,7 +313,7 @@ pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &T
             println!("Report Source | 8 sections | {plots} distinct-stream plots | {} samples | 3 records", plots * WRITE_ROWS);
             store.close_streams("execution").unwrap();
             store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
-            store.seal("execution").unwrap();
+            store.seal("execution", Default::default()).unwrap();
             store.shutdown_samples().await.unwrap();
             drop(store);
             let settings = publication::settings();

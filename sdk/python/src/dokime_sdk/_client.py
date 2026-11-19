@@ -34,7 +34,7 @@ from ._generated.client import ClientRoot
 from ._generated.shared import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
-from ._transfers import download, publish_artifact
+from ._transfers import download, publish_artifact, verify_archive
 from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, ResultStatus, Scalar, Termination, decode, encode
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 from ._wire.model.v1.metadata_pb2 import Metadata
@@ -800,7 +800,8 @@ async def _archive(client: Client, subject: client_types.EvidenceSubject) -> byt
     reply = await call("evidence.archive", client._transport.evidence.archive(subject))
     if not reply.HasField("file"):
         raise invalid("evidence.archive", "The Host Returned No Retained Archive")
-    return await download(client._transport, reply.file)
+    data = await download(client._transport, reply.file)
+    return verify_archive(data)
 
 
 async def _note(client: Client, cycle: str, execution: str | None, text: str, request_id: str | None) -> Note:

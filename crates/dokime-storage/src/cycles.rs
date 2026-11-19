@@ -61,7 +61,7 @@ impl Store {
         require_owner(&connection, cycle, execution, action)
     }
 
-    pub fn seal_unstarted(&self, execution: &str) -> Result<()> {
+    pub fn seal_unstarted(&self, execution: &str, at: Timestamp) -> Result<()> {
         let cut = self.cut(execution)?;
         if cut.state != ExecutionState::Open || cut.frontier != 0 {
             return Err(Error::Invalid(format!("Seal Execution {execution} as Not Run: Select Evidence That Has Never Started")));
@@ -76,7 +76,7 @@ impl Store {
                 })),
             },
         )?;
-        self.seal(execution)
+        self.seal(execution, at)
     }
     pub fn cycle_request(&self, request: &CyclesSetRequest) -> Result<Option<CyclesSetResponse>> {
         if request.request_id.is_empty() {

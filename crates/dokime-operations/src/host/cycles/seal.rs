@@ -90,9 +90,10 @@ pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Cyc
                         cycle.sealed = false;
                         cycle.phase = CyclePhase::SealFailed as i32;
                         cycle.seal_failure = Some(format!("Seal Cycle {name}: {source}; Resolve the Cause and Retry Seal"));
+                        cycle.updated_at = Some(crate::host::projection::timestamp(work.host.now_ns()));
                     }
                 }
-                cycle.updated_at = Some(crate::host::projection::timestamp(work.host.now_ns()));
+                // Successful Publication Retains the Seal Timestamp Frozen at Admission.
                 work.host.store().save_cycle(&cycle)?;
                 work.host.signal_change();
                 Result::Ok(())
@@ -131,7 +132,10 @@ async fn materialize(context: &Context, name: &str) -> Result<(FileReference, Fi
         let _guard = context.administration.lock().await;
         for row in crate::host::execution_state::snapshots(context, name)? {
             if row.state != ExecutionState::Sealed {
-                context.host.store().seal_unstarted(&row.execution.identifier)?;
+                context
+                    .host
+                    .store()
+                    .seal_unstarted(&row.execution.identifier, crate::host::projection::timestamp(context.host.now_ns()))?;
             }
         }
         context.host.signal_change();

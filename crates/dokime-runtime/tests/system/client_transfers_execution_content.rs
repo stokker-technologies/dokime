@@ -125,11 +125,14 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
             assert_eq!(manifest["version"], 1);
             let mut references = BTreeSet::new();
             let mut retained_content = 0;
-            for member in manifest["files"].as_array().unwrap() {
+            for member in manifest["entries"].as_array().unwrap().iter().filter(|member| {
+                let path = member["path"].as_str().unwrap();
+                (path.starts_with("files/") || path.starts_with("artifacts/")) && !path.ends_with(".pb") && !path.ends_with('/')
+            }) {
                 let mut original = Vec::new();
                 archive.by_name(member["path"].as_str().unwrap())?.read_to_end(&mut original)?;
                 let mut retained = Vec::new();
-                archive.by_name(member["reference"].as_str().unwrap())?.read_to_end(&mut retained)?;
+                archive.by_name(&format!("{}.pb", member["path"].as_str().unwrap()))?.read_to_end(&mut retained)?;
                 let embedded = FileReference::decode(retained.as_slice())?;
                 assert!(references.insert(embedded.encode_to_vec()));
                 assert_eq!(embedded.metadata.as_ref().unwrap().scope.as_deref(), Some(format!("execution/{execution}").as_str()));
@@ -143,12 +146,10 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
                 }
             }
             assert_eq!(retained_content, 1);
-            let mut evidence = Vec::new();
-            archive.by_name("evidence.pb")?.read_to_end(&mut evidence)?;
-            let evidence = dokime_storage::ExecutionArchive::decode(evidence.as_slice())?;
-            assert_eq!(evidence.artifacts.len(), 1);
-            assert_eq!(evidence.artifacts[0].artifact.as_ref(), Some(&artifact));
-            assert_eq!(evidence.artifacts[0].request.as_ref().unwrap().file.as_ref(), Some(&reference));
+            let evidence: serde_json::Value = serde_json::from_reader(archive.by_name("data/artifacts.json")?)?;
+            assert_eq!(evidence.as_array().unwrap().len(), 1);
+            assert_eq!(evidence[0]["artifact"]["artifact_id"], artifact.artifact_id);
+            assert_eq!(evidence[0]["request"]["file"]["metadata"]["id"], reference.metadata.as_ref().unwrap().id);
             process.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })

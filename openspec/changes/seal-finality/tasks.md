@@ -42,22 +42,33 @@ Produced ZIP inspection passed through the focused storage archive test (1 test)
 for the execution; `executions/execution.zip` and `manifest.json` for the cycle.
 Neither ZIP contained `report.html` or native operator notes.
 
-### Archive Inventory After Implementation
+### Publication and Archive Decisions
 
-Standalone execution ZIPs retain the same evidence, Arrow telemetry and native
-file/reference members, add native operator notes to `evidence.pb`, and include
-`report.html`. Their first complete download is retained against the execution's
-seal. Frozen document
-declarations remain in the execution catalog; the HTML includes evaluated document
-responses and their captured plots, records, notes and files.
+The cycle seal owns publication and recovery of its staged report and archive.
+They become visible with Sealed in one native storage compound mutation.
+Reopening discards abandoned cycle-owned staging. Independent report publication
+is not called by cycle sealing. Prepared reports have one durable lookup;
+the temporary runtime registry is removed.
 
-Cycle ZIPs retain every nested execution ZIP and add cycle `evidence.pb` (cycle
-metadata, native notes and artifact metadata), cycle-owned native file/reference
-members, and the one aggregate `report.html`. The aggregate report covers every
-execution, including not-run executions. Its native file and the archive's native
-file are retained with the cycle's sealed state. Nested execution ZIPs use that
-aggregate report rather than materializing additional reports. Notes and artifact inventories
-are grouped once per archive request.
+- [ ] 3.7 Publish the staged report, archive and sealed cycle atomically and prove late failure recovery.
+- [x] 3.8 Replace nested execution ZIPs with ordered, sanitized template folders and individual reports.
+- [x] 3.9 Project execution evidence into deterministic JSON, replace the unused encoded evidence file and its wire structs, and hash every archive member.
+- [x] 3.10 Apply execution/cycle seal timestamps and dashed telemetry names; prove the exact three-execution entry list, sanitization, JSON, timestamps and repeat digests.
+- [x] 3.11 Remove the temporary runtime report registry and migrate every caller to durable prepared reports.
+- [x] 3.12 Add the starter temperature observer and creation-time archive filename; update its description and generated-project stories and README.
+
+The source inventory adds storage archive construction and native compound/recovery,
+operations report capture and archive staging, runtime report callers, archive
+stories in storage/runtime/CLI, and Python SDK downloads, starter and stories.
+Documentation under docs/ is owner-written and is reported rather than edited.
+
+The pinned native compound contract admits objects, records, object deletions and
+scope deletions; it has no staged-file publication item. Cycle state still lives
+in execution.sqlite3 while native files and compound mutations live in
+storage.sqlite3. Atomic cycle publication must close both gaps at the storage
+owner; a second transaction mechanism or product-side publication mirror is not
+an allowed replacement. Task 3.7 and the late archive-failure regression remain
+open until that single-boundary storage facility is available.
 
 ## 4. Validation and Delivery
 
