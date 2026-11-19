@@ -462,11 +462,13 @@ fn user_entry_reusing_installation_content_survives_reconciliation() -> Result<(
             // Startup Must Preserve Both Entries and Their Shared Immutable Content.
             let (server, client) = open(root.path(), installation.path()).await?;
             let entries = inventory(&client).await?;
+            let content_available = client.files.get(file).await.is_ok();
+            let health = client.evidence.health_events.list(Default::default()).await?;
+            server.close().await?;
             assert!(entries.contains_key("com.example.testhub"));
             assert!(entries.contains_key("example-pack"));
-            assert!(client.files.get(file).await.is_ok());
-            assert!(client.evidence.health_events.list(Default::default()).await?.events.is_empty());
-            server.close().await?;
+            assert!(content_available);
+            assert!(health.events.is_empty());
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
