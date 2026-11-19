@@ -24,22 +24,30 @@ harmos-packaging = { workspace = true }
 harmos-runtime = { workspace = true }
 
 # Error Handling
+thiserror = { workspace = true }
 
 # Logging
 
 # Utilities
 semver = { workspace = true }
+sha2 = { workspace = true }
 spdx = { workspace = true }
+time = { workspace = true }
 
 # Serialization
+base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
+zip = { workspace = true }
 
 # Configuration
 
 # Filesystem
+flate2 = { workspace = true }
 ignore = { workspace = true }
+tar = { workspace = true }
+tempfile = { workspace = true }
 
 # Parsing
 roxmltree = { workspace = true }
@@ -50,10 +58,14 @@ roxmltree = { workspace = true }
 
 # Networking
 reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
 
 # Storage
 
 # UI
+image = { workspace = true, features = ["png", "ico", "bmp"] }
+tauri-bundler = { workspace = true }
+tauri-utils = { workspace = true }
 
 # Testing
 
@@ -63,13 +75,13 @@ reqwest = { workspace = true }
 
 [dev-dependencies]
 # Utilities
-sha2 = { workspace = true }
-
-# Filesystem
-tar = { workspace = true }
-tempfile = { workspace = true }
+handlebars = { workspace = true }
 
 # === Target Dependencies === #
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Utilities
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
 
 # === Test Targets === #
 

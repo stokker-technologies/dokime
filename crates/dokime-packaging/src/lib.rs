@@ -10,6 +10,7 @@
 /* === Modules === */
 
 pub mod bundle;
+pub mod installer;
 pub mod project;
 
 /* === Re-Exports === */

@@ -128,6 +128,10 @@ tempfile = { workspace = true }
 name = "system"
 path = "tests/system/main.rs"
 
+[[test]]
+name = "acceptance"
+path = "tests/acceptance/main.rs"
+
 # === Bench Targets === #
 
 # === Example Targets === #

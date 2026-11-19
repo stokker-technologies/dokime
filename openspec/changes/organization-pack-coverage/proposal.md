@@ -49,3 +49,75 @@ identifier, not from the pack. That stays.
   names and installer packaging.
 - No storage or protocol change. Existing reports keep the appearance they
   captured.
+
+## Installer Packaging
+
+The current command is `dokime installer package --manifest installer.toml --output dist`.
+`--artifacts <directory>` selects an extracted local distribution kit and prevents
+release acquisition, including for named plugins; local named plugins live under
+`plugins/`. `--plugin <path>` is repeatable and accepts current gRPC
+`.dokime` bundles or plugin ZIP/TAR.GZ archives. `--format nsis,deb,rpm`, `--target`,
+`--sign` and `--json` retain their earlier command semantics.
+
+The manifest schema retains every earlier table and key; no keys are added.
+Paths resolve relative to the installer manifest except `plugin.path`, which is
+relative to the selected organization folder. A supplied organization folder is a
+complete replacement. A custom pack without an explicit update mode disables
+updates. Pack identity cannot override the installer distribution identifier.
+Executable names remain `dokime` and `dokime-gui`; Windows setup, removal, registry
+writes and PATH updates use only the current user. The native packaging boundary
+requires NSIS; payload preparation tests do not invoke it or a published release.
+
+```toml
+[installer]
+version = "1.2.3" # Required exact installer semantic version.
+formats = ["nsis"] # Required, native formats only; Linux uses deb/rpm.
+identifier = "com.example.testhub" # Optional; defaults to compiled product identity.
+organization = "example-pack" # Optional complete appearance pack folder.
+
+[dokime]
+version = "nightly" # Optional; exact release version or nightly; defaults to CLI version.
+target = "x86_64-pc-windows-msvc" # Optional; defaults to the native target.
+
+[[plugin]] # Optional, repeatable; exactly one of name or path per entry.
+name = "example-pack" # Published bundle package identity.
+# path = "plugins/example-pack.dokime" # Alternative to name; relative to the pack folder.
+
+[license] # Optional; both keys required when present; adds to Apache-2.0.
+spdx = "LicenseRef-Example"
+file = "terms.txt" # UTF-8 text/RTF; confined to the installer manifest folder.
+
+[signing.installer] # Optional; applied only with --sign.
+certificate_thumbprint = "0123456789012345678901234567890123456789" # Windows certificate store.
+timestamp_url = "https://timestamp.example.test" # Windows HTTPS RFC 3161 endpoint.
+# key_id = "0123456789ABCDEF" # Linux GPG agent key; replaces Windows fields.
+
+[signing.updater] # Optional; native Windows; installer/product versions must match.
+private_key_file = "updater.key" # Exactly one of these three private-key references.
+# private_key_env = "EXAMPLE_UPDATER_KEY" # Base64 key material.
+# private_key_path_env = "EXAMPLE_UPDATER_KEY_PATH" # Environment variable holding a path.
+password_env = "EXAMPLE_UPDATER_PASSWORD" # Required password environment reference.
+artifact_base_url = "https://downloads.example.test" # Required HTTPS publishing base.
+```
+
+Acquisition verifies release `SHA256SUMS`, then every distribution inventory member.
+Named plugins are selected from `dokime-plugins-<version>-<target>.zip` (Windows) or
+`.tar.gz` (Linux), not the removed plugin feed. Updater output uses `release.json`.
+The kit no longer carries identity/trust metadata; packaging uses the CLI build's
+product configuration for the default identifier and fixed updater verification key.
+Signing never reads an organization-supplied trust key.
+
+## Remaining Owner Decisions
+
+The restored installer places selected verified bundles under the installation's
+`plugins/` folder. The current host admits bundles through its registry and has no
+startup scan of that folder; automatic admission needs a runtime-owned decision.
+The current-user, no-elevation implementation applies to Windows NSIS. Linux
+DEB/RPM retain system-package semantics; an equivalent no-elevation Linux format
+has not been selected.
+
+Pack validation and update-policy validation currently have both desktop and
+packaging owners, and distribution-identifier validation is also repeated there.
+These overlaps are retained for the owner to decide their shared home. Product
+native packaging still uses the existing Python/Tauri path, while organization
+packaging now uses the restored CLI/Rust path; neither existing path is deleted.

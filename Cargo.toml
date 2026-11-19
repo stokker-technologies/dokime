@@ -85,6 +85,7 @@ regex = { version = "1.13.1" }
 semver = { version = "1.0.28" }
 spdx = { version = "0.13.5" }
 sha2 = { version = "0.11.1" }
+time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
 windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
@@ -97,7 +98,6 @@ arrow-schema = { version = "=60.1.0" }
 arrow-select = { version = "=60.1.0" }
 base64 = { version = "0.23.1" }
 flatbuffers = { version = "25.12.19" }
-# Excludes default image codecs; consumers select their required formats explicitly.
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 prost = { version = "0.14.4" }
 prost-build = { version = "=0.14.4", default-features = false }
@@ -107,19 +107,20 @@ protoc-bin-vendored = { version = "3.3.0", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }
 toml = { version = "1.1.8" }
+# Excludes every default compression and encryption backend; Dokime writes stored archives only.
 zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Configuration
 clap = { version = "4.6.7", features = ["derive"] }
 
 # Filesystem
-ignore = { version = "0.4.33" }
 # Uses zlib-rs, the inflate backend shared with the ZIP reader.
+flate2 = { version = "1.1.9", default-features = false, features = ["zlib-rs"] }
+ignore = { version = "0.4.33" }
 tar = { version = "0.4.46" }
 tempfile = { version = "3.27.0" }
 
 # Parsing
-# Excludes every default compression and encryption backend; Dokime writes stored archives only.
 heck = { version = "0.5.0" }
 proc-macro-crate = { version = "3.5.0" }
 proc-macro2 = { version = "1.0.107" }
@@ -149,9 +150,14 @@ tonic-prost-build = { version = "=0.14.8", default-features = false }
 rusqlite = { version = "0.41.1", features = ["bundled", "limits"] }
 
 # UI
+# Excludes default image codecs; consumers select their required formats explicitly.
+image = { version = "0.25.10", default-features = false }
+tauri-bundler = { version = "2.10.4" }
+tauri-utils = { version = "2.10.2" }
 
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+handlebars = { version = "6.4.4" }
 
 # === Workspace Lints === #
 

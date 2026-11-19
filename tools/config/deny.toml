@@ -24,6 +24,17 @@ allow = [
 ]
 confidence-threshold = 0.93
 
+# Reviewed 2026-11-19: Bundler Dependency Paths and Review Deadlines Are in supply-chain-exceptions.toml.
+[[licenses.exceptions]]
+name = "libbz2-rs-sys"
+version = "=0.2.7"
+allow = ["bzip2-1.0.6"]
+
+[[licenses.exceptions]]
+name = "libfuzzer-sys"
+version = "=0.4.13"
+allow = ["NCSA"]
+
 [bans]
 # Parallel dependency versions are allowed; security and license policy apply to every version.
 multiple-versions = "allow"

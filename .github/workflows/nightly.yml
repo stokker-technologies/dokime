@@ -19,7 +19,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 concurrency:
   group: nightly
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   plan:
     name: Check / Nightly / Plan
