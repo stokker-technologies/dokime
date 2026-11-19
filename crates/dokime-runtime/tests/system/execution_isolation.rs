@@ -371,7 +371,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             })?;
             store.close_streams("foreign-execution")?;
             store.close("foreign-execution", Termination::Completed, ExecutionOutcome::default())?;
-            store.seal("foreign-execution")?;
+            store.seal("foreign-execution", Default::default())?;
             let types = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
             let mut operations = Vec::new();
             for (id, request, response) in [

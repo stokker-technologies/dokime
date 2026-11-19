@@ -44,7 +44,7 @@ pub use backend::{Backend, BackendLease};
 pub use content::{ArchivedContent, ArchivedNativeFile, CONTENT_CHUNK_BYTES, StoredArtifact, StoredExecutionFile};
 pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;
-pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample};
+pub use execution::{Evidence, Execution, ExecutionSnapshot, ExecutionState, Sample};
 pub use outcome::OutcomeCounts;
 pub use plot_kinds::{CartesianRead, KindWindow};
 pub use plot_selection::{PlotGroup, PlotSelection};

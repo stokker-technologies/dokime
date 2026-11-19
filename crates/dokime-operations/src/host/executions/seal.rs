@@ -124,7 +124,7 @@ mod tests {
             })),
         };
         store.close("execution", Termination::Completed, outcome.clone())?;
-        store.seal("execution")?;
+        store.seal("execution", Default::default())?;
 
         // Return the Immutable Outcome Without Mutating Evidence
         let cut = store.cut("execution")?;

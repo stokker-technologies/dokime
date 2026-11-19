@@ -37,6 +37,7 @@ use harmos_protocol::model::Receipt;
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
+use prost_types::Timestamp;
 use rusqlite::Transaction;
 use rusqlite::TransactionBehavior;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
@@ -481,13 +482,17 @@ impl Store {
             .retain(|(identifier, _, _, _), _| identifier != execution);
         Ok(())
     }
-    pub fn seal(&self, execution: &str) -> Result<()> {
+    pub fn seal(&self, execution: &str, at: Timestamp) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let state: i32 = transaction.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         if state != 1 {
             return Err(Error::Invalid("Close the Execution Before Sealing It".into()));
         }
+        let payload: Vec<u8> = transaction.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
+        let mut value = Execution::decode(payload.as_slice())?;
+        value.sealed_at = Some(at);
+        transaction.execute("UPDATE executions SET payload=?2 WHERE id=?1", params![execution, value.encode_to_vec()])?;
         let digest = digest(&transaction, execution)?;
         transaction.execute("UPDATE executions SET state=2,seal=?2 WHERE id=?1", params![execution, digest])?;
         let cycle: String = transaction.query_row("SELECT cycle FROM executions WHERE id=?1", [execution], |row| row.get(0))?;

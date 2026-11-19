@@ -27,12 +27,13 @@ from harmos.plugin import Endpoint
 from ._authoring import _Template
 from ._context import BoundOperation
 from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
+from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
 from ._generated.client import ClientRoot
 from ._generated.shared import MapValue
 from ._payloads import Payload
 from ._schemas import FrozenSchemaCache
-from ._transfers import download, publish_artifact
+from ._transfers import download, publish_artifact, verify_archive
 from ._values import Artifact, Note, Outcome, Progress, PromptAnswer, PromptQuestion, ResultStatus, Scalar, Termination, decode, encode
 from ._wire.model.v1.evidence_pb2 import ArtifactScope
 from ._wire.model.v1.metadata_pb2 import Metadata
@@ -40,7 +41,6 @@ from ._wire.model.v1.metadata_pb2 import Metadata
 # Type Checking Imports
 if TYPE_CHECKING:
     from ._authoring import Record, Stream, TestTemplate
-    from ._evidence import RecordsQuery, SamplesQuery
     from ._plugin import Plugin
     from .operations import Operation
 
@@ -590,33 +590,45 @@ class Cycle:
     async def seal(self, *, request_id: str | None = None) -> None:
         identity = _identity(request_id)
         reply = await call("cycles.seal", self._client._transport.cycles.seal(self.identifier, request_id=identity), identity)
-        if reply.seal:
-            self._summary.phase = client_types.CYCLE_PHASE_SEALED
-            self._summary.sealed = True
+        if not reply.HasField("cycle") or reply.cycle.cycle_id != self.identifier:
+            raise invalid("cycles.seal", "The Host Returned an Invalid Cycle Admission", request_id=identity)
+        self._summary.CopyFrom(reply.cycle)
+        if self._summary.sealed:
             return
         watch = self._client._transport.cycles.watch(
-            client_types.CycleSelection(cycle_ids=[self.identifier]), client_types.CycleFilter(), client_types.CycleOrder()
+            client_types.CycleSelection(cycle_ids=[self.identifier]),
+            client_types.CycleFilter(archive=client_types.ARCHIVE_SCOPE_ALL),
+            client_types.CycleOrder(),
         )
         try:
             async for frame in watch:
                 if frame.HasField("resync_required"):
-                    raise SdkError(project_failure(frame.resync_required), request_id=identity)
-                for summary in frame.cycles:
-                    if summary.cycle_id != self.identifier:
-                        continue
-                    self._summary.CopyFrom(summary)
-                    if self.phase == "Sealed":
-                        return
-                    if self.phase == "Seal Failed":
-                        raise refused("cycles.seal", summary.seal_failure, "Resolve the Seal Failure and Retry Seal", request_id=identity)
-            raise invalid("cycles.watch", "Cycle Observation Ended Before Seal Settlement", request_id=identity)
+                    raise invalid("cycles.seal", frame.resync_required.message, request_id=identity)
+                cycle = next((cycle for cycle in frame.cycles if cycle.cycle_id == self.identifier), None)
+                if cycle is None:
+                    raise invalid("cycles.seal", "The Host Returned No Cycle Completion", request_id=identity)
+                self._summary.CopyFrom(cycle)
+                if cycle.phase == client_types.CYCLE_PHASE_SEAL_FAILED:
+                    raise refused("cycles.seal", cycle.seal_failure, "Resolve the Seal Failure and Retry Seal", request_id=identity)
+                if cycle.sealed and cycle.phase == client_types.CYCLE_PHASE_SEALED:
+                    return
+            raise invalid("cycles.seal", "Cycle Observation Closed Before Seal Settlement", request_id=identity)
         except AioRpcError as error:
-            raise transport_error("cycles.watch", error, identity) from error
+            raise transport_error("cycles.seal", error, identity) from error
         finally:
             await watch.aclose()
 
     async def evidence(self) -> bytes:
         return await _archive(self._client, client_types.EvidenceSubject(cycle=self.identifier))
+
+    async def report(self) -> bytes:
+        reply = await call(
+            "reports.create",
+            self._client._transport.reports.create(client_types.ReportSubject(cycle=self.identifier), ""),
+        )
+        if not reply.HasField("file"):
+            raise invalid("reports.create", "The Host Returned No Retained Cycle Report")
+        return await download(self._client._transport, reply.file)
 
     async def note(self, text: str, *, request_id: str | None = None) -> Note:
         return await _note(self._client, self.identifier, None, text, request_id)
@@ -689,7 +701,7 @@ class Execution:
                 yield Progress(frame.phase, frame.value.completed, frame.value.total, frame.value.label, sealed)
                 if sealed:
                     return
-            raise invalid("executions.progress.watch", "Execution Observation Ended Without Sealed State")
+            raise invalid("executions.progress.watch", "Execution Observation Closed Without Sealed State")
         except AioRpcError as error:
             raise transport_error("executions.progress.watch", error) from error
         finally:
@@ -742,8 +754,6 @@ class Execution:
         )
 
     def records[T: Payload](self, declaration: "Record[T] | str", *, step: str = "", row_type: type[T] | None = None) -> "RecordsQuery[T]":
-        from ._evidence import RecordsQuery
-
         return RecordsQuery._for_execution(self, declaration, step=step, row_type=row_type)
 
     def samples[T: Payload](
@@ -754,8 +764,6 @@ class Execution:
         between: tuple[datetime | None, datetime | None] | None = None,
         row_type: type[T] | None = None,
     ) -> "SamplesQuery[T]":
-        from ._evidence import SamplesQuery
-
         return SamplesQuery(self, stream, fields=fields, between=between, row_type=row_type)
 
 
@@ -782,7 +790,8 @@ async def _archive(client: Client, subject: client_types.EvidenceSubject) -> byt
     reply = await call("evidence.archive", client._transport.evidence.archive(subject))
     if not reply.HasField("file"):
         raise invalid("evidence.archive", "The Host Returned No Retained Archive")
-    return await download(client._transport, reply.file)
+    data = await download(client._transport, reply.file)
+    return verify_archive(data)
 
 
 async def _note(client: Client, cycle: str, execution: str | None, text: str, request_id: str | None) -> Note:

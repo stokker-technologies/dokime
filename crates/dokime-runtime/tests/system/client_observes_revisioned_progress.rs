@@ -168,7 +168,6 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             while let Some(response) = watch.next().await? {
                 assert!(terminal.is_none());
                 if response.sealed {
-                    assert!(response.finished);
                     terminal = Some(response);
                 }
             }
@@ -188,7 +187,7 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             // Reattachment Yields Exactly One Sealed Frame and Ends
             let mut reattached = client.executions.progress.watch(name.clone()).await?;
             let response = reattached.next().await?.ok_or("Watch Progress: Missing Sealed Opening")?;
-            assert!(response.sealed && response.finished);
+            assert!(response.sealed);
             assert_eq!(response.outcome, sealed.outcome);
             assert!(reattached.next().await?.is_none());
 

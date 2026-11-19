@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
+use std::fs;
 use std::io::{Cursor, Read};
 
 // Third Party Imports
@@ -124,11 +125,14 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
             assert_eq!(manifest["version"], 1);
             let mut references = BTreeSet::new();
             let mut retained_content = 0;
-            for member in manifest["files"].as_array().unwrap() {
+            for member in manifest["entries"].as_array().unwrap().iter().filter(|member| {
+                let path = member["path"].as_str().unwrap();
+                (path.starts_with("files/") || path.starts_with("artifacts/")) && !path.ends_with(".pb") && !path.ends_with('/')
+            }) {
                 let mut original = Vec::new();
                 archive.by_name(member["path"].as_str().unwrap())?.read_to_end(&mut original)?;
                 let mut retained = Vec::new();
-                archive.by_name(member["reference"].as_str().unwrap())?.read_to_end(&mut retained)?;
+                archive.by_name(&format!("{}.pb", member["path"].as_str().unwrap()))?.read_to_end(&mut retained)?;
                 let embedded = FileReference::decode(retained.as_slice())?;
                 assert!(references.insert(embedded.encode_to_vec()));
                 assert_eq!(embedded.metadata.as_ref().unwrap().scope.as_deref(), Some(format!("execution/{execution}").as_str()));
@@ -142,12 +146,10 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
                 }
             }
             assert_eq!(retained_content, 1);
-            let mut evidence = Vec::new();
-            archive.by_name("evidence.pb")?.read_to_end(&mut evidence)?;
-            let evidence = dokime_storage::ExecutionArchive::decode(evidence.as_slice())?;
-            assert_eq!(evidence.artifacts.len(), 1);
-            assert_eq!(evidence.artifacts[0].artifact.as_ref(), Some(&artifact));
-            assert_eq!(evidence.artifacts[0].request.as_ref().unwrap().file.as_ref(), Some(&reference));
+            let evidence: serde_json::Value = serde_json::from_reader(archive.by_name("data/artifacts.json")?)?;
+            assert_eq!(evidence.as_array().unwrap().len(), 1);
+            assert_eq!(evidence[0]["artifact"]["artifact_id"], artifact.artifact_id);
+            assert_eq!(evidence[0]["request"]["file"]["metadata"]["id"], reference.metadata.as_ref().unwrap().id);
             process.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })
@@ -327,7 +329,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 actual.extend(client.files.read(stored.clone(), actual.len() as u64, CONTENT_CHUNK_BYTES as u64).await?.data);
             }
             assert_eq!(actual, bytes);
-            // Complete Both Runs Before Testing Upload Recovery Across Restart
+            // Seal Both Runs Before Verifying Retained Evidence Across Restart.
             for id in &executions {
                 let mut progress = client.executions.progress.watch(id.clone()).await?;
                 let pending = client.prompts.list(id.clone(), true).await?;
@@ -336,11 +338,63 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 while progress.next().await?.is_some() {}
             }
 
+            let evidence =
+                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                    .evidence
+                    .clone();
+            let archived = evidence
+                .archive(EvidenceSubject {
+                    kind: Some(evidence_subject::Kind::Execution(execution.clone())),
+                })
+                .await?;
+            assert!(archived.file.unwrap().length > bytes.len() as u64);
+            process.close().await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let artifacts =
+                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                    .content
+                    .artifacts
+                    .clone();
+            let replay = artifacts
+                .create_with(
+                    request.file.clone().unwrap(),
+                    request.filename.clone(),
+                    request.content_type.clone(),
+                    ContentArtifactsCreateOptions {
+                        scope: Some(request.scope.clone().unwrap()),
+                        request_id: Some(request.request_id.clone()),
+                        metadata: request.metadata.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(replay, committed);
+            let restored = artifacts.get(attached.artifact_id.clone()).await?;
+            assert_eq!(restored.metadata, Some(attached));
+            assert_eq!(restored.file.unwrap().sha256, reference.sha256);
+            process.close().await?;
+            plugin.close().await?;
+            Ok::<_, Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
+fn native_file_upload_recovery_preserves_history() -> Result<(), Box<dyn Error>> {
+    super::support::run(Box::pin(async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // Exercise Native File Production Independently of Execution Evidence Admission.
+            let root = super::support::tempdir()?;
+            let credential_root = super::support::tempdir()?;
+            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let bytes = vec![42; 140003];
             // Replay Upload Creation and a Lost Chunk Reply Without Appending Twice
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
             let metadata = FileMetadata {
-                scope: Some(format!("execution/{execution}")),
+                scope: None,
                 media_type: "application/octet-stream".into(),
                 expected_length: Some(bytes.len() as u64),
                 ..Default::default()
@@ -350,9 +404,8 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 ..Default::default()
             };
             let mut invalid = metadata.clone();
-            invalid.scope = Some(execution.clone());
+            invalid.scope = Some("invalid-scope".into());
             assert!(client.files.uploads.create(invalid).await.is_err());
-            let expected_scope = metadata.scope.clone();
             let created = client
                 .files
                 .uploads
@@ -366,6 +419,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 .await?;
             assert_eq!(client.files.uploads.create_with(metadata, options).await?, created);
             let original = created.upload.unwrap();
+            let expected_scope = Some(format!("root/{}", original.history.as_ref().unwrap().store));
             let split = bytes.len().min(created.chunk_bytes as usize).min(17);
             let first_bytes = bytes[..split].to_vec();
             let options = FilesUploadsAppendOptions {
@@ -488,7 +542,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             assert_eq!(followed, bytes);
             // The SDK Convenience Publishes a Root File with the Same Resource.
             let upload_path = root.path().join("client-upload.bin");
-            std::fs::write(&upload_path, &bytes)?;
+            fs::write(&upload_path, &bytes)?;
             let sdk =
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?;
             let uploaded = sdk.files.upload(&upload_path).await?;
@@ -518,42 +572,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     .await?,
                 receipt
             );
-            let evidence =
-                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
-                    .evidence
-                    .clone();
-            let archived = evidence
-                .archive(EvidenceSubject {
-                    kind: Some(evidence_subject::Kind::Execution(execution.clone())),
-                })
-                .await?;
-            assert!(archived.file.unwrap().length > bytes.len() as u64);
             process.close().await?;
-            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-            let artifacts =
-                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
-                    .content
-                    .artifacts
-                    .clone();
-            let replay = artifacts
-                .create_with(
-                    request.file.clone().unwrap(),
-                    request.filename.clone(),
-                    request.content_type.clone(),
-                    ContentArtifactsCreateOptions {
-                        scope: Some(request.scope.clone().unwrap()),
-                        request_id: Some(request.request_id.clone()),
-                        metadata: request.metadata.clone(),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-            assert_eq!(replay, committed);
-            let restored = artifacts.get(attached.artifact_id.clone()).await?;
-            assert_eq!(restored.metadata, Some(attached));
-            assert_eq!(restored.file.unwrap().sha256, reference.sha256);
-            process.close().await?;
-            plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })
         .await?

@@ -574,12 +574,14 @@ pub struct CyclesSealRequest {
     pub request_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CyclesSealResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub seal: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub receipt: ::core::option::Option<::harmos_protocol::model::Receipt>,
+    #[prost(message, optional, tag = "3")]
+    pub cycle: ::core::option::Option<CycleSummary>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -678,6 +680,10 @@ pub struct CycleSummary {
     pub seal_failure: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "18")]
     pub rerun_of: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "19")]
+    pub report_file: ::core::option::Option<::harmos_protocol::model::FileReference>,
+    #[prost(message, optional, tag = "20")]
+    pub evidence_file: ::core::option::Option<::harmos_protocol::model::FileReference>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
@@ -5456,6 +5462,7 @@ pub enum CaseStatus {
     Blocked = 8,
     Cancelled = 9,
     Interrupted = 10,
+    NotRun = 11,
 }
 impl CaseStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -5475,6 +5482,7 @@ impl CaseStatus {
             Self::Blocked => "CASE_STATUS_BLOCKED",
             Self::Cancelled => "CASE_STATUS_CANCELLED",
             Self::Interrupted => "CASE_STATUS_INTERRUPTED",
+            Self::NotRun => "CASE_STATUS_NOT_RUN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -5491,6 +5499,7 @@ impl CaseStatus {
             "CASE_STATUS_BLOCKED" => Some(Self::Blocked),
             "CASE_STATUS_CANCELLED" => Some(Self::Cancelled),
             "CASE_STATUS_INTERRUPTED" => Some(Self::Interrupted),
+            "CASE_STATUS_NOT_RUN" => Some(Self::NotRun),
             _ => None,
         }
     }

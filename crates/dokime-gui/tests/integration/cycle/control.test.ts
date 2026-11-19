@@ -73,7 +73,7 @@ test("Planned Page Controls Follow Host Capability and Watch Only After Start", 
       async *[Symbol.asyncIterator]() {
         yield create(output, { value: { label: "Step", completed: 1n, total: 2n }, phase: "running" });
         await finished;
-        yield create(output, { finished: true });
+        yield create(output, { sealed: true });
       },
     };
   });

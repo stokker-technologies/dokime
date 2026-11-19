@@ -11,10 +11,14 @@
 # === Imports === #
 
 # Standard Library Imports
+import json
 from hashlib import sha256
+from io import BytesIO
 from mimetypes import guess_type
+from pathlib import PurePosixPath
 from typing import Protocol
 from uuid import uuid4
+from zipfile import BadZipFile, ZipFile
 
 # Third Party Imports
 from grpc.aio import AioRpcError
@@ -159,6 +163,39 @@ async def download(client: ClientRoot, file: FileReference, *, max_bytes: int | 
     if sha256(data).digest() != file.sha256:
         raise invalid("files.read", "The File Digest Does Not Match Its Contents")
     return bytes(data)
+
+
+def verify_archive(data: bytes) -> bytes:
+    """Verify Each Content Member Against Its Owning Manifest."""
+    archive = None
+    try:
+        archive = ZipFile(BytesIO(data))
+        names = archive.namelist()
+        if len(names) != len(set(names)) or "manifest.json" not in names:
+            raise ValueError("Restore a Unique Archive Inventory and Root Manifest")
+        for manifest_name in names:
+            if PurePosixPath(manifest_name).name != "manifest.json":
+                continue
+            prefix = manifest_name.removesuffix("manifest.json")
+            manifest = json.loads(archive.read(manifest_name))
+            expected = {name for name in names if name.startswith(prefix) and name not in (prefix, manifest_name)}
+            listed = set()
+            for entry in manifest["entries"]:
+                name = prefix + entry["path"]
+                if name not in expected or name in listed:
+                    raise ValueError("Restore the Manifest's Exact Member Inventory")
+                content = archive.read(name)
+                if len(content) != entry["size"] or sha256(content).hexdigest() != entry["sha256"]:
+                    raise ValueError("Restore the Archive Member Matching Its Manifest Digest")
+                listed.add(name)
+            if listed != expected:
+                raise ValueError("Restore Every Archive Member in Its Manifest")
+    except (BadZipFile, KeyError, TypeError, ValueError) as source:
+        raise invalid("evidence.archive", f"Verify Evidence Archive: {source}") from source
+    finally:
+        if archive is not None:
+            archive.close()
+    return data
 
 
 # === Private Functions === #

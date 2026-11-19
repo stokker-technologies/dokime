@@ -136,6 +136,11 @@ impl HostProcess {
         assert!(!self.child.wait().await?.success());
         Ok(())
     }
+    pub(super) async fn close_after_failure(mut self) -> Result<(), Box<dyn Error>> {
+        drop(self.child.stdin.take());
+        assert!(!self.child.wait().await?.success());
+        Ok(())
+    }
     pub(super) async fn close(mut self) -> Result<(), Box<dyn Error>> {
         drop(self.child.stdin.take());
         assert!(self.child.wait().await?.success());
@@ -218,7 +223,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             while let Some(frame) = progress.next().await? {
                 phases.push(frame.phase);
             }
-            assert!(phases.iter().any(|phase| phase == "finished"));
+            assert!(phases.iter().any(|phase| phase == "sealed"));
             let reply = client.executions.get(execution_id.clone()).await?;
             let detail = reply.execution.unwrap();
             assert_eq!(detail.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
@@ -424,7 +429,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             for mut progress in watches {
                 let mut terminal = false;
                 while let Some(frame) = progress.next().await? {
-                    terminal |= frame.finished;
+                    terminal |= frame.sealed;
                 }
                 assert!(terminal);
             }

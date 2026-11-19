@@ -15,7 +15,7 @@
 
 import * as rpc from "@/lib/host/client";
 import { required } from "@/lib/rpc/canonical";
-import { ExecutionMode, ExecutionParameterSet } from "@host/model";
+import { ArchiveScope, CyclePhase, ExecutionMode, ExecutionParameterSet } from "@host/model";
 import { type NativeExecution, mapNativeExecution } from "./native-execution-projection";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -98,7 +98,22 @@ export async function cancelNativeTestExecution(session: SessionIdentity, execut
 }
 
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
-  await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
+  const admitted = await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
+  if (required(admitted.cycle, "Seal Cycle Admission").sealed) return;
+  const completion = await rpc.cyclesWatch(session, { selection: { cycleIds: [cycleId] }, filter: { archive: ArchiveScope.ALL } });
+  try {
+    for await (const frame of completion) {
+      if (frame.resyncRequired) throw new Error(frame.resyncRequired.message);
+      const cycle = frame.cycles.find((cycle) => cycle.cycleId === cycleId);
+      if (!cycle) throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
+      if (cycle.phase === CyclePhase.SEAL_FAILED)
+        throw new Error(cycle.sealFailure || "Seal Cycle: Resolve Its Materialization Failure and Retry Seal");
+      if (cycle.sealed && cycle.phase === CyclePhase.SEALED) return;
+    }
+    throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
+  } finally {
+    await completion.cancel();
+  }
 }
 
 /** Archives or unarchives a terminal cycle; its lifecycle is unchanged. */

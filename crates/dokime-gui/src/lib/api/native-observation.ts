@@ -31,7 +31,7 @@ import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError } from "./nativ
 type RuntimeShellSnapshot = Wire<NonNullable<Awaited<ReturnType<typeof rpc.backendOverviewGet>>["overview"]>>;
 interface ExecutionProgressFrame {
   progress: { testExecutionId: string; label: string; phase: string; completed: bigint; total: bigint } | null;
-  finished: boolean;
+  sealed: boolean;
 }
 
 type TraceabilityCut = Wire<NonNullable<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["resolvedAt"]>>;
@@ -257,7 +257,7 @@ export async function openNativeExecutionProgressStream(
       for await (const frame of reader)
         yield {
           progress:
-            frame.value && !frame.finished
+            frame.value && !frame.sealed
               ? {
                   testExecutionId,
                   label: frame.value.label,
@@ -266,7 +266,7 @@ export async function openNativeExecutionProgressStream(
                   total: frame.value.total,
                 }
               : null,
-          finished: frame.finished,
+          sealed: frame.sealed,
         };
       exhausted = true;
     } finally {

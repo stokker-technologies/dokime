@@ -22,11 +22,13 @@ class Termination(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     TERMINATION_FAILED: _ClassVar[Termination]
     TERMINATION_CANCELLED: _ClassVar[Termination]
     TERMINATION_INTERRUPTED: _ClassVar[Termination]
+    TERMINATION_NOT_RUN: _ClassVar[Termination]
 TERMINATION_UNSPECIFIED: Termination
 TERMINATION_COMPLETED: Termination
 TERMINATION_FAILED: Termination
 TERMINATION_CANCELLED: Termination
 TERMINATION_INTERRUPTED: Termination
+TERMINATION_NOT_RUN: Termination
 
 @final
 class TestCase(_message.Message, metaclass=GeneratedProtocolMessageType):

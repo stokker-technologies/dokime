@@ -67,6 +67,7 @@ pub enum Scope<'a> {
     Root(&'a str),
     Case(&'a str),
     Cycle(&'a str),
+    CycleSeal(&'a str),
     Execution(&'a str),
 }
 
@@ -80,6 +81,7 @@ impl Scope<'_> {
             Self::Root(key) => ("root", key),
             Self::Case(key) => ("case", key),
             Self::Cycle(key) => ("cycle", key),
+            Self::CycleSeal(key) => ("cycle-seal", key),
             Self::Execution(key) => ("execution", key),
         };
         if key.is_empty() {

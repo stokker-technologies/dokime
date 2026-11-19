@@ -73,6 +73,7 @@ class PluginDescription(unittest.TestCase):
             [("capture.confirmation.confirm", "capture.confirmation.confirm")],
         )
         self.assertIn("capture.confirmation.confirmed", operations)
+        self.assertEqual([item.id for item in description.streams], ["capture.confirmation.temperature"])
 
 
 # === Public Functions === #

@@ -127,7 +127,6 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                         revision: saved.revision,
                         resolved_at: saved.resolved_at,
                         phase: if sealed { "sealed".into() } else { live.phase },
-                        finished: sealed,
                         sealed,
                         outcome,
                     };
@@ -135,7 +134,6 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                         previous.value == response.value
                             && previous.revision == response.revision
                             && previous.phase == response.phase
-                            && previous.finished == response.finished
                             && previous.sealed == response.sealed
                             && previous.outcome == response.outcome
                     });
@@ -151,7 +149,7 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                     if pinned_opening {
                         continue;
                     }
-                    if live.finished {
+                    if live.sealed {
                         let _ = sender
                             .send(Err(Status::failed_precondition("Watch Progress: Inspect the Execution; Its Owner Stopped Before Seal")))
                             .await;

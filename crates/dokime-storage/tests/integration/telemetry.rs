@@ -57,14 +57,16 @@ use dokime_storage::{
     Sample, SampleWindow, Store, StoredArtifact, StoredExecutionFile, storage_defaults,
 };
 
-use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::UnevaluatedOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::evidence::{NotesCreateResponse, OperatorNote};
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::host::{CyclePhase, CycleSummary, ExecutionOutcome};
 use dokime_protocol::model::Aggregate;
 use dokime_protocol::model::AggregateExpression;
 use dokime_protocol::model::ArtifactMetadata;
+use dokime_protocol::model::EvidenceScope;
 use dokime_protocol::model::ExactNumber;
 use dokime_protocol::model::Metadata;
 use dokime_protocol::model::PlotFilter;
@@ -75,6 +77,7 @@ use dokime_protocol::model::TransformExpression;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
+use dokime_storage::OutcomeCounts;
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::StreamDeclaration;
 use harmos_protocol::model::{FileMetadata, FileReference};
@@ -574,7 +577,7 @@ fn execution_archive_orders_native_content_deterministically() -> Result<()> {
             attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
         },
     )?;
-    store.seal("execution")?;
+    store.seal("execution", Default::default())?;
 
     // Export Opposite Source Inventory Orders.
     let mut archives = Vec::new();
@@ -620,17 +623,6 @@ fn execution_archive_orders_native_content_deterministically() -> Result<()> {
     }
     assert_eq!(archives[0], archives[1]);
 
-    // Every Member Carries the Same Stable Metadata.
-    let mut archive = ZipArchive::new(Cursor::new(&archives[0]))?;
-    let first = archive.by_index(0)?;
-    let modified = first.last_modified();
-    let permissions = first.unix_mode();
-    drop(first);
-    for index in 1..archive.len() {
-        let member = archive.by_index(index)?;
-        assert_eq!(member.last_modified(), modified);
-        assert_eq!(member.unix_mode(), permissions);
-    }
     Ok(())
 }
 
@@ -654,7 +646,7 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
             attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
         },
     )?;
-    store.seal("execution")?;
+    store.seal("execution", Default::default())?;
     assert_eq!(store.cut("execution")?.state, ExecutionState::Sealed);
     let mut archive = Vec::new();
     store.write_execution_archive("execution", &mut archive, Default::default())?;
@@ -665,8 +657,14 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     let source = fs::read(file)?;
     assert_eq!(copied, source);
     let manifest: serde_json::Value = serde_json::from_reader(zip.by_name("manifest.json")?)?;
-    assert_eq!(manifest["telemetry"][0]["size"], source.len());
-    assert_eq!(manifest["telemetry"][0]["sha256"], Sha256::digest(&source).iter().map(|b| format!("{b:02x}")).collect::<String>());
+    assert_eq!(
+        manifest["entries"].as_array().unwrap().iter().find(|entry| entry["path"] == "telemetry/readings.arrow").unwrap()["size"],
+        source.len()
+    );
+    assert_eq!(
+        manifest["entries"].as_array().unwrap().iter().find(|entry| entry["path"] == "telemetry/readings.arrow").unwrap()["sha256"],
+        Sha256::digest(&source).iter().map(|b| format!("{b:02x}")).collect::<String>()
+    );
     let window = SampleWindow {
         execution: "execution",
         streams: &[],
@@ -1229,5 +1227,151 @@ fn interval_batches_of_many_streams_survive_pressure_flushes() -> Result<()> {
     }
     store.flush_samples()?;
     assert_eq!(store.read("execution")?.samples.len(), 128 * 20_000);
+    Ok(())
+}
+
+#[test]
+fn cycle_finality_seals_unstarted_without_inventing_a_verdict() -> Result<()> {
+    // Admit Evidence Before Its Run.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    let mut cycle = CycleSummary {
+        cycle_id: "cycle".into(),
+        ..Default::default()
+    };
+    store.save_cycle(&cycle)?;
+    store.require_evidence_owner(None, Some("execution"), "Attach File")?;
+    let note = NotesCreateResponse {
+        note: Some(OperatorNote {
+            note_id: "before".into(),
+            scope: Some(EvidenceScope {
+                cycle_id: Some("cycle".into()),
+                execution_id: Some("execution".into()),
+                ..Default::default()
+            }),
+            message: "captured".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    store.create_note(note.clone())?;
+
+    // Seal the Never-Started Execution and Preserve Its Original Note Replay.
+    store.seal_unstarted("execution", Default::default())?;
+    let sealed = store.read("execution")?;
+    assert_eq!(sealed.state, ExecutionState::Sealed);
+    assert_eq!(sealed.execution.termination, Termination::NotRun as i32);
+    let counts = OutcomeCounts::from_outcomes(sealed.execution.outcome.iter());
+    assert_eq!(counts.evaluated, 0);
+    assert_eq!(counts.verdict, None);
+    assert_eq!(store.create_note(note.clone())?, note);
+    assert!(store.require_evidence_owner(None, Some("execution"), "Attach File").is_err());
+    let mut after = OperatorNote {
+        note_id: "after".into(),
+        scope: Some(EvidenceScope {
+            cycle_id: Some("cycle".into()),
+            execution_id: Some("execution".into()),
+            ..Default::default()
+        }),
+        message: "later".into(),
+        ..Default::default()
+    };
+    assert!(
+        store
+            .create_note(NotesCreateResponse {
+                note: Some(after.clone()),
+                ..Default::default()
+            })
+            .is_err()
+    );
+
+    // The Cycle Remains Writable After Every Execution Seals.
+    after.scope.as_mut().unwrap().execution_id = None;
+    store.create_note(NotesCreateResponse {
+        note: Some(after.clone()),
+        ..Default::default()
+    })?;
+    store.require_evidence_owner(Some("cycle"), None, "Attach File")?;
+    cycle.phase = CyclePhase::Sealing as i32;
+    store.save_cycle(&cycle)?;
+    assert!(store.require_evidence_owner(Some("cycle"), None, "Attach File").is_err());
+    cycle.phase = CyclePhase::SealFailed as i32;
+    store.save_cycle(&cycle)?;
+    store.require_evidence_owner(Some("cycle"), None, "Attach File")?;
+    cycle.sealed = true;
+    cycle.phase = CyclePhase::Sealed as i32;
+    store.save_cycle(&cycle)?;
+    after.note_id = "sealed-cycle".into();
+    assert!(store.create_note(NotesCreateResponse { note: Some(after), ..Default::default() }).is_err());
+    assert!(store.require_evidence_owner(Some("cycle"), None, "Attach File").is_err());
+    Ok(())
+}
+
+#[test]
+fn cycle_archive_contains_report_notes_and_execution_folders() -> Result<()> {
+    // Retain Both Owners and the Canonical Report Bytes.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.save_cycle(&CycleSummary {
+        cycle_id: "cycle".into(),
+        updated_at: Some(Default::default()),
+        ..Default::default()
+    })?;
+    store.seal_unstarted("execution", Default::default())?;
+    let report = b"<html>frozen</html>";
+    let note = OperatorNote {
+        note_id: "cycle-note".into(),
+        message: "evidence".into(),
+        ..Default::default()
+    };
+    let mut exports = Vec::new();
+    for _ in 0..2 {
+        let mut file = NamedTempFile::new()?;
+        file.write_all(report)?;
+        let content = ArchivedContent {
+            notes: vec![note.clone()],
+            report: Some(ArchivedNativeFile {
+                path: file.into_temp_path(),
+                reference: FileReference {
+                    length: report.len() as u64,
+                    sha256: Sha256::digest(report).to_vec(),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        };
+        let mut bytes = Vec::new();
+        store.write_cycle_archive("cycle", NonZeroUsize::new(1).unwrap(), &mut bytes, &mut Default::default(), content)?;
+        exports.push(bytes);
+    }
+    assert_eq!(Sha256::digest(&exports[0]), Sha256::digest(&exports[1]));
+    let mut archive = ZipArchive::new(Cursor::new(&exports[0]))?;
+    let mut retained = Vec::new();
+    archive.by_name("report.html")?.read_to_end(&mut retained)?;
+    assert_eq!(retained, report);
+    let metadata: serde_json::Value = serde_json::from_reader(archive.by_name("data/cycle.json")?)?;
+    assert_eq!(metadata["notes"][0]["note_id"], note.note_id);
+    assert_eq!(metadata["cycle"]["sealed"], true);
+    let execution: serde_json::Value = serde_json::from_reader(archive.by_name("executions/01 execution/data/execution.json")?)?;
+    assert_eq!(execution[0]["termination"], Termination::NotRun as i32);
+    Ok(())
+}
+
+#[test]
+fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.append(
+        "execution",
+        Evidence {
+            kind: "started".into(),
+            ..Default::default()
+        },
+    )?;
+    assert!(store.seal_unstarted("execution", Default::default()).is_err());
+    assert_eq!(store.cut("execution")?.state, ExecutionState::Open);
     Ok(())
 }

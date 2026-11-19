@@ -119,7 +119,7 @@ class CyclesServicer:
         raise NotImplementedError('Method not implemented!')
 
     def Seal(self, request, context):
-        """Seal the Cycles resource; admission and policy are owned by the executor.
+        """Admit cycle sealing and return once; observe completion through Cycles.Watch.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
