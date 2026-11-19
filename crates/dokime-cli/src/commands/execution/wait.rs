@@ -64,13 +64,13 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         if terminal {
             return Err("Watch Execution: Progress After Settlement".into());
         }
-        terminal = frame.finished;
+        terminal = frame.sealed;
         crate::output::print(&frame, args.json)?;
         use std::io::Write;
         std::io::stdout().flush()?;
     }
     if !terminal {
-        return Err("Watch Execution: Missing Finished Progress".into());
+        return Err("Watch Execution: Missing Sealed Progress".into());
     }
     Ok(())
 }

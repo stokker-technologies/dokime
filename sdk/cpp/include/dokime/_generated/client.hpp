@@ -1973,17 +1973,24 @@ struct CyclesResource {
     }
     return response;
   }
-  ::dokime::client::CyclesSealResponse seal(const std::string &name, client::CyclesSealOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::CyclesSealResponse> seal(const std::string &name, client::CyclesSealOptions options = {}) {
     detail::packages::dokime::host::CyclesSealRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::packages::dokime::host::CyclesSealResponse response;
-    const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Seal(context.get(), request, &response);
-    if (!status.ok()) {
-      throw std::runtime_error("Call cycles.seal: " + status.error_message());
-    }
-    return response;
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::CyclesSealResponse>>(
+        detail::packages::dokime::host::Cycles::NewStub(channel)->Seal(context.get(), request));
+    return {context, [reader]() -> std::optional<::dokime::client::CyclesSealResponse> {
+              detail::packages::dokime::host::CyclesSealResponse response;
+              if (!reader->Read(&response)) {
+                const auto status = reader->Finish();
+                if (!status.ok()) {
+                  throw std::runtime_error("Read cycles.seal: " + status.error_message());
+                }
+                return {};
+              }
+              return response;
+            }};
   }
 };
 struct DocumentsResource {

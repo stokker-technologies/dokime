@@ -837,27 +837,36 @@ public sealed class CyclesResource
     }
     return response;
   }
-  public async Task<global::Dokime.Clients.CyclesSealResponse> Seal(string name, string? requestId = null, CallOptions context = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.CyclesSealResponse> Seal(string name, string? requestId = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     var request = new global::Dokime.Clients.CyclesSealRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Seal",
+    var method = new Method<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse>(MethodType.ServerStreaming, "dokime.host.v1.Cycles", "Seal",
         Marshallers.Create<global::Dokime.Clients.CyclesSealRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesSealRequest.Parser.ParseFrom(bytes)),
         Marshallers.Create<global::Dokime.Clients.CyclesSealResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesSealResponse.Parser.ParseFrom(bytes)));
-    using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    global::Dokime.Clients.CyclesSealResponse response;
-    try
+    using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+    using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
+    while (true)
     {
-      response = await call.ResponseAsync;
+      bool available;
+      try
+      {
+        available = await call.ResponseStream.MoveNext(linked.Token);
+      }
+      catch (RpcException error)
+      {
+        throw new RpcException(new Status(error.StatusCode, "Call cycles.seal: " + error.Status.Detail), error.Trailers);
+      }
+      if (!available)
+      {
+        yield break;
+      }
+      var response = call.ResponseStream.Current;
+      yield return response;
     }
-    catch (RpcException error)
-    {
-      throw new RpcException(new Status(error.StatusCode, "Call cycles.seal: " + error.Status.Detail), error.Trailers);
-    }
-    return response;
   }
 }
 public sealed class DocumentsResource

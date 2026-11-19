@@ -599,34 +599,34 @@ class Cycle:
 
     async def seal(self, *, request_id: str | None = None) -> None:
         identity = _identity(request_id)
-        reply = await call("cycles.seal", self._client._transport.cycles.seal(self.identifier, request_id=identity), identity)
-        if reply.seal:
-            self._summary.phase = client_types.CYCLE_PHASE_SEALED
-            self._summary.sealed = True
-            return
-        watch = self._client._transport.cycles.watch(
-            client_types.CycleSelection(cycle_ids=[self.identifier]), client_types.CycleFilter(), client_types.CycleOrder()
-        )
+        watch = self._client._transport.cycles.seal(self.identifier, request_id=identity)
+        sealed = False
         try:
             async for frame in watch:
-                if frame.HasField("resync_required"):
-                    raise SdkError(project_failure(frame.resync_required), request_id=identity)
-                for summary in frame.cycles:
-                    if summary.cycle_id != self.identifier:
-                        continue
-                    self._summary.CopyFrom(summary)
-                    if self.phase == "Sealed":
-                        return
-                    if self.phase == "Seal Failed":
-                        raise refused("cycles.seal", summary.seal_failure, "Resolve the Seal Failure and Retry Seal", request_id=identity)
-            raise invalid("cycles.watch", "Cycle Observation Ended Before Seal Settlement", request_id=identity)
+                if not frame.HasField("cycle") or frame.cycle.cycle_id != self.identifier or sealed:
+                    raise invalid("cycles.seal", "The Host Returned an Invalid Cycle Completion", request_id=identity)
+                self._summary.CopyFrom(frame.cycle)
+                if frame.cycle.phase == client_types.CYCLE_PHASE_SEAL_FAILED:
+                    raise refused("cycles.seal", frame.cycle.seal_failure, "Resolve the Seal Failure and Retry Seal", request_id=identity)
+                sealed = frame.cycle.sealed and frame.cycle.phase == client_types.CYCLE_PHASE_SEALED and bool(frame.seal)
+            if not sealed:
+                raise invalid("cycles.seal", "Cycle Observation Closed Before Seal Settlement", request_id=identity)
         except AioRpcError as error:
-            raise transport_error("cycles.watch", error, identity) from error
+            raise transport_error("cycles.seal", error, identity) from error
         finally:
             await watch.aclose()
 
     async def evidence(self) -> bytes:
         return await _archive(self._client, client_types.EvidenceSubject(cycle=self.identifier))
+
+    async def report(self) -> bytes:
+        reply = await call(
+            "reports.create",
+            self._client._transport.reports.create(client_types.ReportSubject(cycle=self.identifier), ""),
+        )
+        if not reply.HasField("file"):
+            raise invalid("reports.create", "The Host Returned No Retained Cycle Report")
+        return await download(self._client._transport, reply.file)
 
     async def note(self, text: str, *, request_id: str | None = None) -> Note:
         return await _note(self._client, self.identifier, None, text, request_id)
@@ -699,7 +699,7 @@ class Execution:
                 yield Progress(frame.phase, frame.value.completed, frame.value.total, frame.value.label, sealed)
                 if sealed:
                     return
-            raise invalid("executions.progress.watch", "Execution Observation Ended Without Sealed State")
+            raise invalid("executions.progress.watch", "Execution Observation Closed Without Sealed State")
         except AioRpcError as error:
             raise transport_error("executions.progress.watch", error) from error
         finally:

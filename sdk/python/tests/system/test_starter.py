@@ -18,6 +18,7 @@ import runpy
 import shutil
 import tempfile
 import unittest
+from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol, cast
@@ -83,7 +84,9 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         evidence = await cycle.evidence()
         archive = ZipFile(BytesIO(evidence))
         try:
-            self.assertTrue(archive.namelist())
+            self.assertIn("report.html", archive.namelist())
+            self.assertEqual(await cycle.report(), archive.read("report.html"))
+            self.assertEqual(sha256(evidence).digest(), sha256(await cycle.evidence()).digest())
             self.assertIsNone(archive.testzip())
         finally:
             archive.close()
@@ -237,6 +240,8 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(archive.testzip())
             self.assertEqual(archive.namelist(), retained.namelist())
             self.assertIn("manifest.json", archive.namelist())
+            self.assertIn("report.html", archive.namelist())
+            self.assertEqual(archive.read("report.html"), await cycle.report())
             for name in archive.namelist():
                 self.assertEqual(archive.read(name), retained.read(name), name)
             print(f"Created Starter Archive: {archive.namelist()}")

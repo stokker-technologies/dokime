@@ -112,7 +112,7 @@ namespace Dokime.Internal.Client;
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse> __Method_Seal = new grpc::Method<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse>(
-        grpc::MethodType.Unary,
+        grpc::MethodType.ServerStreaming,
         __ServiceName,
         "Seal",
         __Marshaller_dokime_host_v1_CyclesSealRequest,
@@ -159,7 +159,7 @@ namespace Dokime.Internal.Client;
       }
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.CyclesSealResponse> Seal(global::Dokime.Clients.CyclesSealRequest request, grpc::ServerCallContext context)
+      public virtual global::System.Threading.Tasks.Task Seal(global::Dokime.Clients.CyclesSealRequest request, grpc::IServerStreamWriter<global::Dokime.Clients.CyclesSealResponse> responseStream, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -284,24 +284,14 @@ namespace Dokime.Internal.Client;
         return CallInvoker.AsyncUnaryCall(__Method_Create, null, options, request);
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Dokime.Clients.CyclesSealResponse Seal(global::Dokime.Clients.CyclesSealRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      public virtual grpc::AsyncServerStreamingCall<global::Dokime.Clients.CyclesSealResponse> Seal(global::Dokime.Clients.CyclesSealRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
       {
         return Seal(request, new grpc::CallOptions(headers, deadline, cancellationToken));
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Dokime.Clients.CyclesSealResponse Seal(global::Dokime.Clients.CyclesSealRequest request, grpc::CallOptions options)
+      public virtual grpc::AsyncServerStreamingCall<global::Dokime.Clients.CyclesSealResponse> Seal(global::Dokime.Clients.CyclesSealRequest request, grpc::CallOptions options)
       {
-        return CallInvoker.BlockingUnaryCall(__Method_Seal, null, options, request);
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.CyclesSealResponse> SealAsync(global::Dokime.Clients.CyclesSealRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return SealAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.CyclesSealResponse> SealAsync(global::Dokime.Clients.CyclesSealRequest request, grpc::CallOptions options)
-      {
-        return CallInvoker.AsyncUnaryCall(__Method_Seal, null, options, request);
+        return CallInvoker.AsyncServerStreamingCall(__Method_Seal, null, options, request);
       }
       /// <summary>Creates a new instance of client from given <c>ClientBaseConfiguration</c>.</summary>
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
@@ -337,7 +327,7 @@ namespace Dokime.Internal.Client;
       serviceBinder.AddMethod(__Method_List, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.CyclesListRequest, global::Dokime.Clients.CyclesListResponse>(serviceImpl.List));
       serviceBinder.AddMethod(__Method_Watch, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Dokime.Clients.CyclesWatchRequest, global::Dokime.Clients.CyclesWatchResponse>(serviceImpl.Watch));
       serviceBinder.AddMethod(__Method_Create, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.CyclesCreateRequest, global::Dokime.Clients.CyclesCreateResponse>(serviceImpl.Create));
-      serviceBinder.AddMethod(__Method_Seal, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse>(serviceImpl.Seal));
+      serviceBinder.AddMethod(__Method_Seal, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse>(serviceImpl.Seal));
     }
 
   }

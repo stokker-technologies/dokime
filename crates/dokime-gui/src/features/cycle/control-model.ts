@@ -16,7 +16,7 @@
  * slot. An execution that has not started offers Start when the host admits
  * it; one that runs offers Pause or Resume and Stop; one whose last step has completed is
  * finalizing — it saves its evidence and offers nothing until it ends; an
- * ended one offers Re-Run. Stop is the only destructive action. The cycle
+ * sealed one offers Re-Run. Stop is the only destructive action. The cycle
  * states the member running now and offers Seal Cycle while it is Active; it
  * names the executions waiting on input and links to them, because their
  * prompts are answered there. Pure, so the mapping is testable away
@@ -43,7 +43,7 @@ import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution }
 /** One lifecycle action of the execution's Control card, in card order. */
 export type ExecutionAction = "Start" | "Cancel" | "Pause" | "Resume" | "Stop" | "Re-Run";
 
-export type ExecutionPhase = "unstarted" | "queued" | "running" | "waiting" | "paused" | "stopping" | "finalizing" | "ended";
+export type ExecutionPhase = "unstarted" | "queued" | "running" | "waiting" | "paused" | "stopping" | "finalizing" | "sealed";
 
 /** What the execution's Control card states and offers. */
 export type ExecutionControlState = {
@@ -91,7 +91,7 @@ export type CycleControlInput = {
 
 /**
  * The runtime owns finalization. Completed records cover only finished steps,
- * and progress counts one step's work; neither establishes that the run ended.
+ * and progress counts one step's work; neither establishes that the run sealed.
  */
 export function executionControlState(input: ExecutionControlInput): ExecutionControlState {
   const { controls, progress, status } = input;
@@ -126,15 +126,15 @@ export function executionControlState(input: ExecutionControlInput): ExecutionCo
         actions: [],
         detail:
           "Its plugin is unavailable on this backend. Saved evidence remains readable; start the Python backend that registered it or install its original plugin revision to run it again.",
-        line: `Ended · ${executionStatusLabel(status)} · Plugin Unavailable`,
-        phase: "ended",
+        line: `Sealed · ${executionStatusLabel(status)} · Plugin Unavailable`,
+        phase: "sealed",
       };
     }
     return {
       actions: controls?.canRerun ? ["Re-Run"] : [],
       detail: input.report?.state === "failed" ? input.report.failure : null,
-      line: `Ended · ${executionStatusLabel(status)}${input.report?.state === "failed" ? " · Report Failed" : ""}`,
-      phase: "ended",
+      line: `Sealed · ${executionStatusLabel(status)}${input.report?.state === "failed" ? " · Report Failed" : ""}`,
+      phase: "sealed",
     };
   }
   if (status === "finalizing") {

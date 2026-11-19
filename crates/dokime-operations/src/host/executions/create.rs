@@ -24,6 +24,7 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::CycleStatus;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::ExecutionsCreateRequest;
@@ -53,7 +54,11 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
         let cycle = crate::host::execution_state::cycle(context, &request.parent).await?;
-        if cycle.sealed || request.executions.is_empty() || request.executions.len() > context.settings.max_cases {
+        if cycle.sealed
+            || cycle.phase == CyclePhase::Sealing as i32
+            || request.executions.is_empty()
+            || request.executions.len() > context.settings.max_cases
+        {
             return Err(Error::Invalid("Append Executions: Supply Bounded Bindings to an Unsealed Cycle".into()));
         }
         let mut identifiers = HashSet::new();

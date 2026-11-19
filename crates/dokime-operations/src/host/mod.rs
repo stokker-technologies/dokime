@@ -50,7 +50,7 @@ pub use secrets::store::{register_redactions, remove_root_secrets};
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, future::Future, result, sync::Arc, time::Duration};
+use std::{collections::HashMap, future::Future, pin::Pin, result, sync::Arc, time::Duration};
 
 // Third Party Imports
 use async_trait::async_trait;
@@ -117,7 +117,7 @@ pub struct Context {
 pub struct Progress {
     pub revision: u64,
     pub phase: String,
-    pub finished: bool,
+    pub sealed: bool,
     pub failure: Option<String>,
 }
 #[derive(Clone)]
@@ -151,6 +151,7 @@ pub trait Host: Send + Sync {
     fn changes(&self) -> watch::Receiver<u64>;
     fn shutting_down(&self) -> bool;
     fn signal_change(&self);
+    fn spawn_work(&self, work: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>;
     async fn start_existing(&self, execution: &str, mode: ExecutionMode) -> Result<StartedCycle>;
     fn control_execution(&self, execution: &str, action: RunAction) -> Result<()>;
     async fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;

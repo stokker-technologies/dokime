@@ -209,7 +209,7 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
         (factory::<host::cycles::create::Operation>, settings.mutation_timeout),
         (factory::<host::cycles::get::Operation>, settings.read_timeout),
         (factory::<host::cycles::list::Operation>, settings.read_timeout),
-        (factory::<host::cycles::seal::Operation>, settings.mutation_timeout),
+        (factory::<host::cycles::seal::Operation>, settings.watch_timeout),
         (factory::<host::cycles::set::Operation>, settings.mutation_timeout),
         (factory::<host::documents::append_parts::Operation>, settings.mutation_timeout),
         (factory::<host::documents::get::Operation>, settings.read_timeout),

@@ -31,6 +31,7 @@ use dokime::Termination;
 use dokime::client::CasesCreateOptions;
 use dokime::client::CasesListOptions;
 use dokime::client::CyclesCreateOptions;
+use dokime::client::CyclePhase;
 use dokime::client::CyclesGetOptions;
 use dokime::client::CyclesSealOptions;
 use dokime::client::CyclesSetOptions;
@@ -542,7 +543,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 },
             )
             .await?;
-        cycles
+        let mut completion = cycles
             .seal_with(
                 cycle.cycle_id.clone(),
                 CyclesSealOptions {
@@ -551,6 +552,9 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 },
             )
             .await?;
+        while let Some(frame) = completion.next().await? {
+            assert_ne!(frame.cycle.unwrap().phase, CyclePhase::SealFailed as i32);
+        }
         let sealed = cycles.get_with(cycle.cycle_id.clone(), CyclesGetOptions { at: None, ..Default::default() }).await?.cycle.unwrap();
         assert!(sealed.sealed && sealed.archived);
 

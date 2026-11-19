@@ -28,6 +28,7 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
+use dokime_protocol::host::CyclePhase;
 use crate::{
     Error, Result,
     capabilities::can_start,
@@ -63,7 +64,7 @@ pub struct Cycle {
     store: dokime_storage::Store,
     result: Receiver<Result<Completed>>,
 }
-/// What a Finished Cycle Task Reports; Evidence Is Read Only When a Caller Waits for It.
+/// What a Sealed Cycle Task Reports; Evidence Is Read Only When a Caller Waits for It.
 struct Completed {
     executions: Vec<String>,
     states: Vec<RunState>,
@@ -94,9 +95,7 @@ pub enum RunState {
     Stepping,
     Evaluating,
     CleaningUp,
-    Finished,
-    Cancelled,
-    Interrupted,
+    Sealed,
 }
 
 /* === Traits === */
@@ -217,6 +216,14 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
 
 pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str, mode: ExecutionMode) -> Result<Cycle> {
     let cut = host.inner.store.cut(execution)?;
+    if let Some(cycle) = host.inner.store.client_cycle(&cut.execution.cycle)?
+        && (cycle.sealed || cycle.phase == CyclePhase::Sealing as i32)
+    {
+        return Err(Error::Invalid(format!(
+            "Start Execution {execution}: Cycle {} Is Sealed or Sealing; Create a New Cycle",
+            cycle.cycle_id
+        )));
+    }
     if !can_start(&cut, host.is_active(execution)?) {
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
     }
@@ -362,12 +369,12 @@ fn launch(
                     Ok::<_, Error>((index, result))
                 });
             }
-            let mut finished = Vec::new();
+            let mut settled = Vec::new();
             let mut failure = None;
             while let Some(result) = workers.join_next().await {
                 match result {
                     Ok(Ok((index, result))) => match result {
-                        Ok(result) => finished.push((index, result)),
+                        Ok(result) => settled.push((index, result)),
                         Err(error) => {
                             failure.get_or_insert(error);
                         }
@@ -383,11 +390,11 @@ fn launch(
             if let Some(error) = failure {
                 return Err(error);
             }
-            finished.sort_by_key(|(index, _)| *index);
+            settled.sort_by_key(|(index, _)| *index);
             let mut executions = Vec::new();
             let mut outcomes = Vec::new();
             let mut states = Vec::new();
-            for (_, (execution, execution_states)) in finished {
+            for (_, (execution, execution_states)) in settled {
                 outcomes.extend(host.inner.store.cut(&execution)?.execution.outcome);
                 executions.push(execution);
                 states.extend(execution_states);
@@ -403,6 +410,11 @@ fn launch(
             if let Err(error) = host.settled(&execution).await {
                 result = Err(error);
             }
+            let context = host.inner.context.get().and_then(Weak::upgrade);
+            let _finality = match context.as_ref() {
+                Some(context) => Some(context.administration.lock().await),
+                None => None,
+            };
             let settled = (|| -> Result<()> {
                 let cut = host.inner.store.cut(&execution)?;
                 if cut.state == dokime_storage::ExecutionState::Open {
@@ -690,6 +702,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         resources.failure("streams", &source)?;
         interruption.get_or_insert(source);
     }
+    let _finality = resources.context.administration.lock().await;
     host.inner.store.close_streams(&execution)?;
     let attribution = if termination == Termination::Failed {
         Attribution::Evaluated(EvaluatedOutcome {
@@ -709,11 +722,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     };
     host.inner.store.close(&execution, termination, ExecutionOutcome { attribution: Some(attribution) })?;
     host.inner.store.seal(&execution)?;
-    states.push(match termination {
-        Termination::Cancelled => RunState::Cancelled,
-        Termination::Interrupted => RunState::Interrupted,
-        _ => RunState::Finished,
-    });
+    states.push(RunState::Sealed);
     tracing::info!(execution = %execution, ?termination, "Sealed Execution");
     Ok((execution, states))
 }

@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::host;
 use harmos_protocol as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [136, 148, 118, 133, 91, 30, 201, 10, 6, 85, 197, 175, 135, 112, 181, 110, 138, 6, 100, 118, 143, 176, 108, 94, 79, 150, 164, 91, 40, 57, 229, 191];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [249, 224, 1, 233, 102, 22, 19, 71, 104, 184, 90, 240, 168, 109, 75, 52, 42, 208, 48, 183, 80, 25, 213, 241, 114, 31, 164, 185, 196, 75, 106, 151];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
@@ -17,7 +17,6 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.host.v1.Cycles/Create" => Box::pin(session.call::<host::CyclesCreateRequest, host::CyclesCreateResponse>("/dokime.host.v1.Cycles/Create", payload)).await,
         "/dokime.host.v1.Cycles/Get" => Box::pin(session.call::<host::CyclesGetRequest, host::CyclesGetResponse>("/dokime.host.v1.Cycles/Get", payload)).await,
         "/dokime.host.v1.Cycles/List" => Box::pin(session.call::<host::CyclesListRequest, host::CyclesListResponse>("/dokime.host.v1.Cycles/List", payload)).await,
-        "/dokime.host.v1.Cycles/Seal" => Box::pin(session.call::<host::CyclesSealRequest, host::CyclesSealResponse>("/dokime.host.v1.Cycles/Seal", payload)).await,
         "/dokime.host.v1.Cycles/Set" => Box::pin(session.call::<host::CyclesSetRequest, host::CyclesSetResponse>("/dokime.host.v1.Cycles/Set", payload)).await,
         "/dokime.host.v1.Documents/Get" => Box::pin(session.call::<host::DocumentsGetRequest, host::DocumentsGetResponse>("/dokime.host.v1.Documents/Get", payload)).await,
         "/dokime.host.v1.Evidence/Archive" => Box::pin(session.call::<host::EvidenceArchiveRequest, host::EvidenceArchiveResponse>("/dokime.host.v1.Evidence/Archive", payload)).await,
@@ -127,6 +126,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
 pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Result<tokio_stream::wrappers::ReceiverStream<Result<Vec<u8>, Error>>, Error> {
     match path {
         "/dokime.host.v1.Cases/Watch" => Box::pin(session.watch::<host::CasesWatchRequest, host::CasesWatchResponse>("/dokime.host.v1.Cases/Watch", payload)).await,
+        "/dokime.host.v1.Cycles/Seal" => Box::pin(session.watch::<host::CyclesSealRequest, host::CyclesSealResponse>("/dokime.host.v1.Cycles/Seal", payload)).await,
         "/dokime.host.v1.Cycles/Watch" => Box::pin(session.watch::<host::CyclesWatchRequest, host::CyclesWatchResponse>("/dokime.host.v1.Cycles/Watch", payload)).await,
         "/dokime.host.v1.Documents/Watch" => Box::pin(session.watch::<host::DocumentsWatchRequest, host::DocumentsWatchResponse>("/dokime.host.v1.Documents/Watch", payload)).await,
         "/dokime.host.v1.Executions/Watch" => Box::pin(session.watch::<host::ExecutionsWatchRequest, host::ExecutionsWatchResponse>("/dokime.host.v1.Executions/Watch", payload)).await,

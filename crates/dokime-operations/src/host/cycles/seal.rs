@@ -18,13 +18,20 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::FileReference;
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::{
+    Error, Result,
+    host::{Context, Output},
+};
 use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::CyclesSealRequest;
 use dokime_protocol::host::CyclesSealResponse;
+use dokime_protocol::host::{CycleSummary, EvidenceSubject, ReportSubject, ReportsCreateRequest, evidence_subject, report_subject};
 use dokime_storage::ExecutionState;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 /* === Constants === */
 
@@ -44,30 +51,157 @@ pub const ID: &str = "dokime.host.v1.Cycles/Seal";
 
 /* === Public Functions === */
 
-pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<CyclesSealResponse> {
-    crate::host::complete(ID, context.settings.mutation_timeout, async {
+pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<Output<CyclesSealResponse>> {
+    let mut changes = context.host.changes();
+    let first = crate::host::complete(ID, context.settings.mutation_timeout, async {
+        if request.request_id.is_empty() {
+            return Err(Error::Invalid("Seal Cycle: Supply a Request ID".into()));
+        }
         let _guard = context.administration.lock().await;
         let mut cycle = crate::host::execution_state::cycle(context, &request.name).await?;
+        if cycle.sealed || cycle.phase == CyclePhase::Sealing as i32 {
+            return Ok(cycle);
+        }
         for row in crate::host::execution_state::snapshots(context, &request.name)? {
-            if row.state != ExecutionState::Sealed {
-                return Err(Error::Precondition("Seal Cycle: Finish or Cancel Its Executions Before Sealing".into()));
+            let execution = &row.execution.identifier;
+            let controls = context.host.controls(execution)?;
+            if controls.request_id.is_some()
+                || controls.can_cancel
+                || row.state != ExecutionState::Sealed && context.host.store().cut(execution)?.frontier != 0
+            {
+                return Err(Error::Precondition(format!("Seal Cycle {}: Wait for Running Execution {execution} to Seal", request.name)));
             }
         }
-        cycle.sealed = true;
-        cycle.phase = CyclePhase::Sealed as i32;
+        cycle.phase = CyclePhase::Sealing as i32;
+        cycle.seal_failure = None;
         cycle.updated_at = Some(crate::host::projection::timestamp(context.host.now_ns()));
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-        Ok(CyclesSealResponse {
-            seal: crate::host::paging::bytes(&cycle),
-            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
-        })
+        let work = context.clone();
+        let name = request.name.clone();
+        if let Err(error) = context.host.spawn_work(Box::pin(async move {
+            let result = materialize(&work, &name).await;
+            let saved = async {
+                let _guard = work.administration.lock().await;
+                let mut cycle = crate::host::execution_state::cycle(&work, &name).await?;
+                match result {
+                    Ok((report, archive)) => {
+                        cycle.report_file = Some(report);
+                        cycle.evidence_file = Some(archive);
+                        cycle.sealed = true;
+                        cycle.phase = CyclePhase::Sealed as i32;
+                        cycle.seal_failure = None;
+                    }
+                    Err(source) => {
+                        cycle.sealed = false;
+                        cycle.phase = CyclePhase::SealFailed as i32;
+                        cycle.seal_failure = Some(format!("Seal Cycle {name}: {source}; Resolve the Cause and Retry Seal"));
+                    }
+                }
+                cycle.updated_at = Some(crate::host::projection::timestamp(work.host.now_ns()));
+                work.host.store().save_cycle(&cycle)?;
+                work.host.signal_change();
+                Result::Ok(())
+            }
+            .await;
+            if let Err(source) = saved {
+                tracing::error!(cycle = %name, error = %source, "Save Cycle Seal Completion");
+            }
+        })) {
+            cycle.phase = CyclePhase::SealFailed as i32;
+            cycle.seal_failure = Some(error.to_string());
+            context.host.store().save_cycle(&cycle)?;
+            context.host.signal_change();
+            return Err(error);
+        }
+        Ok(cycle)
     })
-    .await
+    .await?;
+    let (sender, output) = mpsc::channel(context.settings.stream_buffer.saturating_add(1));
+    sender
+        .try_send(Ok(response(context, first.clone(), &request.request_id)?))
+        .map_err(|_| Error::Precondition("Seal Cycle: Reopen Its Completion Stream".into()))?;
+    if first.sealed || first.phase == CyclePhase::SealFailed as i32 {
+        return Ok(ReceiverStream::new(output));
+    }
+    let work = context.clone();
+    context.host.spawn_work(Box::pin(async move {
+        loop {
+            changes.borrow_and_update();
+            let cycle = match work.host.store().client_cycle(&request.name) {
+                Ok(Some(cycle)) => cycle,
+                Ok(None) => {
+                    let _ = sender.send(Err(tonic::Status::not_found("Seal Cycle: Restore Its Saved State"))).await;
+                    return;
+                }
+                Err(source) => {
+                    let _ = sender.send(Err(crate::host::status(source.into()))).await;
+                    return;
+                }
+            };
+            if cycle.sealed || cycle.phase == CyclePhase::SealFailed as i32 {
+                let finality = response(&work, cycle, &request.request_id).map_err(crate::host::status);
+                let _ = sender.send(finality).await;
+                return;
+            }
+            if work.host.shutting_down() {
+                let _ = sender.send(Err(tonic::Status::unavailable("Seal Cycle: Reconnect to Inspect Its Retained Completion"))).await;
+                return;
+            }
+            tokio::select! {
+                _ = sender.closed() => return,
+                changed = changes.changed() => if changed.is_err() { return; },
+            }
+        }
+    }))?;
+    Ok(ReceiverStream::new(output))
 }
 
 /* === Private Functions === */
 
+fn response(context: &Context, cycle: CycleSummary, request: &str) -> Result<CyclesSealResponse> {
+    let mut receipt = crate::host::views::receipt(context, request)?;
+    receipt.completed = cycle.sealed || cycle.phase == CyclePhase::SealFailed as i32;
+    Ok(CyclesSealResponse {
+        seal: if cycle.sealed { crate::host::paging::bytes(&cycle) } else { Vec::new() },
+        receipt: Some(receipt),
+        cycle: Some(cycle),
+    })
+}
+
+async fn materialize(context: &Context, name: &str) -> Result<(FileReference, FileReference)> {
+    {
+        let _guard = context.administration.lock().await;
+        for row in crate::host::execution_state::snapshots(context, name)? {
+            if row.state != ExecutionState::Sealed {
+                context.host.store().seal_unstarted(&row.execution.identifier)?;
+            }
+        }
+        context.host.signal_change();
+    }
+    let report = crate::host::reports::create::prepare(
+        context,
+        ReportsCreateRequest {
+            subject: Some(ReportSubject {
+                kind: Some(report_subject::Kind::Cycle(name.into())),
+            }),
+            request_id: format!("cycle-seal/{name}/{}", uuid::Uuid::now_v7()),
+            ..Default::default()
+        },
+    )
+    .await?;
+    let file = report.file.ok_or_else(|| Error::Precondition("Seal Cycle: Restore Its Materialized Report".into()))?;
+    let archive = crate::host::evidence::archive::materialize(
+        context,
+        EvidenceSubject {
+            kind: Some(evidence_subject::Kind::Cycle(name.into())),
+        },
+        Some(file.clone()),
+    )
+    .await?;
+    Ok((file, archive))
+}
+
 /* === Tests === */
 
-crate::native::unary!(CyclesSealRequest, CyclesSealResponse, context, "dokime.host.v1", "Cycles", "Seal");
+crate::native::download!(CyclesSealRequest, CyclesSealResponse, "dokime.host.v1", "Cycles", "Seal");

@@ -427,7 +427,7 @@ export function executionStatusLabel(
   state: ExecutionStatus | undefined,
   outcome?: Wire<ExecutionOutcome>,
   started = false,
-): "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" | "skipped" {
+): "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" | "skipped" | "not_run" {
   if (state === ExecutionState.OPEN) return started ? "running" : "pending";
   const attribution = outcome?.attribution;
   if ((attribution?.case === "evaluated" || attribution?.case === "declared") && attribution.value.status === ResultStatus.BLOCKED)

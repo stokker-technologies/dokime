@@ -41,6 +41,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
+use dokime_protocol::host::CyclePhase;
 use crate::execution;
 use crate::run_control::RunControl;
 use crate::services::composition::Application;
@@ -126,6 +127,14 @@ impl ExecutionManager {
             }
         }
 
+        for mut cycle in store.client_cycles()? {
+            if !cycle.sealed && cycle.phase == CyclePhase::Sealing as i32 {
+                cycle.phase = CyclePhase::SealFailed as i32;
+                cycle.seal_failure = Some("Seal Cycle: Host Restarted Before Evidence Retention Completed; Retry Seal".into());
+                store.save_cycle(&cycle)?;
+            }
+        }
+
         Ok(Self {
             inner: Arc::new(Runtime {
                 _root_lease: root_lease,
@@ -173,6 +182,11 @@ impl ExecutionManager {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Execution")?;
         self.reap_finished().await?;
+        let context = self.inner.context.get().and_then(Weak::upgrade);
+        let _evidence = match context.as_ref() {
+            Some(context) => Some(context.administration.lock().await),
+            None => None,
+        };
         execution::start_existing_mode(self.clone(), execution, mode).await
     }
     fn admit(&self, action: &str) -> Result<()> {
@@ -281,7 +295,7 @@ impl ExecutionManager {
             let (sender, _) = watch::channel(Progress {
                 revision: 1,
                 phase: "queued".into(),
-                finished: false,
+                sealed: false,
                 failure: None,
             });
             lock(&self.inner.progress)?.insert(execution.clone(), sender.clone());
@@ -293,14 +307,14 @@ impl ExecutionManager {
             loop {
                 changes.borrow_and_update();
                 senders.retain(|(execution, sender)| {
-                    if sender.borrow().finished {
+                    if sender.borrow().sealed {
                         return false;
                     }
                     let state = manager.inner.store.cut(execution);
-                    let finished = state.as_ref().is_ok_and(|cut| cut.state == ExecutionState::Sealed);
+                    let sealed = state.as_ref().is_ok_and(|cut| cut.state == ExecutionState::Sealed);
                     let pending =
                         manager.inner.prompts.pending_prompts().is_ok_and(|prompts| prompts.iter().any(|(id, _)| id == execution));
-                    let phase = if finished {
+                    let phase = if sealed {
                         "sealed".into()
                     } else if pending {
                         "prompt".into()
@@ -310,12 +324,12 @@ impl ExecutionManager {
                     sender.send_modify(|progress| {
                         progress.revision += 1;
                         progress.phase = phase;
-                        progress.finished = finished || state.is_err();
+                        progress.sealed = sealed || state.is_err();
                         if let Err(error) = state {
                             progress.failure = Some(error.to_string());
                         }
                     });
-                    !sender.borrow().finished
+                    !sender.borrow().sealed
                 });
                 if senders.is_empty() {
                     return;
@@ -343,7 +357,7 @@ impl ExecutionManager {
             sender.send_modify(|progress| {
                 progress.revision += 1;
                 progress.phase = "sealed".into();
-                progress.finished = true;
+                progress.sealed = true;
                 progress.failure = failure;
             });
         }
@@ -360,7 +374,7 @@ impl ExecutionManager {
         Ok(watch::channel(Progress {
             revision: 1,
             phase: "sealed".into(),
-            finished: true,
+            sealed: true,
             failure: None,
         })
         .1)
@@ -498,7 +512,7 @@ mod tests {
             panic!("Recover Execution: Missing Interrupted Outcome");
         };
         assert_eq!(outcome.termination, Termination::Interrupted as i32);
-        assert!(recovered.progress("execution")?.borrow().finished);
+        assert!(recovered.progress("execution")?.borrow().sealed);
         recovered.shutdown().await?;
         Ok(())
     }
@@ -509,7 +523,7 @@ mod tests {
         let (_root, manager) = manager()?;
         manager.track(&["execution".into()])?;
         let mut progress = manager.progress("execution")?;
-        assert!(!progress.borrow_and_update().finished);
+        assert!(!progress.borrow_and_update().sealed);
 
         // Seal an Interrupted Outcome Before Publishing Terminal Progress
         let outcome = ExecutionOutcome {
@@ -522,7 +536,7 @@ mod tests {
         manager.inner.store.seal("execution")?;
         manager.finish_progress("execution", None)?;
         progress.changed().await?;
-        assert!(progress.borrow_and_update().finished);
+        assert!(progress.borrow_and_update().sealed);
         assert_eq!(manager.inner.store.cut("execution")?.execution.outcome, Some(outcome));
         manager.shutdown().await?;
         assert!(progress.changed().await.is_err());
@@ -544,7 +558,7 @@ mod tests {
 
         // Return a Terminal Snapshot Without Waiting for a Runtime Update
         let mut progress = manager.progress("execution")?;
-        assert!(progress.borrow_and_update().finished);
+        assert!(progress.borrow_and_update().sealed);
         assert_eq!(manager.inner.store.cut("execution")?.execution.outcome, Some(outcome));
         assert!(progress.changed().await.is_err());
         manager.shutdown().await?;

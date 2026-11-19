@@ -15,7 +15,7 @@
 
 import * as rpc from "@/lib/host/client";
 import { required } from "@/lib/rpc/canonical";
-import { ExecutionMode, ExecutionParameterSet } from "@host/model";
+import { CyclePhase, ExecutionMode, ExecutionParameterSet } from "@host/model";
 import { type NativeExecution, mapNativeExecution } from "./native-execution-projection";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -98,7 +98,20 @@ export async function cancelNativeTestExecution(session: SessionIdentity, execut
 }
 
 export async function sealNativeTestCycle(session: SessionIdentity, cycleId: string): Promise<void> {
-  await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
+  const completion = await rpc.cyclesSeal(session, { name: cycleId, requestId: crypto.randomUUID() });
+  let sealed = false;
+  try {
+    for await (const frame of completion) {
+      const cycle = required(frame.cycle, "Seal Cycle Completion");
+      if (cycle.cycleId !== cycleId || sealed) throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
+      if (cycle.phase === CyclePhase.SEAL_FAILED)
+        throw new Error(cycle.sealFailure || "Seal Cycle: Resolve Its Materialization Failure and Retry Seal");
+      sealed = cycle.sealed && cycle.phase === CyclePhase.SEALED && frame.seal.length > 0;
+    }
+    if (!sealed) throw new Error("Seal Cycle: Reconnect and Inspect Its Completion");
+  } finally {
+    await completion.cancel();
+  }
 }
 
 /** Archives or unarchives a terminal cycle; its lifecycle is unchanged. */

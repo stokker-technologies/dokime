@@ -22,6 +22,7 @@ import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import {
+  CyclePhase,
   ExecutionMode,
   ExecutionState,
   LiveExecutionState,
@@ -88,6 +89,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.extra.mockReset();
   fixture.stream.mockReset();
+  fixture.stream.mockImplementation(async (path, _input, _output, identity, request) => {
+    assert.equal(path, "/dokime.host.v1.Cycles/Seal");
+    return fixture.seal(identity, request);
+  });
   fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
     const operations: Record<string, typeof fixture.append> = {
@@ -167,11 +172,45 @@ test("Durable Stop Seal", async () => {
       }),
   );
   const seal = sealNativeTestCycle(session, "cycle");
-  const rejected = assert.rejects(seal, /Persistence Failed/);
-  failSeal(new Error("Persistence Failed"));
+  const failure = new Error("storage");
+  const rejected = assert.rejects(seal, (error) => error === failure);
+  failSeal(failure);
   await rejected;
   assert.equal(fixture.seal.mock.calls[0][1].name, "cycle");
   assert.ok(fixture.seal.mock.calls[0][1].requestId);
+});
+
+test("Cycle Seal Awaits Completion and Raises Materialization Failure", async () => {
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const cancelled = vi.fn(async () => undefined);
+  fixture.seal.mockResolvedValue({
+    cancel: cancelled,
+    async *[Symbol.asyncIterator]() {
+      yield { cycle: { cycleId: "cycle", phase: CyclePhase.SEALING, sealed: false }, seal: new Uint8Array() };
+      await gate;
+      yield { cycle: { cycleId: "cycle", phase: CyclePhase.SEALED, sealed: true }, seal: new Uint8Array([1]) };
+    },
+  });
+  let sealed = false;
+  const pending = sealNativeTestCycle(session, "cycle").then(() => {
+    sealed = true;
+  });
+  await Promise.resolve();
+  assert.equal(sealed, false);
+  finish();
+  await pending;
+  assert.equal(sealed, true);
+  assert.equal(cancelled.mock.calls.length, 1);
+  fixture.seal.mockResolvedValue({
+    cancel: cancelled,
+    async *[Symbol.asyncIterator]() {
+      yield { cycle: { cycleId: "cycle", phase: CyclePhase.SEAL_FAILED, sealed: false, sealFailure: "storage" }, seal: new Uint8Array() };
+    },
+  });
+  await assert.rejects(sealNativeTestCycle(session, "cycle"));
 });
 
 test("Container Seal Controls", () => {
@@ -190,21 +229,15 @@ test("Container Seal Controls", () => {
     assert.equal((html.match(/<button/g) ?? []).length, 1);
     assert.doesNotMatch(html, /Start Cycle|Stop Cycle|Run Again|Pause Cycle|Resume Cycle/);
   }
-  assert.equal(cycleControlState({ phase: "active", running: null }).line, "Idle · no execution running");
-  assert.equal(
-    cycleControlState({ phase: "active", running: { ordinal: 2, step: "Energize Charger" } }).line,
-    "Execution 2 · Energize Charger",
-  );
-
-  // Sealing and Sealed Offer Nothing
-  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }), { actions: [], line: "Sealing · saving evidence" });
-  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }), { actions: [], line: "Sealed · evidence saved" });
+  // Sealing and Sealed Offer No Running Controls.
+  assert.deepEqual(cycleControlState({ phase: "sealing", running: null }).actions, []);
+  assert.deepEqual(cycleControlState({ phase: "sealed", running: null }).actions, []);
 
   // A Failed Seal Offers Retry and Archive, Never a Running Control
   assert.deepEqual(cycleControlState({ phase: "seal_failed", running: null }).actions, ["Retry Seal", "Archive"]);
 });
 
-test("Finished Execution Without Its Plugin Has No New Attempt Button", () => {
+test("Sealed Execution Without Its Plugin Has No New Attempt Button", () => {
   const state = executionControlState({
     controls: null,
     pluginAvailable: false,
@@ -221,7 +254,7 @@ test("Finished Execution Without Its Plugin Has No New Attempt Button", () => {
       state: state.line,
     }),
   );
-  assert.equal(state.phase, "ended");
+  assert.equal(state.phase, "sealed");
   assert.equal((html.match(/<button/g) ?? []).length, 0);
   assert.equal((html.match(/data-control-state/g) ?? []).length, 1);
   assert.ok(state.detail);
@@ -403,7 +436,7 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
     const decoded = fromBinary(input, toBinary(input, create(input, request)));
     const frame = path.endsWith("Overview/Watch")
       ? { opening: true, resolvedAt: { positions: [{ history: { store: "host", epoch: "runtime" }, sequence: 9n }] } }
-      : { finished: true };
+      : { sealed: true };
     if (path === "/dokime.host.v1.executions.Progress/Watch") {
       assert.ok("name" in decoded);
       assert.equal(decoded.name, "execution");
@@ -429,7 +462,7 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
     frames.push(frame);
   }
   assert.equal(frames[0].progress, null);
-  assert.equal(frames[0].finished, true);
+  assert.equal(frames[0].sealed, true);
   assert.equal(release.mock.calls.length, 2);
   await progress.cancel();
   for (const dispose of owned) {

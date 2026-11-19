@@ -14,6 +14,7 @@ import "dokime/model/v1/metadata.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
 import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/file.proto";
 import "harmos/model/v1/page.proto";
 import "harmos/model/v1/position.proto";
 import "harmos/model/v1/receipt.proto";
@@ -50,8 +51,8 @@ service Cycles {
   rpc Create(.dokime.host.v1.CyclesCreateRequest) returns (.dokime.host.v1.CyclesCreateResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
-  // Seal the Cycles resource; admission and policy are owned by the executor.
-  rpc Seal(.dokime.host.v1.CyclesSealRequest) returns (.dokime.host.v1.CyclesSealResponse) {
+  // Seal the cycle and retain its report and evidence; observe Sealing then its terminal completion.
+  rpc Seal(.dokime.host.v1.CyclesSealRequest) returns (stream .dokime.host.v1.CyclesSealResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
 }
@@ -147,6 +148,8 @@ message CyclesSealRequest {
 message CyclesSealResponse {
   bytes seal = 1;
   .harmos.model.v1.Receipt receipt = 2;
+  // Sealing, Sealed or Seal Failed; a failed seal includes its actionable cause.
+  .dokime.host.v1.CycleSummary cycle = 3;
 }
 
 // === Resources === //
@@ -210,6 +213,9 @@ message CycleSummary {
   uint64 queued_count = 16;
   optional string seal_failure = 17;
   optional string rerun_of = 18;
+  // Immutable native files published together with the cycle's sealed state.
+  .harmos.model.v1.FileReference report_file = 19;
+  .harmos.model.v1.FileReference evidence_file = 20;
 }
 
 // ResultSummary value owned by this resource.

@@ -574,12 +574,14 @@ pub struct CyclesSealRequest {
     pub request_id: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CyclesSealResponse {
     #[prost(bytes = "vec", tag = "1")]
     pub seal: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub receipt: ::core::option::Option<::harmos_protocol::model::Receipt>,
+    #[prost(message, optional, tag = "3")]
+    pub cycle: ::core::option::Option<CycleSummary>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -678,6 +680,10 @@ pub struct CycleSummary {
     pub seal_failure: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "18")]
     pub rerun_of: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "19")]
+    pub report_file: ::core::option::Option<::harmos_protocol::model::FileReference>,
+    #[prost(message, optional, tag = "20")]
+    pub evidence_file: ::core::option::Option<::harmos_protocol::model::FileReference>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
@@ -1099,7 +1105,7 @@ pub mod cycles_client {
             &mut self,
             request: impl tonic::IntoRequest<super::CyclesSealRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::CyclesSealResponse>,
+            tonic::Response<tonic::codec::Streaming<super::CyclesSealResponse>>,
             tonic::Status,
         > {
             self.inner
@@ -1117,7 +1123,7 @@ pub mod cycles_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("dokime.host.v1.Cycles", "Seal"));
-            self.inner.unary(req, path, codec).await
+            self.inner.server_streaming(req, path, codec).await
         }
     }
 }
@@ -1172,13 +1178,16 @@ pub mod cycles_server {
             tonic::Response<super::CyclesCreateResponse>,
             tonic::Status,
         >;
+        /// Server streaming response type for the Seal method.
+        type SealStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::CyclesSealResponse, tonic::Status>,
+            >
+            + std::marker::Send
+            + 'static;
         async fn seal(
             &self,
             request: tonic::Request<super::CyclesSealRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::CyclesSealResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<Self::SealStream>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct CyclesServer<T> {
@@ -1479,11 +1488,14 @@ pub mod cycles_server {
                 "/dokime.host.v1.Cycles/Seal" => {
                     #[allow(non_camel_case_types)]
                     struct SealSvc<T: Cycles>(pub Arc<T>);
-                    impl<T: Cycles> tonic::server::UnaryService<super::CyclesSealRequest>
+                    impl<
+                        T: Cycles,
+                    > tonic::server::ServerStreamingService<super::CyclesSealRequest>
                     for SealSvc<T> {
                         type Response = super::CyclesSealResponse;
+                        type ResponseStream = T::SealStream;
                         type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
+                            tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
@@ -1514,7 +1526,7 @@ pub mod cycles_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.unary(method, req).await;
+                        let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
@@ -5456,6 +5468,7 @@ pub enum CaseStatus {
     Blocked = 8,
     Cancelled = 9,
     Interrupted = 10,
+    NotRun = 11,
 }
 impl CaseStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -5475,6 +5488,7 @@ impl CaseStatus {
             Self::Blocked => "CASE_STATUS_BLOCKED",
             Self::Cancelled => "CASE_STATUS_CANCELLED",
             Self::Interrupted => "CASE_STATUS_INTERRUPTED",
+            Self::NotRun => "CASE_STATUS_NOT_RUN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -5491,6 +5505,7 @@ impl CaseStatus {
             "CASE_STATUS_BLOCKED" => Some(Self::Blocked),
             "CASE_STATUS_CANCELLED" => Some(Self::Cancelled),
             "CASE_STATUS_INTERRUPTED" => Some(Self::Interrupted),
+            "CASE_STATUS_NOT_RUN" => Some(Self::NotRun),
             _ => None,
         }
     }

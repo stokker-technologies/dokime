@@ -17,7 +17,9 @@
 
 // Standard Library Imports
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 
 // Third Party Imports
@@ -96,6 +98,9 @@ impl host::Host for State {
     }
     fn signal_change(&self) {
         self.host.signal_change();
+    }
+    fn spawn_work(&self, work: Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()> {
+        self.host.executions.spawn(work).map_err(convert)
     }
     async fn start_existing(&self, execution: &str, mode: ExecutionMode) -> Result<StartedCycle> {
         let cycle = self.host.start_execution_mode(execution, mode).await.map_err(convert)?;

@@ -235,10 +235,10 @@ function cycleColumns(onOpen: (id: string) => void, onUnarchive: ((cycleId: stri
       header: "Status",
       meta: { filter: "facet", label: "Status", width: STATUS_COLUMN_WIDTH },
     }),
-    column.accessor("finishedCount", {
+    column.accessor("sealedCount", {
       cell: ({ row }) => (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases Finished, of the Cases This Cycle Plans">
-          {row.original.finishedCount} / {row.original.caseCount}
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases Sealed, of the Cases This Cycle Plans">
+          {row.original.sealedCount} / {row.original.caseCount}
         </span>
       ),
       header: "Cases",

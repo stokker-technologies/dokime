@@ -64,7 +64,7 @@ import {
   type CycleSelection,
   cycleState,
   type FollowState,
-  finishedCaseCount,
+  sealedCaseCount,
   followSelection,
   isActiveExecutionStatus,
   isCycleArchivable,
@@ -117,7 +117,7 @@ const CONFIRMS = {
   seal: {
     action: "Seal Cycle",
     description:
-      "Sealing closes this cycle permanently. Its running work stops, unstarted executions are cancelled, and all evidence is saved. Other cycles keep running. This can take time while evidence drains.",
+      "Sealing closes this cycle permanently and retains its report and complete evidence archive. Never-started executions are sealed as not run. Wait for any running execution to seal before continuing.",
     done: "Cycle Sealed",
     failed: "Cycle Seal Could Not Be Confirmed",
     pending: "Sealing — Saving Evidence",
@@ -146,7 +146,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
   const selection = useMemo<CycleSelection>(() => ({ caseId, executionId, view }), [caseId, executionId, view]);
   const selectedRow = selectedCycleRow(rows, selection);
-  const finished = finishedCaseCount(cases);
+  const sealed = sealedCaseCount(cases);
   const rerunOf = plan?.test_cycle.rerun_of ?? null;
   const rerunOfLabel = useCycleLabelQuery(rerunOf).data ?? rerunOf;
   const rerunNotices = useRerunNoticeStore((state) => state.notices[cycleId]);
@@ -381,6 +381,11 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     onOpenReport: () => openReport(null),
     onSettings: () => setSettingsOpen(true),
     onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
+    onSeal:
+      !runningRow && (phase === "active" || phase === "seal_failed")
+        ? () => setConfirm({ kind: phase === "seal_failed" ? "retry" : "seal" })
+        : null,
+    sealFailed: phase === "seal_failed",
   };
   const control = cycleControlState({
     phase,
@@ -443,7 +448,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? null : (label) => commands.renameCycle.mutateAsync(label)}
               progress={
                 <>
-                  {`${finished} of ${cases.length} cases finished`}
+                  {`${sealed} of ${cases.length} Cases Sealed`}
                   {rerunOf ? (
                     <>
                       {" · Rerun of "}

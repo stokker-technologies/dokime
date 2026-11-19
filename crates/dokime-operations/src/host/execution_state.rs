@@ -203,7 +203,11 @@ pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
     cycle.execution_count = rows.len() as u64;
     cycle.running_count = running;
     cycle.queued_count = queued;
-    cycle.phase = if cycle.sealed { CyclePhase::Sealed } else { CyclePhase::Active } as i32;
+    if cycle.sealed {
+        cycle.phase = CyclePhase::Sealed as i32;
+    } else if !matches!(CyclePhase::try_from(cycle.phase), Ok(CyclePhase::Sealing | CyclePhase::SealFailed)) {
+        cycle.phase = CyclePhase::Active as i32;
+    }
     cycle.status = if paused {
         CycleStatus::Paused
     } else if running > 0 {
@@ -288,6 +292,7 @@ pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseS
             match snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()) {
                 Some(Attribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32 => CaseStatus::Passed,
                 Some(Attribution::Evaluated(_)) => CaseStatus::Failed,
+                Some(Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::NotRun as i32 => CaseStatus::NotRun,
                 Some(Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::Cancelled as i32 => CaseStatus::Cancelled,
                 _ => CaseStatus::Interrupted,
             }

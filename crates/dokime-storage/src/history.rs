@@ -163,7 +163,11 @@ pub(crate) fn capture_cycle(connection: &Connection, id: &str, execution: &str) 
     let total: i64 = connection.query_row("SELECT COUNT(*) FROM executions WHERE cycle=?1", [id], |row| row.get(0))?;
     cycle.execution_count = total as u64;
     cycle.case_count = connection.query_row("SELECT COUNT(DISTINCT COALESCE(NULLIF(b.case_id,''),e.id)) FROM executions e LEFT JOIN bindings b ON b.execution=e.id WHERE e.cycle=?1", [id], |row| row.get::<_,i64>(0))? as u64;
-    cycle.phase = if cycle.sealed { CyclePhase::Sealed } else { CyclePhase::Active } as i32;
+    if cycle.sealed {
+        cycle.phase = CyclePhase::Sealed as i32;
+    } else if !matches!(CyclePhase::try_from(cycle.phase), Ok(CyclePhase::Sealing | CyclePhase::SealFailed)) {
+        cycle.phase = CyclePhase::Active as i32;
+    }
     cycle.status = if total == completed { CycleStatus::Completed } else { CycleStatus::Running } as i32;
     let mut statement = connection.prepare("SELECT payload FROM executions WHERE cycle=?1")?;
     let payloads = statement.query_map([id], |row| row.get::<_, Vec<u8>>(0))?.collect::<result::Result<Vec<_>, _>>()?;

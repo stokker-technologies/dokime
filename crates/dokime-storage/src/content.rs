@@ -29,10 +29,13 @@ use tempfile::TempPath;
 use zip::{CompressionMethod, DateTime, System, ZipWriter, write::SimpleFileOptions};
 
 // Local Imports
+use dokime_protocol::host::CyclePhase;
 use crate::persisted::Scope;
 use crate::{Error, Result, Store};
+use dokime_protocol::host::CycleSummary;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ExecutionFileMetadata;
+use dokime_protocol::host::evidence::OperatorNote;
 use dokime_protocol::model::ArtifactMetadata;
 
 /* === Constants === */
@@ -53,6 +56,22 @@ pub struct ArchivedContent {
     pub artifacts: Vec<Vec<u8>>,
 
     pub execution_files: Vec<StoredExecutionFile>,
+
+    pub notes: Vec<OperatorNote>,
+
+    pub report: Option<ArchivedNativeFile>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+pub struct CycleArchive {
+    #[prost(message, optional, tag = "1")]
+    pub cycle: Option<CycleSummary>,
+
+    #[prost(message, repeated, tag = "2")]
+    pub notes: Vec<OperatorNote>,
+
+    #[prost(bytes = "vec", repeated, tag = "3")]
+    pub artifacts: Vec<Vec<u8>>,
 }
 
 pub struct ArchivedNativeFile {
@@ -94,6 +113,7 @@ impl Store {
     }
     pub fn write_cycle_archive(
         &self, cycle: &str, page: NonZeroUsize, output: &mut impl Write, contents: &mut HashMap<String, ArchivedContent>,
+        mut content: ArchivedContent,
     ) -> Result<()> {
         let options = archive_options();
         let mut archive = ZipWriter::new_stream(output);
@@ -126,11 +146,31 @@ impl Store {
                 manifest.push(serde_json::json!({"path":member,"size":size,"sha256":hash.finalize().iter().map(|byte|format!("{byte:02x}")).collect::<String>()}));
             }
         }
-        if manifest.is_empty() {
-            return Err(Error::Data("Export Cycle: Select an Existing Cycle"));
-        }
+        let mut summary = self.client_cycle(cycle)?.unwrap_or_else(|| CycleSummary {
+            cycle_id: cycle.into(),
+            ..Default::default()
+        });
+        summary.sealed = true;
+        summary.phase = CyclePhase::Sealed as i32;
+        // Retained Output References Are Derived From This Archive, Never Its Source.
+        summary.report_file = None;
+        summary.evidence_file = None;
+        content.notes.sort_by(|left, right| left.note_id.cmp(&right.note_id));
+        content.artifacts.sort();
+        let metadata = CycleArchive {
+            cycle: Some(summary),
+            notes: content.notes,
+            artifacts: content.artifacts,
+        };
+        archive.start_file("evidence.pb", options)?;
+        archive.write_all(&metadata.encode_to_vec())?;
+        let files = write_files(&mut archive, Scope::Cycle(cycle).identifier()?.as_str(), content.files)?;
+        let report = content.report.map(|file| write_file(&mut archive, "report.html", &file)).transpose()?;
         archive.start_file("manifest.json", options)?;
-        serde_json::to_writer(&mut archive, &serde_json::json!({"version":1,"cycle":cycle,"executions":manifest}))?;
+        serde_json::to_writer(
+            &mut archive,
+            &serde_json::json!({"version":1,"cycle":cycle,"executions":manifest,"files":files,"report":report}),
+        )?;
         archive.finish()?;
         Ok(())
     }
@@ -178,45 +218,13 @@ impl Store {
             let digest = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             manifest.push(serde_json::json!({"path":member,"size":size,"sha256":digest}));
         }
-        let mut native = Vec::new();
-        let owner = Scope::Execution(execution).identifier()?;
-        for file in content.files {
-            let reference = file.reference;
-            let metadata = reference.metadata.as_ref().ok_or(Error::Data("Export Native File: Restore Its Metadata"))?;
-            if metadata.scope.as_deref() != Some(owner.as_str()) {
-                return Err(Error::Data("Export Native File: Select the Execution's Own File Reference"));
-            }
-            let identity = Sha256::digest(reference.encode_to_vec());
-            let identity = identity.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-            let member = format!("files/{identity}");
-            let mut input = File::open(&file.path)?;
-            archive.start_file(&member, options)?;
-            let mut hash = Sha256::new();
-            let mut size = 0u64;
-            let mut buffer = [0u8; CONTENT_CHUNK_BYTES];
-            loop {
-                let length = input.read(&mut buffer)?;
-                if length == 0 {
-                    break;
-                }
-                size += length as u64;
-                hash.update(&buffer[..length]);
-                archive.write_all(&buffer[..length])?;
-            }
-            let digest = hash.finalize();
-            if size != reference.length || digest.as_slice() != reference.sha256 {
-                return Err(Error::Data("Export Native File: Restore Bytes Matching Its Retained Reference"));
-            }
-            let reference_member = format!("files/{identity}.pb");
-            archive.start_file(&reference_member, options)?;
-            archive.write_all(&reference.encode_to_vec())?;
-            native.push(serde_json::json!({
-                "path": member, "reference": reference_member, "size": size,
-                "sha256": digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>()
-            }));
-        }
+        let native = write_files(&mut archive, Scope::Execution(execution).identifier()?.as_str(), content.files)?;
+        let report = content.report.map(|file| write_file(&mut archive, "report.html", &file)).transpose()?;
         archive.start_file("manifest.json", options)?;
-        serde_json::to_writer(&mut archive, &serde_json::json!({"version":1,"execution":execution,"telemetry":manifest,"files":native}))?;
+        serde_json::to_writer(
+            &mut archive,
+            &serde_json::json!({"version":1,"execution":execution,"telemetry":manifest,"files":native,"report":report}),
+        )?;
         archive.finish()?;
         Ok(())
     }
@@ -241,6 +249,9 @@ impl Store {
         for file in &content.execution_files {
             write_field(output, 10, &file.encode_to_vec())?;
         }
+        for note in &content.notes {
+            write_field(output, 11, &note.encode_to_vec())?;
+        }
         let mut query = connection.prepare("SELECT payload FROM reports WHERE execution=?1 ORDER BY id")?;
         for row in query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))? {
             write_field(output, 5, &row?)?;
@@ -252,6 +263,50 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn write_files<W: Write + Seek>(
+    archive: &mut ZipWriter<W>, owner: &str, mut files: Vec<ArchivedNativeFile>,
+) -> Result<Vec<serde_json::Value>> {
+    files.sort_by_cached_key(|file| file.reference.encode_to_vec());
+    let mut manifest = Vec::new();
+    for file in files {
+        let reference = &file.reference;
+        let metadata = reference.metadata.as_ref().ok_or(Error::Data("Export Native File: Restore Its Metadata"))?;
+        if metadata.scope.as_deref() != Some(owner) {
+            return Err(Error::Data("Export Native File: Select the Owner's Own File Reference"));
+        }
+        let identity = Sha256::digest(reference.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let mut member = write_file(archive, &format!("files/{identity}"), &file)?;
+        let reference_member = format!("files/{identity}.pb");
+        archive.start_file(&reference_member, archive_options())?;
+        archive.write_all(&reference.encode_to_vec())?;
+        member["reference"] = reference_member.into();
+        manifest.push(member);
+    }
+    Ok(manifest)
+}
+
+fn write_file<W: Write + Seek>(archive: &mut ZipWriter<W>, member: &str, file: &ArchivedNativeFile) -> Result<serde_json::Value> {
+    let mut input = File::open(&file.path)?;
+    archive.start_file(member, archive_options())?;
+    let mut hash = Sha256::new();
+    let mut size = 0u64;
+    let mut buffer = [0u8; CONTENT_CHUNK_BYTES];
+    loop {
+        let length = input.read(&mut buffer)?;
+        if length == 0 {
+            break;
+        }
+        size += length as u64;
+        hash.update(&buffer[..length]);
+        archive.write_all(&buffer[..length])?;
+    }
+    let digest = hash.finalize();
+    if size != file.reference.length || digest.as_slice() != file.reference.sha256 {
+        return Err(Error::Data("Export Native File: Restore Bytes Matching Its Retained Reference"));
+    }
+    Ok(serde_json::json!({"path":member,"size":size,"sha256":digest.iter().map(|byte|format!("{byte:02x}")).collect::<String>()}))
+}
 
 fn archive_options() -> SimpleFileOptions {
     SimpleFileOptions::default()

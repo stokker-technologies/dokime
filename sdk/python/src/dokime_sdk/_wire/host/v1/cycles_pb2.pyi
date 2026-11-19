@@ -9,6 +9,7 @@ from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import failure_pb2 as _failure_pb2
+from harmos._wire.model.v1 import file_pb2 as _file_pb2
 from harmos._wire.model.v1 import page_pb2 as _page_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
 from harmos._wire.model.v1 import receipt_pb2 as _receipt_pb2
@@ -234,9 +235,11 @@ class CyclesSealResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
     __slots__: tuple[str, ...]
     SEAL_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
+    CYCLE_FIELD_NUMBER: _ClassVar[int]
     seal: bytes
     receipt: _receipt_pb2.Receipt
-    def __init__(self, seal: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
+    cycle: CycleSummary
+    def __init__(self, seal: _Optional[bytes] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ..., cycle: _Optional[_Union[CycleSummary, _Mapping]] = ...) -> None: ...
 
 @final
 class CycleFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -322,6 +325,8 @@ class CycleSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
     QUEUED_COUNT_FIELD_NUMBER: _ClassVar[int]
     SEAL_FAILURE_FIELD_NUMBER: _ClassVar[int]
     RERUN_OF_FIELD_NUMBER: _ClassVar[int]
+    REPORT_FILE_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FILE_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
     metadata: _metadata_pb2.Metadata
     phase: CyclePhase
@@ -340,7 +345,9 @@ class CycleSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
     queued_count: int
     seal_failure: str
     rerun_of: str
-    def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., phase: _Optional[_Union[CyclePhase, str]] = ..., status: _Optional[_Union[CycleStatus, str]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_automatically: _Optional[bool] = ..., observed_cursor: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., result: _Optional[_Union[ResultSummary, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., running_count: _Optional[int] = ..., queued_count: _Optional[int] = ..., seal_failure: _Optional[str] = ..., rerun_of: _Optional[str] = ...) -> None: ...
+    report_file: _file_pb2.FileReference
+    evidence_file: _file_pb2.FileReference
+    def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., phase: _Optional[_Union[CyclePhase, str]] = ..., status: _Optional[_Union[CycleStatus, str]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_automatically: _Optional[bool] = ..., observed_cursor: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., result: _Optional[_Union[ResultSummary, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., running_count: _Optional[int] = ..., queued_count: _Optional[int] = ..., seal_failure: _Optional[str] = ..., rerun_of: _Optional[str] = ..., report_file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., evidence_file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ...) -> None: ...
 
 @final
 class ResultSummary(_message.Message, metaclass=GeneratedProtocolMessageType):

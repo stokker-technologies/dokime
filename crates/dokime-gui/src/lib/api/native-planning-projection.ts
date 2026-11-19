@@ -204,6 +204,8 @@ export function projectExecutionStatus(
   }
   if (attribution?.case === "notEvaluated") {
     switch (attribution.value.termination) {
+      case Termination.NOT_RUN:
+        return "not_run";
       case Termination.FAILED:
         return "failed";
       case Termination.CANCELLED:
@@ -219,6 +221,8 @@ export function projectExecutionStatus(
 
 export function mapCaseStatus(status: CaseStatus | undefined): ExecutionQueueItem["status"] {
   switch (status) {
+    case CaseStatus.NOT_RUN:
+      return "not_run";
     case CaseStatus.PLANNED:
       return "planned";
     case CaseStatus.QUEUED:

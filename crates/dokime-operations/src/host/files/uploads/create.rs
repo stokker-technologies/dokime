@@ -48,6 +48,26 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Create";
 
 pub async fn handle(context: &Context, request: UploadsCreateRequest) -> Result<UploadsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
+        let _guard = context.administration.lock().await;
+        if request.metadata.as_ref().is_some_and(|metadata| {
+            ["view/", "temporary-evidence/", "prepared-report/"].iter().any(|prefix| metadata.id.starts_with(prefix))
+        }) {
+            return Err(Error::Invalid("Upload File: Choose an Evidence File ID Outside Reserved View, Archive and Report Names".into()));
+        }
+        let selected = request.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref());
+        let scope = scope(&context.host.identity().backend_id, context.caller.as_ref().map(|caller| caller.execution.as_str()), selected)?;
+        match scope.split_once('/') {
+            Some(("execution", execution)) => context.host.store().require_evidence_owner(None, Some(execution), "Upload File")?,
+            Some(("cycle", cycle)) => context.host.store().require_evidence_owner(Some(cycle), None, "Upload File")?,
+            _ => {}
+        }
+        derived(context, request).await
+    })
+    .await
+}
+
+pub(crate) async fn derived(context: &Context, request: UploadsCreateRequest) -> Result<UploadsCreateResponse> {
+    crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut metadata = request.metadata.ok_or_else(|| Error::Invalid(format!("{ID}: Supply File Metadata")))?;
         metadata.scope = Some(scope(
             &context.host.identity().backend_id,

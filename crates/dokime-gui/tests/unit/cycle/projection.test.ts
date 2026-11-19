@@ -144,6 +144,27 @@ test("Durable Execution State Is Independent of Its Cycle", () => {
   assert.equal(projected.sealed, false);
 });
 
+test("Not-Run Executions Retain Their Sealed State and Outcome", () => {
+  const outcome = create(ExecutionOutcomeSchema, { attribution: { case: "notEvaluated", value: { termination: Termination.NOT_RUN } } });
+  const attempt = create(ExecutionSummarySchema, {
+    executionId: "unstarted",
+    caseId: "case",
+    ordinal: 1n,
+    state: ExecutionState.SEALED,
+    outcome,
+    controls: { canStart: false },
+  });
+  const cycle = create(CycleSummarySchema, { cycleId: "cycle", sealed: true });
+  const execution = mapNativeExecutionSummary(attempt, [], cycle);
+  assert.equal(execution.status, "not_run");
+  assert.equal(execution.sealed, true);
+  assert.equal(execution.controls?.canStart, false);
+  assert.equal(
+    executionControlState({ ...execution, controls: execution.controls, progress: null, promptWaiting: false, stopping: false }).phase,
+    "sealed",
+  );
+});
+
 test("Planned Execution Retains Host Start Capability", () => {
   for (const canStart of [true, false]) {
     const attempt = create(ExecutionSummarySchema, {

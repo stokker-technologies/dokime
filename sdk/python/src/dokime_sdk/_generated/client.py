@@ -2345,9 +2345,9 @@ class CyclesResource:
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> CyclesSealResponse:
+    ) -> AsyncGenerator[CyclesSealResponse]:
         request = CyclesSealRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
-        response = await unary(
+        call = stream(
             self._channel,
             "/dokime.host.v1.Cycles/Seal",
             request,
@@ -2355,9 +2355,14 @@ class CyclesResource:
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
-            action="cycles.seal",
         )
-        return response
+        try:
+            async for response in call:
+                yield response
+        except AioRpcError as error:
+            raise call_error("cycles.seal", error) from error
+        finally:
+            call.cancel()
 
 
 class DocumentsResource:

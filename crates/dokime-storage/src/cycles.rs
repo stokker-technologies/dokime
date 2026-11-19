@@ -20,13 +20,16 @@
 // Third Party Imports
 use prost::Message;
 use prost_types::Timestamp;
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
+use crate::ExecutionState;
 use crate::{Error, Execution, Result, Store};
 use dokime_protocol::host::CycleSummary;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
+use dokime_protocol::host::{CyclePhase, ExecutionOutcome, UnevaluatedOutcome, execution_outcome};
 use dokime_protocol::host::{CyclesSetRequest, CyclesSetResponse};
+use dokime_protocol::model::Termination;
 
 use dokime_protocol::host::executions::ExecutionCommandPhase;
 
@@ -53,6 +56,28 @@ struct CycleRequest {
 /* === Implementations === */
 
 impl Store {
+    pub fn require_evidence_owner(&self, cycle: Option<&str>, execution: Option<&str>, action: &str) -> Result<()> {
+        let connection = self.lock()?;
+        require_owner(&connection, cycle, execution, action)
+    }
+
+    pub fn seal_unstarted(&self, execution: &str) -> Result<()> {
+        let cut = self.cut(execution)?;
+        if cut.state != ExecutionState::Open || cut.frontier != 0 {
+            return Err(Error::Invalid(format!("Seal Execution {execution} as Not Run: Select Evidence That Has Never Started")));
+        }
+        self.close(
+            execution,
+            Termination::NotRun,
+            ExecutionOutcome {
+                attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome {
+                    termination: Termination::NotRun as i32,
+                    reason: "Cycle Sealed Before Execution Started".into(),
+                })),
+            },
+        )?;
+        self.seal(execution)
+    }
     pub fn cycle_request(&self, request: &CyclesSetRequest) -> Result<Option<CyclesSetResponse>> {
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Set Cycle: Supply a Request ID".into()));
@@ -161,7 +186,8 @@ impl Store {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM cycles WHERE id=?1", [cycle], |row| row.get(0))?;
-        if CycleSummary::decode(payload.as_slice())?.sealed {
+        let summary = CycleSummary::decode(payload.as_slice())?;
+        if summary.sealed || summary.phase == CyclePhase::Sealing as i32 {
             return Err(Error::Invalid("Append Executions: Create a New Cycle; This Cycle Is Sealed".into()));
         }
         for (execution, case, label) in executions {
@@ -208,5 +234,38 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+pub(crate) fn require_owner(connection: &Connection, cycle: Option<&str>, execution: Option<&str>, action: &str) -> Result<()> {
+    let cycle = if let Some(execution) = execution {
+        let row: Option<(String, i32)> = connection
+            .query_row("SELECT cycle,state FROM executions WHERE id=?1", [execution], |row| Ok((row.get(0)?, row.get(1)?)))
+            .optional()?;
+        let (owner, state) = row.ok_or_else(|| Error::NotFound(format!("{action}: Select an Existing Execution {execution}")))?;
+        if cycle.is_some_and(|cycle| cycle != owner) {
+            return Err(Error::Invalid(format!("{action}: Select Execution {execution} in Its Own Cycle {owner}")));
+        }
+        if state != 0 {
+            return Err(Error::Invalid(format!(
+                "{action}: Execution {execution} Is Sealed; Attach New Evidence to Its Unsealed Cycle {owner}"
+            )));
+        }
+        owner
+    } else {
+        cycle.ok_or_else(|| Error::Invalid(format!("{action}: Select an Execution or Cycle")))?.to_owned()
+    };
+    let payload: Option<Vec<u8>> = connection.query_row("SELECT payload FROM cycles WHERE id=?1", [&cycle], |row| row.get(0)).optional()?;
+    if let Some(payload) = payload {
+        let summary = CycleSummary::decode(payload.as_slice())?;
+        if summary.sealed || summary.phase == CyclePhase::Sealing as i32 {
+            return Err(Error::Invalid(format!("{action}: Cycle {cycle} Is Sealed or Sealing; Create a New Cycle for New Evidence")));
+        }
+        return Ok(());
+    }
+    let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM executions WHERE cycle=?1)", [&cycle], |row| row.get(0))?;
+    if !exists {
+        return Err(Error::NotFound(format!("{action}: Select an Existing Cycle {cycle}")));
+    }
+    Ok(())
+}
 
 /* === Tests === */

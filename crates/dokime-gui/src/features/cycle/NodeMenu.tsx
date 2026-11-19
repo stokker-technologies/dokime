@@ -19,7 +19,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { Archive, ArchiveRestore, Ellipsis, FileText, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Ellipsis, FileText, LockKeyhole, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
 // Local Imports
@@ -61,6 +61,8 @@ export type CycleMenu = {
   /** Opens the cycle's Settings: title, description, Continue Automatically. */
   onSettings: () => void;
   onToggleFollowActive: () => void;
+  onSeal: (() => void) | null;
+  sealFailed: boolean;
 };
 
 /** The execution page's "…" menu. */
@@ -195,6 +197,13 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
     return null;
   }
   switch (item) {
+    case "Seal Cycle":
+      return (
+        <DropdownMenuItem disabled={!menu.onSeal} onSelect={() => menu.onSeal?.()}>
+          <LockKeyhole />
+          {menu.sealFailed ? "Retry Seal" : "Seal Cycle"}
+        </DropdownMenuItem>
+      );
     case "Rerun Cycle":
       return (
         <DropdownMenuItem onSelect={menu.onRerunCycle}>

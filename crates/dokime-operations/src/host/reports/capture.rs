@@ -78,15 +78,13 @@ pub(super) async fn collect(
             }
             let cut = reader.cut(&id)?;
             if cut.state != ExecutionState::Sealed {
-                return Err(Error::Precondition(
-                    "Create Report: Wait until the Selected Execution or Every Execution in the Cycle Has Ended".into(),
-                ));
+                return Err(Error::Precondition(format!("Create Report: Wait until Execution {id} Is Sealed")));
             }
             cuts.push(cut);
         }
     }
-    if cuts.is_empty() {
-        return Err(Error::Invalid("Create Report: Select an Existing Execution or Cycle with Ended Executions".into()));
+    if cuts.is_empty() && execution.is_some() {
+        return Err(Error::Invalid("Create Report: Select an Existing Execution or Cycle with Sealed Executions".into()));
     }
     let resolved_at = ReadCut {
         positions: cuts
@@ -126,6 +124,16 @@ pub(super) async fn collect(
         appearance: Some(crate::host::backend::appearance::handle(context, host::BackendAppearanceRequest::default()).await?),
         ..Default::default()
     };
+    if execution.is_none()
+        && let Some(cycle) = capture.cycle.as_mut().and_then(|cycle| cycle.cycle.as_mut())
+        && cycle.phase == host::CyclePhase::Sealing as i32
+    {
+        cycle.phase = host::CyclePhase::Sealed as i32;
+        cycle.sealed = true;
+        if let Some(report) = capture.report.as_mut() {
+            report.origin = host::ReportOrigin::Sealed as i32;
+        }
+    }
     let cases = crate::host::cases::list::handle(
         context,
         host::CasesListRequest {
@@ -338,7 +346,7 @@ pub(super) async fn collect(
         tracing::debug!(phase = "execution_files", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         capture.executions.push(captured);
     }
-    if execution.is_none() {
+    if execution.is_none() && !cuts.is_empty() {
         let scope = host::DocumentScope {
             cycle_id: cycle.clone(),
             execution_id: String::new(),

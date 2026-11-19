@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,7 @@ import { parseArgs } from "node:util";
 
 import {
   answerPendingPrompts,
+  chooseNativeFile,
   obcExecutable,
   openNativeReport,
   pluginExecutable,
@@ -301,6 +302,65 @@ async function cancellation() {
   await until("WebView Shows Stopped Execution", async () => (await desktop.text()).includes("Stopped"));
 }
 
+async function cycleSeal() {
+  // Create a Cycle Whose Executions Have Never Started.
+  const suite = await call(desktop, "Suites", "Get", { name: "thermal" }).then((reply) => reply.value);
+  const planned = await call(desktop, "Cases", "Create", {
+    requestId: crypto.randomUUID(),
+    plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier }] },
+    validateOnly: true,
+  });
+  const cycle = await call(desktop, "Cycles", "Create", {
+    requestId: crypto.randomUUID(),
+    origins: [planned.cases[0].origin, planned.cases[0].origin],
+    continueAutomatically: false,
+  }).then((reply) => reply.cycle);
+  await desktop.goto(`/cycles/${cycle.cycleId}`, { reload: true });
+
+  // Seal From the Cycle's Own Menu and Await Its Completion.
+  await desktop.clickNamed("button", "Cycle Actions");
+  await desktop.clickNamed("menuitem", "Seal Cycle");
+  await until("Seal Confirmation", () => desktop.find("css selector", "[role=dialog]"));
+  await desktop.execute(
+    "const button = [...document.querySelectorAll('[role=dialog] button')].find(button => button.textContent.trim() === 'Seal Cycle'); if (!button || button.disabled) throw new Error('Seal Confirmation Unavailable'); button.click();",
+  );
+  const retained = await until("Sealed Cycle With Retained Files", async () => {
+    const current = await call(desktop, "Cycles", "Get", { name: cycle.cycleId }).then((reply) => reply.cycle);
+    if (current.phase === "CYCLE_PHASE_SEAL_FAILED") throw new Error(current.sealFailure);
+    return current.sealed ? current : null;
+  });
+  assert.ok(retained.reportFile);
+  assert.ok(retained.evidenceFile);
+  const executions = await call(desktop, "Executions", "List", { parent: cycle.cycleId });
+  assert.equal(executions.executions.length, 2);
+  for (const execution of executions.executions) assert.equal(execution.outcome.notEvaluated.termination, "TERMINATION_NOT_RUN");
+  await until("Not-Run Rows Render", () =>
+    desktop.execute("return document.querySelectorAll('[data-execution-status=not_run]').length === 2;"),
+  );
+
+  // Download Both Retained Files Twice Through the Native Save Picker.
+  for (const item of [
+    { menu: "Download Report", extension: "html" },
+    { menu: "Export Evidence", extension: "zip" },
+  ]) {
+    const digests = [];
+    for (const attempt of [1, 2]) {
+      const path = join(work, `sealed-cycle-${attempt}.${item.extension}`);
+      await desktop.clickNamed("button", "Cycle Actions");
+      await desktop.clickNamed("menuitem", item.menu);
+      const picker = { window: null };
+      await Promise.all([
+        until("Cycle Save Picker", () => chooseNativeFile(picker, path, "Save", desktop.process)),
+        until("Retained Cycle File Saved", async () => (await stat(path)).size > 0),
+      ]);
+      const bytes = await readFile(path);
+      digests.push(createHash("sha256").update(bytes).digest("hex"));
+      if (item.extension === "zip") assert.ok(bytes.includes(Buffer.from("report.html")));
+    }
+    assert.equal(digests[0], digests[1]);
+  }
+}
+
 async function settings() {
   for (const [section, label] of [
     ["appearance", "Density"],
@@ -399,6 +459,7 @@ try {
       await story("Execution Progress Prompts and Evidence", execute);
       await story("Exact Bench Statistics", exactBench);
       await story("Documents Reports and History", reportsAndHistory);
+      await story("Cycle Seal and Retained Downloads", cycleSeal);
       await story("Execution Cancellation", cancellation);
     }
     if (["configuration", "remote", "execution"].includes(options.workflow))

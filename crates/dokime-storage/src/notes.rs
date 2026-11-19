@@ -18,11 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::{History, Position, Receipt, Section};
+use sha2::{Digest, Sha256};
 use prost::Message;
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
-use crate::{Error, Execution, Result, Store};
+use crate::{Error, Result, Store};
 
 use dokime_protocol::host::evidence::AnnotationOwner;
 use dokime_protocol::host::evidence::NotesCreateResponse;
@@ -57,11 +59,6 @@ impl Store {
     }
 
     pub fn set_note(&self, request: NotesSetRequest, author: &str) -> Result<NotesSetResponse> {
-        use harmos_protocol::model::History;
-        use harmos_protocol::model::Position;
-        use harmos_protocol::model::Receipt;
-        use harmos_protocol::model::Section;
-        use sha2::{Digest, Sha256};
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Set Note: Supply a Request ID".into()));
         }
@@ -190,22 +187,18 @@ impl Store {
             None => return Err(Error::Invalid("Notes: Select an Execution or Cycle Owner".into())),
         };
         let connection = self.lock()?;
-        let payload: Option<Vec<u8>> = connection
+        let exists: bool = connection
             .query_row(
-                "SELECT payload FROM executions WHERE cycle=?1 AND (?2 IS NULL OR id=?2) LIMIT 1",
+                "SELECT EXISTS(SELECT 1 FROM executions WHERE cycle=?1 AND (?2 IS NULL OR id=?2)) OR (?2 IS NULL AND EXISTS(SELECT 1 FROM cycles WHERE id=?1))",
                 params![cycle, execution],
                 |row| row.get(0),
-            )
-            .optional()?;
-        let execution = Execution::decode(
-            payload.ok_or_else(|| Error::Invalid("Notes: Select an Existing Execution in Its Cycle".into()))?.as_slice(),
-        )?;
+            )?;
+        if !exists {
+            return Err(Error::Invalid("Notes: Select an Existing Execution or Cycle".into()));
+        }
         Ok(EvidenceScope {
-            cycle_id: Some(execution.cycle),
-            execution_id: owner.owner.as_ref().and_then(|owner| match owner.kind.as_ref() {
-                Some(annotation_owner_owner::Kind::Execution(owner)) => Some(owner.execution_id.clone()),
-                _ => None,
-            }),
+            cycle_id: Some(cycle.into()),
+            execution_id: execution.map(str::to_owned),
             ..Default::default()
         })
     }
@@ -218,7 +211,6 @@ impl Store {
         rows.map(|row| Ok(OperatorNote::decode(row?.as_slice())?)).collect()
     }
     pub fn notes_fingerprint(&self) -> Result<Vec<u8>> {
-        use sha2::{Digest, Sha256};
         let connection = self.lock()?;
         let mut query = connection.prepare("SELECT payload FROM notes ORDER BY id")?;
         let mut digest = Sha256::new();
@@ -235,16 +227,8 @@ impl Store {
 
 /* === Private Functions === */
 
-fn require_owner(connection: &rusqlite::Connection, scope: &EvidenceScope) -> Result<()> {
-    let (count, open): (i64, i64) = connection.query_row(
-        "SELECT COUNT(*),COALESCE(SUM(state=0),0) FROM executions WHERE cycle=?1 AND (?2 IS NULL OR id=?2)",
-        params![scope.cycle_id, scope.execution_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    if count == 0 || open == 0 || scope.execution_id.is_some() && count != open {
-        return Err(Error::Invalid("Write Note: Select an Open Owner; Closed Evidence and Published Reports Are Immutable".into()));
-    }
-    Ok(())
+fn require_owner(connection: &Connection, scope: &EvidenceScope) -> Result<()> {
+    crate::cycles::require_owner(connection, scope.cycle_id.as_deref(), scope.execution_id.as_deref(), "Write Note")
 }
 
 /* === Tests === */

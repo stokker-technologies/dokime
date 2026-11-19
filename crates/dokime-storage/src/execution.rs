@@ -24,6 +24,7 @@ use prost::Message;
 use crate::{Result, StoredArtifact, StoredExecutionFile};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::LogsAppendRequest;
+use dokime_protocol::host::evidence::OperatorNote;
 use dokime_protocol::model::ExecutionProgressValue;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Termination;
@@ -134,6 +135,9 @@ pub struct ExecutionArchive {
 
     #[prost(message, repeated, tag = "10")]
     pub files: Vec<StoredExecutionFile>,
+
+    #[prost(message, repeated, tag = "11")]
+    pub notes: Vec<OperatorNote>,
 }
 
 #[derive(Default)]

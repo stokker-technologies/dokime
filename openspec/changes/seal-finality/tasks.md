@@ -1,7 +1,7 @@
 ## 1. Vocabulary
 
-- [ ] 1.1 Replace ended and finished with sealed in host errors, phases, capabilities and projections for executions and cycles; keep stored states unchanged.
-- [ ] 1.2 Replace the same wording in the desktop, the command line and every SDK client surface.
+- [x] 1.1 Replace ended and finished with sealed in host errors, phases, capabilities and projections for executions and cycles; keep stored states unchanged.
+- [x] 1.2 Replace the same wording in the desktop, the command line and every SDK client surface.
 
 ## 2. Finality
 
@@ -41,6 +41,21 @@ Produced ZIP inspection passed through the focused storage archive test (1 test)
 `evidence.pb`, two `files/<digest>` byte/reference pairs and `manifest.json`
 for the execution; `executions/execution.zip` and `manifest.json` for the cycle.
 Neither ZIP contained `report.html` or native operator notes.
+
+### Archive Inventory After Implementation
+
+Execution ZIPs retain the same evidence, Arrow telemetry and native file/reference
+members, add native operator notes to `evidence.pb`, and include `report.html`.
+Their first complete archive is retained at the execution seal. Frozen document
+declarations remain in the execution catalog; the HTML includes evaluated document
+responses and their captured plots, records, notes and files.
+
+Cycle ZIPs retain every nested execution ZIP and add cycle `evidence.pb` (cycle
+metadata, native notes and artifact metadata), cycle-owned native file/reference
+members, and the one aggregate `report.html`. The aggregate report covers every
+execution, including not-run executions. Its native file and the archive's native
+file are retained with the cycle's sealed state. Notes and artifact inventories
+are grouped once per archive request.
 
 ## 4. Validation and Delivery
 

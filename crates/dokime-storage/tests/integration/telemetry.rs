@@ -57,14 +57,16 @@ use dokime_storage::{
     Sample, SampleWindow, Store, StoredArtifact, StoredExecutionFile, storage_defaults,
 };
 
-use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::UnevaluatedOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::evidence::{NotesCreateResponse, OperatorNote};
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::host::{CyclePhase, CycleSummary, ExecutionOutcome};
 use dokime_protocol::model::Aggregate;
 use dokime_protocol::model::AggregateExpression;
 use dokime_protocol::model::ArtifactMetadata;
+use dokime_protocol::model::EvidenceScope;
 use dokime_protocol::model::ExactNumber;
 use dokime_protocol::model::Metadata;
 use dokime_protocol::model::PlotFilter;
@@ -75,6 +77,7 @@ use dokime_protocol::model::TransformExpression;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
+use dokime_storage::{CycleArchive, OutcomeCounts};
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::StreamDeclaration;
 use harmos_protocol::model::{FileMetadata, FileReference};
@@ -1229,5 +1232,157 @@ fn interval_batches_of_many_streams_survive_pressure_flushes() -> Result<()> {
     }
     store.flush_samples()?;
     assert_eq!(store.read("execution")?.samples.len(), 128 * 20_000);
+    Ok(())
+}
+
+#[test]
+fn cycle_finality_seals_unstarted_without_inventing_a_verdict() -> Result<()> {
+    // Admit Evidence Before Its Run.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    let mut cycle = CycleSummary {
+        cycle_id: "cycle".into(),
+        ..Default::default()
+    };
+    store.save_cycle(&cycle)?;
+    store.require_evidence_owner(None, Some("execution"), "Attach File")?;
+    let note = NotesCreateResponse {
+        note: Some(OperatorNote {
+            note_id: "before".into(),
+            scope: Some(EvidenceScope {
+                cycle_id: Some("cycle".into()),
+                execution_id: Some("execution".into()),
+                ..Default::default()
+            }),
+            message: "captured".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    store.create_note(note.clone())?;
+
+    // Seal the Never-Started Execution and Preserve Its Original Note Replay.
+    store.seal_unstarted("execution")?;
+    let sealed = store.read("execution")?;
+    assert_eq!(sealed.state, ExecutionState::Sealed);
+    assert_eq!(sealed.execution.termination, Termination::NotRun as i32);
+    let counts = OutcomeCounts::from_outcomes(sealed.execution.outcome.iter());
+    assert_eq!(counts.evaluated, 0);
+    assert_eq!(counts.verdict, None);
+    assert_eq!(store.create_note(note.clone())?, note);
+    assert!(store.require_evidence_owner(None, Some("execution"), "Attach File").is_err());
+    let mut after = OperatorNote {
+        note_id: "after".into(),
+        scope: Some(EvidenceScope {
+            cycle_id: Some("cycle".into()),
+            execution_id: Some("execution".into()),
+            ..Default::default()
+        }),
+        message: "later".into(),
+        ..Default::default()
+    };
+    assert!(
+        store
+            .create_note(NotesCreateResponse {
+                note: Some(after.clone()),
+                ..Default::default()
+            })
+            .is_err()
+    );
+
+    // The Cycle Remains Writable After Every Execution Seals.
+    after.scope.as_mut().unwrap().execution_id = None;
+    store.create_note(NotesCreateResponse {
+        note: Some(after.clone()),
+        ..Default::default()
+    })?;
+    store.require_evidence_owner(Some("cycle"), None, "Attach File")?;
+    cycle.phase = CyclePhase::Sealing as i32;
+    store.save_cycle(&cycle)?;
+    assert!(store.require_evidence_owner(Some("cycle"), None, "Attach File").is_err());
+    cycle.phase = CyclePhase::SealFailed as i32;
+    store.save_cycle(&cycle)?;
+    store.require_evidence_owner(Some("cycle"), None, "Attach File")?;
+    cycle.sealed = true;
+    cycle.phase = CyclePhase::Sealed as i32;
+    store.save_cycle(&cycle)?;
+    after.note_id = "sealed-cycle".into();
+    assert!(store.create_note(NotesCreateResponse { note: Some(after), ..Default::default() }).is_err());
+    assert!(store.require_evidence_owner(Some("cycle"), None, "Attach File").is_err());
+    Ok(())
+}
+
+#[test]
+fn cycle_archive_contains_report_notes_and_nested_execution_evidence() -> Result<()> {
+    // Retain Both Owners and the Canonical Report Bytes.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.save_cycle(&CycleSummary {
+        cycle_id: "cycle".into(),
+        ..Default::default()
+    })?;
+    store.seal_unstarted("execution")?;
+    let report = b"<html>frozen</html>";
+    let note = OperatorNote {
+        note_id: "cycle-note".into(),
+        message: "evidence".into(),
+        ..Default::default()
+    };
+    let mut exports = Vec::new();
+    for _ in 0..2 {
+        let mut file = NamedTempFile::new()?;
+        file.write_all(report)?;
+        let content = ArchivedContent {
+            notes: vec![note.clone()],
+            report: Some(ArchivedNativeFile {
+                path: file.into_temp_path(),
+                reference: FileReference {
+                    length: report.len() as u64,
+                    sha256: Sha256::digest(report).to_vec(),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        };
+        let mut bytes = Vec::new();
+        store.write_cycle_archive("cycle", NonZeroUsize::new(1).unwrap(), &mut bytes, &mut Default::default(), content)?;
+        exports.push(bytes);
+    }
+    assert_eq!(Sha256::digest(&exports[0]), Sha256::digest(&exports[1]));
+    let mut archive = ZipArchive::new(Cursor::new(&exports[0]))?;
+    let mut retained = Vec::new();
+    archive.by_name("report.html")?.read_to_end(&mut retained)?;
+    assert_eq!(retained, report);
+    let mut metadata = Vec::new();
+    archive.by_name("evidence.pb")?.read_to_end(&mut metadata)?;
+    let metadata = CycleArchive::decode(metadata.as_slice())?;
+    assert_eq!(metadata.notes, vec![note]);
+    assert!(metadata.cycle.unwrap().sealed);
+    let mut nested = Vec::new();
+    archive.by_name("executions/execution.zip")?.read_to_end(&mut nested)?;
+    let mut nested = ZipArchive::new(Cursor::new(nested))?;
+    let mut metadata = Vec::new();
+    nested.by_name("evidence.pb")?.read_to_end(&mut metadata)?;
+    let execution = dokime_storage::ExecutionArchive::decode(metadata.as_slice())?.execution.unwrap();
+    assert_eq!(execution.termination, Termination::NotRun as i32);
+    Ok(())
+}
+
+#[test]
+fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.append(
+        "execution",
+        Evidence {
+            kind: "started".into(),
+            ..Default::default()
+        },
+    )?;
+    assert!(store.seal_unstarted("execution").is_err());
+    assert_eq!(store.cut("execution")?.state, ExecutionState::Open);
     Ok(())
 }

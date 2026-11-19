@@ -51,7 +51,7 @@ use crate::{
 };
 use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::content::{ArtifactsCreateRequest, ArtifactsCreateResponse, ExecutionFileMetadata, ExecutionFileState};
-use dokime_protocol::model::{ArtifactMetadata, ArtifactState};
+use dokime_protocol::model::{ArtifactMetadata, ArtifactScope, ArtifactState};
 use dokime_storage::persisted::{self, Administration, Scope};
 use dokime_storage::{ExecutionState, Store, StoredArtifact, StoredExecutionFile};
 
@@ -104,6 +104,20 @@ pub async fn validate_root(context: &Context) -> Result<()> {
 
 pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<bool> {
     let metadata = file.metadata.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Stored Identifier".into()))?;
+    if let Some((kind, owner)) = metadata.scope.as_deref().and_then(|scope| scope.split_once('/')) {
+        if kind == "cycle"
+            && context
+                .host
+                .store()
+                .client_cycle(owner)?
+                .is_some_and(|cycle| cycle.sealed || cycle.phase == dokime_protocol::host::CyclePhase::Sealing as i32)
+        {
+            return Ok(true);
+        }
+        if kind == "execution" && context.host.store().metadata(owner)?.state != ExecutionState::Open {
+            return Ok(true);
+        }
+    }
     let item = Identifier::new(metadata.id.clone()).map_err(|source| Error::Invalid(format!("Delete File: {source}")))?;
     let mut token = String::new();
     let mut at = None;
@@ -131,14 +145,14 @@ pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<
                 .column_by_name("scope")
                 .and_then(|column| column.as_any().downcast_ref::<StringArray>())
                 .ok_or_else(|| Error::Precondition("Delete File: Restore Its Stored Scope".into()))?;
-            execution_owned |= scopes.iter().flatten().any(|scope| scope.starts_with("execution/"));
+            execution_owned |= scopes.iter().flatten().any(|scope| scope.starts_with("execution/") || scope.starts_with("cycle/"));
         }
         token = response.next_page_token;
         if token.is_empty() {
             break;
         }
     }
-    // Only Execution-Owned Native Files Can Be Attached to Evidence.
+    // Execution and Cycle Files Can Be Attached to Evidence.
     if !execution_owned {
         return Ok(false);
     }
@@ -249,27 +263,29 @@ pub(crate) async fn artifact_payloads(context: &Context) -> Result<Vec<Vec<u8>>>
         .collect()
 }
 
-pub async fn attach_artifact(context: &Context, request: ArtifactsCreateRequest) -> Result<ArtifactsCreateResponse> {
-    let execution = request
-        .scope
-        .as_ref()
-        .and_then(|scope| scope.execution_id.as_deref())
-        .ok_or_else(|| Error::Invalid("Create Artifact: Select Its Execution Scope".into()))?;
+pub async fn attach_artifact(context: &Context, mut request: ArtifactsCreateRequest) -> Result<ArtifactsCreateResponse> {
+    if let Some(selected) = request.scope.as_mut()
+        && let Some(execution) = selected.execution_id.as_deref()
+    {
+        let cycle = context.host.store().metadata(execution)?.execution.cycle;
+        if selected.cycle_id.as_ref().is_some_and(|selected| selected != &cycle) {
+            return Err(Error::Invalid(format!("Create Artifact: Select Execution {execution} in Its Own Cycle {cycle}")));
+        }
+        selected.cycle_id = Some(cycle);
+    }
+    let selected = request.scope.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select Its Execution or Cycle Scope".into()))?;
+    let scope = artifact_scope(selected)?;
     let reference = request.file.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select Published Content".into()))?;
     let file = reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select a Named File Reference".into()))?;
-    let scope = Scope::Execution(execution).identifier()?;
     if file.scope.as_deref() != Some(scope.as_str()) {
-        return Err(Error::Invalid("Create Artifact: Keep Its Native File Within the Execution Scope".into()));
+        return Err(Error::Invalid("Create Artifact: Keep Its Native File Within the Selected Evidence Scope".into()));
     }
     let operation = artifacts::create::ID;
-    let identifier = crate::host::views::hex(&Sha256::digest(format!("{operation}/{execution}/{}", request.request_id)));
+    let identifier = crate::host::views::hex(&Sha256::digest(format!("{operation}/{scope}/{}", request.request_id)));
     let key = format!("content/artifact/{identifier}");
     let (mut saved, revision) = administration::message::<ArtifactCommit>(context, &key).await?;
     if revision.is_empty() {
-        let snapshot = crate::host::execution_state::read(context, execution)?;
-        if snapshot.state != ExecutionState::Open {
-            return Err(Error::Precondition("Create Artifact: Select an Open Execution".into()));
-        }
+        context.host.store().require_evidence_owner(selected.cycle_id.as_deref(), selected.execution_id.as_deref(), "Create Artifact")?;
         let mutation = files::transfer::mutation(context, &key, &request.request_id).await?;
         let artifact = ArtifactMetadata {
             artifact_id: identifier,
@@ -305,7 +321,7 @@ pub async fn attach_artifact(context: &Context, request: ArtifactsCreateRequest)
     let bound = NonZeroUsize::new(context.settings.message_bytes).unwrap();
     let value = Administration {
         key,
-        scope: Scope::Execution(execution).identifier()?,
+        scope,
         payload: saved.encode_to_vec(),
     };
     let value = persisted::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?;
@@ -350,9 +366,7 @@ pub async fn attach_execution_file(
     }
     crate::host::files::get::handle(context, FilesGetRequest { file: Some(file.clone()), at: None }).await?;
     let _guard = context.administration.lock().await;
-    if crate::host::execution_state::read(context, execution)?.state != ExecutionState::Open {
-        return Err(Error::Precondition("Attach Execution File: Select an Open Execution".into()));
-    }
+    context.host.store().require_evidence_owner(None, Some(execution), "Attach Execution File")?;
     metadata.size_bytes = file.length;
     metadata.state = ExecutionFileState::Finalized as i32;
     let key = format!("content/execution-file/{execution}/{}", metadata.relative_path);
@@ -399,6 +413,19 @@ pub async fn attach_execution_file(
 }
 
 /* === Private Functions === */
+
+pub(crate) fn artifact_scope(scope: &ArtifactScope) -> Result<Identifier> {
+    if scope.case_id.is_some() {
+        return Err(Error::Invalid("Artifact: Select an Execution or Cycle Owner".into()));
+    }
+    if let Some(execution) = scope.execution_id.as_deref() {
+        return Ok(Scope::Execution(execution).identifier()?);
+    }
+    if let Some(cycle) = scope.cycle_id.as_deref() {
+        return Ok(Scope::Cycle(cycle).identifier()?);
+    }
+    Err(Error::Invalid("Artifact: Select an Execution or Cycle Owner".into()))
+}
 
 pub(crate) fn decode_artifact(payload: &[u8]) -> Result<StoredArtifact> {
     let stored = StoredArtifact::decode(payload)?;

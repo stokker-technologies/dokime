@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::host::CyclePhase;
 use crate::{Result, execution_manager::ExecutionManager, host::lock};
 use dokime_protocol::model::origin;
 use dokime_storage::{ExecutionCut, ExecutionState};
@@ -54,8 +55,13 @@ impl ExecutionManager {
         let active = lock(&self.inner.active)?;
         let running = active.get(execution).map(|active| active.control.is_running()).transpose()?.unwrap_or(false);
         let active = active.contains_key(execution);
+        let sealed_cycle = self
+            .inner
+            .store
+            .client_cycle(&cut.execution.cycle)?
+            .is_some_and(|cycle| cycle.sealed || cycle.phase == CyclePhase::Sealing as i32);
         Ok(ExecutionCapabilities {
-            start: can_start(&cut, active),
+            start: !sealed_cycle && can_start(&cut, active),
             rerun: plugin_run && cut.state == ExecutionState::Sealed && !active,
             cancel: plugin_run && running,
             inspect: true,
