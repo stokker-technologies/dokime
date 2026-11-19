@@ -134,11 +134,13 @@ impl PluginProcess {
         };
         command.envs(environment.iter().cloned());
         command.env_remove("UV_PROJECT_ENVIRONMENT");
-        if remote && launch.is_none() {
-            command.arg("--remote");
+        if remote {
+            command.env_remove("HARMOS_ADDRESS").env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0");
+        } else {
+            command.env("HARMOS_ADDRESS", "127.0.0.1:0");
         }
         let program = command.get_program().to_string_lossy().into_owned();
-        command.env("HARMOS_ADDRESS", "127.0.0.1:0").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+        command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::inherit());
         let mut child = OwnedChild::spawn(command).map_err(|source| {
             if source.kind() == ErrorKind::NotFound {
                 Error::Invalid(format!("Start Plugin: Install {program} and Put It on PATH, or Correct dokime.toml, Then Retry"))

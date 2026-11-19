@@ -46,16 +46,13 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
         tokio::time::timeout(super::HANG_GUARD, async {
             let directory = super::credentials::tempdir()?;
             let repository = super::root().canonicalize()?;
-            for (language, folders) in [("rust", &[""][..]), ("python", &[""][..]), ("csharp", &[""][..]), ("cpp", &["plugin", "test"][..])]
-            {
+            for language in ["rust", "python", "csharp", "cpp"] {
                 // Create the Checkout's Starter With Its Native Local Dependency.
                 let project = directory.path().join(language);
                 let arguments = ["new", project.to_str().unwrap(), "--lang", language, "--from", repository.to_str().unwrap()];
                 super::run(&arguments).await?;
-                for folder in folders {
-                    for file in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
-                        assert!(project.join(folder).join(file).is_file(), "{language}/{folder}/{file}");
-                    }
+                for file in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
+                    assert!(project.join(file).is_file(), "{language}/{file}");
                 }
                 match language {
                     "rust" => {
@@ -78,7 +75,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                         assert!(!manifest.contains("PackageReference Include=\"Dokime\""));
                     }
                     _ => {
-                        let manifest = fs::read_to_string(project.join("plugin/CMakeLists.txt"))?;
+                        let manifest = fs::read_to_string(project.join("CMakeLists.txt"))?;
                         assert!(manifest.contains("add_subdirectory("));
                         assert!(!manifest.contains("FetchContent"));
                     }

@@ -170,8 +170,11 @@ fn unanswered_python_starter_prompt_survives_operation_deadlines() -> Result<(),
             assert!(child.wait().await?.success());
             let outcome = client.executions.get(execution_id).await?.execution.ok_or("Read Starter: Retain Its Execution")?;
             assert!(!outcome.seal.is_empty());
-            assert!(matches!(outcome.outcome.and_then(|outcome| outcome.attribution),
-                Some(execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32));
+            assert!(
+                matches!(outcome.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
+                Some(execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32),
+                "{outcome:?}"
+            );
             let saved = root.path().join("_output").read_dir()?.collect::<Result<Vec<_>, _>>()?;
             assert_eq!(saved.len(), 1);
             server.close().await?;

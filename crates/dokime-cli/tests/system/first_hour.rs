@@ -57,10 +57,10 @@ fn remote_registration_releases_the_entry_without_stopping_the_plugin() -> Resul
     super::credentials::run(Box::pin(async {
         time::timeout(super::HANG_GUARD, async {
             // Start the Candidate Plugin at an Ephemeral Address.
-            let executable = super::fixtures().join(format!("dokime-example-test{EXE_SUFFIX}"));
+            let executable = super::fixtures().join(format!("rust{EXE_SUFFIX}"));
             let mut plugin = Command::from(process::command(executable))
-                .arg("--remote")
-                .env("HARMOS_ADDRESS", "127.0.0.1:0")
+                .env_remove("HARMOS_ADDRESS")
+                .env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0")
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit())
                 .kill_on_drop(true)

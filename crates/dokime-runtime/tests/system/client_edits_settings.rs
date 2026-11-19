@@ -15,13 +15,10 @@
 
 /* === Imports === */
 
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use super::support;
-use dokime::plugin::Plugin;
-use dokime_client_internal::Client;
-use dokime_client_internal::PluginsSettingsSetOptions;
-use dokime_client_internal::SettingsSetOptions;
-use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+// Standard Library Imports
+use std::{collections::HashMap, error::Error, path::Path};
+
+// Third Party Imports
 use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginValue};
 use harmos_protocol::model::setting_value;
@@ -29,16 +26,24 @@ use harmos_protocol::model::{SettingDeclaration, SettingValue, SettingValues, Se
 use harmos_protocol::plugin::instance_server::{Instance, InstanceServer};
 use harmos_protocol::plugin::{
     InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
-    InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse,
+    InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse, instance_invoke_request, instance_invoke_response, response,
 };
 use prost_types::Timestamp;
-use std::{collections::HashMap, error::Error, path::Path};
 use tokio::net::TcpListener;
 use tokio_stream::{Empty, wrappers::TcpListenerStream};
 use tonic::{
     Code, Request, Response, Status, Streaming,
     transport::{Endpoint, Server},
 };
+
+// Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
+use dokime::plugin::Plugin;
+use dokime_client_internal::Client;
+use dokime_client_internal::PluginsSettingsSetOptions;
+use dokime_client_internal::SettingsSetOptions;
+use dokime_client_internal::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 
@@ -61,9 +66,20 @@ impl Instance for SettingsPlugin {
     async fn get(&self, _: Request<InstanceGetRequest>) -> Result<Response<InstanceGetResponse>, Status> {
         Ok(Response::new(self.0.clone()))
     }
-    type InvokeStream = Empty<Result<InstanceInvokeResponse, Status>>;
-    async fn invoke(&self, _: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
-        Err(Status::unimplemented("Invoke Settings Fixture: No Operations"))
+    type InvokeStream = tokio_stream::Once<Result<InstanceInvokeResponse, Status>>;
+    async fn invoke(&self, request: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
+        let Some(instance_invoke_request::Frame::Request(request)) = request.into_inner().message().await?.and_then(|frame| frame.frame)
+        else {
+            return Err(Status::invalid_argument("Invoke Settings Fixture: Supply an Invocation"));
+        };
+        if !matches!(request.operation.as_str(), "settings_fixture.initialize" | "settings_fixture.finalize") {
+            return Err(Status::unimplemented("Invoke Settings Fixture: Call Initialize or Finalize"));
+        }
+        Ok(Response::new(tokio_stream::once(Ok(InstanceInvokeResponse {
+            frame: Some(instance_invoke_response::Frame::Response(harmos_protocol::plugin::Response {
+                result: Some(response::Result::Payload(Vec::new())),
+            })),
+        }))))
     }
     type SamplesStream = Empty<Result<InstanceSamplesResponse, Status>>;
     async fn samples(&self, _: Request<Streaming<InstanceSamplesRequest>>) -> Result<Response<Self::SamplesStream>, Status> {

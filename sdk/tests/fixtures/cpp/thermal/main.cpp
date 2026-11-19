@@ -1,8 +1,27 @@
-// SPDX-License-Identifier: Apache-2.0
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Imports === */
+
+// Standard Library Imports
+#include <chrono>
+#include <cstdint>
+#include <exception>
+#include <iostream>
+#include <utility>
+
+// Third Party Imports
+#include <grpc/event_engine/event_engine.h>
+
+// Local Imports
 #include "dokime/dokime.hpp"
 #include "thermal.pb.h"
-#include <grpc/event_engine/event_engine.h>
-#include <iostream>
 
 using dokime::Plugin;
 using dokime::VALUE_TYPE_NUMBER;
@@ -22,13 +41,14 @@ using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::cerr;
 using std::exception;
 using std::move;
-using std::string;
 using std::uint64_t;
 using std::chrono::milliseconds;
 using thermal::v1::Counter;
 using thermal::v1::CounterColumns;
 using thermal::v1::Door;
 using thermal::v1::Temperature;
+
+/* === Classes === */
 
 class ThermalTestTemplate : public TestTemplate {
 public:
@@ -96,12 +116,14 @@ private:
   double limit_ = 0;
 };
 
-int main(int argc, char **argv) {
+/* === Entry Point === */
+
+int main() {
   int result = 0;
   try {
     auto value = ThermalTestTemplate::definition();
     Plugin plugin("thermal", "1.0.0", {{"thermal", {move(value)}, "Thermal"}});
-    plugin.serve(argc == 2 && string(argv[1]) == "--remote" ? "127.0.0.1:0" : "");
+    plugin.serve();
   } catch (const exception &error) {
     cerr << error.what() << '\n';
     result = 1;
