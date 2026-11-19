@@ -165,6 +165,20 @@
   - [x] Complete Strict Installed Stubs, All Host-Free Integrations, Repository Checking, Isolated Editable Starter Checks and Native Listener/Interrupt Proof; Compose the Shared Capture Fixture From the Starter Suite.
   - [x] Run the Named Host Stories on the Combined Candidate: NativeAuthoringStory, StarterStory, EvidenceQueryStory, Runtime Thermal Client and Created Python Starter First-Hour Journeys; Complete Four-Language Capture Equivalence With Prepared Native Fixtures.
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
+  - [x] Replace Plugin/Suite/Template Explicit Constructor Families and the Single-Template Shortcut With Marker Constructors and Final Suite Binding.
+  - [x] Separate Operation and Template Contexts, Share Plugin-Owned State, Return Record Ordinals and Migrate Owned Declarations.
+  - [x] Implement Connection Settings, Working-Directory Dotenv Grammar and Precedence, Direct Origins and Ordered Pairing Attempts.
+  - [x] Add Bound Case/Cycle/Execution Handles, Lazy Start/Watch Finality, Stable Seal Outcomes, Verified Archives and Client Notes/Artifacts.
+  - [ ] Resolve the Pinned Library's Missing Addressable, Closeable Rust Listener API Before Plugin Registration and Explicit Listener Configuration; Do Not Copy Its Server or Mutate Process Environment.
+  - [ ] Complete Typed Runtime Operation References and Stream Subscription After Their Shared Library Capabilities Land.
+  - [ ] Bind Bundle Upload After the Product Host Publishes Its Installation Contract and Regenerated Bindings; Shared Plugins/Create Currently Accepts Placements Rather Than Bundle Uploads.
+  - [ ] Complete the Remaining Declaration/Context Capability Surface and Catalog Validation, Including Operation-Scoped Observers, Typed Query Values and Template Notes/Artifacts.
+  - [ ] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Remove Generated Host/Transport Escape Hatches With the Production Consumer and Generator Owners.
+  - [ ] Resolve Duplicated SDK Harness and Product Execution Sequencing With the Owner; Both Still Gate Cleanup on Successful Initialization Despite the Locked Attempted-Initialization Contract.
+  - [ ] Replace Both Rust Starter Roots With the Owner-Requested Single Two-Binary Project and Migrate CLI Embedding; the Earlier Two-Root Manifest Table Is Superseded by This Task Decision.
+  - [x] Prove Focused SDK Units and Integration/Capture Tests, the Protocol-Only Dependency Boundary, Isolated Generated-Surface Compilation, Formatting, Scoped All-Target Compilation and Repository Checking.
+  - [ ] Complete Root Generated Checking and Scoped Rust Lint After the Integrating Owner Refreshes the Root Lock; Prove Shared Capture Against the Product Host and the Created Starter's Bundle/Inspect/Dev/Client Flow on the Required Native Platforms.
+
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.

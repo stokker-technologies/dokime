@@ -71,7 +71,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         dotnet = output.decode().strip()
         commands = {
             "python": [sys.executable, str(root / "sdk/tests/fixtures/python/capture/plugin.py")],
-            "rust": [str(root / f"target/debug/dokime-rust-test{extension}"), "--remote"],
+            "rust": [str(root / f"target/debug/dokime-rust-test{extension}")],
             "csharp": [
                 dotnet,
                 str(root / f"sdk/csharp/examples/Starter/src/Example.Plugin/bin/{configuration}/net10.0/Example.Plugin.dll"),
@@ -120,6 +120,8 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 suite = suites.suites[0]
                 self.assertEqual(len(suite.templates), 1, language)
                 expected = "capture.confirmation" if language == "python" else "capture"
+                if language == "rust":
+                    expected = "capture.confirmation"
                 if language == "csharp":
                     expected = "capture.confirmation"
                 self.assertEqual(suite.templates[0].metadata.identifier, expected, language)
