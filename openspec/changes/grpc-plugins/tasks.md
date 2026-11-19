@@ -226,6 +226,7 @@
 - [x] Replace Retired Plugin Remote Arguments With Product Listener Coordinates in Runtime Launchers, C# Serving and Native Fixture/Benchmark Dispatch; Acknowledge Lifecycle Operations in the Settings Protocol Fixture.
 - [x] Align the SDK and C++ Starter Native Dependency Baselines With the Pinned Library and Remove the Bootstrap's Hard-Coded Checkout Tag and Stale CMake Toolchain Configuration.
 - [x] Stage Release Runtime Inputs From the C++ Starter's Normal Build for Bundling; Keep Debug Outputs in Its Build Tree and Preserve Bundle Bounds and Build Deadlines.
+- [x] Align CLI Fixture Producers With Their Actual Build Outputs and Compiler Profiles; Prove the Rust Fixture and Both C++ Placement Journeys.
 - [ ] Merge Current Dev Before Final Proof; Run Workspace Compilation, Rust Lint, Repository and Generation Checks, All SDK Units/Integrations, Four Created Projects and Capture, CLI Stories and the Requested Release Host/Python Stories; Resolve the Unanswered-Prompt Clock/Stream REWORK Before Closing Final Proof.
 - [x] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
 

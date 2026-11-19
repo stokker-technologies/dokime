@@ -63,7 +63,8 @@ def build(profile: str, language: str = "rust") -> None:
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
     # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.
-    environment = {**cargo.compiler_environment(profile), "CARGO_TARGET_DIR": str(root / "target"), "MISE_LOCKED": "0"}
+    # The Rust Starter Builds in Debug Regardless of the Fixture Output Profile.
+    environment = {**cargo.compiler_environment("dev"), "CARGO_TARGET_DIR": str(root / "target"), "MISE_LOCKED": "0"}
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
     environment.pop("VIRTUAL_ENV", None)
     environment.pop("PYTHONPATH", None)
@@ -193,6 +194,7 @@ def build(profile: str, language: str = "rust") -> None:
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
+                consumer = root / "target/cp/consumer"
                 child = dict(environment)
                 if os.name == "nt":
                     child["PATH"] = str(root / "target/cp/v/x64-windows/bin") + os.pathsep + child["PATH"]
@@ -201,7 +203,7 @@ def build(profile: str, language: str = "rust") -> None:
                         [
                             sys.executable,
                             str(root / "sdk/cpp/tests/support/run_plugin.py"),
-                            str(example / "assets/plugin" / f"dokime-plugin{extension}"),
+                            str(consumer / f"dokime-plugin{extension}"),
                             str(root / "target/cp/tests/tests" / f"dokime-plugin-journey{extension}"),
                             placement,
                         ],
@@ -214,8 +216,8 @@ def build(profile: str, language: str = "rust") -> None:
                         stderr=sys.stderr,
                     )
                 (output / "cpp").mkdir(exist_ok=True)
-                for artifact in (example / "assets/plugin").iterdir():
-                    if artifact.suffix in (".exe", ".dll") or artifact.name == "dokime-plugin":
+                for artifact in consumer.iterdir():
+                    if artifact.suffix == ".dll" or artifact.name == f"dokime-plugin{extension}":
                         shutil.copy2(artifact, output / "cpp" / artifact.name)
             shutil.copytree(project, output / language / "source", ignore=shutil.ignore_patterns(".venv", "bin", "obj"), dirs_exist_ok=True)
         finally:
