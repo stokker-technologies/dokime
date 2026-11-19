@@ -25,6 +25,7 @@ use std::path::Path;
 use harmos_protocol::model::{Callers, Declarations, OperationContract, OperationPolicy, Visibility};
 use harmos_protocol::plugin::InstanceGetResponse;
 use harmos_protocol::schema::method_callers;
+use heck::AsSnakeCase;
 use prost::Message;
 use prost_reflect::{DynamicMessage, ReflectMessage};
 use prost_types::{Duration, Timestamp};
@@ -242,6 +243,8 @@ fn product_wrappers_reuse_library_payloads_with_client_admission() {
         let suffix = if resource.is_empty() { String::new() } else { format!(".{resource}") };
         let package = format!("dokime.host.v1{suffix}");
         let service = pool.get_service_by_name(&format!("{package}.{name}")).unwrap();
+        assert_eq!(service.parent_file().services().count(), 1);
+        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", AsSnakeCase(name)));
         let actual = service.methods().map(|method| method.name().to_owned()).collect::<Vec<_>>();
         assert_eq!(actual, methods);
         for method in service.methods() {
