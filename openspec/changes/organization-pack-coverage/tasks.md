@@ -26,3 +26,4 @@
 - [ ] 7.6 Prove installation startup and prepared-layout execution on Linux.
 - [ ] 7.7 Resolve registry-owned entry provenance: a user Create that reuses installation content must remain user-owned, and shared content must not be released while another entry uses it. The current content-reference marker cannot establish entry ownership; do not add a parallel registry.
 - [ ] 7.8 Restore the host startup future's Send contract: installation admission reaches the lending readiness callbacks, and the desktop's spawned startup and compile-contract regression currently fail to compile. Preserve the shared readiness implementation and desktop execution model.
+- [ ] 7.9 Prove an unchanged installation folder causes no registry writes across restart; the pinned registry currently saves activation state unconditionally during restoration, even when reconciliation performs no admission mutations.

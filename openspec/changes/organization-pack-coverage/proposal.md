@@ -133,8 +133,9 @@ settings. Changing a bundle identity retires the obsolete installation entry
 through Delete.
 
 An unchanged folder performs no upload, Create, Replace or Delete. Existing library
-restoration still persists activation state on every host open; zero total registry
-writes across a restart is not a guarantee of that existing path. The library also
+restoration still persists activation state on every host open, so the required
+zero-registry-write restart guarantee remains unfulfilled by this candidate. This
+does not weaken the owner's idempotency requirement. The library also
 retains bounded replay receipts for Create and Replace. Startup adds no parallel
 receipt policy. Superseded extracted copies use the existing retirement paths;
 superseded uploaded content is released through Files.Delete.
