@@ -90,6 +90,7 @@ jobs:
       CI_OUTPUTS: ${{ matrix.outputs }}
       CI_PROFILE: ${{ inputs.profile }}
       CI_PLATFORM: ${{ matrix.platform }}
+      RELEASE_CHANNEL: ${{ inputs.channel }}
     strategy:
       fail-fast: false
       matrix:
