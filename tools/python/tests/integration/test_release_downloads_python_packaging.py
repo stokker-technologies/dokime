@@ -56,7 +56,7 @@ class PythonPackagingTests(unittest.TestCase):
         proto.parent.mkdir(parents=True)
         proto.write_bytes(b'syntax = "proto3";')
         output = root / "target/build/dev/any/python"
-        output.mkdir(parents=True)
+        output.mkdir(parents=True, exist_ok=True)
         (output / ".gitignore").write_text("*")
         archive = zipfile.ZipFile(output / "dokime_sdk-0.1.3-py3-none-any.whl", "w")
         try:
@@ -76,6 +76,24 @@ class PythonPackagingTests(unittest.TestCase):
             member.size = len(proto.read_bytes())
             archive.addfile(member, io.BytesIO(proto.read_bytes()))
         return output
+
+    def test_build_rejects_stale_protocol_sources(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name)
+
+            def build_distributions(*args: object, **kwargs: object) -> None:
+                self.fixture(root)
+                (root / "proto/dokime/host/v1/service.proto").write_bytes(b"changed")
+
+            with (
+                mock.patch.object(wheel.subprocess, "run", side_effect=build_distributions),
+                mock.patch.object(wheel.policy, "config", return_value={"version": {"value": "0.1.3"}}),
+                self.assertRaises(policy.ToolError),
+            ):
+                wheel.build(root, "dev")
+        finally:
+            temporary_directory.cleanup()
 
     def test_package_copies_shared_pair_without_rebuilding(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
@@ -122,10 +140,7 @@ class PythonPackagingTests(unittest.TestCase):
                     elif invalid == "tag":
                         contents["dokime_sdk-0.1.3.dist-info/WHEEL"] = b"Root-Is-Purelib: false\nTag: cp313-abi3-win_amd64\n"
                     else:
-                        try:
-                            pass
-                        finally:
-                            tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz").close()
+                        tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz").close()
                     archive = zipfile.ZipFile(source, "w")
                     try:
                         for name, content in contents.items():

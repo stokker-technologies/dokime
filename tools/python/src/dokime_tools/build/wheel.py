@@ -74,8 +74,9 @@ def build(root: Path, profile: str) -> list[Path]:
     wheels = sorted(output.glob("*.whl"))
     if len(wheels) != 1 or not wheels[0].name.endswith("-py3-none-any.whl"):
         raise ValueError(f"Build Wheel: expected one pure Python wheel in {output}")
+    selected = verify(root, output, policy.config(root)["version"]["value"])
     print(f"Python Wheel: {wheels[0].name} ({wheels[0].stat().st_size} bytes)", flush=True)
-    return [*wheels, *sorted(output.glob("*.tar.gz"))]
+    return selected
 
 
 def distributions(root: Path, output: Path, version: str) -> list[Path]:
@@ -106,7 +107,11 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
         manifest = json.loads(archive.read("dokime_sdk/_wire/sources.json"))
         expected = {path.relative_to(root / "proto").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
         if not expected or manifest != expected:
-            raise policy.ToolError("Build Wheel: Python wheel protocol sources differ from proto/")
+            differences = sorted(name for name in manifest.keys() | expected.keys() if manifest.get(name) != expected.get(name))
+            raise policy.ToolError(
+                "Build Wheel: Regenerate With mise run generate -- --protocol --language python, Then Rebuild; "
+                "Python wheel protocol sources differ from proto/: " + ", ".join(differences)
+            )
         required = {"dokime_sdk/_wire/surface.pb"}
         for path in sources:
             if path.relative_to(root / "proto").parts[0] != "dokime":
