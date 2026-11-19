@@ -30,6 +30,7 @@ use arrow_ipc::{
 };
 use harmos_query::columnar::{self, ColumnKind, ColumnSource, ScanEvidence};
 use rusqlite::{Connection, OptionalExtension, params};
+use uuid::Uuid;
 
 // Local Imports
 use super::*;
@@ -109,7 +110,7 @@ fn store_chunk(connection: &Connection, source: &ColumnSource, batch: &RecordBat
     let positions = positions(&flat)?;
     let directory = directory(connection)?;
     fs::create_dir_all(&directory).map_err(io)?;
-    let filename = format!("{}.arrow", uuid::Uuid::now_v7());
+    let filename = format!("{}.arrow", Uuid::now_v7());
     let path = directory.join(&filename);
     let mut writer = Writer::create(&path, batch.schema()).map_err(product)?;
     let block = writer.append(batch).map_err(product)?;
@@ -410,7 +411,7 @@ pub(super) fn collect_orphans(connection: &Connection) -> Result<()> {
     for entry in fs::read_dir(&directory).map_err(io)? {
         let entry = entry.map_err(io)?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        let owned = name.strip_suffix(".arrow").is_some_and(|id| uuid::Uuid::parse_str(id).is_ok());
+        let owned = name.strip_suffix(".arrow").is_some_and(|id| Uuid::parse_str(id).is_ok());
         if !owned || referenced.contains(&name) {
             continue;
         }

@@ -28,6 +28,7 @@ use harmos_query::arrow::ArrowBatch;
 use harmos_runtime::Identifier;
 use harmos_runtime::storage::{ObjectDefinition, ReadLimits};
 use prost::Message;
+use uuid::Uuid;
 
 // Local Imports
 use crate::host::Context;
@@ -198,7 +199,7 @@ pub async fn retain<T: Message + Default>(context: &Context, key: &str, scope: I
     if !revision.is_empty() {
         return Ok(saved);
     }
-    let request_id = uuid::Uuid::now_v7().to_string();
+    let request_id = Uuid::now_v7().to_string();
     let payload = value.encode_to_vec();
     match replace(context, key, scope, Vec::new(), &request_id, payload).await {
         Ok((saved, _)) => Ok(T::decode(saved.payload.as_slice())?),
