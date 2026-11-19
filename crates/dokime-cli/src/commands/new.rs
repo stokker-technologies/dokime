@@ -40,7 +40,7 @@ include!(concat!(env!("OUT_DIR"), "/examples.rs"));
 /* === Structs === */
 
 #[derive(clap::Args)]
-#[command(about = "Create One Python Project, or Plugin and Test Folders for Rust, C# and C++")]
+#[command(about = "Create an SDK Project")]
 pub(crate) struct Args {
     path: PathBuf,
 
@@ -71,6 +71,9 @@ enum Language {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
+    if matches!(args.lang, Language::Csharp) {
+        return csharp_project(&args.path);
+    }
     let files = match args.lang {
         Language::Rust => RUST,
         Language::Python => PYTHON,
@@ -150,6 +153,41 @@ pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
 }
 
 /* === Private Functions === */
+
+fn csharp_project(directory: &Path) -> Result<()> {
+    let name = directory.file_name().and_then(|value| value.to_str()).ok_or("Create C# Project: Choose a UTF-8 Folder Name")?;
+    let namespace = name
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(|word| {
+            let mut characters = word.chars();
+            let first = characters.next().expect("A project word is nonempty").to_ascii_uppercase();
+            format!("{first}{}", characters.as_str())
+        })
+        .collect::<String>();
+    if !namespace.starts_with(|character: char| character.is_ascii_alphabetic()) || namespace == "Dokime" || namespace == "System" {
+        return Err("Create C# Project: Choose a Name Beginning with a Letter That Does Not Shadow Dokime or System".into());
+    }
+    fs::create_dir(directory)?;
+    let result = (|| -> Result<()> {
+        for (relative, bytes) in CSHARP {
+            let relative = relative.replace("Example", &namespace);
+            let destination = directory.join(relative);
+            fs::create_dir_all(destination.parent().expect("A starter file has a project directory"))?;
+            match str::from_utf8(bytes) {
+                Ok(text) => fs::write(destination, text.replace("Example", &namespace).replace("Starter Project", &python_title(name)))?,
+                Err(_) => fs::write(destination, bytes)?,
+            }
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        fs::remove_dir_all(directory)?;
+        return Err(error);
+    }
+    println!("Created {}", directory.display());
+    Ok(())
+}
 
 fn python_title(name: &str) -> String {
     let words = name.split(|character: char| !character.is_alphanumeric()).filter(|word| !word.is_empty()).collect::<Vec<_>>();
@@ -262,8 +300,7 @@ mod tests {
 
     #[test]
     fn every_buildable_starter_embeds_project_configuration() {
-        for (files, folders) in
-            [(RUST, &["plugin", "test"][..]), (PYTHON, &[""][..]), (CSHARP, &["Plugin", "Test"][..]), (CPP, &["plugin", "test"][..])]
+        for (files, folders) in [(RUST, &["plugin", "test"][..]), (PYTHON, &[""][..]), (CSHARP, &[""][..]), (CPP, &["plugin", "test"][..])]
         {
             for folder in folders {
                 for name in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {

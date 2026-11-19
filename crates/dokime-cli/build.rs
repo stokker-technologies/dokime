@@ -69,12 +69,10 @@ fn embed_examples() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"));
     let repository = manifest.join("../..");
     let mut source = String::new();
-    for (name, language, folders) in [
-        ("RUST", "rust", &["plugin", "test"][..]),
-        ("PYTHON", "python", &["starter"][..]),
-        ("CSHARP", "csharp", &["Plugin", "Test"][..]),
-        ("CPP", "cpp", &["plugin", "test"][..]),
-    ] {
+    embed_csharp(&repository, &mut source);
+    for (name, language, folders) in
+        [("RUST", "rust", &["plugin", "test"][..]), ("PYTHON", "python", &["starter"][..]), ("CPP", "cpp", &["plugin", "test"][..])]
+    {
         source.push_str(&format!("const {name}: &[(&str, &[u8])] = &[\n"));
         for folder in folders {
             let root = format!("sdk/{language}/examples/{folder}");
@@ -92,7 +90,6 @@ fn embed_examples() {
                     )
                 });
                 if excluded_directory
-                    || (language == "csharp" && relative.starts_with("assets/plugin/"))
                     || (language == "python" && filename == "uv.lock")
                     || filename == ".env"
                     || (filename.starts_with(".env.") && filename != ".env.example")
@@ -111,6 +108,30 @@ fn embed_examples() {
     }
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo supplies the build output directory"));
     fs::write(output.join("examples.rs"), source).expect("Embed SDK examples");
+}
+
+fn embed_csharp(repository: &Path, source: &mut String) {
+    let root = "sdk/csharp/examples/Starter";
+    println!("cargo:rerun-if-changed={}", repository.join(root).display());
+    let files = git(repository, &["ls-files", "-z", "--", root]).expect("Embed C# Starter: Run the Build From a Git Checkout");
+    source.push_str("const CSHARP: &[(&str, &[u8])] = &[\n");
+    for file in files.split('\0').filter(|file| !file.is_empty()) {
+        let relative = file.strip_prefix(&format!("{root}/")).expect("A C# starter file remains below its root");
+        let path = Path::new(relative);
+        let filename = path.file_name().and_then(|name| name.to_str()).expect("A C# starter filename is UTF-8");
+        if path.components().any(|component| matches!(component.as_os_str().to_str(), Some("bin" | "obj" | ".git" | "_input" | "_output")))
+            || relative.starts_with("assets/plugin/")
+            || filename == ".env"
+            || (filename.starts_with(".env.") && filename != ".env.example")
+            || [".key", ".pem", ".pair", ".dokime"].iter().any(|extension| filename.ends_with(extension))
+        {
+            continue;
+        }
+        let path = repository.join(file);
+        assert!(fs::symlink_metadata(&path).expect("Read C# starter file type").is_file(), "Embed C# Starter: Use Regular Files");
+        source.push_str(&format!("({relative:?}, include_bytes!({:?})),\n", path.canonicalize().expect("Resolve C# starter file")));
+    }
+    source.push_str("];\n");
 }
 
 // The publishers' own distinctions: stable tags run the release workflow, the nightly workflow publishes nightly.
