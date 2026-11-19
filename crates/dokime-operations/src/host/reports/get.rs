@@ -76,8 +76,8 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
                 resolved_at: saved.resolved_at,
             });
         }
-        let mut temporary = context.host.temporary_report(&request.name)?;
-        if temporary.is_none() && !request.name.is_empty() {
+        let mut temporary = None;
+        if !request.name.is_empty() {
             temporary =
                 administration::message::<PreparedReport>(context, &request.name).await?.0.response.and_then(|response| response.file);
         }

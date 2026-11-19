@@ -202,9 +202,6 @@ pub(crate) fn prepare(
         let response = prepared
             .response
             .ok_or_else(|| Error::Precondition("Create Report: Use a New Request ID After Replacing Incompatible Prepared Data".into()))?;
-        let reference =
-            response.file.clone().ok_or_else(|| Error::Precondition("Create Report: Restore Its Retained File Reference".into()))?;
-        context.host.retain_report(reference)?;
         tracing::debug!(phase = "upload_retention", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         tracing::info!(report = %name, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Created");
         Ok(response)

@@ -319,7 +319,6 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         operations: runtime.operations.clone(),
         catalogs: catalogs.clone(),
         identity,
-        temporary_report_limit: settings.max_cases,
     };
     let context = Arc::new(Context {
         administration,

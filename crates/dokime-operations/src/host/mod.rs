@@ -56,7 +56,6 @@ use std::{collections::HashMap, future::Future, pin::Pin, result, sync::Arc, tim
 use async_trait::async_trait;
 use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model;
-use harmos_protocol::model::FileReference;
 use harmos_protocol::model::Receipt;
 use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost::Message;
@@ -78,7 +77,6 @@ use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::{Document, Origin, Suite, Value};
 use dokime_storage::ExecutionCut;
-use dokime_storage::Report;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -163,9 +161,6 @@ pub trait Host: Send + Sync {
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
     fn report_template(&self) -> &'static [u8];
-    fn retain_report(&self, reference: FileReference) -> Result<()>;
-    fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>>;
-    fn publish_report(&self, prepared: Report) -> Result<Report>;
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, Suite)>>;
