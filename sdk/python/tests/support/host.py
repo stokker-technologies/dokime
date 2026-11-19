@@ -118,19 +118,7 @@ class Host:
                 if check.returncode == 0 and b"boolean true" in output:
                     break
         # Launch Prepared Bytes And Await The Host's Ready Event.
-        repository = next((parent for parent in Path(__file__).resolve().parents if (parent / "Cargo.toml").is_file()), None)
-        binary = os.environ.get("DOKIME_TEST_HOST")
-        if binary is None and repository is not None:
-            name = "dokime-host.exe" if os.name == "nt" else "dokime-host"
-            if "TEST_PROFILE" in os.environ:
-                system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}[platform.system()]
-                machine = platform.machine().lower()
-                architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
-                binary = str(repository / "target/build" / os.environ["TEST_PROFILE"] / f"{system}-{architecture}" / "fixtures/host" / name)
-            else:
-                binary = str(repository / "target/debug" / name)
-        if binary is None or not Path(binary).is_file():
-            raise RuntimeError("Start SDK Host: Build Host Fixtures or Set DOKIME_TEST_HOST To the Prepared Host Binary")
+        binary = str(cls.fixture("dokime-host"))
         host.binary = binary
         host.process = await asyncio.create_subprocess_exec(
             binary,
@@ -154,6 +142,27 @@ class Host:
         host.endpoint = url
         host._client = await connect(url)
         return host
+
+    @staticmethod
+    def fixture(name: str) -> Path:
+        variable = "DOKIME_TEST_HOST" if name == "dokime-host" else "DOKIME_TEST_CLI"
+        override = os.environ.get(variable)
+        if override is not None:
+            binary = Path(override)
+        else:
+            repository = next(parent for parent in Path(__file__).resolve().parents if (parent / "Cargo.toml").is_file())
+            filename = f"{name}{'.exe' if os.name == 'nt' else ''}"
+            if "TEST_PROFILE" in os.environ:
+                system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}[platform.system()]
+                machine = platform.machine().lower()
+                architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
+                home = "fixtures/host" if name == "dokime-host" else "bin"
+                binary = repository / "target/build" / os.environ["TEST_PROFILE"] / f"{system}-{architecture}" / home / filename
+            else:
+                binary = repository / "target/debug" / filename
+        if not binary.is_file():
+            raise RuntimeError(f"Locate SDK Fixture: Build {name} for TEST_PROFILE or Set {variable} to Its Prepared Binary")
+        return binary
 
     @property
     def client(self) -> Client:
