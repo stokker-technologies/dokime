@@ -13,12 +13,14 @@ CARGO_TARGET_DIR = "{{config_root}}/../../target"
 
 [tasks."build"]
 description = "Build the Rust SDK and Sample Plugin"
-run = "cargo build --locked --manifest-path tests/consumer/Cargo.toml --package dokime-rust-stories --bins"
+dir = "../.."
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused build --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml --package dokime-rust-stories --bins"
 
 [tasks."test"]
 description = "Run Focused Rust SDK Journeys"
 usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integration" }'
-run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib --no-tests pass{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
+dir = "../.."
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused test --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
 
 [tasks."check"]
 description = "Prove Protocol-Only SDK Product Dependencies"
@@ -39,4 +41,5 @@ run = [
 
 [tasks."lint"]
 description = "Lint the Focused Rust SDK and Stories"
-run = "cargo clippy --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"
+dir = "../.."
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.lint -- --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"
