@@ -34,6 +34,10 @@ use super::manifest::Artifact;
 
 /* === Constants === */
 
+pub(super) const ARCHIVE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
+pub(super) const ARCHIVE_MAX_ENTRIES: usize = 10_000;
+pub(super) const EXPANDED_MAX_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -198,16 +202,19 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Distribution, E
     Ok(distribution)
 }
 
-pub fn extract(bytes: &[u8], destination: &Path) -> Result<(), Error> {
+pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> Result<(), Error> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| Error::Invalid(e.to_string()))?;
-    if archive.has_duplicate_names() || archive.len() > 10_000 {
+    if archive.has_duplicate_names() || archive.len() > ARCHIVE_MAX_ENTRIES {
         return Err(Error::Invalid("release distribution has too many entries".into()));
     }
     let mut expanded = 0u64;
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(|e| Error::Invalid(e.to_string()))?;
+        if entry.size() > maximum_member_bytes {
+            return Err(Error::Invalid("Reduce Archive Members Below the Allowed File Size".into()));
+        }
         expanded = expanded.saturating_add(entry.size());
-        if expanded > 4 * 1024 * 1024 * 1024 {
+        if expanded > EXPANDED_MAX_BYTES {
             return Err(Error::Invalid("expanded release distribution exceeds 4 GiB".into()));
         }
         let entry_name = entry.name().map_err(|error| Error::Invalid(error.to_string()))?;
@@ -279,6 +286,21 @@ mod tests {
         for value in ["bad  example-pack.zip".to_owned(), format!("{checksum}  ../example-pack.zip"), format!("{line}{line}")] {
             assert!(checksums(value.as_bytes()).is_err());
         }
+    }
+
+    #[test]
+    fn extraction_enforces_member_limits_before_writing() -> Result<(), Error> {
+        use std::io::Write;
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive.start_file("example-pack.txt", zip::write::SimpleFileOptions::default()).unwrap();
+        archive.write_all(b"abc")?;
+        let bytes = archive.finish().unwrap().into_inner();
+        let directory = tempfile::tempdir()?;
+        assert!(extract(&bytes, directory.path(), 2).is_err());
+        assert!(!directory.path().join("example-pack.txt").exists());
+        extract(&bytes, directory.path(), 3)?;
+        assert_eq!(fs::read(directory.path().join("example-pack.txt"))?, b"abc");
+        Ok(())
     }
 
     #[test]

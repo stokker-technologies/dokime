@@ -119,8 +119,8 @@ impl Release {
             .and_then(|name| name.strip_suffix(&suffix))
             .ok_or_else(|| Error::Invalid("invalid distribution archive name".into()))?;
         Version::parse(version).map_err(|error| Error::Invalid(error.to_string()))?;
-        let bytes = self.download(&name, 1024 * 1024 * 1024).await?;
-        super::distribution::extract(&bytes, destination)?;
+        let bytes = self.download(&name, distribution::ARCHIVE_MAX_BYTES).await?;
+        super::distribution::extract(&bytes, destination, distribution::EXPANDED_MAX_BYTES)?;
         Ok(version.to_owned())
     }
 
@@ -130,7 +130,7 @@ impl Release {
         }
         let suffix = if target.contains("windows") { "zip" } else { "tar.gz" };
         let name = format!("dokime-plugins-{version}-{target}.{suffix}");
-        let bytes = self.download(&name, 1024 * 1024 * 1024).await?;
+        let bytes = self.download(&name, distribution::ARCHIVE_MAX_BYTES).await?;
         let paths = super::plugins::unpack(&bytes, &name, destination)?;
         super::plugins::select(&paths, names)
     }

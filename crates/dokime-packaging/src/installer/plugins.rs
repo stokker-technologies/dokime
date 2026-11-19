@@ -50,7 +50,7 @@ use super::{Error, distribution};
 pub(super) fn unpack(bytes: &[u8], name: &str, destination: &Path) -> Result<Vec<PathBuf>, Error> {
     fs::create_dir_all(destination)?;
     if name.ends_with(".zip") {
-        distribution::extract(bytes, destination)?;
+        distribution::extract(bytes, destination, Limits::default().archive_bytes as u64)?;
     } else if name.ends_with(".tar.gz") {
         let mut archive = tar::Archive::new(GzDecoder::new(bytes));
         let mut count = 0;
@@ -58,8 +58,11 @@ pub(super) fn unpack(bytes: &[u8], name: &str, destination: &Path) -> Result<Vec
         for entry in archive.entries()? {
             let mut entry = entry?;
             count += 1;
+            if entry.size() > Limits::default().archive_bytes as u64 {
+                return Err(Error::Invalid("Reduce Plugin Archive Members Below the Bundle Size Limit".into()));
+            }
             expanded = expanded.saturating_add(entry.size());
-            if count > 10_000 || expanded > 4 * 1024 * 1024 * 1024 {
+            if count > distribution::ARCHIVE_MAX_ENTRIES || expanded > distribution::EXPANDED_MAX_BYTES {
                 return Err(Error::Invalid("Reduce the Plugin Archive Inventory".into()));
             }
             let name = entry.path()?.to_str().ok_or_else(|| Error::Invalid("Use UTF-8 Plugin Archive Paths".into()))?.to_owned();
@@ -127,7 +130,7 @@ pub(super) fn stage(paths: &[PathBuf], scratch: &Path, target: &str, version: &s
             bundles.push(path.clone());
             continue;
         }
-        let bytes = bounded(path, 1024 * 1024 * 1024)?;
+        let bytes = bounded(path, distribution::ARCHIVE_MAX_BYTES as u64)?;
         let name =
             path.file_name().and_then(|value| value.to_str()).ok_or_else(|| Error::Invalid("Use UTF-8 Plugin Archive Names".into()))?;
         bundles.extend(unpack(&bytes, name, &scratch.join("external-plugins").join(index.to_string()))?);
