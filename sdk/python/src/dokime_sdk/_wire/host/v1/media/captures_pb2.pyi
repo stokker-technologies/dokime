@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -31,7 +31,7 @@ CAPTURE_KIND_SCREENSHOT: CaptureKind
 
 @final
 class CapturesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
@@ -52,7 +52,7 @@ class CapturesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class CapturesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     capture: Capture
@@ -61,7 +61,7 @@ class CapturesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class CapturesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -70,7 +70,7 @@ class CapturesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CapturesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     capture: Capture
@@ -79,7 +79,7 @@ class CapturesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CapturesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -88,7 +88,7 @@ class CapturesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class CapturesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -101,7 +101,7 @@ class CapturesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class CapturesStopRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -110,7 +110,7 @@ class CapturesStopRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CapturesStopResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CAPTURE_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     capture: Capture
@@ -119,7 +119,7 @@ class CapturesStopResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class RecordingAudio(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MICROPHONE_FIELD_NUMBER: _ClassVar[int]
     SYSTEM_FIELD_NUMBER: _ClassVar[int]
     microphone: bool
@@ -128,7 +128,7 @@ class RecordingAudio(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RecordingProgress(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ELAPSED_MS_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
     elapsed_ms: int
@@ -137,7 +137,7 @@ class RecordingProgress(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class Capture(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PROGRESS_FIELD_NUMBER: _ClassVar[int]

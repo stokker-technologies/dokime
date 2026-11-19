@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -81,14 +81,14 @@ ANSWER_OPERATOR_ENDS_WITH: AnswerOperator
 
 @final
 class PromptDefinitions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
     prompts: _containers.RepeatedCompositeFieldContainer[Prompt]
     def __init__(self, prompts: _Optional[_Iterable[_Union[Prompt, _Mapping]]] = ...) -> None: ...
 
 @final
 class Prompt(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     FIELDS_FIELD_NUMBER: _ClassVar[int]
@@ -115,10 +115,10 @@ class Prompt(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PromptValues(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -130,7 +130,7 @@ class PromptValues(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PromptField(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
@@ -151,7 +151,7 @@ class PromptField(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PromptFieldValidation(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MIN_LENGTH_FIELD_NUMBER: _ClassVar[int]
     MAX_LENGTH_FIELD_NUMBER: _ClassVar[int]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
@@ -170,7 +170,7 @@ class PromptFieldValidation(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class PromptAction(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     EMPHASIS_FIELD_NUMBER: _ClassVar[int]
@@ -183,7 +183,7 @@ class PromptAction(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class AnswerRule(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PREDICATE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     predicate: AnswerPredicate
@@ -192,7 +192,7 @@ class AnswerRule(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class AnswerPredicate(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     NOT_FIELD_NUMBER: _ClassVar[int]
@@ -204,7 +204,7 @@ class AnswerPredicate(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class AnswerBinaryPredicate(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]

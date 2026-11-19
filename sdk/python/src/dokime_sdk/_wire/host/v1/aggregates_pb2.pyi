@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import expressions_pb2 as _expressions_pb2
@@ -52,7 +52,7 @@ QUERY_SOURCE_RECORDS: QuerySource
 
 @final
 class AggregatesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     FILTERS_FIELD_NUMBER: _ClassVar[int]
     GROUP_BY_FIELD_NUMBER: _ClassVar[int]
@@ -69,7 +69,7 @@ class AggregatesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class AggregatesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     value: AggregateReply
@@ -78,7 +78,7 @@ class AggregatesGetResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class AggregateReply(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     COMPLETE_FIELD_NUMBER: _ClassVar[int]
@@ -89,7 +89,7 @@ class AggregateReply(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class QueryAggregate(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AGGREGATE_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     ALIAS_FIELD_NUMBER: _ClassVar[int]
@@ -102,7 +102,7 @@ class QueryAggregate(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class QueryFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     OP_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
@@ -113,7 +113,7 @@ class QueryFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class QueryRow(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[_scalar_pb2.Value]
     def __init__(self, values: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ...) -> None: ...

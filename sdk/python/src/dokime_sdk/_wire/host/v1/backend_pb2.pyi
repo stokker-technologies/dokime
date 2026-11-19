@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -56,14 +56,14 @@ APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE: AppearanceFailureKind
 
 @final
 class BackendAppearanceRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 @final
 class BackendAppearanceResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     APPEARANCE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     appearance: AppearanceSnapshot
@@ -72,14 +72,14 @@ class BackendAppearanceResponse(_message.Message, metaclass=GeneratedProtocolMes
 
 @final
 class BackendEnvironmentRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.Position
     def __init__(self, at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
 @final
 class BackendEnvironmentResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     BACKEND_PID_FIELD_NUMBER: _ClassVar[int]
     IN_STEP_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -90,7 +90,7 @@ class BackendEnvironmentResponse(_message.Message, metaclass=GeneratedProtocolMe
 
 @final
 class AppearanceSnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     APP_NAME_FIELD_NUMBER: _ClassVar[int]
     ORGANIZATION_FIELD_NUMBER: _ClassVar[int]
     TITLE_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
@@ -115,7 +115,7 @@ class AppearanceSnapshot(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
     WEBSITE_FIELD_NUMBER: _ClassVar[int]
@@ -126,7 +126,7 @@ class OrganizationIdentity(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class AppearanceLogo(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VARIANT_FIELD_NUMBER: _ClassVar[int]
     ASSET_FIELD_NUMBER: _ClassVar[int]
     ALT_FIELD_NUMBER: _ClassVar[int]
@@ -137,10 +137,10 @@ class AppearanceLogo(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class VariablesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -168,7 +168,7 @@ class ThemeFamily(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ThemeCornerRadii(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     BASE_FIELD_NUMBER: _ClassVar[int]
     SM_FIELD_NUMBER: _ClassVar[int]
     MD_FIELD_NUMBER: _ClassVar[int]
@@ -189,10 +189,10 @@ class ThemeCornerRadii(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class ThemeVariant(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class VariablesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -206,14 +206,14 @@ class ThemeVariant(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class AppearanceFailure(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: AppearanceFailureKind
     def __init__(self, kind: _Optional[_Union[AppearanceFailureKind, str]] = ...) -> None: ...
 
 @final
 class AppearanceAssetReference(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PLUGIN_ID_FIELD_NUMBER: _ClassVar[int]
     ASSET_ID_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
@@ -224,7 +224,7 @@ class AppearanceAssetReference(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class AppearanceAssetMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REFERENCE_FIELD_NUMBER: _ClassVar[int]
     CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]

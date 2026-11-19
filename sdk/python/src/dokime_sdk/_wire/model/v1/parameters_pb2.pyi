@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
@@ -43,7 +43,7 @@ PARAMETER_BINARY_OPERATOR_DIVIDE: ParameterBinaryOperator
 
 @final
 class Parameter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
@@ -76,7 +76,7 @@ class Parameter(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ParameterExpansion(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SINGLE_FIELD_NUMBER: _ClassVar[int]
     CARTESIAN_FIELD_NUMBER: _ClassVar[int]
     ZIP_FIELD_NUMBER: _ClassVar[int]
@@ -87,7 +87,7 @@ class ParameterExpansion(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class ParameterExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     ARRAY_FIELD_NUMBER: _ClassVar[int]
     RANGE_FIELD_NUMBER: _ClassVar[int]
@@ -110,14 +110,14 @@ class ParameterExpression(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class ParameterExpressions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[ParameterExpression]
     def __init__(self, values: _Optional[_Iterable[_Union[ParameterExpression, _Mapping]]] = ...) -> None: ...
 
 @final
 class IntegerRange(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     START_FIELD_NUMBER: _ClassVar[int]
     STOP_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
@@ -128,7 +128,7 @@ class IntegerRange(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class NumberRange(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     START_FIELD_NUMBER: _ClassVar[int]
     STOP_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
@@ -139,7 +139,7 @@ class NumberRange(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class LinearSpace(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     START_FIELD_NUMBER: _ClassVar[int]
     STOP_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -150,7 +150,7 @@ class LinearSpace(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DynamicDefault(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     FALLBACK_FIELD_NUMBER: _ClassVar[int]
     key: DynamicDefaultKey
@@ -159,7 +159,7 @@ class DynamicDefault(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ParameterUnary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     operator: ParameterUnaryOperator
@@ -168,7 +168,7 @@ class ParameterUnary(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ParameterBinary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
@@ -179,7 +179,7 @@ class ParameterBinary(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FileParameter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]

@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1 import executions_pb2 as _executions_pb2
@@ -15,7 +15,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class ProgressGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -24,7 +24,7 @@ class ProgressGetRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class ProgressGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -35,7 +35,7 @@ class ProgressGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class ProgressWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -44,7 +44,7 @@ class ProgressWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class ProgressWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -63,7 +63,7 @@ class ProgressWatchResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ProgressSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -76,7 +76,7 @@ class ProgressSetRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class ProgressSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]

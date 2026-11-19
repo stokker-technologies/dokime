@@ -181,13 +181,13 @@ class _Template:
             document_ids.add(qualified)
             bound._identifiers[id(declaration)] = qualified
             document.message.metadata.identifier = qualified
-        for declaration in self.prompts:
+        for prompt in self.prompts:
             value = shared.Prompt()
-            value.CopyFrom(declaration.value)
-            value.metadata.identifier = bound.resolve(declaration)
+            value.CopyFrom(prompt.value)
+            value.metadata.identifier = bound.resolve(prompt)
             value.owner_suite = prefix
             value.template = bound.identifier
-            bound._prompts[id(declaration)] = value
+            bound._prompts[id(prompt)] = value
         return bound
 
     def resolve(self, declaration: object) -> str:

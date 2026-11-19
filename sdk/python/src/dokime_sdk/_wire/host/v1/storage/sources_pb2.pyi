@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -14,14 +14,14 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class SourcesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 @final
 class SourcesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -32,7 +32,7 @@ class SourcesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SourcesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -43,7 +43,7 @@ class SourcesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class SourcesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -54,7 +54,7 @@ class SourcesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class StorageSource(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     ADAPTER_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
@@ -67,7 +67,7 @@ class StorageSource(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class StorageSources(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SOURCES_FIELD_NUMBER: _ClassVar[int]
     sources: _containers.RepeatedCompositeFieldContainer[StorageSource]
     def __init__(self, sources: _Optional[_Iterable[_Union[StorageSource, _Mapping]]] = ...) -> None: ...

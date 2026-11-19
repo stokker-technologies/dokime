@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import expressions_pb2 as _expressions_pb2
@@ -155,7 +155,7 @@ LINE_STYLE_STEP: LineStyle
 
 @final
 class Plot(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
@@ -210,7 +210,7 @@ class Plot(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridAxisEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -223,7 +223,7 @@ class GridAxisEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridHighlight(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -234,7 +234,7 @@ class GridHighlight(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridChart(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     FRAME_FIELD_NUMBER: _ClassVar[int]
@@ -253,7 +253,7 @@ class GridChart(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReferenceLine(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
@@ -264,7 +264,7 @@ class ReferenceLine(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -281,7 +281,7 @@ class ReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     FRAME_FIELD_NUMBER: _ClassVar[int]
@@ -300,7 +300,7 @@ class GridDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotFftOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SAMPLE_RATE_HZ_FIELD_NUMBER: _ClassVar[int]
     WINDOW_FIELD_NUMBER: _ClassVar[int]
     DETREND_FIELD_NUMBER: _ClassVar[int]
@@ -321,7 +321,7 @@ class PlotFftOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -332,7 +332,7 @@ class PlotFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotHistogramOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     BINS_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
     bins: int
@@ -341,7 +341,7 @@ class PlotHistogramOptions(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class PlotIntervalOptions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     BIN_WIDTH_FIELD_NUMBER: _ClassVar[int]
     SIGMA_FIELD_NUMBER: _ClassVar[int]
     CLIP_TO_OBSERVED_FIELD_NUMBER: _ClassVar[int]

@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
@@ -12,14 +12,14 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class SecretsDeclarations(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SECRETS_FIELD_NUMBER: _ClassVar[int]
     secrets: _containers.RepeatedCompositeFieldContainer[SecretDeclaration]
     def __init__(self, secrets: _Optional[_Iterable[_Union[SecretDeclaration, _Mapping]]] = ...) -> None: ...
 
 @final
 class SecretDeclaration(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata

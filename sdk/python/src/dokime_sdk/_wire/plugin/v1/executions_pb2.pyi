@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
@@ -11,7 +11,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class ExecutionsInitializeRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
     ORIGIN_FIELD_NUMBER: _ClassVar[int]
@@ -22,12 +22,12 @@ class ExecutionsInitializeRequest(_message.Message, metaclass=GeneratedProtocolM
 
 @final
 class ExecutionsInitializeResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     def __init__(self) -> None: ...
 
 @final
 class ExecutionsCleanupRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     TERMINATION_FIELD_NUMBER: _ClassVar[int]
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
@@ -40,5 +40,5 @@ class ExecutionsCleanupRequest(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class ExecutionsCleanupResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     def __init__(self) -> None: ...

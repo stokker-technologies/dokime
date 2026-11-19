@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -16,7 +16,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class EvidenceStatisticsRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -37,7 +37,7 @@ class EvidenceStatisticsRequest(_message.Message, metaclass=GeneratedProtocolMes
 
 @final
 class EvidenceStatisticsResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STATISTICS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     statistics: Statistics
@@ -46,7 +46,7 @@ class EvidenceStatisticsResponse(_message.Message, metaclass=GeneratedProtocolMe
 
 @final
 class EvidenceArchiveRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     subject: EvidenceSubject
@@ -55,7 +55,7 @@ class EvidenceArchiveRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class EvidenceArchiveResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     file: _file_pb2.FileReference
@@ -64,7 +64,7 @@ class EvidenceArchiveResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class Statistics(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
@@ -93,7 +93,7 @@ class Statistics(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class EvidenceSubject(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     execution: str
@@ -102,7 +102,7 @@ class EvidenceSubject(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Output(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LOG_FIELD_NUMBER: _ClassVar[int]
     ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     log: _scalar_pb2.Null

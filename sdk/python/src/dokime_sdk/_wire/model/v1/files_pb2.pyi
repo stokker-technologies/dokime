@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from google.protobuf.internal import containers as _containers
@@ -34,7 +34,7 @@ CAPTURE_GAP_REASON_RESUME_UNSUPPORTED: CaptureGapReason
 
 @final
 class FileSource(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     TREE_FIELD_NUMBER: _ClassVar[int]
     NEWEST_FIELD_NUMBER: _ClassVar[int]
@@ -45,7 +45,7 @@ class FileSource(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FileLocation(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LOCAL_FIELD_NUMBER: _ClassVar[int]
     FTP_FIELD_NUMBER: _ClassVar[int]
     local: str
@@ -54,7 +54,7 @@ class FileLocation(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FtpLocation(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     URL_FIELD_NUMBER: _ClassVar[int]
     SECRET_ID_FIELD_NUMBER: _ClassVar[int]
     url: str
@@ -63,7 +63,7 @@ class FtpLocation(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FileSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROOT_FIELD_NUMBER: _ClassVar[int]
     RULES_FIELD_NUMBER: _ClassVar[int]
     root: FileLocation
@@ -72,7 +72,7 @@ class FileSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FileRule(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     GLOB_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     glob: str
@@ -81,7 +81,7 @@ class FileRule(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CapturedArtifact(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
     artifact: str
@@ -90,7 +90,7 @@ class CapturedArtifact(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class CaptureGap(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PATH_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]

@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1 import executions_pb2 as _executions_pb2
@@ -45,7 +45,7 @@ CASE_STATUS_INTERRUPTED: CaseStatus
 
 @final
 class CasesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PLAN_FIELD_NUMBER: _ClassVar[int]
     VALIDATE_ONLY_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -56,7 +56,7 @@ class CasesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CasesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CASES_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     cases: _containers.RepeatedCompositeFieldContainer[PlannedCase]
@@ -65,7 +65,7 @@ class CasesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CasesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -76,7 +76,7 @@ class CasesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CasesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     value: CaseDetail
@@ -85,7 +85,7 @@ class CasesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class CasesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     parent: str
@@ -94,7 +94,7 @@ class CasesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class CasesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CASES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     cases: _containers.RepeatedCompositeFieldContainer[CaseSummary]
@@ -103,7 +103,7 @@ class CasesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class CasesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     parent: str
@@ -112,7 +112,7 @@ class CasesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class CasesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CASES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -125,7 +125,7 @@ class CasesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CasesDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -136,14 +136,14 @@ class CasesDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CasesDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
     def __init__(self, receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
 @final
 class CasesParametersRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -154,7 +154,7 @@ class CasesParametersRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class CasesParametersResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     parameters: _containers.RepeatedCompositeFieldContainer[CaseParameter]
@@ -163,7 +163,7 @@ class CasesParametersResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class CaseActions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DELETE_FIELD_NUMBER: _ClassVar[int]
     UNAVAILABLE_REASONS_FIELD_NUMBER: _ClassVar[int]
     delete: bool
@@ -172,7 +172,7 @@ class CaseActions(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CaseDetail(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
     SUITE_FIELD_NUMBER: _ClassVar[int]
     PARAMETER_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -187,7 +187,7 @@ class CaseDetail(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CaseParameter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -196,7 +196,7 @@ class CaseParameter(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CaseSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -223,7 +223,7 @@ class CaseSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlannedCase(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -242,7 +242,7 @@ class PlannedCase(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RegisteredSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
@@ -255,7 +255,7 @@ class RegisteredSelection(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class RegisteredSelectionFilesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     key: str
@@ -264,7 +264,7 @@ class RegisteredSelectionFilesEntry(_message.Message, metaclass=GeneratedProtoco
 
 @final
 class RegisteredSelectionParametersEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     key: str
@@ -273,14 +273,14 @@ class RegisteredSelectionParametersEntry(_message.Message, metaclass=GeneratedPr
 
 @final
 class SelectedFile(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: SelectedFileKind
     def __init__(self, kind: _Optional[_Union[SelectedFileKind, _Mapping]] = ...) -> None: ...
 
 @final
 class SelectedFileKind(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     CLEAR_FIELD_NUMBER: _ClassVar[int]
     value: str
@@ -289,7 +289,7 @@ class SelectedFileKind(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class SelectionPlan(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SELECTIONS_FIELD_NUMBER: _ClassVar[int]
     MAX_CASES_FIELD_NUMBER: _ClassVar[int]
     CASE_IDS_FIELD_NUMBER: _ClassVar[int]
@@ -302,7 +302,7 @@ class SelectionPlan(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class SelectionValues(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[_scalar_pb2.Value]
     def __init__(self, values: _Optional[_Iterable[_Union[_scalar_pb2.Value, _Mapping]]] = ...) -> None: ...

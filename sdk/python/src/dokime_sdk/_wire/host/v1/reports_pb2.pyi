@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -45,7 +45,7 @@ REPORT_ORIGIN_CURRENT: ReportOrigin
 
 @final
 class ReportsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -56,7 +56,7 @@ class ReportsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class ReportsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REPORT_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -67,7 +67,7 @@ class ReportsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class ReportsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -78,7 +78,7 @@ class ReportsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class ReportsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REPORT_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -91,7 +91,7 @@ class ReportsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ReportsPublishRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -104,7 +104,7 @@ class ReportsPublishRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ReportsPublishResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REPORT_FIELD_NUMBER: _ClassVar[int]
     SEAL_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -115,7 +115,7 @@ class ReportsPublishResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ReportMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TEST_CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     TEST_EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
@@ -134,7 +134,7 @@ class ReportMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReportSubject(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     execution: str
@@ -143,7 +143,7 @@ class ReportSubject(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReportCapture(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REPORT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     CASES_FIELD_NUMBER: _ClassVar[int]
@@ -174,7 +174,7 @@ class ReportCapture(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReportCase(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     detail: _cases_pb2.CasesGetResponse
@@ -183,7 +183,7 @@ class ReportCase(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReportExecution(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     INPUTS_FIELD_NUMBER: _ClassVar[int]
     OUTPUTS_FIELD_NUMBER: _ClassVar[int]
@@ -206,7 +206,7 @@ class ReportExecution(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ReportFile(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     READS_FIELD_NUMBER: _ClassVar[int]
     file: _file_pb2.FileReference

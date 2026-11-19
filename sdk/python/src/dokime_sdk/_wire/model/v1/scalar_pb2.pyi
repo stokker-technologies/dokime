@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -36,7 +36,7 @@ VALUE_TYPE_DATETIME: ValueType
 
 @final
 class Value(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NULL_FIELD_NUMBER: _ClassVar[int]
     BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     INTEGER_FIELD_NUMBER: _ClassVar[int]
@@ -61,7 +61,7 @@ class Value(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExactNumber(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NEGATIVE_FIELD_NUMBER: _ClassVar[int]
     NUMERATOR_FIELD_NUMBER: _ClassVar[int]
     DENOMINATOR_FIELD_NUMBER: _ClassVar[int]
@@ -72,22 +72,22 @@ class ExactNumber(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Null(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     def __init__(self) -> None: ...
 
 @final
 class ValueList(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[Value]
     def __init__(self, values: _Optional[_Iterable[_Union[Value, _Mapping]]] = ...) -> None: ...
 
 @final
 class MapValue(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str

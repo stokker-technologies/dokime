@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import documents_pb2 as _documents_pb2
@@ -15,14 +15,14 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class Suites(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SUITES_FIELD_NUMBER: _ClassVar[int]
     suites: _containers.RepeatedCompositeFieldContainer[Suite]
     def __init__(self, suites: _Optional[_Iterable[_Union[Suite, _Mapping]]] = ...) -> None: ...
 
 @final
 class Suite(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     TEMPLATES_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
@@ -35,7 +35,7 @@ class Suite(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class TestCaseTemplate(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     FILES_FIELD_NUMBER: _ClassVar[int]

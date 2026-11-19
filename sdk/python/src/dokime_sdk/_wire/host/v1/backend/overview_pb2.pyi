@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1 import cycles_pb2 as _cycles_pb2
@@ -16,14 +16,14 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class OverviewGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 @final
 class OverviewGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OVERVIEW_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     overview: RuntimeShellSnapshot
@@ -32,14 +32,14 @@ class OverviewGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class OverviewWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 @final
 class OverviewWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OVERVIEW_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -52,7 +52,7 @@ class OverviewWatchResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class EvidenceCounts(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
@@ -71,7 +71,7 @@ class EvidenceCounts(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RuntimeShellSnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     SHUTTING_DOWN_FIELD_NUMBER: _ClassVar[int]

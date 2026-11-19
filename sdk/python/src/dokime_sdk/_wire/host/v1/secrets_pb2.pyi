@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import metadata_pb2 as _metadata_pb2
@@ -26,7 +26,7 @@ SECRET_IMPORT_ACTION_SKIP: SecretImportAction
 
 @final
 class SecretsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -35,7 +35,7 @@ class SecretsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class SecretsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -48,7 +48,7 @@ class SecretsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SecretsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -61,7 +61,7 @@ class SecretsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class SecretsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -72,14 +72,14 @@ class SecretsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SecretsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 @final
 class SecretsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ENTRIES_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -90,14 +90,14 @@ class SecretsListResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class SecretsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     AT_FIELD_NUMBER: _ClassVar[int]
     at: _position_pb2.ReadCut
     def __init__(self, at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 @final
 class SecretsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ENTRIES_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -112,7 +112,7 @@ class SecretsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class SecretsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAMES_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -123,7 +123,7 @@ class SecretsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class SecretsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     CLEANUP_PENDING_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
@@ -132,7 +132,7 @@ class SecretsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class SecretsExportRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAMES_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -143,7 +143,7 @@ class SecretsExportRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class SecretsExportResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARCHIVE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     archive: SecretArchive
@@ -152,7 +152,7 @@ class SecretsExportResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class SecretsImportRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DATA_FIELD_NUMBER: _ClassVar[int]
     CHOICES_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
@@ -167,7 +167,7 @@ class SecretsImportRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class SecretsImportResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PREVIEW_FIELD_NUMBER: _ClassVar[int]
     SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -178,14 +178,14 @@ class SecretsImportResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class SecretArchive(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DATA_FIELD_NUMBER: _ClassVar[int]
     data: bytes
     def __init__(self, data: _Optional[bytes] = ...) -> None: ...
 
 @final
 class SecretImportChoice(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     identifier: str
@@ -194,7 +194,7 @@ class SecretImportChoice(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SecretImportEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     EXISTS_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
@@ -203,7 +203,7 @@ class SecretImportEntry(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class SecretImportPreview(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     HOST_ID_FIELD_NUMBER: _ClassVar[int]
     HOST_LABEL_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
@@ -216,7 +216,7 @@ class SecretImportPreview(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class SecretSnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     HOST_ID_FIELD_NUMBER: _ClassVar[int]
     HOST_LABEL_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
@@ -231,7 +231,7 @@ class SecretSnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class SecretSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     KNOWN_USES_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
@@ -240,7 +240,7 @@ class SecretSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class SecretWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata

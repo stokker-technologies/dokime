@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
@@ -13,10 +13,10 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class TestCasesMaterializeRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class ParametersEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -30,7 +30,7 @@ class TestCasesMaterializeRequest(_message.Message, metaclass=GeneratedProtocolM
 
 @final
 class TestCasesMaterializeResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
     test_case: _execution_pb2.TestCase
     def __init__(self, test_case: _Optional[_Union[_execution_pb2.TestCase, _Mapping]] = ...) -> None: ...

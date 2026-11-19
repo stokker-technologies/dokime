@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -61,7 +61,7 @@ ARTIFACT_STATE_FAILED: ArtifactState
 
 @final
 class EvidenceCondition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECORD_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     ALL_FIELD_NUMBER: _ClassVar[int]
@@ -74,17 +74,17 @@ class EvidenceCondition(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class EvidenceConditions(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     conditions: _containers.RepeatedCompositeFieldContainer[EvidenceCondition]
     def __init__(self, conditions: _Optional[_Iterable[_Union[EvidenceCondition, _Mapping]]] = ...) -> None: ...
 
 @final
 class RecordMatch(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class FieldsEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -98,7 +98,7 @@ class RecordMatch(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class StreamMatch(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
@@ -113,7 +113,7 @@ class StreamMatch(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ArtifactMetadata(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARTIFACT_ID_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_ID_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -138,7 +138,7 @@ class ArtifactMetadata(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class ArtifactScope(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -149,14 +149,14 @@ class ArtifactScope(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class EvidenceOrigin(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: EvidenceOriginKind
     def __init__(self, kind: _Optional[_Union[EvidenceOriginKind, _Mapping]] = ...) -> None: ...
 
 @final
 class EvidenceOriginKind(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DEFAULT_FIELD_NUMBER: _ClassVar[int]
     INITIALIZATION_FIELD_NUMBER: _ClassVar[int]
     STEP_ATTEMPT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -169,7 +169,7 @@ class EvidenceOriginKind(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class EvidenceScope(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -192,7 +192,7 @@ class EvidenceScope(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Window(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     START_FIELD_NUMBER: _ClassVar[int]
     END_FIELD_NUMBER: _ClassVar[int]
     start: _timestamp_pb2.Timestamp

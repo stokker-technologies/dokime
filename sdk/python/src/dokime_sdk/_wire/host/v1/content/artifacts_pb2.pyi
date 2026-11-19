@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -19,7 +19,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class ArtifactsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -28,7 +28,7 @@ class ArtifactsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class ArtifactsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FILE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -39,7 +39,7 @@ class ArtifactsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class ArtifactsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     FILENAME_FIELD_NUMBER: _ClassVar[int]
@@ -56,7 +56,7 @@ class ArtifactsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ArtifactsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     artifact: _evidence_pb2.ArtifactMetadata
@@ -65,7 +65,7 @@ class ArtifactsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class ArtifactsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -76,7 +76,7 @@ class ArtifactsListRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class ArtifactsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -87,7 +87,7 @@ class ArtifactsListResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ArtifactsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -98,7 +98,7 @@ class ArtifactsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ArtifactsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]

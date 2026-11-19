@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -22,7 +22,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class SamplesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     STREAMS_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -49,7 +49,7 @@ class SamplesListRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SamplesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SAMPLES_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -62,7 +62,7 @@ class SamplesListResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class SamplesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     STREAMS_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -89,7 +89,7 @@ class SamplesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class SamplesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SAMPLES_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -104,7 +104,7 @@ class SamplesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class Bucket(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     START_FIELD_NUMBER: _ClassVar[int]
     END_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -125,7 +125,7 @@ class Bucket(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class BucketRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EVERY_NANOS_FIELD_NUMBER: _ClassVar[int]
     AGGREGATE_FIELD_NUMBER: _ClassVar[int]
     every_nanos: int
@@ -134,7 +134,7 @@ class BucketRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class BucketValue(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -149,7 +149,7 @@ class BucketValue(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class SampleRow(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RAW_FIELD_NUMBER: _ClassVar[int]
     BUCKET_FIELD_NUMBER: _ClassVar[int]
     raw: TelemetrySample
@@ -158,7 +158,7 @@ class SampleRow(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class StatisticValue(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     NUMBER_FIELD_NUMBER: _ClassVar[int]
     count: int
@@ -167,7 +167,7 @@ class StatisticValue(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class TelemetrySample(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     SAMPLE_ID_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]

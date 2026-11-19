@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import evidence_pb2 as _evidence_pb2
@@ -174,7 +174,7 @@ UNIT_FAMILY_CUSTOM: UnitFamily
 
 @final
 class RecordSchemasGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -187,7 +187,7 @@ class RecordSchemasGetRequest(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class RecordSchemasGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     value: RecordSchema
@@ -196,7 +196,7 @@ class RecordSchemasGetResponse(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class RecordSchemasListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     parent: str
@@ -205,7 +205,7 @@ class RecordSchemasListRequest(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class RecordSchemasListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[RecordSchema]
@@ -214,7 +214,7 @@ class RecordSchemasListResponse(_message.Message, metaclass=GeneratedProtocolMes
 
 @final
 class Field(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ID_FIELD_NUMBER: _ClassVar[int]
     VALUE_TYPE_FIELD_NUMBER: _ClassVar[int]
     NULLABLE_FIELD_NUMBER: _ClassVar[int]
@@ -227,7 +227,7 @@ class Field(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RecordDisplay(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ICON_FIELD_NUMBER: _ClassVar[int]
     TONE_FIELD_NUMBER: _ClassVar[int]
     icon: RecordIcon
@@ -236,7 +236,7 @@ class RecordDisplay(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RecordField(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_TYPE_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_FIELD_NUMBER: _ClassVar[int]
@@ -257,7 +257,7 @@ class RecordField(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RecordSchema(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -284,7 +284,7 @@ class RecordSchema(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Schema(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     IDENTITY_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
     FIELDS_FIELD_NUMBER: _ClassVar[int]
@@ -295,7 +295,7 @@ class Schema(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class TelemetryColumn(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_TYPE_FIELD_NUMBER: _ClassVar[int]
     ROLE_FIELD_NUMBER: _ClassVar[int]
@@ -318,7 +318,7 @@ class TelemetryColumn(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class TelemetrySchema(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     STORAGE_SCHEMA_FIELD_NUMBER: _ClassVar[int]
@@ -349,35 +349,35 @@ class TelemetrySchema(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class AbsoluteTimeFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     pattern: str
     def __init__(self, pattern: _Optional[str] = ...) -> None: ...
 
 @final
 class ElapsedFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UNIT_FIELD_NUMBER: _ClassVar[int]
     unit: ElapsedUnit
     def __init__(self, unit: _Optional[_Union[ElapsedUnit, str]] = ...) -> None: ...
 
 @final
 class EngineeringFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
     significant_digits: int
     def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
 
 @final
 class FixedFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DECIMALS_FIELD_NUMBER: _ClassVar[int]
     decimals: int
     def __init__(self, decimals: _Optional[int] = ...) -> None: ...
 
 @final
 class MeasurementUnit(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FAMILY_FIELD_NUMBER: _ClassVar[int]
     SYMBOL_FIELD_NUMBER: _ClassVar[int]
@@ -388,35 +388,35 @@ class MeasurementUnit(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class NormalFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MAX_FRACTION_DIGITS_FIELD_NUMBER: _ClassVar[int]
     max_fraction_digits: int
     def __init__(self, max_fraction_digits: _Optional[int] = ...) -> None: ...
 
 @final
 class ScientificFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
     significant_digits: int
     def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
 
 @final
 class SiPrefixFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
     significant_digits: int
     def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
 
 @final
 class ValueFormat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KIND_FIELD_NUMBER: _ClassVar[int]
     kind: ValueFormatKind
     def __init__(self, kind: _Optional[_Union[ValueFormatKind, _Mapping]] = ...) -> None: ...
 
 @final
 class ValueFormatKind(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NORMAL_FIELD_NUMBER: _ClassVar[int]
     FIXED_FIELD_NUMBER: _ClassVar[int]
     SCIENTIFIC_FIELD_NUMBER: _ClassVar[int]

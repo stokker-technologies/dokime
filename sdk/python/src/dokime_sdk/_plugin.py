@@ -6,18 +6,22 @@
 #
 # ***
 
-"""Dokime Execution Operations On The Pinned Harmos Remote Plugin SDK."""
+"""Dokime Execution Operations on the Pinned Harmos Remote Plugin SDK."""
 
 # === Imports === #
 
 # Standard Library Imports
 import asyncio
 import inspect
+import json
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from importlib.metadata import packages_distributions, version
+from importlib.metadata import distributions, packages_distributions, version
+from pathlib import Path
 from types import FunctionType
 from typing import Any, ClassVar, cast
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 
 # Third Party Imports
 import harmos
@@ -80,10 +84,7 @@ class Plugin:
     def __init__(self) -> None:
         self._identifier = build_identifier(type(self).__name__, self.identifier, class_name=True)
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
-        distributions = packages_distributions().get(type(self).__module__.split(".")[0], ())
-        if self.version is None and len(distributions) != 1:
-            raise ValueError("Build Plugin: Install Its Owning Distribution or Declare version on the Plugin Class")
-        self._version = self.version if self.version is not None else version(next(iter(distributions)))
+        self._version = self.version if self.version is not None else _distribution_version(type(self))
         self._suites = tuple(bind_suite(item) for item in tuple(self.suites))
         self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
         self._operations = tuple(self.operations)
@@ -184,10 +185,15 @@ class Plugin:
 
     async def serve(self, address: str | None = None) -> None:
         endpoint = await self._activate(address)
+        termination = asyncio.create_task(endpoint.server.wait_for_termination())
         try:
-            await endpoint.server.wait_for_termination()
+            print(f"harmos listening {endpoint.address}", flush=True)
+            await asyncio.shield(termination)
+        except asyncio.CancelledError:
+            pass
         finally:
             await endpoint.close()
+            await termination
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
         from ._configuration import load, resolve
@@ -230,12 +236,13 @@ class Plugin:
         retries: int = 0,
         policy: dokime_sdk.operations.OperationPolicy | None = None,
     ) -> Callable[..., Awaitable[Message]]:
-        request_type, response_type = {
+        contracts: dict[str, tuple[type[Message], type[Message]]] = {
             "step": (StepsExecuteRequest, StepsExecuteResponse),
             "criterion": (CriteriaEvaluateRequest, CriteriaEvaluateResponse),
             "setup": (ExecutionsInitializeRequest, ExecutionsInitializeResponse),
             "cleanup": (ExecutionsCleanupRequest, ExecutionsCleanupResponse),
-        }[kind]
+        }
+        request_type, response_type = contracts[kind]
 
         async def execute(
             adapter: object,
@@ -384,6 +391,25 @@ class Plugin:
 
 
 # === Private Functions === #
+
+
+def _distribution_version(plugin: type[Plugin]) -> str:
+    owners = packages_distributions().get(plugin.__module__.split(".")[0], ())
+    if len(owners) == 1:
+        return version(owners[0])
+    # Editable Wheels May List Only Their Import Hook, Not the Source Package.
+    source = Path(inspect.getfile(plugin)).resolve()
+    versions = []
+    for distribution in distributions():
+        direct_url = json.loads(distribution.read_text("direct_url.json") or "{}")
+        if direct_url.get("dir_info", {}).get("editable") is not True:
+            continue
+        url = urlsplit(direct_url["url"])
+        if url.scheme == "file" and source.is_relative_to(Path(url2pathname(url.path)).resolve()):
+            versions.append(distribution.version)
+    if len(versions) == 1:
+        return versions[0]
+    raise ValueError("Build Plugin: Install Its Owning Distribution or Declare version on the Plugin Class")
 
 
 # === Entry Point === #

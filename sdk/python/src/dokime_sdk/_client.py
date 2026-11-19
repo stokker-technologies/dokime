@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -148,27 +148,27 @@ class Client:
         self._prompt_handler = None
         if self._prompt_task is not None:
             self._prompt_task.cancel()
-            results = await asyncio.gather(self._prompt_task, return_exceptions=True)
-            for result in results:
-                if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
-                    failures.append(_cleanup_failure(result))
+            prompt_results = await asyncio.gather(self._prompt_task, return_exceptions=True)
+            for prompt_result in prompt_results:
+                if isinstance(prompt_result, BaseException) and not isinstance(prompt_result, asyncio.CancelledError):
+                    failures.append(_cleanup_failure(prompt_result))
             self._prompt_task = None
         registrations = list(self.plugins._pending)
         for registration in registrations:
             registration.cancel()
         results = await asyncio.gather(*registrations, return_exceptions=True)
-        for result in results:
-            if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
-                failures.append(_cleanup_failure(result))
+        for registration_result in results:
+            if isinstance(registration_result, BaseException) and not isinstance(registration_result, asyncio.CancelledError):
+                failures.append(_cleanup_failure(registration_result))
         for entry in list(self.plugins._owned.values()):
-            results = await asyncio.gather(entry.unregister(), return_exceptions=True)
-            for result in results:
-                if isinstance(result, BaseException):
-                    failures.append(_cleanup_failure(result))
-        results = await asyncio.gather(self._transport.close(), return_exceptions=True)
-        for result in results:
-            if isinstance(result, BaseException):
-                failures.append(_cleanup_failure(result))
+            unregister_results = await asyncio.gather(entry.unregister(), return_exceptions=True)
+            for unregister_result in unregister_results:
+                if isinstance(unregister_result, BaseException):
+                    failures.append(_cleanup_failure(unregister_result))
+        close_results = await asyncio.gather(self._transport.close(), return_exceptions=True)
+        for close_result in close_results:
+            if isinstance(close_result, BaseException):
+                failures.append(_cleanup_failure(close_result))
         self._closed = True
         if failures:
             raise SdkError(
@@ -225,7 +225,7 @@ class Plugins:
                         if frame.resync_required:
                             raise invalid("plugins.watch", frame.resync_required)
                         if frame.HasField("snapshot"):
-                            entries = frame.snapshot.entries
+                            entries = list(frame.snapshot.entries)
                         elif frame.HasField("change") and frame.change.HasField("entry"):
                             entries = [frame.change.entry]
                         else:
@@ -251,13 +251,13 @@ class Plugins:
                     await entry.unregister()
                 else:
                     try:
-                        observed = await self._client._transport.plugins.get(plugin._identifier)
+                        lookup_reply = await self._client._transport.plugins.get(plugin._identifier)
                     except AioRpcError as lookup:
                         if lookup.code() != StatusCode.NOT_FOUND:
                             error.add_note(f"Read Failed Registration Entry: {lookup}")
                     else:
-                        if observed.entry.placement.remote.url == f"http://{endpoint.address}":
-                            await self._client._transport.plugins.delete(observed.entry.name, observed.entry.revision)
+                        if lookup_reply.entry.placement.remote.url == f"http://{endpoint.address}":
+                            await self._client._transport.plugins.delete(lookup_reply.entry.name, lookup_reply.entry.revision)
                     await endpoint.close()
             except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
                 error.add_note(f"Registration Cleanup Failed: {cleanup}")

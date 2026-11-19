@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -30,10 +30,10 @@ TERMINATION_INTERRUPTED: Termination
 
 @final
 class TestCase(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class ParametersEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -51,7 +51,7 @@ class TestCase(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Origin(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PLUGIN_RUN_FIELD_NUMBER: _ClassVar[int]
     IMPORT_FIELD_NUMBER: _ClassVar[int]
     plugin_run: PluginRun
@@ -59,7 +59,7 @@ class Origin(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PluginRun(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
     PLUGIN_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_FIELD_NUMBER: _ClassVar[int]
@@ -74,7 +74,7 @@ class PluginRun(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Import(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     SOURCES_FIELD_NUMBER: _ClassVar[int]
     IMPORTER_FIELD_NUMBER: _ClassVar[int]
@@ -95,7 +95,7 @@ class Import(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ImportSource(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
     ATTACHED_FIELD_NUMBER: _ClassVar[int]
@@ -106,7 +106,7 @@ class ImportSource(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Step(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     OPERATION_FIELD_NUMBER: _ClassVar[int]
     REPEATABLE_FIELD_NUMBER: _ClassVar[int]
@@ -117,7 +117,7 @@ class Step(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Criterion(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     OPERATION_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
@@ -126,7 +126,7 @@ class Criterion(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionProgressValue(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COMPLETED_FIELD_NUMBER: _ClassVar[int]
     TOTAL_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]

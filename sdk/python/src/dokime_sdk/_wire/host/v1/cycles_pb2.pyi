@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -94,7 +94,7 @@ RESULT_STATUS_CANCELLED: ResultStatus
 
 @final
 class CyclesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -103,7 +103,7 @@ class CyclesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class CyclesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
@@ -116,7 +116,7 @@ class CyclesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class CyclesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -129,7 +129,7 @@ class CyclesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class CyclesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -140,7 +140,7 @@ class CyclesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class CyclesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -155,7 +155,7 @@ class CyclesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class CyclesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -166,7 +166,7 @@ class CyclesListResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CyclesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -181,7 +181,7 @@ class CyclesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CyclesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -194,7 +194,7 @@ class CyclesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CyclesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ORIGINS_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     CONTINUE_AUTOMATICALLY_FIELD_NUMBER: _ClassVar[int]
@@ -209,7 +209,7 @@ class CyclesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CyclesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     SKIPPED_FIELD_NUMBER: _ClassVar[int]
     DROPPED_PARAMETERS_FIELD_NUMBER: _ClassVar[int]
@@ -222,7 +222,7 @@ class CyclesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class CyclesSealRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -231,7 +231,7 @@ class CyclesSealRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class CyclesSealResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SEAL_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     seal: bytes
@@ -240,7 +240,7 @@ class CyclesSealResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CycleFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     STATUSES_FIELD_NUMBER: _ClassVar[int]
     CREATED_AFTER_FIELD_NUMBER: _ClassVar[int]
@@ -255,7 +255,7 @@ class CycleFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CycleOrder(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     DESCENDING_FIELD_NUMBER: _ClassVar[int]
     key: CycleOrderKey
@@ -264,7 +264,7 @@ class CycleOrder(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CycleSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_IDS_FIELD_NUMBER: _ClassVar[int]
     PHASES_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -279,7 +279,7 @@ class CycleSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RerunCaseNotice(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
@@ -290,7 +290,7 @@ class RerunCaseNotice(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CycleWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
@@ -303,7 +303,7 @@ class CycleWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CycleSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PHASE_FIELD_NUMBER: _ClassVar[int]
@@ -344,7 +344,7 @@ class CycleSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ResultSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     PASSED_FIELD_NUMBER: _ClassVar[int]
     FAILED_FIELD_NUMBER: _ClassVar[int]

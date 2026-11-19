@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import expressions_pb2 as _expressions_pb2
@@ -39,7 +39,7 @@ EVIDENCE_CARD_STREAM_CONTEXT: EvidenceCard
 
 @final
 class Document(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     SECTIONS_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
@@ -48,7 +48,7 @@ class Document(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Section(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     CARDS_FIELD_NUMBER: _ClassVar[int]
     SECTIONS_FIELD_NUMBER: _ClassVar[int]
@@ -61,7 +61,7 @@ class Section(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class SectionRepeat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
     ORDER_BY_FIELD_NUMBER: _ClassVar[int]
@@ -72,7 +72,7 @@ class SectionRepeat(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Card(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     MARKDOWN_FIELD_NUMBER: _ClassVar[int]
     PLOT_FIELD_NUMBER: _ClassVar[int]
@@ -93,7 +93,7 @@ class Card(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CardLayout(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     ORDER_FIELD_NUMBER: _ClassVar[int]
@@ -104,17 +104,17 @@ class CardLayout(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Table(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     rows: _containers.RepeatedCompositeFieldContainer[TableRow]
     def __init__(self, rows: _Optional[_Iterable[_Union[TableRow, _Mapping]]] = ...) -> None: ...
 
 @final
 class TableRow(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class CellsEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -126,14 +126,14 @@ class TableRow(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Summary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TILES_FIELD_NUMBER: _ClassVar[int]
     tiles: _containers.RepeatedCompositeFieldContainer[SummaryTile]
     def __init__(self, tiles: _Optional[_Iterable[_Union[SummaryTile, _Mapping]]] = ...) -> None: ...
 
 @final
 class SummaryTile(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]

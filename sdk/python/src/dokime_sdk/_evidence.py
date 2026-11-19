@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,7 +14,7 @@
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import datetime
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
 
 # Third Party Imports
 from google.protobuf.descriptor_pb2 import DescriptorProto
@@ -64,6 +64,8 @@ class RecordsReader(Protocol):
 
 
 class RecordsQuery[T: Payload]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     def __init__(
         self,
         name: str,
@@ -181,6 +183,8 @@ class RecordsQuery[T: Payload]:
 
 
 class SamplesQuery[T: Payload]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     def __init__(
         self,
         execution: "Execution",

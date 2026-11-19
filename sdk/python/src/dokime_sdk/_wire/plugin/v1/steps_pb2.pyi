@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
@@ -11,7 +11,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class StepsExecuteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
     TEST_CASE_FIELD_NUMBER: _ClassVar[int]
@@ -24,5 +24,5 @@ class StepsExecuteRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class StepsExecuteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     def __init__(self) -> None: ...

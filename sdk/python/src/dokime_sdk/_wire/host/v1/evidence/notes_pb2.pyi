@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -20,7 +20,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class NotesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -29,7 +29,7 @@ class NotesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class NotesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     NOTE_FIELD_NUMBER: _ClassVar[int]
@@ -42,7 +42,7 @@ class NotesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class NotesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -55,7 +55,7 @@ class NotesSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class NotesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -66,7 +66,7 @@ class NotesSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class NotesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -77,7 +77,7 @@ class NotesListRequest(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class NotesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NOTES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -88,7 +88,7 @@ class NotesListResponse(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class NotesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -99,7 +99,7 @@ class NotesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class NotesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NOTES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -112,7 +112,7 @@ class NotesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class NotesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OWNER_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -123,7 +123,7 @@ class NotesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class NotesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NOTE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -134,7 +134,7 @@ class NotesCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class OperatorNote(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NOTE_ID_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     AUTHOR_FIELD_NUMBER: _ClassVar[int]
@@ -149,21 +149,21 @@ class OperatorNote(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class NoteWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     message: str
     def __init__(self, message: _Optional[str] = ...) -> None: ...
 
 @final
 class AnnotationOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OWNER_FIELD_NUMBER: _ClassVar[int]
     owner: AnnotationOwnerOwner
     def __init__(self, owner: _Optional[_Union[AnnotationOwnerOwner, _Mapping]] = ...) -> None: ...
 
 @final
 class AnnotationOwnerOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     PLANNED_CASE_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
@@ -174,7 +174,7 @@ class AnnotationOwnerOwner(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class AnnotationSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OWNER_FIELD_NUMBER: _ClassVar[int]
     INCLUDE_CONTEXT_FIELD_NUMBER: _ClassVar[int]
     owner: AnnotationOwner
@@ -183,7 +183,7 @@ class AnnotationSelection(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class ExecutionNoteOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
@@ -192,7 +192,7 @@ class ExecutionNoteOwner(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class PlannedCaseNoteOwner(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str

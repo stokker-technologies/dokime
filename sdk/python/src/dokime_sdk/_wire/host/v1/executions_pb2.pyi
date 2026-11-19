@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -153,7 +153,7 @@ EXECUTION_STATE_SEALED: ExecutionState
 
 @final
 class ExecutionsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -162,7 +162,7 @@ class ExecutionsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class ExecutionsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
@@ -177,7 +177,7 @@ class ExecutionsGetResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ExecutionsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -190,7 +190,7 @@ class ExecutionsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class ExecutionsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -201,7 +201,7 @@ class ExecutionsSetResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ExecutionsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
@@ -218,7 +218,7 @@ class ExecutionsListRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ExecutionsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     OUTCOME_COUNTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -231,7 +231,7 @@ class ExecutionsListResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
@@ -248,7 +248,7 @@ class ExecutionsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     OUTCOME_COUNTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -263,7 +263,7 @@ class ExecutionsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class ExecutionsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
@@ -274,7 +274,7 @@ class ExecutionsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class ExecutionsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTIONS_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     executions: _containers.RepeatedCompositeFieldContainer[ExecutionDetail]
@@ -283,7 +283,7 @@ class ExecutionsCreateResponse(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class ExecutionsStartRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
@@ -294,7 +294,7 @@ class ExecutionsStartRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionsStartResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
@@ -303,7 +303,7 @@ class ExecutionsStartResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class ExecutionsStopRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -312,7 +312,7 @@ class ExecutionsStopRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ExecutionsStopResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
@@ -321,7 +321,7 @@ class ExecutionsStopResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionsCancelRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -330,7 +330,7 @@ class ExecutionsCancelRequest(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class ExecutionsCancelResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
@@ -339,7 +339,7 @@ class ExecutionsCancelResponse(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class ExecutionsSealRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -348,7 +348,7 @@ class ExecutionsSealRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ExecutionsSealResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OUTCOME_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     outcome: ExecutionOutcome
@@ -357,7 +357,7 @@ class ExecutionsSealResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -366,7 +366,7 @@ class ExecutionsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class ExecutionsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     execution: ExecutionDetail
@@ -375,7 +375,7 @@ class ExecutionsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class ExecutionsParametersRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     SET_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -386,7 +386,7 @@ class ExecutionsParametersRequest(_message.Message, metaclass=GeneratedProtocolM
 
 @final
 class ExecutionsParametersResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     parameters: _containers.RepeatedCompositeFieldContainer[MaterializedParameter]
@@ -395,7 +395,7 @@ class ExecutionsParametersResponse(_message.Message, metaclass=GeneratedProtocol
 
 @final
 class ExecutionsStepsRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -404,7 +404,7 @@ class ExecutionsStepsRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionsStepsResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STEPS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     steps: _containers.RepeatedCompositeFieldContainer[ExecutionStep]
@@ -413,7 +413,7 @@ class ExecutionsStepsResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class FrozenSchemas(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DIGEST_FIELD_NUMBER: _ClassVar[int]
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     STREAMS_FIELD_NUMBER: _ClassVar[int]
@@ -424,7 +424,7 @@ class FrozenSchemas(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class Diagnostic(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     CHAIN_FIELD_NUMBER: _ClassVar[int]
     LOCATION_FIELD_NUMBER: _ClassVar[int]
@@ -439,7 +439,7 @@ class Diagnostic(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionBinding(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     execution_id: str
@@ -448,7 +448,7 @@ class ExecutionBinding(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class ExecutionControls(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
     STOP_REQUESTED_FIELD_NUMBER: _ClassVar[int]
@@ -477,7 +477,7 @@ class ExecutionControls(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class ExecutionOutcomeCounts(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EVALUATED_COUNT_FIELD_NUMBER: _ClassVar[int]
     NOT_EVALUATED_COUNT_FIELD_NUMBER: _ClassVar[int]
     DECLARED_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -490,7 +490,7 @@ class ExecutionOutcomeCounts(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionDetail(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROGRESS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_COUNTS_FIELD_NUMBER: _ClassVar[int]
@@ -535,7 +535,7 @@ class ExecutionDetail(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     STATUSES_FIELD_NUMBER: _ClassVar[int]
     TEMPLATE_IDS_FIELD_NUMBER: _ClassVar[int]
@@ -554,7 +554,7 @@ class ExecutionFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionOrder(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     DESCENDING_FIELD_NUMBER: _ClassVar[int]
     key: ExecutionOrderKey
@@ -563,7 +563,7 @@ class ExecutionOrder(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TEMPLATE_IDS_FIELD_NUMBER: _ClassVar[int]
     CYCLE_IDS_FIELD_NUMBER: _ClassVar[int]
     STATUSES_FIELD_NUMBER: _ClassVar[int]
@@ -578,7 +578,7 @@ class ExecutionSelection(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class ExecutionStep(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STEP_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -603,7 +603,7 @@ class ExecutionStep(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CONTROLS_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -622,7 +622,7 @@ class ExecutionSummary(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class MaterializedParameter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     GROUP_ID_FIELD_NUMBER: _ClassVar[int]
@@ -639,7 +639,7 @@ class MaterializedParameter(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class ReportStatus(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STATE_FIELD_NUMBER: _ClassVar[int]
     FAILURE_FIELD_NUMBER: _ClassVar[int]
     state: ReportState
@@ -648,7 +648,7 @@ class ReportStatus(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class StepCriterion(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CRITERION_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -665,7 +665,7 @@ class StepCriterion(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class ExecutionWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     PAUSED_FIELD_NUMBER: _ClassVar[int]
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
@@ -676,7 +676,7 @@ class ExecutionWritable(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class ExecutionOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NOT_EVALUATED_FIELD_NUMBER: _ClassVar[int]
     EVALUATED_FIELD_NUMBER: _ClassVar[int]
     DECLARED_FIELD_NUMBER: _ClassVar[int]
@@ -687,7 +687,7 @@ class ExecutionOutcome(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class UnevaluatedOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     TERMINATION_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     termination: _execution_pb2.Termination
@@ -696,7 +696,7 @@ class UnevaluatedOutcome(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class EvaluatedOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     status: _cycles_pb2.ResultStatus
@@ -705,7 +705,7 @@ class EvaluatedOutcome(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class DeclaredOutcome(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     IMPORTER_FIELD_NUMBER: _ClassVar[int]

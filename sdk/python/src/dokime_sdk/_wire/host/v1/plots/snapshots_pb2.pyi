@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1 import record_schemas_pb2 as _record_schemas_pb2
@@ -45,7 +45,7 @@ PLOT_STREAM_KIND_ERROR: PlotStreamKind
 
 @final
 class SnapshotsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REQUESTS_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -56,7 +56,7 @@ class SnapshotsListRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class SnapshotsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ENVELOPES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -67,7 +67,7 @@ class SnapshotsListResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class SnapshotsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REQUESTS_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
@@ -78,7 +78,7 @@ class SnapshotsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class SnapshotsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPDATES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -91,7 +91,7 @@ class SnapshotsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ContourGrid(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     X_EDGES_FIELD_NUMBER: _ClassVar[int]
@@ -108,7 +108,7 @@ class ContourGrid(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridCell(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROW_FIELD_NUMBER: _ClassVar[int]
     COLUMN_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -119,7 +119,7 @@ class GridCell(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     INSTANT_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     VALID_FIELD_NUMBER: _ClassVar[int]
@@ -132,7 +132,7 @@ class GridFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class GridFrames(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROWS_FIELD_NUMBER: _ClassVar[int]
     COLUMNS_FIELD_NUMBER: _ClassVar[int]
     FRAMES_FIELD_NUMBER: _ClassVar[int]
@@ -145,28 +145,28 @@ class GridFrames(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class NullableNumber(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: float
     def __init__(self, value: _Optional[float] = ...) -> None: ...
 
 @final
 class PlotAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RESULT_FIELD_NUMBER: _ClassVar[int]
     result: PlotAnalysisResult
     def __init__(self, result: _Optional[_Union[PlotAnalysisResult, _Mapping]] = ...) -> None: ...
 
 @final
 class PlotAnalysisError(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     message: str
     def __init__(self, message: _Optional[str] = ...) -> None: ...
 
 @final
 class PlotAnalysisResult(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CONTOUR_FIELD_NUMBER: _ClassVar[int]
     GRID_CHART_FIELD_NUMBER: _ClassVar[int]
     HISTOGRAM_FIELD_NUMBER: _ClassVar[int]
@@ -183,7 +183,7 @@ class PlotAnalysisResult(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class PlotBoxSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
@@ -210,7 +210,7 @@ class PlotBoxSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotBoxSummaryAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SERIES_FIELD_NUMBER: _ClassVar[int]
     TOTAL_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[PlotBoxSummary]
@@ -219,7 +219,7 @@ class PlotBoxSummaryAnalysis(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class PlotColumn(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     INSTANTS_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
@@ -234,7 +234,7 @@ class PlotColumn(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotDomain(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
     min: float
@@ -243,7 +243,7 @@ class PlotDomain(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotEnvelope(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
@@ -262,7 +262,7 @@ class PlotEnvelope(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MODE_FIELD_NUMBER: _ClassVar[int]
     TIME_FIELD_NUMBER: _ClassVar[int]
     SERIES_FIELD_NUMBER: _ClassVar[int]
@@ -281,14 +281,14 @@ class PlotFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotHistogramAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SERIES_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[PlotHistogramSeries]
     def __init__(self, series: _Optional[_Iterable[_Union[PlotHistogramSeries, _Mapping]]] = ...) -> None: ...
 
 @final
 class PlotHistogramBin(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LOWER_FIELD_NUMBER: _ClassVar[int]
     UPPER_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -299,7 +299,7 @@ class PlotHistogramBin(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class PlotHistogramSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     BINS_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -312,7 +312,7 @@ class PlotHistogramSeries(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class PlotHistogramStatistics(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MEAN_FIELD_NUMBER: _ClassVar[int]
     MEDIAN_FIELD_NUMBER: _ClassVar[int]
     STD_FIELD_NUMBER: _ClassVar[int]
@@ -329,7 +329,7 @@ class PlotHistogramStatistics(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class PlotMarker(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     X_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
@@ -342,7 +342,7 @@ class PlotMarker(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotPayload(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     X_KEY_FIELD_NUMBER: _ClassVar[int]
     SERIES_BY_FIELD_NUMBER: _ClassVar[int]
@@ -383,7 +383,7 @@ class PlotPayload(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotPayloadDiagnostics(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXAMINED_ROWS_FIELD_NUMBER: _ClassVar[int]
     RESOLUTION_NANOS_FIELD_NUMBER: _ClassVar[int]
     SERIES_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -404,7 +404,7 @@ class PlotPayloadDiagnostics(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class PlotSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
@@ -421,7 +421,7 @@ class PlotSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotSeriesSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SERIES_ID_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
@@ -444,7 +444,7 @@ class PlotSeriesSummary(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class PlotSigmaBin(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     X_FIELD_NUMBER: _ClassVar[int]
     COUNT_FIELD_NUMBER: _ClassVar[int]
     MEAN_FIELD_NUMBER: _ClassVar[int]
@@ -459,14 +459,14 @@ class PlotSigmaBin(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotSigmaIntervalAnalysis(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SERIES_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[PlotSigmaSeries]
     def __init__(self, series: _Optional[_Iterable[_Union[PlotSigmaSeries, _Mapping]]] = ...) -> None: ...
 
 @final
 class PlotSigmaSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KEY_FIELD_NUMBER: _ClassVar[int]
     BINS_FIELD_NUMBER: _ClassVar[int]
     RAW_POINTS_FIELD_NUMBER: _ClassVar[int]
@@ -477,7 +477,7 @@ class PlotSigmaSeries(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotStreamUpdate(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KIND_FIELD_NUMBER: _ClassVar[int]
     ENVELOPE_FIELD_NUMBER: _ClassVar[int]
     kind: PlotStreamKind
@@ -486,7 +486,7 @@ class PlotStreamUpdate(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class PlotRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARRANGEMENT_FIELD_NUMBER: _ClassVar[int]
     PARETO_FIELD_NUMBER: _ClassVar[int]
     HOLE_FIELD_NUMBER: _ClassVar[int]
@@ -567,7 +567,7 @@ class PlotRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotWindow(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FROM_FIELD_NUMBER: _ClassVar[int]
     TO_FIELD_NUMBER: _ClassVar[int]
     to: float

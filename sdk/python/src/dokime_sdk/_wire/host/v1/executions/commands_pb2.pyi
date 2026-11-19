@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -47,7 +47,7 @@ EXECUTION_COMMAND_PHASE_INTERRUPTED: ExecutionCommandPhase
 
 @final
 class CommandsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -58,7 +58,7 @@ class CommandsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CommandsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     command: ExecutionCommandReceipt
@@ -67,7 +67,7 @@ class CommandsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CommandsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
@@ -82,7 +82,7 @@ class CommandsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class CommandsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     COMMAND_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     command: ExecutionCommandReceipt
@@ -91,7 +91,7 @@ class CommandsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class ExecutionCommandReceipt(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]

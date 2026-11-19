@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1.plots import snapshots_pb2 as _snapshots_pb2
@@ -136,7 +136,7 @@ PLOT_AXIS_KIND_ELAPSED: PlotAxisKind
 
 @final
 class DocumentsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     STRUCTURE_ONLY_FIELD_NUMBER: _ClassVar[int]
@@ -157,7 +157,7 @@ class DocumentsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class DocumentsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FRAMES_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -168,7 +168,7 @@ class DocumentsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class DocumentsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     STRUCTURE_ONLY_FIELD_NUMBER: _ClassVar[int]
@@ -189,7 +189,7 @@ class DocumentsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class DocumentsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FRAMES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -202,7 +202,7 @@ class DocumentsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class DocumentsAppendPartsRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_FIELD_NUMBER: _ClassVar[int]
     SECTION_FIELD_NUMBER: _ClassVar[int]
@@ -219,14 +219,14 @@ class DocumentsAppendPartsRequest(_message.Message, metaclass=GeneratedProtocolM
 
 @final
 class DocumentsAppendPartsResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
     def __init__(self, receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
 @final
 class DocumentBinding(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SOURCE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     RESULT_FIELD_NUMBER: _ClassVar[int]
@@ -237,7 +237,7 @@ class DocumentBinding(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentBindingResult(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LITERAL_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
     PLOT_FIELD_NUMBER: _ClassVar[int]
@@ -252,7 +252,7 @@ class DocumentBindingResult(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class DocumentCard(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     FILTERS_FIELD_NUMBER: _ClassVar[int]
     BODY_FIELD_NUMBER: _ClassVar[int]
@@ -263,7 +263,7 @@ class DocumentCard(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentCardBody(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MARKDOWN_FIELD_NUMBER: _ClassVar[int]
     TABLE_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
@@ -276,7 +276,7 @@ class DocumentCardBody(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class DocumentCardBudget(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     LIMIT_FIELD_NUMBER: _ClassVar[int]
     REACHED_FIELD_NUMBER: _ClassVar[int]
@@ -289,7 +289,7 @@ class DocumentCardBudget(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class DocumentCardFailure(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CODE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     BUDGET_FIELD_NUMBER: _ClassVar[int]
@@ -300,7 +300,7 @@ class DocumentCardFailure(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class DocumentCompletion(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FRAME_COUNT_FIELD_NUMBER: _ClassVar[int]
     CARD_COUNT_FIELD_NUMBER: _ClassVar[int]
     LAYOUT_NODE_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -319,7 +319,7 @@ class DocumentCompletion(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class DocumentEvidenceCut(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CUT_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     CACHEABLE_FIELD_NUMBER: _ClassVar[int]
@@ -330,14 +330,14 @@ class DocumentEvidenceCut(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class DocumentFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FRAME_FIELD_NUMBER: _ClassVar[int]
     frame: DocumentFrameFrame
     def __init__(self, frame: _Optional[_Union[DocumentFrameFrame, _Mapping]] = ...) -> None: ...
 
 @final
 class DocumentFrameFrame(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     HEADER_FIELD_NUMBER: _ClassVar[int]
     LAYOUT_NODE_FIELD_NUMBER: _ClassVar[int]
     CARD_FIELD_NUMBER: _ClassVar[int]
@@ -384,7 +384,7 @@ class DocumentFrameFrame(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class DocumentFrontiers(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROCESS_EPOCH_FIELD_NUMBER: _ClassVar[int]
     STATE_REVISION_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
@@ -399,7 +399,7 @@ class DocumentFrontiers(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class DocumentHeader(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
@@ -412,7 +412,7 @@ class DocumentHeader(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentLayoutNode(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     PARENT_ORDINAL_FIELD_NUMBER: _ClassVar[int]
     NODE_FIELD_NUMBER: _ClassVar[int]
@@ -423,7 +423,7 @@ class DocumentLayoutNode(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class DocumentLayoutNodeNode(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SECTION_FIELD_NUMBER: _ClassVar[int]
     PLACEMENT_FIELD_NUMBER: _ClassVar[int]
     section: DocumentSection
@@ -432,7 +432,7 @@ class DocumentLayoutNodeNode(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class DocumentOwnerReference(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
     PLOT_FIELD_NUMBER: _ClassVar[int]
@@ -443,7 +443,7 @@ class DocumentOwnerReference(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class DocumentPage(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CURRENT_FIELD_NUMBER: _ClassVar[int]
     NEXT_FIELD_NUMBER: _ClassVar[int]
     current: str
@@ -452,7 +452,7 @@ class DocumentPage(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentPlacement(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     COLUMN_SPAN_FIELD_NUMBER: _ClassVar[int]
     ROW_SPAN_FIELD_NUMBER: _ClassVar[int]
@@ -469,7 +469,7 @@ class DocumentPlacement(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class DocumentPlotDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     PRESENTATION_FIELD_NUMBER: _ClassVar[int]
@@ -482,7 +482,7 @@ class DocumentPlotDefinition(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class DocumentRepeat(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
     ID_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
@@ -497,7 +497,7 @@ class DocumentRepeat(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentRepeatInstance(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SELECTION_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     SUFFIX_FIELD_NUMBER: _ClassVar[int]
@@ -512,7 +512,7 @@ class DocumentRepeatInstance(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class DocumentRepeatSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     INSTANCE_COUNT_FIELD_NUMBER: _ClassVar[int]
     PENDING_FIELD_NUMBER: _ClassVar[int]
@@ -523,7 +523,7 @@ class DocumentRepeatSelection(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class DocumentSection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REPEAT_FIELD_NUMBER: _ClassVar[int]
@@ -534,7 +534,7 @@ class DocumentSection(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentSectionIdentity(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     UNAVAILABLE_FIELD_NUMBER: _ClassVar[int]
@@ -545,7 +545,7 @@ class DocumentSectionIdentity(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class DocumentSpan(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     BASE_FIELD_NUMBER: _ClassVar[int]
     SM_FIELD_NUMBER: _ClassVar[int]
     MD_FIELD_NUMBER: _ClassVar[int]
@@ -560,14 +560,14 @@ class DocumentSpan(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class DocumentSummary(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     GROUP_COUNT_FIELD_NUMBER: _ClassVar[int]
     group_count: int
     def __init__(self, group_count: _Optional[int] = ...) -> None: ...
 
 @final
 class DocumentSummaryCondition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
@@ -578,7 +578,7 @@ class DocumentSummaryCondition(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class DocumentSummaryGroup(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -591,7 +591,7 @@ class DocumentSummaryGroup(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class DocumentSummaryGroupDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
@@ -604,7 +604,7 @@ class DocumentSummaryGroupDefinition(_message.Message, metaclass=GeneratedProtoc
 
 @final
 class DocumentSummaryTile(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     GROUP_ORDINAL_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
@@ -631,7 +631,7 @@ class DocumentSummaryTile(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class DocumentSummaryTileDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     GROUP_ORDINAL_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
@@ -658,14 +658,14 @@ class DocumentSummaryTileDefinition(_message.Message, metaclass=GeneratedProtoco
 
 @final
 class DocumentTable(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ROW_COUNT_FIELD_NUMBER: _ClassVar[int]
     row_count: int
     def __init__(self, row_count: _Optional[int] = ...) -> None: ...
 
 @final
 class DocumentTableRow(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CARD_ID_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
@@ -676,7 +676,7 @@ class DocumentTableRow(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class DocumentTelemetryCut(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STORE_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
     POSITION_FIELD_NUMBER: _ClassVar[int]
@@ -687,7 +687,7 @@ class DocumentTelemetryCut(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class DocumentWarning(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CODE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     code: str
@@ -696,7 +696,7 @@ class DocumentWarning(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PlotPresentation(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     STYLE_FIELD_NUMBER: _ClassVar[int]
     FFT_FIELD_NUMBER: _ClassVar[int]
     INTERVAL_FIELD_NUMBER: _ClassVar[int]
@@ -723,7 +723,7 @@ class PlotPresentation(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class PlotReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MIN_FIELD_NUMBER: _ClassVar[int]
     MAX_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
@@ -740,7 +740,7 @@ class PlotReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class PlotReferenceLine(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
@@ -751,7 +751,7 @@ class PlotReferenceLine(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class PlotReferenceValue(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CONSTANT_FIELD_NUMBER: _ClassVar[int]
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     constant: float
@@ -760,7 +760,7 @@ class PlotReferenceValue(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class DocumentScope(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str

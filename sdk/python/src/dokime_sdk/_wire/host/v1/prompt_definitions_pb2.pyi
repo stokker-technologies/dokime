@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import prompts_pb2 as _prompts_pb2
@@ -14,7 +14,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class PromptDefinitionsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -27,7 +27,7 @@ class PromptDefinitionsGetRequest(_message.Message, metaclass=GeneratedProtocolM
 
 @final
 class PromptDefinitionsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     value: _prompts_pb2.Prompt
@@ -36,7 +36,7 @@ class PromptDefinitionsGetResponse(_message.Message, metaclass=GeneratedProtocol
 
 @final
 class PromptDefinitionsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     parent: str
@@ -45,7 +45,7 @@ class PromptDefinitionsListRequest(_message.Message, metaclass=GeneratedProtocol
 
 @final
 class PromptDefinitionsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUES_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     values: _containers.RepeatedCompositeFieldContainer[_prompts_pb2.Prompt]

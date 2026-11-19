@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
@@ -14,7 +14,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class UploadsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     metadata: _file_pb2.FileMetadata
@@ -23,7 +23,7 @@ class UploadsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class UploadsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -36,7 +36,7 @@ class UploadsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class UploadsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
@@ -45,7 +45,7 @@ class UploadsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class UploadsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -58,7 +58,7 @@ class UploadsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class UploadsResumeRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
@@ -67,7 +67,7 @@ class UploadsResumeRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class UploadsResumeResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -80,7 +80,7 @@ class UploadsResumeResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class UploadsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     DATA_FIELD_NUMBER: _ClassVar[int]
@@ -93,7 +93,7 @@ class UploadsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class UploadsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
@@ -102,7 +102,7 @@ class UploadsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class UploadsPublishRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     LENGTH_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
@@ -115,7 +115,7 @@ class UploadsPublishRequest(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class UploadsPublishResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.FileReference
@@ -124,7 +124,7 @@ class UploadsPublishResponse(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class UploadsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload
@@ -133,7 +133,7 @@ class UploadsDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class UploadsDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     upload: _file_pb2.Upload

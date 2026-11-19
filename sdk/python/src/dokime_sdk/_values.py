@@ -1,12 +1,12 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-"""Lossless Scalar Conversion At The Protobuf Boundary."""
+"""Lossless Scalar Conversion at the Protobuf Boundary."""
 
 # === Imports === #
 
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import IntEnum
 from fractions import Fraction
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, TypeVar
 
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -127,6 +127,8 @@ class Statistics:
 
 @dataclass(frozen=True)
 class RecordRow[T: "Payload"]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     identifier: str
     sequence: int
     timestamp_ns: int
@@ -139,6 +141,8 @@ class RecordRow[T: "Payload"]:
 
 @dataclass(frozen=True)
 class SampleRow[T: "Payload"]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     identifier: str
     sequence: int
     timestamp_ns: int

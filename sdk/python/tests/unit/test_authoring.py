@@ -13,11 +13,14 @@
 
 # Standard Library Imports
 import base64
+import json
 import unittest
 import zlib
 from collections.abc import Callable, Mapping
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, ClassVar, cast
+from unittest.mock import Mock, patch
 
 # Third Party Imports
 # Local Imports
@@ -63,6 +66,30 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_plugin_version_uses_owning_editable_metadata_or_explicit_override(self) -> None:
+        class InstalledPlugin(Plugin):
+            pass
+
+        owning = Mock()
+        owning.version = "2.3.4"
+        owning.read_text.return_value = json.dumps({"url": Path(__file__).resolve().parent.as_uri(), "dir_info": {"editable": True}})
+        unrelated = Mock()
+        unrelated.version = "9.9.9"
+        unrelated.read_text.return_value = json.dumps(
+            {"url": (Path(__file__).resolve().parent / "unrelated").as_uri(), "dir_info": {"editable": True}}
+        )
+        with (
+            patch("dokime_sdk._plugin.packages_distributions", return_value={}),
+            patch("dokime_sdk._plugin.distributions", return_value=[unrelated, owning]) as installed,
+        ):
+            self.assertEqual(InstalledPlugin()._version, "2.3.4")
+            installed.return_value = [unrelated]
+            self.assertRaises(ValueError, InstalledPlugin)
+            installed.return_value = [owning, owning]
+            self.assertRaises(ValueError, InstalledPlugin)
+            InstalledPlugin.version = "5.6.7"
+            self.assertEqual(InstalledPlugin()._version, "5.6.7")
+
     def test_class_composition_matches_fixed_builder_wire_description(self) -> None:
         plugin = ExamplePlugin()
         self.assertEqual(

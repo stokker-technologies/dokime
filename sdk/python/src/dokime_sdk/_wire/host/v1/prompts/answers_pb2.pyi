@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1 import prompts_pb2 as _prompts_pb2
@@ -14,7 +14,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class AnswersCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     VALUES_FIELD_NUMBER: _ClassVar[int]
@@ -29,7 +29,7 @@ class AnswersCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class AnswersCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ANSWER_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     answer: _prompts_pb2.PromptResponse

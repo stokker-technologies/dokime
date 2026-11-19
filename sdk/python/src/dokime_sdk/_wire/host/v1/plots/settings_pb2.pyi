@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.host.v1 import documents_pb2 as _documents_pb2
@@ -15,7 +15,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class SettingsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -28,7 +28,7 @@ class SettingsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SettingsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -39,7 +39,7 @@ class SettingsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class SettingsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -56,7 +56,7 @@ class SettingsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SettingsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -67,7 +67,7 @@ class SettingsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class PlotSettingsValue(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DISPLAY_POINTS_FIELD_NUMBER: _ClassVar[int]
     DOWNSAMPLE_FIELD_NUMBER: _ClassVar[int]
     display_points: int

@@ -101,6 +101,8 @@ class Context:
 
 
 class StreamSubscription[T: Payload](Protocol):
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     def __aiter__(self) -> AsyncIterator[SampleRow[T]]: ...
     async def close(self) -> None: ...
 

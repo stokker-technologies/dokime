@@ -13,10 +13,15 @@
 # Standard Library Imports
 import asyncio
 
+# isort: split
+
 # Third Party Imports
+from starter_project.plugin.suites.capture import CaptureSuite
+
+# isort: split
+
 # Local Imports
-from dokime_sdk import Plugin, Suite
-from dokime_sdk.templates import Context, TestTemplate, criterion, record, step
+from dokime_sdk import Plugin
 
 # Type Checking Imports
 
@@ -27,23 +32,6 @@ from dokime_sdk.templates import Context, TestTemplate, criterion, record, step
 # === Types === #
 
 # === Classes === #
-
-
-class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool)
-
-    @step("Confirm")
-    async def confirm(self, ctx: Context) -> None:
-        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
-        await ctx.record(self.confirmation, answer == "Yes")
-
-    @criterion("Confirmed")
-    async def confirmed(self, ctx: Context) -> bool:
-        return await ctx.records(self.confirmation, step=self.confirm).last()
-
-
-class CaptureSuite(Suite):
-    templates = (ConfirmationTestTemplate,)
 
 
 class CapturePlugin(Plugin):

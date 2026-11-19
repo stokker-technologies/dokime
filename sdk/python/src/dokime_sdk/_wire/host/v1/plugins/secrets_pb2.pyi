@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import secrets_pb2 as _secrets_pb2
@@ -14,7 +14,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class SecretsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -23,7 +23,7 @@ class SecretsListRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class SecretsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SECRETS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     secrets: _containers.RepeatedCompositeFieldContainer[SecretRequirement]
@@ -32,7 +32,7 @@ class SecretsListResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class SecretRequirement(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DECLARATION_FIELD_NUMBER: _ClassVar[int]
     AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     declaration: _secrets_pb2.SecretDeclaration

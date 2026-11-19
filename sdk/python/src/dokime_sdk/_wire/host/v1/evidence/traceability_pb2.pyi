@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -21,7 +21,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class TraceabilityGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -34,7 +34,7 @@ class TraceabilityGetRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class TraceabilityGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SNAPSHOTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -49,7 +49,7 @@ class TraceabilityGetResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class TraceabilityWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
@@ -60,7 +60,7 @@ class TraceabilityWatchRequest(_message.Message, metaclass=GeneratedProtocolMess
 
 @final
 class TraceabilityWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SNAPSHOTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -71,7 +71,7 @@ class TraceabilityWatchResponse(_message.Message, metaclass=GeneratedProtocolMes
 
 @final
 class TraceabilitySetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -86,7 +86,7 @@ class TraceabilitySetRequest(_message.Message, metaclass=GeneratedProtocolMessag
 
 @final
 class TraceabilitySetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -97,7 +97,7 @@ class TraceabilitySetResponse(_message.Message, metaclass=GeneratedProtocolMessa
 
 @final
 class TraceabilitySnapshot(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     TRACEABILITY_ID_FIELD_NUMBER: _ClassVar[int]

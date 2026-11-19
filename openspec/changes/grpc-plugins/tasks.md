@@ -138,7 +138,8 @@
   - [ ] Resolve Carrier Activation Contexts and Stream Subscription Support; Prove Plugin initialize/finalize Order, Failed/Cancelled Initialization Finalization, Admission Draining and Repeated Shutdown.
   - [x] Share Template/Client Record Query and Decode Ownership, Termination Values, Bound Operation Calls, Plugin-Owned Listener Activation and Artifact Publication; Complete Typed Statistics, Artifact Projection and Local Document Declaration Binding.
   - [ ] Admit Plugin Notes/Create and Resolve Complete Automatic Peer Requirements Against the Library's Frozen Activation Requirements; Authors Declare No Requirements.
-  - [ ] Complete Installed-Wheel Stub/Public-Home Consumer Proof After Item (e) Updates Its Inventories, Then Run the Required Host Stories on the Combined Candidate.
+  - [x] Complete Installed-Wheel Stub/Public-Home Consumer Proof With the Three Intentional Python Homes.
+  - [ ] Run the Required Authoring Host Stories on the Combined Candidate.
 - [ ] (c) Implement the SDK Surface Specification's Python Bound Handles, Host Compositions and Configuration Precedence/Grammar With Secret Storage, Readback, Controls, Seal, Evidence, Notes, Artifacts and Explicit Close.
   - [x] Replace Owned Selector/Export Wrappers With Bound Client Resources, Current Host Compositions, Immutable Product Values, Structured Failures and Explicit Owned Registration Cleanup.
   - [x] Implement Working-Directory Configuration Precedence and the Shared Dotenv Grammar Without Dependencies or Environment Mutation; Preserve Ordered Pairing Attempts and Connection Budgets.
@@ -146,7 +147,7 @@
   - [x] Bind Host Execution Seal Outcomes and Sealed Progress; Prove Lazy Run/Watch Finality and Observation Close Without Execution Cancellation With Host-Free Services.
   - [ ] Bind Managed Bundle Installation and Client Invocation Policy Overrides After Their Host Contracts Land; Complete Real-Host Retained Archive Proof Without Substituting Readback for Seal.
   - [x] Resolve Shared Query, Termination, Bound Operation, Artifact Publisher and Listener Activation Ownership With Item (b).
-  - [ ] Complete Installed-Wheel Stub/Public-Surface and Consumer Proof After Item (e) Migrates Its Inventories.
+  - [x] Complete Installed-Wheel Stub/Public-Surface and Typed Consumer Proof With the Migrated Inventories.
 - [ ] (d) Implement the Exact Manifest Schema, Dynamic Metadata, Implicit Assets, Bundle Identity/Version and Four-Language `dokime new` Embedding per the SDK Surface Specification.
   - [x] Replace Top-Level Manifest Scripts and Assets Lists With Strict Plugin, Compatibility and Scripts Tables; Resolve Native Metadata With Static Overrides.
   - [x] Bundle Implicit Assets, Referenced Metadata and Required Launch Inputs; Preserve User Locks and Exclude Private Inputs.
@@ -159,8 +160,10 @@
 - [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
   - [x] Replace the Owned Python Starter Sources With the Reference-Shaped Single Project, Its Host-Free Description Test and Explicit Project/Package Substitution Markers.
   - [x] Migrate the Client/Thermal Example Packages, Python Fixture Launchers, Typed Consumer and Three-Home/Strict Stub Inventories; Keep Repository Host Stories Outside the Starter.
-  - [ ] Reconcile the Manifest/Asset and CLI Embedding Owners, Retire the Generated Public Client Facade and Complete Editable-Install Metadata and Listener-Address Readiness Support in the SDK.
-  - [ ] Complete Strict Installed Stubs, All Host-Free Integrations, Repository Checking and the Isolated Starter Test/Listener Proof After Their Owning Source Repairs; Run the Named Host Stories on the Combined Candidate.
+  - [ ] Reconcile the Manifest/Asset and CLI Embedding Owners.
+  - [x] Retire the Generated Public Client Facade Through Its Generator, Share One Three-Home Inventory and Complete Editable-Install Metadata and Listener-Address Readiness Support in the SDK.
+  - [x] Complete Strict Installed Stubs, All Host-Free Integrations, Repository Checking, Isolated Editable Starter Checks and Native Listener/Interrupt Proof; Compose the Shared Capture Fixture From the Starter Suite.
+  - [ ] Run the Named Host Stories on the Combined Candidate: NativeAuthoringStory, StarterStory, EvidenceQueryStory, Runtime Thermal Client and Created Python Starter First-Hour Journeys; Complete Four-Language Capture Equivalence With Prepared Native Fixtures.
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.

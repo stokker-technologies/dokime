@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -16,7 +16,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class LogsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     SEVERITY_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -31,7 +31,7 @@ class LogsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class LogsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
     def __init__(self, receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...

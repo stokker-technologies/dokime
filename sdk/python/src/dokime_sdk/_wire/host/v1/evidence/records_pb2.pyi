@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -22,7 +22,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class RecordsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -43,7 +43,7 @@ class RecordsListRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class RecordsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -60,7 +60,7 @@ class RecordsListResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class RecordsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
     VERSIONS_FIELD_NUMBER: _ClassVar[int]
@@ -81,7 +81,7 @@ class RecordsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class RecordsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     SCHEMA_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -96,7 +96,7 @@ class RecordsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class RecordsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
@@ -111,7 +111,7 @@ class RecordsAppendRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class RecordsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     ordinal: int
@@ -120,7 +120,7 @@ class RecordsAppendResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class CapturedErrorCause(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     CODE_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -131,7 +131,7 @@ class CapturedErrorCause(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class CapturedRecord(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     RECORD_ID_FIELD_NUMBER: _ClassVar[int]
     SEQUENCE_FIELD_NUMBER: _ClassVar[int]
@@ -168,7 +168,7 @@ class CapturedRecord(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CapturedRecordError(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     CODE_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -189,7 +189,7 @@ class CapturedRecordError(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class CycleScope(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
@@ -198,7 +198,7 @@ class CycleScope(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class RecordScope(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXECUTION_FIELD_NUMBER: _ClassVar[int]
     CYCLE_FIELD_NUMBER: _ClassVar[int]
     execution: str
@@ -207,7 +207,7 @@ class RecordScope(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class CapturedRecordSelection(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     RECORD_TYPES_FIELD_NUMBER: _ClassVar[int]
     SOURCES_FIELD_NUMBER: _ClassVar[int]

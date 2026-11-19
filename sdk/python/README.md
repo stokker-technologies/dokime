@@ -30,7 +30,11 @@ uv run python -m starter_project.plugin
 uv run python -m starter_project
 ```
 
-The plugin module serves the sidecar. The package module connects to the host,
+The plugin module prints `harmos listening <host>:<port>` as the first stdout
+line, flushes it, and serves until interrupted. The plugin version comes from its
+owning installed distribution, including editable installs; a class `version`
+overrides that metadata. Source-only plugins must declare a class version.
+The package module connects to the host,
 registers the plugin, creates a cycle, materializes its template classes and runs
 each execution. It prints progress and sealed outcomes, seals the cycle and
 writes its evidence archive under `_output/`. Answer operator questions in the

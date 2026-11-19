@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -16,7 +16,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class EffectsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RESOURCE_FIELD_NUMBER: _ClassVar[int]
     INVERSE_OPERATION_FIELD_NUMBER: _ClassVar[int]
     INVERSE_FIELD_NUMBER: _ClassVar[int]
@@ -31,7 +31,7 @@ class EffectsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class EffectsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -44,7 +44,7 @@ class EffectsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class EffectsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -53,7 +53,7 @@ class EffectsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class EffectsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -64,7 +64,7 @@ class EffectsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class EffectsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -77,7 +77,7 @@ class EffectsSetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class EffectsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
@@ -88,7 +88,7 @@ class EffectsSetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class EffectWritable(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     APPLIED_AT_FIELD_NUMBER: _ClassVar[int]
     RESTORED_FIELD_NUMBER: _ClassVar[int]
     applied_at: _timestamp_pb2.Timestamp

@@ -188,13 +188,11 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                     target.parent.mkdir(parents=True, exist_ok=True)
                 text = path.read_text(encoding="utf-8")
                 if path.suffix == ".pyi":
-                    # Match the Runtime Message Metaclass, Finality and Empty Slots.
-                    text = (
-                        "from google.protobuf.internal.python_message import GeneratedProtocolMessageType\nfrom typing import final\n\n"
-                    ) + text
+                    # Fields Are Managed by the Protobuf Metaclass, Not Python Slots.
+                    text = ("from google.protobuf.reflection import GeneratedProtocolMessageType\nfrom typing import final\n\n") + text
                     text = re.sub(
                         r"(?m)^( *)class (\w+)\(_message.Message\):\n +__slots__ = [^\n]+\n",
-                        r"\1@final\n\1class \2(_message.Message, metaclass=GeneratedProtocolMessageType):\n\1    __slots__ = ()\n",
+                        r"\1@final\n\1class \2(_message.Message, metaclass=GeneratedProtocolMessageType):\n\1    __slots__: tuple[str, ...]\n",
                         text,
                     )
                 for owner in ("dokime", "harmos"):

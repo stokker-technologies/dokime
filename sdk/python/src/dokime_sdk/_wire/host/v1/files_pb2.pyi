@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import files_pb2 as _files_pb2
@@ -16,7 +16,7 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 @final
 class FilesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     file: _file_pb2.FileReference
@@ -25,7 +25,7 @@ class FilesGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FilesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     CHUNK_BYTES_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -38,7 +38,7 @@ class FilesGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class FilesReadRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -51,7 +51,7 @@ class FilesReadRequest(_message.Message, metaclass=GeneratedProtocolMessageType)
 
 @final
 class FilesReadResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DATA_FIELD_NUMBER: _ClassVar[int]
     TOTAL_LENGTH_FIELD_NUMBER: _ClassVar[int]
     SHA256_FIELD_NUMBER: _ClassVar[int]
@@ -64,7 +64,7 @@ class FilesReadResponse(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class FilesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
@@ -77,7 +77,7 @@ class FilesWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class FilesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     DATA_FIELD_NUMBER: _ClassVar[int]
     COMPLETION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -88,7 +88,7 @@ class FilesWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class FilesDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     FILE_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     file: _file_pb2.FileReference
@@ -97,14 +97,14 @@ class FilesDeleteRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class FilesDeleteResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     RECEIPT_FIELD_NUMBER: _ClassVar[int]
     receipt: _receipt_pb2.Receipt
     def __init__(self, receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
 @final
 class FilesCaptureRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
     source: _files_pb2.FileSource
@@ -113,7 +113,7 @@ class FilesCaptureRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class FilesCaptureResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
     GAPS_FIELD_NUMBER: _ClassVar[int]
     artifacts: _containers.RepeatedCompositeFieldContainer[_files_pb2.CapturedArtifact]
@@ -122,7 +122,7 @@ class FilesCaptureResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class FileBatch(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     BYTES_FIELD_NUMBER: _ClassVar[int]
     offset: int
@@ -131,7 +131,7 @@ class FileBatch(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FileCompletion(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     BYTES_FIELD_NUMBER: _ClassVar[int]
     bytes: int
     def __init__(self, bytes: _Optional[int] = ...) -> None: ...

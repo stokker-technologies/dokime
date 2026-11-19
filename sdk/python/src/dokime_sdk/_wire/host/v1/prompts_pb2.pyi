@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 import datetime
@@ -37,7 +37,7 @@ PROMPT_KIND_VERIFICATION: PromptKind
 
 @final
 class PromptsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     NAME_FIELD_NUMBER: _ClassVar[int]
     AT_FIELD_NUMBER: _ClassVar[int]
     name: str
@@ -46,7 +46,7 @@ class PromptsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType
 
 @final
 class PromptsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     prompt: PromptView
@@ -55,7 +55,7 @@ class PromptsGetResponse(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class PromptsListRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -72,7 +72,7 @@ class PromptsListRequest(_message.Message, metaclass=GeneratedProtocolMessageTyp
 
 @final
 class PromptsListResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     NEXT_PAGE_TOKEN_FIELD_NUMBER: _ClassVar[int]
@@ -83,7 +83,7 @@ class PromptsListResponse(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class PromptsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PARENT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -100,7 +100,7 @@ class PromptsWatchRequest(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class PromptsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPTS_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     OPENING_FIELD_NUMBER: _ClassVar[int]
@@ -113,10 +113,10 @@ class PromptsWatchResponse(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class PromptsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -134,10 +134,10 @@ class PromptsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageT
 
 @final
 class PromptsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     @final
     class ValuesEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
-        __slots__ = ()
+        __slots__: tuple[str, ...]
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -159,7 +159,7 @@ class PromptsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessage
 
 @final
 class PromptInstance(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPT_ID_FIELD_NUMBER: _ClassVar[int]
     DEFINITION_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
@@ -176,7 +176,7 @@ class PromptInstance(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PromptView(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPT_FIELD_NUMBER: _ClassVar[int]
     RESPONSE_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_CURSOR_FIELD_NUMBER: _ClassVar[int]
@@ -187,7 +187,7 @@ class PromptView(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class PromptResponse(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     PROMPT_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     RESPONDER_FIELD_NUMBER: _ClassVar[int]

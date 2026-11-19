@@ -1,4 +1,4 @@
-from google.protobuf.internal.python_message import GeneratedProtocolMessageType
+from google.protobuf.reflection import GeneratedProtocolMessageType
 from typing import final
 
 from dokime_sdk._wire.model.v1 import scalar_pb2 as _scalar_pb2
@@ -60,7 +60,7 @@ FILTER_OPERATOR_EXISTS: FilterOperator
 
 @final
 class DataExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     STREAM_FIELD_NUMBER: _ClassVar[int]
     RECORD_FIELD_NUMBER: _ClassVar[int]
@@ -83,7 +83,7 @@ class DataExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class FieldReference(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     IDENTIFIER_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
     identifier: str
@@ -92,7 +92,7 @@ class FieldReference(_message.Message, metaclass=GeneratedProtocolMessageType):
 
 @final
 class AggregateExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     PERCENTILE_FIELD_NUMBER: _ClassVar[int]
@@ -103,7 +103,7 @@ class AggregateExpression(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class TransformExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     TIME_BETWEEN_FIELD_NUMBER: _ClassVar[int]
@@ -120,7 +120,7 @@ class TransformExpression(_message.Message, metaclass=GeneratedProtocolMessageTy
 
 @final
 class DocumentFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__ = ()
+    __slots__: tuple[str, ...]
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
