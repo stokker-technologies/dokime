@@ -497,3 +497,19 @@ test("Shared Preference Failure Occupies Its Content Slot", () => {
   assert.ok(html.includes(error.message));
   assert.deepEqual(fixture.snapshot?.revision, snapshot().revision);
 });
+
+
+test("Failed Saves Preserve Revisions After Persistence Refusal", async () => {
+  const previous = snapshot();
+  const refusal = { kind: "persistence", message: "fixture-write-refused" };
+  fixture.update.mockRejectedValueOnce(refusal);
+  renderToStaticMarkup(createElement(SavePreferencesProbe, { scope: "local" }));
+  const mutation = fixture.mutations.at(-1);
+  assert.ok(mutation);
+  const settings = { ...previous.settings, client: { ...previous.settings.client, request_timeout_ms: 6789 } };
+  await assert.rejects(mutation.mutationFn({ previous, settings }), (error) => error === refusal);
+  assert.deepEqual(previous, snapshot());
+  assert.equal(fixture.cache.mock.calls.length, 0);
+  assert.equal(fixture.appearance.mock.calls.length, 0);
+  assert.deepEqual(fixture.update.mock.calls[0], ["local", { expected_revision: previous.revision, settings }]);
+});

@@ -87,8 +87,7 @@ export function NotificationDetailsDialog() {
           <span role="status" className="self-center text-xs text-muted-foreground">
             {copyStatus}
           </span>
-          {!failure && (
-            <Button
+          <Button
               variant="outline"
               onClick={async () => {
                 if (!record) return;
@@ -103,7 +102,6 @@ export function NotificationDetailsDialog() {
             >
               Copy
             </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -23,6 +23,7 @@ import { beforeEach, test, vi } from "vitest";
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
 import { ErrorCard } from "@/components/ErrorCard";
+import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { commands } from "@/lib/desktop/commands";
@@ -263,6 +264,8 @@ type TestElementProps = {
   children?: ReactNode;
   actions?: ReactNode;
   failure?: unknown;
+  onRetry?: () => void;
+  notificationContext?: string;
   retry?: (profile: string | null) => void;
   tabIndex?: number;
   role?: string;
@@ -363,4 +366,22 @@ test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
   const contents = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint }));
   assert.equal(contents.filter((element) => element.type === ErrorCard).length, 1);
   assert.ok(contents.some((element) => element.type === "p" && element.props.children === endpoint));
+});
+
+
+test("Startup Recovery Feedback", async () => {
+  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
+    "@/app/native-session/ConnectionScreen");
+  const diagnostics = { cause: "fixture-startup-cause", log: "C:/fixture/startup.log" };
+  const error = { kind: "startup", message: diagnostics.cause, diagnostics };
+  const contents = descendants(ConnectionScreen({ launch: {
+    target: null, expectedBackendId: null, localBackendAvailable: true, error,
+  } }));
+  const failures = contents.filter((element) => element.type === ErrorCard);
+  assert.equal(failures.length, 1);
+  assert.equal((failures[0].props.failure as { message: string }).message, diagnostics.cause);
+  assert.equal(failures[0].props.notificationContext, "background");
+  assert.ok(contents.some((element) => element.type === PathPill && element.props.value === diagnostics.log));
+  failures[0].props.onRetry?.();
+  assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
 });

@@ -473,3 +473,73 @@ test("Feedback Is Recorded", async () => {
   assert.equal(write.mock.calls.length, 1);
   assert.equal(shown.error.mock.calls.length, 1);
 });
+
+test("Failure Stem Retains Identity and All Context", async () => {
+  const { failureOf } = await import("@/lib/notification-details");
+  assert.ok(failureOf(new Error(" "), "fixture-title").message.trim());
+  const root = new Error("fixture-root");
+  const wrapper = new Error("fixture-wrapper", { cause: root });
+  const error = Object.assign(new Error("fixture-message", { cause: wrapper }), {
+    operation: "fixture-operation",
+    operationId: "fixture-op-id",
+    requestId: "fixture-request",
+    invocationId: "fixture-invocation",
+    diagnostics: "fixture-redacted-span",
+    backtrace: "fixture-backtrace",
+    problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-root"] }],
+  });
+  const failure = failureOf(error, "fixture-title");
+  assert.equal(failureOf(error, "fixture-other"), failure);
+  assert.equal(failureOf(failure, "fixture-other"), failure);
+  assert.deepEqual(failure.causes, [root.message, wrapper.message]);
+  for (const key of ["operation", "operationId", "requestId", "invocationId", "problems"] as const)
+    assert.deepEqual(failure[key], error[key]);
+  assert.equal(failure.diagnostics, [error.diagnostics, error.backtrace].join("\n\n"));
+  assert.notEqual(failureOf(new Error(error.message), failure.title).id, failure.id);
+  assert.equal(failureOf("fixture", "fixture", "fixture-event"), failureOf("fixture", "fixture", "fixture-event"));
+});
+
+
+
+test("Failure Copy Retains Notification Metadata and Field Problems", async () => {
+  const { failureText, notificationDetailsText } = await import("@/lib/notification-details");
+  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
+  const history = await import("@/lib/notifications");
+  const failure = failureOf(Object.assign(new Error("fixture-failure"), {
+    problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-cause"] }],
+    requestId: "fixture-request", operationId: "fixture-operation", invocationId: "fixture-invocation",
+  }), "fixture-title");
+  const entry = { ...record(2), failure, consequences: ["fixture-consequence"] };
+  const copied = notificationDetailsText(entry, "fixture-relative");
+  assert.ok(copied.includes(failureText(failure)));
+  for (const value of [entry.source, entry.tone, new Date(entry.at).toISOString(), "fixture-relative", ...entry.consequences,
+    "fixture-field", "fixture-problem", "fixture-field-cause", "fixture-request", "fixture-operation", "fixture-invocation"])
+    assert.ok(copied.includes(value));
+  const copy = vi.fn(async (_text: string) => {});
+  vi.stubGlobal("navigator", { clipboard: { writeText: copy } });
+  history.openNotificationDetails(entry);
+  const html = renderToStaticMarkup(createElement(NotificationDetailsDialog));
+  assert.ok(!/<details[^>]*\bopen\b/.test(html));
+  await controls.copy();
+  assert.equal(copy.mock.calls.length, 1);
+  assert.ok(copy.mock.calls[0][0].includes(failureText(failure)));
+  assert.ok(copy.mock.calls[0][0].includes(new Date(entry.at).toISOString()));
+});
+
+test("Transport Admission Failures Retain All Request Identifiers", async () => {
+  const rejection = new Error("fixture-admission");
+  vi.doMock("@/lib/rpc/ipc", () => ({ unary: vi.fn().mockRejectedValue(rejection) }));
+  try {
+    const { unary } = await import("@/lib/rpc/transport");
+    const { FailureSchema } = await import("@/lib/rpc/generated/errors");
+    const identifiers = { operationId: "fixture-operation", requestId: "fixture-request", invocationId: "fixture-invocation" };
+    const request = { ...identifiers, message: "fixture-request-body" };
+    await assert.rejects(unary("fixture/admit", FailureSchema, FailureSchema, { generation: "1", isCurrent: () => true }, request),
+      (error) => error === rejection);
+    const failure = failureOf(rejection, "fixture-title");
+    assert.equal(failure.operation, "fixture/admit");
+    for (const key of ["operationId", "requestId", "invocationId"] as const) assert.equal(failure[key], identifiers[key]);
+  } finally {
+    vi.doUnmock("@/lib/rpc/ipc");
+  }
+});

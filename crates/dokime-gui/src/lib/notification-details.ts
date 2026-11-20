@@ -166,10 +166,9 @@ export function failureText(failure: NotificationFailure): string {
 }
 
 export function notificationDetailsText(record: NotificationRecord, relative: string): string {
-  if (record.failure) return failureText(record.failure);
   return [
-    record.title,
-    record.description,
+    record.failure ? failureText(record.failure) : record.title,
+    record.failure ? undefined : record.description,
     `Source: ${record.source}`,
     `Time: ${new Date(record.at).toISOString()} (${relative})`,
     `Severity: ${record.tone}`,

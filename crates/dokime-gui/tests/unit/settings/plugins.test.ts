@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -17,11 +18,12 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { beforeEach, test, vi } from "vitest";
+import { beforeEach, onTestFinished, test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { createElement, isValidElement, type ComponentProps, type ReactNode } from "react";
+import { act, createElement, isValidElement, type ComponentProps, type ReactNode } from "react";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
@@ -44,6 +46,7 @@ const fixture = vi.hoisted(() => ({
   admitted: vi.fn(),
   installed: vi.fn(),
   settings: vi.fn(),
+  save: vi.fn(),
   detail: vi.fn(),
   installations: vi.fn(),
   captureAdding: false,
@@ -127,7 +130,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
-  useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
+  useInstalledPluginSettingsMutation: () => ({ mutateAsync: fixture.save }),
   useInstalledPluginSecretMutation: () => ({ mutateAsync: vi.fn() }),
   usePluginRestartRefresh: vi.fn(),
 }));
@@ -151,6 +154,7 @@ beforeEach(() => {
   fixture.buttons.length = 0;
   fixture.actions.clear();
   fixture.hash = "";
+  fixture.save.mockResolvedValue(undefined);
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
   fixture.detail.mockImplementation((pluginId: string) => ({
@@ -342,4 +346,30 @@ test("Disabled Undescribed Plugin Keeps Its Settings Available", () => {
   assert.equal(fixture.detail.mock.calls.length, 1);
   assert.ok(html.includes("textarea"));
   assert.ok(!html.includes('role="status"'));
+});
+
+
+test("Failed Plugin Settings Save the Corrected Value", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.useFakeTimers();
+  fixture.installations.mockReturnValue({ data: [entry] });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+  await act(async () => root.render(createElement(PluginSettingsSurface, { pluginId: entry.name })));
+  const textarea = host.querySelector("textarea");
+  assert.ok(textarea);
+  assert.equal(textarea.disabled, false);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "repaired-address");
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(100));
+  assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
 });
