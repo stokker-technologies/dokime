@@ -343,4 +343,6 @@
 
 - [x] Merge the Managed Launch Handshake and Self-Registration Cutover From Dev; Preserve the Host Plugin, Default Shipping, Environment Context and Effects Removal; Regenerate Protocol and Desktop Contracts and Refresh Tracked Cargo Locks.
 - [x] Keep the Host Plugin on the SDK Single Run Entry, With Launch Credentials Selected by the SDK and No Readiness Output or Address Variables.
+- [x] Collapse the SDK Registration Refusal Guard Reported by Rust Lint Without Changing Listener Cleanup or Structured Host Failure Propagation; Import Its Named Types Without Aliases.
+- [ ] Obtain a Passing Rust Lint Result for the Corrected Candidate; the Single Allowed Local Invocation Reported the Now-Corrected Registration Guard.
 - [ ] Complete the Requested Native Windows Generation, Workspace Test Compilation, Desktop Bench Compilation, Rust Lint, Host Plugin Tests, Ready Launch, Native Packaging Tooling, C++ Test Compilation, Format, Repository, Supply and Strict OpenSpec Proof; Keep Linux Proof Independent.

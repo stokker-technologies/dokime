@@ -26,9 +26,11 @@ use std::{
 };
 
 // Third Party Imports
+use harmos::plugin::Listener;
 use harmos_protocol::model::Failure;
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+use tonic::Code;
 
 // Local Imports
 use super::host::{PluginEntry, PluginPlacement, PluginRemote, PluginState, PluginValue, plugin_placement};
@@ -52,7 +54,7 @@ use super::{
 };
 use super::{PluginsDeleteOptions, PluginsGetOptions, PluginsListOptions};
 use super::{Watching, queries::Paging};
-use crate::{ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value};
+use crate::{ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Plugin, Result, Termination, Value};
 
 /* === Constants === */
 
@@ -70,7 +72,7 @@ pub(super) struct Lifetime {
 
 struct OwnedRegistration {
     identifier: String,
-    listener: ::harmos::plugin::Listener,
+    listener: Listener,
     bindings: Vec<(TypeId, String, String)>,
 }
 
@@ -243,11 +245,11 @@ impl Client {
 }
 
 impl Plugins {
-    pub async fn register(&self, plugin: crate::Plugin) -> Result<RegisteredPlugin> {
+    pub async fn register(&self, plugin: Plugin) -> Result<RegisteredPlugin> {
         self.register_with(plugin, PluginRegisterOptions::default()).await
     }
 
-    pub async fn register_with(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
+    pub async fn register_with(&self, plugin: Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
         let plugins = Plugins { client: self.client.clone() };
         // A Cancelled Caller Leaves Admission Owned Until Close Stops Its Listener.
         tokio::spawn(async move { plugins.register_owned(plugin, options).await })
@@ -255,7 +257,7 @@ impl Plugins {
             .map_err(|error| invalid("Register Plugin", &format!("Inspect the Interrupted Registration Task: {error}")))?
     }
 
-    async fn register_owned(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
+    async fn register_owned(&self, plugin: Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
         let mut owned = self.client.lifetime.owned.lock().await;
         self.client.ensure_open()?;
         let request_id = mutations::request_id(options.request_id)?;
@@ -289,10 +291,10 @@ impl Plugins {
             Ok(reply) => reply,
             Err(error) => {
                 listener.close().await?;
-                if let Ok(failure) = <Failure as prost::Message>::decode(error.details()) {
-                    if !failure.message.is_empty() {
-                        return Err(failure.into());
-                    }
+                if let Ok(failure) = <Failure as prost::Message>::decode(error.details())
+                    && !failure.message.is_empty()
+                {
+                    return Err(failure.into());
                 }
                 return Err(error.into());
             }
@@ -428,7 +430,7 @@ impl RegisteredPlugin {
         self.client.ensure_open()?;
         let value = match self.client.plugins().get(self.identifier()).await {
             Ok(value) => value,
-            Err(Error::Harmos(::harmos::Error::Transport(status))) if status.code() == tonic::Code::NotFound => {
+            Err(Error::Harmos(::harmos::Error::Transport(status))) if status.code() == Code::NotFound => {
                 self.detached.store(true, Ordering::Release);
                 return self.release().await;
             }

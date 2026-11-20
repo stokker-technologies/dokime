@@ -7,7 +7,7 @@
  * ***
  */
 
-// Serve the OBC Plugin Over gRPC; `--remote` Announces a Listener for Remote Placement
+// Serve the OBC Plugin Through the SDK's Environment-Selected Run Entry
 
 /* === Modules === */
 
