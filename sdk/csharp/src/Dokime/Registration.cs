@@ -7,8 +7,10 @@
  * ***
  */
 
-using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
 using Dokime.Clients;
 
 namespace Dokime;
@@ -19,6 +21,8 @@ public sealed class PluginCollection
   private readonly CancellationTokenSource closing = new();
   private readonly ConcurrentDictionary<long, Task<RegisteredPlugin>> pending = new();
   private long nextRegistration;
+  // The Product SDK Version This Plugin Was Built With, Without Build Metadata.
+  private static readonly string SdkVersion = typeof(Client).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0];
   internal List<RegisteredPlugin> Owned { get; } = [];
   internal List<TemplateBinding> Bindings { get; } = [];
   internal PluginCollection(Client client) => this.client = client;
@@ -76,7 +80,7 @@ public sealed class PluginCollection
     try
     {
       var placement = new PluginPlacement { Remote = new PluginRemote { Url = endpoint.Address } };
-      var reply = await client.Transport.Plugins.Create(plugin.Identifier, placement, new PluginValue { Enabled = true }, Client.Identity(requestId), context: client.Options(cancellationToken));
+      var reply = await client.Transport.Plugins.Create(plugin.Identifier, placement, new PluginValue { Enabled = true }, Client.Identity(requestId), sdkVersion: SdkVersion, context: client.Options(cancellationToken));
       registered = new RegisteredPlugin(client, this, reply.Entry, endpoint);
       Owned.Add(registered);
       registered.CheckFailure();
@@ -115,26 +119,13 @@ public sealed class PluginCollection
     }
     catch (Exception failure)
     {
+      // A Failed Registration Stops Only Its Listener; an Existing Entry Stays for the Next Start.
       try
       {
         if (registered is not null)
-          await registered.UnregisterAsync();
+          await registered.ReleaseAsync();
         else
-        {
-          try
-          {
-            var observed = await client.Transport.Plugins.Get(plugin.Identifier, context: client.CleanupOptions());
-            if (observed.Entry.Placement?.Remote?.Url == endpoint.Address)
-              await client.Transport.Plugins.Delete(plugin.Identifier, observed.Entry.Revision, client.CleanupOptions());
-          }
-          catch (SdkError error) when (error.InnerException is Grpc.Core.RpcException { StatusCode: Grpc.Core.StatusCode.NotFound })
-          {
-          }
-          finally
-          {
-            await endpoint.DisposeAsync();
-          }
-        }
+          await endpoint.DisposeAsync();
       }
       catch (Exception cleanup)
       {
@@ -211,13 +202,17 @@ public sealed class RegisteredPlugin : IAsyncDisposable
     if (endpoint is not null && reply.Entry.Placement?.Remote?.Url != endpoint.Address)
       throw new InvalidOperationException("Unregister Plugin: Resolve the Changed Placement Before Removing This Client's Registration");
     await client.Transport.Plugins.Delete(Identifier, reply.Entry.Revision, client.CleanupOptions(cancellationToken));
+    await ReleaseAsync();
+    unregistered = true;
+  }
+  internal async Task ReleaseAsync()
+  {
     if (endpoint is not null)
       await endpoint.DisposeAsync();
     owner.Owned.Remove(this);
     owner.Bindings.RemoveAll(binding => binding.Plugin == Identifier);
-    unregistered = true;
   }
-  public async ValueTask DisposeAsync() => await UnregisterAsync();
+  public async ValueTask DisposeAsync() => await ReleaseAsync();
 }
 
 internal sealed record TemplateBinding(Type Type, string Plugin, string Suite, string Template, Templates.Template Contract);
@@ -227,6 +222,7 @@ internal sealed class PluginEndpoint : IAsyncDisposable
   private static readonly SemaphoreSlim console = new(1, 1);
   private readonly Task serving;
   private readonly CancellationTokenSource stop;
+  private Task? closing;
   internal string Address
   {
     get;
@@ -268,21 +264,31 @@ internal sealed class PluginEndpoint : IAsyncDisposable
       console.Release();
     }
   }
-  public async ValueTask DisposeAsync()
+  public ValueTask DisposeAsync() => new(closing ??= CloseAsync());
+
+  private async Task CloseAsync()
   {
     await stop.CancelAsync();
-    await serving;
-    stop.Dispose();
+    try
+    {
+      await serving;
+    }
+    finally
+    {
+      stop.Dispose();
+    }
   }
   private sealed class ReadinessWriter(TextWriter original) : TextWriter
   {
-    public override System.Text.Encoding Encoding => original.Encoding;
+    public override Encoding Encoding => original.Encoding;
     internal TaskCompletionSource<string> Address { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public override void WriteLine(string? value)
     {
+      // The Registration Captures the Library Readiness Line; the SDK Prints Nothing.
       if (value?.StartsWith("harmos listening ", StringComparison.Ordinal) == true)
         Address.TrySetResult(value["harmos listening ".Length..]);
-      original.WriteLine(value);
+      else
+        original.WriteLine(value);
     }
   }
 }

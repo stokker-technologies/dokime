@@ -50,7 +50,7 @@ public sealed class ClientRunsBoundExecutions
   [Theory]
   [InlineData(false)]
   [InlineData(true)]
-  public async Task RegisterBindsTemplateAndCloseUnregistersOwnedEndpoint(bool connectOnWatch)
+  public async Task RegisterBindsTemplateAndCloseKeepsTheEntry(bool connectOnWatch)
   {
     // Register and Observe Readiness.
     var backend = new FakeBackend { ConnectOnWatch = connectOnWatch };
@@ -68,18 +68,50 @@ public sealed class ClientRunsBoundExecutions
       listed.Add(entry);
     Assert.Equal(registered.Identifier, Assert.Single(listed).Identifier);
 
-    // Close the Client and Verify Registration Cleanup.
+    // Close the Client; the Host Keeps the Entry for the Next Start.
     await client.CloseAsync();
-    Assert.Equal(0, backend.RegisteredCount);
+    Assert.Equal(1, backend.RegisteredCount);
     Assert.Empty(client.Plugins.Bindings);
 
-    // Verify Product Registration and Teardown Routes.
-    var registration = Assert.Single(backend.Requests.OfType<Dokime.Clients.PluginsCreateRequest>());
-    Assert.True(registration.Value.Enabled);
-    Assert.False(registration.HasOrigin);
-    Assert.Equal(registered.Identifier, registration.Name);
-    Assert.Equal(connectOnWatch ? 1 : 0, backend.Calls.Count(method => method == "/dokime.host.v1.Plugins/Watch"));
-    Assert.Equal("/dokime.host.v1.Plugins/Delete", backend.Calls.Last());
+    // Starting Again Reuses the Entry Under the Same Name.
+    var restarted = Connect(backend);
+    var replacement = await restarted.Plugins.RegisterAsync(new ExamplePlugin());
+    Assert.Equal(registered.Identifier, replacement.Identifier);
+    await replacement.DisposeAsync();
+    await replacement.DisposeAsync();
+    await restarted.CloseAsync();
+    Assert.Equal(1, backend.RegisteredCount);
+
+    // Verify Product Registration Routes Without Teardown.
+    var registrations = backend.Requests.OfType<Dokime.Clients.PluginsCreateRequest>().ToArray();
+    Assert.Equal(2, registrations.Length);
+    Assert.All(registrations, registration =>
+    {
+      Assert.True(registration.Value.Enabled);
+      Assert.False(registration.HasOrigin);
+      Assert.Equal(registered.Identifier, registration.Name);
+      Assert.True(registration.HasSdkVersion);
+      Assert.NotEmpty(registration.SdkVersion);
+    });
+    Assert.Equal(connectOnWatch ? 2 : 0, backend.Calls.Count(method => method == "/dokime.host.v1.Plugins/Watch"));
+    Assert.DoesNotContain("/dokime.host.v1.Plugins/Delete", backend.Calls);
+  }
+
+  [Fact]
+  public async Task RefusedRegistrationPreservesTheHostMessageAndKeepsExistingEntries()
+  {
+    var backend = new FakeBackend();
+    var first = Connect(backend);
+    await first.Plugins.RegisterAsync(new ExamplePlugin());
+    await first.CloseAsync();
+    backend.RegistrationRefusal = "fixture-sdk-refusal";
+    var client = Connect(backend);
+    var failure = await Assert.ThrowsAsync<SdkError>(() => client.Plugins.RegisterAsync(new ExamplePlugin()));
+    Assert.Contains(backend.RegistrationRefusal, failure.Message);
+    Assert.Empty(client.Plugins.Owned);
+    Assert.Equal(1, backend.RegisteredCount);
+    Assert.DoesNotContain("/dokime.host.v1.Plugins/Delete", backend.Calls);
+    await client.CloseAsync();
   }
 
   private static Client Connect(FakeBackend backend) => new(backend, headers: new Grpc.Core.Metadata { { "authorization", "Bearer test-token" } });

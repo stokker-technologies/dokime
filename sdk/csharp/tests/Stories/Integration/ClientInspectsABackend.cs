@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Security.Cryptography;
 using Dokime;
 using Dokime.Clients;
 using Google.Protobuf;
@@ -21,7 +22,7 @@ public sealed class ClientInspectsABackend
     var options = client.Options();
 
     // Create and Read the Managed Entry.
-    var digest = ByteString.CopyFrom(System.Security.Cryptography.SHA256.HashData([1, 2, 3]));
+    var digest = ByteString.CopyFrom(SHA256.HashData([1, 2, 3]));
     var content = new Harmos.FileReference
     {
       Metadata = new Harmos.FileMetadata { Id = "capture" },
@@ -29,7 +30,7 @@ public sealed class ClientInspectsABackend
       Sha256 = digest
     };
     var placement = new PluginPlacement { Managed = new PluginManaged { Content = content, Sha256 = digest } };
-    var created = await client.Transport.Plugins.Create("example", placement, new PluginValue { Enabled = true }, "create-example", "capture", options);
+    var created = await client.Transport.Plugins.Create("example", placement, new PluginValue { Enabled = true }, "create-example", "capture", context: options);
     var entry = (await client.Transport.Plugins.Get(created.Entry.Name, context: options)).Entry;
     Assert.Equal(created.Entry, entry);
     Assert.Equal(entry, Assert.Single((await client.Transport.Plugins.List(context: options)).Entries));
