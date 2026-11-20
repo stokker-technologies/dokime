@@ -40,7 +40,7 @@ from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._client import Client
-from ._configuration import load, resolve
+from ._configuration import load
 from ._connection import connect
 from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
@@ -78,12 +78,10 @@ class _Session:
 
 
 class _Endpoint:
-    def __init__(self, endpoint: harmos.plugin.Endpoint, managed: bool, client: Client | None = None) -> None:
+    def __init__(self, endpoint: harmos.plugin.Endpoint, client: Client | None = None) -> None:
         self._endpoint = endpoint
         self._client = client
         self.address = endpoint.address
-        self.managed = managed
-        self.host = client._endpoint if client is not None else None
 
     async def stop(self) -> None:
         # Closing the Registering Client Stops Its Listener and Keeps the Host Entry.
@@ -220,32 +218,37 @@ class Plugin:
     async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
         pass
 
-    async def start(self, address: str | None = None) -> _Endpoint:
-        managed = await _managed_start(self)
-        if managed is not None:
-            return managed
+    async def start(self, address: str = "127.0.0.1:0") -> _Endpoint:
+        """Open an Addressable Listener; the Caller Owns Stop and Wait."""
+        return _Endpoint(await self._activate(address))
+
+    async def serve(self) -> None:
+        """Run From Launch Credentials, Pairing Configuration or Standalone Defaults."""
+        launched = "HARMOS_HOST_ENDPOINT" in os.environ or "HARMOS_LAUNCH_TOKEN" in os.environ
+        if launched:
+            try:
+                await self._plugin.run()
+            except asyncio.CancelledError:
+                pass
+            return
         values = load()
         remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
         if not remote:
-            return _Endpoint(await self._activate(address), False)
+            endpoint = await self.start()
+            await endpoint.wait()
+            return
         client = await connect(remote)
         try:
-            registered = await client.plugins.register(self, address=address)
-        except BaseException:
+            registered = await client.plugins.register(self)
+            endpoint = _Endpoint(cast(harmos.plugin.Endpoint, registered._endpoint), client)
+            await endpoint.wait()
+        finally:
             await client.close()
-            raise
-        return _Endpoint(cast(harmos.plugin.Endpoint, registered._endpoint), False, client)
-
-    async def serve(self, address: str | None = None) -> None:
-        managed = "HARMOS_HOST_ENDPOINT" in os.environ or "HARMOS_LAUNCH_TOKEN" in os.environ
-        if address is None and managed:
-            await self._plugin.run()
-            return
-        endpoint = await self.start(address)
-        await endpoint.wait()
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
-        return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
+        if address == "":
+            raise ValueError("Start Plugin: Supply a Nonempty Listener Address")
+        return await self._plugin.start("127.0.0.1:0" if address is None else address)
 
     def _materialize(self, template: _Template) -> Callable[..., Awaitable[Message]]:
         async def execute(adapter: object, transport: harmos.plugin.Context, request: TestCasesMaterializeRequest) -> Message:
@@ -442,16 +445,6 @@ class Plugin:
 
 
 # === Private Functions === #
-
-
-async def _managed_start(plugin: Plugin) -> _Endpoint | None:
-    # The Pinned Library Launches a Managed Plugin With Its Listener Address.
-    if "HARMOS_ADDRESS" not in os.environ:
-        return None
-    address = resolve("HARMOS_ADDRESS", None, {})
-    endpoint = _Endpoint(await plugin._plugin.start(address), True)
-    print(f"harmos listening {endpoint.address}", flush=True)
-    return endpoint
 
 
 def _distribution_version(plugin: type[Plugin]) -> str:

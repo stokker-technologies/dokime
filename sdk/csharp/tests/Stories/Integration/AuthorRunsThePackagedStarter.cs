@@ -21,21 +21,16 @@ public sealed class AuthorRunsThePackagedStarter
   public async Task StartAtTheHostEndpointRunAndStop()
   {
     // Start the Package-Consuming Executable at the Host-Assigned Endpoint.
-    var start = new ProcessStartInfo(ReferenceHost.Artifact("DOKIME_STARTER"))
-    {
-      RedirectStandardOutput = true,
-      RedirectStandardError = true
-    };
-    start.Environment["HARMOS_ADDRESS"] = "127.0.0.1:0";
+    var start = ReferenceHost.PluginStart(ReferenceHost.Artifact("DOKIME_STARTER"));
     using var process = Process.Start(start)!;
     var errors = process.StandardError.ReadToEndAsync();
     try
     {
       using var setup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
       var readiness = await process.StandardOutput.ReadLineAsync(setup.Token);
-      Assert.StartsWith("harmos listening ", readiness);
+      Assert.NotNull(readiness);
       var output = process.StandardOutput.ReadToEndAsync();
-      using var channel = GrpcChannel.ForAddress("http://" + readiness!["harmos listening ".Length..]);
+      using var channel = GrpcChannel.ForAddress(readiness!);
       var wire = new Wire(channel.CreateCallInvoker());
 
       // Discover and Materialize the Starter's Authored Template.
@@ -82,6 +77,7 @@ public sealed class AuthorRunsThePackagedStarter
       await wire.InvokeAsync<ExecutionsCleanupResponse>(description, template.Cleanup,
           new ExecutionsCleanupRequest { Execution = "starter-execution", TestCase = testCase, Origin = origin }, "starter-execution");
       await wire.StopAsync();
+      process.StandardInput.Close();
       await process.WaitForExitAsync(setup.Token);
       Assert.True(process.ExitCode == 0, await errors);
       await output;

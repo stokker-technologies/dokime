@@ -10,7 +10,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text;
 using Dokime.Clients;
 
 namespace Dokime;
@@ -74,7 +73,7 @@ public sealed class PluginCollection
     CancellationToken cancellationToken)
   {
     _ = client.Options(cancellationToken);
-    var address = Configuration.Resolve("DOKIME_PLUGIN_ADDRESS", settings?.PluginAddress, Configuration.Load());
+    var address = settings?.PluginAddress ?? "127.0.0.1:0";
     var endpoint = await PluginEndpoint.StartAsync(plugin, address, cancellationToken);
     RegisteredPlugin? registered = null;
     try
@@ -219,81 +218,15 @@ public sealed class RegisteredPlugin : IAsyncDisposable
 
 internal sealed record TemplateBinding(Type Type, string Plugin, string Suite, string Template, Templates.Template Contract);
 
-internal sealed class PluginEndpoint : IAsyncDisposable
+internal sealed class PluginEndpoint(Harmos.Plugins.Listener listener) : IAsyncDisposable
 {
-  private static readonly SemaphoreSlim console = new(1, 1);
-  internal Task Serving
-  {
-    get;
-  }
-  private readonly CancellationTokenSource stop;
   private Task? closing;
-  internal string Address
-  {
-    get;
-  }
-  private PluginEndpoint(string address, Task serving, CancellationTokenSource stop)
-  {
-    Address = address;
-    Serving = serving;
-    this.stop = stop;
-  }
+  internal Task Serving { get; } = listener.WaitAsync();
+  internal string Address => "http://" + listener.Address;
   internal static async Task<PluginEndpoint> StartAsync(Plugin plugin, string address, CancellationToken cancellationToken)
   {
-    await console.WaitAsync(cancellationToken);
-    var original = Console.Out;
-    var ready = new ReadinessWriter(original);
-    var stop = new CancellationTokenSource();
-    Console.SetOut(ready);
-    var serving = plugin.Adapter.RunAsync(address, remote: true, cancellationToken: stop.Token);
-    try
-    {
-      var winner = await Task.WhenAny(ready.Address.Task, serving).WaitAsync(cancellationToken);
-      if (winner == serving)
-      {
-        await serving;
-        throw new InvalidOperationException("Serve Plugin: Keep the Plugin Running Until Its Listening Address Is Published");
-      }
-      return new PluginEndpoint("http://" + await ready.Address.Task, serving, stop);
-    }
-    catch
-    {
-      await stop.CancelAsync();
-      await serving;
-      stop.Dispose();
-      throw;
-    }
-    finally
-    {
-      Console.SetOut(original);
-      console.Release();
-    }
+    var listener = await plugin.Adapter.Build().StartAsync(address, remote: true, cancellationToken);
+    return new PluginEndpoint(listener);
   }
-  public ValueTask DisposeAsync() => new(closing ??= CloseAsync());
-
-  private async Task CloseAsync()
-  {
-    await stop.CancelAsync();
-    try
-    {
-      await Serving;
-    }
-    finally
-    {
-      stop.Dispose();
-    }
-  }
-  private sealed class ReadinessWriter(TextWriter original) : TextWriter
-  {
-    public override Encoding Encoding => original.Encoding;
-    internal TaskCompletionSource<string> Address { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public override void WriteLine(string? value)
-    {
-      // The Registration Captures the Library Readiness Line; the SDK Prints Nothing.
-      if (value?.StartsWith("harmos listening ", StringComparison.Ordinal) == true)
-        Address.TrySetResult(value["harmos listening ".Length..]);
-      else
-        original.WriteLine(value);
-    }
-  }
+  public ValueTask DisposeAsync() => new(closing ??= listener.DisposeAsync().AsTask());
 }

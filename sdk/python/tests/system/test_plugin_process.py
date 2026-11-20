@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 from importlib.metadata import version
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -28,6 +29,8 @@ from urllib.parse import urlsplit
 from dokime_tools.test import policy
 from grpc import ServicerContext, StatusCode, server
 from starter_project.plugin import ExamplePlugin
+from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
+from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
 
 # Local Imports
 from dokime_sdk import Failure
@@ -46,11 +49,12 @@ from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_Plugi
 # === Classes === #
 
 
-class Host(PluginsServicer):
+class Host(PluginsServicer, LaunchesServicer):
     def __init__(self) -> None:
         self.requests: list[plugins_pb2.PluginsCreateRequest] = []
         self.entries: dict[str, plugins_pb2.PluginEntry] = {}
         self.refusal: Failure | None = None
+        self.ready: Queue[str] = Queue()
 
     def Create(self, request: plugins_pb2.PluginsCreateRequest, context: ServicerContext) -> plugins_pb2.PluginsCreateResponse:
         self.requests.append(request)
@@ -62,7 +66,14 @@ class Host(PluginsServicer):
         entry.placement.CopyFrom(request.placement)
         entry.value.CopyFrom(request.value)
         entry.state = plugins_pb2.PLUGIN_STATE_READY
+        self.ready.put(entry.placement.remote.url)
         return plugins_pb2.PluginsCreateResponse(entry=entry)
+
+    def Announce(self, request: LaunchesAnnounceRequest, context: ServicerContext) -> LaunchesAnnounceResponse:
+        if request.token != "fixture-launch":
+            context.abort(StatusCode.PERMISSION_DENIED, "Use the Fixture Launch Token")
+        self.ready.put("http://" + request.address)
+        return LaunchesAnnounceResponse()
 
 
 class PluginProcessStory(unittest.TestCase):
@@ -71,26 +82,21 @@ class PluginProcessStory(unittest.TestCase):
         self.host = Host()
         listener = server(ThreadPoolExecutor(max_workers=2))
         add_PluginsServicer_to_server(self.host, listener)
+        add_LaunchesServicer_to_server(self.host, listener)
         self.endpoint = f"http://127.0.0.1:{listener.add_insecure_port('127.0.0.1:0')}"
         listener.start()
         self.addCleanup(listener.stop, None)
 
-    def test_managed_first_line_connects_and_interrupt_closes_without_traceback(self) -> None:
+    def test_launch_announces_and_interrupt_closes_without_traceback(self) -> None:
         directory = Path(tempfile.mkdtemp(prefix="dokime-managed-plugin-"))
         self.addCleanup(shutil.rmtree, directory)
         (directory / ".env").write_text('DOKIME_REMOTE="unterminated\n', encoding="utf-8")
-        line = self._run({"HARMOS_ADDRESS": "127.0.0.1:0", "DOKIME_REMOTE": self.endpoint}, directory=directory)
-        self.assertTrue(line.startswith("harmos listening "), line)
-        self.assertEqual(self.host.requests, [])
-
-    def test_manual_first_line_connects_and_interrupt_closes_without_traceback(self) -> None:
-        self._run({"DOKIME_REMOTE": ""})
+        self._run({"HARMOS_HOST_ENDPOINT": self.endpoint.removeprefix("http://"), "HARMOS_LAUNCH_TOKEN": "fixture-launch", "DOKIME_REMOTE": self.endpoint}, directory=directory)
         self.assertEqual(self.host.requests, [])
 
     def test_paired_start_registers_once_and_a_second_start_reuses_the_entry(self) -> None:
         for _ in range(2):
-            line = self._run({"DOKIME_REMOTE": self.endpoint})
-            self.assertEqual(line.rsplit(" ", 1)[-1].strip(), self.endpoint)
+            self._run({"DOKIME_REMOTE": self.endpoint})
         names = [request.name for request in self.host.requests]
         self.assertEqual(names, [ExamplePlugin().identifier] * 2)
         self.assertEqual({request.sdk_version for request in self.host.requests}, {version("dokime-sdk")})
@@ -100,8 +106,9 @@ class PluginProcessStory(unittest.TestCase):
     def test_refused_registration_exits_nonzero_with_the_host_message(self) -> None:
         self.host.refusal = Failure("Permanent", "plugin_incompatible", "Fixture Host Refuses SDK", "Rebuild the Fixture Plugin")
         environment = dict(os.environ)
-        environment.pop("HARMOS_ADDRESS", None)
-        environment.update({"DOKIME_PLUGIN_ADDRESS": "127.0.0.1:0", "DOKIME_REMOTE": self.endpoint})
+        environment.pop("HARMOS_HOST_ENDPOINT", None)
+        environment.pop("HARMOS_LAUNCH_TOKEN", None)
+        environment.update({"DOKIME_REMOTE": self.endpoint})
         result = subprocess.run(
             [sys.executable, "-m", "starter_project.plugin"],
             check=False,
@@ -139,8 +146,8 @@ runpy.run_module("starter_project.plugin", run_name="__main__")
 """
             command = [sys.executable, "-c", launch]
         environment = dict(os.environ)
-        environment.pop("HARMOS_ADDRESS", None)
-        environment["DOKIME_PLUGIN_ADDRESS"] = "127.0.0.1:0"
+        environment.pop("HARMOS_HOST_ENDPOINT", None)
+        environment.pop("HARMOS_LAUNCH_TOKEN", None)
         environment.update(overrides)
         process = subprocess.Popen(
             command,
@@ -153,12 +160,9 @@ runpy.run_module("starter_project.plugin", run_name="__main__")
             creationflags=flags,
             startupinfo=startup,
         )
-        reader = ThreadPoolExecutor(max_workers=1)
         try:
-            # Read Exactly the First Line and Connect Without Readiness Polling.
-            assert process.stdout is not None
-            line = reader.submit(process.stdout.readline).result(timeout=timeout)
-            served = self.host.requests[-1].placement.remote.url if self.host.requests else f"http://{line.rsplit(' ', 1)[-1].strip()}"
+            # The Host Observes Launch Announcement or Registration Directly.
+            served = self.host.ready.get(timeout=timeout)
             address = urlsplit(served)
             self.assertEqual(address.scheme, "http")
             assert address.hostname is not None and address.port is not None
@@ -192,12 +196,11 @@ if not kernel.GenerateConsoleCtrlEvent(0, 0):
             if process.poll() is None:
                 process.kill()
                 process.wait(timeout=timeout)
-            reader.shutdown(wait=True)
             if process.stdout is not None:
                 process.stdout.close()
             if process.stderr is not None:
                 process.stderr.close()
-        return line
+        return served
 
 
 # === Public Functions === #

@@ -311,13 +311,11 @@ class PluginEndpointStory(unittest.IsolatedAsyncioTestCase):
         environment = patch.dict(os.environ, {})
         environment.start()
         self.addCleanup(environment.stop)
-        os.environ.pop("HARMOS_ADDRESS", None)
         printing = patch("builtins.print")
         output = printing.start()
         self.addCleanup(printing.stop)
         endpoint = await ExamplePlugin().start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.stop)
-        self.assertFalse(endpoint.managed)
         output.assert_not_called()
         host, port = endpoint.address.rsplit(":", 1)
         _, writer = await asyncio.open_connection(host, int(port))
@@ -325,39 +323,14 @@ class PluginEndpointStory(unittest.IsolatedAsyncioTestCase):
         writer.close()
         await writer.wait_closed()
 
-    async def test_managed_start_announces_the_selected_address(self) -> None:
-        environment = patch.dict(os.environ, {"HARMOS_ADDRESS": "127.0.0.1:0", "DOKIME_PLUGIN_ADDRESS": "invalid"})
-        environment.start()
-        self.addCleanup(environment.stop)
-        printing = patch("builtins.print")
-        output = printing.start()
-        self.addCleanup(printing.stop)
-        endpoint = await ExamplePlugin().start("invalid")
-        self.addAsyncCleanup(endpoint.stop)
-        self.assertTrue(endpoint.managed)
-        output.assert_called_once_with(f"harmos listening {endpoint.address}", flush=True)
-
     async def test_wait_settles_after_stop(self) -> None:
         environment = patch.dict(os.environ, {})
         environment.start()
         self.addCleanup(environment.stop)
-        os.environ.pop("HARMOS_ADDRESS", None)
         endpoint = await ExamplePlugin().start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.stop)
         await endpoint.stop()
         await endpoint.wait()
-
-    async def test_empty_managed_address_names_the_managed_configuration(self) -> None:
-        environment = patch.dict(os.environ, {"HARMOS_ADDRESS": ""})
-        environment.start()
-        self.addCleanup(environment.stop)
-        try:
-            await ExamplePlugin().start()
-        except ValueError as error:
-            self.assertIn("HARMOS_ADDRESS", str(error))
-        else:
-            self.fail("Start Plugin: Reject an Empty Managed Address")
-
 
 # === Public Functions === #
 

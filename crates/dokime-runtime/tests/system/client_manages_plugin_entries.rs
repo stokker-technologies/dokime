@@ -63,6 +63,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Create a Remote Entry Through Product Policy
+            eprintln!("Plugin Registration: Create a Remote Entry Through Product Policy");
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
             let credentials = support::CredentialStore::start(credential_root.path()).await?;
@@ -87,6 +88,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert!(client.plugins.create_with("invalid", invalid, enabled, registration()).await.is_err());
 
             // Refuse a Registration Built Against an SDK This Host Cannot Serve
+            eprintln!("Plugin Registration: Refuse a Registration Built Against an SDK This Host Cannot Serve");
             let newer = PluginsCreateOptions {
                 sdk_version: Some("999.0.0".into()),
                 ..Default::default()
@@ -96,6 +98,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             process.close().await?;
 
             // Retain the Same Entry Across Restart and Fence Old Read Cuts
+            eprintln!("Plugin Registration: Retain the Same Entry Across Restart and Fence Old Read Cuts");
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
@@ -112,6 +115,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert!(client.plugins.list_with(options).await.is_err());
 
             // Deletion Leaves the User-Owned Remote Process Available for Reattachment
+            eprintln!("Plugin Registration: Deletion Leaves the User-Owned Remote Process Available for Reattachment");
             client.plugins.delete(restarted.name, restarted.revision).await?;
             assert!(client.plugins.list().await?.entries.is_empty());
             let readded = client.plugins.create_with("thermal", placement, enabled, registration()).await?.entry.unwrap();
@@ -122,6 +126,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert!(!suites.is_empty() && suites.iter().all(|suite| !suite.unavailable));
 
             // A Stopped Plugin Stays Listed as Offline With Its Last Description and Unavailable Suites
+            eprintln!("Plugin Registration: A Stopped Plugin Stays Listed as Offline With Its Last Description and Unavailable Suites");
             plugin.close().await?;
             let offline = client.plugins.get("thermal").await?.entry.unwrap();
             let offline = support::plugin_state(&client.plugins, offline, PluginState::Offline).await?;
@@ -136,6 +141,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             process.close().await?;
 
             // The Offline Entry Survives a Host Restart
+            eprintln!("Plugin Registration: The Offline Entry Survives a Host Restart");
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
@@ -144,6 +150,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert_eq!(saved.description, readded.description);
 
             // Starting the Plugin Again Reuses Its Entry at Its New Address and Brings It Back Online
+            eprintln!("Plugin Registration: Starting the Plugin Again Reuses Its Entry at Its New Address and Brings It Back Online");
             let mut plugin = PluginProcess::start(&support::thermal_fixture()?, true, &support::settings().placement).await?;
             let moved = PluginPlacement {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),

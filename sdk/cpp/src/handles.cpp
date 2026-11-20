@@ -15,12 +15,14 @@
 
 // Third Party Imports
 #include <openssl/evp.h>
+#include <grpc/event_engine/event_engine.h>
 
 // Local Imports
 #include "dokime/client.hpp"
 #include "dokime/detail/client.hpp"
 #include "dokime/detail/transfers.hpp"
 
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using dokime::client::host::PLUGIN_STATE_CONNECTING;
 using dokime::client::host::PLUGIN_STATE_READY;
 using dokime::client::host::PLUGIN_STATE_STOPPED;
@@ -310,7 +312,11 @@ void Client::close() {
   const auto registrations = state_->registrations;
   for (const auto &[identifier, registration] : registrations) {
     try {
-      RegisteredPlugin(registration).unregister();
+      if (registration->listener) {
+        registration->listener->close();
+        registration->listener.reset();
+      }
+      registration->plugin.reset();
     } catch (...) {
       if (!cleanup_failure)
         cleanup_failure = std::current_exception();
@@ -340,6 +346,7 @@ void Client::close() {
     state_->prompt_handler = {};
     state_->prompt_context.reset();
   }
+  state_->registrations.clear();
   state_->bindings.clear();
   state_->registrations.clear();
   state_->transport.reset();
@@ -838,8 +845,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
   const auto identifier = plugin->identifier();
   if (client_->registrations.contains(identifier))
     throw invalid_argument("Register Plugin: Unregister This Client's Existing Plugin First");
-  const auto values = detail::configuration::load();
-  const auto selected = detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
+  const auto selected = address.value_or("127.0.0.1:0");
   auto registration = make_shared<detail::RegistrationState>();
   registration->client = client_;
   registration->plugin = move(plugin);
@@ -853,6 +859,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
     client::PluginsCreateOptions options;
     options.context = client_->context();
     options.request_id = detail::mutation_identity(move(request_id));
+    options.sdk_version = DOKIME_SDK_VERSION;
     const auto created = client_->transport->plugins.create(identifier, placement, value, options);
     registration->entry = created.entry();
     if (registration->entry.name() != identifier)
@@ -1006,6 +1013,34 @@ void RegisteredPlugin::unregister() {
   state_->client->registrations.erase(identifier());
   state_->plugin.reset();
   state_->detached = true;
+}
+void RegisteredPlugin::wait() {
+  if (!state_->listener)
+    throw runtime_error("Wait for Plugin: Keep Its Registered Listener Open");
+  state_->listener->wait();
+}
+void Plugin::serve() {
+  if (detail::configuration::environment("HARMOS_HOST_ENDPOINT") || detail::configuration::environment("HARMOS_LAUNCH_TOKEN")) {
+    compose().run();
+    ShutdownDefaultEventEngine();
+    return;
+  }
+  const auto values = detail::configuration::load();
+  const auto remote = detail::configuration::environment("DOKIME_REMOTE").value_or(
+      values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
+  if (remote.empty()) {
+    compose().run("127.0.0.1:0");
+    ShutdownDefaultEventEngine();
+    return;
+  }
+  ConnectionSettings settings;
+  settings.remote = remote;
+  auto client = connect(settings);
+  // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
+  auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this, [](Plugin *) {}), {}, {});
+  registered.wait();
+  client.close();
+  ShutdownDefaultEventEngine();
 }
 } // namespace dokime
 

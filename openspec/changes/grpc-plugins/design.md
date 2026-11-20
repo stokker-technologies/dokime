@@ -1046,7 +1046,7 @@ async def main() -> None:
 ### Configuration
 
 - Well-known variables read by the SDK: `DOKIME_REMOTE` (an `http://host:port`
-  origin or a `.pair` file) and `DOKIME_PLUGIN_ADDRESS` (default `127.0.0.1:0`).
+  origin or a `.pair` file); plugin listeners default to `127.0.0.1:0`.
 - Precedence: keyword argument, process environment, `.env` in the working
   directory, default. The SDK loads `.env` itself. This replaces the earlier
   rule that no client parses a `.env` file.
@@ -1606,14 +1606,10 @@ The answer handler is installed before Start; it observes pending prompts,
 answers each identity once and is removed on close. The desktop remains the
 normal starter prompt UI.
 
-The current library pin does not complete this amendment in every language.
-Rust's addressable listener keeps its completion wait private, C# exposes only
-the blocking run entry, and C++ keeps listener waiting private. Product run
-entries retain managed delegation; a public start/address/wait surface and
-uniform starter output wait for the library lifecycle API rather than copying
-its shutdown machinery. The existing C# registration readiness capture remains
-an overlap with the library's listener ownership; its removal needs the owner's
-decision and the addressable library API.
+The current pin exposes addressable listeners in all four SDKs. Product C#
+registration uses the library StartAsync and WaitAsync APIs directly; no console
+capture or second serving task owns that listener. Starter run entries stay
+silent and delegate authenticated launch announcement to the library.
 
 The shared description currently carries identifier, version, SDK/protocol
 versions and declarations, but has no plugin label, description or icon fields.
@@ -1636,13 +1632,8 @@ The current manifests also carry tags, authors, license, repository, optional
 publisher and readme references that the advertised description does not expose.
 These catalog values remain part of the presentation-contract decision.
 
-The Rust integration harness still reads `harmos listening` for remote placement
-in `sdk/rust/tests/integration/support/plugin.rs`, while hand-run SDK serving is
-silent. Its callers in `authoring.rs` still require operation and stream proof;
-do not remove those capabilities or restore SDK output to satisfy the harness.
-Migrate readiness through the selected addressable start API after the library
-listener lifecycle is available. Until then this harness is unresolved rework,
-separate from the focused self-registration proof.
+The Rust integration harness uses library Launches reservations to discover the
+listener; standard output is ordinary output in every placement.
 
 Execution seal does not start, cancel or wait for active work. Repetition returns
 the same outcome. A normal run or cancellation already seals the execution;
@@ -1945,7 +1936,7 @@ No local SDK file-watcher or polling capture implementation is added.
 ### Configuration Loading
 
 `connect` resolves DOKIME_REMOTE. `Plugin.serve` and `Plugins.register` resolve
-DOKIME_PLUGIN_ADDRESS. Each entry call reads only `.env` directly in the current
+programmatic listener binding. Each entry call reads only `.env` directly in the current
 working directory at that call, once; there is no parent-directory search, import
 side effect, process-environment mutation or starter loader. Apply precedence
 separately per variable: explicit non-None argument, process environment key,
@@ -2698,7 +2689,7 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | Both Locations | Current Callers and Responsibility | Recommendation for the Owner |
 |---|---|---|
 | `sdk/csharp/src/Dokime/Client.cs:ArtifactAsync` and `FileTransfers.cs:UploadAsync` | Bound cycle/execution artifacts use the client loop; template evidence and file inputs use the transfer helper. Both create, append, publish, verify and abandon uploads. | Keep the transfer owner and delete the client loop after owner approval; retain child mutation identities and abandon only unpublished uploads. |
-| `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Owned registration and carrier stories independently capture stdout, observe listener readiness and settle serving. | Keep one owned endpoint implementation and delete the story server helper after the owner selects its test access boundary. |
+| `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Registration and carrier stories both use the library addressable listener. The product wrapper retains idempotent close, while the test helper owns its channel. | Console-capture ownership was removed with the library listener adoption. |
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
@@ -2771,25 +2762,24 @@ generated consumers, `crates/dokime-runtime/src/plugin.rs`, its Python fixture
 support, the CLI first-hour fixture and the desktop e2e fixture. The native
 `dokime-host --launch-plugin` fixture owns the e2e process through
 `PluginProcess`; JavaScript receives that fixture owner's endpoint instead of
-parsing plugin output. SDK edits are limited to managed-entry detection and
-delegation, plus resolving the Python `start` merge without the retired output
-protocol. The library process owner is private; replacing the development
+parsing plugin output. SDK entries select announcement, self-registration or standalone serving from
+the environment; retired address configuration and output parsers are removed. The library process owner is private; replacing the development
 process owner with it remains an owner decision.
 
-### Launch Lifecycle Mode (Owner Decision Pending)
+### Registry Process Ownership (Library Capability Required)
 
-Launch credentials authenticate readiness; they do not select who owns the
-plugin's lifetime. The current product SDK managed branches delegate to the
-library's default managed `run`, including a detached launch that is registered
-as a remote placement. The library sends `Instance.Stop` when that placement is
-removed or its host closes, so the plugin exits instead of remaining available
-for its author to reattach. This is a lifecycle design conflict, not a missing
-Announce capability: the library already supports `remote().run()` with the same
-handshake and keeps that listener alive after Stop.
+Launch credentials authenticate readiness and do not transfer process ownership.
+The library registry must send Instance.Stop only when its activation owns a
+spawned process. In `crates/harmos-runtime/src/plugin/grpc/mod.rs`, Ending::Stop
+currently calls the endpoint even when `process` is None. Removing a remote entry
+must instead settle its host-side activity and close the registry connection,
+without stopping its externally owned endpoint. Managed process teardown keeps
+its Stop, exit, kill and reap policies unchanged. This removes the need for a
+second product lifecycle marker or for mode selection based on credentials.
 
-The launch mode must reach the SDK entry independently of credential presence;
-the mode transport is an owner decision. Do not restore output readiness or
-patch the registration story to accept losing the user-owned process.
+The product cannot enforce this private registry boundary. It retains ordinary
+launch reservations and self-registration, and does not bypass registry teardown.
+The library checkout is read-only for this delivery.
 
 ### Registration and Presentation
 
@@ -2896,22 +2886,24 @@ policy under its current single owner. Whether that refactor joins this delivery
 is an open owner scope decision; the settings persistence change does not claim
 that convention cleanup is complete.
 
-### Remote Plugin Readiness Rework
+### Launch Entry and Lifecycle Ownership
 
-`crates/dokime-runtime/src/plugin.rs:139` starts a remote plugin by removing
-`HARMOS_ADDRESS`, setting `DOKIME_PLUGIN_ADDRESS` to an ephemeral address and
-waiting for a readiness line on stdout. Its callers include
-`crates/dokime-cli/src/commands/dev.rs:98` and the runtime/desktop host stories.
-`sdk/rust/src/plugin/mod.rs:423` selects standalone remote serving without that
-managed variable, and `:447` intentionally emits no readiness line for that mode.
-SDK plugin entrypoints call this run path. Quiet standalone output is an agreed
-contract; the two startup contracts therefore conflict.
+Every starter calls its SDK's single blocking entry. Launch credentials take
+precedence over pairing and dotenv parsing, and the SDK delegates announcement
+to the library. Otherwise a configured remote selects self-registration and an
+absent remote selects standalone serving. Addressable programmatic start and
+registration calls are separate resource APIs; no listener environment variable
+or output parser participates in startup.
 
-This is REWORK. The capture story reaches this conflict before any capture
-assertion, so compilation and capture-path unit proof do not close capture
-acceptance. The owner must choose one canonical private readiness hand-off for
-owned remote launches, then retire the remote stdout-wait path. Restoring general
-standalone announcements, changing the listener mode just to satisfy the story,
-inventing test-only ports/protocols or changing readiness deadlines is not a fix.
-The capture proof remains open until that contract is supplied and the one story
-passes through it.
+A remote registry entry does not own the process serving it. At the pinned
+library revision, `crates/harmos-runtime/src/plugin/grpc/mod.rs` sends
+Instance.Stop for both remote and managed removals. Rust and C# default launch
+entries use managed listeners, while Python's Stop is already transport-inert.
+The library must gate endpoint Stop on its existing spawned-process ownership.
+Product launch reservations remain token-and-endpoint authentication only; no
+second product lifecycle marker is introduced.
+
+The launch source inventory comprises the four SDK entry implementations and
+starters, SDK listener configuration and readiness fixtures, the product launcher
+and registration stories, generated bindings after merging dev, and desktop
+plugin-table integration. Required proof stays open until performed.

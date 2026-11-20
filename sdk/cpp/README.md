@@ -116,11 +116,11 @@ policies require positive backoff. Authors declare no host requirements.
 
 ## Configuration
 
-`Plugin::serve` resolves its optional address argument, `DOKIME_PLUGIN_ADDRESS`
-in the process environment, the working-directory `.env`, then `127.0.0.1:0`.
-Managed launch coordinates are private host input and take precedence internally.
-An explicitly empty address is an error. The SDK parses UTF-8 dotenv assignments,
-quotes and the shared escape grammar without modifying the process environment.
+`Plugin::serve()` selects library announcement from launch credentials,
+self-registration from `DOKIME_REMOTE`, or standalone serving when neither is set.
+Its executable links `Dokime::Client`; authoring-only consumers link `Dokime::Plugin`.
+Programmatic registration accepts an address and otherwise binds `127.0.0.1:0`.
+Closing the client closes its listeners and retains the host entries.
 
 `connect(ConnectionSettings)` resolves `remote`, `DOKIME_REMOTE`, then the
 working-directory `.env`. It accepts a direct HTTP origin with an explicit port or

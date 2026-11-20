@@ -49,10 +49,12 @@ await client.CloseAsync();
 
 `ConnectionSettings` supplies `Remote`, `PluginAddress` and a `TimeSpan`
 `ConnectTimeout`. Addresses resolve from explicit settings, process environment,
-working-directory `.env`, then defaults. The shared variables are `DOKIME_REMOTE`
-and `DOKIME_PLUGIN_ADDRESS`; the latter defaults to `127.0.0.1:0`. A direct remote
+working-directory `.env`, then defaults. `DOKIME_REMOTE` selects the host; listeners default to `127.0.0.1:0`. A direct remote
 is an HTTP origin with an explicit port. Pairing files retain ordered endpoints,
 credentials, pinned HTTPS certificates and host identity.
+
+The starter calls `RunAsync()`: launch credentials select library announcement,
+otherwise pairing selects self-registration, and an absent remote selects standalone serving.
 
 `client.Plugins.RegisterAsync(plugin)` serves the plugin, adds its remote placement
 and watches until ready. `client.CloseAsync()` retains owned host entries and

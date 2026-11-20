@@ -212,6 +212,38 @@ mod tests {
     }
 
     #[test]
+    fn launch_folder_round_trip_runs_the_native_interpreter_in_its_root() -> Result<()> {
+        // Bundle a Script With an External Interpreter.
+        let parent = tempfile::tempdir()?;
+        let root = parent.path().join("plugin");
+        fs::create_dir(&root)?;
+        fs::write(root.join("dokime.toml"), r#"[plugin]
+[scripts]
+launch = ["python", "-c", "from pathlib import Path; print(Path('payload.bin').read_bytes().hex())"]
+"#)?;
+        fs::write(root.join("payload.bin"), [2, 3, 5, 7])?;
+        let project = PluginProject::read(&root)?;
+        let identity = Identity {
+            name: "launch-fixture".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = dokime_packaging::bundle::create_project(&project, identity, None)?;
+        let bundle = Bundle::inspect(&bytes, Limits::default())?;
+
+        // Launch the Extracted Project in Its Own Working Directory.
+        let extracted = bundle.extract(parent.path())?;
+        let project = PluginProject::read(extracted.path())?;
+        let launch = project.manifest.scripts.launch.as_deref().ok_or("Run Plugin: Retain Its Launch Command")?;
+        let mut command = dokime_runtime::PluginProcess::command(&project, launch)?;
+        let output = command.output()?;
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8(output.stdout)?.trim(), "02030507");
+        Ok(())
+    }
+
+    #[test]
     fn launch_folder_inventory_excludes_external_runtime_images() -> dokime_packaging::Result<()> {
         // Prepare an External Runtime Above the Bundle's File Bound
         let parent = tempfile::tempdir()?;

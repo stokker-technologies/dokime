@@ -37,15 +37,14 @@ uv run python -m starter_project.plugin
 uv run python -m starter_project
 ```
 
-With `DOKIME_REMOTE` configured, the plugin registers itself under its stable
-identifier and prints `Registered with <endpoint>`. Without pairing, it prints
-`Serving on <host>:<port>`. The SDK itself stays silent for hand-run plugins.
-Managed launches set `HARMOS_ADDRESS`; only those launches receive the flushed
-readiness line. That address takes precedence over the ordinary plugin address
-configuration. `await plugin.start()` returns an endpoint with `address`,
-`managed`, `host`, `wait()` and `stop()`; `serve()` starts and waits in one call.
-Stopping the plugin or closing its registering client keeps the host entry for
-the next start. Use `unregister()` explicitly to remove it.
+The starter calls `await plugin.serve()`. Launch credentials
+(`HARMOS_HOST_ENDPOINT` and `HARMOS_LAUNCH_TOKEN`) select the library's authenticated
+announcement; otherwise `DOKIME_REMOTE` selects self-registration, and an absent
+remote selects standalone serving. These paths do not print readiness output.
+`await plugin.start(address)` opens a caller-owned listener with `address`,
+`wait()` and `stop()`; it does not select a launch or register with a host.
+Closing a registering client stops its listener and retains the host entry.
+Use `unregister()` explicitly to remove an entry.
 The plugin version comes from its
 owning installed distribution, including editable installs; a class `version`
 overrides that metadata. Source-only plugins must declare a class version.
@@ -61,9 +60,9 @@ until answered or the execution is stopped. Answer them in the desktop or with
 and operations without starting a product host.
 
 Set `DOKIME_REMOTE` to an HTTP origin or `.pair` file in the process environment
-or working-directory `.env`. Set `DOKIME_PLUGIN_ADDRESS` to override the plugin
-listener's default `127.0.0.1:0`. Explicit arguments take precedence, then the
-process environment, then `.env`, then defaults. Keep secrets in Secret Storage.
+or working-directory `.env`. Explicit connection arguments take precedence, then
+the process environment, then `.env`. Listeners bind `127.0.0.1:0` unless a
+programmatic registration or start call supplies an address. Keep secrets in Secret Storage.
 
 ## Bound Client Flow
 

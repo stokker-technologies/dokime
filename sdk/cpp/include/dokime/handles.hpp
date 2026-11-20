@@ -196,6 +196,7 @@ public:
   std::string state() const;
   RegisteredPlugin &refresh();
   void unregister();
+  void wait();
 
 private:
   friend class Plugins;
@@ -204,6 +205,7 @@ private:
   std::shared_ptr<detail::RegistrationState> state_;
 };
 class Plugins {
+  friend class Plugin;
 public:
   template <class T>
   RegisteredPlugin register_plugin(T plugin, std::optional<std::string> address = {}, std::optional<std::string> request_id = {}) {

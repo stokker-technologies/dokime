@@ -104,7 +104,7 @@ public:
   const std::string &identifier() const {
     return identifier_;
   }
-  void serve(std::optional<std::string> address = {}) const;
+  void serve();
 
 private:
   friend class operations::Context;

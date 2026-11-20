@@ -28,8 +28,8 @@ use std::{
 use harmos_protocol::model::{Classification, Failure};
 use harmos_protocol::plugin::{InstanceStopRequest, instance_client::InstanceClient};
 use prost::Message;
+use harmos_runtime::plugin::grpc::Launches;
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
     net::TcpListener,
     process::Command,
     sync::Notify,
@@ -172,15 +172,15 @@ fn plugin() -> Plugin {
 async fn a_managed_plugin_delegates_shutdown_and_ignores_ambient_pairing() -> TestResult {
     let (host, endpoint) = Host::start().await?;
     let mut command = Command::from(crate::process::command(binary("dokime-rust-plugin")));
-    command.env("HARMOS_ADDRESS", "127.0.0.1:0").env("DOKIME_REMOTE", endpoint);
+    let launches = Launches::new();
+    let mut launch = launches.reserve("managed SDK story").await?;
+    command.envs(launch.environment()).env("DOKIME_REMOTE", endpoint);
     let mut child = command.stdout(Stdio::piped()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
-    let mut lines = BufReader::new(child.stdout.take().ok_or("Missing Plugin Output")?).lines();
-    let line = lines.next_line().await?.ok_or("Missing Managed Announcement")?;
-    let address = line.strip_prefix("harmos listening ").ok_or("Invalid Managed Announcement")?;
+    let address = launch.announced().await?;
+    launches.shutdown().await;
     let mut client = InstanceClient::connect(format!("http://{address}")).await?;
     client.stop(InstanceStopRequest { reason: "fixture-complete".into() }).await?;
     assert!(child.wait().await?.success());
-    assert!(lines.next_line().await?.is_none());
     assert!(host.requests().is_empty());
     Ok(())
 }
@@ -239,7 +239,7 @@ async fn a_paired_plugin_process_registers_itself_and_exits_nonzero_on_refusal()
     let (host, endpoint) = Host::start().await?;
     let command = |remote: &str| {
         let mut command = Command::from(crate::process::command(binary("dokime-rust-plugin")));
-        command.env_remove("HARMOS_ADDRESS").env("DOKIME_REMOTE", remote).env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0");
+        command.env_remove("HARMOS_HOST_ENDPOINT").env_remove("HARMOS_LAUNCH_TOKEN").env("DOKIME_REMOTE", remote);
         command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
         command
     };

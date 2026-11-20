@@ -288,8 +288,8 @@
 - [x] Show Placement and Status in the Desktop Plugin List and `dokime plugin list`, Filterable in the Desktop.
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
 - [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
-- [ ] Move the Launch Readiness Consumers to `Launches/Announce`; Product Consumers Are Migrated and the Windows Desktop Stories Pass, While the Merged Python Starter and Superseded SDK Tests Need the SDK Owner's Scope Decision.
-- [ ] Separate Launch Readiness Credentials From Managed or Author-Owned Lifecycle Selection; Detached Fixtures Currently Enter the SDK's Default Managed `run` and Exit on Remote Entry Removal or Host Shutdown. Reuse the Library's `remote().run()` After the Owner Selects the Mode Transport.
+- [ ] Move Every Launch Readiness Consumer to `Launches/Announce` and Remove the Retired Listener Environment Configuration; Prove the Merged Starter and SDK Consumers.
+- [ ] Keep Registry Removal From Stopping an Externally Owned Endpoint; Blocked by the Library Sending Instance.Stop Even When Its Activation Owns No Spawned Process.
 
 ## Desktop Failure Presentation
 
@@ -301,3 +301,13 @@
 - [x] Retain Failed Connection Endpoints and Complete Notification Metadata in Copied Details.
 - [x] Restore Focused Coverage for Failure Identity, Root-First Causes, Admission Identifiers, Startup Recovery and Preference Persistence Refusals.
 - [ ] Complete the Release-Artifact-Dependent Binding Gate and Native Desktop Stories on the Required Platforms.
+
+## Launch Repair Integration
+
+- [x] Merge SDK Self-Registration and Current Dev, Regenerating Protocol Outputs and Keeping Shared Plugin Tables, Failure Cards, Placement and Offline Presentation.
+- [x] Select the Four SDK Run Entries by Launch Credentials, Then Pairing, Then Standalone Serving; Point Every Starter at That Entry.
+- [x] Remove Retired Address Configuration, SDK Readiness Helpers and Superseded Python Readiness Tests; Reuse C# Library Listeners and C++ Product Registration.
+- [ ] Identify and Repair the Registration Hang Without Changing Its Guard.
+- [ ] Pass Generation Drift, Workspace Test Compilation With Desktop Testing, the Requested Focused Stories and SDK Selections, Native SDK Compilation, Frontend Build/Units, Formatting, Repository/Supply/Binding Gates and Strict OpenSpec Validation.
+- [ ] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
+- [ ] Resolve the Read-Only Library's Remote-Removal Ownership Defect and Prove User-Owned Reattachment; Preserve This Obligation if the Library Capability Is Unavailable.

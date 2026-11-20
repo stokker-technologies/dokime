@@ -117,9 +117,10 @@ mise run run
 `--from` (or `DOKIME_NEW_FROM`) selects the checkout's starter and writes a Cargo
 path dependency on its Rust SDK. The explicit argument wins over the environment.
 Without either, the command uses its embedded starter and published dependency.
-The plugin binary calls `plugin()?.run()` without parsing arguments.
+The plugin binary calls `plugin()?.run()` without parsing arguments. Launch credentials
+select library announcement; otherwise `DOKIME_REMOTE` selects self-registration,
+and no remote selects standalone serving.
 `register_with` accepts a `PluginRegisterOptions` address override; otherwise
-`DOKIME_PLUGIN_ADDRESS` in the process environment, then `.env`, then
 `127.0.0.1:0` selects its owned listener. `client.close()` retains the host entries
 and joins their listeners; repeated close is safe.
 

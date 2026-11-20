@@ -32,12 +32,7 @@ from starter_project.plugin import ExamplePlugin
 
 async def main() -> None:
     plugin = ExamplePlugin()
-    endpoint = await plugin.start()
-    if endpoint.host is not None:
-        print(f"Registered with {endpoint.host}", flush=True)
-    elif not endpoint.managed:
-        print(f"Serving on {endpoint.address}", flush=True)
-    await endpoint.wait()
+    await plugin.serve()
 
 
 # === Private Functions === #

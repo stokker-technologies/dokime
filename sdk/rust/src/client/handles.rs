@@ -259,8 +259,7 @@ impl Plugins {
         let mut owned = self.client.lifetime.owned.lock().await;
         self.client.ensure_open()?;
         let request_id = mutations::request_id(options.request_id)?;
-        let values = crate::configuration::load()?;
-        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", options.address.as_deref(), &values)?;
+        let address = options.address.as_deref().unwrap_or("127.0.0.1:0");
         let identifier = plugin.registration_identifier().to_owned();
         let bindings = plugin.template_bindings();
         let plugin = plugin.into_harmos()?.remote();

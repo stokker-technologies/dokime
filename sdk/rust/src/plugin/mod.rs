@@ -417,22 +417,14 @@ impl Plugin {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn run(self) -> Result<()> {
-        self.run_entry(None)
-    }
-
-    pub fn run_with(self, address: impl Into<String>) -> Result<()> {
-        self.run_entry(Some(address.into()))
-    }
-
-    fn run_entry(self, address: Option<String>) -> Result<()> {
-        if managed_launch() {
+        if env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some() {
             return self.into_harmos()?.run().map_err(Error::from);
         }
         let values = crate::configuration::load()?;
         let configured = env::var_os("DOKIME_REMOTE")
             .map(|value| !value.is_empty())
             .unwrap_or_else(|| values.get("DOKIME_REMOTE").is_some_and(|value| !value.is_empty()));
-        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address.as_deref(), &values)?;
+        let address = "127.0.0.1:0";
         // The Listener Owns Its Runtime; This Thread Only Connects and Waits for Shutdown.
         let runtime = Builder::new_current_thread().enable_all().build()?;
         if !configured {
@@ -451,7 +443,7 @@ impl Plugin {
             })
             .await?;
             let options = crate::client::PluginRegisterOptions {
-                address: Some(address),
+                address: Some(address.into()),
                 ..Default::default()
             };
             let result = async {
@@ -475,11 +467,6 @@ impl Plugin {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-// The Pinned Library Launches a Managed Plugin With Its Listener Address.
-fn managed_launch() -> bool {
-    env::var_os("HARMOS_ADDRESS").is_some()
-}
 
 fn lifecycle<H>(name: &'static str, handler: H) -> stream::Registration
 where

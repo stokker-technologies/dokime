@@ -99,23 +99,22 @@ public abstract class Plugin
   }
 
   // A Managed Launch Serves the Host; Otherwise DOKIME_REMOTE Selects Self-Registration, and Without It the Plugin Serves.
-  public async Task RunAsync(ConnectionSettings? settings = null, CancellationToken cancellationToken = default)
+  public async Task RunAsync(CancellationToken cancellationToken = default)
   {
-    if (ManagedLaunch())
+    if (System.Environment.GetEnvironmentVariable("HARMOS_HOST_ENDPOINT") is not null || System.Environment.GetEnvironmentVariable("HARMOS_LAUNCH_TOKEN") is not null)
     {
-      await Adapter.RunAsync(cancellationToken: cancellationToken);
+      await Adapter.Build().RunAsync(cancellationToken: cancellationToken);
       return;
     }
     var values = Configuration.Load();
-    var remote = settings?.Remote ?? System.Environment.GetEnvironmentVariable("DOKIME_REMOTE") ?? values.GetValueOrDefault("DOKIME_REMOTE", "");
+    var remote = System.Environment.GetEnvironmentVariable("DOKIME_REMOTE") ?? values.GetValueOrDefault("DOKIME_REMOTE", "");
     if (remote.Length == 0)
     {
-      var address = Configuration.Resolve("DOKIME_PLUGIN_ADDRESS", settings?.PluginAddress, values);
-      await Adapter.RunAsync(address, remote: true, cancellationToken: cancellationToken);
+      await Adapter.Build().RunAsync(remote: true, cancellationToken: cancellationToken);
       return;
     }
-    await using var client = await Client.ConnectAsync(settings, cancellationToken);
-    var registered = await client.Plugins.RegisterAsync(this, settings, cancellationToken: cancellationToken);
+    await using var client = await Client.ConnectAsync(new ConnectionSettings { Remote = remote }, cancellationToken);
+    var registered = await client.Plugins.RegisterAsync(this, cancellationToken: cancellationToken);
     try
     {
       await registered.WaitAsync(cancellationToken);
@@ -125,8 +124,6 @@ public abstract class Plugin
     }
   }
 
-  // The Pinned Library Launches a Managed Plugin With Its Listener Address.
-  private static bool ManagedLaunch() => System.Environment.GetEnvironmentVariable("HARMOS_ADDRESS") is not null;
 }
 
 public abstract class Suite
