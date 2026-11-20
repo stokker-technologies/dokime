@@ -81,8 +81,8 @@ pub fn updater(
     }
     if let Some(name) = &settings.private_key_env {
         sources += 1;
-        let encoded = env::var(name).map_err(|_| Error::Invalid("updater private key environment is missing".into()))?;
-        material = Some(STANDARD.decode(encoded.trim()).map_err(|_| Error::Invalid("updater private key must be base64".into()))?);
+        let value = env::var(name).map_err(|_| Error::Invalid("updater private key environment is missing".into()))?;
+        material = Some(if Path::new(&value).is_file() { fs::read(&value)? } else { value.into_bytes() });
     }
     if sources != 1 {
         return Err(Error::Invalid("updater signing requires exactly one private key file/environment reference".into()));
@@ -98,6 +98,9 @@ pub fn updater(
     fs::write(&key, material)?;
     let signature = scratch.path().join("installer.minisig");
     let password = env::var(&settings.password_env).map_err(|_| Error::Invalid("updater password environment is missing".into()))?;
+    let filename =
+        package.file_name().and_then(|name| name.to_str()).ok_or_else(|| Error::Invalid("Use a UTF-8 Installer Filename".into()))?;
+    let trusted_comment = format!("file:{filename}\tversion:{}", manifest.installer.version);
     let mut child = tools(OsStr::new("minisign"))
         .args(["-S", "-q", "-s"])
         .arg(&key)
@@ -105,6 +108,8 @@ pub fn updater(
         .arg(package)
         .arg("-x")
         .arg(&signature)
+        .arg("-t")
+        .arg(trusted_comment)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -130,10 +135,8 @@ pub fn updater(
     )?;
     let signature = STANDARD.encode(fs::read(signature)?);
     fs::write(package.with_extension("exe.sig"), format!("{signature}\n"))?;
-    let filename =
-        package.file_name().and_then(|s| s.to_str()).ok_or_else(|| Error::Invalid("installer output filename is invalid".into()))?;
     let published = OffsetDateTime::now_utc().format(&Rfc3339).map_err(|e| Error::Invalid(e.to_string()))?;
-    let url = format!("{}/{}", settings.artifact_base_url.trim_end_matches('/'), filename);
+    let url = format!("{}/{}", settings.base_url()?.trim_end_matches('/'), filename);
     let metadata = serde_json::json!({
         "version":manifest.installer.version,
         "pub_date":published,
@@ -180,7 +183,6 @@ pub(crate) fn verify_rpm_signature(package: &Path, tools: fn(&OsStr) -> Command)
 
 fn authenticode_with_provider(path: &Path, provider: Option<&str>, tools: fn(&OsStr) -> Command) -> Result<bool, Error> {
     if !authenticode_enabled(provider)? {
-        eprintln!("Authenticode skipped: no Windows signing provider configured.");
         return Ok(false);
     }
     if !cfg!(target_os = "windows") {

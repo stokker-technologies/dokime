@@ -769,6 +769,12 @@ mod tests {
         assert!(launch.contains("label = \"My Project\""));
         let plugin = fs::read_to_string(project.join("src/my_project/plugin/__init__.py"))?;
         assert!(plugin.contains("from my_project.plugin."));
+        for path in ["src/my_project/__init__.py", "tests/__init__.py"] {
+            assert!(project.join(path).is_file(), "{path}");
+        }
+        for path in ["src/my_project/plugin/operations/__init__.py", "src/my_project/plugin/suites/__init__.py"] {
+            assert!(!project.join(path).exists(), "{path}");
+        }
         Ok(())
     }
 

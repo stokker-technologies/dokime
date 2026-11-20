@@ -1,4 +1,29 @@
 ; Backticks delimit NSIS strings; $$ passes a literal dollar to PowerShell.
+!macro NSIS_HOOK_PREINSTALL
+  Push $0
+  SetRegView 32
+  ReadRegStr $0 HKLM "${UNINSTKEY}" "UninstallString"
+  ${If} $0 == ""
+    ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}" "UninstallString"
+  ${EndIf}
+  ${If} $0 == ""
+    SetRegView 64
+    ReadRegStr $0 HKLM "${UNINSTKEY}" "UninstallString"
+    ${If} $0 == ""
+      ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}" "UninstallString"
+    ${EndIf}
+  ${EndIf}
+  ${If} $0 != ""
+    DetailPrint "Uninstall the all-users copy of ${PRODUCTNAME} from Windows Settings, then run this installer again. An administrator must remove that copy."
+    MessageBox MB_OK|MB_ICONSTOP "Uninstall the all-users copy of ${PRODUCTNAME} from Windows Settings, then run this installer again. An administrator must remove that copy." /SD IDOK
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
+  SetRegView 64
+  SetShellVarContext current
+  Pop $0
+!macroend
+
 !macro DOKIME_PATH_SCOPE
   StrCpy $0 "User"
   System::Call 'Kernel32::SetEnvironmentVariable(t "DOKIME_PATH_SCOPE", t r0) i .r0'
