@@ -161,7 +161,7 @@ function writeDesktop(values: ParameterOverrides): Promise<void> {
         const next = pending;
         pending = null;
         try {
-          await commands.desktopParametersWrite(next);
+          await commands.desktopSavedSettingsUpdate({ parameters: next });
         } catch (error) {
           toast.error(failureOf(error, "Could Not Save Remembered Parameters"));
         }
@@ -197,9 +197,9 @@ function parameterStorage(): StateStorage {
   }
   return {
     getItem: async () => {
-      // Distinguish An Absent Native File From An Intentionally Empty Map.
-      const values = await commands.desktopParametersRead();
-      if (values === null) {
+      // Distinguish Parameters Never Saved From An Intentionally Empty Map.
+      const values = (await commands.desktopSavedSettingsRead()).parameters;
+      if (values === undefined) {
         if (window.localStorage.getItem(PARAMETER_OVERRIDES_STORAGE_KEY) !== null) {
           throw new Error("Unsupported browser-owned remembered parameters. Select fresh storage before editing.");
         }

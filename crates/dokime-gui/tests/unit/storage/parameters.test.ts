@@ -34,14 +34,14 @@ const fixture = vi.hoisted(() => {
       removeItem: (key: string) => values.delete(key),
     },
   });
-  return { values, read: vi.fn(async () => null), write: vi.fn() };
+  return { values, read: vi.fn(async () => ({ interval_window_ms: 100, interval_lag_windows: 10 })), write: vi.fn() };
 });
 
 /* === Entry Point === */
 
 vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
 vi.mock("@/lib/desktop/commands", () => ({
-  commands: { desktopParametersRead: fixture.read, desktopParametersWrite: fixture.write },
+  commands: { desktopSavedSettingsRead: fixture.read, desktopSavedSettingsUpdate: fixture.write },
 }));
 
 /* === Tests === */

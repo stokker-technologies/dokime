@@ -30,7 +30,7 @@ use std::path::PathBuf;
 pub struct Backend {
     pub root: PathBuf,
     pub log: Option<PathBuf>,
-    pub interval_settings: Option<PathBuf>,
+    pub settings: Option<PathBuf>,
 }
 
 /* === Enums === */
@@ -41,7 +41,7 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(root: PathBuf) -> Self {
-        Self { root, log: None, interval_settings: None }
+        Self { root, log: None, settings: None }
     }
 
     pub fn with_log(mut self, log: Option<PathBuf>) -> Self {
@@ -49,17 +49,17 @@ impl Backend {
         self
     }
 
-    /// Starts the host with the interval window and lag bound saved in this file.
-    pub fn with_interval_settings(mut self, file: PathBuf) -> Self {
-        self.interval_settings = Some(file);
+    /// Starts the host with the stream settings saved in this desktop settings file.
+    pub fn with_settings(mut self, file: PathBuf) -> Self {
+        self.settings = Some(file);
         self
     }
 
     /// The connection settings the owned host starts with, including the saved desktop settings.
     pub fn settings(&self) -> ConnectionSettings {
         let mut settings = host::desktop_settings();
-        if let Some(file) = &self.interval_settings {
-            crate::interval_settings::resolve(file).apply(&mut settings.host.placement);
+        if let Some(file) = &self.settings {
+            crate::settings::resolve(file).apply(&mut settings.host.placement);
         }
         settings
     }

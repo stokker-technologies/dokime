@@ -40,7 +40,7 @@ use crate::native_session::backend::Backend;
 pub fn configuration(app: &AppHandle) -> Result<Backend, String> {
     let paths = app.state::<crate::paths::ApplicationPaths>().inner().clone();
     let root = crate::native_session::storage::StorageRoot::resolve(paths.root.clone(), 1_048_576)?.path().to_path_buf();
-    Ok(Backend::new(root).with_log(super::logging::active_log()).with_interval_settings(crate::interval_settings::path(&paths.root)))
+    Ok(Backend::new(root).with_log(super::logging::active_log()).with_settings(crate::settings::path(&paths.root)))
 }
 
 /* === Private Functions === */

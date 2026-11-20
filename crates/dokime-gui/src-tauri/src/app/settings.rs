@@ -14,14 +14,15 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{path::PathBuf, sync::Arc};
+use std::{num::NonZeroU32, sync::Arc};
 
 // Third Party Imports
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 
 // Local Imports
 use crate::paths::ApplicationPaths;
+use crate::settings::{DesktopSettings, Store};
 
 /* === Constants === */
 
@@ -31,10 +32,13 @@ use crate::paths::ApplicationPaths;
 
 /* === Structs === */
 
-pub struct DesktopSettingsState {
-    parameters: PathBuf,
-    interval_settings: PathBuf,
-    serial: Arc<tokio::sync::Mutex<()>>,
+/// One change: only the keys present replace the saved ones.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SettingsChange {
+    pub interval_window_ms: Option<u64>,
+    pub interval_lag_windows: Option<NonZeroU32>,
+    pub parameters: Option<crate::settings::Values>,
 }
 
 /* === Enums === */
@@ -60,69 +64,39 @@ impl From<String> for DesktopSettingsError {
 
 pub fn setup(app: &tauri::App) {
     let root = &app.state::<ApplicationPaths>().root;
-    app.manage(DesktopSettingsState {
-        parameters: root.join("parameters.json"),
-        interval_settings: crate::interval_settings::path(root),
-        serial: Arc::new(tokio::sync::Mutex::new(())),
-    });
+    app.manage(Arc::new(Store::new(crate::settings::path(root))));
 }
 
-pub async fn desktop_parameters_read(
-    state: State<'_, DesktopSettingsState>,
-) -> Result<Option<crate::parameters::Values>, DesktopSettingsError> {
-    let serial = state.serial.clone().lock_owned().await;
-    let path = state.parameters.clone();
+pub async fn desktop_saved_settings_read(store: State<'_, Arc<Store>>) -> Result<DesktopSettings, DesktopSettingsError> {
+    let path = store.path().to_path_buf();
+    tokio::task::spawn_blocking(move || crate::settings::load(&path))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
+}
+
+/// Saves the keys present; the owned local host applies stream settings when it next starts.
+pub async fn desktop_saved_settings_update(
+    store: State<'_, Arc<Store>>, change: SettingsChange,
+) -> Result<DesktopSettings, DesktopSettingsError> {
+    let store = store.inner().clone();
     tokio::task::spawn_blocking(move || {
-        let _serial = serial;
-        crate::parameters::load(&path)
+        store.update(|settings| {
+            if let Some(window) = change.interval_window_ms {
+                settings.interval_window_ms = window;
+            }
+            if let Some(lag) = change.interval_lag_windows {
+                settings.interval_lag_windows = lag;
+            }
+            if let Some(parameters) = change.parameters {
+                settings.parameters = Some(parameters);
+            }
+            Ok(settings.clone())
+        })
     })
     .await
     .map_err(|error| error.to_string())?
     .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
-}
-
-pub async fn desktop_parameters_write(
-    state: State<'_, DesktopSettingsState>, values: crate::parameters::Values,
-) -> Result<(), DesktopSettingsError> {
-    let serial = state.serial.clone().lock_owned().await;
-    let path = state.parameters.clone();
-    tokio::task::spawn_blocking(move || {
-        let _serial = serial;
-        crate::parameters::save(&path, &values)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
-}
-
-pub async fn desktop_interval_settings_read(
-    state: State<'_, DesktopSettingsState>,
-) -> Result<crate::interval_settings::IntervalSettings, DesktopSettingsError> {
-    let serial = state.serial.clone().lock_owned().await;
-    let path = state.interval_settings.clone();
-    tokio::task::spawn_blocking(move || {
-        let _serial = serial;
-        crate::interval_settings::load(&path)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
-}
-
-/// Saves the interval settings the owned local host starts with; the running host keeps its own until it restarts.
-pub async fn desktop_interval_settings_write(
-    state: State<'_, DesktopSettingsState>, settings: crate::interval_settings::IntervalSettings,
-) -> Result<crate::interval_settings::IntervalSettings, DesktopSettingsError> {
-    let serial = state.serial.clone().lock_owned().await;
-    let path = state.interval_settings.clone();
-    tokio::task::spawn_blocking(move || {
-        let _serial = serial;
-        crate::interval_settings::save(&path, &settings)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })?;
-    Ok(settings)
 }
 
 /* === Private Functions === */

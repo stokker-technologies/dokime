@@ -124,7 +124,7 @@ fn downloaded_update_rejects_signature_with_compiled_trust() {
 #[test]
 fn invalid_selection_preserves_saved_policy_and_switching_invalidates_review() {
     let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("selection.json");
+    let path = root.path().join("settings.json");
     let mut policy = UpdatePolicy::default();
     policy.sources.insert("public".into(), Source::Github { repository: "example/product".into() });
     let state = UpdateProbe::new(path.clone(), policy);

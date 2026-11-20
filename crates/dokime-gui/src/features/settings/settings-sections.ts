@@ -44,9 +44,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "primary",
   },
   {
-    id: "sampling",
-    label: "Interval Sampling",
-    description: "Interval windows of the built-in host",
+    id: "engine",
+    label: "Engine",
+    description: "Stream settings of the built-in host",
     icon: Timer,
     group: "primary",
   },

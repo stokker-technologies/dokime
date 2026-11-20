@@ -7,7 +7,7 @@
  * ***
  */
 
-/* The Interval Window and Lag Bound the Built-In Host Starts With. */
+/* The Engine Page: the Stream Settings the Built-In Host Starts With. */
 
 /* === External Imports === */
 
@@ -20,7 +20,7 @@ import { ErrorCard } from "@/components/ErrorCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { commands } from "@/lib/desktop/commands";
-import type { IntervalSettings } from "@/lib/desktop/settings";
+import type { SavedSettingsChange } from "@/lib/desktop/settings";
 import { formatUnitLabel } from "@/lib/format";
 import { failureOf } from "@/lib/notification-details";
 import { SettingsCard } from "../SettingsCard";
@@ -28,7 +28,7 @@ import { SettingsRow } from "../SettingsRow";
 
 /* === Constants === */
 
-const QUERY_KEY = ["settings", "interval-settings"];
+const QUERY_KEY = ["settings", "saved"];
 const MAX_WINDOW_MS = Number.MAX_SAFE_INTEGER;
 const MAX_LAG_WINDOWS = 4_294_967_295;
 
@@ -38,14 +38,14 @@ type Draft = { window: string; lag: string };
 
 /* === Components === */
 
-export function IntervalSettingsSection() {
+export function EngineSection() {
   const queryClient = useQueryClient();
   const windowId = useId();
   const lagId = useId();
   const [draft, setDraft] = useState<Draft | null>(null);
-  const query = useQuery({ queryKey: QUERY_KEY, queryFn: () => commands.desktopIntervalSettingsRead() });
+  const query = useQuery({ queryKey: QUERY_KEY, queryFn: () => commands.desktopSavedSettingsRead() });
   const mutation = useMutation({
-    mutationFn: (settings: IntervalSettings) => commands.desktopIntervalSettingsWrite(settings),
+    mutationFn: (change: SavedSettingsChange) => commands.desktopSavedSettingsUpdate(change),
     onSuccess: (settings) => {
       queryClient.setQueryData(QUERY_KEY, settings);
       setDraft(null);
@@ -64,15 +64,15 @@ export function IntervalSettingsSection() {
 
   return (
     <SettingsCard
-      title="Interval Sampling"
+      title="Streams"
       description="This desktop's built-in host places interval streams with these values. Saved values apply when the built-in host next starts; an attached host keeps its own configuration."
     >
       {query.isPending ? (
         <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
-          Loading Interval Settings…
+          Loading Stream Settings…
         </p>
       ) : null}
-      {query.error ? <ErrorCard failure={failureOf(query.error, "Interval Settings Unavailable")} /> : null}
+      {query.error ? <ErrorCard failure={failureOf(query.error, "Stream Settings Unavailable")} /> : null}
       {values ? (
         <>
           <SettingsRow
@@ -108,8 +108,8 @@ export function IntervalSettingsSection() {
             />
           </SettingsRow>
           <SettingsRow
-            label="Save Interval Settings"
-            error={mutation.error ? failureOf(mutation.error, "Save Interval Settings").message : undefined}
+            label="Save Stream Settings"
+            error={mutation.error ? failureOf(mutation.error, "Save Stream Settings").message : undefined}
             failure={mutation.error ?? undefined}
             status={mutation.isPending ? <span role="status">Saving</span> : null}
           >

@@ -201,26 +201,16 @@ native_commands! {
         () -> Result<(), String>
         => crate::app::desktop_restart;
 
-    async desktop_parameters_read
-        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
-        () -> Result<Option<crate::parameters::Values>, crate::app::settings::DesktopSettingsError>
-        => crate::app::settings::desktop_parameters_read;
+    async desktop_saved_settings_read
+        [store: tauri::State<'_, std::sync::Arc<crate::settings::Store>>]
+        () -> Result<crate::settings::DesktopSettings, crate::app::settings::DesktopSettingsError>
+        => crate::app::settings::desktop_saved_settings_read;
 
-    async desktop_parameters_write
-        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
-        (values: crate::parameters::Values) -> Result<(), crate::app::settings::DesktopSettingsError>
-        => crate::app::settings::desktop_parameters_write;
-
-    async desktop_interval_settings_read
-        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
-        () -> Result<crate::interval_settings::IntervalSettings, crate::app::settings::DesktopSettingsError>
-        => crate::app::settings::desktop_interval_settings_read;
-
-    // Save the interval window and lag bound the owned local host starts with.
-    async desktop_interval_settings_write
-        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
-        (settings: crate::interval_settings::IntervalSettings) -> Result<crate::interval_settings::IntervalSettings, crate::app::settings::DesktopSettingsError>
-        => crate::app::settings::desktop_interval_settings_write;
+    // Save the keys present in the desktop's one settings file.
+    async desktop_saved_settings_update
+        [store: tauri::State<'_, std::sync::Arc<crate::settings::Store>>]
+        (change: crate::app::settings::SettingsChange) -> Result<crate::settings::DesktopSettings, crate::app::settings::DesktopSettingsError>
+        => crate::app::settings::desktop_saved_settings_update;
 
     async desktop_updates_status
         [state: tauri::State<'_, crate::app::updates::UpdateState>]
@@ -229,7 +219,7 @@ native_commands! {
 
     async desktop_updates_configure
         [app: tauri::AppHandle, state: tauri::State<'_, crate::app::updates::UpdateState>]
-        (selection: crate::app::updates::Selection) -> Result<crate::app::updates::UpdateStatus, String>
+        (selection: crate::settings::UpdateSelection) -> Result<crate::app::updates::UpdateStatus, String>
         => crate::app::updates::desktop_updates_configure;
 
     async desktop_updates_check
