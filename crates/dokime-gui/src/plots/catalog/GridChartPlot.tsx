@@ -15,9 +15,11 @@ import { interpolateYlOrRd } from "d3-scale-chromatic";
 
 /* === Local Imports === */
 
+import type { GridAxisEntry } from "@host/model";
 import { DataTable } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { formatNumber, formatUnitLabel } from "@/lib/format";
+import type { Wire } from "@/lib/rpc/canonical";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText } from "@/plots/plot-placeholder";
 import { orderedInstants, PlotPlayback, usePlotPlayback } from "@/plots/playback";
@@ -25,7 +27,7 @@ import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
 
-type GridRow = { key: string; label: string; group?: string | null; index: number };
+type GridRow = Wire<GridAxisEntry> & { index: number };
 
 /* === Constants === */
 
