@@ -111,7 +111,7 @@ impl Release {
         Ok(Self { client, assets, sums, cache })
     }
 
-    pub async fn distribution(&self, version: &str, target: &str, destination: &Path) -> Result<String, Error> {
+    pub async fn distribution(&self, version: &str, target: &str, destination: &Path) -> Result<(String, usize), Error> {
         let name = self.distribution_name(version, target)?;
         let suffix = format!("-{target}.zip");
         let version = name
@@ -121,7 +121,7 @@ impl Release {
         Version::parse(version).map_err(|error| Error::Invalid(error.to_string()))?;
         let bytes = self.download(&name, distribution::ARCHIVE_MAX_BYTES).await?;
         super::distribution::extract(&bytes, destination, distribution::EXPANDED_MAX_BYTES)?;
-        Ok(version.to_owned())
+        Ok((version.to_owned(), bytes.len()))
     }
 
     pub async fn plugins(&self, names: &[String], target: &str, version: &str, destination: &Path) -> Result<Vec<PathBuf>, Error> {

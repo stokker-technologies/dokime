@@ -9,18 +9,21 @@
 
 /* === Imports === */
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { failureOf } from "@/lib/notification-details";
-import { useEffect, useId, useState } from "react";
 // Standard Library Imports
+
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { useEffect, useId, useState } from "react";
 
 // Local Imports
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { buildLabel } from "@/features/settings/sections/build-version";
 import { commands } from "@/lib/desktop/commands";
+import type { BuildIdentity } from "@/lib/desktop/connection";
 import type { UpdateCheck, UpdateMode, UpdateStatus } from "@/lib/desktop/updates";
+import { failureOf } from "@/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -28,11 +31,11 @@ import type { UpdateCheck, UpdateMode, UpdateStatus } from "@/lib/desktop/update
 
 /* === Types === */
 
-type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) => void };
+type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) => void; build: BuildIdentity };
 
 /* === Components === */
 
-export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogProps) {
+export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdateDialogProps) {
   const modeId = useId();
   const sourceId = useId();
   const [status, setStatus] = useState<UpdateStatus | null>(null);
@@ -137,7 +140,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
                       ? "Updates Disabled"
                       : "Up to Date"}
                 </div>
-                <p className="text-muted-foreground">{update.body ?? `Current Version ${update.currentVersion}`}</p>
+                <p className="text-muted-foreground">{update.body ?? `Current Version ${buildLabel(build).text}`}</p>
               </div>
             ) : null}
           </div>

@@ -27,18 +27,26 @@ jobs:
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
     - uses: ./.github/actions/setup
       with:
         platform: unix
         prepare-arguments: --tools-only
     - id: impact
-      run: mise run ci:impact -- --event nightly
+      run: mise run ci:impact -- --event nightly --base "$NIGHTLY_BASE"
+      env:
+        NIGHTLY_BASE: ${{ needs.freshness.outputs.base }}
     env:
       MISE_ENABLE_TOOLS: python,uv
+    needs:
+    - freshness
     outputs:
+      product: ${{ steps.impact.outputs.product }}
+      build_docs: ${{ steps.impact.outputs.build_docs }}
       check_matrix: ${{ steps.impact.outputs.check_matrix }}
       test_matrix: ${{ steps.impact.outputs.test_matrix }}
-    if: github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/dev' && needs.freshness.outputs.build == 'true'
   freshness:
     name: Check / Nightly / Freshness
     runs-on: ubuntu-latest
@@ -53,6 +61,7 @@ jobs:
     - uses: ./.github/actions/setup
       with:
         platform: unix
+        prepare-arguments: --tools-only
       id: setup
     - id: freshness
       run: mise run ci:nightly-freshness --
@@ -62,9 +71,11 @@ jobs:
       CI_TRANSPORT: 'true'
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
     outputs:
+      base: ${{ steps.freshness.outputs.base }}
       build: ${{ steps.freshness.outputs.build }}
     if: github.ref == 'refs/heads/dev'
   check:
+    if: needs.plan.outputs.product == 'true'
     name: Check / Product
     uses: ./.github/workflows/validate-check.yml
     with:
@@ -74,6 +85,7 @@ jobs:
     needs:
     - plan
   build_product:
+    if: needs.plan.outputs.product == 'true'
     name: Build / Product
     uses: ./.github/workflows/validate-build-product.yml
     with:
@@ -82,6 +94,7 @@ jobs:
     needs:
     - plan
   build_tests:
+    if: needs.plan.outputs.product == 'true'
     name: Build / Tests
     uses: ./.github/workflows/validate-build-tests.yml
     with:
@@ -90,6 +103,7 @@ jobs:
     needs:
     - plan
   build_host_fixtures:
+    if: needs.plan.outputs.product == 'true'
     name: Build / SDK / ${{ matrix.language == 'csharp' && 'C#' || 'C++' }} / Fixtures
     uses: ./.github/workflows/validate-build-tests.yml
     needs:
@@ -105,6 +119,7 @@ jobs:
       profile: release
       fixture-language: ${{ matrix.language }}
   build_bench:
+    if: needs.plan.outputs.product == 'true'
     name: Build / Bench
     uses: ./.github/workflows/validate-build-tests.yml
     needs:
@@ -150,6 +165,7 @@ jobs:
       minutes: 120
       suite: ${{ matrix.variant.suite }}
   build_python:
+    if: needs.plan.outputs.product == 'true'
     name: Build / SDK / Python
     uses: ./.github/workflows/validate-build-python.yml
     with:
@@ -158,6 +174,7 @@ jobs:
     needs:
     - plan
   build_docs:
+    if: needs.plan.outputs.build_docs == 'true'
     name: Build / Docs
     uses: ./.github/workflows/validate-build-docs.yml
     with:
@@ -165,6 +182,39 @@ jobs:
       profile: release
     needs:
     - plan
+  docs_image:
+    name: Publish / Docs Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+    - plan
+    - build_docs
+    if: github.ref == 'refs/heads/dev' && needs.plan.outputs.build_docs == 'true'
+    permissions:
+      contents: read
+      packages: write
+    env:
+      MISE_ENABLE_TOOLS: python,uv
+      GH_TOKEN: ${{ github.token }}
+      IMAGE: ghcr.io/stokker-technologies/dokime-docs:nightly
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - uses: ./.github/actions/setup
+      with:
+        platform: unix
+        prepare-arguments: --tools-only
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-docs-release-any
+        path: target/docs
+    - name: Assemble Current Entry and Published Release Lines
+      run: mise run docs:image
+    - name: Authenticate to the Registry
+      run: printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+    - name: Build and Publish the Documentation Image
+      run: |
+        docker build --file sites/docs/Dockerfile --build-arg "REVISION=$GITHUB_SHA" --tag "$IMAGE" target/docs/image
+        docker push "$IMAGE"
   check_generated:
     name: Check / Generated
     uses: ./.github/workflows/validate-check-generated.yml
@@ -174,6 +224,7 @@ jobs:
     needs:
     - build_python
   test:
+    if: needs.plan.outputs.product == 'true'
     name: Test / Product
     uses: ./.github/workflows/validate-test.yml
     with:

@@ -30,11 +30,8 @@ mod secrets;
 use tonic::Status;
 
 // Local Imports
-
 use crate::{Result, settings::Settings};
-use dokime_client_internal::Client;
-use dokime_client_internal::host::PluginEntry;
-use dokime_client_internal::{PluginsGetOptions, PluginsWatchOptions};
+use dokime_client_internal::{Client, PluginsGetOptions, PluginsWatchOptions, host::PluginEntry};
 
 /* === Constants === */
 
@@ -165,9 +162,9 @@ mod tests {
     #[test]
     fn remote_plugins_register_and_bundles_install() {
         let cli = Cli::try_parse_from(["dokime", "plugin", "register", "http://127.0.0.1:7001", "--json"]).unwrap();
-        assert!(matches!(cli.command, commands::Command::Plugin(super::Command::Register(_))));
+        assert!(matches!(cli.command, Some(commands::Command::Plugin(super::Command::Register(_)))));
         let cli = Cli::try_parse_from(["dokime", "plugin", "install", "plugin.dokime"]).unwrap();
-        assert!(matches!(cli.command, commands::Command::Plugin(super::Command::Install(_))));
+        assert!(matches!(cli.command, Some(commands::Command::Plugin(super::Command::Install(_)))));
         assert!(Cli::try_parse_from(["dokime", "plugin", "add", "http://127.0.0.1:7001"]).is_err());
     }
 
@@ -201,7 +198,7 @@ mod tests {
                 repository.to_string_lossy().into_owned(),
             ];
             let cli = Cli::try_parse_from(arguments).unwrap();
-            commands::run(cli.command, None, Settings::default()).await?;
+            commands::run(cli.command.unwrap(), None, Settings::default()).await?;
             let project = PluginProject::read(&destination)?;
             project.validate_inputs()?;
             let metadata = project.resolve_metadata("")?;

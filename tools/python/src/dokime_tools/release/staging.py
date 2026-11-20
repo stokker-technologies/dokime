@@ -77,7 +77,7 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
             continue
         relative = definition["path"].format(profile=profile, target=selected, product=settings["product"], version=tag[1:])
         source = policy.inside(directory, relative)
-        if source.name == "latest.json" and not signed:
+        if source.name == "release.json" and not signed:
             continue
         name = layout.asset_name(directory, settings, definition, selected, tag, source)
         if name is None:
@@ -142,7 +142,7 @@ def stage(
         (root / selected).mkdir(parents=True)
         declared = assets(directory, settings, selected, tag, profile, signed=signed)
         for asset in declared:
-            if asset["name"] == "latest.json":
+            if asset["name"] == "release.json":
                 metadata = json.loads(policy.inside(directory, asset["path"]).read_text(encoding="utf-8"))
                 if metadata["version"] != tag[1:]:
                     raise policy.ToolError("Stage Release: updater metadata version differs from release")

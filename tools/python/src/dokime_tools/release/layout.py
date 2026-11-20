@@ -15,7 +15,6 @@ import io
 import json
 import operator
 import re
-import stat
 import tarfile
 import urllib.parse
 import zipfile
@@ -29,6 +28,7 @@ from pathlib import Path
 
 # Local Imports
 from .. import policy
+from ..package.assembly import write_file
 
 # Type Checking Imports
 
@@ -65,8 +65,8 @@ def triple(directory: Path, settings: dict, target: str) -> str:
 
 def asset_name(directory: Path, settings: dict, definition: dict, selected: str, tag: str, source: Path) -> str | None:
     """Accept Only the Locked Download Kinds; Product Examples and Registry Artifacts Stay Out."""
-    if source.name == "latest.json":
-        return "latest.json"
+    if source.name == "release.json":
+        return "release.json"
     parts = source.relative_to(directory).parts
     extension = settings.get("plugin_extension")
     plugin_bundle = extension is not None and source.suffix == f".{extension}"
@@ -187,14 +187,7 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
             archive = zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED)
             try:
                 for bundle in sorted(members, key=operator.itemgetter("member")):
-                    data = policy.inside(directory, bundle["path"]).read_bytes()
-                    bundle["sha256"] = hashlib.sha256(data).hexdigest()
-                    # Record a Regular File Mode for Archive Readers
-                    entry = zipfile.ZipInfo(bundle["member"])
-                    entry.create_system = 3
-                    entry.compress_type = zipfile.ZIP_DEFLATED
-                    entry.external_attr = (stat.S_IFREG | 0o644) << 16
-                    archive.writestr(entry, data)
+                    bundle["sha256"] = write_file(archive, policy.inside(directory, bundle["path"]), bundle["member"])
             finally:
                 archive.close()
         else:
