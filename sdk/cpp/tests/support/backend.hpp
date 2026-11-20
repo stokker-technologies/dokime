@@ -33,7 +33,7 @@
 
 class Backend final : public dokime::host::v1::Status::CallbackService {
   grpc::ServerUnaryReactor *Get(grpc::CallbackServerContext *context, const harmos::host::v1::StatusGetRequest *,
-                                harmos::host::v1::StatusGetResponse *response) override {
+                                dokime::host::v1::StatusGetResponse *response) override {
     auto *reactor = context->DefaultReactor();
     if (!context->client_metadata().contains("authorization")) {
       reactor->Finish({grpc::StatusCode::UNAUTHENTICATED, "Pair This Client"});

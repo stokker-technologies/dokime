@@ -62,7 +62,7 @@ use dokime_runtime::ControlledClock;
 #[cfg(not(feature = "testing"))]
 use dokime_runtime::services::WallClock;
 
-use dokime_client_internal::StatusGetResponse;
+use dokime_client_internal::host::StatusGetResponse;
 use dokime_client_internal::{Client, ClientSettings};
 
 /* === Constants === */

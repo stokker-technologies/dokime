@@ -580,7 +580,7 @@ try {
   failure = error;
   if (session) {
     try {
-      const logs = await call(session, "harmos.host.v1.status.Logs", "List", {
+      const logs = await call(session, "dokime.host.v1.status.Logs", "List", {
         page: { pageSize: 4096, maxBytes: "3145728" },
       });
       await writeFile(join(evidence, "backend-logs.json"), JSON.stringify(logs, null, 2));

@@ -37,7 +37,7 @@ public:
   string identity;
   string authorization;
   grpc::ServerUnaryReactor *Get(grpc::CallbackServerContext *context, const harmos::host::v1::StatusGetRequest *,
-                                harmos::host::v1::StatusGetResponse *response) override {
+                                dokime::host::v1::StatusGetResponse *response) override {
     const auto found = context->client_metadata().find("authorization");
     if (found != context->client_metadata().end())
       authorization.assign(found->second.data(), found->second.length());

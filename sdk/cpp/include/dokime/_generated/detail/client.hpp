@@ -1118,6 +1118,15 @@ namespace dokime::host::status {
 using ::dokime::host::v1::status::Diagnostics;
 }
 namespace harmos::host::status {
+using ::harmos::host::v1::status::LogsListRequest;
+}
+namespace harmos::host::status {
+using ::harmos::host::v1::status::LogsListResponse;
+}
+namespace dokime::host::status {
+using ::dokime::host::v1::status::Logs;
+}
+namespace harmos::host::status {
 using ::harmos::host::v1::status::LogsWatchRequest;
 }
 namespace harmos::host::status {
@@ -1147,8 +1156,8 @@ using ::dokime::host::v1::status::TraceEvents;
 namespace harmos::host {
 using ::harmos::host::v1::StatusGetRequest;
 }
-namespace harmos::host {
-using ::harmos::host::v1::StatusGetResponse;
+namespace dokime::host {
+using ::dokime::host::v1::StatusGetResponse;
 }
 namespace dokime::host {
 using ::dokime::host::v1::Status;
@@ -1156,8 +1165,8 @@ using ::dokime::host::v1::Status;
 namespace harmos::host {
 using ::harmos::host::v1::StatusWatchRequest;
 }
-namespace harmos::host {
-using ::harmos::host::v1::StatusWatchResponse;
+namespace dokime::host {
+using ::dokime::host::v1::StatusWatchResponse;
 }
 namespace dokime::host {
 using ::dokime::host::v1::Status;
