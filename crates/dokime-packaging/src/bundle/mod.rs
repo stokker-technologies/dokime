@@ -111,27 +111,34 @@ pub fn create_project(project: &PluginProject, identity: Identity, description: 
         }
         // Metadata and Lock Inputs Are Required Even When Ignored by Git.
         for path in project.source_metadata()? {
+            let relative = path.strip_prefix(&project.root)?;
+            if relative.components().any(|part| excluded(part.as_os_str().to_str().unwrap_or(""))) {
+                continue;
+            }
             let name =
                 path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Metadata Paths")?.replace('\\', "/");
             if !contents.contains_key(&name) {
                 insert(&mut contents, name, &path, limits)?;
             }
         }
-        // A Launch Input Must Not Disappear Because of a User's Ignore Rules.
-        for argument in project.manifest.scripts.launch.as_deref().unwrap_or_default().iter().skip(1) {
+        // Required Inputs Must Not Disappear Because of Ignore or Exclusion Rules.
+        for (script, arguments) in [("launch", &project.manifest.scripts.launch), ("build", &project.manifest.scripts.build)] {
+        for argument in arguments.as_deref().unwrap_or_default().iter().skip(1) {
             let path = project.root.join(argument);
             let local_input = argument.contains(['/', '\\']) || argument.ends_with(".py") || argument.ends_with(".dll");
             if local_input && !argument.starts_with('-') && !path.is_file() {
-                return Err(format!("Create Plugin Bundle: Build Required scripts.launch Input {argument} or Correct Its Path").into());
+                return Err(format!("Create Plugin Bundle: Build Required scripts.{script} Input {argument} or Correct Its Path").into());
             }
             if path.is_file() {
                 let path = project.path(Path::new(argument))?;
                 let name =
                     path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Launch Paths")?.replace('\\', "/");
-                if !contents.contains_key(&name) && !name.starts_with("assets/") {
-                    return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Input {}", path.display()).into());
+                let excluded = Path::new(&name).components().any(|part| excluded(part.as_os_str().to_str().unwrap_or("")));
+                if excluded || (!contents.contains_key(&name) && !name.starts_with("assets/")) {
+                    return Err(format!("Create Plugin Bundle: Unignore Required scripts.{script} Input {}", path.display()).into());
                 }
             }
+        }
         }
         let module =
             project.manifest.scripts.launch.as_ref().and_then(|launch| launch.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]));
@@ -291,6 +298,32 @@ fn excluded(name: &str) -> bool {
     matches!(
         name,
         ".git"
+            | ".gitignore"
+            | ".gitattributes"
+            | ".gitmodules"
+            | ".github"
+            | ".gitlab"
+            | ".gitlab-ci.yml"
+            | ".hg"
+            | ".hgignore"
+            | ".hgtags"
+            | ".svn"
+            | "mise.toml"
+            | ".mise.toml"
+            | "mise.lock"
+            | ".tool-versions"
+            | "test"
+            | "tests"
+            | "__tests__"
+            | ".pytest_cache"
+            | ".mypy_cache"
+            | ".ruff_cache"
+            | ".cache"
+            | ".idea"
+            | ".vscode"
+            | ".vs"
+            | ".DS_Store"
+            | "Thumbs.db"
             | ".venv"
             | ".env"
             | "_input"
@@ -302,7 +335,7 @@ fn excluded(name: &str) -> bool {
             | ".pypirc"
             | "id_rsa"
             | "id_ed25519"
-    ) || (name.starts_with(".env.") && name != ".env.example")
+    ) || name.starts_with(".env.")
         || name.ends_with(".pair")
         || name.ends_with(".pem")
         || name.ends_with(".key")
@@ -521,11 +554,14 @@ mod tests {
         fs::create_dir_all(root.path().join("assets/nested"))?;
         fs::write(root.path().join("assets/icon.svg"), b"icon")?;
         fs::write(root.path().join("assets/nested/ignored.bin"), b"asset")?;
-        for name in [".git", ".venv", "_input", "_output", "credentials"] {
+        for name in [".git", ".venv", "_input", "_output", "credentials", "tests", "test", "__tests__", ".github", ".gitlab", ".hg", ".svn", ".idea", ".vscode", ".vs", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache", "__pycache__"] {
             fs::create_dir(root.path().join(name))?;
             fs::write(root.path().join(name).join("private"), b"private")?;
         }
         fs::write(root.path().join(".env"), b"private")?;
+        for name in ["mise.toml", ".mise.toml", "mise.lock", ".tool-versions", ".env.example", ".env.local", ".gitattributes", ".gitmodules", ".gitlab-ci.yml", ".hgignore", ".hgtags", ".DS_Store", "Thumbs.db"] {
+            fs::write(root.path().join(name), b"development")?;
+        }
         fs::write(root.path().join("operator.pair"), b"private")?;
         let project = crate::project::PluginProject::read(root.path())?;
         let identity = Identity {
@@ -539,7 +575,7 @@ mod tests {
         let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
         assert_eq!(
             inventory,
-            [".gitignore", "README.md", "assets/icon.svg", "assets/nested/ignored.bin", "dokime.json", "dokime.toml", "entry.bin"]
+            ["README.md", "assets/icon.svg", "assets/nested/ignored.bin", "dokime.json", "dokime.toml", "entry.bin"]
         );
         assert_eq!(bundle.manifest().identity.name, "class-identifier");
         assert_eq!(bundle.manifest().identity.version.to_string(), "2.3.4");
@@ -640,6 +676,29 @@ mod tests {
         assert_eq!(bundle.file("uv.lock"), Some(b"user-owned-lock".as_slice()));
         assert_eq!(fs::read(root.path().join("uv.lock"))?, b"user-owned-lock");
         assert!(bundle.file("pyproject.toml").is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn excluded_required_script_inputs_are_refused() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::create_dir_all(root.path().join("assets/tests"))?;
+        fs::write(root.path().join("assets/tests/entry.py"), b"entry")?;
+        fs::write(root.path().join("entry.py"), b"entry")?;
+        let identity = Identity {
+            name: "bench".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        for scripts in [
+            "launch=['python','assets/tests/entry.py']",
+            "launch=['python','entry.py']\nbuild=['python','assets/tests/entry.py']",
+        ] {
+            fs::write(root.path().join("dokime.toml"), format!("[plugin]\n[scripts]\n{scripts}\n"))?;
+            let project = crate::project::PluginProject::read(root.path())?;
+            assert!(super::create_project(&project, identity.clone(), None).is_err());
+        }
         Ok(())
     }
 
