@@ -146,6 +146,24 @@ test("Empty Tables Keep Column Headers and an in Table Empty Row", () => {
   assert.match(html, /fixture-empty/);
 });
 
+test("Loading and Failure Take the Body Slot While Rows Read Keep Their Place", () => {
+  const props = { columns, getRowId: (row: { id: string; value: string }) => row.id, emptyText: "fixture-empty" };
+  const loading = renderToStaticMarkup(createElement(DataTable<{ id: string; value: string }>, { ...props, data: [], loading: true }));
+  assert.match(loading, /<td[^>]*colSpan="2"[^>]*><span role="status">/i);
+  assert.doesNotMatch(loading, /fixture-empty/);
+  const failure = createElement("p", { "data-fixture": "failure" });
+  const failed = renderToStaticMarkup(
+    createElement(DataTable<{ id: string; value: string }>, { ...props, data: [{ id: "row", value: "kept" }], failure }),
+  );
+  assert.match(failed, /<tbody[^>]*><tr[^>]*><td[^>]*colSpan="2"[^>]*><p data-fixture="failure">/i);
+  assert.match(failed, /data-row-id="row"/);
+  assert.doesNotMatch(failed, /fixture-empty/);
+  // One Page Keeps the Footer, With Both Paging Buttons Disabled Rather Than Hidden.
+  const html = renderToStaticMarkup(createElement(DataTable<{ id: string; value: string }>, { ...props, data: [] }));
+  const footer = html.match(/<footer[\s\S]*<\/footer>/)?.[0] ?? "";
+  assert.equal((footer.match(/<button[^>]*disabled=""/g) ?? []).length, 2);
+});
+
 test("Row Actions Are Named Icon Buttons with a Menu Only for the Rest", () => {
   const action = vi.fn();
   const primary = { label: "fixture-open", icon: Eye, onSelect: action };

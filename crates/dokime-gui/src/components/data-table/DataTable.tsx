@@ -9,10 +9,13 @@
 
 /* Every list in the GUI, drawn one way.
  *
- * Columns come from TanStack defs; this component owns the markup: one cell
- * padding, the shared row height, a sticky header, sort toggles, per-column
- * filters, an optional checkbox column and row activation. It renders through
- * the `ui/table` primitives, so document tables share its cell padding.
+ * Columns come from TanStack defs; this component owns the markup: one frame,
+ * a header band (title and description at the left; row filter, then actions
+ * at the right), one cell padding, the shared row height, sort toggles,
+ * per-column filters, an optional checkbox column, row activation, one empty,
+ * loading and failure slot in the body, and a footer that is always present.
+ * It renders through the `ui/table` primitives, so document tables share its
+ * cell padding.
  */
 
 /* === External Imports === */
@@ -59,7 +62,7 @@ const DEFAULT_COLUMN = { sortUndefined: "last" } as const;
 /** Clicks on a row's own controls belong to those controls, not to the row. */
 const INNER_CONTROL = "a, button, input, label, select, textarea, [role=checkbox], [role=switch]";
 
-/** Fits a row's icon commands, centered under the header. */
+/** Fits a row's icon commands, on the trailing edge under the header. */
 const ACTIONS_WIDTH = "w-24";
 
 /* === Components === */
@@ -73,7 +76,9 @@ export function DataTable<TData extends RowData>({
   defaultSort,
   description,
   emptyText,
+  failure,
   getRowId,
+  loading,
   onRowClick,
   search,
   selection,
@@ -95,8 +100,8 @@ export function DataTable<TData extends RowData>({
               ? ACTIONS_WIDTH
               : undefined;
       const width = column.meta?.width ?? inferredWidth;
-      // Commands sit centered in their own column, header included.
-      const align = id === "actions" ? "center" : column.meta?.align;
+      // Commands sit last, on the trailing edge, header included.
+      const align = id === "actions" ? "end" : column.meta?.align;
       column = { ...column, meta: { ...column.meta, align, width } };
       const filter = column.meta?.filter;
       if (filter === "facet") return { ...column, filterFn: facetFilter };
@@ -109,7 +114,7 @@ export function DataTable<TData extends RowData>({
         helper.display({
           id: "actions",
           header: "Actions",
-          meta: { width: ACTIONS_WIDTH, align: "center" },
+          meta: { width: ACTIONS_WIDTH, align: "end" },
           cell: ({ row }) => (
             <DataTableRowActions
               label={row.id}
@@ -162,7 +167,11 @@ export function DataTable<TData extends RowData>({
     id: filter.id,
     text: filterSummary(filter, table.getColumn(filter.id)?.columnDef.meta),
   }));
-  const emptyMessage = data.length > 0 && (activeFilters.length || table.state.globalFilter) ? "No Rows Match These Filters" : emptyText;
+  const emptyMessage = loading
+    ? "Loading Rows…"
+    : data.length > 0 && (activeFilters.length || table.state.globalFilter)
+      ? "No Rows Match These Filters"
+      : emptyText;
 
   function activate(event: MouseEvent<HTMLTableRowElement>, row: TData) {
     if (!event.currentTarget.contains(event.target as Node)) return;
@@ -228,6 +237,13 @@ export function DataTable<TData extends RowData>({
           ))}
         </TableHeader>
         <TableBody>
+          {failure ? (
+            <TableRow className="hover:bg-transparent">
+              <TableCell className="px-[var(--table-inset)] py-3 whitespace-normal" colSpan={columnCount}>
+                {failure}
+              </TableCell>
+            </TableRow>
+          ) : null}
           {rows.map((row) => {
             const selected = selection?.isSelected(row.original) ?? false;
             return (
@@ -279,10 +295,10 @@ export function DataTable<TData extends RowData>({
               </TableRow>
             );
           })}
-          {rows.length === 0 ? (
+          {rows.length === 0 && !failure ? (
             <TableRow className="hover:bg-transparent">
               <TableCell className="h-24 px-[var(--table-inset)] text-center whitespace-normal text-muted-foreground" colSpan={columnCount}>
-                {emptyMessage}
+                <span role={loading ? "status" : undefined}>{emptyMessage}</span>
               </TableCell>
             </TableRow>
           ) : null}
@@ -358,7 +374,7 @@ export function DataTableRowActions({ label, primary, children }: { label: strin
   // Its own provider, so a table outside the shell (the report) still renders.
   return (
     <TooltipProvider>
-      <div className="flex flex-wrap items-center justify-center gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

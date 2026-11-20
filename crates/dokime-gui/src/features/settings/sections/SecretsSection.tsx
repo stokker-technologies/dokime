@@ -167,14 +167,6 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
         <span>{snapshot ? `${snapshot.hostLabel} · ${snapshot.hostId}` : "Loading host…"}</span>
       </SettingsRow>
       <div className="grid gap-3 px-4 py-3">
-        <p className="text-sm text-muted-foreground">
-          All plugins on this host can look up these identifiers. Values stay in its OS keyring.
-        </p>
-        {error ? (
-          <NotificationMessage error={error}>{failureOf(error, "Secret Change Failed").message}</NotificationMessage>
-        ) : query.error ? (
-          <ErrorCard failure={failureOf(query.error, "Secrets Unavailable")} onRetry={() => void query.refetch()} />
-        ) : null}
         {snapshot?.cleanupPending && (
           <NotificationMessage source="Secrets" title="Keyring Cleanup Pending" tone="info">
             The change is active, but an obsolete keyring slot could not be removed.
@@ -203,8 +195,18 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           }
           columns={columns}
           data={snapshot?.entries ?? []}
-          getRowId={(entry) => entry.metadata.identifier}
+          description="All plugins on this host can look up these identifiers. Values stay in its OS keyring."
           emptyText="No Shared Secrets"
+          failure={
+            error ? (
+              <NotificationMessage error={error}>{failureOf(error, "Secret Change Failed").message}</NotificationMessage>
+            ) : query.error ? (
+              <ErrorCard failure={failureOf(query.error, "Secrets Unavailable")} onRetry={() => void query.refetch()} />
+            ) : undefined
+          }
+          getRowId={(entry) => entry.metadata.identifier}
+          loading={query.isPending}
+          title="Shared Secrets"
         />
         {deleting && (
           <fieldset className="flex flex-wrap items-center gap-3 rounded-lg border p-3" aria-label="Confirm Secret Deletion">

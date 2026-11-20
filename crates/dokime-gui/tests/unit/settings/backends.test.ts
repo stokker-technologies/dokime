@@ -22,6 +22,7 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
+import { DataTable } from "@/components/data-table/DataTable";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
@@ -263,6 +264,7 @@ type TestElementProps = {
   children?: ReactNode;
   actions?: ReactNode;
   failure?: ReactNode;
+  loading?: boolean;
   retry?: (profile: string | null) => void;
   tabIndex?: number;
   role?: string;
@@ -304,10 +306,11 @@ test("Startup Recovery Feedback", async () => {
   assert.equal(descendants(tree).filter((element) => element.type === "details").length, 0);
 });
 
-test("Backend Loading Stays in the Status Indicator", () => {
-  const contents = descendants(BackendsTable());
-  assert.equal(contents.filter((element) => element.props.role === "status").length, 1);
-  assert.equal(contents.filter((element) => element.type === NotificationMessage).length, 0);
+test("Backend Loading Stays in the Table's Status Slot", () => {
+  const table = descendants(BackendsTable()).find((element) => element.type === DataTable);
+  assert.ok(table);
+  assert.equal(table.props.loading, true);
+  assert.equal(table.props.failure, undefined);
 });
 
 test("Occupied Local Remains Usable", async () => {
@@ -340,10 +343,11 @@ test("Occupied Local Remains Usable", async () => {
 });
 
 test("Backend Failure Replaces Loading with Notification Feedback", () => {
-  const contents = descendants(BackendsTable({ failure: "fixture-failure" }));
-  const notices = contents.filter((element) => element.type === NotificationMessage);
+  const table = descendants(BackendsTable({ failure: "fixture-failure" })).find((element) => element.type === DataTable);
+  assert.ok(table);
+  assert.equal(table.props.loading, false);
+  const notices = descendants(table.props.failure).filter((element) => element.type === NotificationMessage);
   assert.equal(notices.length, 1);
-  assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
   assert.ok(Children.toArray(notices[0].props.children).includes("fixture-failure"));
 });
 

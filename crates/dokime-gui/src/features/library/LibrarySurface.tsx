@@ -154,11 +154,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
               {suite.name} <span className="ml-2 font-normal text-muted-foreground">{members.length} Templates</span>
             </summary>
             <div className="mt-3 grid gap-3">
-              {suite.description ? <p className="text-sm text-muted-foreground">{suite.description}</p> : null}
               <DataTable
                 aria-label={suite.name}
                 columns={columns}
                 data={members.map((template) => ({ suite, template }))}
+                description={suite.description || undefined}
                 emptyText="No Templates Match"
                 getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
                 onRowClick={setOpenTemplate}

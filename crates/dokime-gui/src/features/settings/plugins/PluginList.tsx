@@ -40,6 +40,9 @@ type PluginListProps = {
   actions?: ReactNode;
   entries: ManagedPlugin[];
   builtInRows?: PluginTableRow[];
+  /** Shown in place in the table body while the list cannot be read. */
+  failure?: ReactNode;
+  loading?: boolean;
   onRemove: (entry: ManagedPlugin) => void;
   /** Opens the plugin's own settings page; null when it contributes none. */
   onOpenSettings: (entry: ManagedPlugin) => void;
@@ -62,6 +65,8 @@ export function PluginList({
   actions,
   entries,
   builtInRows = [],
+  failure,
+  loading,
   onRemove,
   onOpenSettings,
   removingId,
@@ -119,7 +124,7 @@ export function PluginList({
     };
   });
 
-  return <PluginTable actions={actions} label="Plugins" rows={[...builtInRows, ...rows]} />;
+  return <PluginTable actions={actions} failure={failure} label="Plugins" loading={loading} rows={[...builtInRows, ...rows]} />;
 }
 
 /* === Public Functions === */

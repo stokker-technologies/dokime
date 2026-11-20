@@ -12,7 +12,7 @@
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
 import { useCallback, useState } from "react";
 import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
@@ -21,6 +21,7 @@ import { toast } from "@/lib/notifications";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
@@ -153,53 +154,54 @@ export function PluginsSection() {
           </SettingsRow>
         ))}
         <div className="px-4 py-3">
-          {pluginsQuery.isPending || programsQuery.isPending ? (
-            <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" />
-                Loading Plugins…
-              </span>
-            </div>
-          ) : pluginsQuery.isError || programsQuery.isError ? (
-            <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
-              <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
-              <Button
-                onClick={() => {
-                  void pluginsQuery.refetch();
-                  void programsQuery.refetch();
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Try Again
-              </Button>
-            </div>
-          ) : null}
-
           <PluginList
             actions={
               <>
                 <Button disabled={!desktop || installMutation.isPending} onClick={() => setInstallOpen(true)}>
                   Install Plugin
                 </Button>
-                <Button
-                  variant="outline"
-                  disabled={
-                    !desktop || releaseMutation.isPending || installMutation.isPending || Boolean(releaseMutation.unavailableReason)
-                  }
-                  onClick={() => releaseMutation.mutate()}
-                >
-                  Check for Updates
-                </Button>
                 {releaseMutation.unavailableReason ? (
-                  <span className="text-muted-foreground text-sm" role="status">
-                    {releaseMutation.unavailableReason}
-                  </span>
-                ) : null}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button aria-description={releaseMutation.unavailableReason} disabled variant="outline">
+                          Check for Updates
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{releaseMutation.unavailableReason}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={!desktop || releaseMutation.isPending || installMutation.isPending}
+                    onClick={() => releaseMutation.mutate()}
+                  >
+                    Check for Updates
+                  </Button>
+                )}
               </>
             }
             entries={entries}
             builtInRows={builtInRows}
+            failure={
+              pluginsQuery.isError || programsQuery.isError ? (
+                <div className="grid justify-items-start gap-3">
+                  <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
+                  <Button
+                    onClick={() => {
+                      void pluginsQuery.refetch();
+                      void programsQuery.refetch();
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              ) : undefined
+            }
+            loading={pluginsQuery.isPending || programsQuery.isPending}
             changingEnabled={enabledMutation.isPending}
             onSetEnabled={(entry, enabled) =>
               enabledMutation.mutate(

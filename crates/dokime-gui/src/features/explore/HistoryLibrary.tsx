@@ -164,14 +164,15 @@ export function HistoryLibrary({
     <DataTable
       actions={
         <>
-          {toggle}
           {compare}
+          {toggle}
         </>
       }
       columns={columns}
       data={cycles}
-      emptyText={loading ? "Loading History…" : archived ? "No Archived History" : "No History Matches"}
+      emptyText={archived ? "No Archived History" : "No History Matches"}
       getRowId={entryKey}
+      loading={loading}
       onRowClick={(entry) => onOpenEntry(entry.target)}
       search={search}
       selection={selection}
