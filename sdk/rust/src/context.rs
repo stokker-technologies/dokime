@@ -384,6 +384,16 @@ impl Context {
             .ok_or_else(|| Error::Invalid(format!("Read Setting: Declare and Configure {identifier}")))
     }
 
+    /// Read a Duration Setting, Such as the One an Observer's `interval_setting` Names.
+    pub async fn duration_setting(&self, identifier: &str) -> Result<Duration> {
+        match self.setting(identifier).await?.value {
+            Some(crate::setting_value::Value::Duration(duration)) => Duration::try_from(duration).map_err(|error| {
+                Error::Invalid(format!("Read Setting {identifier}: Configure a Nonnegative Duration in the Plugin Settings: {error}"))
+            }),
+            _ => Err(Error::Invalid(format!("Read Setting {identifier}: Configure a Duration in the Plugin Settings"))),
+        }
+    }
+
     pub async fn prompt_answer(
         &self, prompt: impl Into<Prompt>, values: HashMap<String, crate::Value>,
     ) -> Result<crate::templates::PromptAnswer> {
@@ -844,7 +854,9 @@ pub(crate) fn clear(executions: &Executions) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
+    use harmos_protocol::host::plugins::SettingsListResponse;
     use prost::Message;
     use prost_types::Timestamp;
 
@@ -863,7 +875,7 @@ mod tests {
         DocumentsAppendPartsRequest, DocumentsAppendPartsResponse, EffectsCreateRequest, EffectsCreateResponse, EffectsGetResponse,
         EffectsSetRequest, EffectsSetResponse,
     };
-    use crate::{Error, Origin, PluginRun, Record, Result, Severity, TestCase, Value, origin};
+    use crate::{Error, Origin, PluginRun, Record, Result, SettingValue, SettingValues, Severity, TestCase, Value, origin, setting_value};
 
     #[derive(Default)]
     struct Host(Mutex<Vec<String>>);
@@ -965,6 +977,43 @@ mod tests {
             .confirm_effect_with(&ticket, Some(Timestamp::default()), false, EffectConfirmOptions { request_id: Some("confirm".into()) })
             .await?;
         assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document", "prepare", "confirm"]);
+        Ok(())
+    }
+
+    struct Settings;
+
+    impl LocalHost for Settings {
+        fn call<'a>(&'a self, operation: &'static str, _: Vec<u8>) -> FutureResult<'a, Vec<u8>> {
+            Box::pin(async move {
+                assert_eq!(operation, "harmos.plugin.v1.plugins.Settings/List");
+                let values = [
+                    ("interval", setting_value::Value::Duration(prost_types::Duration { seconds: 2, nanos: 500_000_000 })),
+                    ("negative", setting_value::Value::Duration(prost_types::Duration { seconds: -1, nanos: 0 })),
+                    ("label", setting_value::Value::Text("Bench".into())),
+                ];
+                let value = SettingValues {
+                    values: values.into_iter().map(|(name, value)| (name.into(), SettingValue { value: Some(value) })).collect(),
+                };
+                Ok(SettingsListResponse { value: Some(value), ..Default::default() }.encode_to_vec())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn duration_settings_decode_saved_durations_and_refuse_other_values() -> Result<()> {
+        let context = Context::local(
+            Local {
+                host: Arc::new(Settings),
+                scope: "execution".into(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), Origin::default()),
+            Arc::new(()),
+        );
+        assert_eq!(context.duration_setting("interval").await?, Duration::from_millis(2_500));
+        for refused in ["negative", "label", "missing"] {
+            assert!(matches!(context.duration_setting(refused).await, Err(Error::Invalid(_))), "{refused}");
+        }
         Ok(())
     }
 }

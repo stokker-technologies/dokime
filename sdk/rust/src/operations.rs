@@ -77,6 +77,12 @@ impl Context {
     pub async fn settings<T: Message>(&self) -> Result<T> {
         self.inner.settings::<T>().await
     }
+    pub async fn setting(&self, identifier: &str) -> Result<crate::SettingValue> {
+        self.inner.setting(identifier).await
+    }
+    pub async fn duration_setting(&self, identifier: &str) -> Result<Duration> {
+        self.inner.duration_setting(identifier).await
+    }
 }
 
 /* === Public Functions === */
