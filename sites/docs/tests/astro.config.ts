@@ -39,8 +39,8 @@ import configuration from "../astro.config";
 
 export default defineConfig({
   base: configuration.base,
-  outDir: "../../target/docs/fixtures",
-  cacheDir: `../../target/docs/fixture-cache/${process.env.DOCS_FIXTURE ?? "valid"}`,
+  outDir: "../../../target/docs/fixtures",
+  cacheDir: `../../../target/docs/fixture-cache/${process.env.DOCS_FIXTURE ?? "valid"}`,
   markdown: configuration.markdown,
   integrations: [starlight({ title: "Diagram Fixtures", customCss: [fileURLToPath(new URL("../src/theme.css", import.meta.url))] })],
 });

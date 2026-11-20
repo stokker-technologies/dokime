@@ -9,14 +9,14 @@ import { remarkDiagrams } from "./src/diagrams";
 import { remarkGuides } from "./src/guides";
 
 // The Docs Task Selects the Entry and Source Revision; Direct Runs Preview the Development Entry.
-const root = fileURLToPath(new URL("..", import.meta.url));
+const root = fileURLToPath(new URL("../..", import.meta.url));
 const entry = process.env.DOCS_ENTRY ?? "dev";
 const base = `/${entry}/`;
 const source = process.env.DOCS_SOURCE ?? "https://github.com/stokker-technologies/dokime/blob/dev/";
 
 export default defineConfig({
   base,
-  outDir: `../target/docs/${entry}`,
+  outDir: `../../target/docs/${entry}`,
   markdown: {
     processor: unified({ remarkPlugins: [remarkGuides({ root, base, source }), remarkDiagrams()] }),
   },
@@ -24,8 +24,8 @@ export default defineConfig({
     starlight({
       title: "Dokime",
       logo: {
-        light: "../organization/logos/transparent-on-light.svg",
-        dark: "../organization/logos/transparent-on-dark.svg",
+        light: "../../organization/logos/transparent-on-light.svg",
+        dark: "../../organization/logos/transparent-on-dark.svg",
         replacesTitle: false,
       },
       customCss: ["./src/theme.css"],

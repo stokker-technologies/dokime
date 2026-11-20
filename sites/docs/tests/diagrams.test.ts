@@ -75,10 +75,10 @@ test("identical sources share rendering across titles and files", (context) => {
 
 test("fixture build inlines both themes with selectable text and unique references", () => {
   // Clear Only the Owned Fixture Cache So This Proof Exercises the Compiler.
-  rmSync(new URL("../../target/docs/fixture-cache", import.meta.url), { recursive: true, force: true });
+  rmSync(new URL("../../../target/docs/fixture-cache", import.meta.url), { recursive: true, force: true });
   const result = build("valid");
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  const output = new URL("../../target/docs/fixtures/", import.meta.url);
+  const output = new URL("../../../target/docs/fixtures/", import.meta.url);
   const html = readFileSync(new URL("index.html", output), "utf8");
   const diagrams = [...html.matchAll(/<svg\b[^>]*data-d2-theme="(light|dark)"[^>]*>/g)];
   assert.deepEqual(

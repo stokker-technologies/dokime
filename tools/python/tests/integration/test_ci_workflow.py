@@ -422,7 +422,7 @@ class WorkflowTests(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"):
+            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "sites/docs/pnpm-lock.yaml"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("original", encoding="utf-8")

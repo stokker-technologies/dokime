@@ -66,7 +66,7 @@ class ImpactTests(unittest.TestCase):
             (["sdk/rust/README.md"], {"build_docs"}),
             (["docs/assets/navigation.svg"], {"build_docs"}),
             (["openspec/changes/example/tasks.md", "openspec/config.yaml"], {"build_docs"}),
-            (["site/pnpm-lock.yaml"], {"build_docs"}),
+            (["sites/docs/pnpm-lock.yaml"], {"build_docs"}),
             (["sdk/python/src/dokime_sdk/client.py"], python),
             (["sdk/python/uv.lock"], python),
             (["sdk/csharp/src/Dokime/Client.cs"], csharp),

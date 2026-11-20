@@ -12,3 +12,5 @@
 - [x] 4.1 Add `docs:image`: assemble published archives, write the selector entries and `latest`.
 - [ ] 4.2 Deploy the image; the deployment target is not chosen yet.
 - [ ] 5.1 Hosted pipelines publish the archive and the assembled site shows `latest`, a release and `dev`.
+
+- [x] 6.1 Move the site project to `sites/docs/` and update tooling, cache, format and impact references.

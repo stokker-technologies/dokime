@@ -79,7 +79,7 @@ run = [
   "{% if not usage.tools_only and not usage.docs_only %}mise run build:python{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise -C sdk/python run install{% endif %}",
   "{% if not usage.without_frontend and not usage.tools_only and not usage.docs_only %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
-  "{% if not usage.without_frontend and not usage.tools_only %}pnpm --dir site install --frozen-lockfile{% endif %}",
+  "{% if not usage.without_frontend and not usage.tools_only %}pnpm --dir sites/docs install --frozen-lockfile{% endif %}",
 ]
 
 [tasks."generate"]
@@ -138,15 +138,15 @@ run = "{{vars.tools}} dokime_tools.docs.image"
 [tasks."docs:test"]
 description = "Test Documentation Diagrams"
 usage = 'flag "--select <select>"'
-run = 'pnpm --dir site test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/diagrams.test.ts'
+run = 'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/diagrams.test.ts'
 
 [tasks."docs:format"]
 description = "Format the Documentation Site"
-run = "pnpm --dir site format"
+run = "pnpm --dir sites/docs format"
 
 [tasks."docs:lint"]
 description = "Lint the Documentation Site"
-run = "pnpm --dir site lint"
+run = "pnpm --dir sites/docs lint"
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
@@ -209,7 +209,7 @@ description = "Format TypeScript"
 usage = 'flag "--check"'
 run = [
   "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
-  "pnpm --dir site exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+  "pnpm --dir sites/docs exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
 ]
 
 [tasks."lint:python"]
@@ -231,7 +231,7 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir site exec biome lint ."]
+run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir sites/docs exec biome lint ."]
 
 [tasks.screenshots]
 hide = true
