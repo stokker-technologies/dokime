@@ -10,6 +10,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import hashlib
 import shutil
 import stat
 import tarfile
@@ -137,21 +138,18 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
             archive.close()
 
 
-def write_file(archive: zipfile.ZipFile, source: Path, name: str, mode: int = 0o644) -> None:
+def write_file(archive: zipfile.ZipFile, source: Path, name: str, mode: int = 0o644, *, checksum: str | None = None) -> str:
     """Write a Regular ZIP Member With Explicit Unix Permissions."""
     metadata = zipfile.ZipInfo.from_file(source, name)
     metadata.create_system = 3
     metadata.external_attr = (stat.S_IFREG | mode) << 16
     metadata.compress_type = zipfile.ZIP_DEFLATED
-    original = source.open("rb")
-    try:
-        destination = archive.open(metadata, "w")
-        try:
-            shutil.copyfileobj(original, destination)
-        finally:
-            destination.close()
-    finally:
-        original.close()
+    data = source.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    if checksum is not None and digest != checksum:
+        raise policy.ToolError(f"Package Product: Rebuild the Changed Archive Input: {name}")
+    archive.writestr(metadata, data)
+    return digest
 
 
 # === Private Functions === #

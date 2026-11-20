@@ -66,7 +66,7 @@ class ImpactTests(unittest.TestCase):
             (["sdk/rust/README.md"], {"build_docs"}),
             (["docs/assets/navigation.svg"], {"build_docs"}),
             (["openspec/changes/example/tasks.md", "openspec/config.yaml"], {"build_docs"}),
-            (["site/pnpm-lock.yaml"], {"build_docs"}),
+            (["sites/docs/pnpm-lock.yaml"], {"build_docs"}),
             (["sdk/python/src/dokime_sdk/client.py"], python),
             (["sdk/python/uv.lock"], python),
             (["sdk/csharp/src/Dokime/Client.cs"], csharp),
@@ -108,7 +108,7 @@ class ImpactTests(unittest.TestCase):
 
     def test_event_eligibility_and_complete_validation(self) -> None:
         for classes in (impact.classify(["README.md"]), impact.classify(["unknown"])):
-            for event in ("release", "nightly", "full"):
+            for event in ("full",) if classes == frozenset({"docs"}) else ("release", "nightly", "full"):
                 with self.subTest(event=event, classes=classes):
                     self.assertEqual(set(impact.plan(classes, event)["selected"]), set(impact.JOBS))
             for event in ("closed", "draft"):
@@ -118,6 +118,32 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(impact.plan(impact.classify(["README.md"]), "push")["selected"], ["build_docs"])
         for paths in (None, [], ["../outside"], ["/absolute"], ["crates\\runtime\\lib.rs"]):
             self.assertEqual(impact.classify(paths), frozenset({"all"}))
+
+    def test_documentation_only_selects_no_product_jobs_for_each_event(self) -> None:
+        documentation = (
+            "README.md",
+            "sdk/rust/README.md",
+            "sdk/python/README.md",
+            "sdk/csharp/README.md",
+            "sdk/cpp/README.md",
+            "openspec/config.yaml",
+            "sites/docs/package.json",
+            "sites/docs/pnpm-lock.yaml",
+            "sites/other/index.html",
+            "docs/screenshots/desktop.png",
+            "tools/python/src/dokime_tools/docs/image.py",
+            "tools/python/src/dokime_tools/ci/impact.py",
+        )
+        cases = [[path] for path in documentation] + [list(documentation)]
+        for event in ("review", "push", "release", "nightly"):
+            for paths in cases:
+                with self.subTest(event=event, paths=paths):
+                    result = impact.plan(impact.classify(paths), event)
+                    self.assertEqual(result["selected"], ["build_docs"])
+                    mixed = impact.plan(impact.classify([*paths, "crates/dokime-runtime/src/lib.rs"]), event)
+                    self.assertTrue(mixed["build_product"])
+                    self.assertTrue(mixed["check"])
+                    self.assertEqual(mixed["test"], event != "push")
 
     def test_event_metadata_selects_full_release_and_safe_fallback(self) -> None:
         cases = (
@@ -201,6 +227,32 @@ class ImpactTests(unittest.TestCase):
             self.assertEqual(outputs, impact.plan(impact.classify(None), "push"))
         finally:
             temporary.cleanup()
+
+    def test_release_review_still_compares_paths_before_selecting_product_work(self) -> None:
+        with (
+            patch.dict(os.environ, {"GITHUB_EVENT_NAME": "pull_request"}, clear=True),
+            patch.object(impact, "_event", return_value="release"),
+            patch.object(impact, "changed_paths", return_value=["README.md"]) as compare,
+        ):
+            self.assertEqual(impact.main([]), 0)
+            compare.assert_called_once_with({}, "pull_request", Path.cwd())
+
+    def test_nightly_uses_the_product_tag_base_for_docs_and_subsequent_product_changes(self) -> None:
+        base, head = "a" * 40, "b" * 40
+        environment = {"GITHUB_SHA": head}
+        for paths, product in ((["docs/guide.md"], False), (["docs/guide.md", "sdk/rust/src/lib.rs"], True)):
+            with (
+                self.subTest(paths=paths),
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(impact, "changed_paths", return_value=paths) as compare,
+                patch.object(impact, "plan", wraps=impact.plan) as plan,
+            ):
+                self.assertEqual(impact.main(["--event", "nightly", "--base", base]), 0)
+                compare.assert_called_once_with({"before": base, "after": head}, "push", Path.cwd())
+                plan.assert_called_once_with(impact.classify(paths), "nightly")
+            selected = impact.plan(impact.classify(paths), "nightly")
+            self.assertEqual(selected["product"], product)
+            self.assertTrue(selected["build_docs"])
 
     def test_required_result_table_rejects_unplanned_or_missing_proof(self) -> None:
         plan = impact.plan(impact.classify(["sdk/cpp/src/plugin.cpp"]), "review")

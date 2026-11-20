@@ -6,7 +6,7 @@
   font-family: "Roboto Variable";
   font-style: normal;
   font-weight: 100 900;
-  src: url("../../organization/fonts/roboto-latin-wght-normal.woff2") format("woff2");
+  src: url("../../../organization/fonts/roboto-latin-wght-normal.woff2") format("woff2");
 }
 
 @font-face {
@@ -14,10 +14,28 @@
   font-family: "Roboto Mono Variable";
   font-style: normal;
   font-weight: 100 700;
-  src: url("../../organization/fonts/roboto-mono-latin-wght-normal.woff2") format("woff2");
+  src: url("../../../organization/fonts/roboto-mono-latin-wght-normal.woff2") format("woff2");
 }
 
 :root {
   --sl-font: "Roboto Variable", system-ui, sans-serif;
   --sl-font-mono: "Roboto Mono Variable", ui-monospace, monospace;
+}
+
+.d2-diagram {
+  overflow-x: auto;
+}
+
+.d2-diagram > svg {
+  width: 100%;
+  height: auto;
+}
+
+.d2-diagram text {
+  user-select: text;
+}
+
+[data-theme="light"] .d2-diagram > [data-d2-theme="dark"],
+[data-theme="dark"] .d2-diagram > [data-d2-theme="light"] {
+  display: none;
 }

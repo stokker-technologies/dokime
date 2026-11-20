@@ -26,7 +26,7 @@ use std::{
 
 // Third Party Imports
 use flate2::read::GzDecoder;
-use harmos_runtime::bundle::{Bundle, Facility, Limits};
+use harmos_runtime::bundle::{Bundle, Facility, Identity, Limits};
 
 // Local Imports
 use super::{Error, distribution};
@@ -38,6 +38,12 @@ use super::{Error, distribution};
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub(super) struct Staged {
+    pub path: PathBuf,
+    pub identity: Identity,
+    pub source: PathBuf,
+}
 
 /* === Enums === */
 
@@ -118,27 +124,28 @@ pub(super) fn select(paths: &[PathBuf], names: &[String]) -> Result<Vec<PathBuf>
             packages
                 .get(name)
                 .cloned()
-                .ok_or_else(|| Error::Invalid(format!("Select a Published Plugin Package Name; No {name} in the Plugin Archive")))
+                .ok_or_else(|| Error::Invalid(format!("Select a Plugin Name Declared by a Bundle; No {name} in the Plugin Archive")))
         })
         .collect()
 }
 
-pub(super) fn stage(paths: &[PathBuf], scratch: &Path, target: &str, version: &str) -> Result<BTreeMap<String, PathBuf>, Error> {
+pub(super) fn stage(paths: &[PathBuf], scratch: &Path, target: &str, version: &str) -> Result<BTreeMap<String, Staged>, Error> {
     let mut bundles = Vec::new();
     for (index, path) in paths.iter().enumerate() {
         if path.extension().is_some_and(|value| value == "dokime") {
-            bundles.push(path.clone());
+            bundles.push((path.clone(), path.clone()));
             continue;
         }
         let bytes = bounded(path, distribution::ARCHIVE_MAX_BYTES as u64)?;
         let name =
             path.file_name().and_then(|value| value.to_str()).ok_or_else(|| Error::Invalid("Use UTF-8 Plugin Archive Names".into()))?;
-        bundles.extend(unpack(&bytes, name, &scratch.join("external-plugins").join(index.to_string()))?);
+        let unpacked = unpack(&bytes, name, &scratch.join("external-plugins").join(index.to_string()))?;
+        bundles.extend(unpacked.into_iter().map(|bundle| (bundle, path.clone())));
     }
     let mut names = BTreeSet::new();
     let mut packages = BTreeSet::new();
     let mut verified = Vec::new();
-    for path in bundles {
+    for (path, source) in bundles {
         let name = path
             .file_name()
             .and_then(|value| value.to_str())
@@ -173,15 +180,16 @@ pub(super) fn stage(paths: &[PathBuf], scratch: &Path, target: &str, version: &s
         if !packages.insert(package.clone()) {
             return Err(Error::Invalid(format!("Select Plugin Package {package} Only Once")));
         }
-        verified.push((name, bytes));
+        let identity = bundle.manifest().identity.clone();
+        verified.push((name, bytes, identity, source));
     }
     let destination = scratch.join("plugins");
     fs::create_dir_all(&destination)?;
     let mut staged = BTreeMap::new();
-    for (name, bytes) in verified {
+    for (name, bytes, identity, source) in verified {
         let path = destination.join(&name);
         fs::write(&path, bytes)?;
-        staged.insert(name, path);
+        staged.insert(name, Staged { path, identity, source });
     }
     Ok(staged)
 }
@@ -208,7 +216,9 @@ mod tests {
     use super::*;
     use crate::bundle;
     use harmos_runtime::bundle::Identity;
+    use std::io::{Cursor, Write};
     use std::slice;
+    use zip::{ZipWriter, write::SimpleFileOptions};
 
     #[test]
     fn stage_verified_grpc_bundle_and_refuse_duplicates_corruption_target_and_version() -> crate::Result<()> {
@@ -229,7 +239,18 @@ mod tests {
         assert!(select(slice::from_ref(&path), &["missing-example-pack".into()]).is_err());
         let staged = tempfile::tempdir()?;
         let result = stage(slice::from_ref(&path), staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION"))?;
-        assert_eq!(fs::read(&result["example-pack.dokime"])?, bytes);
+        assert_eq!(fs::read(&result["example-pack.dokime"].path)?, bytes);
+        assert_eq!(result["example-pack.dokime"].source, path);
+        let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
+        archive.start_file("example-pack.dokime", SimpleFileOptions::default())?;
+        archive.write_all(&bytes)?;
+        let archive = archive.finish()?.into_inner();
+        let archive_path = root.path().join("bench.zip");
+        fs::write(&archive_path, archive)?;
+        let output = tempfile::tempdir()?;
+        let result = stage(slice::from_ref(&archive_path), output.path(), bundle::native_target(), env!("CARGO_PKG_VERSION"))?;
+        assert_eq!(result["example-pack.dokime"].source, archive_path);
+        assert_eq!(fs::read(&result["example-pack.dokime"].path)?, bytes);
         assert!(stage(&[path.clone(), path.clone()], staged.path(), bundle::native_target(), env!("CARGO_PKG_VERSION")).is_err());
         assert!(stage(slice::from_ref(&path), staged.path(), "unsupported", env!("CARGO_PKG_VERSION")).is_err());
         assert!(stage(slice::from_ref(&path), staged.path(), bundle::native_target(), "99.0.0").is_err());

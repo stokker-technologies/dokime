@@ -325,9 +325,9 @@ class WorkflowTests(unittest.TestCase):
             ("schedule", None, 1, "HTTP/2 404", [], True),
             ("schedule", None, 1, "HTTP/2 403", [], None),
             ("schedule", None, 1, "HTTP/2 503", [], None),
-            ("workflow_dispatch", sha, 0, "", [], True),
-            ("workflow_dispatch", sha, 0, "", [{"id": 6}], False),
-            ("workflow_dispatch", sha, 0, "", [{"id": 7}, {"id": 8}], True),
+            ("workflow_dispatch", sha, 0, "", [], False),
+            ("workflow_dispatch", "b" * 40, 0, "", [{"id": 6}], False),
+            ("workflow_dispatch", "b" * 40, 0, "", [{"id": 7}, {"id": 8}], True),
         )
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
@@ -356,9 +356,9 @@ class WorkflowTests(unittest.TestCase):
                         self.assertEqual(output.read_text(), "")
                         continue
                     self.assertEqual(workflow.main(["nightly-freshness"]), 0)
-                    self.assertEqual(output.read_text(), f"build={str(expected).lower()}\n")
-                    if event == "workflow_dispatch":
-                        request.assert_not_called()
+                    self.assertEqual(output.read_text(), f"build={str(expected).lower()}\nbase={published or ''}\n")
+                    if not code:
+                        request.assert_called_once_with("git/ref/tags/nightly")
             with patch.dict(os.environ, {"GITHUB_REF": "refs/heads/topic"}, clear=True), self.assertRaises(ValueError):
                 workflow.main(["nightly-freshness"])
         finally:
@@ -422,7 +422,7 @@ class WorkflowTests(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"):
+            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "sites/docs/pnpm-lock.yaml"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("original", encoding="utf-8")

@@ -41,7 +41,6 @@ OUTPUT = "target/docs/image"
 DOWNLOADS = "target/docs/archives"
 IMAGE = "dokime-docs-site.zip"
 LATEST = "latest"
-NIGHTLY = "nightly"
 STABLE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
 # === Types === #
@@ -52,16 +51,13 @@ STABLE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
 
 def download(directory: Path) -> list[Path]:
-    """Fetch the Newest Archive of Each Stable Release Line and the Nightly Archive."""
+    """Fetch the Newest Archive of Each Published Stable Release Line."""
     settings = policy.policy(directory, "release")
     selected: dict[str, tuple[tuple[int, ...], str, str]] = {}
     for release in registry.provider.pages(settings, "releases"):
         names = {asset.get("name") for asset in release.get("assets", [])}
         tag = release.get("tag_name", "")
         if release.get("draft"):
-            continue
-        if tag == NIGHTLY and f"dokime-docs-{NIGHTLY}.zip" in names:
-            selected[site.DEVELOPMENT] = ((), tag, f"dokime-docs-{NIGHTLY}.zip")
             continue
         matched = STABLE.fullmatch(tag.removeprefix("v"))
         name = f"dokime-docs-{tag.removeprefix('v')}.zip"
@@ -132,7 +128,22 @@ def main(arguments: list[str] | None = None) -> int:
     options = parser.parse_args(arguments)
     directory = policy.root()
     try:
-        archives = [directory / path for path in options.archive] or download(directory)
+        archives = [directory / path for path in options.archive]
+        if not archives:
+            current = policy.inside(directory, f"{site.OUTPUT}/{site.ARCHIVE}")
+            if not current.is_file():
+                raise policy.ToolError("Assemble Documentation: Build the Current Entry With mise run docs:build -- --archive")
+            source = zipfile.ZipFile(current)
+            try:
+                stamp = json.loads(source.read(site.STAMP))
+            finally:
+                source.close()
+            revision = policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
+            if stamp["entry"] != site.DEVELOPMENT or stamp["revision"] != revision:
+                raise policy.ToolError(
+                    "Assemble Documentation: Rebuild the Current Development Entry With mise run docs:build -- --archive"
+                )
+            archives = [current, *download(directory)]
         output = policy.inside(directory, OUTPUT)
         for entry in assemble(archives, output):
             print(f"{entry['entry']}: {entry['label']}")
