@@ -1617,7 +1617,11 @@ decision and the addressable library API.
 
 The shared description currently carries identifier, version, SDK/protocol
 versions and declarations, but has no plugin label, description or icon fields.
-Those presentation values require a shared library/host description contract.
+Generic declaration contributions are available, but the host has no agreed
+plugin-presentation contribution or projection for these values. The SDK and host
+owners must select one representation rather than introduce a parallel metadata
+family. This is an unresolved product contract, not a missing generic contribution
+facility in the library.
 Manifest scripts, bundle inputs and compatibility ranges remain packaging data;
 hand-run registration must not read a manifest to obtain presentation values.
 

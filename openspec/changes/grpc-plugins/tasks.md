@@ -250,14 +250,17 @@
 ## Hand-Run Plugin Registration
 
 - [x] Add `PluginsCreateRequest.sdk_version` at Field 6 and Regenerate the Tracked Bindings.
-- [ ] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
+- [x] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
 - [ ] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
 - [ ] Complete C# Paired Startup, Stable Identity, Refusals and Entry Retention With Focused Proof.
+  - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Repeated Disposal and Client-Close Entry Retention.
 - [ ] Complete C++ Registration and Entry Retention After Preparing Its Native SDK Build.
 - [ ] Expose Addressable Start/Wait APIs and Authored Starter Output After the Library Publishes the Required Listener Lifecycle.
-- [ ] Carry Plugin Label, Description and Icon Through the Shared Description After the Library and Host Supply That Contract.
+- [ ] Agree One Plugin-Presentation Contribution With the Host Owner and Carry Label, Description and Icon Through the Shared Description.
 - [ ] Adopt the Library-Owned Managed Announcement When the Integrating Owner Moves the Pin; Keep Detection Isolated per SDK.
-- [ ] Complete Binding, Repository, Created-Python-Starter and Workspace-Test-Compilation Gates.
+- [ ] Complete Binding and Workspace-Test-Compilation Gates.
+  - [x] Pass the Release-Context Python Binding, Strict Stub and Generated-Surface Checks.
+  - [x] Pass Repository Checks and the Created Python Starter's Unmodified Client and Retained Archive Story.
 
 ## Library Pin, Installer Feature and SDK Lanes
 
