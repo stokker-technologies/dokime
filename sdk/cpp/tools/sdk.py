@@ -93,6 +93,8 @@ def run(command: list[str], *, action: str, cwd: Path, env: dict[str, str], log:
 def environment() -> dict[str, str]:
     environment = dict(os.environ)
     # Resolve Native Build Tools Before vcpkg Enters Its Dependency Workspace.
+    started = perf_counter()
+    print("Prepare C++ Tools: Resolve CMake and Ninja", flush=True)
     tool_directories = []
     for tool in ("cmake", "ninja"):
         executable = subprocess.check_output(
@@ -103,14 +105,15 @@ def environment() -> dict[str, str]:
             creationflags=spawn_flags(),
         ).strip()
         tool_directories.append(str(Path(executable).parent))
+    print(f"Prepare C++ Tools: Completed After {perf_counter() - started:.2f}s", flush=True)
 
     # Locate the Pinned Dependency Checkout.
+    started = perf_counter()
     print("Prepare C++ Dependencies: Locate the Mise Cache", flush=True)
     cache = subprocess.check_output(["mise", "cache", "path"], text=True, stderr=sys.stderr, creationflags=spawn_flags()).strip()
     manifest = json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text())
     revision = manifest["builtin-baseline"]
     checkout = Path(cache) / "vcpkg" / revision[:12]
-    environment["VCPKG_ROOT"] = str(checkout)
 
     # Bootstrap the Immutable Tool Checkout Outside the Repository.
     if not checkout.is_dir():
@@ -160,10 +163,12 @@ def environment() -> dict[str, str]:
             else ["sh", str(checkout / "bootstrap-vcpkg.sh"), "-disableMetrics"]
         )
         subprocess.run(bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=spawn_flags())
+    print(f"Prepare C++ Dependencies: Completed After {perf_counter() - started:.2f}s; Checkout: {checkout}", flush=True)
 
     # Ninja Uses the Native MSVC Environment on Windows.
     tool_path = environment["PATH"]
     if os.name == "nt" and not environment.get("VCINSTALLDIR"):
+        started = perf_counter()
         print("Prepare C++ Compiler: Load the MSVC Developer Environment", flush=True)
         installer = Path(environment["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer"
         developer = visual_studio() / "Common7/Tools/VsDevCmd.bat"
@@ -183,6 +188,11 @@ def environment() -> dict[str, str]:
             if "=" in line and not line.startswith("=")
             for key, value in [line.split("=", 1)]
         )
+        print(f"Prepare C++ Compiler: Completed After {perf_counter() - started:.2f}s", flush=True)
+
+    # Visual Studio Sets Its Bundled vcpkg Root; Restore the Verified Project Pin.
+    environment["VCPKG_ROOT"] = str(checkout)
+    environment.setdefault("VCPKG_MAX_CONCURRENCY", environment.get("CARGO_BUILD_JOBS", "3"))
     environment["PATH"] = os.pathsep.join(
         dict.fromkeys([*tool_directories, *environment["PATH"].split(os.pathsep), *tool_path.split(os.pathsep)])
     )
@@ -243,7 +253,7 @@ def main() -> None:
         )
         if options.action != "build":
             return
-        command = ["cmake", "--build", "--preset", options.preset, "--parallel", "4"]
+        command = ["cmake", "--build", "--preset", options.preset, "--parallel", child.get("CARGO_BUILD_JOBS", "3")]
         if options.target:
             command += ["--target", options.target]
     elif options.action == "test":
@@ -298,7 +308,7 @@ def main() -> None:
             action="Configure Installed C++ Consumer",
             log=directory / "consumer-configure.log",
         )
-        command = ["cmake", "--build", str(consumer), "--parallel", "4"]
+        command = ["cmake", "--build", str(consumer), "--parallel", child.get("CARGO_BUILD_JOBS", "3")]
     else:
         pending = subprocess.check_output(
             ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
