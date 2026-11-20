@@ -5721,6 +5721,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-host"
+version = "0.1.5"
+dependencies = [
+ "dokime",
+ "prost-types",
+ "windows",
+]
+
+[[package]]
 name = "plugin-obc"
 version = "0.1.5"
 dependencies = [

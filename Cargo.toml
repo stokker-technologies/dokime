@@ -19,6 +19,7 @@ members = [
   "crates/dokime-operations",
   "crates/dokime-runtime",
   "crates/dokime-packaging",
+  "plugins/sidecars/host",
   "plugins/sidecars/obc",
   "sdk/rust",
   "tools/protocol",
@@ -32,6 +33,7 @@ default-members = [
   "sdk/rust",
   "crates/dokime-protocol",
   "crates/dokime-packaging",
+  "plugins/sidecars/host",
   "plugins/sidecars/obc",
 ]
 resolver = "2"
@@ -85,10 +87,15 @@ num-traits = { version = "0.2.19" }
 regex = { version = "1.13.1" }
 semver = { version = "1.0.28" }
 spdx = { version = "0.13.5" }
+starship-battery = { version = "0.12.0" }
+sysinfo = { version = "0.40.0" }
 sha2 = { version = "0.11.1" }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
+windows = { version = "0.62.2" }
 windows-sys = { version = "0.61.2" }
+# Excludes the default Tokio integration; host D-Bus calls use the blocking API on async-io.
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 zeroize = { version = "=1.9.1" }
 
 # Serialization

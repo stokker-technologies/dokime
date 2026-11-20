@@ -1,0 +1,116 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "plugin-host"
+description = "Collects host telemetry and controls host radios, adapters and power plans."
+autotests = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+version = { workspace = true }
+
+# === Package Targets === #
+
+[[bin]]
+name = "plugin-host"
+path = "src/main.rs"
+test = false
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { path = "../../../sdk/rust" }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+
+# Serialization
+prost-types = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+  "Devices_Enumeration",
+  "Devices_Radios",
+  "Foundation",
+  "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_WinRT",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_NetworkManagement_Ndis",
+  "Win32_NetworkManagement_WiFi",
+  "Win32_Networking_NetworkListManager",
+  "Win32_Networking_WinSock",
+  "Win32_System_Com",
+  "Win32_System_IO",
+  "Win32_System_Ole",
+  "Win32_System_Power",
+  "Win32_System_Registry",
+  "Win32_System_Variant",
+  "Win32_System_Wmi",
+] }
+
+# === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #
