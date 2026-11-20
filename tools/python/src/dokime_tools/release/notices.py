@@ -42,6 +42,7 @@ from pathlib import Path
 # Local Imports
 from .. import policy
 from ..build import paths
+from ..package import assembly
 from ..package.staging import stage_file
 from . import sbom
 
@@ -304,22 +305,35 @@ def archive(directory: Path, source: Path) -> None:
                     for entry in original.infolist():
                         if entry.filename not in notices:
                             output.writestr(entry, original.read(entry))
-                    for name, data in notices.items():
-                        output.writestr(name, data)
+                    for name in notices:
+                        assembly.write_file(output, directory / name, name)
                 finally:
                     output.close()
             finally:
                 original.close()
         elif source.name.endswith(".tar.gz"):
-            with tarfile.open(source) as original, tarfile.open(result, "w:gz") as output:
-                for entry in original.getmembers():
-                    if entry.name not in notices:
-                        output.addfile(entry, original.extractfile(entry) if entry.isfile() else None)
-                for name, data in notices.items():
-                    entry = tarfile.TarInfo(name)
-                    entry.size = len(data)
-                    entry.mode = 0o644
-                    output.addfile(entry, io.BytesIO(data))
+            original = tarfile.open(source)
+            try:
+                output = tarfile.open(result, "w:gz")
+                try:
+                    for entry in original.getmembers():
+                        if entry.name in notices:
+                            continue
+                        stream = original.extractfile(entry) if entry.isfile() else None
+                        try:
+                            output.addfile(entry, stream)
+                        finally:
+                            if stream is not None:
+                                stream.close()
+                    for name, data in notices.items():
+                        entry = tarfile.TarInfo(name)
+                        entry.size = len(data)
+                        entry.mode = 0o644
+                        output.addfile(entry, io.BytesIO(data))
+                finally:
+                    output.close()
+            finally:
+                original.close()
         else:
             raise policy.ToolError(f"Collect Third-Party Notices: unsupported notice archive: {source}")
         shutil.copyfile(result, source)
@@ -485,8 +499,11 @@ def _warning(message: str) -> None:
     annotation = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print("::warning::" + annotation, file=sys.stderr)
     if destination := os.environ.get("GITHUB_STEP_SUMMARY"):
-        with Path(destination).open("a", encoding="utf-8") as stream:
+        stream = Path(destination).open("a", encoding="utf-8")
+        try:
             stream.write("\n### Nightly Supply-Chain Warning\n\n" + message + "\n")
+        finally:
+            stream.close()
 
 
 # === Entry Point === #

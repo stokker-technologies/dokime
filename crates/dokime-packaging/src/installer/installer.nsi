@@ -59,6 +59,7 @@ FunctionEnd
 Function .onInit
   SetShellVarContext current
   SetRegView 64
+  !insertmacro NSIS_HOOK_PREINSTALL
   ; Refuse Machine Scope Rather Than Elevating or Selecting Another Installation.
   ClearErrors
   ${GetOptions} $CMDLINE "/ALLUSERS" $0

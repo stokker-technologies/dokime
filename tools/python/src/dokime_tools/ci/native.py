@@ -430,7 +430,7 @@ def default_caches(workspace: Path, environment: Mapping[str, str]) -> dict[str,
         "uv": {"path": ".cache/uv/", "key": f"ci-v6-uv-{platform}-{tools}-" + digest("uv.lock")},
         "pnpm": {
             "path": ".cache/pnpm/",
-            "key": f"ci-v6-pnpm-{platform}-{tools}-" + digest("crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"),
+            "key": f"ci-v6-pnpm-{platform}-{tools}-" + digest("crates/dokime-gui/pnpm-lock.yaml", "sites/docs/pnpm-lock.yaml"),
         },
     }
     if environment.get("COMPILER_CACHE_BACKEND") == "disk":

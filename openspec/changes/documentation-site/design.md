@@ -25,7 +25,7 @@ that file, as in a local preview, it shows only the current entry.
 
 ## Site Project
 
-The Starlight project lives in `site/` and reads the maintained guides in `docs/` in place, without
+The Starlight project lives in `sites/docs/` and reads the maintained guides in `docs/` in place, without
 copies. Its loader takes each page title from the guide's first heading and drops that heading
 from the body; relative links between guides become site routes and links to other repository
 files point to the repository browser at the built revision. The build fails on a broken page link
@@ -48,11 +48,26 @@ source, generated with the tools that source pins.
 ## Assembly
 
 `docs:image` lists the published releases (it needs `GH_TOKEN`), downloads the newest stable
-archive of each release line and the Nightly archive, unpacks each under its entry, writes
+archive of each release line and combines them with `target/docs/dokime-docs.zip` built from the current checkout, unpacks each under its entry, writes
 `versions.json`, the `/latest/` redirects and the root redirect, and packs the image as
 `target/docs/dokime-docs-site.zip`. `--archive <path>` assembles local archives instead. It installs
 no language toolchain and builds no old release. Every release line that published an archive
 appears; only releases that published an archive can appear.
+
+The default assembly requires a development archive stamped with the current commit; it never
+uses the published Nightly archive as the development entry. Local `--archive` inputs retain the
+same assembly path. Nightly downloads its documentation build artifact from the same workflow run,
+assembles it with published stable lines through `docs:image`, and builds `sites/docs/Dockerfile`
+from `target/docs/image/`. The digest-pinned static server image carries the source revision label.
+It publishes only `ghcr.io/stokker-technologies/dokime-docs:nightly`, using the workflow token and
+job-local `packages: write`; `latest` is reserved for stable image publication. Registry visibility
+is an owner setting, and a new package inherits the registry default.
+
+## Local Authoring
+
+`mise run docs:serve` serves `http://127.0.0.1:4321/dev/`. Astro's native glob loader watches the
+whole `docs/` root, including additions, and rerenders changed Markdown and D2 fences. No guide
+copy or parallel file watcher is maintained.
 
 ## References
 
@@ -84,7 +99,7 @@ The Python SDK is a pure package. Its reference must cover authored APIs and the
 docs:build    guides and references for the current checkout, into target/docs/<entry>/
               --release builds the release line of the current version; --archive packs it
 docs:serve    local preview of the development entry
-docs:image    assemble the published archives into the site image
+docs:image    assemble the current development archive and published stable lines into the site image
 ```
 
 ## Pipelines
@@ -96,6 +111,21 @@ docs:image    assemble the published archives into the site image
 - Nightly builds the archive in a parallel job that may fail; publication depends only on build and
   package, and the final report attaches the archive when it was built and says whether it was
   attached.
+
+Documentation-only pushes and reviews select only the documentation job: `docs/`, `sites/`,
+Markdown anywhere and `openspec/`. Documentation Python tooling and impact-rule changes also use
+that job, which runs tooling checks and focused tests; they select no product jobs. Mixed changes
+union their product selections.
+
+Nightly freshness supplies the published `nightly` tag revision to the existing impact planner.
+Both scheduled and manual runs skip when it equals the current revision. A documentation-only
+diff runs the documentation build and its independent image consumer; product validation,
+packaging, publication and release reporting are skipped. The product comparison base remains
+recorded in `refs/tags/nightly`: documentation-only runs never move that tag or edit its release,
+so the next product run still compares against the commit that produced the published binaries.
+With no tag, or an unavailable comparison, planning selects the complete eligible product work.
+The image job runs only on `dev` and is absent from publication dependencies, so its failure
+cannot block release publication.
 
 ## Search
 
