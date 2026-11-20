@@ -320,6 +320,12 @@ mod tests {
         };
         let product = tonic::Status::with_details(tonic::Code::PermissionDenied, "bench_status", expected.encode_to_vec().into());
         assert_eq!(host::status_failure(&product), expected);
+        let partial = Failure {
+            message: String::new(),
+            ..expected.clone()
+        };
+        let product = tonic::Status::with_details(tonic::Code::PermissionDenied, "bench_status", partial.encode_to_vec().into());
+        assert_eq!(host::status_failure(&product), partial);
         let plain = tonic::Status::unavailable("bench_transport");
         let decoded = host::status_failure(&plain);
         assert_eq!(decoded.message, plain.message());

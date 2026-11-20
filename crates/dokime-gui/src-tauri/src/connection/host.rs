@@ -674,7 +674,7 @@ pub(crate) fn status_failure(status: &Status) -> model::Failure {
     } else if bytes.is_empty() {
         None
     } else {
-        model::Failure::decode(bytes).ok().filter(|failure| !failure.message.is_empty())
+        model::Failure::decode(bytes).ok()
     };
     decoded.unwrap_or_else(|| model::Failure {
         code: status.code().to_string(),
