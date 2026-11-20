@@ -1888,8 +1888,9 @@ matchers=(), markers=())` or `MirrorCapture(interval_s=None)`.
 Here LineField.type is one of the same canonical parameter-kind strings, not a
 second kind enum. These constructor parameters and fields are complete;
 the SDK rejects multiple/absent oneof alternatives and invalid modes before I/O.
-Host allowlists, source validation and execution-owned settlement remain host
-policy. No local SDK file-watcher or polling capture implementation is added.
+Source validation and execution-owned settlement remain host policy. Plugins may
+capture files from any host folder; the capture-folder allow-list is removed.
+No local SDK file-watcher or polling capture implementation is added.
 
 ### Configuration Loading
 
@@ -2725,7 +2726,7 @@ density, sort controls, empty state and footer remain component-owned.
 | --- | --- | --- |
 | Cycles | `features/cycles-home/CyclesHome.tsx:179` | Keep each group title inside its frame; put the existing failure in the first group's body. |
 | History | `features/explore/HistoryLibrary.tsx:166` | Add the missing title/description; retain the server-owned row filter and selection. |
-| History Executions | `features/explore/HistoryDetailSurface.tsx:137` | Add title/description and move loading/failure from the surrounding page into the body. |
+| History Executions | `features/explore/HistoryDetailSurface.tsx:139` | Add title/description, move loading/failure into the body and delete the superseded external empty paragraph. |
 | History Comparison | `features/explore/HistoryComparisonView.tsx:81` | Keep the explanation in the description and add the missing title. |
 | Storage Sources | `features/settings/StorageSourcesCard.tsx:156` | Remove the SettingsCard wrapper and external explanations; right-align numeric priority. |
 | Shared Secrets | `features/settings/sections/SecretsSection.tsx:175` | Move the explanation into the description and keep Add, Refresh and transfer overflow after the filter. |
@@ -2735,7 +2736,7 @@ density, sort controls, empty state and footer remain component-owned.
 | Document Values | `components/document/DocumentSurfaceView.tsx:255` | Add title/description; infer numeric alignment from recorded values. |
 | Metric Statistics | `components/StatsSummaryTable.tsx:153` | Add title/description; preserve exact right-aligned values and each metric's unit-bearing label. |
 | Trace Statistics | `components/StatsSummaryTable.tsx:168` | Add title/description; retain row activation for trace visibility and exact right-aligned values. |
-| Grid Plot | `plots/catalog/GridChartPlot.tsx:103` | Replace raw Table markup with DataTable while preserving validity, cell colors, highlights and independent playback; put units in numeric column headers. |
+| Grid Plot | `plots/catalog/GridChartPlot.tsx:105` | Replace raw Table markup with DataTable while preserving validity, cell colors, highlights and independent playback; put units in numeric column headers. |
 
 Native desktop stream settings, remembered parameter values and update selection
 use one `settings.json` and `src-tauri/src/settings.rs` reader/writer. Missing keys
@@ -2773,3 +2774,23 @@ requires a structural split of optional updater code/state while keeping saved
 policy under its current single owner. Whether that refactor joins this delivery
 is an open owner scope decision; the settings persistence change does not claim
 that convention cleanup is complete.
+
+### Remote Plugin Readiness Rework
+
+`crates/dokime-runtime/src/plugin.rs:139` starts a remote plugin by removing
+`HARMOS_ADDRESS`, setting `DOKIME_PLUGIN_ADDRESS` to an ephemeral address and
+waiting for a readiness line on stdout. Its callers include
+`crates/dokime-cli/src/commands/dev.rs:98` and the runtime/desktop host stories.
+`sdk/rust/src/plugin/mod.rs:423` selects standalone remote serving without that
+managed variable, and `:447` intentionally emits no readiness line for that mode.
+SDK plugin entrypoints call this run path. Quiet standalone output is an agreed
+contract; the two startup contracts therefore conflict.
+
+This is REWORK. The capture story reaches this conflict before any capture
+assertion, so compilation and capture-path unit proof do not close capture
+acceptance. The owner must choose one canonical private readiness hand-off for
+owned remote launches, then retire the remote stdout-wait path. Restoring general
+standalone announcements, changing the listener mode just to satisfy the story,
+inventing test-only ports/protocols or changing readiness deadlines is not a fix.
+The capture proof remains open until that contract is supplied and the one story
+passes through it.
