@@ -17,9 +17,11 @@ import stat
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 import zipfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 # isort: split
@@ -95,6 +97,61 @@ class NativeTests(unittest.TestCase):
             archive.close()
         (source / "LICENSE").write_bytes(b"changed")
         self.assertRaises(policy.ToolError, distribution.archive, source, root / "changed")
+
+    def test_repository_plugins_survive_staging_and_portable_archiving_on_both_targets(self) -> None:
+        repository = Path(__file__).resolve().parents[4]
+        configuration = (repository / "tools/project.toml").read_bytes()
+        config = tomllib.loads(configuration.decode())
+        for target in ("x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"):
+            scratch = tempfile.TemporaryDirectory()
+            self.addCleanup(scratch.cleanup)
+            root = Path(scratch.name)
+            build = root / "build"
+            (build / "product").mkdir(parents=True)
+            (build / "product/target.txt").write_text(target)
+            (root / "tools").mkdir()
+            (root / "tools/project.toml").write_bytes(configuration)
+            suffix = ".exe" if "windows" in target else ""
+            plugins = [plugin["package"] for plugin in config["release"]["plugins"] if target in plugin["targets"].values()]
+            sources = [
+                *(f"bin/{name}{suffix}" for name in ("dokime", "dokime-gui")),
+                *(f"bin/{name}.dokime" for name in plugins),
+            ]
+            for name in sources:
+                path = build / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(name.encode())
+            for name in ("LICENSE", "target/notices/NOTICE", "target/notices/THIRD-PARTY-NOTICES", "organization/organization.toml"):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(name.encode())
+
+            def inspect(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+                if command[1:] == ["--version", "--json"]:
+                    value = {"version": config["version"]["value"], "revision": "f7c50e68ab01", "channel": "nightly"}
+                else:
+                    bundle = Path(command[command.index("--bundle") + 1])
+                    value = {"identity": {"name": bundle.stem.removeprefix("plugin-")}}
+                return subprocess.CompletedProcess(command, 0, stdout=json.dumps(value))
+
+            with (
+                self.subTest(target=target),
+                patch.object(distribution.paths, "output", return_value=build),
+                patch.object(distribution.subprocess, "run", side_effect=inspect),
+            ):
+                source = distribution.export(root, "dev")
+                metadata = json.loads((source / "distribution.json").read_text())
+                self.assertEqual(metadata["plugins"], [name.removeprefix("plugin-") for name in plugins])
+                archive = zipfile.ZipFile(distribution.archive(source, root / "output"))
+                try:
+                    for name in plugins:
+                        entry = f"plugins/{name}.dokime"
+                        expected = (build / f"bin/{name}.dokime").read_bytes()
+                        self.assertEqual((source / entry).read_bytes(), expected)
+                        self.assertEqual(archive.read(entry), expected)
+                        self.assertIn(entry, metadata["files"])
+                finally:
+                    archive.close()
 
     def test_package_calls_only_the_matching_cli_with_local_artifacts(self) -> None:
         scratch = tempfile.TemporaryDirectory()
