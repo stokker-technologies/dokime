@@ -108,7 +108,7 @@ class ImpactTests(unittest.TestCase):
 
     def test_event_eligibility_and_complete_validation(self) -> None:
         for classes in (impact.classify(["README.md"]), impact.classify(["unknown"])):
-            for event in ("release", "nightly", "full"):
+            for event in (("full",) if classes == frozenset({"docs"}) else ("release", "nightly", "full")):
                 with self.subTest(event=event, classes=classes):
                     self.assertEqual(set(impact.plan(classes, event)["selected"]), set(impact.JOBS))
             for event in ("closed", "draft"):
@@ -118,6 +118,31 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(impact.plan(impact.classify(["README.md"]), "push")["selected"], ["build_docs"])
         for paths in (None, [], ["../outside"], ["/absolute"], ["crates\\runtime\\lib.rs"]):
             self.assertEqual(impact.classify(paths), frozenset({"all"}))
+
+    def test_documentation_only_selects_no_product_jobs_for_each_event(self) -> None:
+        paths = (
+            "README.md",
+            "sdk/rust/README.md",
+            "sdk/python/README.md",
+            "sdk/csharp/README.md",
+            "sdk/cpp/README.md",
+            "openspec/config.yaml",
+            "sites/docs/package.json",
+            "sites/docs/pnpm-lock.yaml",
+            "sites/other/index.html",
+            "docs/screenshots/desktop.png",
+            "tools/python/src/dokime_tools/docs/image.py",
+            "tools/python/src/dokime_tools/ci/impact.py",
+        )
+        for event in ("review", "push", "release", "nightly"):
+            for path in (*([path] for path in paths), list(paths)):
+                with self.subTest(event=event, paths=path):
+                    result = impact.plan(impact.classify(path), event)
+                    self.assertEqual(result["selected"], ["build_docs"])
+                    mixed = impact.plan(impact.classify([*path, "crates/dokime-runtime/src/lib.rs"]), event)
+                    self.assertTrue(mixed["build_product"])
+                    self.assertTrue(mixed["check"])
+                    self.assertEqual(mixed["test"], event != "push")
 
     def test_event_metadata_selects_full_release_and_safe_fallback(self) -> None:
         cases = (

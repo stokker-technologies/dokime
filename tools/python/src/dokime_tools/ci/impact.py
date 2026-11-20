@@ -79,7 +79,17 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         parts = PurePosixPath(path).parts
         if not path or path.startswith("/") or "\\" in path or any(part in {".", ".."} for part in parts):
             return frozenset({"all"})
-        if path.startswith(("docs/", "openspec/", "sites/")) or path.endswith(".md"):
+        if (
+            path.startswith(("docs/", "openspec/", "sites/", "tools/python/src/dokime_tools/docs/"))
+            or path.lower().endswith((".md", ".mdx"))
+            or path in {
+                "tools/python/src/dokime_tools/ci/impact.py",
+                "tools/python/tests/integration/test_ci_impact.py",
+                "tools/python/tests/integration/test_docs_site.py",
+                "tools/python/tests/integration/test_docs_operations.py",
+                ".github/workflows/validate-build-docs.yml",
+            }
+        ):
             classes.add("docs")
         elif (
             path.startswith((".github/", "proto/", "protocol/", "tools/"))
@@ -129,7 +139,8 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     """Union Consumers, Close Artifact Dependencies, Then Apply Event Policy."""
     if event not in {"review", "push", "release", "nightly", "full", "draft", "closed"}:
         raise ValueError("Plan CI Impact: Choose a Supported Event")
-    full = event in {"release", "nightly", "full"} or "all" in classes or not classes or not classes <= CLASSES
+    documentation_only = classes == frozenset({"docs"})
+    full = event == "full" or event in {"release", "nightly"} and not documentation_only or "all" in classes or not classes or not classes <= CLASSES
     languages = {"rust", "python", "typescript", "csharp", "cpp"} if full else set()
     selected: set[str] = set(JOBS) if full else set()
     if "docs" in classes:
