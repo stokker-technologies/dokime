@@ -48,6 +48,7 @@ class ImpactTests(unittest.TestCase):
             "check",
             "build_product",
             "build_tests",
+            "build_sdk_cpp",
             "build_python",
             "build_docs",
             "check_generated",
@@ -60,7 +61,7 @@ class ImpactTests(unittest.TestCase):
         gui = {"check", "build_product", "build_tests", "build_python", "build_docs", "test", "package"}
         rust_tests = {"check", "build_product", "build_tests", "build_python", "test", "build_host_fixtures_csharp", "test_host_csharp"}
         csharp = {"check", "test", "build_docs", "build_tests", "build_host_fixtures_csharp", "test_host_csharp"}
-        cpp = {"check", "test", "build_docs"}
+        cpp = {"check", "test", "build_docs", "build_sdk_cpp"}
         cases = (
             (["README.md"], {"build_docs"}),
             (["sdk/rust/README.md"], {"build_docs"}),
@@ -78,7 +79,7 @@ class ImpactTests(unittest.TestCase):
             (["crates/dokime-runtime/src/lib.rs"], all_review),
             (["sdk/rust/src/lib.rs"], all_review),
             (["sdk/rust/tests/consumer/Cargo.lock"], all_review),
-            (["sdk/rust/tests/fixtures/capture.rs"], rust_tests),
+            (["sdk/rust/tests/fixtures/capture.rs"], rust_tests | {"build_sdk_cpp"}),
             (["crates/dokime-runtime/tests/system/fixtures.rs"], rust_tests),
             (["sdk/tests/fixtures/csharp/SystemPlugin/Plugin.cs"], csharp),
             (["sdk/tests/fixtures/cpp/main.cpp"], cpp),
@@ -94,7 +95,7 @@ class ImpactTests(unittest.TestCase):
             ([".github/actions/setup/action.yml"], all_review),
             (["new-component/input.dat"], all_review),
             (["docs/product-guide.md", "sdk/cpp/src/client.cpp"], cpp),
-            (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime_sdk/client.py"], all_review),
+            (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime_sdk/client.py"], all_review - {"build_sdk_cpp"}),
         )
         for paths, expected in cases:
             with self.subTest(paths=paths):

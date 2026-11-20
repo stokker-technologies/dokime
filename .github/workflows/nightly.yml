@@ -243,6 +243,7 @@ jobs:
     - build_product
     - build_tests
     - build_python
+    - build_host_fixtures
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.test_matrix) }}
