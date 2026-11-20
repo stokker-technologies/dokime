@@ -186,6 +186,7 @@ test("Only Declared Filters Are Offered and Actions Stay Last", () => {
   assert.ok(headings.indexOf("fixture-count") < headings.indexOf("fixture-id"));
   assert.ok(headings.indexOf("fixture-id") < headings.indexOf("fixture-actions"));
   assert.equal((headings.match(/aria-haspopup="dialog"/g) ?? []).length, 1);
+  assert.match(headings, /aria-label="Filter fixture-id"/);
   assert.match(html, /text-right[^>]*>1200<\/td>/);
 });
 

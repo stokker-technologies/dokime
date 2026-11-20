@@ -101,9 +101,10 @@ export function DataTable<TData extends RowData>({
               ? ACTIONS_WIDTH
               : undefined;
       const width = column.meta?.width ?? inferredWidth;
+      const label = column.meta?.label ?? (typeof column.header === "string" ? column.header : undefined);
       // Commands sit last, on the trailing edge, header included.
       const align = id === "actions" ? "end" : column.meta?.align;
-      column = { ...column, meta: { ...column.meta, align, width } };
+      column = { ...column, meta: { ...column.meta, align, label, width } };
       const filter = column.meta?.filter;
       if (filter === "facet") return { ...column, filterFn: facetFilter };
       if (filter === "text") return { ...column, filterFn: "includesString" };
