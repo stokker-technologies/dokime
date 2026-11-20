@@ -57,19 +57,23 @@ use std::process::Stdio;
 use dokime_protocol::host::plugin_placement;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
+use prost_types::Timestamp;
 use sha2::Digest;
 use sha2::Sha256;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 use tokio::process::Child;
 use tokio::process::Command;
+use tokio::time;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::support::CredentialStore;
 use dokime::EvidenceScope;
 use dokime::MapValue;
 use dokime::RecordScope;
 use dokime::Value;
+use dokime::model::Window;
 use dokime::record_scope;
 use dokime_client_internal::Client;
 use dokime_client_internal::EvidenceRecordsListOptions;
@@ -86,6 +90,7 @@ use dokime_client_internal::ResultStatus;
 use dokime_client_internal::host::PluginPlacement;
 use dokime_client_internal::host::PluginRemote;
 use dokime_client_internal::host::PluginValue;
+use dokime_protocol::host::PluginState;
 use dokime_protocol::host::evidence::sample_row;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::report_subject;
@@ -157,11 +162,11 @@ impl HostProcess {
 #[test]
 fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Start a Real Host Process and the Shared Thermal Plugin
             let root = super::support::tempdir()?;
             let credential_root = super::support::tempdir()?;
-            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let credentials = CredentialStore::start(credential_root.path()).await?;
             let settings = super::support::settings();
             let executable = super::support::thermal_fixture()?;
             let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
@@ -190,7 +195,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            let entry = super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
+            let entry = super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
             assert_eq!(client.plugins.list().await?.entries, vec![entry]);
             let suites = client.suites.list(String::new()).await?;
             let suite_id = suites.values[0].metadata.as_ref().unwrap().identifier.clone();
@@ -336,7 +341,33 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                     _ => panic!("Expected Raw Samples"),
                 })
                 .collect::<Vec<_>>();
-            let times = raw.iter().map(|sample| sample.timestamp.map(|at| (at.seconds, at.nanos))).collect::<Vec<_>>();
+            // Select the First Two Scheduled Samples Independently of Later Emissions.
+            let selected = client
+                .evidence
+                .samples
+                .list_with(
+                    EvidenceScope {
+                        execution_id: Some(execution_id.clone()),
+                        ..Default::default()
+                    },
+                    vec!["thermal.cycle.temperature".into()],
+                    EvidenceSamplesListOptions {
+                        between: Some(Window {
+                            start: Some(Timestamp { seconds: 1, nanos: 0 }),
+                            end: Some(Timestamp { seconds: 2, nanos: 0 }),
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let times = selected
+                .samples
+                .iter()
+                .map(|row| match row.kind.as_ref().unwrap() {
+                    sample_row::Kind::Raw(sample) => sample.timestamp.map(|at| (at.seconds, at.nanos)),
+                    _ => panic!("Expected Raw Samples"),
+                })
+                .collect::<Vec<_>>();
             assert_eq!(times, [Some((1, 0)), Some((2, 0))], "Sample the Hold at 1 s and 2 s: {raw:?}");
             assert!(raw.iter().all(|sample| !sample.payload.is_empty()));
             assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(value::Kind::Number(84.0))));
