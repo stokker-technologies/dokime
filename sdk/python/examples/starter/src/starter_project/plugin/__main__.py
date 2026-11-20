@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Serve the Plugin; Dokime Starts This Module or Connects to It."""
+"""Serve the Plugin; Dokime Starts This Module, or It Registers With DOKIME_REMOTE."""
 
 # === Imports === #
 
@@ -32,10 +32,7 @@ from starter_project.plugin import ExamplePlugin
 
 async def main() -> None:
     plugin = ExamplePlugin()
-    endpoint = await plugin.start()
-    if not endpoint.managed:
-        print(f"Serving on {endpoint.address}", flush=True)
-    await endpoint.wait()
+    await plugin.serve()
 
 
 # === Private Functions === #

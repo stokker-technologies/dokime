@@ -419,7 +419,7 @@ fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
     }
 }
 fn main() {
-    if env::var_os("DOKIME_PLUGIN_ADDRESS").is_some() {
+    if env::var_os("HARMOS_LAUNCH_TOKEN").is_some() {
         if windows::selected() {
             windows::serve().unwrap();
         } else {

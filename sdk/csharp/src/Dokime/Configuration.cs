@@ -49,8 +49,7 @@ internal static class Configuration
 
   internal static string Resolve(string key, string? explicitValue, IReadOnlyDictionary<string, string> values)
   {
-    var fallback = key == "DOKIME_PLUGIN_ADDRESS" ? "127.0.0.1:0" : "";
-    var value = explicitValue ?? Environment.GetEnvironmentVariable(key) ?? values.GetValueOrDefault(key, fallback);
+    var value = explicitValue ?? Environment.GetEnvironmentVariable(key) ?? values.GetValueOrDefault(key, "");
     if (value.Length == 0)
       throw new ArgumentException($"Configure Connection: Set {key} to a Nonempty Address");
     return value;

@@ -65,8 +65,7 @@ pub(crate) fn resolve(key: &str, explicit: Option<&str>, values: &HashMap<String
 }
 
 pub(crate) fn select(key: &str, explicit: Option<&str>, process: Option<&str>, values: &HashMap<String, String>) -> Result<String> {
-    let default = if key == "DOKIME_PLUGIN_ADDRESS" { "127.0.0.1:0" } else { "" };
-    let value = explicit.or(process).or_else(|| values.get(key).map(String::as_str)).unwrap_or(default);
+    let value = explicit.or(process).or_else(|| values.get(key).map(String::as_str)).unwrap_or("");
     if value.is_empty() {
         return Err(Error::Invalid(format!("Configure Connection: Set {key} to a Nonempty Address")));
     }
@@ -160,7 +159,7 @@ mod tests {
 
     #[test]
     fn dotenv_preserves_literals_and_decodes_only_supported_escapes() {
-        let text = "\u{feff} # Addresses\r\nDOKIME_REMOTE = 'http://host:7#literal' # Comment\r\nDOKIME_PLUGIN_ADDRESS=127.0.0.1:0\nOTHER=\"a\\n\\t\\r\\\\\\\"#b\"\nEMPTY=\nHASH=a#b # Tail\n";
+        let text = "\u{feff} # Addresses\r\nDOKIME_REMOTE = 'http://host:7#literal' # Comment\r\nOTHER_ADDRESS=127.0.0.1:0\nOTHER=\"a\\n\\t\\r\\\\\\\"#b\"\nEMPTY=\nHASH=a#b # Tail\n";
         let values = parse(text, Path::new(".env")).unwrap();
         assert_eq!(values["DOKIME_REMOTE"], "http://host:7#literal");
         assert_eq!(values["OTHER"], "a\n\t\r\\\"#b");

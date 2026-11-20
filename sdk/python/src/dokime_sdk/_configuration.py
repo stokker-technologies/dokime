@@ -47,8 +47,7 @@ def load() -> dict[str, str]:
 
 
 def resolve(key: str, explicit: str | None, values: dict[str, str]) -> str:
-    default = "127.0.0.1:0" if key == "DOKIME_PLUGIN_ADDRESS" else ""
-    value = explicit if explicit is not None else os.environ.get(key, values.get(key, default))
+    value = explicit if explicit is not None else os.environ.get(key, values.get(key, ""))
     if not value:
         raise ValueError(f"Configure Connection: Set {key} to a Nonempty Address")
     return value

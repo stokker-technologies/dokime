@@ -226,7 +226,7 @@
   - [x] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
   - [x] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
   - [x] Complete Repository, Product-Host Shared Capture and Created-Project Bundle/Inspect/Dev/Client Proof; Linux Proof Remains Independent.
-- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
+- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Entries Retained Until Explicit Remove.
 - [x] Unify Rust, Tooling, Python, C# and C++ Library Pins at the Owner-Selected Maintenance Head and Regenerate Every Tracked Binding.
 - [x] Encode Plugin Initialize and Finalize Hooks as Well-Known Operations in All Four SDKs and Remove Replaced Stop Callbacks.
 - [x] Replace Retired Plugin Remote Arguments With Product Listener Coordinates in Runtime Launchers, C# Serving and Native Fixture/Benchmark Dispatch; Acknowledge Lifecycle Operations in the Settings Protocol Fixture.
@@ -252,12 +252,44 @@
 - [x] Complete the Requested Native Windows Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff, the Library's Frozen Bundle Version Fix and Final Rust/TypeScript Lints.
 - [x] Rerun the Existing Scratch Python Project Against the Merged Host, Select Its Execution From CLI Summary JSON, Answer Through the CLI and Preserve Its Saved Archive Without Regenerating or Deleting Project Files.
 
+## Hand-Run Plugin Registration
+
+- [x] Add `PluginsCreateRequest.sdk_version` at Field 6 and Regenerate the Tracked Bindings.
+- [x] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
+- [x] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
+- [ ] Resolve the Rust Remote Authoring Harness's Readiness Assumption Before Full SDK Integration Proof.
+- [ ] Complete C# Paired Startup, Stable Identity, Refusals and Entry Retention With Focused Proof.
+  - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Listener Completion, Repeated Disposal, Explicit Removal and Client-Close Entry Retention.
+  - [ ] Prove Automatic Paired C# Process Startup Against the Combined Host.
+- [ ] Complete C++ Registration and Entry Retention After Preparing Its Native SDK Build.
+- [ ] Complete the Remaining Registered-Listener Wait APIs Where Required; Keep the Python Run Surface at `serve` and Keep Readiness off Standard Output.
+- [ ] Agree One Plugin-Presentation Contribution With the Host Owner and Carry Label, Description and Icon Through the Shared Description.
+- [ ] Prove Every SDK's Library-Owned Launch Announcement at the Current Pin, With Credential Detection in Its Single Run Entry.
+- [x] Complete Binding and Workspace-Test-Compilation Gates.
+  - [x] Pass the Registration Wire Round-Trip and Compile Every Rust Consumer Test Target.
+  - [x] Pass the Release-Context Python Binding, Strict Stub and Generated-Surface Checks.
+  - [x] Pass Repository Checks and the Created Python Starter's Unmodified Client and Retained Archive Story.
+
 ## Library Pin, Installer Feature and SDK Lanes
 
 - [x] Refresh Every Library Pin to the recorded revision, Its Locks, Vendored Protocol Inputs and Generated Bindings; Adapt Existing Consumers and Prove the Focused SDK Tests and Runtime Test Compilation.
 - [x] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
 - [x] Expose Library-Owned Lane Declarations and Operation Assignment Through All Four Product SDKs; Prove Each Description and Preserve Library Validation.
 - [x] Run the Requested Final Repository, Rust Lint, Release-Context Binding and Supply Checks Without Expanding Local Test Lanes.
+
+
+## Registered Plugins and Launch Consumers
+
+- [x] Present an Unreachable Remote Entry as Offline Without a Failure and Keep It Durable Until an Explicit Delete.
+- [ ] Reuse a Registered Plugin's Entry by Its Identifier on Re-Registration, Preserving Replay, Conflict Refusal and Saved Settings When Its Address Changes; Blocked by the Library's Managed-Only Replace.
+- [x] Retain an Offline Plugin's Last Reported Suites, Marked Unavailable, and Refuse Planning Them With an Action.
+- [ ] Retain Offline Operation Contributions and Present Suite Availability in the Desktop Catalog; Operation Retention Needs the Library Catalog Owner, and the Desktop Catalog Is Outside This Worker's Files.
+- [ ] Refuse Every Incompatible Remote Registration, Naming Both Versions; Supplied Versions Are Checked, but URL-Only CLI Registration Has No Product SDK Version Metadata and All SDK Callers Must Supply Their Built Version.
+- [x] Show Placement and Status in the Desktop Plugin List and `dokime plugin list`, Filterable in the Desktop.
+- [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
+- [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
+- [ ] Move Every Launch Readiness Consumer to `Launches/Announce` and Remove the Retired Listener Environment Configuration; Prove the Merged Starter and SDK Consumers.
+- [ ] Keep Registry Removal From Stopping an Externally Owned Endpoint; Blocked by the Library Sending Instance.Stop Even When Its Activation Owns No Spawned Process.
 
 ## Desktop Failure Presentation
 
@@ -269,3 +301,22 @@
 - [x] Retain Failed Connection Endpoints and Complete Notification Metadata in Copied Details.
 - [x] Restore Focused Coverage for Failure Identity, Root-First Causes, Admission Identifiers, Startup Recovery and Preference Persistence Refusals.
 - [ ] Complete the Release-Artifact-Dependent Binding Gate and Native Desktop Stories on the Required Platforms.
+
+## Launch Repair Integration
+
+- [x] Merge SDK Self-Registration and Current Dev, Regenerating Protocol Outputs and Keeping Shared Plugin Tables, Failure Cards, Placement and Offline Presentation.
+- [x] Select the Four SDK Run Entries by Launch Credentials, Then Pairing, Then Standalone Serving; Point Every Starter at That Entry.
+- [x] Remove Retired Address Configuration, SDK Readiness Helpers and Superseded Python Readiness Tests; Reuse C# Library Listeners and C++ Product Registration.
+- [ ] Identify and Repair the Registration Hang Without Changing Its Guard.
+  - [x] Identify External-Endpoint Stop During Host Shutdown as the Cause; Preserve the Registration-Across-Restart Contract and Its Existing Guard.
+  - [ ] Pin the Library's Ownership Fix and Pass the Failing Registration Restart and Remote Authoring Cases.
+- [ ] Pass Generation Drift, Workspace Test Compilation With Desktop Testing, the Requested Focused Stories and SDK Selections, Native SDK Compilation, Frontend Build/Units, Formatting, Repository/Supply/Binding Gates and Strict OpenSpec Validation.
+  - [x] Pass Generation Drift and Compile All Workspace Test Targets With Desktop Testing and All Rust SDK Consumer Test Targets.
+  - [x] Pass the Two Selected CLI First-Hour Stories, Native-Interpreter Launch Round Trip, GUI Host Story and Desktop Acceptance Matrix.
+  - [x] Pass Python Units, Host-Free Integration and the Three Launch/Registration Process Cases; Preserve Cancellation Cleanup Until the Listener Settles.
+  - [x] Build the C# Debug Solution and Packaged Starter; Pass Six Client Registration/Execution Cases and Direct Child Launch, Announcement and Clean Stop.
+  - [x] Compile the C++ Debug SDK Test Targets, Build the Frontend and Pass Fourteen Plugin-List Unit Cases.
+  - [x] Pass Formatting, Repository, Supply, Unused-Dependency, Release-Context Binding and Strict Change Validation Gates.
+  - [ ] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
+- [x] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
+- [ ] Resolve the Read-Only Library's Remote-Removal Ownership Defect and Prove User-Owned Reattachment; Preserve This Obligation if the Library Capability Is Unavailable.

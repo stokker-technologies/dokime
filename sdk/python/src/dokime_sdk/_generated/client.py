@@ -3122,12 +3122,18 @@ class PluginsResource:
         *,
         request_id: str | None = None,
         origin: str | None = None,
+        sdk_version: str | None = None,
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsCreateResponse:
         request = PluginsCreateRequest(
-            request_id=request_id if request_id is not None else str(uuid4()), name=name, placement=placement, value=value, origin=origin
+            request_id=request_id if request_id is not None else str(uuid4()),
+            name=name,
+            placement=placement,
+            value=value,
+            origin=origin,
+            sdk_version=sdk_version,
         )
         response = await unary(
             self._channel,

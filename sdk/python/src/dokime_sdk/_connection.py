@@ -190,7 +190,7 @@ async def _connect_endpoint(
         channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
     wire = dokime_sdk._generated.client.Client(channel)
     wire._owned_channel = channel
-    client = Client._bind(wire)
+    client = Client._bind(wire, selected)
     try:
         await wait_for(_ready(channel, wire, expected_backend_id), connect_timeout)
         return client

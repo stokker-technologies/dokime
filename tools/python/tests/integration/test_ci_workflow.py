@@ -21,7 +21,6 @@ import tempfile
 import unittest
 from collections.abc import Iterator
 from pathlib import Path
-from queue import Queue
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
@@ -196,20 +195,6 @@ class WorkflowTests(unittest.TestCase):
             run.assert_not_called()
         finally:
             temporary.cleanup()
-
-    def test_cpp_plugin_output_is_drained_after_readiness_and_on_startup_failure(self) -> None:
-        support = runpy.run_path(str(Path(__file__).resolve().parents[4] / "sdk/cpp/tests/support/run_plugin.py"))
-        for lines, address in (
-            ("plugin startup\nharmos listening http://127.0.0.1:7000\nplugin progress\n", "http://127.0.0.1:7000"),
-            ("plugin startup failed\n", None),
-        ):
-            ready: Queue[str | None] = Queue()
-            process = Mock(stdout=io.StringIO(lines))
-            with patch("sys.stdout", new_callable=io.StringIO) as console:
-                support["read_output"](process, ready)
-            self.assertEqual(ready.get_nowait(), address)
-            self.assertTrue(ready.empty())
-            self.assertEqual(console.getvalue(), lines)
 
     def test_bootstrap_commands_run_in_order_and_stop_on_failure(self) -> None:
         commands = ["mise run ci:prerequisites -- --gui-runtime", "mise run ci:prerequisites -- --desktop"]

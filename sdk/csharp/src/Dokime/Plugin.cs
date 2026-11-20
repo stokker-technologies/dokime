@@ -143,11 +143,6 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     });
   }
 
-  public async Task RunAsync(string? address = null, bool remote = false, CancellationToken cancellationToken = default)
-  {
-    await Build().RunAsync(address, remote, cancellationToken);
-  }
-
   private void Register(Registrar registrar, Template template, Dokime.SuiteDefinition suite, HashSet<string> identifiers)
   {
     var name = template.Definition.Metadata.Identifier;

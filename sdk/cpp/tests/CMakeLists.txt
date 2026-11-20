@@ -18,7 +18,7 @@ set_tests_properties(builders client_reads_backend author_materializes_suite PRO
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_executable(dokime-story-plugin ../examples/starter/src/plugin/main.cpp)
-target_link_libraries(dokime-story-plugin PRIVATE starter-project)
+target_link_libraries(dokime-story-plugin PRIVATE starter-project Dokime::Client)
 add_executable(dokime-plugin-journey integration/capture_roundtrip.cpp)
 target_link_libraries(dokime-plugin-journey PRIVATE Dokime::Plugin Catch2::Catch2)
 foreach(placement managed remote)
@@ -32,7 +32,7 @@ endforeach()
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/cpp/thermal" thermal)
 
 add_executable(dokime-value-plugin support/value_plugin.cpp)
-target_link_libraries(dokime-value-plugin PRIVATE Dokime::Plugin)
+target_link_libraries(dokime-value-plugin PRIVATE Dokime::Client)
 add_executable(dokime-values-journey integration/values_roundtrip.cpp)
 target_link_libraries(dokime-values-journey PRIVATE Dokime::Plugin Catch2::Catch2)
 add_test(NAME values_roundtrip
@@ -41,7 +41,7 @@ add_test(NAME values_roundtrip
 set_tests_properties(values_roundtrip PROPERTIES TIMEOUT 240)
 
 add_executable(dokime-lifecycle-plugin support/lifecycle_plugin.cpp)
-target_link_libraries(dokime-lifecycle-plugin PRIVATE Dokime::Plugin)
+target_link_libraries(dokime-lifecycle-plugin PRIVATE Dokime::Client)
 add_executable(dokime-lifecycle-journey integration/failed_initialization.cpp)
 target_link_libraries(dokime-lifecycle-journey PRIVATE Dokime::Plugin Catch2::Catch2)
 add_test(NAME failed_initialization

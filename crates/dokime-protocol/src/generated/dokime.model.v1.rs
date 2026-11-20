@@ -2181,6 +2181,8 @@ pub struct Suite {
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, repeated, tag = "4")]
     pub parameter_groups: ::prost::alloc::vec::Vec<Metadata>,
+    #[prost(bool, tag = "5")]
+    pub unavailable: bool,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

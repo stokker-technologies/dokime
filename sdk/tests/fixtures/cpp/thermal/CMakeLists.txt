@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
 project(DokimeThermalFixture LANGUAGES CXX)
-if(NOT TARGET Dokime::Plugin)
+if(NOT TARGET Dokime::Client)
   find_package(Dokime CONFIG REQUIRED)
 endif()
 add_library(dokime_thermal_protocol STATIC)
@@ -10,6 +10,6 @@ protobuf_generate(TARGET dokime_thermal_protocol LANGUAGE cpp
   PROTOS "${CMAKE_CURRENT_SOURCE_DIR}/thermal.proto" IMPORT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}"
   PROTOC_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/g" DEPENDENCIES protobuf::protoc)
 target_include_directories(dokime_thermal_protocol SYSTEM PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/g")
-target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Plugin)
+target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Client)
 add_executable(dokime-system-suite main.cpp)
 target_link_libraries(dokime-system-suite PRIVATE dokime_thermal_protocol)

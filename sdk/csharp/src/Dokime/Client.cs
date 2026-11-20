@@ -231,11 +231,12 @@ public sealed class Client : IAsyncDisposable
     {
       failures.Add(failure);
     }
+    // Registered Entries Outlive Their Process: the Host Shows Them Offline Until the Plugin Registers Again.
     foreach (var plugin in Plugins.Owned.ToArray())
     {
       try
       {
-        await plugin.UnregisterAsync();
+        await plugin.ReleaseAsync();
       }
       catch (Exception failure)
       {

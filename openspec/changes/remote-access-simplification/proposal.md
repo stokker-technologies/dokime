@@ -17,10 +17,10 @@ not in permissions.
 - Every connected client may call every operation the backend serves to
   clients. The network and the people on it are trusted, and misuse is the
   user's responsibility.
-- The SDK reads `DOKIME_REMOTE` and `DOKIME_PLUGIN_ADDRESS` and loads `.env`
+- The SDK reads `DOKIME_REMOTE` and loads `.env`
   from the working directory itself. Precedence is keyword argument, process
   environment, `.env`, default. `DOKIME_REMOTE` accepts an `http://host:port`
-  origin or a `.pair` file; `DOKIME_PLUGIN_ADDRESS` defaults to `127.0.0.1:0`.
+  origin or a `.pair` file. Plugin listeners bind `127.0.0.1:0` unless a programmatic call supplies an address.
   `.env` contains addresses only; secrets stay in Secret Storage.
 
 ## Scope

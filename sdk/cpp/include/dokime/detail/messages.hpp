@@ -997,6 +997,9 @@ inline constexpr auto PLUGIN_STATE_STOPPED = static_cast<::dokime::host::v1::Plu
 namespace host {
 inline constexpr auto PLUGIN_STATE_STOPPING = static_cast<::dokime::host::v1::PluginState>(5);
 }
+namespace host {
+inline constexpr auto PLUGIN_STATE_OFFLINE = static_cast<::dokime::host::v1::PluginState>(6);
+}
 using ::dokime::host::v1::PromptDefinitionsGetResponse;
 using ::dokime::host::v1::PromptDefinitionsListResponse;
 using ::dokime::host::v1::PromptInstance;

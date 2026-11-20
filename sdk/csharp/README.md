@@ -1,5 +1,11 @@
 # Dokime C# SDK
 
+`Plugin.RunAsync()` registers with the host selected by `DOKIME_REMOTE` in the
+process environment or working-directory `.env`. Managed launches take precedence.
+Registration sends the SDK version under the plugin's stable identifier.
+Closing a client or disposing a registration stops its listener and retains the
+host entry. Call `UnregisterAsync()` explicitly to remove it.
+
 `Dokime` provides .NET 10 authoring and bound asynchronous clients.
 The public homes are `Dokime`, `Dokime.Operations` and `Dokime.Templates`.
 
@@ -42,14 +48,17 @@ await client.CloseAsync();
 ```
 
 `ConnectionSettings` supplies `Remote`, `PluginAddress` and a `TimeSpan`
-`ConnectTimeout`. Addresses resolve from explicit settings, process environment,
-working-directory `.env`, then defaults. The shared variables are `DOKIME_REMOTE`
-and `DOKIME_PLUGIN_ADDRESS`; the latter defaults to `127.0.0.1:0`. A direct remote
+`ConnectTimeout`. `Remote` resolves from explicit settings, process environment,
+then working-directory `.env`. `PluginAddress` overrides a programmatic
+registration's listener; otherwise it binds `127.0.0.1:0`. A direct remote
 is an HTTP origin with an explicit port. Pairing files retain ordered endpoints,
 credentials, pinned HTTPS certificates and host identity.
 
+The starter calls `RunAsync()`: launch credentials select library announcement,
+otherwise pairing selects self-registration, and an absent remote selects standalone serving.
+
 `client.Plugins.RegisterAsync(plugin)` serves the plugin, adds its remote placement
-and watches until ready. `client.CloseAsync()` unregisters owned registrations and
+and watches until ready. `client.CloseAsync()` retains owned host entries and
 closes their endpoints. Transport failures become `SdkError` values retaining the
 host failure, cause chain and mutation request identity. Handles also implement `IAsyncDisposable` where applicable.
 `cycle.ExecutionAsync(testCase)` binds an execution; `RunAsync()` starts it and
