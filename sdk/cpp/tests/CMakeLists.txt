@@ -28,8 +28,6 @@ foreach(placement managed remote)
   set_tests_properties(plugin_executes_case_${placement} PROPERTIES TIMEOUT 240)
 endforeach()
 
-set_target_properties(harmos-cpp-conformance PROPERTIES
-  OUTPUT_NAME dokime-conformance RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 set(thermal "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/cpp/thermal")
 add_library(dokime_thermal_protocol STATIC)
 set(thermal_generated "${CMAKE_CURRENT_BINARY_DIR}/g")
