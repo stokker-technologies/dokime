@@ -1,0 +1,24 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Installer === #
+
+[installer]
+# The CLI Built With the Kit Supplies the Product Version and Native Target.
+formats = ["nsis"]
+
+# === Product === #
+
+[dokime]
+
+# === Signing === #
+
+[signing.updater]
+private_key_env = "TAURI_SIGNING_PRIVATE_KEY"
+password_env = "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+artifact_base_url_env = "TAURI_UPDATER_ARTIFACT_BASE_URL"

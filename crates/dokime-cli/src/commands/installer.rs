@@ -14,12 +14,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
 // Third Party Imports
 
 // Local Imports
 use crate::Result;
+use dokime_packaging::installer::{Observer, Step};
 
 /* === Constants === */
 
@@ -79,6 +80,10 @@ enum Command {
 pub async fn run(args: Args) -> Result<()> {
     match args.command {
         Command::Package(args) => {
+            let started = Instant::now();
+            if !args.json {
+                eprintln!("Dokime {}\n", env!("CARGO_PKG_VERSION"));
+            }
             let formats = args
                 .formats
                 .iter()
@@ -97,13 +102,30 @@ pub async fn run(args: Args) -> Result<()> {
                 formats,
                 target: args.target,
             };
-            let outputs = dokime_packaging::installer::package(&args.manifest, &options).await?;
+            let mut report = |step: Step| {
+                if step.failed {
+                    eprint!("  {:<12}", format!("{:?}", step.stage));
+                    return;
+                }
+                for (index, detail) in step.details.iter().enumerate() {
+                    let label = if index == 0 { format!("{:?}", step.stage) } else { String::new() };
+                    if index + 1 == step.details.len() {
+                        eprintln!("  {label:<12}{detail}    {:.1} s", step.duration.as_secs_f64());
+                    } else {
+                        eprintln!("  {label:<12}{detail}");
+                    }
+                }
+            };
+            let mut observer = if args.json { Observer::default() } else { Observer::new(&mut report) };
+            let outputs = dokime_packaging::installer::package(&args.manifest, &options, &mut observer).await?;
             if args.json {
                 println!("{}", serde_json::to_string_pretty(&outputs)?);
             } else {
-                for output in outputs {
+                for output in &outputs {
                     println!("{}", output.display());
                 }
+                let noun = if outputs.len() == 1 { "Installer" } else { "Installers" };
+                eprintln!("\nPackaged {} {noun} in {:.1} s", outputs.len(), started.elapsed().as_secs_f64());
             }
         }
     }

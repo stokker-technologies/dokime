@@ -18,6 +18,7 @@ import io
 import json
 import os
 import ssl
+import stat
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ from unittest import mock
 
 # Local Imports
 from dokime_tools import policy
+from dokime_tools.package import assembly
 from dokime_tools.release import layout, notices, sbom
 
 from .environment import isolate_environment
@@ -54,6 +56,60 @@ from .environment import isolate_environment
 
 
 class SupplyTests(unittest.TestCase):
+    def test_plugin_archive_members_have_regular_file_modes(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        (root / "example-pack.dokime").write_bytes(b"bundle bytes")
+        for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+            (root / name).write_bytes(b"notice bytes")
+        bundles = [{"target": "windows-x86_64", "archive": "plugins.zip", "member": "example-pack.dokime", "path": "example-pack.dokime"}]
+        outputs = layout.plugin_archives(root, root / "output", bundles)
+        notices.archive(root, outputs[0])
+        archive = zipfile.ZipFile(outputs[0])
+        try:
+            self.assertEqual(set(archive.namelist()), {"example-pack.dokime", "NOTICE", "THIRD-PARTY-NOTICES"})
+            for entry in archive.infolist():
+                self.assertEqual(entry.create_system, 3)
+                self.assertTrue(stat.S_ISREG(entry.external_attr >> 16), entry.filename)
+                self.assertEqual((entry.external_attr >> 16) & 0o777, 0o644)
+                self.assertEqual(archive.read(entry), b"bundle bytes" if entry.filename.endswith(".dokime") else b"notice bytes")
+        finally:
+            archive.close()
+
+    def test_assembled_archive_members_have_explicit_permissions(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_directory.cleanup)
+        root = Path(temporary_directory.name)
+        build = root / "target/build/dev/windows-x86_64"
+        build.mkdir(parents=True)
+        (build / "example-pack").write_bytes(b"executable bytes")
+        staging = root / "output"
+        staging.mkdir()
+        definition = {
+            "language": "rust",
+            "output": "plugins.zip",
+            "inputs": [
+                {"path": "target/build/{profile}/{target}/example-pack", "destination": "example-pack.dokime"},
+                {"path": "target/build/{profile}/{target}/example-pack", "destination": "bin/example-pack", "mode": 0o755},
+            ],
+        }
+        with (
+            mock.patch.object(assembly.policy, "config", return_value={}),
+            mock.patch.object(assembly.definition, "definitions", return_value=[definition]),
+        ):
+            assembly.assemble(root, "rust", "dev", "windows-x86_64", staging)
+        archive = zipfile.ZipFile(staging / "plugins.zip")
+        try:
+            self.assertEqual(set(archive.namelist()), {"example-pack.dokime", "bin/example-pack"})
+            for entry in archive.infolist():
+                self.assertEqual(entry.create_system, 3)
+                self.assertTrue(stat.S_ISREG(entry.external_attr >> 16), entry.filename)
+                self.assertEqual((entry.external_attr >> 16) & 0o777, 0o755 if entry.filename.startswith("bin/") else 0o644)
+                self.assertEqual(archive.read(entry), b"executable bytes")
+        finally:
+            archive.close()
+
     def test_notice_nightly_unaccepted_licenses_include_text_and_warnings(self) -> None:
         root, execute, _ = self.notice_tools(rejected=True)
         summary = root / "summary.md"

@@ -459,7 +459,7 @@ fn prepared_installer_layout_lists_and_runs_its_shipped_template() -> Result<(),
             files.insert("organization/icon.png".into(), icon.to_vec());
             let files: BTreeMap<_, _> = files.into_iter().map(|(name, bytes)| (name, harmos_runtime::bundle::digest(&bytes))).collect();
             let metadata =
-                serde_json::json!({"schema":1,"version":env!("CARGO_PKG_VERSION"),"target":bundle::native_target(),"files":files});
+                serde_json::json!({"schema":1,"version":env!("CARGO_PKG_VERSION"),"target":bundle::native_target(),"source_revision":"f7c50e68","channel":"nightly","plugins":[],"files":files});
             fs::write(source.path().join("distribution.json"), serde_json::to_vec(&metadata)?)?;
             let plugin = source.path().join("example_pack.dokime");
             fs::write(&plugin, shipped_bundle(&executable, "example_pack", "1.0.0")?)?;
@@ -483,7 +483,7 @@ fn prepared_installer_layout_lists_and_runs_its_shipped_template() -> Result<(),
                 formats: Vec::new(),
                 target: None,
             };
-            let prepared = installer::prepare(&manifest, &options).await?;
+            let prepared = installer::prepare(&manifest, &options, &mut installer::Observer::default()).await?;
             let directory = if cfg!(target_os = "windows") {
                 prepared.settings().copy_resources(installation.path())?;
                 for name in [format!("dokime{EXE_SUFFIX}"), format!("dokime-gui{EXE_SUFFIX}")] {

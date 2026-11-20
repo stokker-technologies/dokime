@@ -72,7 +72,7 @@ pub(super) fn kit(directory: &Path) -> Result<(), Error> {
         let name = format!("organization/{name}");
         files.insert(name.clone(), distribution::digest(&fs::read(directory.join(name))?));
     }
-    let value = serde_json::json!({"schema":1,"version":"1.2.3","target":crate::bundle::native_target(),"files":files});
+    let value = serde_json::json!({"schema":1,"version":"1.2.3","target":crate::bundle::native_target(),"source_revision":"f7c50e68","channel":"nightly","plugins":[],"files":files});
     fs::write(directory.join("distribution.json"), serde_json::to_vec_pretty(&value)?)?;
     Ok(())
 }

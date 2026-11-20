@@ -12,7 +12,9 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 import json
+import os
 import unittest
 from collections.abc import Callable, Mapping
 from datetime import timedelta
@@ -99,17 +101,19 @@ class AuthoringStory(unittest.TestCase):
         unrelated.read_text.return_value = json.dumps(
             {"url": (Path(__file__).resolve().parent / "unrelated").as_uri(), "dir_info": {"editable": True}}
         )
-        with (
-            patch("dokime_sdk._plugin.packages_distributions", return_value={}),
-            patch("dokime_sdk._plugin.distributions", return_value=[unrelated, owning]) as installed,
-        ):
-            self.assertEqual(InstalledPlugin()._version, "2.3.4")
-            installed.return_value = [unrelated]
-            self.assertRaises(ValueError, InstalledPlugin)
-            installed.return_value = [owning, owning]
-            self.assertRaises(ValueError, InstalledPlugin)
-            InstalledPlugin.version = "5.6.7"
-            self.assertEqual(InstalledPlugin()._version, "5.6.7")
+        packages = patch("dokime_sdk._plugin.packages_distributions", return_value={})
+        packages.start()
+        self.addCleanup(packages.stop)
+        distributions = patch("dokime_sdk._plugin.distributions", return_value=[unrelated, owning])
+        installed = distributions.start()
+        self.addCleanup(distributions.stop)
+        self.assertEqual(InstalledPlugin()._version, "2.3.4")
+        installed.return_value = [unrelated]
+        self.assertRaises(ValueError, InstalledPlugin)
+        installed.return_value = [owning, owning]
+        self.assertRaises(ValueError, InstalledPlugin)
+        InstalledPlugin.version = "5.6.7"
+        self.assertEqual(InstalledPlugin()._version, "5.6.7")
 
     def test_classes_bind_members_without_mutating_declarations(self) -> None:
         plugin = ExamplePlugin()
@@ -298,6 +302,59 @@ class AuthoringStory(unittest.TestCase):
         self.assertRaises(ValueError, first.resolve, Document("Unknown"))
         ReportTestTemplate.documents = [ReportTestTemplate.report, ReportTestTemplate.report]
         self.assertRaises(ValueError, ReportPlugin)
+
+
+class PluginEndpointStory(unittest.IsolatedAsyncioTestCase):
+    async def test_start_exposes_a_connectable_address_without_output(self) -> None:
+        environment = patch.dict(os.environ, {})
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("HARMOS_ADDRESS", None)
+        printing = patch("builtins.print")
+        output = printing.start()
+        self.addCleanup(printing.stop)
+        endpoint = await ExamplePlugin().start("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.stop)
+        self.assertFalse(endpoint.managed)
+        output.assert_not_called()
+        host, port = endpoint.address.rsplit(":", 1)
+        _, writer = await asyncio.open_connection(host, int(port))
+        self.assertEqual(writer.get_extra_info("peername"), (host, int(port)))
+        writer.close()
+        await writer.wait_closed()
+
+    async def test_managed_start_announces_the_selected_address(self) -> None:
+        environment = patch.dict(os.environ, {"HARMOS_ADDRESS": "127.0.0.1:0", "DOKIME_PLUGIN_ADDRESS": "invalid"})
+        environment.start()
+        self.addCleanup(environment.stop)
+        printing = patch("builtins.print")
+        output = printing.start()
+        self.addCleanup(printing.stop)
+        endpoint = await ExamplePlugin().start("invalid")
+        self.addAsyncCleanup(endpoint.stop)
+        self.assertTrue(endpoint.managed)
+        output.assert_called_once_with(f"harmos listening {endpoint.address}", flush=True)
+
+    async def test_wait_settles_after_stop(self) -> None:
+        environment = patch.dict(os.environ, {})
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("HARMOS_ADDRESS", None)
+        endpoint = await ExamplePlugin().start("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.stop)
+        await endpoint.stop()
+        await endpoint.wait()
+
+    async def test_empty_managed_address_names_the_managed_configuration(self) -> None:
+        environment = patch.dict(os.environ, {"HARMOS_ADDRESS": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
+        try:
+            await ExamplePlugin().start()
+        except ValueError as error:
+            self.assertIn("HARMOS_ADDRESS", str(error))
+        else:
+            self.fail("Start Plugin: Reject an Empty Managed Address")
 
 
 # === Public Functions === #
