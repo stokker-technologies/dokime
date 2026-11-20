@@ -15,6 +15,7 @@ mod adapters;
 mod bluetooth;
 mod controls;
 mod cpu;
+mod journal;
 mod network;
 mod power;
 mod settings;

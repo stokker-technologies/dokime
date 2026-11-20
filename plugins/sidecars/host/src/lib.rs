@@ -15,6 +15,7 @@ pub mod adapters;
 pub mod collectors;
 pub mod controls;
 pub mod domain;
+pub mod journal;
 pub mod platform;
 pub mod power;
 pub mod settings;
@@ -88,9 +89,13 @@ pub fn declarations() -> Result<Declarations> {
 
 /* === Private Functions === */
 
-/// Refuse a Misconfigured Plugin When It Connects, Naming the Setting to Correct.
+/// Refuse a Misconfigured Plugin When It Connects, Then Restore Every Outstanding Effect Before Any Control Runs.
 async fn initialize(ctx: &Context) -> Result<()> {
-    settings::validate(ctx).await
+    settings::validate(ctx).await?;
+    let machine = controls::Machine {
+        timing: controls::Timing::read(ctx).await?,
+    };
+    ctx.plugin::<Host>()?.controls.restore(&machine, &journal::Journal::new(ctx)).await
 }
 
 /* === Tests === */

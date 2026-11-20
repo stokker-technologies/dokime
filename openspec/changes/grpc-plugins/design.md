@@ -2723,12 +2723,19 @@ plugin beside OBC. The decisions:
   sample. At disconnect or host stop the retained window is released; nothing
   accumulates without an owner, and the bound comes from the existing stream window
   and storage settings.
-- **Effect journal.** Host-owned and durable. A mutating control records its target
-  and inverse before the write; the earliest inverse per target wins and later
-  prepares join it. The journal survives plugin disconnect and host restart, and the
-  host restores outstanding inverses in reverse first-prepare order before exposing
-  the plugin again; a failed inverse stays pending and is reported. Mutating controls
-  refuse to write unless the journal returned a ticket.
+- **Effect journal.** Plugin state, persisted by the host through the library's state
+  management; no product effects store and no product `Effects` operations.
+  `plugins/sidecars/host/src/journal.rs` implements `controls::Journal` over one opaque,
+  revisioned plugin state value (`journal::Store`: load, save with expected revision):
+  `record(target, inverse)` before a write (an outstanding target keeps its earlier
+  inverse and returns `false`), `clear(target)` after a restore, `outstanding()` in
+  recording order. The plugin's `initialize` hook runs `controls::State::restore`,
+  newest first, before any control runs; a failed inverse stays outstanding and fails
+  `initialize`, so the host withholds the plugin with that failure on its entry. A host
+  that serves no durable state refuses every record, so no control writes. Inverses
+  are absolute control states, so a restore repeated after a crash between record,
+  write, restore and clear is idempotent. The library does not yet serve plugin state,
+  so the `Context` store reports none.
 - **Start snapshot.** The old automatic adapter capture at run start becomes an
   explicit typed snapshot operation that a consuming template calls from its
   `initialize` and records itself; the host adds no run-start contribution.
@@ -2742,7 +2749,7 @@ plugin beside OBC. The decisions:
 |---|---|
 | Duration settings | `dokime::operations::Context::duration_setting` and `setting` (`sdk/rust/src/operations.rs`), backed by `crate::context::Context::duration_setting` (`sdk/rust/src/context.rs`); the name is the one `Observer::interval_setting` takes. |
 | Plugin-wide retention | Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
-| Effect journal | Open (5.13). The `Effects` wire contract carries resource, inverse operation and bytes, description and request identity, which suffices for host-driven restoration. Missing: plugin calls outside an execution are refused by `crates/dokime-operations/src/native.rs` (`context`), the operation context has no effect methods, the handlers return Unimplemented, and the runtime has no plugin-connect hook to restore before exposure. |
+| Effect journal | Plugin side landed (`plugins/sidecars/host/src/journal.rs`, restore in `src/lib.rs` `initialize`). Blocked on the library: plugins have no durable state value. `harmos_runtime::state::StateManager` is the host application's compile-time state (Dokime composes `State = ()`, `Transaction = Never`, `crates/dokime-runtime/src/services/composition.rs`), and no `harmos.host.v1` service or SDK call reads or writes plugin state. Needed: one opaque, revisioned value per plugin entry, persisted by the host state manager and readable by the plugin from `initialize`. The recovery journal is also unbounded: `crates/dokime-storage/src/backend/recovery.rs` (`flush`) publishes snapshots but never retires entries or snapshots it supersedes. |
 
 ### Host Plugin Ownership
 

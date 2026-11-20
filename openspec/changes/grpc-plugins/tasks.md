@@ -32,7 +32,7 @@
 - [x] 4.6.2 Restore `plugins/sidecars/host` (`plugin-host`) with its flat settings, domain rows, area module tree, Build bundle and release plugin declaration (design: Host Telemetry Plugin Restoration).
 - [x] 4.6.3 Expose duration settings on the operation context for observer intervals and other durations.
 - [ ] 4.6.4 Retain plugin-wide catalog streams from plugin connect to disconnect, scoped by plugin and stream, queryable through sample and plot operations; needs an `EvidenceScope` plugin selector.
-- [ ] 4.6.5 Implement the host-owned effect journal (5.13) for plugin-level operations, with operation-context effect methods and restoration before a reconnecting plugin is exposed.
+- [ ] 4.6.5 Implement the effect journal as host plugin state on the library's state management: `journal.rs` implementing `controls::Journal`, restore newest first in `initialize`, refusal without durable state (landed); durable plugin state served by the library and bounded recovery storage (open).
 - [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.
 - [ ] 4.6.7 Package 3: Wi-Fi link, scan and latency, and Bluetooth collectors and streams.
 - [ ] 4.6.8 Package 4: radio and adapter controls gated on the effect journal, adapter inventory with its typed start snapshot, and power plan operations.
