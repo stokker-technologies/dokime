@@ -26,7 +26,6 @@ use dokime::{Error, Result};
 
 /* === Constants === */
 
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -79,7 +78,10 @@ pub(crate) mod tests {
     use super::Lease;
 
     pub(crate) fn fake(releases: Arc<AtomicUsize>) -> Lease {
-        Lease { cookie: Arc::into_raw(releases) as usize, release: release_fake }
+        Lease {
+            cookie: Arc::into_raw(releases) as usize,
+            release: release_fake,
+        }
     }
 
     fn release_fake(cookie: usize) {

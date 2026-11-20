@@ -396,6 +396,7 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Activate One Power Plan, Recording the Prior Plan for Restoration.");
     let restore = Operation::new(RESTORE, Visibility::Protected, async |ctx: &Context, _: ControlsRestore| {
+        crate::journal::Journal::new(ctx).check().await?;
         restore(ctx).await?;
         let at = ctx.now().await?;
         Ok(Applied { at: at.to_string() })

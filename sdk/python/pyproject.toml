@@ -73,3 +73,7 @@ dokime_sdk = ["src/dokime_sdk", "*/site-packages/dokime_sdk"]
 [tool.ruff.lint]
 # Every SDK and Tooling Function Has an Explicit Typed Signature.
 select = ["E4", "E7", "E9", "F", "ANN"]
+
+[tool.ruff.lint.isort]
+# Match the Shared Generator's Explicit Package Classification in Every Working Directory.
+known-first-party = ["dokime_sdk"]

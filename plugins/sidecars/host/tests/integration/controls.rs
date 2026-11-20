@@ -29,8 +29,8 @@ use plugin_host::controls::{
     ADAPTER_SET, AdapterSet, Caller, Change, Journal, Native, PLAN_SET, PlanSet, RADIO_SET, RESTORE, RadioSet, State, cuts_connection,
 };
 use plugin_host::domain::controls::{AdapterState, ControlState, Radio, RadioState};
-use plugin_host::power::PLAN_GET;
 use plugin_host::journal;
+use plugin_host::power::PLAN_GET;
 
 /* === Constants === */
 
@@ -259,7 +259,10 @@ async fn an_unavailable_journal_refuses_before_any_write() {
 
 #[tokio::test]
 async fn a_non_durable_store_refuses_a_control_before_any_platform_call() {
-    let fake = Fake { before: plan_state("balanced"), ..Default::default() };
+    let fake = Fake {
+        before: plan_state("balanced"),
+        ..Default::default()
+    };
     let journal = journal::Journal::new(&NonDurable);
     let error = State::default().execute(plan("performance"), &fake, &journal, &fake).await.err().unwrap();
     assert!(matches!(error, Error::Invalid(_)));

@@ -19,10 +19,10 @@ pub mod windows;
 
 /* === Re-Exports === */
 
-#[cfg(target_os = "windows")]
-pub use windows::apartment::Lease;
 #[cfg(unix)]
 pub use unix::Lease;
+#[cfg(target_os = "windows")]
+pub use windows::apartment::Lease;
 
 /* === Imports === */
 

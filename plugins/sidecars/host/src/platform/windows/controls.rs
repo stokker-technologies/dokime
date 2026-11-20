@@ -18,10 +18,10 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 use std::fmt::Display;
-use std::{mem, ptr, slice};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::mpsc;
 use std::time::Instant;
+use std::{mem, ptr, slice};
 
 // Third Party Imports
 use windows::Devices::Enumeration::DeviceInformation;
@@ -251,10 +251,7 @@ pub fn connected_addresses(pid: u32, timing: &Timing) -> Result<BTreeSet<String>
                 let table = buffer.as_ptr().cast::<MIB_TCPTABLE_OWNER_PID>();
                 // SAFETY: The API Wrote dwNumEntries Rows Into the Buffer.
                 let rows = unsafe {
-                    slice::from_raw_parts(
-                        ptr::addr_of!((*table).table).cast::<MIB_TCPROW_OWNER_PID>(),
-                        (*table).dwNumEntries as usize,
-                    )
+                    slice::from_raw_parts(ptr::addr_of!((*table).table).cast::<MIB_TCPROW_OWNER_PID>(), (*table).dwNumEntries as usize)
                 };
                 for row in rows {
                     let remote = Ipv4Addr::from(row.dwRemoteAddr.to_ne_bytes());
@@ -266,10 +263,7 @@ pub fn connected_addresses(pid: u32, timing: &Timing) -> Result<BTreeSet<String>
                 let table = buffer.as_ptr().cast::<MIB_TCP6TABLE_OWNER_PID>();
                 // SAFETY: The API Wrote dwNumEntries Rows Into the Buffer.
                 let rows = unsafe {
-                    slice::from_raw_parts(
-                        ptr::addr_of!((*table).table).cast::<MIB_TCP6ROW_OWNER_PID>(),
-                        (*table).dwNumEntries as usize,
-                    )
+                    slice::from_raw_parts(ptr::addr_of!((*table).table).cast::<MIB_TCP6ROW_OWNER_PID>(), (*table).dwNumEntries as usize)
                 };
                 for row in rows {
                     let remote = Ipv6Addr::from(row.ucRemoteAddr);
@@ -341,10 +335,8 @@ fn set_adapter(id: &str, enabled: bool) -> Result<()> {
         HwProfile: 0,
     };
     // SAFETY: The Header Begins a Property Change Structure of the Passed Size.
-    unsafe {
-        SetupDiSetClassInstallParamsW(devices.0, Some(&device), Some(&change.ClassInstallHeader), mem::size_of_val(&change) as u32)
-    }
-    .map_err(probe)?;
+    unsafe { SetupDiSetClassInstallParamsW(devices.0, Some(&device), Some(&change.ClassInstallHeader), mem::size_of_val(&change) as u32) }
+        .map_err(probe)?;
     unsafe { SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, devices.0, Some(&device)) }.map_err(probe)?;
     if read_adapter(id)? != enabled {
         return Err(Error::Invalid("Set Adapter: Restart Windows; the Adapter Did Not Settle to the Requested State".into()));

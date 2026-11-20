@@ -18,8 +18,8 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::ffi::c_void;
-use std::{mem, ptr};
 use std::sync::{Mutex, PoisonError};
+use std::{mem, ptr};
 
 // Third Party Imports
 use windows::Win32::Foundation::{ERROR_SUCCESS, HANDLE, RPC_E_CHANGED_MODE, WIN32_ERROR};

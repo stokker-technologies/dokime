@@ -16,27 +16,27 @@ mod native {
     use super::PowerPlan;
     use crate::platform::windows::power;
 
-pub(super) fn power_plan() -> PowerPlan {
-    let Ok((guid, name)) = power::active_plan() else {
-        return PowerPlan::default();
-    };
-    let mode = name.as_deref().map(power::mode);
-    PowerPlan {
-        mode: mode.map(str::to_owned),
-        performance_bias: mode.map(power::performance_bias),
-        name,
-        guid: Some(guid),
+    pub(super) fn power_plan() -> PowerPlan {
+        let Ok((guid, name)) = power::active_plan() else {
+            return PowerPlan::default();
+        };
+        let mode = name.as_deref().map(power::mode);
+        PowerPlan {
+            mode: mode.map(str::to_owned),
+            performance_bias: mode.map(power::performance_bias),
+            name,
+            guid: Some(guid),
+        }
     }
-}
 }
 
 #[cfg(unix)]
 mod native {
     use super::PowerPlan;
 
-pub(super) fn power_plan() -> PowerPlan {
-    PowerPlan::default()
-}
+    pub(super) fn power_plan() -> PowerPlan {
+        PowerPlan::default()
+    }
 }
 
 /* === Re-Exports === */
@@ -144,7 +144,8 @@ impl Collector {
         let state = self.state.clone();
         let collected = tokio::task::spawn_blocking(move || {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
-            let listening = state.as_mut().ok_or_else(|| Error::Invalid("Collect System Telemetry: Start the Collection Before Reading".into()))?;
+            let listening =
+                state.as_mut().ok_or_else(|| Error::Invalid("Collect System Telemetry: Start the Collection Before Reading".into()))?;
             if listening.state.is_none() {
                 listening.state = Some(State::new()?);
             }
@@ -330,7 +331,10 @@ mod lifetime_tests {
     fn stop_releases_the_collection_lease_once() {
         let releases = Arc::new(AtomicUsize::new(0));
         let collector = Collector::default();
-        *collector.state.lock().unwrap() = Some(Listening { state: None, _lease: apartment::tests::fake(releases.clone()) });
+        *collector.state.lock().unwrap() = Some(Listening {
+            state: None,
+            _lease: apartment::tests::fake(releases.clone()),
+        });
         assert_eq!(releases.load(Ordering::SeqCst), 0);
         collector.stop();
         assert_eq!(releases.load(Ordering::SeqCst), 1);
