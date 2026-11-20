@@ -71,13 +71,21 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
     overflow: actions,
   });
 
-  const waiting = Boolean(owning && (owning.failure || !owning.description));
+  const waiting = Boolean(owning?.value?.enabled && !owning.failure && !owning.description);
   const label = owning?.description?.id || owning?.name || sectionId;
   const cards = settings.frame?.cards.filter((card) => card.sectionId === sectionId) ?? [];
 
   return (
     <div className="p-[var(--shell-inset)]">
       <SettingsGrid>
+        {owning?.failure ? (
+          <ErrorCard
+            failure={pluginStartFailure(owning, generation)}
+            onRetry={reloadable ? () => reload.mutate(owning.name) : undefined}
+            retryLabel="Restart Plugin"
+            retryDisabled={reload.isPending}
+          />
+        ) : null}
         {(settings.loading && !settings.frame) || (!section && pluginsQuery.isPending) ? (
           <SettingsCard title="Settings">
             <SettingsRow label="Status">
@@ -87,21 +95,11 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
             </SettingsRow>
           </SettingsCard>
         ) : waiting ? (
-          <>
-            {owning?.failure ? (
-              <ErrorCard
-                failure={pluginStartFailure(owning, generation)}
-                onRetry={reloadable ? () => reload.mutate(owning.name) : undefined}
-                retryLabel="Restart Plugin"
-                retryDisabled={reload.isPending}
-              />
-            ) : null}
             <SettingsCard title="Settings">
               <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
                 Waiting for Plugin {label}
               </p>
             </SettingsCard>
-          </>
         ) : settings.error ? (
           <SettingsCard title="Settings">
             <ErrorCard failure={failureOf(settings.failure, "Settings Unavailable")} onRetry={settings.retry} />

@@ -18,7 +18,8 @@ import { create, toBinary } from "@bufbuild/protobuf";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { type InstallPluginProgress, installNativePlugin } from "@/lib/api/native-plugins";
+import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
+import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { failureOf } from "@/lib/notification-details";
 import { commands } from "@/lib/desktop/commands";
 
@@ -196,4 +197,24 @@ test("Installation Preserves the Native Structured Failure Across IPC", async ()
     assert.deepEqual(failure.causes, [refusal.cause?.message]);
     return true;
   });
+});
+
+test("Failed Entry Retains Its Identity and Secret Availability", async () => {
+  const failed = { ...managedPlugin("example"), failure: { message: "activation-refused" } };
+  fixture.listPlugins.mockResolvedValue({ entries: [failed] });
+  fixture.getSettings.mockResolvedValue({
+    settings: { contributions: [] },
+    secrets: [{ identifier: "api_token", available: false }],
+    values: {},
+    discovered: {},
+  });
+  fixture.getPlugin.mockResolvedValueOnce({ entry: failed });
+  assert.equal(await getNativePlugin(session, "example"), failed);
+  const detail = await getInstalledPluginDetail(session, "example");
+  assert.equal(detail?.status, "failed");
+  assert.equal(detail?.plugin_id, failed.name);
+  assert.equal(detail?.error, failed.failure.message);
+  assert.equal(detail?.owner?.kind, "bundle");
+  assert.deepEqual(detail?.secrets, [{ identifier: "api_token", available: false }]);
+  assert.deepEqual(fixture.getSettings.mock.calls, [[session, "example"]]);
 });

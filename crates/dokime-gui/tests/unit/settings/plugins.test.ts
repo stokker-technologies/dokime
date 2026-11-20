@@ -25,6 +25,7 @@ import type * as contracts from "@/features/settings/installed-plugins/installed
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
+import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
 import { PluginList, statusPresentation } from "@/features/settings/plugins/PluginList";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
@@ -152,6 +153,13 @@ beforeEach(() => {
   fixture.hash = "";
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
+  fixture.detail.mockImplementation((pluginId: string) => ({
+    data: {
+      plugin_id: pluginId, label: pluginId, version: "1.0.0", runtime: "code", status: "failed", error: null,
+      settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
+      values: { address: "corrected" }, secrets: [],
+    },
+  }));
   fixture.settings.mockResolvedValue({
     settings: { contributions: [] },
     values: { address: "corrected" },
@@ -162,6 +170,41 @@ beforeEach(() => {
 test("Inactive Entry Keeps Its Settings Navigation", () => {
   assert.equal(bundleSettingsPage(entry, [], null), entry.name);
   assert.equal(bundleSettingsPage({ ...entry, value: { enabled: false } }, [], null), entry.name);
+});
+
+test("Entry Settings Remain Available After Activation Failure", async () => {
+  const plugin = { plugin_id: entry.name, label: entry.name, status: "failed", error: entry.failure?.message };
+  fixture.admitted.mockResolvedValue([plugin]);
+  const detail = await getInstalledPluginDetail(session, entry.name);
+  assert.equal(detail?.plugin_id, entry.name);
+  assert.equal(detail?.error, entry.failure?.message);
+  assert.deepEqual(detail?.values, { address: "corrected" });
+  assert.deepEqual(fixture.settings.mock.calls, [[session, entry.name]]);
+  assert.equal(await getInstalledPluginDetail(session, "unknown"), null);
+});
+
+test("Failed Forms Keep Their Controls Editable", () => {
+  fixture.installations.mockReturnValue({ data: [entry] });
+  fixture.detail.mockImplementation((pluginId: string) => ({
+    data: {
+      plugin_id: pluginId,
+      label: pluginId,
+      version: "1.0.0",
+      runtime: "code",
+      status: "failed",
+      error: null,
+      settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
+      values: { address: "corrected" },
+      secrets: [],
+    },
+  }));
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  assert.deepEqual(
+    fixture.detail.mock.calls.map(([id]) => id),
+    [entry.name],
+  );
+  assert.equal((html.match(/<textarea/g) ?? []).length, 1);
+  assert.equal(html.includes("disabled="), false);
 });
 
 test("Entry States Follow Current Activation and Enablement", () => {
@@ -264,13 +307,13 @@ test("Missing Secret Action", () => {
   assert.equal(ordinary.includes('role="dialog"'), false);
 });
 
-test("Failed Plugin Owns One Failure While Its Sections Wait", () => {
+test("Failed Plugin Keeps Its Settings Below Its Failure", () => {
   fixture.installations.mockReturnValue({ data: [entry] });
   const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
   assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
-  assert.ok(html.includes('role="status"'));
-  assert.equal(fixture.detail.mock.calls.length, 0);
-  assert.ok(!html.includes("textarea"));
+  assert.equal(fixture.detail.mock.calls.length, 1);
+  assert.ok(html.includes("textarea"));
+  assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
   fixture.buttons[0]();
   assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
 });
@@ -291,4 +334,12 @@ test("Independent Failed Section Occupies Its Content Slot", () => {
   const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
   assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
   assert.ok(html.includes("bench_section"));
+});
+
+test("Disabled Undescribed Plugin Keeps Its Settings Available", () => {
+  fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, value: { enabled: false } }] });
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  assert.equal(fixture.detail.mock.calls.length, 1);
+  assert.ok(html.includes("textarea"));
+  assert.ok(!html.includes('role="status"'));
 });
