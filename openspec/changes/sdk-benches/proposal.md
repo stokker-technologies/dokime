@@ -1,6 +1,6 @@
 # SDK Benches
 
-Status: scenario, measures and job names locked with the owner on 2026-11-20;
+Status: the owner-locked scenario, measures and job names, recorded on 2026-11-20;
 implementation has not started. It starts after the plugin launch handshake
 change lands and before the plugin contract freeze.
 
@@ -53,8 +53,7 @@ shows up in a lab run.
 2. Implementation starts after the plugin launch handshake change lands. That
    change alters plugin start-up and the SDK run entries, so earlier start-to-ready
    and round-trip baselines would be discarded.
-3. The SDK benches land before the plugin contract freeze, so the freeze is
-   decided with measured costs per language.
+3. The SDK benches land before the plugin contract freeze.
 4. `Bench / Protocol` can land with the SDK benches. `Bench / Storage` waits for
    the `operation-boundary` storage cutover.
 

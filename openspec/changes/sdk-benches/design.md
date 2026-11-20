@@ -14,6 +14,9 @@ change them without changing the specs.
 | `crates/dokime-runtime/benches/storage/{main,publication,reports,windows}.rs` | `storage` (Criterion groups `storage`, `telemetry`, `runtime`, `reports/save`, `windows`) | `mise run bench -- --binary storage` → `bench:rust:storage` → `tools/python/src/dokime_tools/test/storage_bench.py` | None |
 | `crates/dokime-gui/benches/system/` | `system-desktop` (`crates/dokime-gui/src-tauri/Cargo.toml`) | `bench:rust:system` → `dokime_tools.test.run bench --category system --language rust`, built by `build:rust:bench` → `tools/python/src/dokime_tools/build/bench.py` | `Bench / Desktop / Round Trip` and `Bench / Desktop / History` on `unix` and `windows`, after `Build / Bench` |
 
+- Hosted `Build / Bench` (`.github/workflows/validate-build-tests.yml`) runs
+  `mise run build -- --artifact bench --binary system-desktop`; its archive holds
+  no SDK fixture.
 - `tools/python/src/dokime_tools/task/bench.py` selects benches for `rust` and
   for `python` at the system layer only. `tools/python/src/dokime_tools/test/benchmark.py`
   runs `rust` (Criterion) and `python` (pytest-benchmark) producers and refuses
@@ -39,8 +42,8 @@ change them without changing the specs.
   bench compares with the previous report rows keyed by name and unit.
   `.github/actions/setup/action.yml` restores a `bench_baselines` cache keyed
   `ci-v6-baselines-<platform>-<layer>-` (`tools/python/src/dokime_tools/ci/native.py`)
-  only when `CI_BENCH` is `true`. No workflow in this repository sets `CI_BENCH`
-  or saves that cache, so every hosted desktop bench seeds a fresh baseline with
+  only when `CI_BENCH` is `true`. Nothing in `.github/`, `mise.toml` or
+  `tools/python/src/dokime_tools` sets `CI_BENCH`, and no workflow saves that cache, so every hosted desktop bench seeds a fresh baseline with
   `--refresh-baseline` and no run is compared with the one before it.
 - The library already saves its bench baselines on `dev` from its own Nightly.
   Its transport, runtime, query and storage-engine benches stay its own.
@@ -54,10 +57,10 @@ window observer. The SDK equivalence stories
 compare each one with the Rust evidence. Nightly `Test / SDK / Equivalence` runs
 the C# and C++ stories.
 
-| Language | Thermal Source | Built By | Echo Operation |
+| Language | Thermal Source | Built Today By | Echo Operation |
 | --- | --- | --- | --- |
-| Rust | `sdk/rust/examples/thermal.rs`; host fixture `dokime-rust-thermal` (`tools/python/src/dokime_tools/build/host_fixtures.py`) | `Build / Tests`, `build:host-fixtures` | Missing |
-| Python | `sdk/python/examples/thermal` (`thermal_example`); fixture `sdk/tests/fixtures/python/thermal/plugin.py` | `Build / SDK / Python` | Missing |
+| Rust | `sdk/rust/examples/thermal.rs`; host fixture `dokime-rust-thermal` (`tools/python/src/dokime_tools/build/host_fixtures.py`) | `mise run build:host-fixtures -- --language rust` | Missing |
+| Python | `sdk/python/examples/thermal` (`thermal_example`); fixture `sdk/tests/fixtures/python/thermal/plugin.py` | Runs from source against the Python SDK; no compiled fixture | Missing |
 | C# | Test fixture only: `sdk/tests/fixtures/csharp/SystemPlugin` (`ThermalPlugin`) | `Build / SDK / C# / Fixtures` (`mise -C sdk/csharp run publish:system`) | Missing |
 | C++ | Test fixture only: `sdk/tests/fixtures/cpp/thermal` (`main.cpp`, `thermal.proto`) | `Build / SDK / C++ / Fixtures` (target `dokime-system-suite`) | Missing |
 
@@ -147,8 +150,8 @@ mise run bench -- --language rust --layer system --binary system-sdk --select "^
 ```
 
 Before measuring, the driver reads the admitted catalog of the plugin under
-measurement and of the Rust reference plugin, which the bench build always
-contains. It compares operations, templates, streams, observers and their
+measurement and of the Rust reference plugin, which the SDK bench build adds
+next to the driver (proposed). It compares operations, templates, streams, observers and their
 intervals, and row schemas. On any difference it writes no measurement and fails
 with the first differing identifier and both languages. Comparing every language
 with Rust makes all four equal without a hand-maintained catalog file. Without
@@ -228,12 +231,16 @@ location: `crates/dokime-protocol/benches/protocol/`.
 
 `Bench / Storage` measures this product's objects through the library's storage
 operations: write an execution with its evidence, seal it, and query one million
-samples. It is added after the `operation-boundary` storage cutover. Today's
-`crates/dokime-runtime/benches/storage/` target measures the store that the
-cutover replaces, so it gets no hosted job; the cutover retires it and
-`Bench / Storage` replaces it.
+samples. It is added after the `operation-boundary` storage cutover.
 
-## Risks / Trade-offs
+Today's `crates/dokime-runtime/benches/storage/` target drives the product's own
+`dokime_storage::Store` directly (ingestion, sealing, windows, report saves and
+telemetry queries), not the library's storage operations. It gets no hosted job.
+Whether the cutover retires it, migrates it into `Bench / Storage`, or keeps it
+as a local measurement is an owner decision; `test-stories` also names the
+storage bench as a measurement owner.
+
+## Risks / Trade-Offs
 
 - [Shared hosted runners are noisy] → Baselines are kept per platform and per
   variant, the report shows the change against the previous `dev` run, and no
@@ -255,3 +262,8 @@ job. Removing a job removes its rows from the report and nothing else.
 
 - The plugin launch handshake change and the plugin contract freeze have no
   change in `openspec/changes/` yet; this change names them in words until they do.
+- Thermal extended in place versus a separate reference plugin per language;
+  proposed: extend in place.
+- The fate of `crates/dokime-runtime/benches/storage/` after the cutover;
+  proposed: migrate its cases into `Bench / Storage` through the library's
+  storage operations and delete the direct-store target.

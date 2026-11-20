@@ -7,10 +7,10 @@
 
 ## 2. Reference Plugins
 
-- [ ] 2.1 Extend the Rust thermal plugin (`sdk/rust/examples/thermal.rs`, fixture `dokime-rust-thermal`) with the `thermal.echo` operation and the `thermal.load` template with its 128 channel streams and burst stream; verify `mise run build:host-fixtures -- --language rust` builds it and the thermal equivalence stories still pass.
-- [ ] 2.2 Add the same declarations to the Python thermal plugin (`sdk/python/examples/thermal`, `sdk/tests/fixtures/python/thermal`); verify `python_plugin_matches_rust_thermal_evidence` still passes.
-- [ ] 2.3 Add the same declarations to the C# thermal fixture (`sdk/tests/fixtures/csharp/SystemPlugin`); verify `mise run build:host-fixtures -- --language csharp` builds it and `csharp_plugin_matches_rust_thermal_evidence` still passes.
-- [ ] 2.4 Add the same declarations to the C++ thermal fixture (`sdk/tests/fixtures/cpp/thermal`); verify `mise run build:host-fixtures -- --language cpp` builds it and `cpp_plugin_matches_rust_thermal_evidence` still passes.
+- [ ] 2.1 Give Rust its reference plugin per design.md, seeded from `sdk/rust/examples/thermal.rs` (fixture `dokime-rust-thermal`), with the echo operation, the 128 load streams and the single-stream ceiling stream; verify `mise run build:host-fixtures -- --language rust` builds it and the thermal equivalence stories still pass.
+- [ ] 2.2 Give Python the same reference plugin declarations, seeded from `sdk/python/examples/thermal` and `sdk/tests/fixtures/python/thermal`; verify `python_plugin_matches_rust_thermal_evidence` still passes.
+- [ ] 2.3 Give C# the same reference plugin declarations, seeded from `sdk/tests/fixtures/csharp/SystemPlugin`; verify `mise run build:host-fixtures -- --language csharp` builds it and `csharp_plugin_matches_rust_thermal_evidence` still passes.
+- [ ] 2.4 Give C++ the same reference plugin declarations, seeded from `sdk/tests/fixtures/cpp/thermal`; verify `mise run build:host-fixtures -- --language cpp` builds it and `cpp_plugin_matches_rust_thermal_evidence` still passes.
 
 ## 3. Driver and Guard
 
@@ -30,7 +30,7 @@
 
 ## 6. Storage Bench After the Cutover
 
-- [ ] 6.1 After the `operation-boundary` storage cutover lands, add `Bench / Storage` for writing an execution, sealing it and querying one million samples through the library's storage operations, and retire `crates/dokime-runtime/benches/storage/` with its `bench:rust:storage` task; verify the new cases reach `benchmarks.json`.
+- [ ] 6.1 After the `operation-boundary` storage cutover lands, add `Bench / Storage` for writing an execution, sealing it and querying one million samples through the library's storage operations, and apply the owner's decision on `crates/dokime-runtime/benches/storage/` and its `bench:rust:storage` task; verify the new cases reach `benchmarks.json`.
 
 ## 7. Documentation and Final Validation
 
