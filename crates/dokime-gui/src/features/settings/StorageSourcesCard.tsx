@@ -22,7 +22,6 @@ import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -191,9 +190,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
           }
         >
           {mutation.error ? (
-            <NotificationMessage error={mutation.error}>
-              {failureOf(mutation.error, "Storage Source Change Failed").message}
-            </NotificationMessage>
+            <ErrorCard notificationContext="action" failure={failureOf(mutation.error, "Operation Failed")} />
           ) : (
             <ErrorCard failure={failureOf(query.error, "Storage Sources Unavailable")} onRetry={() => void query.refetch()} />
           )}

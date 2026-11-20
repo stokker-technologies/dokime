@@ -11,16 +11,18 @@
  *
  * Two columns: a fixed label column and the value. The description lives
  * inside the label cell and wraps in full, so a row is 40px when it needs no
- * explanation and grows when it does. Feedback goes to notifications; retry
- * controls retain a stable slot beside the edited value.
+ * explanation and grows when it does. Failures span the content width; retry controls use the shared failure presentation.
  */
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { type ReactNode, useId } from "react";
 
 /* === Local Imports === */
+
+import { notificationText } from "@/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
 
 import { cn } from "@/lib/utils";
 
@@ -34,6 +36,7 @@ type SettingsRowProps = {
   /** A problem with this field, delivered through notifications. */
   error?: ReactNode;
   failure?: unknown;
+  notificationContext?: "action";
   htmlFor?: string;
   label: ReactNode;
   /** The autosave readout; see `SettingsFieldStatus`. */
@@ -42,11 +45,23 @@ type SettingsRowProps = {
 
 /* === Components === */
 
-export function SettingsRow({ children, className, control, description, error, failure, htmlFor, label, status }: SettingsRowProps) {
+export function SettingsRow({
+  children,
+  className,
+  control,
+  description,
+  error,
+  failure,
+  htmlFor,
+  label,
+  status,
+  notificationContext,
+}: SettingsRowProps) {
+  const id = useId();
   return (
     <div
       className={cn(
-        "grid min-h-[var(--settings-row-height)] grid-cols-1 xl:grid-cols-(--layout-settings-row) items-center gap-x-6 gap-y-3 px-4 py-3",
+        "grid min-h-[var(--settings-row-height)] grid-cols-1 xl:grid-cols-(--layout-settings-row) has-[[role=alert]]:grid-cols-1 xl:has-[[role=alert]]:grid-cols-1 items-center gap-x-6 gap-y-3 px-4 py-3",
         className,
       )}
     >
@@ -65,8 +80,17 @@ export function SettingsRow({ children, className, control, description, error, 
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{control ?? children}</div>
         </div>
         {status ? <div className="text-right">{status}</div> : null}
-        {error ? <NotificationMessage error={failure}>{error}</NotificationMessage> : null}
       </div>
+      {error ? (
+        <ErrorCard
+          notificationContext={notificationContext}
+          failure={failureOf(
+            failure ?? notificationText(error),
+            "Operation Failed",
+            failure ? undefined : `${id}:${notificationText(error)}`,
+          )}
+        />
+      ) : null}
     </div>
   );
 }

@@ -95,6 +95,7 @@ export type DataTableProps<TData extends RowData> = {
   emptyText: string;
   getRowId: (row: TData) => string;
   onRowClick?: (row: TData) => void;
+  rowDetail?: (row: TData) => ReactNode;
   search?: DataTableSearch;
   selection?: DataTableSelection<TData>;
   /** The table's heading, on the toolbar row left of the search box. */

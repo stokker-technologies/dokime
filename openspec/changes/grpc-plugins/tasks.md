@@ -261,3 +261,14 @@
 - [x] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
 - [x] Expose Library-Owned Lane Declarations and Operation Assignment Through All Four Product SDKs; Prove Each Description and Preserve Library Validation.
 - [x] Run the Requested Final Repository, Rust Lint, Release-Context Binding and Supply Checks Without Expanding Local Test Lanes.
+
+## Desktop Failure Presentation
+
+- [x] Normalize Library Postcard Carriers and Product Status Details to One Generated Failure Protobuf at the Desktop Bridge; Preserve Plain Status Codes and Messages.
+- [x] Log Failed Host Requests and Deduplicated Plugin Failures at the Native Session Boundary With Operation, Code, Message, Action and Plugin Fields.
+- [x] Share Full-Width Failure Presentation, Decoded Copyable Details and Supported Recovery Actions; Keep Dependent Plugin Sections Quiet and Limit Toasts to Operator Actions.
+- [x] Keep Failed Plugin Settings Editable and Saveable Beneath Their Failure Card; Retain Identity and Secret Availability and Handle Disabled Undescribed Entries.
+- [x] Record Operator Action Failures Through Explicit Notification Opt-In; Keep Passive Reads and Reopened History Details Out of History.
+- [x] Retain Failed Connection Endpoints and Complete Notification Metadata in Copied Details.
+- [x] Restore Focused Coverage for Failure Identity, Root-First Causes, Admission Identifiers, Startup Recovery and Preference Persistence Refusals.
+- [ ] Complete the Release-Artifact-Dependent Binding Gate and Native Desktop Stories on the Required Platforms.

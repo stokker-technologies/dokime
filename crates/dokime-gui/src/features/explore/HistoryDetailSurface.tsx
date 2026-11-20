@@ -15,7 +15,6 @@ import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -120,9 +119,15 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         {query.isPending ? <p>Loading Executions…</p> : null}
         {query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
-          <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+            History is incomplete. Some executions may be unavailable.
+          </p>
         ) : null}
-        {deleteNotice ? <NotificationMessage tone="info">{deleteNotice}</NotificationMessage> : null}
+        {deleteNotice ? (
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {deleteNotice}
+          </p>
+        ) : null}
         {unrun ? (
           <section aria-label="Case Never Run" className="grid gap-2 rounded-lg border p-3">
             <h2 className="font-medium">This Case Was Never Run</h2>
@@ -178,7 +183,11 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         />
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
-        {!unrun && entry?.unrun_count ? <NotificationMessage tone="info">{unrunCaption(entry.unrun_count)}</NotificationMessage> : null}
+        {!unrun && entry?.unrun_count ? (
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {unrunCaption(entry.unrun_count)}
+          </p>
+        ) : null}
         {entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0 ? (
           <p>This sealed cycle contains no executions.</p>
         ) : null}
@@ -210,11 +219,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
           {deleteTarget?.checkpoint && deleteRetries[retryKey(deleteTarget)] ? (
             <p className="text-sm text-muted-foreground">Retry this deletion to confirm its result.</p>
           ) : null}
-          {deleteError ? (
-            <NotificationMessage error={deleteError}>
-              {failureOf(deleteError, "Execution Could Not Be Deleted").message}
-            </NotificationMessage>
-          ) : null}
+          {deleteError ? <ErrorCard notificationContext="action" failure={failureOf(deleteError, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button
               variant="outline"
@@ -350,7 +355,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+      {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
     </div>
   );
 }

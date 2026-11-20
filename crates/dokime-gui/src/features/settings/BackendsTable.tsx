@@ -13,15 +13,16 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+
+import { toast } from "@/lib/notifications";
 import { failureOf } from "@/lib/notification-details";
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController } from "@/app/native-session/context";
-import { connectionError } from "@/app/native-session/errors";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -49,9 +50,9 @@ export function BackendsTable({
   endpoint,
   onConnect,
 }: {
-  failure?: ReactNode;
-  retry?: (profile: string | null) => void;
+  failure?: unknown;
   endpoint?: string | null;
+  retry?: (profile: string | null) => void;
   onConnect?: () => void;
 } = {}) {
   const owner = useNativeSessionController();
@@ -65,8 +66,9 @@ export function BackendsTable({
   const [mutating, setBusy] = useState(false);
   const deletingProfile = document?.profiles.find((profile) => profile.identifier === deleting);
   const busy = mutating || state.phase === "connecting";
-  const connectionFailure = failure ?? (state.phase === "failed" ? connectionError(state.error) : null);
+  const connectionFailure = failure ?? (state.phase === "failed" ? state.error : null);
   const failedProfile = document?.profiles.find((profile) => profile.identifier === lastSelected.current);
+  const failedEndpoint = endpoint || failedProfile?.endpoint;
   useEffect(() => {
     let active = true;
     void preferencesCommands
@@ -91,6 +93,7 @@ export function BackendsTable({
       const status = await commands.desktopSessionStatus();
       if (status.connection.phase === "disconnected") await owner.disconnect();
     } catch (failure) {
+      toast.error(failureOf(failure, "Backend Could Not Be Deleted"));
       setError(failure);
     } finally {
       setBusy(false);
@@ -135,22 +138,10 @@ export function BackendsTable({
     <SettingsCard className="w-full text-left">
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <NotificationMessage
-            source="Backends"
-            title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}
-            error={state.phase === "failed" ? state.error : error}
-          >
-            {connectionFailure || failureOf(error, "Backend Operation Failed").message}
-            {connectionFailure && (endpoint || failedProfile) && (
-              <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
-            )}
-          </NotificationMessage>
-          <Button
-            className="justify-self-start"
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
+          <ErrorCard
+            notificationContext={connectionFailure && lastSelected.current ? "action" : undefined}
+            failure={failureOf(connectionFailure ?? error, connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed")}
+            onRetry={() => {
               if (connectionFailure) {
                 if (retry) retry(lastSelected.current);
                 else if (lastSelected.current) connect(lastSelected.current);
@@ -159,9 +150,9 @@ export function BackendsTable({
               setError(undefined);
               void preferencesCommands.desktopBackendsList().then(setDocument).catch(setError);
             }}
-          >
-            Retry
-          </Button>
+            retryDisabled={busy}
+          />
+          {connectionFailure && failedEndpoint ? <p className="break-all font-mono text-xs">{failedEndpoint}</p> : null}
         </div>
       )}
       {!document && !error && !connectionFailure && (
@@ -191,6 +182,7 @@ export function BackendsTable({
                   onConnect?.();
                 }
               } catch (failure) {
+                toast.error(failureOf(failure, "Backend Could Not Be Imported"));
                 setError(failure);
               } finally {
                 setBusy(false);
@@ -232,11 +224,7 @@ export function BackendsTable({
               Confirm Delete
             </Button>
           </div>
-          {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted" error={error}>
-              {failureOf(error, "Backend Operation Failed").message}
-            </NotificationMessage>
-          )}
+          {Boolean(error) && <ErrorCard failure={failureOf(error, "Backend Could Not Be Deleted")} />}
         </DialogContent>
       </Dialog>
     </SettingsCard>

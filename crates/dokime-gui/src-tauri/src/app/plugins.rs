@@ -24,14 +24,16 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
+use crate::Error;
 use crate::connection::{ConnectionSession, SessionLease};
 use dokime_client_internal::host::PluginEntry;
 use dokime_client_internal::{FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions};
 use dokime_sdk::{FileMetadata, Upload};
 use sha2::{Digest, Sha256};
-const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 /* === Constants === */
+
+const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 // Each progress message re-renders the webview; bound how often one is sent.
 // A native drop is installed right after the webview sees it; an older one is stale.
@@ -96,7 +98,7 @@ impl DroppedFiles {
 pub async fn desktop_plugin_install_file<R: tauri::Runtime>(
     window: WebviewWindow<R>, state: State<'_, ConnectionSession>, dropped: State<'_, DroppedFiles>, app: AppHandle<R>, generation: String,
     drop: bool, progress: Channel<InstallProgress>,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, Error> {
     // Keep The Native Command Small Even When Called Outside The Bindings Adapter.
     Box::pin(async move {
         let lease = admit(&window, &state, &generation)?;
@@ -138,12 +140,12 @@ async fn pick_bundle<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Option<Pat
     let Some(path) = selection.await.map_err(|_| "The plugin file picker closed without a result")? else {
         return Ok(None);
     };
-    path.into_path().map(Some).map_err(text)
+    path.into_path().map(Some).map_err(|error| error.to_string())
 }
 
 pub async fn install(
     lease: &SessionLease, bytes: Vec<u8>, progress: Channel<InstallProgress>, expected_digest: Option<&str>,
-) -> Result<PluginEntry, String> {
+) -> Result<PluginEntry, Error> {
     let size_bytes = bytes.len() as u64;
     let hashing = move || (Sha256::digest(&bytes).to_vec(), bytes);
     let (digest, bytes) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;
@@ -165,7 +167,8 @@ pub async fn install(
         request_id: Some(format!("{name}/upload")),
         context: session.call_options().map_err(text)?,
     };
-    let created = session.execute(client.files.uploads.create_with(metadata, options)).await.map_err(text)?;
+    let created =
+        session.execute("Files.Uploads.Create", client.files.uploads.create_with(metadata, options)).await.map_err(Error::from)?;
     let mut upload: Upload = created.upload.ok_or("Install Plugin: Host Omitted Its Upload")?;
     let mut published = false;
     let result = async {
@@ -179,8 +182,10 @@ pub async fn install(
                 request_id: Some(format!("{name}/append/{offset}")),
                 context: session.call_options().map_err(text)?,
             };
-            let reply =
-                session.execute(client.files.uploads.append_with(upload.clone(), offset, chunk.to_vec(), options)).await.map_err(text)?;
+            let reply = session
+                .execute("Files.Uploads.Append", client.files.uploads.append_with(upload.clone(), offset, chunk.to_vec(), options))
+                .await
+                .map_err(Error::from)?;
             upload = reply.upload.ok_or("Install Plugin: Host Omitted Upload Progress")?;
             offset += chunk.len() as u64;
             if upload.accepted_length != offset {
@@ -192,15 +197,17 @@ pub async fn install(
             request_id: Some(format!("{name}/publish")),
             context: session.call_options().map_err(text)?,
         };
-        let reply =
-            session.execute(client.files.uploads.publish_with(upload.clone(), size_bytes, digest.clone(), options)).await.map_err(text)?;
+        let reply = session
+            .execute("Files.Uploads.Publish", client.files.uploads.publish_with(upload.clone(), size_bytes, digest.clone(), options))
+            .await
+            .map_err(Error::from)?;
         published = true;
         let file = reply.upload.ok_or("Install Plugin: Host Omitted Its Published File")?;
         if file.length != size_bytes || file.sha256 != digest {
             return Err("Install Plugin: Published File Length or SHA-256 Changed".into());
         }
         let _ = progress.send(InstallProgress::Installing);
-        session.install_plugin(&name, file).await.map_err(text)
+        session.install_plugin(&name, file).await.map_err(Error::from)
     }
     .await;
     if result.is_err() && !published {
@@ -209,15 +216,15 @@ pub async fn install(
             context: session.call_options().map_err(text)?,
         };
         session
-            .execute(client.files.uploads.delete_with(upload, options))
+            .execute("Files.Uploads.Delete", client.files.uploads.delete_with(upload, options))
             .await
             .map_err(|error| format!("Abandon Plugin Upload After {result:?}: {error}"))?;
     }
     result
 }
 
-fn text(error: impl std::fmt::Display) -> String {
-    error.to_string()
+fn text(error: impl std::fmt::Display) -> Error {
+    Error::from(error.to_string())
 }
 
 /* === Tests === */

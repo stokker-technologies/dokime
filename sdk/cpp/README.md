@@ -4,6 +4,10 @@ The C++20 authoring API uses explicit plugin, suite and template classes, ordina
 operation handlers, and separate operation and template contexts. The
 [capture example](examples/starter/src/plugin/main.cpp) serves a plugin without arguments.
 
+Plugins include `dokime/dokime.hpp` or `dokime/plugin.hpp` and link `Dokime::Plugin`,
+which compiles no product gRPC stubs. Clients include `dokime/client.hpp` and link
+`Dokime::Client`, which adds the client stubs on top of `Dokime::Plugin`.
+
 The starter's `mise run build` builds Release plugin and client binaries and stages
 the plugin's runtime files in `assets/plugin` for bundling. The `development`
 CMake preset keeps Debug outputs in the build directory.
@@ -175,10 +179,34 @@ mise -C sdk/cpp run format
 mise -C sdk/cpp run check -- --preset tests
 mise -C sdk/cpp run build -- --preset tests
 mise -C sdk/cpp run test -- --preset tests
-mise -C sdk/cpp run consumer -- --preset tests
+mise -C sdk/cpp run build -- --preset release --target dokime_client
+mise -C sdk/cpp run package
+mise -C sdk/cpp run consumer
 ```
 
-Native dependency versions follow the pinned library's vcpkg baseline. These
+`package -- --preset release` writes `target/cp/release/dokime-cpp-<version>-<target>.tar.gz`
+and its `.sha256`: headers, the static SDK and library archives, the static gRPC,
+protobuf and OpenSSL closure with their code generators, relocatable CMake packages,
+`dokime-cpp.json` (build type, compiler, runtime, dependency versions) and
+`THIRD-PARTY-NOTICES`. Test-enabled packages also carry Catch2 for SDK test consumers.
+Packaging consumes the matching build and never compiles. A project sets the extracted root in `CMAKE_PREFIX_PATH`,
+or passes `DOKIME_SDK_URL` and `DOKIME_SDK_SHA256` as the starter's presets do, and
+builds without a package manager. Bundles require CMake 4.2 or newer (the starter
+pins 4.2.8); earlier CMake finders do not recognize the native dependency layout.
+Windows consumers use the MSVC toolset recorded
+in the manifest and `CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL` before `project()`.
+Linux consumers use the recorded compiler major version, the C++11 libstdc++ ABI,
+and glibc no older than the recorded version. Other compiler, standard-library or
+runtime combinations require a source build of the SDK and its dependencies;
+cross-toolchain ABI compatibility is not promised. `consumer -- --source PATH`
+builds a project against the package of the selected preset. SDK tests accept
+`build -- --sdk-package PATH` and `test -- --sdk-package PATH`, where PATH is an
+extracted SDK or its archive; they compile only the tests and examples against it.
+
+Native dependency versions follow the pinned library's vcpkg baseline. They build
+once, in Release, as static libraries on the dynamic release runtime
+(`x64-windows-static-md-release`, `x64-linux-release`); Debug SDK builds use that
+runtime on Windows too. Catch2 installs only when stories are configured. These
 tasks use this checkout's `target/cp/` and Debug test preset. The tests cover
 class composition, independent binding, duplicate refusal, primitive conversion,
 dotenv parsing and managed/remote calls. The C++ thermal host fixture is the

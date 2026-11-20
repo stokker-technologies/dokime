@@ -128,6 +128,30 @@ path = "target/package/{profile}/{target}/rust/release.json"
 signed_only = true
 target = "windows-x86_64"
 
+[[release.assets]]
+kind = "tool"
+name = "{product}-cpp-{version}-x86_64-unknown-linux-gnu.tar.gz"
+path = "target/package/{profile}/{target}/cpp/dokime-cpp-{version}-x86_64-unknown-linux-gnu.tar.gz"
+target = "linux-x86_64"
+
+[[release.assets]]
+kind = "tool"
+name = "{product}-cpp-{version}-x86_64-unknown-linux-gnu.tar.gz.sha256"
+path = "target/package/{profile}/{target}/cpp/dokime-cpp-{version}-x86_64-unknown-linux-gnu.tar.gz.sha256"
+target = "linux-x86_64"
+
+[[release.assets]]
+kind = "tool"
+name = "{product}-cpp-{version}-x86_64-pc-windows-msvc.tar.gz"
+path = "target/package/{profile}/{target}/cpp/dokime-cpp-{version}-x86_64-pc-windows-msvc.tar.gz"
+target = "windows-x86_64"
+
+[[release.assets]]
+kind = "tool"
+name = "{product}-cpp-{version}-x86_64-pc-windows-msvc.tar.gz.sha256"
+path = "target/package/{profile}/{target}/cpp/dokime-cpp-{version}-x86_64-pc-windows-msvc.tar.gz.sha256"
+target = "windows-x86_64"
+
 [[release.plugins]]
 kind = "sidecar"
 package = "plugin-host"
