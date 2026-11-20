@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 # isort: split
@@ -68,7 +69,16 @@ def package(root: Path, profile: str) -> None:
     ]
     if signed:
         command.append("--sign")
-    subprocess.run(command, cwd=root, env=environment, check=True, creationflags=spawn_flags())
+    subprocess.run(
+        command,
+        cwd=root,
+        env=environment,
+        check=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
 
 
 # === Private Functions === #

@@ -9,6 +9,11 @@ producer, its configuration and tests only after updater and native payload pari
 is established. Retain the CI graph and job names; change packaging steps only.
 The installer is never executed during this delivery.
 
+Architecture invariant 14 states that "shells never redeclare contracts"
+(`docs/architecture.md:363`). The packaging library owns assembly and its narrow
+step events; the CLI owns rendering and does not introduce a second event model
+or callback into the whole runtime.
+
 The default `installer.toml` omits the installer version, which resolves to the
 built CLI's package version. `signing.updater.artifact_base_url_env` is mutually
 exclusive with `artifact_base_url`; it resolves an HTTPS base URL from the named
@@ -148,6 +153,8 @@ target, acquisition and verified inventory. Plugin entries distinguish defaults
 from additions. Output reports paths and sizes; the final line reports installer
 count and total duration. The header uses the CLI's shared build identity when
 available, with one call site. Signing notices use the same observer.
+The Python package dispatcher forwards all three standard streams explicitly so
+the built CLI's output survives headless Windows invocation.
 
 ## Proof and Ownership
 
@@ -162,6 +169,11 @@ produced names and sizes with published Nightly assets. Hosted Nightly must prov
 native Windows/Linux packaging and release verification. Commit locally and never
 push from this worktree.
 
+Packaging has no external 7-Zip requirement: the shared Python writer owns ZIP
+outputs and the native bundler owns installer assembly. Remove the unused package
+task tool and packaging-job allowlist entries. One-off archive inspection does
+not add a project dependency.
+
 
 ## Retained Overlaps for Owner Decision
 
@@ -172,8 +184,10 @@ requested Python producer and ZIP member writers are removed in this delivery.
 | --- | --- | --- |
 | `crates/dokime-packaging/src/installer/{pack,policy}.rs` and `crates/dokime-gui/src-tauri/src/app/{organization/pack,updates/policy}.rs` | Both validate appearance and update policy; installer preparation calls the former, desktop pack loading and updates call the latter. | Delete the packaging copies after choosing a lightweight shared contract owner. |
 | `crates/dokime-packaging/src/installer/distribution.rs::Identity` and `crates/dokime-gui/src-tauri/src/paths.rs::DistributionIdentity` | Both validate reverse-DNS distribution identity; CLI packaging and desktop installation resolution call them respectively. | Delete the desktop validator after exposing the shared identity contract without bundler dependencies. |
-| `crates/dokime-packaging/src/installer/hooks.nsh` and `crates/dokime-gui/src-tauri/installer-hooks.nsh` | Both define machine-install refusal; the unified native packager calls the former, the latter's Python producer is deleted and it has no remaining consumer. | Delete the desktop hook in its owner's delivery. |
+| `crates/dokime-packaging/src/installer/{native.rs,hooks.nsh,installer.nsi}` and `crates/dokime-gui/src-tauri/{tauri.conf.json,installer-hooks.nsh}` | Both declare NSIS policy/hooks and Linux package dependencies. The active CLI producer uses the native settings and hook; desktop development/context generation still reads the GUI configuration, but its old installer producer is deleted and the old hook has no remaining producer. | Delete the GUI hook and unused installer-only bundle settings in the desktop owner's delivery, preserving fields still needed by desktop context/icon generation. |
 | `crates/dokime-packaging/src/bundle/mod.rs::{create_project,create}` | Both construct native plugin inventories and freeze them through the library writer; CLI bundling calls the former, runtime `host.rs` and test fixtures call the latter. | Delete the raw-executable helper after migrating the runtime convenience API and fixtures to the project/bundle boundary. |
 | `crates/dokime-packaging/src/bundle/mod.rs::create_project` entrypoint insertion and assets traversal; `sdk/cpp/examples/starter/dokime.toml` | C++ selects an executable below `assets/plugin/`, so that same file also enters the assets inventory; CLI project bundling calls both blocks. | Delete the selected executable's assets copy, retaining its `bin/` entrypoint. |
 | `tools/python/src/dokime_tools/ci/signing.py:70` and `crates/dokime-packaging/src/installer/native.rs::prepare` | Release CI signs/verifies exported executables; native preparation signs their staged copies with the same provider. | Delete repeat signing of already verified, unchanged payloads in the native path while preserving verification and re-signing patched artwork. |
 | `tools/python/src/dokime_tools/release/layout.py::plugin_feed` and `crates/dokime-packaging/src/installer/plugins.rs::select` | Release staging publishes package-based plugin names, while installer selection uses bundle identities; `plugin-obc` versus `obc` exposes the mismatch. The new kit declaration also uses inspected bundle identities. | Delete the package-name projection after deciding whether the release catalog still has a consumer; any retained catalog should use the existing bundle inspector's identities. |
+| `tools/python/src/dokime_tools/ci/tasks.py::main` focused-package command construction and `tools/python/src/dokime_tools/test/focused.py::{selections,changed}` | Both construct Rust test commands; `mise run test -- --package` calls the former and `--changed` calls the latter. The changed-path branch returns before filter validation and does not forward `--filterset`, so the combination silently drops its filter. | Delete the inline package command builder after routing both scopes through the existing selection owner, preserving explicit filters or rejecting unsupported combinations. This tooling is outside the installer worker's ownership. |
+| `crates/dokime-packaging/src/installer/distribution.rs::digest`, `crates/dokime-packaging/src/bundle/mod.rs::tests::digest` and Harmos `crates/harmos-runtime/src/bundle/mod.rs::digest` | All compute lowercase hexadecimal SHA-256 for bytes. Installer verification/payload indexing and bundle fixture construction call the local copies; library bundle integrity and the product's installation fixtures use the library facility. | Delete both local digest functions and use the existing public library function; review the remaining direct hash dependency before removing it. |

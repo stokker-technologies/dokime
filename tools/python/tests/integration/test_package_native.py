@@ -15,6 +15,7 @@ import json
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -129,6 +130,9 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(command[command.index("--manifest") + 1], str(root / "installer.toml"))
             self.assertEqual(command[command.index("--format") + 1], "nsis" if windows else "deb,rpm")
             self.assertEqual("--sign" in command, signed)
+            self.assertIs(run.call_args.kwargs["stdin"], sys.stdin)
+            self.assertIs(run.call_args.kwargs["stdout"], sys.stdout)
+            self.assertIs(run.call_args.kwargs["stderr"], sys.stderr)
             if signed:
                 self.assertEqual(run.call_args.kwargs["env"]["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"], "")
             self.assertEqual(
