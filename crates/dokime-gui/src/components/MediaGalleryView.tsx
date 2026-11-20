@@ -18,10 +18,10 @@
 import { ErrorCard } from "@/components/ErrorCard";
 import type { NotificationFailure } from "@/lib/notification-details";
 import { failureOf } from "@/lib/notification-details";
-import { AudioLines, Download, ExternalLink, Image as ImageIcon, Search, Video } from "lucide-react";
+import * as icons from "lucide-react";
+import { AudioLines, Download, ExternalLink, Search, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -198,15 +198,16 @@ export function MediaGallerySurface({
                 ) : selectedArtifact.nativeTransfer && mediaBlobType(selectedArtifact) ? (
                   <div className="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
                     {preview?.errors[selectedArtifact.artifact_id] ? (
-                      <ErrorCard failure={failureOf(preview?.failures?.[selectedArtifact.artifact_id], "Media Preview Unavailable")} />
+                      <ErrorCard
+                        failure={failureOf(
+                          preview?.failures?.[selectedArtifact.artifact_id] ?? preview?.errors[selectedArtifact.artifact_id],
+                          "Media Preview Unavailable",
+                        )}
+                        onRetry={() => preview?.retry(selectedArtifact.artifact_id)}
+                      />
                     ) : (
                       <p>Loading media preview…</p>
                     )}
-                    {preview?.errors[selectedArtifact.artifact_id] ? (
-                      <Button size="sm" type="button" variant="outline" onClick={() => preview?.retry(selectedArtifact.artifact_id)}>
-                        Retry Preview
-                      </Button>
-                    ) : null}
                   </div>
                 ) : (
                   <p className="p-8 text-center text-sm text-muted-foreground">Preview unavailable for this media artifact.</p>
@@ -263,10 +264,10 @@ export function MediaGallerySurface({
                     </>
                   ) : null}
                   {nativeOpenError?.artifactId === selectedArtifact.artifact_id ? (
-                    <NotificationMessage failure={nativeOpenError.failure}>{nativeOpenError.message}</NotificationMessage>
+                    <ErrorCard failure={failureOf(nativeOpenError.failure, "Operation Failed")} />
                   ) : null}
                   {nativeDownloadError?.artifactId === selectedArtifact.artifact_id ? (
-                    <NotificationMessage failure={nativeDownloadError.failure}>{nativeDownloadError.message}</NotificationMessage>
+                    <ErrorCard failure={failureOf(nativeDownloadError.failure, "Operation Failed")} />
                   ) : null}
                 </div>
               </div>
@@ -430,7 +431,7 @@ function MediaGalleryCard({
 }
 
 function MediaKindIcon({ className, kind, size }: { className: string; kind: MediaArtifactKind; size: number }) {
-  if (kind === "image") return <ImageIcon className={className} size={size} />;
+  if (kind === "image") return <icons.Image className={className} size={size} />;
   if (kind === "audio") return <AudioLines className={className} size={size} />;
   return <Video className={className} size={size} />;
 }

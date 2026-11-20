@@ -27,7 +27,6 @@ import type { ConnectedSession } from "@/app/native-session/session";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -171,14 +170,14 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           All plugins on this host can look up these identifiers. Values stay in its OS keyring.
         </p>
         {error ? (
-          <NotificationMessage error={error}>{failureOf(error, "Secret Change Failed").message}</NotificationMessage>
+          <ErrorCard failure={failureOf(error, "Operation Failed")} />
         ) : query.error ? (
           <ErrorCard failure={failureOf(query.error, "Secrets Unavailable")} onRetry={() => void query.refetch()} />
         ) : null}
         {snapshot?.cleanupPending && (
-          <NotificationMessage source="Secrets" title="Keyring Cleanup Pending" tone="info">
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
             The change is active, but an obsolete keyring slot could not be removed.
-          </NotificationMessage>
+          </p>
         )}
         <DataTable
           aria-label="Secrets"
@@ -330,7 +329,7 @@ function SecretEditor({
           <DialogTitle>{editor.kind === "new" ? "Add Secret" : "Edit Secret"}</DialogTitle>
           <DialogDescription>Values stay in the host’s OS keyring.</DialogDescription>
         </DialogHeader>
-        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+        {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
         <form
           className="grid gap-3"
           onSubmit={(event) => {

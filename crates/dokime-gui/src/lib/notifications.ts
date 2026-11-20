@@ -17,7 +17,8 @@
 
 // Third Party Imports
 import { createElement, isValidElement, type ReactNode, useSyncExternalStore } from "react";
-import { toast as displayToast, type ExternalToast } from "sonner";
+import * as sonner from "sonner";
+import type { ExternalToast } from "sonner";
 
 // Local Imports
 import { failureOf, type NotificationFailure } from "@/lib/notification-details";
@@ -190,8 +191,9 @@ export async function clearPluginNotifications(generation: string, installations
   };
   await completed(transaction);
   for (const id of removed) {
-    displayToast.dismiss(id);
-    delivered.delete(id);
+    sonner.toast.dismiss(id);
+    delivered.delete(`background:${id}`);
+    delivered.delete(`action:${id}`);
     if (selectedNotification?.id === id) openNotificationDetails(null);
   }
   if (removed.length) await refresh();
@@ -319,9 +321,9 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
   const { source, pluginSettings, missingSecret, consequences, failure, context = "action", ...display } = options;
   if (failure) {
     const destinations = routeFailure(failure, context);
-    if (!destinations.toast) return failure.id;
-    if (delivered.has(failure.id)) return failure.id;
-    delivered.add(failure.id);
+    if (!destinations.history) return failure.id;
+    if (delivered.has(`${context}:${failure.id}`)) return failure.id;
+    delivered.add(`${context}:${failure.id}`);
   }
   const origin = source?.trim() || (typeof location === "undefined" ? "" : location.pathname.trim());
   const identity = Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("-");
@@ -338,7 +340,7 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
     consequences,
     failure,
   };
-  const id = showNotification(record, display);
+  const id = context === "action" ? showNotification(record, display) : record.id;
   void recordNotification(record).catch((error: unknown) => historyFailure(error, "background"));
   return id;
 }
@@ -348,8 +350,7 @@ function showNotification(record: NotificationRecord, options: ExternalToast = {
     "button",
     {
       type: "button",
-      className:
-        "-m-1 grid min-w-0 cursor-pointer gap-1 rounded p-1 text-left outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+      className: "-m-1 grid min-w-0 cursor-pointer gap-1 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
       "aria-haspopup": "dialog",
       onClick: () => openNotificationDetails(record),
     },
@@ -357,11 +358,11 @@ function showNotification(record: NotificationRecord, options: ExternalToast = {
     record.description &&
       createElement(
         "span",
-        { className: "line-clamp-3 whitespace-pre-wrap text-xs font-normal text-muted-foreground" },
+        { className: "select-text whitespace-pre-wrap break-words text-xs font-normal text-muted-foreground" },
         record.description,
       ),
   );
-  return displayToast[record.tone](content, {
+  return sonner.toast[record.tone](content, {
     ...options,
     id: options.id ?? record.id,
     description: undefined,

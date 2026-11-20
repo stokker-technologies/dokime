@@ -20,12 +20,13 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+
 // Standard Library Imports
 
 import { failureOf } from "@/lib/notification-details";
 import { type FormEvent, useEffect, useId, useState } from "react";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -180,7 +181,7 @@ export function SettingsDialog({
             titleInvalid={error === EMPTY_SETTINGS_TITLE_ERROR}
             values={draft}
           />
-          {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+          {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button disabled={saving} onClick={() => onOpenChange(false)} type="button" variant="outline">
               {editable ? "Cancel" : "Close"}

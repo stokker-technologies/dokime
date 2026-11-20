@@ -72,6 +72,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   }, [appendTo, choose, openCycles]);
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
+  const waitingPlugins = (pluginsQuery.data ?? []).filter((plugin) => ["failed", "connecting", "unavailable"].includes(plugin.status));
+  const suiteFailure = suitesQuery.isError ? failureOf(suitesQuery.error, "Could Not Load Suites") : null;
+  const waitingForSource = Boolean(suiteFailure?.plugin && waitingPlugins.some((plugin) => plugin.plugin_id === suiteFailure.plugin));
   const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
   const [suiteSearch, setSuiteSearch] = useState("");
@@ -140,7 +143,12 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
 
-      {suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
+      {waitingPlugins.map((plugin) => (
+        <p key={plugin.plugin_id} role="status" className="text-sm text-muted-foreground">
+          Waiting for Plugin {plugin.label}
+        </p>
+      ))}
+      {suiteFailure && !waitingForSource ? <ErrorCard failure={suiteFailure} onRetry={() => void suitesQuery.refetch()} /> : null}
       <Input
         aria-label="Filter Templates"
         placeholder="Filter Templates"

@@ -16,18 +16,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { failureOf } from "@/lib/notification-details";
-import { toast } from "@/lib/notifications";
-import { FailureDetails } from "@/components/FailureDetails";
 import { useRef, useState } from "react";
 
 // Local Imports
+import { ErrorCard } from "@/components/ErrorCard";
 import { relativeTime } from "@/components/document/document-overview-model";
 import { FailureConsequences } from "@/components/FailureConsequences";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { notificationDetailsText } from "@/lib/notification-details";
-import { openNotificationDetails, useNotificationDetails } from "@/lib/notifications";
+import { failureOf, notificationDetailsText } from "@/lib/notification-details";
+import { openNotificationDetails, toast, useNotificationDetails } from "@/lib/notifications";
 
 /* === Re-Exports === */
 
@@ -68,8 +66,8 @@ export function NotificationDetailsDialog() {
         </DialogHeader>
         {record && (
           <div className="grid min-h-0 gap-4 overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere]">
-            {record.description && <p>{record.description}</p>}
-            {failure?.message && failure.message !== record.description && <p>{failure.message}</p>}
+            {!failure && record.description && <p className="select-text">{record.description}</p>}
+            {failure && <ErrorCard failure={failure} />}
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2">
               <dt className="text-muted-foreground">Source</dt>
               <dd>{record.source}</dd>
@@ -81,46 +79,31 @@ export function NotificationDetailsDialog() {
               </dd>
               <dt className="text-muted-foreground">Severity</dt>
               <dd className="capitalize">{record.tone}</dd>
-              {(
-                [
-                  ["Reason", failure?.reason],
-                  ["Operation", failure?.operation],
-                  ["Operation ID", failure?.operationId],
-                  ["Request ID", failure?.requestId],
-                  ["Invocation ID", failure?.invocationId],
-                ] as const
-              )
-                .filter(([, value]) => value)
-                .map(([label, value]) => (
-                  <div className="contents" key={label}>
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
             </dl>
             <FailureConsequences items={record.consequences ?? []} />
-            {failure && <FailureDetails failure={failure} />}
           </div>
         )}
         <DialogFooter showCloseButton>
           <span role="status" className="self-center text-xs text-muted-foreground">
             {copyStatus}
           </span>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              if (!record) return;
-              try {
-                await navigator.clipboard.writeText(notificationDetailsText(record, relative));
-                setCopyStatus("Copied");
-              } catch (error: unknown) {
-                toast.error(failureOf(error, "Could Not Copy Notification"));
-                setCopyStatus("Could not copy. Try again.");
-              }
-            }}
-          >
-            Copy
-          </Button>
+          {!failure && (
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!record) return;
+                try {
+                  await navigator.clipboard.writeText(notificationDetailsText(record, relative));
+                  setCopyStatus("Copied");
+                } catch (error: unknown) {
+                  toast.error(failureOf(error, "Could Not Copy Notification"));
+                  setCopyStatus("Could not copy. Try again.");
+                }
+              }}
+            >
+              Copy
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

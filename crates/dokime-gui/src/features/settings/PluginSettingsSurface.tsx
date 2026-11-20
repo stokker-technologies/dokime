@@ -24,7 +24,6 @@ import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import { useMemo } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -72,6 +71,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
     overflow: actions,
   });
 
+  const waiting = Boolean(owning && (owning.failure || !owning.description));
+  const label = owning?.description?.id || owning?.name || sectionId;
   const cards = settings.frame?.cards.filter((card) => card.sectionId === sectionId) ?? [];
 
   return (
@@ -85,14 +86,25 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
               </p>
             </SettingsRow>
           </SettingsCard>
+        ) : waiting ? (
+          <>
+            {owning?.failure ? (
+              <ErrorCard
+                failure={pluginStartFailure(owning, generation)}
+                onRetry={reloadable ? () => reload.mutate(owning.name) : undefined}
+                retryLabel="Restart Plugin"
+                retryDisabled={reload.isPending}
+              />
+            ) : null}
+            <SettingsCard title="Settings">
+              <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
+                Waiting for Plugin {label}
+              </p>
+            </SettingsCard>
+          </>
         ) : settings.error ? (
           <SettingsCard title="Settings">
-            <SettingsRow label="Status">
-              <ErrorCard failure={failureOf(settings.failure, "Data Unavailable")} />
-              <Button onClick={settings.retry} size="sm" variant="outline">
-                Try Again
-              </Button>
-            </SettingsRow>
+            <ErrorCard failure={failureOf(settings.failure, "Settings Unavailable")} onRetry={settings.retry} />
           </SettingsCard>
         ) : (
           <>
@@ -108,17 +120,10 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 >
                   Reload
                 </Button>
-                {reload.isError ? <NotificationMessage error={reload.error}>{reload.error.message}</NotificationMessage> : null}
+                {reload.isError ? <ErrorCard failure={failureOf(reload.error, "Operation Failed")} /> : null}
               </SettingsRow>
             </SettingsCard>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
-            {owning?.failure ? (
-              <SettingsCard title="Plugin Unavailable">
-                <SettingsRow label={owning.description?.id || owning.name}>
-                  <ErrorCard failure={pluginStartFailure(owning, generation)} />
-                </SettingsRow>
-              </SettingsCard>
-            ) : null}
             {installation ? <PluginDetailCard pluginId={installation.name} /> : null}
             {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
@@ -155,11 +160,10 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     );
   }
   if (detailQuery.isError) {
+    const failure = failureOf(detailQuery.error, "Settings Unavailable");
     return (
       <SettingsCard title="Settings">
-        <SettingsRow label="Status">
-          <ErrorCard failure={failureOf(detailQuery.error, "Data Unavailable")} />
-        </SettingsRow>
+        <ErrorCard failure={failure} onRetry={() => void detailQuery.refetch()} />
       </SettingsCard>
     );
   }

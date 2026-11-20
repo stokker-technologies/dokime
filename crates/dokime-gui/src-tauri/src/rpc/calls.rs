@@ -31,7 +31,7 @@ use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use super::{Bridge, Context, RpcError};
+use super::{Bridge, Context, Error};
 use crate::connection::{ConnectionSession, host};
 use crate::rpc::protocol;
 
@@ -115,15 +115,15 @@ impl Streams {
         });
     }
 
-    fn open(&self, context: Context, channel: Channel<Response>, mut opening: Opening) -> Result<Response, RpcError> {
+    fn open(&self, context: Context, channel: Channel<Response>, mut opening: Opening) -> Result<Response, Error> {
         context.check()?;
         let client = context.client();
         let max_request_bytes = protocol::FRAME_BYTES as usize;
         if opening.payload.len() > max_request_bytes {
-            return Err(RpcError::LimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         let (sender, receiver) = mpsc::channel(DESKTOP_INPUT_BUFFER_ITEMS as usize);
-        sender.try_send(mem::take(&mut opening.payload)).map_err(|_| RpcError::Busy)?;
+        sender.try_send(mem::take(&mut opening.payload)).map_err(|_| Error::Busy)?;
         let entry = Arc::new(Entry {
             owner: context.owner.clone(),
             generation: context.generation,
@@ -135,7 +135,7 @@ impl Streams {
         });
         let id = {
             let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
-            registry.next_id = registry.next_id.checked_add(1).ok_or(RpcError::LimitExceeded)?;
+            registry.next_id = registry.next_id.checked_add(1).ok_or(Error::LimitExceeded)?;
             let id = registry.next_id;
             registry.entries.insert(id, Arc::clone(&entry));
             id
@@ -146,7 +146,7 @@ impl Streams {
             let generation = context.generation;
             let result = tokio::select! {
                 biased;
-                _ = entry.cancel.cancelled() => Err(RpcError::Cancelled),
+                _ = entry.cancel.cancelled() => Err(Error::Cancelled),
                 result = context.execute(forward(
                     &entry,
                     &context,
@@ -166,7 +166,7 @@ impl Streams {
             let mut registry = registry.lock().expect("RPC stream registry poisoned");
             let result = match registry.entries.remove(&id) {
                 Some(_) => result,
-                None => Err(RpcError::Cancelled),
+                None => Err(Error::Cancelled),
             };
             let terminal = match result {
                 Ok(()) => frame(generation, FRAME_END, &[]),
@@ -177,7 +177,7 @@ impl Streams {
         Ok(response)
     }
 
-    fn get(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Entry>, RpcError> {
+    fn get(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Entry>, Error> {
         self.registry
             .lock()
             .expect("RPC stream registry poisoned")
@@ -185,16 +185,16 @@ impl Streams {
             .get(&id)
             .filter(|entry| entry.owner == owner && entry.generation == generation)
             .cloned()
-            .ok_or(RpcError::UnknownStream)
+            .ok_or(Error::UnknownStream)
     }
 
-    fn remove(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Entry>, RpcError> {
+    fn remove(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Entry>, Error> {
         let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
         match registry.entries.get(&id) {
             Some(entry) if entry.owner == owner && entry.generation == generation => {
                 Ok(registry.entries.remove(&id).expect("the stream is registered"))
             }
-            _ => Err(RpcError::UnknownStream),
+            _ => Err(Error::UnknownStream),
         }
     }
 
@@ -204,22 +204,22 @@ impl Streams {
 }
 
 impl Entry {
-    async fn send(&self, payload: Vec<u8>) -> Result<(), RpcError> {
+    async fn send(&self, payload: Vec<u8>) -> Result<(), Error> {
         if payload.len() > self.max_request_bytes {
-            return Err(RpcError::LimitExceeded);
+            return Err(Error::LimitExceeded);
         }
-        let sender = self.input.lock().await.clone().ok_or(RpcError::UnknownStream)?;
+        let sender = self.input.lock().await.clone().ok_or(Error::UnknownStream)?;
         tokio::select! {
             biased;
-            _ = self.cancel.cancelled() => Err(RpcError::Cancelled),
-            sent = sender.send(payload) => sent.map_err(|_| RpcError::UnknownStream),
+            _ = self.cancel.cancelled() => Err(Error::Cancelled),
+            sent = sender.send(payload) => sent.map_err(|_| Error::UnknownStream),
         }
     }
 
-    fn acknowledge(&self, count: u64) -> Result<(), RpcError> {
+    fn acknowledge(&self, count: u64) -> Result<(), Error> {
         let mut delivery = self.delivery.lock().expect("RPC stream credit poisoned");
         let acknowledged =
-            delivery.acknowledged.checked_add(count).filter(|acknowledged| *acknowledged <= delivery.sent).ok_or(RpcError::InvalidAck)?;
+            delivery.acknowledged.checked_add(count).filter(|acknowledged| *acknowledged <= delivery.sent).ok_or(Error::InvalidAck)?;
         delivery.acknowledged = acknowledged;
         drop(delivery);
         self.credit.add_permits(count as usize);
@@ -232,7 +232,7 @@ impl Entry {
 #[tauri::command]
 pub async fn rpc<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<Response, RpcError> {
+) -> Result<Response, Error> {
     // Keep the Nested Client Future off Tauri's Main-Thread Response Stack
     Box::pin(async move {
         let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
@@ -241,7 +241,7 @@ pub async fn rpc<R: Runtime>(
         let mut admission_ms = 0.0;
         let reply = async {
             // Unary Calls Wait for Admission so Bursts Do Not Refuse Short Queries
-            let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled);
+            let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| Error::Cancelled);
             admission_ms = started.elapsed().as_secs_f64() * 1000.0;
             let context = bridge.context(&session, webview.label(), generation, Some(permit?))?;
             let client = context.client();
@@ -260,7 +260,7 @@ pub async fn rpc<R: Runtime>(
 #[tauri::command]
 pub async fn rpc_stream_open<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<Response, RpcError> {
+) -> Result<Response, Error> {
     let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     let headers = request.headers();
     let permit = bridge.admit(bridge.streams.budget())?;
@@ -275,11 +275,11 @@ pub async fn rpc_stream_open<R: Runtime>(
         keep_input: match header(headers, INPUT_HEADER)? {
             None | Some("closed") => false,
             Some("open") => true,
-            Some(_) => return Err(RpcError::InvalidRequest),
+            Some(_) => return Err(Error::InvalidRequest),
         },
     };
-    let channel = JavaScriptChannelId::from_str(header(headers, CHANNEL_HEADER)?.ok_or(RpcError::InvalidRequest)?)
-        .map_err(|_| RpcError::InvalidRequest)?
+    let channel = JavaScriptChannelId::from_str(header(headers, CHANNEL_HEADER)?.ok_or(Error::InvalidRequest)?)
+        .map_err(|_| Error::InvalidRequest)?
         .channel_on(webview.as_ref().clone());
     bridge.streams.open(context, channel, opening)
 }
@@ -287,7 +287,7 @@ pub async fn rpc_stream_open<R: Runtime>(
 #[tauri::command]
 pub async fn rpc_stream_send<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     let entry = bridge.streams.get(webview.label(), generation, stream(request.headers())?)?;
@@ -297,17 +297,17 @@ pub async fn rpc_stream_send<R: Runtime>(
 #[tauri::command]
 pub async fn rpc_stream_finish<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     let entry = bridge.streams.get(webview.label(), generation, stream(request.headers())?)?;
-    entry.input.lock().await.take().map(drop).ok_or(RpcError::UnknownStream)
+    entry.input.lock().await.take().map(drop).ok_or(Error::UnknownStream)
 }
 
 #[tauri::command]
 pub async fn rpc_stream_cancel<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     bridge.streams.remove(webview.label(), generation, stream(request.headers())?)?.cancel.cancel();
@@ -317,14 +317,14 @@ pub async fn rpc_stream_cancel<R: Runtime>(
 #[tauri::command]
 pub async fn rpc_stream_ack<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     let headers = request.headers();
     let count = header(headers, CREDIT_HEADER)?
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|count| (1..=protocol::STREAM_CREDIT).contains(count))
-        .ok_or(RpcError::InvalidAck)?;
+        .ok_or(Error::InvalidAck)?;
     bridge.streams.get(webview.label(), generation, stream(headers)?)?.acknowledge(count)
 }
 
@@ -333,26 +333,26 @@ pub async fn rpc_stream_ack<R: Runtime>(
 async fn forward(
     entry: &Entry, context: &Context, client: &host::Session, channel: &Channel<Response>, opening: &Opening,
     mut receiver: mpsc::Receiver<Vec<u8>>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     if opening.keep_input {
         let response = client.input_raw(&opening.path, receiver).await?;
         context.check()?;
-        entry.credit.acquire().await.map_err(|_| RpcError::Cancelled)?.forget();
+        entry.credit.acquire().await.map_err(|_| Error::Cancelled)?.forget();
         entry.delivery.lock().expect("RPC stream credit poisoned").sent += 1;
-        channel.send(Response::new(frame(context.generation, FRAME_MESSAGE, &response))).map_err(|_| RpcError::Cancelled)?;
+        channel.send(Response::new(frame(context.generation, FRAME_MESSAGE, &response))).map_err(|_| Error::Cancelled)?;
         return Ok(());
     }
-    let payload = receiver.recv().await.ok_or(RpcError::InvalidRequest)?;
+    let payload = receiver.recv().await.ok_or(Error::InvalidRequest)?;
     let client = opening.deadline.map(|deadline| client.with_watch_timeout(deadline)).unwrap_or_else(|| client.clone());
     let mut incoming = client.watch_raw(&opening.path, &payload).await?;
     loop {
-        entry.credit.acquire().await.map_err(|_| RpcError::Cancelled)?.forget();
+        entry.credit.acquire().await.map_err(|_| Error::Cancelled)?.forget();
         let Some(message) = incoming.next().await.transpose()? else {
             return Ok(());
         };
         context.check()?;
         entry.delivery.lock().expect("RPC stream credit poisoned").sent += 1;
-        channel.send(Response::new(frame(context.generation, FRAME_MESSAGE, &message))).map_err(|_| RpcError::Cancelled)?;
+        channel.send(Response::new(frame(context.generation, FRAME_MESSAGE, &message))).map_err(|_| Error::Cancelled)?;
     }
 }
 
@@ -364,21 +364,21 @@ fn frame(generation: u64, kind: u8, payload: &[u8]) -> Vec<u8> {
     bytes
 }
 
-fn header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, RpcError> {
-    headers.get(name).map(|value| value.to_str().map_err(|_| RpcError::InvalidRequest)).transpose()
+fn header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, Error> {
+    headers.get(name).map(|value| value.to_str().map_err(|_| Error::InvalidRequest)).transpose()
 }
 
-fn path(headers: &HeaderMap) -> Result<&str, RpcError> {
-    let path = header(headers, PATH_HEADER)?.ok_or(RpcError::InvalidRequest)?;
-    let (service, method) = path.strip_prefix('/').and_then(|path| path.split_once('/')).ok_or(RpcError::InvalidRequest)?;
+fn path(headers: &HeaderMap) -> Result<&str, Error> {
+    let path = header(headers, PATH_HEADER)?.ok_or(Error::InvalidRequest)?;
+    let (service, method) = path.strip_prefix('/').and_then(|path| path.split_once('/')).ok_or(Error::InvalidRequest)?;
     let valid = !service.is_empty()
         && !method.is_empty()
         && service.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.'))
         && method.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
-    valid.then_some(path).ok_or(RpcError::InvalidRequest)
+    valid.then_some(path).ok_or(Error::InvalidRequest)
 }
 
-fn deadline(headers: &HeaderMap, default: Duration, maximum: Duration) -> Result<Duration, RpcError> {
+fn deadline(headers: &HeaderMap, default: Duration, maximum: Duration) -> Result<Duration, Error> {
     let Some(value) = header(headers, DEADLINE_HEADER)? else {
         return Ok(default);
     };
@@ -387,11 +387,11 @@ fn deadline(headers: &HeaderMap, default: Duration, maximum: Duration) -> Result
         .ok()
         .filter(|milliseconds| *milliseconds > 0)
         .map(|milliseconds| Duration::from_millis(milliseconds).min(maximum))
-        .ok_or(RpcError::InvalidRequest)
+        .ok_or(Error::InvalidRequest)
 }
 
-fn stream(headers: &HeaderMap) -> Result<u64, RpcError> {
-    header(headers, STREAM_HEADER)?.and_then(|value| value.parse().ok()).ok_or(RpcError::UnknownStream)
+fn stream(headers: &HeaderMap) -> Result<u64, Error> {
+    header(headers, STREAM_HEADER)?.and_then(|value| value.parse().ok()).ok_or(Error::UnknownStream)
 }
 
 /* === Tests === */
@@ -451,7 +451,7 @@ mod tests {
         };
         entry.acknowledge(2).unwrap();
         assert_eq!(entry.credit.available_permits(), 2);
-        assert!(matches!(entry.acknowledge(2), Err(RpcError::InvalidAck)));
+        assert!(matches!(entry.acknowledge(2), Err(Error::InvalidAck)));
         entry.acknowledge(1).unwrap();
         assert_eq!(entry.credit.available_permits(), 3);
     }

@@ -398,11 +398,12 @@ impl DesktopSession {
                     diagnostics: None,
                 })?;
                 let options = SettingsGetOptions { context, ..Default::default() };
-                let snapshot =
-                    session.execute(session.client().settings.get_with(options)).await.map_err(|error| DesktopSessionError::Startup {
+                let snapshot = session.execute("Settings.Get", session.client().settings.get_with(options)).await.map_err(|error| {
+                    DesktopSessionError::Startup {
                         message: error.to_string(),
                         diagnostics: None,
-                    })?;
+                    }
+                })?;
                 snapshot.value.and_then(|settings| settings.client).ok_or_else(|| DesktopSessionError::Startup {
                     message: "Read Local Preferences: Host Omitted Client Settings".into(),
                     diagnostics: None,

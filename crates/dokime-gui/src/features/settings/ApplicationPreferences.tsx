@@ -16,8 +16,6 @@ import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 import type { ApplicationSettings, SettingsScope, PreferencesSnapshot } from "@generated/application-settings";
 import { useEffect, useRef, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { formatUnitLabel } from "@/lib/format";
@@ -171,11 +169,8 @@ function ScopedPreferences({
           Loading settings.
         </p>
       ) : query.error ? (
-        <div className="grid justify-items-start gap-3 p-4 text-sm">
-          <ErrorCard failure={failureOf(query.error, "Data Unavailable")} />
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            Retry
-          </Button>
+        <div className="grid justify-items-stretch gap-3 p-4 text-sm">
+          <ErrorCard failure={failureOf(query.error, "Preferences Unavailable")} onRetry={() => void query.refetch()} />
         </div>
       ) : query.data ? (
         <PreferencesForm snapshot={query.data} scope={scope} advanced={advanced} section={section} onPendingChange={onPendingChange} />
@@ -395,13 +390,10 @@ function PreferencesForm({
         </>
       )}
       {(failure || save.error) && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <NotificationMessage error={failure ?? save.error}>
-            {failureOf(failure ?? save.error, "Settings Operation Failed").message}
-          </NotificationMessage>
-          <Button
-            variant="outline"
-            onClick={async () => {
+        <div className="grid gap-3 px-4 py-3">
+          <ErrorCard
+            failure={failureOf(failure ?? save.error, "Settings Save Failed")}
+            onRetry={async () => {
               // A conflict must be reviewed against the latest revision before another edit.
               const fresh = await readFreshSnapshot();
               if (fresh) {
@@ -416,9 +408,7 @@ function PreferencesForm({
                 setState("saved");
               }
             }}
-          >
-            Retry
-          </Button>
+          />
         </div>
       )}
     </div>

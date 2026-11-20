@@ -17,7 +17,9 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
@@ -28,7 +30,7 @@ import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSn
 import { formatDecimal } from "@/lib/format";
 import { BrandMark } from "@/shell/BrandMark";
 import { useNativeSessionController } from "./context";
-import { connectionError, startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
+import { startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
 
 /* === Constants === */
 
@@ -48,7 +50,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const [archivedBytes, setArchivedBytes] = useState<number | null>(null);
   const statusRevision = useRef(-1);
   const localAttempt = useRef(false);
-  const [failedEndpoint, setFailedEndpoint] = useState<string | null>(null);
   const busy = state.phase === "connecting";
   const reset = state.phase === "connecting" && state.reset !== false;
   const backingUp = state.phase === "connecting" && state.reset === "backup";
@@ -56,24 +57,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const diagnostics = startupDiagnostics(error);
   const recoverable = storageRecoveryAvailable(error, localAttempt.current, launch?.localBackendAvailable ?? false);
   const archive = storageRecoveryArchive(error);
-
-  useEffect(() => {
-    if (!error) {
-      return;
-    }
-    let active = true;
-    void commands
-      .desktopSessionStatus()
-      .then((status) => {
-        if (active) {
-          setFailedEndpoint(status.connection.endpoint);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [error]);
 
   useEffect(() => {
     if (!busy) {
@@ -168,8 +151,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
                 <span className="h-px flex-1 bg-border" />
               </div>
               <BackendsTable
-                failure={error && !diagnostics ? <p>{connectionError(error)}</p> : undefined}
-                endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : launch?.target?.pairingFile)}
+                failure={error && !diagnostics ? error : undefined}
                 onConnect={() => {
                   localAttempt.current = false;
                 }}
@@ -198,13 +180,8 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         </div>
         {!busy && diagnostics && (
           <div className="grid gap-3 text-left text-sm">
-            <NotificationMessage context="background" source="Startup" title="Backend Could Not Start" error={error}>
-              {diagnostics.cause || connectionError(error)}
-            </NotificationMessage>
+            <ErrorCard failure={failureOf(error, "Backend Could Not Start")} onRetry={() => void owner.select({ kind: "owned_local" })} />
             {diagnostics.log && <PathPill value={diagnostics.log} />}
-            <Button variant="outline" onClick={() => void owner.select({ kind: "owned_local" })}>
-              Retry
-            </Button>
           </div>
         )}
         {!busy && archive && <PathPill value={archive} />}

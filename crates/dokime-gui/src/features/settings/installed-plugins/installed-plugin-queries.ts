@@ -47,7 +47,7 @@ export function useInstalledPluginsQuery() {
   });
 }
 
-export function useInstalledPluginDetailQuery(pluginId: string, ownerKey: string) {
+export function useInstalledPluginDetailQuery(pluginId: string, ownerKey: string, ready = true) {
   const session = useNativeSession();
   const client = useQueryClient();
   const operations = useHubStore((state) => state.operations.map((operation) => `${operation.id}:${operation.status}`).join());
@@ -56,7 +56,7 @@ export function useInstalledPluginDetailQuery(pluginId: string, ownerKey: string
     void client.invalidateQueries({ queryKey: pluginQueryKeys.detail(pluginId, session.identity.generation) });
   }, [client, pluginId, session.identity.generation, operations]);
   return useQuery({
-    enabled: Boolean(pluginId),
+    enabled: Boolean(pluginId) && ready,
     queryFn: () => {
       if (!pluginId) {
         return null;

@@ -37,11 +37,16 @@ export type NotificationFailure = {
   id: string;
   title: string;
   message: string;
-  stack?: string;
+  action?: string;
+  plugin?: string;
+  status?: string;
+  identifiers?: Record<string, string>;
   reason?: string;
   causes?: string[];
+  causeDetails?: { code: string; message: string; operation: string; plugin: string; action: string }[];
   problems?: NotificationProblem[];
   operation?: string;
+  failureOperation?: string;
   operationId?: string;
   requestId?: string;
   invocationId?: string;
@@ -100,6 +105,8 @@ export function failureOf(error: unknown, title: string, key?: string): Notifica
     id: key ?? crypto.randomUUID(),
     title,
     message,
+    action: details?.action ?? field("action"),
+    plugin: details?.plugin ?? field("plugin"),
     reason: details?.reason ?? field("code") ?? field("kind") ?? (error instanceof Error ? error.name : undefined),
     causes: details?.causes ?? causes,
     problems: details?.problems ?? (fields.problems as NotificationProblem[] | undefined),
@@ -108,50 +115,70 @@ export function failureOf(error: unknown, title: string, key?: string): Notifica
     requestId: details?.requestId ?? field("requestId"),
     invocationId: details?.invocationId ?? field("invocationId"),
     diagnostics: details?.diagnostics ?? ([field("diagnostics"), field("backtrace")].filter(Boolean).join("\n\n") || undefined),
-    stack: error instanceof Error ? error.stack : details?.stack,
   };
   if (error && typeof error === "object") normalized.set(error, failure);
   if (key) keyed.set(key, failure);
   return failure;
 }
 
+export function isWaitingFailure(failure: NotificationFailure): boolean {
+  return failure.reason === "settings_not_ready";
+}
+
 export function failureText(failure: NotificationFailure): string {
-  return JSON.stringify(failure, null, 2);
+  return [
+    failure.title,
+    failure.message,
+    ...[
+      ["Operation", failure.operation],
+      ["Failure Operation", failure.failureOperation],
+      ["Code", failure.reason],
+      ["Status", failure.status],
+      ["Action", failure.action],
+      ["Plugin", failure.plugin],
+      ["Operation ID", failure.operationId],
+      ["Request ID", failure.requestId],
+      ["Invocation ID", failure.invocationId],
+    ]
+      .filter(([, value]) => value)
+      .map(([label, value]) => `${label}: ${value}`),
+    ...(failure.causeDetails?.length
+      ? failure.causeDetails
+          .map((cause) =>
+            [
+              cause.message,
+              ...Object.entries(cause)
+                .filter(([key, value]) => key !== "message" && value)
+                .map(([key, value]) => `${key[0].toUpperCase()}${key.slice(1)}: ${value}`),
+            ].join("; "),
+          )
+          .map((cause) => `Cause: ${cause}`)
+      : (failure.causes ?? []).map((cause) => `Cause: ${cause}`)),
+    ...(failure.problems ?? []).flatMap((problem) => [
+      `${problem.label}: ${problem.message}`,
+      ...(problem.causes ?? []).map((cause) => `Cause: ${cause}`),
+    ]),
+    ...Object.entries(failure.identifiers ?? {}).map(([key, value]) => `${key}: ${value}`),
+    failure.diagnostics,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function notificationDetailsText(record: NotificationRecord, relative: string): string {
-  const failure = record.failure;
-  const lines = [
+  if (record.failure) return failureText(record.failure);
+  return [
     record.title,
     record.description,
     `Source: ${record.source}`,
     `Time: ${new Date(record.at).toISOString()} (${relative})`,
     `Severity: ${record.tone}`,
-  ];
-  if (failure) {
-    if (failure.message && failure.message !== record.description) lines.push(failure.message);
-    for (const [label, value] of [
-      ["Reason", failure.reason],
-      ["Operation", failure.operation],
-      ["Operation ID", failure.operationId],
-      ["Request ID", failure.requestId],
-      ["Invocation ID", failure.invocationId],
-    ]) {
-      if (value) lines.push(`${label}: ${value}`);
-    }
-    for (const cause of failure.causes ?? []) lines.push(`Cause: ${cause}`);
-    for (const problem of failure.problems ?? []) {
-      lines.push(`${problem.label}: ${problem.message}`);
-      for (const cause of problem.causes ?? []) lines.push(`Cause: ${cause}`);
-    }
-  }
-  for (const consequence of record.consequences ?? []) lines.push(`Consequence: ${consequence}`);
-  if (record.missingSecret) lines.push(`Missing Secret: ${record.missingSecret}`);
-  if (record.pluginSettings) lines.push(`Plugin Settings: ${record.pluginSettings}`);
-  if (failure?.diagnostics) lines.push(`Technical Details:\n${failure.diagnostics}`);
-  if (failure) lines.push(failureText(failure));
-  if (failure?.stack) lines.push(`Client Stack:\n${failure.stack}`);
-  return lines.filter((line) => line !== undefined && line !== "").join("\n");
+    ...(record.consequences ?? []).map((consequence) => `Consequence: ${consequence}`),
+    record.missingSecret ? `Missing Secret: ${record.missingSecret}` : undefined,
+    record.pluginSettings ? `Plugin Settings: ${record.pluginSettings}` : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /* === Private Functions === */

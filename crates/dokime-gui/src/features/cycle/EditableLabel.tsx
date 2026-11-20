@@ -27,7 +27,9 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { notificationText } from "@/lib/notifications";
+import { ErrorCard } from "@/components/ErrorCard";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CLOSED_LABEL_DRAFT, type LabelDraft, labelEditorKey, openLabelEdit, refuseLabel, updateLabelText } from "./label-editor-model";
@@ -111,13 +113,7 @@ export function EditableLabel({ label, prefix = "", subject, onRename, initially
         >
           <Check />
         </Button>
-        {draft.error ? (
-          <NotificationMessage source="Label" title="Label Could Not Save">
-            {draft.error}
-          </NotificationMessage>
-        ) : (
-          <span />
-        )}
+        {draft.error ? <ErrorCard failure={failureOf(notificationText(draft.error), "Label Could Not Save")} /> : <span />}
       </div>
     );
   }

@@ -1,9 +1,9 @@
+import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 import { createRoot, type Root } from "react-dom/client";
 import { DokimeToaster } from "@/components/DokimeToaster";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { defaultBrand } from "@/lib/brand";
 import "@/styles.css";
 
@@ -23,9 +23,7 @@ void (async () => {
   root.render(
     <>
       <DokimeToaster />
-      <NotificationMessage context="background" source="Startup" title="Application Could Not Start" error={error}>
-        {failureOf(error, "Operation Failed").message}
-      </NotificationMessage>
+      <ErrorCard failure={failureOf(error, "Application Could Not Start")} />
     </>,
   );
 });

@@ -13,13 +13,14 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { PluginState } from "@host/model";
+import { FailureSchema, PluginState } from "@host/model";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { type InstallPluginProgress, getNativePlugin, installNativePlugin } from "@/lib/api/native-plugins";
+import { type InstallPluginProgress, installNativePlugin } from "@/lib/api/native-plugins";
+import { failureOf } from "@/lib/notification-details";
 import { commands } from "@/lib/desktop/commands";
-import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 
 /* === Re-Exports === */
 
@@ -173,22 +174,26 @@ test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
   assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
 });
 
-test("Failed Entry Retains Its Identity and Secret Availability", async () => {
-  const failed = { ...managedPlugin("example"), failure: { message: "activation-refused" } };
-  fixture.listPlugins.mockResolvedValue({ entries: [failed] });
-  fixture.getSettings.mockResolvedValue({
-    settings: { contributions: [] },
-    secrets: [{ identifier: "api_token", available: false }],
-    values: {},
-    discovered: {},
+test("Installation Preserves the Native Structured Failure Across IPC", async () => {
+  const refusal = create(FailureSchema, {
+    code: "bench_activation_failed",
+    message: "bench_process_exited",
+    action: "Restart Plugin",
+    plugin: "bench",
+    cause: { message: "bench_startup_cause" },
   });
-  fixture.getPlugin.mockResolvedValueOnce({ entry: failed });
-  assert.equal(await getNativePlugin(session, "example"), failed);
-  const detail = await getInstalledPluginDetail(session, "example");
-  assert.equal(detail?.status, "failed");
-  assert.equal(detail?.plugin_id, failed.name);
-  assert.equal(detail?.error, failed.failure.message);
-  assert.equal(detail?.owner?.kind, "bundle");
-  assert.deepEqual(detail?.secrets, [{ identifier: "api_token", available: false }]);
-  assert.deepEqual(fixture.getSettings.mock.calls, [[session, "example"]]);
+  fixture.invoke.mockRejectedValueOnce({
+    kind: "grpc",
+    detail: { code: 9, message: "operation request failed", details: Array.from(toBinary(FailureSchema, refusal)) },
+  });
+  await assert.rejects(installNativePlugin(session, "pick"), (error) => {
+    const failure = failureOf(error, "bench_install");
+    assert.equal(failure.reason, refusal.code);
+    assert.equal(failure.message, refusal.message);
+    assert.equal(failure.action, refusal.action);
+    assert.equal(failure.plugin, refusal.plugin);
+    assert.equal(failure.operation, "desktop_plugin_install_file");
+    assert.deepEqual(failure.causes, [refusal.cause?.message]);
+    return true;
+  });
 });

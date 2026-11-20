@@ -9,12 +9,13 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { failureOf } from "@/lib/notification-details";
 import { useEffect, useId, useState } from "react";
 // Standard Library Imports
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
@@ -142,7 +143,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
             ) : null}
           </div>
         ) : null}
-        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+        {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
         <DialogFooter>
           <Button
             data-testid="desktop-updates-check"

@@ -23,7 +23,8 @@ import { type FormEvent, useId, useState } from "react";
 
 /* === Local Imports === */
 
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { ErrorCard } from "@/components/ErrorCard";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -162,7 +163,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             ? `Enter between 1 and ${formatDecimal(NATIVE_PLOT_MAX_POINTS)} points, use 0 for every sample, or leave empty for the default.`
             : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${formatDecimal(NATIVE_PLOT_MAX_POINTS)} samples per trace.`}
         </p>
-        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+        {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
 
         <DialogFooter>
           <DialogClose asChild>

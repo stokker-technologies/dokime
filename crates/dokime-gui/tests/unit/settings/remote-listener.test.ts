@@ -27,7 +27,6 @@ import { commands } from "@/lib/desktop/commands";
 
 /* === Constants === */
 
-const notice = vi.hoisted(() => vi.fn());
 const fixture = vi.hoisted(() => ({
   session: null as { identity: { generation: string }; snapshot: { connection: { backend: { methods: string[] } } } } | null,
   query: { isPending: true, error: null as Error | null, data: undefined as ListenerStatus | undefined, refetch: vi.fn() },
@@ -53,12 +52,6 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 vi.mock("@/lib/host/client", () => ({}));
 vi.mock("@/lib/notifications", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock("@/components/NotificationMessage", () => ({
-  NotificationMessage: (props: unknown) => {
-    notice(props);
-    return null;
-  },
-}));
 
 const SETTINGS: ListenerSettings = {
   enabled: false,
@@ -94,17 +87,10 @@ test("Repeated Remote Settings Loads and Failures Stay Inline", () => {
   for (let page = 0; page < 3; page++) {
     const html = renderToStaticMarkup(createElement(RemoteSection, {}));
     assert.match(html, /role="status"/);
-    assert.equal(notice.mock.calls.length, 0);
   }
   fixture.query.isPending = false;
   fixture.query.error = new Error("fixture-failure");
   renderToStaticMarkup(createElement(RemoteSection, {}));
-  assert.equal(notice.mock.calls.length, 0);
-});
-
-test("Unavailable Remote Settings Stay Inline Without Notifications", () => {
-  renderToStaticMarkup(createElement(RemoteSection, {}));
-  assert.equal(notice.mock.calls.length, 0);
 });
 
 test("Export Endpoint Preview", () => {

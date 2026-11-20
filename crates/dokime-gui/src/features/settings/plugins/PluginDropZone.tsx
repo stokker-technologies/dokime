@@ -13,9 +13,10 @@ import { failureOf } from "@/lib/notification-details";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
+
+import { ErrorCard } from "@/components/ErrorCard";
 
 import { Button } from "@/components/ui/button";
 import { formatInstallPluginBytes, type InstallPluginProgress } from "@/lib/api/native-plugins";
@@ -73,7 +74,7 @@ export function PluginDropZone({ disabled, error, failure, filename, onDrop, onP
           </Button>
         </div>
       </fieldset>
-      {error ? <NotificationMessage error={failure}>{error}</NotificationMessage> : null}
+      {error ? <ErrorCard failure={failureOf(failure, "Operation Failed")} /> : null}
     </div>
   );
 }
@@ -115,7 +116,7 @@ function useNativeFileDrop(zone: RefObject<HTMLElement | null>, disabled: boolea
       })
       .catch((error: unknown) => {
         if (disposed) return;
-        toast.error(failureOf(error, "Plugin File Drop Unavailable"));
+        toast.error(failureOf(error, "Plugin File Drop Unavailable"), { context: "background" });
       });
     return () => {
       disposed = true;
