@@ -17,13 +17,12 @@
 
 // Third Party Imports
 import { createElement, isValidElement, type ReactNode, useSyncExternalStore } from "react";
-import * as sonner from "sonner";
 import type { ExternalToast } from "sonner";
+import * as sonner from "sonner";
 
 // Local Imports
+import { type FailureContext, routeFailure } from "@/lib/failure-routing";
 import { failureOf, type NotificationFailure } from "@/lib/notification-details";
-
-import { routeFailure, type FailureContext } from "@/lib/failure-routing";
 
 /* === Re-Exports === */
 
@@ -347,12 +346,9 @@ function publish(tone: NotificationTone, title: string, options: NotificationOpt
 
 function showNotification(record: NotificationRecord, options: ExternalToast = {}): string | number {
   const content = createElement(
-    "button",
+    "div",
     {
-      type: "button",
-      className: "-m-1 grid min-w-0 cursor-pointer gap-1 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-      "aria-haspopup": "dialog",
-      onClick: () => openNotificationDetails(record),
+      className: "grid min-w-0 gap-1 text-left",
     },
     createElement("span", { className: "font-medium" }, record.title),
     record.description &&
@@ -361,6 +357,17 @@ function showNotification(record: NotificationRecord, options: ExternalToast = {
         { className: "select-text whitespace-pre-wrap break-words text-xs font-normal text-muted-foreground" },
         record.description,
       ),
+    createElement(
+      "button",
+      {
+        type: "button",
+        className: "w-fit rounded text-sm underline outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "aria-haspopup": "dialog",
+        "aria-label": `Details for ${record.title}`,
+        onClick: () => openNotificationDetails(record),
+      },
+      "Details",
+    ),
   );
   return sonner.toast[record.tone](content, {
     ...options,
