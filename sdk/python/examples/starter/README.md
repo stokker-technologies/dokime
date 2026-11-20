@@ -13,3 +13,6 @@ in the desktop. The host must support execution sealing and sealed progress.
 Run `uv run python -m starter_project.plugin` to serve only the plugin, or
 `mise run dev` to start a disposable host. Run `uv run python -m unittest` or
 `mise run test` to check the plugin's description without a host.
+
+The plugin entry prints its bound address when run by hand. Its SDK endpoint
+provides that address directly; managed launches use the host's readiness protocol.

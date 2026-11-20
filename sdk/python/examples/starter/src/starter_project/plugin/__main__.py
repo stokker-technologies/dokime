@@ -32,7 +32,10 @@ from starter_project.plugin import ExamplePlugin
 
 async def main() -> None:
     plugin = ExamplePlugin()
-    await plugin.serve()
+    endpoint = await plugin.start()
+    if not endpoint.managed:
+        print(f"Serving on {endpoint.address}", flush=True)
+    await endpoint.wait()
 
 
 # === Private Functions === #

@@ -14,6 +14,7 @@
 import asyncio
 import inspect
 import json
+import os
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import distributions, packages_distributions, version
@@ -71,6 +72,26 @@ class _Session:
     instance: object
     case: Materialization
     origin: bytes
+
+
+class _Endpoint:
+    def __init__(self, endpoint: harmos.plugin.Endpoint, managed: bool) -> None:
+        self._endpoint = endpoint
+        self.address = endpoint.address
+        self.managed = managed
+
+    async def stop(self) -> None:
+        await self._endpoint.stop()
+
+    async def wait(self) -> None:
+        termination = asyncio.create_task(self._endpoint.server.wait_for_termination())
+        try:
+            await asyncio.shield(termination)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await self.stop()
+            await termination
 
 
 class Plugin:
@@ -190,17 +211,18 @@ class Plugin:
     async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
         pass
 
-    async def serve(self, address: str | None = None) -> None:
-        endpoint = await self._activate(address)
-        termination = asyncio.create_task(endpoint.server.wait_for_termination())
-        try:
+    async def start(self, address: str | None = None) -> _Endpoint:
+        managed = "HARMOS_ADDRESS" in os.environ
+        if managed:
+            address = os.environ["HARMOS_ADDRESS"]
+        endpoint = _Endpoint(await self._activate(address), managed)
+        if managed:
             print(f"harmos listening {endpoint.address}", flush=True)
-            await asyncio.shield(termination)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await endpoint.stop()
-            await termination
+        return endpoint
+
+    async def serve(self, address: str | None = None) -> None:
+        endpoint = await self.start(address)
+        await endpoint.wait()
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
         from ._configuration import load, resolve

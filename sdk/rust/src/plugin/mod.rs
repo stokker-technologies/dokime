@@ -42,6 +42,7 @@ use std::{
 
 // Third Party Imports
 use ::harmos::{Visibility, plugin};
+use tokio::{runtime::Builder, signal};
 
 // Local Imports
 use crate::SecretDeclaration;
@@ -428,11 +429,13 @@ impl Plugin {
 
     pub fn run_with(self, address: impl Into<String>) -> Result<()> {
         // The Listener Owns Its Runtime; This Thread Only Waits for Shutdown.
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        let runtime = Builder::new_current_thread().enable_all().build()?;
         runtime.block_on(async move {
             let mut listener = self.into_harmos()?.remote().start(address).await?;
-            println!("harmos listening {}", listener.address());
-            tokio::signal::ctrl_c().await?;
+            if env::var_os("HARMOS_ADDRESS").is_some() {
+                println!("harmos listening {}", listener.address());
+            }
+            signal::ctrl_c().await?;
             listener.close().await?;
             Ok(())
         })
