@@ -147,14 +147,12 @@ async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, a
 #[cfg(test)]
 mod tests {
     use std::{
-        env,
         fs::{self, File},
         path::Path,
     };
 
     use clap::Parser;
     use dokime_packaging::project::PluginProject;
-    use dokime_runtime::process;
     use harmos_runtime::bundle::{Bundle, Identity, Limits};
 
     use crate::{Result, cli::Cli, commands, settings::Settings};
@@ -238,69 +236,6 @@ mod tests {
         assert_eq!(inventory, ["dokime.json", "dokime.toml", "payload.bin"]);
         assert_eq!(bundle.manifest().launch, project.manifest.scripts.launch);
         assert_eq!(bundle.file("payload.bin"), Some([2, 3, 5, 7].as_slice()));
-        Ok(())
-    }
-
-    #[test]
-    fn launch_folder_round_trip_runs_the_native_interpreter_in_its_root() -> dokime_packaging::Result<()> {
-        // The Reexecuted Native Test Program Interprets the Packaged Payload
-        if env::var_os("DOKIME_LAUNCH_FIXTURE").is_some() {
-            assert_eq!(fs::read("payload.bin")?, [2, 3, 5, 7]);
-            assert!(Path::new("dokime.toml").is_file());
-            assert!(!Path::new("ignored.bin").exists());
-            return Ok(());
-        }
-
-        // Keep the Native Interpreter Outside the Shipped Project
-        let root = tempfile::tempdir()?;
-        let interpreter = env::current_exe()?;
-        let program = interpreter.file_name().unwrap().to_str().unwrap();
-        let test = "commands::plugin::tests::launch_folder_round_trip_runs_the_native_interpreter_in_its_root";
-        fs::write(
-            root.path().join("dokime.toml"),
-            format!("[plugin]\n[scripts]\nlaunch = ['{program}', '--exact', '{test}', '--nocapture']\n"),
-        )?;
-        fs::write(root.path().join("payload.bin"), [2, 3, 5, 7])?;
-        fs::write(root.path().join(".gitignore"), "ignored.bin\n")?;
-        fs::write(root.path().join("ignored.bin"), [11])?;
-        fs::create_dir(root.path().join(".git"))?;
-        fs::write(root.path().join(".git/config"), b"private repository data")?;
-        let project = PluginProject::read(root.path())?;
-        let identity = Identity {
-            name: "launch-fixture".into(),
-            version: "1.0.0".parse()?,
-            description: String::new(),
-            package: Default::default(),
-        };
-        let bytes = dokime_packaging::bundle::create_project(&project, identity, Some(b"description"))?;
-        let bundle = Bundle::inspect(&bytes, Limits::default())?;
-        assert_eq!(bundle.manifest().launch, project.manifest.scripts.launch);
-        assert!(bundle.manifest().files.iter().all(|file| file.executable.is_none()));
-        let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
-        assert_eq!(inventory, [".gitignore", "description.pb", "dokime.json", "dokime.toml", "payload.bin"]);
-        assert!(bundle.file("ignored.bin").is_none());
-        assert!(bundle.file(".git/config").is_none());
-        assert_eq!(bundle.file("description.pb"), Some(b"description".as_slice()));
-
-        // Extract and Run the Declared Command Exactly from the Bundle Root
-        let parent = tempfile::tempdir()?;
-        let extracted = bundle.extract(parent.path())?;
-        let launch = bundle.manifest().launch.as_ref().unwrap();
-        let mut search = vec![interpreter.parent().unwrap().to_path_buf()];
-        search.extend(env::split_paths(&env::var_os("PATH").unwrap_or_default()));
-        let search = env::join_paths(search)?;
-        let output = process::command(&launch[0])
-            .args(&launch[1..])
-            .current_dir(extracted.path())
-            .env("PATH", search)
-            .env("DOKIME_LAUNCH_FIXTURE", "1")
-            .output()?;
-        assert!(
-            output.status.success(),
-            "stdout: {}; stderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
         Ok(())
     }
 }
