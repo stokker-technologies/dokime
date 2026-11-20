@@ -189,8 +189,9 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
                 for bundle in sorted(members, key=operator.itemgetter("member")):
                     data = policy.inside(directory, bundle["path"]).read_bytes()
                     bundle["sha256"] = hashlib.sha256(data).hexdigest()
-                    # Record A Regular-File Mode; The Default Omits The File Type And Installers Reject The Member.
+                    # Record a Regular File Mode for Archive Readers
                     entry = zipfile.ZipInfo(bundle["member"])
+                    entry.create_system = 3
                     entry.compress_type = zipfile.ZIP_DEFLATED
                     entry.external_attr = (stat.S_IFREG | 0o644) << 16
                     archive.writestr(entry, data)

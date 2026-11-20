@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 use std::fs;
+use std::fs::OpenOptions;
 use std::io;
 use std::io::Cursor;
 use std::str;
@@ -26,7 +27,9 @@ use std::{
 // Third Party Imports
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
+use zip::ZipArchive;
 
 // Local Imports
 use super::Error;
@@ -197,7 +200,7 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Distribution, E
             }
         }
     }
-    let config: serde_json::Value = serde_json::from_str(include_str!("../../../dokime-gui/src-tauri/tauri.conf.json"))?;
+    let config: Value = serde_json::from_str(include_str!("../../../dokime-gui/src-tauri/tauri.conf.json"))?;
     let identifier = config["identifier"].as_str().ok_or_else(|| Error::Invalid("Rebuild the CLI With Its Product Identifier".into()))?;
     distribution.identity = Identity::new(identifier.to_owned()).map_err(Error::Invalid)?;
     distribution.identity.updater_public_key = config["plugins"]["updater"]["pubkey"].as_str().unwrap_or_default().to_owned();
@@ -205,7 +208,7 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Distribution, E
 }
 
 pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> Result<(), Error> {
-    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| Error::Invalid(e.to_string()))?;
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|e| Error::Invalid(e.to_string()))?;
     if archive.has_duplicate_names() || archive.len() > ARCHIVE_MAX_ENTRIES {
         return Err(Error::Invalid("release distribution has too many entries".into()));
     }
@@ -222,8 +225,8 @@ pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> R
         let entry_name = entry.name().map_err(|error| Error::Invalid(error.to_string()))?;
         let name = entry_name.trim_end_matches('/');
         let path = destination.join(relative(name)?);
-        let mode = entry.unix_mode().unwrap_or(0o100644) & 0o170000;
-        let ordinary = mode == 0o100000 || (mode == 0o040000 && entry.is_dir());
+        let mode = entry.unix_mode().unwrap_or(0) & 0o170000;
+        let ordinary = mode == 0 || mode == 0o100000 || (mode == 0o040000 && entry.is_dir());
         if !ordinary {
             return Err(Error::Invalid("release distribution contains a link or special file".into()));
         }
@@ -234,7 +237,7 @@ pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> R
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&path)?;
+        let mut file = OpenOptions::new().write(true).create_new(true).open(&path)?;
         io::copy(&mut entry, &mut file)?;
     }
     Ok(())
@@ -246,7 +249,13 @@ pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> R
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
+    use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
+
     use super::*;
+
     #[test]
     fn kit_integrity_refuses_mismatch_missing_files_and_unindexed_appearance() -> Result<(), Error> {
         let source = tempfile::tempdir()?;
@@ -261,7 +270,7 @@ mod tests {
         assert!(matches!(validate(source.path(), &manifest.dokime), Err(Error::UnindexedDistribution { .. })));
         fs::remove_file(source.path().join("organization/unindexed.css"))?;
         let path = source.path().join("distribution.json");
-        let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&path)?)?;
+        let metadata: Value = serde_json::from_slice(&fs::read(&path)?)?;
         for (field, value) in
             [("schema", serde_json::json!(2)), ("version", serde_json::json!("2.0.0")), ("target", serde_json::json!("unsupported"))]
         {
@@ -292,9 +301,8 @@ mod tests {
 
     #[test]
     fn extraction_enforces_member_limits_before_writing() -> Result<(), Error> {
-        use std::io::Write;
-        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        archive.start_file("example-pack.txt", zip::write::SimpleFileOptions::default()).unwrap();
+        let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
+        archive.start_file("example-pack.txt", SimpleFileOptions::default()).unwrap();
         archive.write_all(b"abc")?;
         let bytes = archive.finish().unwrap().into_inner();
         let directory = tempfile::tempdir()?;
@@ -302,6 +310,41 @@ mod tests {
         assert!(!directory.path().join("example-pack.txt").exists());
         extract(&bytes, directory.path(), 3)?;
         assert_eq!(fs::read(directory.path().join("example-pack.txt"))?, b"abc");
+        Ok(())
+    }
+
+    #[test]
+    fn extraction_accepts_typeless_members_and_refuses_special_files() -> Result<(), Error> {
+        let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
+        archive.add_directory("examples/", SimpleFileOptions::default()).unwrap();
+        archive.start_file("examples/NOTICE", SimpleFileOptions::default()).unwrap();
+        archive.write_all(b"notice")?;
+        let bytes = archive.finish().unwrap().into_inner();
+        let members: Vec<_> = bytes.windows(4).enumerate().filter_map(|(index, bytes)| (bytes == b"PK\x01\x02").then_some(index)).collect();
+        assert_eq!(members.len(), 2);
+
+        // Model Unix ZIP Writers That Store Permissions Without File-Type Bits
+        let mut typeless = bytes.clone();
+        for member in &members {
+            typeless[member + 5] = 3;
+            typeless[member + 38..member + 42].copy_from_slice(&(0o600u32 << 16).to_le_bytes());
+        }
+        let directory = tempfile::tempdir()?;
+        extract(&typeless, directory.path(), 64)?;
+        assert!(directory.path().join("examples").is_dir());
+        assert_eq!(fs::read(directory.path().join("examples/NOTICE"))?, b"notice");
+
+        // Explicit Links, Devices, Sockets and Other Special Types Stay Refused
+        for mode in [0o120777u32, 0o020600, 0o060600, 0o010600, 0o140600] {
+            let mut special = bytes.clone();
+            let member = members[1];
+            special[member + 5] = 3;
+            special[member + 38..member + 42].copy_from_slice(&(mode << 16).to_le_bytes());
+            let directory = tempfile::tempdir()?;
+            let result = extract(&special, directory.path(), 64);
+            assert!(matches!(result, Err(Error::Invalid(_))));
+            assert!(!directory.path().join("examples/NOTICE").exists());
+        }
         Ok(())
     }
 
