@@ -81,10 +81,7 @@ impl Notifications {
         if code != 0 {
             return Err(native_error());
         }
-        Ok(Self {
-            socket,
-            pending: Pending::new(links()?),
-        })
+        Ok(Self { socket, pending: Pending::new(links()?) })
     }
 
     /// Read Every Waiting Datagram, Then Take the Oldest Queued Change.
@@ -172,9 +169,11 @@ fn parse_connectivity(state: &str) -> Option<bool> {
 /// The First Interface Whose Usable Route Has an All-Zero Destination and Prefix.
 fn default_route(ipv4: &str, ipv6: &str) -> Option<String> {
     let flags = |value: &str| u32::from_str_radix(value, 16).unwrap_or(0);
-    let ipv4 = ipv4.lines().skip(1).map(|line| line.split_whitespace().collect::<Vec<_>>()).find(|fields| {
-        fields.len() >= 8 && flags(fields[3]) & 1 != 0 && fields[1] == "00000000" && fields[7] == "00000000"
-    });
+    let ipv4 = ipv4
+        .lines()
+        .skip(1)
+        .map(|line| line.split_whitespace().collect::<Vec<_>>())
+        .find(|fields| fields.len() >= 8 && flags(fields[3]) & 1 != 0 && fields[1] == "00000000" && fields[7] == "00000000");
     if let Some(fields) = ipv4 {
         return Some(fields[0].to_owned());
     }

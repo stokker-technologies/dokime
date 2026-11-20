@@ -121,11 +121,7 @@ impl Collector {
 
 impl Change {
     pub fn new(kind: &str, adapter_id: String, address: Option<String>) -> Self {
-        Self {
-            kind: kind.into(),
-            adapter_id,
-            address,
-        }
+        Self { kind: kind.into(), adapter_id, address }
     }
 }
 

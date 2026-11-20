@@ -148,7 +148,8 @@ impl State {
         let first_cpu = self.system.cpus().first();
         let text = |value: &str| Some(value.trim()).filter(|value| !value.is_empty()).map(str::to_owned);
         let power = power_plan();
-        let uptime = sysinfo::System::uptime().map_err(|error| Error::Invalid(format!("Read System Uptime: {error}; Restart the Plugin")))?;
+        let uptime =
+            sysinfo::System::uptime().map_err(|error| Error::Invalid(format!("Read System Uptime: {error}; Restart the Plugin")))?;
         let row = System {
             sample_index: Some(self.sample_index),
             probe_status: Some("ok".into()),
@@ -265,7 +266,9 @@ async fn capture(
             stderr: stderr_bytes,
         })
     };
-    tokio::time::timeout(timeout, capture).await.unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Command Timed Out")))
+    tokio::time::timeout(timeout, capture)
+        .await
+        .unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Command Timed Out")))
 }
 
 #[cfg(windows)]

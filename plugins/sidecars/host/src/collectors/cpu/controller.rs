@@ -102,7 +102,13 @@ impl Summary {
     }
 
     pub fn finish(self) -> LoadSummary {
-        LoadSummary::new(self.target, self.mean, if self.elapsed > 0.0 { self.error_rms } else { self.target.value() }, self.elapsed, self.samples)
+        LoadSummary::new(
+            self.target,
+            self.mean,
+            if self.elapsed > 0.0 { self.error_rms } else { self.target.value() },
+            self.elapsed,
+            self.samples,
+        )
     }
 }
 

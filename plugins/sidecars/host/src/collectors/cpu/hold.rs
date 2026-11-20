@@ -200,9 +200,8 @@ where
 {
     let target = request.target()?;
     settings.validate()?;
-    let logical = std::thread::available_parallelism()
-        .map_err(|error| Error::Invalid(format!("Hold CPU Load: {error}; Restart the Plugin")))?
-        .get();
+    let logical =
+        std::thread::available_parallelism().map_err(|error| Error::Invalid(format!("Hold CPU Load: {error}; Restart the Plugin")))?.get();
     let count = request.worker_count(logical)?;
     let capacity = source.read().capacity_gflops * FLOPS_PER_GIGAFLOP;
     let scale = match target {
@@ -293,11 +292,7 @@ mod tests {
     use crate::collectors::cpu::sampling::Source;
 
     fn request(target_percent: Option<f64>, target_flops: Option<f64>, threads: Option<u32>) -> LoadHold {
-        LoadHold {
-            target_percent,
-            target_flops,
-            threads,
-        }
+        LoadHold { target_percent, target_flops, threads }
     }
 
     #[test]

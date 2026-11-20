@@ -155,7 +155,8 @@ pub fn calibrate(window: Duration, batch_iterations: u32) -> Result<f64> {
     let operations = std::thread::scope(|scope| {
         let workers = (0..threads).map(|_| scope.spawn(move || Kernel::new(batch_iterations).until(deadline))).collect::<Vec<_>>();
         workers.into_iter().try_fold(0u64, |total, worker| {
-            let operations = worker.join().map_err(|_| Error::Invalid("Calibrate CPU Capacity: a Worker Panicked; Restart the Plugin".into()))?;
+            let operations =
+                worker.join().map_err(|_| Error::Invalid("Calibrate CPU Capacity: a Worker Panicked; Restart the Plugin".into()))?;
             total.checked_add(operations).ok_or_else(|| Error::Invalid("Calibrate CPU Capacity: Configure a Shorter Window".into()))
         })
     })?;

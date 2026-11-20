@@ -57,9 +57,7 @@ pub struct Sampler {
 impl Source {
     /// A Source Holding One Fixed Load, for Deterministic Controller Tests and Benches.
     pub fn fixed(load: Load) -> Self {
-        Self {
-            latest: Arc::new(RwLock::new(load)),
-        }
+        Self { latest: Arc::new(RwLock::new(load)) }
     }
 
     pub fn read(&self) -> Load {
@@ -110,11 +108,7 @@ impl Sampler {
                 }
             })
             .map_err(|error| Error::Invalid(format!("Sample CPU Load: {error}; Restart the Plugin")))?;
-        Ok(Self {
-            source,
-            stop,
-            worker: Some(worker),
-        })
+        Ok(Self { source, stop, worker: Some(worker) })
     }
 
     pub fn source(&self) -> Source {
