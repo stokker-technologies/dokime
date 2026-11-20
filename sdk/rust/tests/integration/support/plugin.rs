@@ -87,16 +87,7 @@ pub enum Placement {
 
 impl Process {
     pub async fn start(name: &str, placement: Placement) -> TestResult<Self> {
-        let binary = env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
-            .or_else(|| env::var_os(format!("NEXTEST_BIN_EXE_{}", name.replace('-', "_"))))
-            .or_else(|| env::var_os(format!("CARGO_BIN_EXE_{name}")))
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                let sdk = if manifest.ends_with("tests/consumer") { manifest.join("../..") } else { manifest };
-                sdk.join("../../target/debug").join(format!("{name}{}", env::consts::EXE_SUFFIX))
-            });
-        let mut command = Command::from(crate::process::command(binary));
+        let mut command = Command::from(crate::process::command(binary(name)));
         command.env_remove("HARMOS_ADDRESS");
         if matches!(placement, Placement::Managed) {
             command.env("HARMOS_ADDRESS", "127.0.0.1:0");
@@ -229,6 +220,18 @@ impl Invocation {
 }
 
 /* === Public Functions === */
+
+pub fn binary(name: &str) -> PathBuf {
+    env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
+        .or_else(|| env::var_os(format!("NEXTEST_BIN_EXE_{}", name.replace('-', "_"))))
+        .or_else(|| env::var_os(format!("CARGO_BIN_EXE_{name}")))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            let sdk = if manifest.ends_with("tests/consumer") { manifest.join("../..") } else { manifest };
+            sdk.join("../../target/debug").join(format!("{name}{}", env::consts::EXE_SUFFIX))
+        })
+}
 
 /* === Private Functions === */
 

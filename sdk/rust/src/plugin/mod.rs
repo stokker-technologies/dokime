@@ -420,13 +420,32 @@ impl Plugin {
     }
     pub fn run(self) -> Result<()> {
         // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
-        let managed = env::var_os("HARMOS_ADDRESS").is_some();
+        let managed = managed_launch();
         if managed {
             return self.into_harmos()?.run().map_err(Error::from);
         }
         let values = crate::configuration::load()?;
-        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", None, &values)?;
-        self.run_with(address)
+        let remote = env::var("DOKIME_REMOTE").ok().or_else(|| values.get("DOKIME_REMOTE").cloned()).unwrap_or_default();
+        if remote.is_empty() {
+            let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", None, &values)?;
+            return self.run_with(address);
+        }
+        let runtime = Builder::new_current_thread().enable_all().build()?;
+        runtime.block_on(async move {
+            let client = crate::client::connect_with(crate::client::ConnectionSettings {
+                target: Some(remote),
+                ..Default::default()
+            })
+            .await?;
+            let result = async {
+                client.plugins().register(self).await?;
+                signal::ctrl_c().await?;
+                Ok(())
+            }
+            .await;
+            let closed = client.close().await;
+            result.and(closed)
+        })
     }
 
     pub fn run_with(self, address: impl Into<String>) -> Result<()> {
@@ -434,7 +453,7 @@ impl Plugin {
         let runtime = Builder::new_current_thread().enable_all().build()?;
         runtime.block_on(async move {
             let mut listener = self.into_harmos()?.remote().start(address).await?;
-            announce(listener.address(), env::var_os("HARMOS_ADDRESS").is_some(), &mut io::stdout().lock())?;
+            announce(listener.address(), managed_launch(), &mut io::stdout().lock())?;
             signal::ctrl_c().await?;
             listener.close().await?;
             Ok(())
@@ -445,6 +464,11 @@ impl Plugin {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+// The Pinned Library Launches a Managed Plugin With Its Listener Address.
+fn managed_launch() -> bool {
+    env::var_os("HARMOS_ADDRESS").is_some()
+}
 
 fn announce(address: SocketAddr, managed: bool, output: &mut impl Write) -> Result<()> {
     if managed {
