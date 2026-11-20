@@ -159,7 +159,7 @@ pub fn apply(state: &ControlState, restoring: bool, timing: &Timing) -> Result<(
         }
     }
     if let Some(plan) = &state.power_plan
-        && (platform_profile()? != *plan || restoring)
+        && (crate::power::active_plan()?.id != *plan || restoring)
     {
         let choices = fs::read_to_string("/sys/firmware/acpi/platform_profile_choices").map_err(probe)?;
         if !choices.split_whitespace().any(|choice| choice == plan) {
@@ -182,7 +182,7 @@ pub fn apply(state: &ControlState, restoring: bool, timing: &Timing) -> Result<(
         }
     }
     if let Some(plan) = &state.power_plan
-        && platform_profile()? != *plan
+        && crate::power::active_plan()?.id != *plan
     {
         return Err(Error::Invalid("Set Power Plan: Check the Firmware; the Profile Did Not Become Active".into()));
     }
@@ -225,13 +225,6 @@ pub fn connected_addresses(pid: u32, _: &Timing) -> Result<BTreeSet<String>> {
         }
     }
     Ok(locals)
-}
-
-/// The Active ACPI Platform Profile.
-pub fn platform_profile() -> Result<String> {
-    let profile = fs::read_to_string("/sys/firmware/acpi/platform_profile")
-        .map_err(|error| Error::Invalid(format!("Read Power Plan: Use a Host With an ACPI Platform Profile: {error}")))?;
-    Ok(profile.trim().to_owned())
 }
 
 /* === Private Functions === */

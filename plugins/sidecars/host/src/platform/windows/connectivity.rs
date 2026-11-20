@@ -18,27 +18,25 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::ffi::c_void;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::ptr::null_mut;
 use std::sync::{Mutex, PoisonError};
 
 // Third Party Imports
 use windows::Win32::Foundation::{ERROR_SUCCESS, HANDLE, RPC_E_CHANGED_MODE, WIN32_ERROR};
 use windows::Win32::NetworkManagement::IpHelper::{
-    CancelMibChangeNotify2, ConvertInterfaceLuidToGuid, FreeMibTable, GetIfEntry2, GetIfTable2, GetIpForwardTable2, MIB_IF_ROW2,
-    MIB_IPFORWARD_ROW2, MIB_IPINTERFACE_ROW, MIB_NOTIFICATION_TYPE, MIB_UNICASTIPADDRESS_ROW, MibAddInstance, MibDeleteInstance,
+    CancelMibChangeNotify2, ConvertInterfaceLuidToGuid, GetIfEntry2, MIB_IF_ROW2, MIB_IPFORWARD_ROW2, MIB_IPINTERFACE_ROW, MIB_NOTIFICATION_TYPE, MIB_UNICASTIPADDRESS_ROW, MibAddInstance, MibDeleteInstance,
     NotifyIpInterfaceChange, NotifyRouteChange2, NotifyUnicastIpAddressChange,
 };
 use windows::Win32::NetworkManagement::Ndis::{IfOperStatusUp, NET_LUID_LH};
 use windows::Win32::Networking::NetworkListManager::{
     INetworkListManager, NLM_CONNECTIVITY_IPV4_INTERNET, NLM_CONNECTIVITY_IPV6_INTERNET, NetworkListManager,
 };
-use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6};
+use windows::Win32::Networking::WinSock::{AF_UNSPEC, SOCKADDR};
 use windows::Win32::System::Com::{CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize};
 use windows::core::GUID;
 
 // Local Imports
 use crate::collectors::network::{Change, Pending};
+use crate::platform::windows::adapters;
 use dokime::{Error, Result};
 
 /* === Constants === */
@@ -65,10 +63,11 @@ struct Apartment(bool);
 /* === Implementations === */
 
 impl Notifications {
-    pub fn new() -> Result<Self> {
+    /// Watch Changes From the Given Link States On; a Link Change Repeating Its Known State Is No Change.
+    pub fn new(links: BTreeMap<String, bool>) -> Result<Self> {
         let mut notifications = Self {
             handles: Vec::new(),
-            sink: Box::new(Mutex::new(Pending::new(links()?))),
+            sink: Box::new(Mutex::new(Pending::new(links))),
         };
         let context = (&*notifications.sink as *const Mutex<Pending>).cast::<c_void>();
         let mut handle = HANDLE::default();
@@ -141,39 +140,7 @@ pub fn internet() -> Option<bool> {
     Some(connectivity.0 & internet != 0)
 }
 
-/// The Adapter Carrying a Default Route, by Its Lowercase Braced GUID.
-pub fn primary_interface() -> Result<Option<String>> {
-    let mut table = null_mut();
-    // SAFETY: The API allocates its table; it is freed after reading every row.
-    let code = unsafe { GetIpForwardTable2(AF_UNSPEC, &mut table) };
-    if code != ERROR_SUCCESS {
-        return Err(Error::Invalid(format!("Read the Default Route: GetIpForwardTable2 Returned {}; Restart the Plugin", code.0)));
-    }
-    // SAFETY: A successful call returned a table of NumEntries rows.
-    let rows: &[MIB_IPFORWARD_ROW2] = unsafe { std::slice::from_raw_parts((*table).Table.as_ptr(), (*table).NumEntries as usize) };
-    let primary = rows.iter().filter(|row| row.DestinationPrefix.PrefixLength == 0).find_map(|row| adapter_id(&row.InterfaceLuid));
-    // SAFETY: The table came from GetIpForwardTable2 and is not used again.
-    unsafe { FreeMibTable(table.cast()) };
-    Ok(primary)
-}
-
 /* === Private Functions === */
-
-/// Every Interface's Operational State, So Notifications Report Only Real Link Transitions.
-fn links() -> Result<BTreeMap<String, bool>> {
-    let mut table = null_mut();
-    // SAFETY: The API allocates its table; it is freed after reading every row.
-    let code = unsafe { GetIfTable2(&mut table) };
-    if code != ERROR_SUCCESS {
-        return Err(Error::Invalid(format!("Read Network Links: GetIfTable2 Returned {}; Restart the Plugin", code.0)));
-    }
-    // SAFETY: A successful call returned a table of NumEntries rows.
-    let rows: &[MIB_IF_ROW2] = unsafe { std::slice::from_raw_parts((*table).Table.as_ptr(), (*table).NumEntries as usize) };
-    let links = rows.iter().filter_map(|row| Some((adapter_id(&row.InterfaceLuid)?, row.OperStatus == IfOperStatusUp))).collect();
-    // SAFETY: The table came from GetIfTable2 and is not used again.
-    unsafe { FreeMibTable(table.cast()) };
-    Ok(links)
-}
 
 fn adapter_id(luid: &NET_LUID_LH) -> Option<String> {
     let mut guid = GUID::zeroed();
@@ -191,26 +158,6 @@ fn push(context: *const c_void, kind: &str, luid: &NET_LUID_LH, address: Option<
     match adapter_id(luid) {
         Some(id) => pending.push(Change::new(kind, id, address), up),
         None => pending.fail(),
-    }
-}
-
-/// The Textual Form of a Native Socket Address.
-///
-/// SAFETY: The caller supplies a live native socket address from an IP Helper row.
-unsafe fn socket_address(address: *const SOCKADDR) -> Option<String> {
-    if address.is_null() {
-        return None;
-    }
-    match unsafe { (*address).sa_family } {
-        AF_INET => {
-            let address = unsafe { &*address.cast::<SOCKADDR_IN>() };
-            Some(Ipv4Addr::from(unsafe { address.sin_addr.S_un.S_addr }.to_ne_bytes()).to_string())
-        }
-        AF_INET6 => {
-            let address = unsafe { &*address.cast::<SOCKADDR_IN6>() };
-            Some(Ipv6Addr::from(unsafe { address.sin6_addr.u.Byte }).to_string())
-        }
-        _ => None,
     }
 }
 
@@ -241,7 +188,7 @@ unsafe extern "system" fn address(context: *const c_void, row: *const MIB_UNICAS
     // SAFETY: The OS passes a live row for the callback's duration.
     let row = unsafe { &*row };
     // SAFETY: The address belongs to the live row.
-    let text = unsafe { socket_address(std::ptr::addr_of!(row.Address).cast::<SOCKADDR>()) };
+    let text = unsafe { adapters::socket_address(std::ptr::addr_of!(row.Address).cast::<SOCKADDR>()) }.map(|(text, _)| text);
     push(context, if kind == MibDeleteInstance { "address_removed" } else { "address_added" }, &row.InterfaceLuid, text, None);
 }
 

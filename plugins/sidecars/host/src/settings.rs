@@ -22,7 +22,7 @@ use std::time::Duration;
 
 // Local Imports
 use dokime::operations::Context;
-use dokime::{Error, Result, SettingDeclaration, SettingValue, setting_value};
+use dokime::{Error, OperationPolicy, Result, SettingDeclaration, SettingValue, setting_value};
 
 /* === Constants === */
 
@@ -68,6 +68,12 @@ pub const CPU_LOAD_WORKER_BATCH_ITERATIONS: &str = "cpu_load_worker_batch_iterat
 
 /// CPU Load Holds Run Until Cancelled; Worker Settlement Must Fit This Cancellation Grace.
 pub const CPU_LOAD_CANCELLATION_GRACE: Duration = Duration::from_secs(60);
+
+/// One Mutating Control Reads, Writes and Verifies Within This Budget.
+pub const CONTROL_BUDGET: Duration = Duration::from_secs(30);
+
+/// A Restore May Write Several Outstanding Inverses, So It Has Twice the Control Budget.
+pub const RESTORE_BUDGET: Duration = Duration::from_secs(60);
 
 const DAY_MS: u64 = 86_400_000;
 
@@ -505,6 +511,17 @@ impl CpuLoad {
 }
 
 /* === Public Functions === */
+
+/// A Single-Attempt Operation Policy: the Whole Budget for One Attempt, Then the Cancellation Grace.
+pub fn policy(budget: Duration, grace: Duration) -> OperationPolicy {
+    let duration = |value: Duration| prost_types::Duration::try_from(value).ok();
+    OperationPolicy {
+        timeout: duration(budget),
+        attempt_timeout: duration(budget),
+        cancellation_timeout: duration(grace),
+        retries: None,
+    }
+}
 
 pub fn catalog() -> Vec<SettingDeclaration> {
     SETTINGS.iter().map(Setting::declaration).collect()

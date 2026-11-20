@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::process::{Command, Output, Stdio};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -29,13 +28,13 @@ use starship_battery::units::thermodynamic_temperature::degree_celsius;
 use starship_battery::units::time::second;
 use starship_battery::{Battery, Manager, State as Charging};
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, RefreshKind};
-use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::sync::OnceCell;
 
 // Local Imports
 use crate::Host;
 use crate::collectors::cpu::Load;
 use crate::domain::telemetry::System;
+use crate::platform::command;
 use crate::settings;
 use dokime::operations::Context;
 use dokime::{Error, Result};
@@ -45,8 +44,6 @@ use dokime::{Error, Result};
 const BYTES_PER_GIBIBYTE: f64 = 1_073_741_824.0;
 const PERCENT_SCALE: f64 = 100.0;
 
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /* === Macros === */
 
@@ -194,34 +191,6 @@ impl State {
 
 /* === Public Functions === */
 
-/// Run a Command With Null Input, Capturing Its Output Within the Timeout and Killing It After.
-///
-/// Collectors call this from blocking tasks; a joined thread with its own runtime never nests runtimes.
-pub fn bounded_output(command: Command, timeout: Duration) -> std::io::Result<Output> {
-    std::thread::Builder::new()
-        .name("host-probe".to_owned())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-            runtime.block_on(async move {
-                let mut command = tokio::process::Command::from(command);
-                command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
-                #[cfg(windows)]
-                command.creation_flags(CREATE_NO_WINDOW);
-                let mut child = command.spawn()?;
-                let stdout = child.stdout.take().expect("Standard Output Is Piped");
-                let stderr = child.stderr.take().expect("Standard Error Is Piped");
-                let result = capture(stdout, stderr, child.wait(), timeout).await;
-                if result.is_err() {
-                    // Killing Also Waits for the Direct Child; the Cancelled Readers Strand No Threads.
-                    let _ = child.kill().await;
-                }
-                result
-            })
-        })?
-        .join()
-        .map_err(|_| std::io::Error::other("Host Probe Worker Panicked"))?
-}
-
 /// The Last Value of Each Key Wins, as With `git config --get`.
 pub fn parse_git_identity(text: &str) -> GitIdentity {
     let mut identity = GitIdentity::default();
@@ -243,32 +212,13 @@ pub fn parse_git_identity(text: &str) -> GitIdentity {
 /* === Private Functions === */
 
 async fn git_identity(timeout: Duration) -> GitIdentity {
-    let mut command = Command::new("git");
+    let mut command = command::command("git");
     command.args(["config", "--get-regexp", r"^user\.(name|email)$"]);
-    let output = tokio::task::spawn_blocking(move || bounded_output(command, timeout)).await;
+    let output = tokio::task::spawn_blocking(move || command::bounded_output(command, timeout)).await;
     match output {
         Ok(Ok(output)) if output.status.success() => parse_git_identity(&String::from_utf8_lossy(&output.stdout)),
         _ => GitIdentity::default(),
     }
-}
-
-async fn capture(
-    mut stdout: impl AsyncRead + Unpin, mut stderr: impl AsyncRead + Unpin,
-    wait: impl std::future::Future<Output = std::io::Result<std::process::ExitStatus>>, timeout: Duration,
-) -> std::io::Result<Output> {
-    let capture = async {
-        let mut stdout_bytes = Vec::new();
-        let mut stderr_bytes = Vec::new();
-        let (_, _, status) = tokio::try_join!(stdout.read_to_end(&mut stdout_bytes), stderr.read_to_end(&mut stderr_bytes), wait)?;
-        Ok(Output {
-            status,
-            stdout: stdout_bytes,
-            stderr: stderr_bytes,
-        })
-    };
-    tokio::time::timeout(timeout, capture)
-        .await
-        .unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Command Timed Out")))
 }
 
 #[cfg(windows)]

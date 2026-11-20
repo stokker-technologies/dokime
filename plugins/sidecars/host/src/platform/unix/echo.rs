@@ -21,7 +21,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use crate::platform::unix::wifi::{command, run_bounded};
+use crate::platform::command::{bounded_output, command};
 
 /* === Constants === */
 
@@ -43,7 +43,7 @@ use crate::platform::unix::wifi::{command, run_bounded};
 pub fn round_trip_ms(host: &str, reply_timeout: Duration, payload_bytes: u32, process_timeout: Duration) -> Result<Option<f64>, String> {
     let mut command = command("ping");
     command.args(["-c", "1", "-W", &reply_timeout.as_millis().div_ceil(1_000).to_string(), "-s", &payload_bytes.to_string(), host]);
-    let output = run_bounded(command, process_timeout).map_err(|error| format!("Start ping: {error}; Install ping"))?;
+    let output = bounded_output(command, process_timeout).map_err(|error| format!("Start ping: {error}; Install ping"))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let output_text = format!("{stdout}\n{stderr}");

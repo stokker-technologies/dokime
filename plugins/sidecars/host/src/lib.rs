@@ -88,9 +88,10 @@ pub fn declarations() -> Result<Declarations> {
 
 /* === Private Functions === */
 
-/// Refuse a Misconfigured Plugin When It Connects, Naming the Setting to Correct.
+/// Refuse a Misconfigured Plugin When It Connects, Then Restore Every Control State a Previous Run Left Outstanding.
 async fn initialize(ctx: &Context) -> Result<()> {
-    settings::validate(ctx).await
+    settings::validate(ctx).await?;
+    controls::restore(ctx).await
 }
 
 /* === Tests === */

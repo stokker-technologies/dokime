@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 use sysinfo::{NetworkData, Networks};
 
 // Local Imports
+use crate::adapters::{self, AdapterStatus};
 use crate::domain::telemetry::Network;
 #[cfg(unix)]
 use crate::platform::unix::connectivity;
@@ -78,7 +79,6 @@ struct State {
 
 /// The Settings One Collection Reads.
 struct Timing {
-    #[cfg(unix)]
     probe_timeout: Duration,
     minimum_rate_window: Duration,
 }
@@ -96,7 +96,6 @@ impl Collector {
     /// is observed.
     pub async fn collect(&self, ctx: &Context) -> Result<Network> {
         let timing = Timing {
-            #[cfg(unix)]
             probe_timeout: settings::duration_value(ctx, settings::NETWORK_PROBE_TIMEOUT).await?,
             minimum_rate_window: settings::duration_value(ctx, settings::MINIMUM_RATE_WINDOW).await?,
         };
@@ -104,7 +103,7 @@ impl Collector {
         let collected = tokio::task::spawn_blocking(move || {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
             if state.is_none() {
-                *state = Some(State::new()?);
+                *state = Some(State::new(&timing)?);
             }
             let state = state.as_mut().expect("State Created Above");
             state.collect(&timing)
@@ -165,7 +164,11 @@ impl Pending {
 }
 
 impl State {
-    fn new() -> Result<Self> {
+    fn new(timing: &Timing) -> Result<Self> {
+        let links = adapters::native(timing.probe_timeout)?.adapters.into_iter().map(|adapter| {
+            let up = adapter.status == AdapterStatus::Up.as_str();
+            (adapter.id, up)
+        });
         Ok(Self {
             sample_index: 0,
             networks: Networks::new_with_refreshed_list()
@@ -173,7 +176,7 @@ impl State {
             last_refresh: Instant::now(),
             primary_interface: None,
             refresh_primary: true,
-            notifications: connectivity::Notifications::new()?,
+            notifications: connectivity::Notifications::new(links.collect())?,
         })
     }
 
@@ -188,7 +191,7 @@ impl State {
         self.networks.refresh(true);
         self.last_refresh = now;
         if self.refresh_primary {
-            self.primary_interface = connectivity::primary_interface()?;
+            self.primary_interface = adapters::native(timing.probe_timeout)?.adapters.into_iter().find(|adapter| adapter.primary).map(|adapter| adapter.id);
             self.refresh_primary = false;
         }
         let sum = |value: fn(&NetworkData) -> u64| self.networks.values().map(value).sum::<u64>();

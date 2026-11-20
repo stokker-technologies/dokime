@@ -53,7 +53,7 @@ use windows::{
 };
 
 // Local Imports
-use crate::collectors::wifi::ScannedNetwork;
+use crate::platform::ScannedNetwork;
 
 /* === Constants === */
 

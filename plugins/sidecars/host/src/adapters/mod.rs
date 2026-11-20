@@ -149,16 +149,18 @@ pub async fn snapshot(timeout: Duration) -> Result<Snapshot> {
     task.await.map_err(|error| Error::Invalid(format!("Read Adapters: Retry After the Inventory Worker Stopped: {error}")))?
 }
 
-/* === Private Functions === */
-
+/// Read the Native Adapter Inventory on the Calling Thread.
 #[cfg(windows)]
-fn native(timeout: Duration) -> Result<Snapshot> {
+pub fn native(timeout: Duration) -> Result<Snapshot> {
     crate::platform::windows::adapters::snapshot(timeout)
 }
 
+/// Read the Native Adapter Inventory on the Calling Thread.
 #[cfg(unix)]
-fn native(timeout: Duration) -> Result<Snapshot> {
+pub fn native(timeout: Duration) -> Result<Snapshot> {
     crate::platform::unix::adapters::snapshot(timeout)
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

@@ -21,14 +21,13 @@ use std::ffi::CStr;
 use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::process::Command;
 use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use crate::collectors::network::{Change, PENDING_CHANGES, Pending};
-use crate::collectors::system::bounded_output;
+use crate::platform::command::{bounded_output, command};
 use dokime::{Error, Result};
 
 /* === Constants === */
@@ -59,7 +58,8 @@ struct NativeChange {
 /* === Implementations === */
 
 impl Notifications {
-    pub fn new() -> Result<Self> {
+    /// Watch Changes From the Given Link States On; a Link Change Repeating Its Known State Is No Change.
+    pub fn new(links: BTreeMap<String, bool>) -> Result<Self> {
         // SAFETY: Creating a socket has no preconditions; the descriptor is owned immediately below.
         let descriptor =
             unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK, libc::NETLINK_ROUTE) };
@@ -81,7 +81,7 @@ impl Notifications {
         if code != 0 {
             return Err(native_error());
         }
-        Ok(Self { socket, pending: Pending::new(links()?) })
+        Ok(Self { socket, pending: Pending::new(links) })
     }
 
     /// Read Every Waiting Datagram, Then Take the Oldest Queued Change.
@@ -135,21 +135,13 @@ impl Notifications {
 
 /// NetworkManager's Last Connectivity Verdict, Without Own Traffic.
 pub fn internet(timeout: Duration) -> Option<bool> {
-    let mut command = Command::new("nmcli");
+    let mut command = command("nmcli");
     command.args(["networking", "connectivity"]);
     let output = bounded_output(command, timeout).ok()?;
     if !output.status.success() {
         return None;
     }
     parse_connectivity(&String::from_utf8_lossy(&output.stdout))
-}
-
-/// The Adapter Carrying an IPv4 or IPv6 Default Route.
-pub fn primary_interface() -> Result<Option<String>> {
-    let read = |path: &str| {
-        std::fs::read_to_string(path).map_err(|error| Error::Invalid(format!("Read the Default Route: {path} Is Unavailable ({error})")))
-    };
-    Ok(default_route(&read("/proc/net/route")?, &read("/proc/net/ipv6_route")?))
 }
 
 /* === Private Functions === */
@@ -164,50 +156,6 @@ fn parse_connectivity(state: &str) -> Option<bool> {
         "none" | "portal" | "limited" => Some(false),
         _ => None,
     }
-}
-
-/// The First Interface Whose Usable Route Has an All-Zero Destination and Prefix.
-fn default_route(ipv4: &str, ipv6: &str) -> Option<String> {
-    let flags = |value: &str| u32::from_str_radix(value, 16).unwrap_or(0);
-    let ipv4 = ipv4
-        .lines()
-        .skip(1)
-        .map(|line| line.split_whitespace().collect::<Vec<_>>())
-        .find(|fields| fields.len() >= 8 && flags(fields[3]) & 1 != 0 && fields[1] == "00000000" && fields[7] == "00000000");
-    if let Some(fields) = ipv4 {
-        return Some(fields[0].to_owned());
-    }
-    ipv6.lines()
-        .map(|line| line.split_whitespace().collect::<Vec<_>>())
-        .find(|fields| {
-            fields.len() >= 10
-                && flags(fields[8]) & 1 != 0
-                && flags(fields[8]) & 0x200 == 0
-                && fields[0] == "00000000000000000000000000000000"
-                && fields[1] == "00"
-        })
-        .map(|fields| fields[9].to_owned())
-}
-
-/// Every Interface's Running State, So Notifications Report Only Real Link Transitions.
-fn links() -> Result<BTreeMap<String, bool>> {
-    let mut first = std::ptr::null_mut();
-    // SAFETY: getifaddrs owns the linked list until freeifaddrs below.
-    if unsafe { libc::getifaddrs(&mut first) } != 0 {
-        return Err(native_error());
-    }
-    let mut links = BTreeMap::new();
-    let mut current = first;
-    while !current.is_null() {
-        // SAFETY: Every entry and name belongs to the live list.
-        let entry = unsafe { &*current };
-        let name = unsafe { CStr::from_ptr(entry.ifa_name) }.to_string_lossy().into_owned();
-        *links.entry(name).or_default() |= entry.ifa_flags & libc::IFF_RUNNING as u32 != 0;
-        current = entry.ifa_next;
-    }
-    // SAFETY: The list came from getifaddrs and is not used again.
-    unsafe { libc::freeifaddrs(first) };
-    Ok(links)
 }
 
 fn interface_name(index: u32) -> String {
@@ -321,18 +269,6 @@ mod tests {
         assert_eq!(parse_connectivity("full\n"), Some(true));
         assert_eq!(parse_connectivity("portal"), Some(false));
         assert_eq!(parse_connectivity("unknown"), None);
-    }
-
-    #[test]
-    fn the_default_route_names_the_primary_interface() {
-        let ipv4 = "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\n\
-                    eth1\t0000A8C0\t00000000\t0001\t0\t0\t0\t00FFFFFF\n\
-                    eth0\t00000000\t0102A8C0\t0003\t0\t0\t0\t00000000\n";
-        assert_eq!(default_route(ipv4, "").as_deref(), Some("eth0"));
-        let ipv6 = "00000000000000000000000000000000 00 00000000000000000000000000000000 00 fe800000000000000000000000000001 00000400 \
-                    00000001 00000000 00000003 wlan0\n";
-        assert_eq!(default_route("Iface\n", ipv6).as_deref(), Some("wlan0"));
-        assert_eq!(default_route("Iface\n", ""), None);
     }
 
     #[test]

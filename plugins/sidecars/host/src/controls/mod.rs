@@ -394,27 +394,36 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
         let machine = Machine { timing: Timing::read(ctx).await? };
         ctx.plugin::<Host>()?.controls.execute(change, &machine, &Unavailable, ctx).await
     })
+    .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Switch Every Radio of One Kind On or Off, Recording the Prior State for Restoration.");
     let adapter = Operation::new(ADAPTER_SET, Visibility::Public, async |ctx: &Context, request: AdapterSet| {
         let change = Change::adapter(request);
         let machine = Machine { timing: Timing::read(ctx).await? };
         ctx.plugin::<Host>()?.controls.execute(change, &machine, &Unavailable, ctx).await
     })
+    .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Enable or Disable One Network Adapter, Recording the Prior State for Restoration.");
     let plan = Operation::new(PLAN_SET, Visibility::Public, async |ctx: &Context, request: PlanSet| {
         let change = Change::plan(request);
         let machine = Machine { timing: Timing::read(ctx).await? };
         ctx.plugin::<Host>()?.controls.execute(change, &machine, &Unavailable, ctx).await
     })
+    .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Activate One Power Plan, Recording the Prior Plan for Restoration.");
     let restore = Operation::new(RESTORE, Visibility::Protected, async |ctx: &Context, _: ControlsRestore| {
-        let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.restore(&machine, &Unavailable).await?;
+        restore(ctx).await?;
         let at = ctx.now().await?;
         Ok(Applied { at: at.to_string() })
     })
+    .policy(settings::policy(settings::RESTORE_BUDGET, Duration::ZERO))
     .description("Restore Every Control State a Mutating Control Recorded Before Its Write, Latest First.");
     Ok(plugin.operation(radio).operation(adapter).operation(plan).operation(restore))
+}
+
+/// Restore Every Outstanding Control State; the Restore Operation and the Plugin Start Both Run It.
+pub async fn restore(ctx: &Context) -> Result<()> {
+    let machine = Machine { timing: Timing::read(ctx).await? };
+    ctx.plugin::<Host>()?.controls.restore(&machine, &Unavailable).await
 }
 
 /// Whether Disabling the Change Cuts One of the Connected Adapters.

@@ -23,9 +23,10 @@ use std::time::{Duration, Instant};
 
 // Local Imports
 use plugin_host::collectors::wifi::{
-    CONGESTION_MODEL_24_GHZ, CONGESTION_MODEL_SAME_CHANNEL, Counters, ScanReport, ScannedNetwork, band, congestion, latency_row, scan_due,
-    scan_rows, throughput,
+    CONGESTION_MODEL_24_GHZ, CONGESTION_MODEL_SAME_CHANNEL, Counters, ScanReport, band, congestion, latency_row, scan_due, scan_rows,
+    throughput,
 };
+use plugin_host::platform::ScannedNetwork;
 
 /* === Constants === */
 

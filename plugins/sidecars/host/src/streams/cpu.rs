@@ -29,7 +29,7 @@ use crate::collectors::cpu::sampling::Sampler;
 use crate::settings::{self, CpuLoad};
 use dokime::operations::{Context, Operation};
 use dokime::plugin::{Plugin, Publisher, Stream};
-use dokime::{OperationPolicy, Result, Visibility};
+use dokime::{Result, Visibility};
 
 /* === Constants === */
 
@@ -67,10 +67,10 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
         .description("Measured Closed-Loop CPU Load and Generator Throughput per Controller Period.")
         .publish_on(publish);
     let load = Operation::new(LOAD, Visibility::Public, read)
-        .policy(policy(LOAD_BUDGET, Duration::ZERO))
+        .policy(settings::policy(LOAD_BUDGET, Duration::ZERO))
         .description("Report the Calibrated CPU Capacity, Current Utilization and Their Product.");
     let load_hold = Operation::new(LOAD_HOLD, Visibility::Public, load_hold)
-        .policy(policy(HOLD_BUDGET, settings::CPU_LOAD_CANCELLATION_GRACE))
+        .policy(settings::policy(HOLD_BUDGET, settings::CPU_LOAD_CANCELLATION_GRACE))
         .description("Hold a CPU Utilization or Throughput Target Until Cancelled, Publishing Each Controller Period.");
     Ok(plugin.stream(stream).operation(load).operation(load_hold))
 }
@@ -112,14 +112,5 @@ async fn publish(ctx: &dokime::templates::Context, publisher: Publisher<LoadCont
     }
 }
 
-fn policy(budget: Duration, grace: Duration) -> OperationPolicy {
-    let duration = |value: Duration| prost_types::Duration::try_from(value).ok();
-    OperationPolicy {
-        timeout: duration(budget),
-        attempt_timeout: duration(budget),
-        cancellation_timeout: duration(grace),
-        retries: None,
-    }
-}
 
 /* === Tests === */

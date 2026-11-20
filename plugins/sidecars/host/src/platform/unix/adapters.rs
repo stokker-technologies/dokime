@@ -22,16 +22,14 @@ use std::fs;
 use std::io;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
 use std::ptr::null_mut;
-use std::sync::mpsc;
-use std::thread;
 use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use crate::adapters::{Adapter, AdapterKind, AdapterStatus, Address, Snapshot};
+use crate::platform::command::{bounded_output, command};
 use dokime::{Error, Result};
 
 /* === Constants === */
@@ -200,7 +198,7 @@ fn read_routes(adapters: &mut BTreeMap<String, Adapter>) -> Result<()> {
 
 fn network_manager(adapters: &mut BTreeMap<String, Adapter>, timeout: Duration) {
     // NetworkManager Supplies Per-Interface DNS and DHCP Where It Manages the Link.
-    let mut command = Command::new("nmcli");
+    let mut command = command("nmcli");
     command.args([
         "--terse",
         "--escape",
@@ -210,7 +208,7 @@ fn network_manager(adapters: &mut BTreeMap<String, Adapter>, timeout: Duration) 
         "device",
         "show",
     ]);
-    let Ok(output) = run_bounded(command, timeout) else {
+    let Ok(output) = bounded_output(command, timeout) else {
         return;
     };
     if !output.status.success() {
@@ -245,23 +243,6 @@ fn network_manager(adapters: &mut BTreeMap<String, Adapter>, timeout: Duration) 
             adapter.dns_servers.push(value.to_owned());
         } else if field.starts_with("DHCP4.OPTION[") || field.starts_with("DHCP6.OPTION[") {
             adapter.dhcp = Some(true);
-        }
-    }
-}
-
-/// Run a Command to Completion Within the Timeout, Killing It When the Timeout Passes.
-fn run_bounded(mut command: Command, timeout: Duration) -> io::Result<Output> {
-    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let child = command.spawn()?;
-    let id = child.id();
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || sender.send(child.wait_with_output()));
-    match receiver.recv_timeout(timeout) {
-        Ok(output) => output,
-        Err(_) => {
-            // SAFETY: The Waiting Thread Still Owns the Unreaped Child, So the Identifier Names It.
-            unsafe { libc::kill(id as libc::pid_t, libc::SIGKILL) };
-            Err(io::Error::new(io::ErrorKind::TimedOut, "command timed out"))
         }
     }
 }

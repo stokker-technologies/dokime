@@ -72,16 +72,15 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
 /// The Active Power Plan, Read Natively Without Starting a Process.
 #[cfg(windows)]
 pub fn active_plan() -> Result<Plan> {
-    let (id, name) = crate::platform::windows::controls::active_scheme()
-        .ok_or_else(|| Error::Invalid("Read Power Plan: Activate a Power Plan; PowerGetActiveScheme Returned None".into()))?;
+    let (id, name) = crate::platform::windows::power::active_plan()?;
     Ok(Plan { id, name })
 }
 
 /// The Active Power Plan, Read From the ACPI Platform Profile.
 #[cfg(unix)]
 pub fn active_plan() -> Result<Plan> {
-    let id = crate::platform::unix::controls::platform_profile()?;
-    Ok(Plan { name: Some(id.clone()), id })
+    let (id, name) = crate::platform::unix::power::active_plan()?;
+    Ok(Plan { id, name })
 }
 
 /* === Private Functions === */

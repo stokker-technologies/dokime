@@ -26,6 +26,7 @@ use sysinfo::Networks;
 
 // Local Imports
 use crate::domain::telemetry::{WifiLatency, WifiLink, WifiScan};
+use crate::platform::ScannedNetwork;
 use dokime::{Error, Result};
 
 /* === Constants === */
@@ -74,19 +75,6 @@ pub struct LatencyOptions {
     pub reply_timeout: Duration,
     pub process_timeout: Duration,
     pub payload_bytes: u32,
-}
-
-/// One Basic Service Set Reported by a Wi-Fi Scan.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ScannedNetwork {
-    pub adapter: Option<String>,
-    pub ssid: Option<String>,
-    pub bssid: Option<String>,
-    pub signal_percent: Option<f64>,
-    pub rssi_dbm: Option<f64>,
-    pub channel: Option<u32>,
-    pub security: Option<String>,
-    pub associated: bool,
 }
 
 /// What a Platform Scan Returned: Fresh From an Active Scan, or the Cached List.

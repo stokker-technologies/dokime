@@ -19,14 +19,12 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::ops::RangeInclusive;
-use std::process::{Command, Output, Stdio};
-use std::thread;
 use std::time::Duration;
 
 // Third Party Imports
-use tokio::io::{AsyncRead, AsyncReadExt};
 
 // Local Imports
+use crate::platform::command::{bounded_output, command};
 
 /* === Constants === */
 
@@ -133,7 +131,7 @@ pub fn nmcli_wifi_rows(rescan: bool, timeout: Duration) -> Result<Vec<NmcliWifiR
         "--rescan",
         if rescan { "yes" } else { "no" },
     ]);
-    let output = run_bounded(command, timeout).map_err(|error| format!("Start nmcli: {error}; Install NetworkManager"))?;
+    let output = bounded_output(command, timeout).map_err(|error| format!("Start nmcli: {error}; Install NetworkManager"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
@@ -169,37 +167,6 @@ pub fn adapter_matches(device: Option<&str>, filter: Option<&str>) -> bool {
     device.is_some_and(|device| device.eq_ignore_ascii_case(filter))
 }
 
-/// A Child Process Command; Unix Opens No Console Window.
-pub fn command(program: &str) -> Command {
-    #[allow(clippy::disallowed_methods, reason = "Unix child processes open no console window")]
-    Command::new(program)
-}
-
-/// Run a Command to Completion Within the Timeout, Killing It When the Timeout Elapses.
-pub fn run_bounded(command: Command, timeout: Duration) -> std::io::Result<Output> {
-    // Collectors run on the blocking pool; keep the runtime on its own joined thread so block_on never nests runtimes.
-    thread::Builder::new()
-        .name("host-probe".to_owned())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-            runtime.block_on(async move {
-                let mut command = tokio::process::Command::from(command);
-                command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
-                let mut child = command.spawn()?;
-                let stdout = child.stdout.take().ok_or_else(|| std::io::Error::other("Capture Probe Output: stdout is not piped"))?;
-                let stderr = child.stderr.take().ok_or_else(|| std::io::Error::other("Capture Probe Output: stderr is not piped"))?;
-                let result = capture(stdout, stderr, child.wait(), timeout).await;
-                if result.is_err() {
-                    // This also waits for the direct child, avoiding zombies; the cancelled pipe readers cannot strand threads.
-                    let _ = child.kill().await;
-                }
-                result
-            })
-        })?
-        .join()
-        .map_err(|_| std::io::Error::other("Run Host Probe: the probe worker panicked"))?
-}
-
 /* === Private Functions === */
 
 fn iw_links(timeout: Duration) -> Result<BTreeMap<String, WifiLinkReport>, String> {
@@ -219,31 +186,13 @@ fn iw_links(timeout: Duration) -> Result<BTreeMap<String, WifiLinkReport>, Strin
 fn iw_output(args: &[&str], timeout: Duration) -> Result<String, String> {
     let mut command = command("iw");
     command.args(args);
-    let output = run_bounded(command, timeout).map_err(|error| format!("Start iw: {error}; Install iw"))?;
+    let output = bounded_output(command, timeout).map_err(|error| format!("Start iw: {error}; Install iw"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
     }
     String::from_utf8(output.stdout).map_err(|error| format!("Read iw Output: {error}"))
 }
 
-async fn capture(
-    mut stdout: impl AsyncRead + Unpin, mut stderr: impl AsyncRead + Unpin,
-    wait: impl std::future::Future<Output = std::io::Result<std::process::ExitStatus>>, timeout: Duration,
-) -> std::io::Result<Output> {
-    let capture = async {
-        let mut stdout_bytes = Vec::new();
-        let mut stderr_bytes = Vec::new();
-        let (_, _, status) = tokio::try_join!(stdout.read_to_end(&mut stdout_bytes), stderr.read_to_end(&mut stderr_bytes), wait)?;
-        Ok(Output {
-            status,
-            stdout: stdout_bytes,
-            stderr: stderr_bytes,
-        })
-    };
-    tokio::time::timeout(timeout, capture)
-        .await
-        .unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Run Host Probe: the command timed out")))
-}
 
 fn split_nmcli_fields(line: &str) -> Vec<String> {
     let mut fields = Vec::new();
