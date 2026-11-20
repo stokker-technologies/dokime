@@ -15,6 +15,7 @@
 import hashlib
 import json
 import stat
+import subprocess
 import tomllib
 import zipfile
 from pathlib import Path
@@ -27,7 +28,9 @@ from pathlib import Path
 
 # Local Imports
 from dokime_tools.build import paths
+from dokime_tools.package.assembly import write_file
 from dokime_tools.package.staging import clear_output, stage_file
+from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
 
@@ -49,7 +52,38 @@ def export(root: Path, profile: str) -> Path:
     if native not in {"x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"}:
         raise ValueError(f"Package Product: unsupported distribution target: {native}")
     suffix = ".exe" if "windows" in native else ""
+    # Read the Build Identity Embedded by DOKIME_SOURCE_REVISION and DOKIME_BUILD_CHANNEL.
+    result = subprocess.run(
+        [str(build / "bin" / f"dokime{suffix}"), "--version", "--json"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        creationflags=spawn_flags(),
+    )
+    identity = json.loads(result.stdout)
     config = tomllib.loads((root / "tools/project.toml").read_text(encoding="utf-8"))
+    if identity["version"] != config["version"]["value"]:
+        raise ValueError("Package Product: Rebuild the CLI for the Configured Product Version")
+    plugins = []
+    bundles = []
+    for plugin in config.get("release", {}).get("plugins", []):
+        if native not in plugin.get("targets", {}).values():
+            continue
+        path = build / "bin" / f"{plugin['package']}.dokime"
+        result = subprocess.run(
+            [str(build / "bin" / f"dokime{suffix}"), "plugin", "inspect", "--bundle", str(path), "--json"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+            creationflags=spawn_flags(),
+        )
+        name = json.loads(result.stdout)["identity"]["name"]
+        if name in plugins:
+            raise ValueError(f"Package Product: Declare Each Default Plugin Identity Once: {name}")
+        plugins.append(name)
+        bundles.append(path)
     source = {
         "LICENSE": root / "LICENSE",
         "NOTICE": root / "target/notices/NOTICE",
@@ -79,7 +113,17 @@ def export(root: Path, profile: str) -> Path:
     for name, path in sorted(source.items()):
         stage_file(path, destination / name)
         hashes[name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
-    manifest = {"schema": 1, "version": config["version"]["value"], "target": native, "files": hashes}
+    for path in bundles:
+        stage_file(path, destination / "plugins" / path.name)
+    manifest = {
+        "schema": 1,
+        "version": identity["version"],
+        "target": native,
+        "source_revision": identity["revision"] or "unknown",
+        "channel": identity["channel"] or "local",
+        "plugins": plugins,
+        "files": hashes,
+    }
     (destination / "distribution.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return destination
 
@@ -91,10 +135,11 @@ def archive(source: Path, output: Path) -> Path:
     destination = output / f"dokime-distribution-{manifest['version']}-{manifest['target']}.zip"
     checksums = manifest["files"]
     names = ["distribution.json", *sorted(checksums)]
-    entries = [_entry(source, name, checksums.get(name)) for name in names]
+    entries = [_entry(source, name) for name in names]
     bundle = zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED)
     try:
-        _write_entries(bundle, entries)
+        for name, path in zip(names, entries, strict=True):
+            write_file(bundle, path, name, 0o755 if name.startswith("bin/") else 0o644, checksum=checksums.get(name))
     finally:
         bundle.close()
     return destination
@@ -103,7 +148,7 @@ def archive(source: Path, output: Path) -> Path:
 # === Private Functions === #
 
 
-def _entry(source: Path, name: str, checksum: str | None) -> tuple[zipfile.ZipInfo, bytes]:
+def _entry(source: Path, name: str) -> Path:
     relative = Path(name)
     unsafe = relative.is_absolute() or ".." in relative.parts
     if unsafe or "\\" in name or ":" in name:
@@ -111,20 +156,7 @@ def _entry(source: Path, name: str, checksum: str | None) -> tuple[zipfile.ZipIn
     path = source / relative
     if path.is_symlink() or not stat.S_ISREG(path.lstat().st_mode):
         raise ValueError("Package Product: installer distribution must contain regular files")
-    data = path.read_bytes()
-    if checksum is not None and hashlib.sha256(data).hexdigest() != checksum:
-        raise ValueError(f"Package Product: installer distribution changed after Build: {name}")
-
-    entry = zipfile.ZipInfo(name)
-    entry.create_system = 3
-    entry.external_attr = (stat.S_IFREG | (0o755 if name.startswith("bin/") else 0o644)) << 16
-    entry.compress_type = zipfile.ZIP_DEFLATED
-    return entry, data
-
-
-def _write_entries(bundle: zipfile.ZipFile, entries: list[tuple[zipfile.ZipInfo, bytes]]) -> None:
-    for entry, data in entries:
-        bundle.writestr(entry, data)
+    return path
 
 
 # === Entry Point === #

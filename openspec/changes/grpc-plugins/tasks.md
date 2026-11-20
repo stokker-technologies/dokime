@@ -24,6 +24,7 @@
 - [x] 4.1 Make `sdk/rust` the host-free product `dokime` authoring/client crate with generated service coverage.
 - [x] 4.2 Provide `dokime new`, plugin, bundle, installer and protocol commands in the one CLI; remove cargo-dokime.
 - [x] 4.2.1 Apply the 2026-11-19 plugin verbs: replace CLI `plugin add` with `plugin register` without an alias, retain bundle `plugin install`, remove Python's refusing `plugins.upload` method without adding an `install` stub, and update command consumers, README and the locked SDK specification. Prove CLI units/remote registration/managed installation and Python units/host-free integration.
+- [x] 4.2.2 Replace the version subcommand with `--version`/`-V` and `--version --json`, migrate its story consumer and share source revision/channel derivation between CLI and desktop builds.
 - [x] 4.3 Replace PyO3 with the pure Python authoring/client package, explicit close and shipped examples.
 - [x] 4.4 Provide C# authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
 - [x] 4.5 Provide C++ authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
@@ -256,7 +257,7 @@
 
 ## Library Pin, Installer Feature and SDK Lanes
 
-- [x] Refresh Every Library Pin to `dae69cea0850ce8dd3bda4ec9d87c5c6c5ab3912`, Its Locks, Vendored Protocol Inputs and Generated Bindings; Adapt Existing Consumers and Prove the Focused SDK Tests and Runtime Test Compilation.
+- [x] Refresh Every Library Pin to the recorded revision, Its Locks, Vendored Protocol Inputs and Generated Bindings; Adapt Existing Consumers and Prove the Focused SDK Tests and Runtime Test Compilation.
 - [x] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
 - [x] Expose Library-Owned Lane Declarations and Operation Assignment Through All Four Product SDKs; Prove Each Description and Preserve Library Validation.
 - [x] Run the Requested Final Repository, Rust Lint, Release-Context Binding and Supply Checks Without Expanding Local Test Lanes.

@@ -1,5 +1,49 @@
 ## ADDED Requirements
 
+### Requirement: One Native Installer Producer
+
+Release and organization installers SHALL use the built CLI's installer packager.
+Release packaging SHALL consume a same-run local kit with `--artifacts`, preserve
+release asset names, and publish verified updater metadata as `release.json`.
+
+#### Scenario: Package the Build
+
+- **WHEN** the Package job assembles a product release
+- **THEN** it invokes the built CLI with the repository default manifest and local kit without downloading or compiling
+
+### Requirement: Kit Identity and Default Plugins
+
+Kits SHALL record executable source revision, channel and default plugin names.
+Installers SHALL include those defaults unless excluded by name through
+`installer.exclude_plugins`; additional named and path plugin entries remain supported.
+
+#### Scenario: Select Default Plugins
+
+- **WHEN** an installer uses a local kit or a downloaded release
+- **THEN** defaults come from the local `plugins/` folder or verified release plugin archive respectively, with manifest exclusions applied
+
+### Requirement: Runtime Plugin Bundle Inputs
+
+Bundles SHALL exclude development tool configuration, environment files, version
+control metadata, tests, editors, caches and private inputs. Required script inputs
+that would be excluded SHALL cause an actionable refusal.
+
+#### Scenario: Bundle a Source Project
+
+- **WHEN** an author bundles a source project with development configuration and tests
+- **THEN** the bundle retains its launch/build inputs and runtime metadata without those development members
+
+### Requirement: Installer Packaging Progress
+
+The library SHALL report completed steps and failures through a caller observer.
+The CLI SHALL render progress and durations to stderr, retain output paths on
+stdout and disable progress for JSON output, without terminal controls in pipes.
+
+#### Scenario: Packaging Failure
+
+- **WHEN** a packaging step fails
+- **THEN** completed steps remain visible and the failing step reports its actionable error
+
 ### Requirement: Operator Surfaces Follow the Pack
 
 Every surface an operator of an installation sees SHALL show the resolved organization label and artwork instead of the built-in product name.
