@@ -1622,8 +1622,27 @@ plugin-presentation contribution or projection for these values. The SDK and hos
 owners must select one representation rather than introduce a parallel metadata
 family. This is an unresolved product contract, not a missing generic contribution
 facility in the library.
+Architecture invariant 7 assigns ownership: "Dokime owns plugin contracts, the
+four author SDKs and starters". The C# `PluginDescription` in
+`sdk/csharp/src/Dokime/AuthorModel.cs` and C++ `PluginDescription` in
+`sdk/cpp/include/dokime/plugin.hpp` serve host-free author inspection, while
+`proto/dokime/host/v1/plugins.proto` has a separate advertised description used by
+host plugin reads. Report this parallel description family to the owner before
+replacing it; prefer deriving inspection and host presentation from one advertised
+product contribution rather than maintaining independent metadata assembly.
 Manifest scripts, bundle inputs and compatibility ranges remain packaging data;
 hand-run registration must not read a manifest to obtain presentation values.
+The current manifests also carry tags, authors, license, repository, optional
+publisher and readme references that the advertised description does not expose.
+These catalog values remain part of the presentation-contract decision.
+
+The Rust integration harness still reads `harmos listening` for remote placement
+in `sdk/rust/tests/integration/support/plugin.rs`, while hand-run SDK serving is
+silent. Its callers in `authoring.rs` still require operation and stream proof;
+do not remove those capabilities or restore SDK output to satisfy the harness.
+Migrate readiness through the selected addressable start API after the library
+listener lifecycle is available. Until then this harness is unresolved rework,
+separate from the focused self-registration proof.
 
 Execution seal does not start, cancel or wait for active work. Repetition returns
 the same outcome. A normal run or cancellation already seals the execution;

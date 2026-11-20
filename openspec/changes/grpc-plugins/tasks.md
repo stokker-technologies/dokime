@@ -251,14 +251,16 @@
 
 - [x] Add `PluginsCreateRequest.sdk_version` at Field 6 and Regenerate the Tracked Bindings.
 - [x] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
-- [ ] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
+- [x] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
 - [ ] Complete C# Paired Startup, Stable Identity, Refusals and Entry Retention With Focused Proof.
-  - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Repeated Disposal and Client-Close Entry Retention.
+  - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Listener Completion, Repeated Disposal, Explicit Removal and Client-Close Entry Retention.
+  - [ ] Prove Automatic Paired C# Process Startup Against the Combined Host.
 - [ ] Complete C++ Registration and Entry Retention After Preparing Its Native SDK Build.
 - [ ] Expose Addressable Start/Wait APIs and Authored Starter Output After the Library Publishes the Required Listener Lifecycle.
 - [ ] Agree One Plugin-Presentation Contribution With the Host Owner and Carry Label, Description and Icon Through the Shared Description.
 - [ ] Adopt the Library-Owned Managed Announcement When the Integrating Owner Moves the Pin; Keep Detection Isolated per SDK.
 - [ ] Complete Binding and Workspace-Test-Compilation Gates.
+  - [x] Pass the Registration Wire Round-Trip and Compile Every Rust Consumer Test Target.
   - [x] Pass the Release-Context Python Binding, Strict Stub and Generated-Surface Checks.
   - [x] Pass Repository Checks and the Created Python Starter's Unmodified Client and Retained Archive Story.
 
