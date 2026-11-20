@@ -14,3 +14,4 @@
 - [ ] 5.1 Hosted pipelines publish the archive and the assembled site shows `latest`, a release and `dev`.
 
 - [x] 6.1 Move the site project to `sites/docs/` and update tooling, cache, format and impact references.
+- [x] 6.2 Prove the native loader watches `docs/` and reloads edited guides, new guides and D2 blocks without browser timing.

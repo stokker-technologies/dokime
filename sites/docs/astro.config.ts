@@ -16,6 +16,8 @@ const source = process.env.DOCS_SOURCE ?? "https://github.com/stokker-technologi
 
 export default defineConfig({
   base,
+  server: { host: "127.0.0.1", port: 4321 },
+  vite: { server: { strictPort: true } },
   outDir: `../../target/docs/${entry}`,
   markdown: {
     processor: unified({ remarkPlugins: [remarkGuides({ root, base, source }), remarkDiagrams()] }),

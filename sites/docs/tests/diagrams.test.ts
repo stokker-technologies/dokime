@@ -71,6 +71,13 @@ test("identical sources share rendering across titles and files", (context) => {
   const identifiers = [...JSON.stringify([first, second]).matchAll(/id=\\"([^\\]+)\\"/g)].map((match) => match[1]);
   assert.equal(identifiers.length, 4);
   assert.equal(new Set(identifiers).size, identifiers.length);
+  const edited: Root = {
+    type: "root",
+    children: [{ type: "code", lang: "d2", value: "source -> updated" }],
+  };
+  transform(edited, { path: "first.md" });
+  assert.equal(runner.mock.callCount(), 4);
+  assert.equal(runner.mock.calls[2].arguments[2].input, "source -> updated");
 });
 
 test("fixture build inlines both themes with selectable text and unique references", () => {

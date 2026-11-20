@@ -136,9 +136,9 @@ description = "Assemble Published Documentation Archives Into the Site Image"
 run = "{{vars.tools}} dokime_tools.docs.image"
 
 [tasks."docs:test"]
-description = "Test Documentation Diagrams"
+description = "Test Documentation Tooling"
 usage = 'flag "--select <select>"'
-run = 'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/diagrams.test.ts'
+run = 'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/*.test.ts'
 
 [tasks."docs:format"]
 description = "Format the Documentation Site"
