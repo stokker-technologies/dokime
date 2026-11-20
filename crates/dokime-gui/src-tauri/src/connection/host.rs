@@ -327,7 +327,7 @@ impl Session {
     }
 
     async fn observe_plugins(&self) -> Result<(), Error> {
-        use harmos_protocol::host::{plugin_change, plugins_watch_response};
+        use dokime_client_internal::host::{plugin_change, plugins_watch_response};
         let observer = self.clone();
         let options = PluginsWatchOptions {
             context: self.call_options()?,
