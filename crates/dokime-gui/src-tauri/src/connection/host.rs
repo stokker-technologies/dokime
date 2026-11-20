@@ -816,6 +816,32 @@ mod tests {
         assert!(log_plugin_failure(&entry, &mut seen));
     }
 
+    #[cfg(feature = "testing")]
+    #[test]
+    fn owned_host_keeps_one_observer_across_selection_and_clients() {
+        crate::test_support::run(async {
+            let root = crate::test_support::tempdir().unwrap();
+            let connection = crate::connection::ConnectionSession::default();
+            let owner = crate::native_session::DesktopSession::with_local_backend(
+                connection.clone(),
+                crate::native_session::backend::Backend::new(root.path().to_owned()),
+            );
+            let snapshot = owner.select(crate::native_session::BackendSelection::OwnedLocal).await.unwrap();
+            let local = owner.local_client().await.unwrap();
+            let selected = connection.lease(&snapshot.connection.generation).unwrap().client();
+            assert_eq!(local.product_epoch(), selected.product_epoch());
+            assert_eq!(local.watches.lock().await.len(), 1);
+            assert!(selected.watches.lock().await.is_empty());
+            owner.disconnect().await.unwrap();
+            assert!(!local.cancellation().is_cancelled());
+            assert!(selected.cancellation().is_cancelled());
+            assert_eq!(local.watches.lock().await.len(), 1);
+            owner.shutdown().await.unwrap();
+            assert!(local.cancellation().is_cancelled());
+            assert!(local.watches.lock().await.is_empty());
+        });
+    }
+
     #[test]
     fn failures_log_structured_fields_without_payloads_at_default_levels() {
         let bytes = Arc::new(Mutex::new(Vec::new()));
