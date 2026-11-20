@@ -82,7 +82,8 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         if (
             path.startswith(("docs/", "openspec/", "sites/", "tools/python/src/dokime_tools/docs/"))
             or path.lower().endswith((".md", ".mdx"))
-            or path in {
+            or path
+            in {
                 "tools/python/src/dokime_tools/ci/impact.py",
                 "tools/python/tests/integration/test_ci_impact.py",
                 "tools/python/tests/integration/test_docs_site.py",
@@ -140,7 +141,9 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     if event not in {"review", "push", "release", "nightly", "full", "draft", "closed"}:
         raise ValueError("Plan CI Impact: Choose a Supported Event")
     documentation_only = classes == frozenset({"docs"})
-    full = event == "full" or event in {"release", "nightly"} and not documentation_only or "all" in classes or not classes or not classes <= CLASSES
+    complete_event = event in {"release", "nightly", "full"}
+    unknown = "all" in classes or not classes or not classes <= CLASSES
+    full = unknown or complete_event and (event == "full" or not documentation_only)
     languages = {"rust", "python", "typescript", "csharp", "cpp"} if full else set()
     selected: set[str] = set(JOBS) if full else set()
     if "docs" in classes:
@@ -194,6 +197,7 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
         selected.clear()
     return {
         **{job: job in selected for job in JOBS},
+        "product": bool(selected - {"build_docs"}),
         "selected": sorted(selected),
         "skipped": sorted(set(JOBS) - selected),
         "check_matrix": {"include": checks},
@@ -247,6 +251,7 @@ def changed_paths(event: Mapping[str, Any], name: str, directory: Path) -> list[
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--event", choices=("review", "push", "release", "nightly", "full", "draft", "closed"))
+    parser.add_argument("--base", help="Compare Nightly Against the Published Product Tag Revision")
     options = parser.parse_args(arguments)
     event = {}
     if event_path := os.environ.get("GITHUB_EVENT_PATH"):
@@ -258,7 +263,9 @@ def main(arguments: list[str] | None = None) -> int:
             pass
     name = os.environ.get("GITHUB_EVENT_NAME", "")
     selected_event = options.event or _event(name, event)
-    paths = changed_paths(event, name, Path.cwd()) if selected_event in {"review", "push"} else None
+    paths = changed_paths(event, name, Path.cwd()) if selected_event in {"review", "push", "release"} else None
+    if selected_event == "nightly" and options.base:
+        paths = changed_paths({"before": options.base, "after": os.environ.get("GITHUB_SHA")}, "push", Path.cwd())
     result = plan(classify(paths), selected_event)
     print(json.dumps({key: result[key] for key in ("selected", "skipped")}, sort_keys=True))
     if destination := os.environ.get("GITHUB_OUTPUT"):

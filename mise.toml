@@ -146,7 +146,11 @@ run = "pnpm --dir sites/docs format"
 
 [tasks."docs:lint"]
 description = "Lint the Documentation Site"
-run = "pnpm --dir sites/docs lint"
+run = [
+  "pnpm --dir sites/docs lint",
+  "{{vars.python}} ruff check tools/python/src/dokime_tools/docs tools/python/src/dokime_tools/ci/impact.py tools/python/src/dokime_tools/ci/nightly_freshness.py tools/python/tests/integration/test_docs_site.py tools/python/tests/integration/test_ci_impact.py tools/python/tests/integration/test_ci_workflow.py",
+  "{{vars.python}} ty check --project tools/python tools/python/src/dokime_tools/docs tools/python/src/dokime_tools/ci/impact.py tools/python/src/dokime_tools/ci/nightly_freshness.py tools/python/tests/integration/test_docs_site.py tools/python/tests/integration/test_ci_impact.py tools/python/tests/integration/test_ci_workflow.py",
+]
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"

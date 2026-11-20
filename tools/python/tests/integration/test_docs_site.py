@@ -125,7 +125,52 @@ class DocumentationSiteTests(unittest.TestCase):
         finally:
             directory_directory.cleanup()
 
-    def test_download_selects_the_newest_stable_patch_per_line_and_the_nightly(self) -> None:
+    def test_default_image_combines_the_current_archive_with_published_stable_lines(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            output = root / site.OUTPUT
+            output.mkdir(parents=True)
+            current = self.archive(output, "dev", "0.3.1")
+            current.rename(output / site.ARCHIVE)
+            stable = self.archive(root, "0.2", "0.2.7")
+            with (
+                mock.patch.object(image.policy, "root", return_value=root),
+                mock.patch.object(image.policy, "execute", return_value="a" * 40),
+                mock.patch.object(image, "download", return_value=[stable]) as download,
+            ):
+                self.assertEqual(image.main([]), 0)
+                download.assert_called_once_with(root)
+            entries = json.loads((output / "image/versions.json").read_text())
+            self.assertEqual([entry["entry"] for entry in entries], ["latest", "0.2", "dev"])
+            stamp = json.loads((output / "image/dev/docs.json").read_text())
+            self.assertEqual(stamp["revision"], "a" * 40)
+            self.assertTrue((output / image.IMAGE).is_file())
+        finally:
+            temporary.cleanup()
+
+    def test_default_image_refuses_missing_stale_or_release_archives_before_downloading(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            output = root / site.OUTPUT
+            output.mkdir(parents=True)
+            for entry, revision in ((None, "a"), ("dev", "b"), ("0.2", "a")):
+                if entry is not None:
+                    source = self.archive(output, entry, "0.2.3")
+                    source.replace(output / site.ARCHIVE)
+                with (
+                    self.subTest(entry=entry),
+                    mock.patch.object(image.policy, "root", return_value=root),
+                    mock.patch.object(image.policy, "execute", return_value=revision * 40),
+                    mock.patch.object(image, "download") as download,
+                ):
+                    self.assertEqual(image.main([]), 1)
+                    download.assert_not_called()
+        finally:
+            temporary.cleanup()
+
+    def test_download_selects_stable_lines_without_the_published_development_entry(self) -> None:
         def release(tag: str, *, prerelease: bool = False, draft: bool = False, name: str | None = None) -> dict:
             asset = name or f"dokime-docs-{tag.removeprefix('v')}.zip"
             return {"tag_name": tag, "prerelease": prerelease, "draft": draft, "assets": [{"name": asset}]}
@@ -148,10 +193,8 @@ class DocumentationSiteTests(unittest.TestCase):
                 mock.patch.object(image.notices, "download", return_value=b"archive") as download,
             ):
                 archives = image.download(Path(directory))
-                self.assertEqual(
-                    sorted(path.name for path in archives), ["dokime-docs-0.1.6.zip", "dokime-docs-0.2.10.zip", "dokime-docs-nightly.zip"]
-                )
-                self.assertEqual(download.call_count, 3)
+                self.assertEqual(sorted(path.name for path in archives), ["dokime-docs-0.1.6.zip", "dokime-docs-0.2.10.zip"])
+                self.assertEqual(download.call_count, 2)
         finally:
             directory_directory.cleanup()
 

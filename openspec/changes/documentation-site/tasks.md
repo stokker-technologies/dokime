@@ -16,3 +16,5 @@
 - [x] 6.1 Move the site project to `sites/docs/` and update tooling, cache, format and impact references.
 - [x] 6.2 Prove the native loader watches `docs/` and reloads edited guides, new guides and D2 blocks without browser timing.
 - [x] 6.3 Select only the documentation job for guides, Markdown, OpenSpec and site changes; run documentation tooling checks inside that job.
+- [x] 6.4 Publish the current entry plus published release lines as a Nightly documentation image; route documentation-only Nightlies without moving the product tag.
+- [x] 6.5 Prove the updated site build, tooling, workflow lint and local container build.

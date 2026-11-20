@@ -27,9 +27,17 @@ test("native loader watches the guides root and handles edits, additions and D2 
     await guides().load({
       config: { root: pathToFileURL(`${project}/`), srcDir: pathToFileURL(`${project}/src/`) },
       collection: "docs",
-      logger: { warn() {}, info() {}, error(error: unknown) { errors.push(error); } },
+      logger: {
+        warn() {},
+        info() {},
+        error(error: unknown) {
+          errors.push(error);
+        },
+      },
       watcher: {
-        add(path: string) { watched.push(resolve(path)); },
+        add(path: string) {
+          watched.push(resolve(path));
+        },
         on(event: string, handler: (path: string) => Promise<void>) {
           handlers.set(event, [...(handlers.get(event) ?? []), handler]);
         },

@@ -38,8 +38,6 @@ jobs:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         bootstrap: '[]'
         prepare-arguments: --docs-only
-    - run: mise run check:python:tools
-      name: Check Documentation Tooling
     - run: mise run test:python:integration -- --project tools/python --select test_docs
       name: Test Documentation Tooling
     - run: mise run test:python:integration -- --project tools/python --select test_ci_impact
