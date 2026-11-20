@@ -12,10 +12,12 @@
 
 # Standard Library Imports
 import os
+import shutil
 import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import version
@@ -74,7 +76,10 @@ class PluginProcessStory(unittest.TestCase):
         self.addCleanup(listener.stop, None)
 
     def test_managed_first_line_connects_and_interrupt_closes_without_traceback(self) -> None:
-        line = self._run({"HARMOS_ADDRESS": "127.0.0.1:0", "DOKIME_REMOTE": self.endpoint})
+        directory = Path(tempfile.mkdtemp(prefix="dokime-managed-plugin-"))
+        self.addCleanup(shutil.rmtree, directory)
+        (directory / ".env").write_text('DOKIME_REMOTE="unterminated\n', encoding="utf-8")
+        line = self._run({"HARMOS_ADDRESS": "127.0.0.1:0", "DOKIME_REMOTE": self.endpoint}, directory=directory)
         self.assertTrue(line.startswith("harmos listening "), line)
         self.assertEqual(self.host.requests, [])
 
@@ -111,7 +116,7 @@ class PluginProcessStory(unittest.TestCase):
         self.assertIn(self.host.refusal.message, result.stderr)
         self.assertIn(self.host.refusal.action, result.stderr)
 
-    def _run(self, overrides: dict[str, str]) -> str:
+    def _run(self, overrides: dict[str, str], *, directory: Path | None = None) -> str:
         timeout = self.timeout
         # Start the Installed Plugin With Closed Standard Input.
         flags = 0
@@ -139,6 +144,7 @@ runpy.run_module("starter_project.plugin", run_name="__main__")
         environment.update(overrides)
         process = subprocess.Popen(
             command,
+            cwd=directory,
             env=environment,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,

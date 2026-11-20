@@ -221,11 +221,9 @@ class Plugin:
         pass
 
     async def start(self, address: str | None = None) -> _Endpoint:
-        managed = _managed_address()
+        managed = await _managed_start(self)
         if managed is not None:
-            endpoint = _Endpoint(await self._activate(managed), True)
-            print(f"harmos listening {endpoint.address}", flush=True)
-            return endpoint
+            return managed
         values = load()
         remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
         if not remote:
@@ -442,11 +440,14 @@ class Plugin:
 # === Private Functions === #
 
 
-def _managed_address() -> str | None:
+async def _managed_start(plugin: Plugin) -> _Endpoint | None:
     # The Pinned Library Launches a Managed Plugin With Its Listener Address.
     if "HARMOS_ADDRESS" not in os.environ:
         return None
-    return resolve("HARMOS_ADDRESS", None, {})
+    address = resolve("HARMOS_ADDRESS", None, {})
+    endpoint = _Endpoint(await plugin._plugin.start(address), True)
+    print(f"harmos listening {endpoint.address}", flush=True)
+    return endpoint
 
 
 def _distribution_version(plugin: type[Plugin]) -> str:
