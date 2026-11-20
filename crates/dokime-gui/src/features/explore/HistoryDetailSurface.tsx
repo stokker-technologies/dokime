@@ -114,6 +114,8 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
     });
   }
 
+  const emptyCycle = entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0;
+
   return (
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
@@ -137,7 +139,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         <DataTable
           aria-label="History Executions"
           title="Executions"
-          description="Executions retained in this history entry."
+          description={emptyCycle ? "This sealed cycle contains no executions." : "Executions retained in this history entry."}
           loading={query.isPending}
           failure={query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
           data={entry?.executions ?? []}
@@ -181,10 +183,6 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
         {!unrun && entry?.unrun_count ? <NotificationMessage tone="info">{unrunCaption(entry.unrun_count)}</NotificationMessage> : null}
-        {entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0 ? (
-          <p>This sealed cycle contains no executions.</p>
-        ) : null}
-        {!query.isPending && !query.isError && !entry && !unrun ? <p>No executions found in the loaded history.</p> : null}
         {query.hasNextPage ? (
           <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
             {query.isFetchingNextPage ? "Loading…" : "Load More History"}
