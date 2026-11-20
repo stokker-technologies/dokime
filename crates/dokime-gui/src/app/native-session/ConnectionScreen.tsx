@@ -98,10 +98,15 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   useEffect(() => {
     if (!error || diagnostics) return;
     let active = true;
-    void commands.desktopSessionStatus().then((status) => {
-      if (active) setFailedEndpoint(status.connection.endpoint);
-    }).catch(() => {});
-    return () => { active = false; };
+    void commands
+      .desktopSessionStatus()
+      .then((status) => {
+        if (active) setFailedEndpoint(status.connection.endpoint);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [error, diagnostics]);
 
   if (settings) {
@@ -191,7 +196,11 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         </div>
         {!busy && diagnostics && (
           <div className="grid gap-3 text-left text-sm">
-            <ErrorCard notificationContext="background" failure={failureOf(error, "Backend Could Not Start")} onRetry={() => void owner.select({ kind: "owned_local" })} />
+            <ErrorCard
+              notificationContext="background"
+              failure={failureOf(error, "Backend Could Not Start")}
+              onRetry={() => void owner.select({ kind: "owned_local" })}
+            />
             {diagnostics.log && <PathPill value={diagnostics.log} />}
           </div>
         )}

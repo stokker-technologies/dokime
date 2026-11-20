@@ -246,7 +246,9 @@ export function PluginsSection() {
               The plugin stops once execution cleanup and plugin streams finish, then its managed file is deleted.
             </DialogDescription>
           </DialogHeader>
-          {removeMutation.isError && removeCandidate ? <ErrorCard notificationContext="action" failure={failureOf(removeMutation.error, "Operation Failed")} /> : null}
+          {removeMutation.isError && removeCandidate ? (
+            <ErrorCard notificationContext="action" failure={failureOf(removeMutation.error, "Operation Failed")} />
+          ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">
               Cancel

@@ -113,7 +113,11 @@ export function EditableLabel({ label, prefix = "", subject, onRename, initially
         >
           <Check />
         </Button>
-        {draft.error ? <ErrorCard notificationContext="action" failure={failureOf(draft.error, "Label Could Not Save", `${id}:${draft.error}`)} /> : <span />}
+        {draft.error ? (
+          <ErrorCard notificationContext="action" failure={failureOf(draft.error, "Label Could Not Save", `${id}:${draft.error}`)} />
+        ) : (
+          <span />
+        )}
       </div>
     );
   }

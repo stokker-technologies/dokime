@@ -34,16 +34,31 @@ import { toast } from "@/lib/notifications";
 
 /* === Types === */
 
-type ErrorCardProps = { notificationContext?: "action" | "background"; failure: NotificationFailure; onRetry?: () => void; retryLabel?: string; retryDisabled?: boolean };
+type ErrorCardProps = {
+  retryFirst?: boolean;
+  notificationContext?: "action" | "background";
+  failure: NotificationFailure;
+  onRetry?: () => void;
+  retryLabel?: string;
+  retryDisabled?: boolean;
+};
 
 /* === Components === */
 
-export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabled = false, notificationContext }: ErrorCardProps) {
+export function ErrorCard({
+  failure,
+  onRetry,
+  retryLabel = "Reload",
+  retryDisabled = false,
+  notificationContext,
+  retryFirst = false,
+}: ErrorCardProps) {
   const session = useNativeSessionOptional();
   const [recovering, setRecovering] = useState(false);
   const restart = failure.action === "Restart Plugin" && failure.plugin && session;
   const openSettings = failure.action === "Open Settings";
-  const recoveryLabel = openSettings ? "Open Settings" : restart ? "Restart Plugin" : onRetry ? retryLabel : "Reload";
+  const recoveryLabel =
+    retryFirst && onRetry ? retryLabel : openSettings ? "Open Settings" : restart ? "Restart Plugin" : onRetry ? retryLabel : "Reload";
   const recoverable = Boolean(onRetry || restart || !failure.action || failure.action === "Reload" || failure.action === "Open Settings");
   async function recover() {
     if (onRetry && retryLabel === recoveryLabel) return onRetry();

@@ -498,7 +498,6 @@ test("Shared Preference Failure Occupies Its Content Slot", () => {
   assert.deepEqual(fixture.snapshot?.revision, snapshot().revision);
 });
 
-
 test("Failed Saves Preserve Revisions After Persistence Refusal", async () => {
   const previous = snapshot();
   const refusal = { kind: "persistence", message: "fixture-write-refused" };

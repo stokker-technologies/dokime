@@ -360,7 +360,6 @@ test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
   assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
 });
 
-
 test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
   const endpoint = "http://127.0.0.1:8765";
   const contents = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint }));
@@ -368,15 +367,23 @@ test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
   assert.ok(contents.some((element) => element.type === "p" && element.props.children === endpoint));
 });
 
-
 test("Startup Recovery Feedback", async () => {
   const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
-    "@/app/native-session/ConnectionScreen");
+    "@/app/native-session/ConnectionScreen",
+  );
   const diagnostics = { cause: "fixture-startup-cause", log: "C:/fixture/startup.log" };
   const error = { kind: "startup", message: diagnostics.cause, diagnostics };
-  const contents = descendants(ConnectionScreen({ launch: {
-    target: null, expectedBackendId: null, localBackendAvailable: true, error,
-  } }));
+  const contents = descendants(
+    ConnectionScreen({
+      launch: {
+        target: null,
+        expectedBackendId: null,
+        localBackendAvailable: true,
+        error: null,
+      },
+      launchError: error,
+    }),
+  );
   const failures = contents.filter((element) => element.type === ErrorCard);
   assert.equal(failures.length, 1);
   assert.equal((failures[0].props.failure as { message: string }).message, diagnostics.cause);

@@ -88,20 +88,20 @@ export function NotificationDetailsDialog() {
             {copyStatus}
           </span>
           <Button
-              variant="outline"
-              onClick={async () => {
-                if (!record) return;
-                try {
-                  await navigator.clipboard.writeText(notificationDetailsText(record, relative));
-                  setCopyStatus("Copied");
-                } catch (error: unknown) {
-                  toast.error(failureOf(error, "Could Not Copy Notification"));
-                  setCopyStatus("Could not copy. Try again.");
-                }
-              }}
-            >
-              Copy
-            </Button>
+            variant="outline"
+            onClick={async () => {
+              if (!record) return;
+              try {
+                await navigator.clipboard.writeText(notificationDetailsText(record, relative));
+                setCopyStatus("Copied");
+              } catch (error: unknown) {
+                toast.error(failureOf(error, "Could Not Copy Notification"));
+                setCopyStatus("Could not copy. Try again.");
+              }
+            }}
+          >
+            Copy
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

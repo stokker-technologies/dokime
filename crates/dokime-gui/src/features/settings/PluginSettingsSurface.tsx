@@ -82,6 +82,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
           <ErrorCard
             failure={pluginStartFailure(owning, generation)}
             onRetry={reloadable ? () => reload.mutate(owning.name) : undefined}
+            retryFirst
             retryLabel="Restart Plugin"
             retryDisabled={reload.isPending}
           />
@@ -95,11 +96,11 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
             </SettingsRow>
           </SettingsCard>
         ) : waiting ? (
-            <SettingsCard title="Settings">
-              <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
-                Waiting for Plugin {label}
-              </p>
-            </SettingsCard>
+          <SettingsCard title="Settings">
+            <p role="status" className="px-4 py-3 text-sm text-muted-foreground">
+              Waiting for Plugin {label}
+            </p>
+          </SettingsCard>
         ) : settings.error ? (
           <SettingsCard title="Settings">
             <ErrorCard failure={failureOf(settings.failure, "Settings Unavailable")} onRetry={settings.retry} />

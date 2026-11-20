@@ -147,7 +147,9 @@ export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdate
             ) : null}
           </div>
         ) : null}
-        {error ? <ErrorCard notificationContext={actionFailure.current ? "action" : undefined} failure={failureOf(error, "Operation Failed")} /> : null}
+        {error ? (
+          <ErrorCard notificationContext={actionFailure.current ? "action" : undefined} failure={failureOf(error, "Operation Failed")} />
+        ) : null}
         <DialogFooter>
           <Button
             data-testid="desktop-updates-check"

@@ -45,7 +45,18 @@ type SettingsRowProps = {
 
 /* === Components === */
 
-export function SettingsRow({ children, className, control, description, error, failure, htmlFor, label, status, notificationContext }: SettingsRowProps) {
+export function SettingsRow({
+  children,
+  className,
+  control,
+  description,
+  error,
+  failure,
+  htmlFor,
+  label,
+  status,
+  notificationContext,
+}: SettingsRowProps) {
   const id = useId();
   return (
     <div
@@ -70,7 +81,16 @@ export function SettingsRow({ children, className, control, description, error, 
         </div>
         {status ? <div className="text-right">{status}</div> : null}
       </div>
-      {error ? <ErrorCard notificationContext={notificationContext} failure={failureOf(failure ?? notificationText(error), "Operation Failed", failure ? undefined : `${id}:${notificationText(error)}`)} /> : null}
+      {error ? (
+        <ErrorCard
+          notificationContext={notificationContext}
+          failure={failureOf(
+            failure ?? notificationText(error),
+            "Operation Failed",
+            failure ? undefined : `${id}:${notificationText(error)}`,
+          )}
+        />
+      ) : null}
     </div>
   );
 }

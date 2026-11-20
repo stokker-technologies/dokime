@@ -159,9 +159,15 @@ beforeEach(() => {
   fixture.installed.mockResolvedValue([entry]);
   fixture.detail.mockImplementation((pluginId: string) => ({
     data: {
-      plugin_id: pluginId, label: pluginId, version: "1.0.0", runtime: "code", status: "failed", error: null,
+      plugin_id: pluginId,
+      label: pluginId,
+      version: "1.0.0",
+      runtime: "code",
+      status: "failed",
+      error: null,
       settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
-      values: { address: "corrected" }, secrets: [],
+      values: { address: "corrected" },
+      secrets: [],
     },
   }));
   fixture.settings.mockResolvedValue({
@@ -345,9 +351,13 @@ test("Disabled Undescribed Plugin Keeps Its Settings Available", () => {
   const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
   assert.equal(fixture.detail.mock.calls.length, 1);
   assert.ok(html.includes("textarea"));
-  assert.ok(!html.includes('role="status"'));
+  const content = document.createElement("div");
+  content.innerHTML = html;
+  const textarea = content.querySelector("textarea");
+  assert.ok(textarea);
+  assert.equal(textarea.disabled, false);
+  assert.ok([...content.querySelectorAll('[role="status"]')].every((status) => !status.textContent.trim()));
 });
-
 
 test("Failed Plugin Settings Save the Corrected Value", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

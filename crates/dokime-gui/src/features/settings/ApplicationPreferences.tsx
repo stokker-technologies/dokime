@@ -391,7 +391,8 @@ function PreferencesForm({
       )}
       {(failure || save.error) && (
         <div className="grid gap-3 px-4 py-3">
-          <ErrorCard notificationContext="action"
+          <ErrorCard
+            notificationContext="action"
             failure={failureOf(failure ?? save.error, "Settings Save Failed")}
             onRetry={async () => {
               // A conflict must be reviewed against the latest revision before another edit.

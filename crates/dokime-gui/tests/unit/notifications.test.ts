@@ -454,18 +454,19 @@ test("Description Readiness Remains a Quiet Waiting State", async () => {
   assert.equal((await history.notificationPage()).records.length, 0);
 });
 
-
 test("Feedback Is Recorded", async () => {
   const history = await import("@/lib/notifications");
   const { ErrorCard } = await import("@/components/ErrorCard");
   const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
   const failure = failureOf(new Error("fixture-action"), "fixture-title");
   const write = vi.spyOn(IDBObjectStore.prototype, "put");
-  for (let render = 0; render < 2; render++)
-    renderToStaticMarkup(createElement(ErrorCard, { failure, notificationContext: "action" }));
+  for (let render = 0; render < 2; render++) renderToStaticMarkup(createElement(ErrorCard, { failure, notificationContext: "action" }));
   await vi.waitFor(() => assert.equal(write.mock.calls.length, 1));
   const page = await history.notificationPage();
-  assert.deepEqual(page.records.map((entry) => entry.failure), [failure]);
+  assert.deepEqual(
+    page.records.map((entry) => entry.failure),
+    [failure],
+  );
   assert.equal(shown.error.mock.calls.length, 1);
   history.openNotificationDetails(page.records[0]);
   renderToStaticMarkup(createElement(NotificationDetailsDialog));
@@ -499,21 +500,35 @@ test("Failure Stem Retains Identity and All Context", async () => {
   assert.equal(failureOf("fixture", "fixture", "fixture-event"), failureOf("fixture", "fixture", "fixture-event"));
 });
 
-
-
 test("Failure Copy Retains Notification Metadata and Field Problems", async () => {
   const { failureText, notificationDetailsText } = await import("@/lib/notification-details");
   const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
   const history = await import("@/lib/notifications");
-  const failure = failureOf(Object.assign(new Error("fixture-failure"), {
-    problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-cause"] }],
-    requestId: "fixture-request", operationId: "fixture-operation", invocationId: "fixture-invocation",
-  }), "fixture-title");
+  const failure = failureOf(
+    Object.assign(new Error("fixture-failure"), {
+      problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-cause"] }],
+      requestId: "fixture-request",
+      operationId: "fixture-operation",
+      invocationId: "fixture-invocation",
+    }),
+    "fixture-title",
+  );
   const entry = { ...record(2), failure, consequences: ["fixture-consequence"] };
   const copied = notificationDetailsText(entry, "fixture-relative");
   assert.ok(copied.includes(failureText(failure)));
-  for (const value of [entry.source, entry.tone, new Date(entry.at).toISOString(), "fixture-relative", ...entry.consequences,
-    "fixture-field", "fixture-problem", "fixture-field-cause", "fixture-request", "fixture-operation", "fixture-invocation"])
+  for (const value of [
+    entry.source,
+    entry.tone,
+    new Date(entry.at).toISOString(),
+    "fixture-relative",
+    ...entry.consequences,
+    "fixture-field",
+    "fixture-problem",
+    "fixture-field-cause",
+    "fixture-request",
+    "fixture-operation",
+    "fixture-invocation",
+  ])
     assert.ok(copied.includes(value));
   const copy = vi.fn(async (_text: string) => {});
   vi.stubGlobal("navigator", { clipboard: { writeText: copy } });
@@ -534,12 +549,24 @@ test("Transport Admission Failures Retain All Request Identifiers", async () => 
     const { FailureSchema } = await import("@/lib/rpc/generated/errors");
     const identifiers = { operationId: "fixture-operation", requestId: "fixture-request", invocationId: "fixture-invocation" };
     const request = { ...identifiers, message: "fixture-request-body" };
-    await assert.rejects(unary("fixture/admit", FailureSchema, FailureSchema, { generation: "1", isCurrent: () => true }, request),
-      (error) => error === rejection);
+    await assert.rejects(
+      unary("fixture/admit", FailureSchema, FailureSchema, { generation: "1", isCurrent: () => true }, request),
+      (error) => error === rejection,
+    );
     const failure = failureOf(rejection, "fixture-title");
     assert.equal(failure.operation, "fixture/admit");
     for (const key of ["operationId", "requestId", "invocationId"] as const) assert.equal(failure[key], identifiers[key]);
   } finally {
     vi.doUnmock("@/lib/rpc/ipc");
   }
+});
+
+test("Plugin Settings Can Restart While Retaining the Settings Recovery Record", async () => {
+  const { ErrorCard } = await import("@/components/ErrorCard");
+  const retry = vi.fn();
+  const failure = failureOf({ notificationFailure: { action: "Open Settings", plugin: "bench", message: "fixture-start" } }, "fixture");
+  renderToStaticMarkup(createElement(ErrorCard, { failure, onRetry: retry, retryLabel: "Restart Plugin", retryFirst: true }));
+  controls.buttons[0]();
+  assert.equal(retry.mock.calls.length, 1);
+  assert.equal(failure.action, "Open Settings");
 });

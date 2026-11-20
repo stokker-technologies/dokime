@@ -139,6 +139,7 @@ export function BackendsTable({
       {(connectionFailure || Boolean(error)) && (
         <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
           <ErrorCard
+            notificationContext={connectionFailure && lastSelected.current ? "action" : undefined}
             failure={failureOf(connectionFailure ?? error, connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed")}
             onRetry={() => {
               if (connectionFailure) {
