@@ -14,6 +14,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
+from importlib.metadata import version
 from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -56,6 +57,7 @@ if TYPE_CHECKING:
 
 class Client:
     _transport: dokime_sdk._generated.client.Client
+    _endpoint: str
     plugins: "Plugins"
     cases: "Cases"
     cycles: "Cycles"
@@ -70,9 +72,10 @@ class Client:
         raise TypeError("Connect a Client with await connect()")
 
     @classmethod
-    def _bind(cls, transport: dokime_sdk._generated.client.Client) -> "Client":
+    def _bind(cls, transport: dokime_sdk._generated.client.Client, endpoint: str = "") -> "Client":
         self = object.__new__(cls)
         self._transport = transport
+        self._endpoint = endpoint
         self.plugins = Plugins(self)
         self.cases = Cases(self)
         self.cycles = Cycles(self)
@@ -160,11 +163,12 @@ class Client:
         for registration_result in results:
             if isinstance(registration_result, BaseException) and not isinstance(registration_result, asyncio.CancelledError):
                 failures.append(_cleanup_failure(registration_result))
+        # Registered Entries Outlive Their Process: the Host Shows Them Offline Until the Plugin Registers Again.
         for entry in list(self.plugins._owned.values()):
-            unregister_results = await asyncio.gather(entry.unregister(), return_exceptions=True)
-            for unregister_result in unregister_results:
-                if isinstance(unregister_result, BaseException):
-                    failures.append(_cleanup_failure(unregister_result))
+            release_results = await asyncio.gather(entry._release(), return_exceptions=True)
+            for release_result in release_results:
+                if isinstance(release_result, BaseException):
+                    failures.append(_cleanup_failure(release_result))
         close_results = await asyncio.gather(self._transport.close(), return_exceptions=True)
         for close_result in close_results:
             if isinstance(close_result, BaseException):
@@ -212,6 +216,7 @@ class Plugins:
                     client_types.host.PluginPlacement(remote=client_types.host.PluginRemote(url=f"http://{endpoint.address}")),
                     client_types.host.PluginValue(enabled=True),
                     request_id=identity,
+                    sdk_version=version("dokime-sdk"),
                 ),
                 identity,
             )
@@ -246,18 +251,11 @@ class Plugins:
             self._bind(plugin, entry.identifier)
             return entry
         except BaseException as error:
+            # A Failed Registration Stops Only Its Listener; an Existing Entry Stays for the Next Start.
             try:
                 if entry is not None:
-                    await entry.unregister()
+                    await entry._release()
                 else:
-                    try:
-                        lookup_reply = await self._client._transport.plugins.get(plugin.identifier)
-                    except AioRpcError as lookup:
-                        if lookup.code() != StatusCode.NOT_FOUND:
-                            error.add_note(f"Read Failed Registration Entry: {lookup}")
-                    else:
-                        if lookup_reply.entry.placement.remote.url == f"http://{endpoint.address}":
-                            await self._client._transport.plugins.delete(lookup_reply.entry.name, lookup_reply.entry.revision)
                     await endpoint.stop()
             except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
                 error.add_note(f"Registration Cleanup Failed: {cleanup}")
@@ -346,6 +344,9 @@ class RegisteredPlugin:
                 if error.code() != StatusCode.NOT_FOUND:
                     raise transport_error("plugins.delete", error, self._unregister_id) from error
             self._detached = True
+        await self._release()
+
+    async def _release(self) -> None:
         if self._endpoint is not None:
             await self._endpoint.stop()
             self._endpoint = None

@@ -36,9 +36,7 @@ use std::{
     any::{Any, TypeId},
     collections::HashSet,
     env,
-    io::{self, Write},
     marker::PhantomData,
-    net::SocketAddr,
     sync::Arc,
 };
 
@@ -419,25 +417,57 @@ impl Plugin {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn run(self) -> Result<()> {
-        // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
-        let managed = env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some();
-        if managed {
-            return self.into_harmos()?.run().map_err(Error::from);
-        }
-        let values = crate::configuration::load()?;
-        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", None, &values)?;
-        self.run_with(address)
+        self.run_entry(None)
     }
 
     pub fn run_with(self, address: impl Into<String>) -> Result<()> {
-        // The Listener Owns Its Runtime; This Thread Only Waits for Shutdown.
+        self.run_entry(Some(address.into()))
+    }
+
+    fn run_entry(self, address: Option<String>) -> Result<()> {
+        if managed_launch() {
+            return self.into_harmos()?.run().map_err(Error::from);
+        }
+        let values = crate::configuration::load()?;
+        let configured = env::var_os("DOKIME_REMOTE")
+            .map(|value| !value.is_empty())
+            .unwrap_or_else(|| values.get("DOKIME_REMOTE").is_some_and(|value| !value.is_empty()));
+        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address.as_deref(), &values)?;
+        // The Listener Owns Its Runtime; This Thread Only Connects and Waits for Shutdown.
         let runtime = Builder::new_current_thread().enable_all().build()?;
+        if !configured {
+            return runtime.block_on(async move {
+                let mut listener = self.into_harmos()?.remote().start(address).await?;
+                signal::ctrl_c().await?;
+                listener.close().await?;
+                Ok(())
+            });
+        }
+        let remote = crate::configuration::resolve("DOKIME_REMOTE", None, &values)?;
         runtime.block_on(async move {
-            let mut listener = self.into_harmos()?.remote().start(address).await?;
-            announce(listener.address(), env::var_os("HARMOS_ADDRESS").is_some(), &mut io::stdout().lock())?;
-            signal::ctrl_c().await?;
-            listener.close().await?;
-            Ok(())
+            let client = crate::client::connect_with(crate::client::ConnectionSettings {
+                target: Some(remote),
+                ..Default::default()
+            })
+            .await?;
+            let options = crate::client::PluginRegisterOptions {
+                address: Some(address),
+                ..Default::default()
+            };
+            let result = async {
+                client.plugins().register_with(self, options).await?;
+                signal::ctrl_c().await?;
+                Ok(())
+            }
+            .await;
+            let closed = client.close().await;
+            match (result, closed) {
+                (Err(error), Err(cleanup)) => {
+                    Err(Error::Invalid(format!("Run Plugin: Resolve the Run and Cleanup Failures: {error:?}; {cleanup:?}")))
+                }
+                (result, Ok(())) => result,
+                (Ok(()), closed) => closed,
+            }
         })
     }
 }
@@ -446,12 +476,9 @@ impl Plugin {
 
 /* === Private Functions === */
 
-fn announce(address: SocketAddr, managed: bool, output: &mut impl Write) -> Result<()> {
-    if managed {
-        writeln!(output, "harmos listening {address}")?;
-        output.flush()?;
-    }
-    Ok(())
+// The Pinned Library Launches a Managed Plugin With Its Listener Address.
+fn managed_launch() -> bool {
+    env::var_os("HARMOS_ADDRESS").is_some()
 }
 
 fn lifecycle<H>(name: &'static str, handler: H) -> stream::Registration
@@ -473,9 +500,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-
-    use super::{HostOperation, Plugin, Visibility, announce};
+    use super::{HostOperation, Plugin, Visibility};
     use crate::operations::{Context, Operation};
     use crate::{Error, Lane, Result};
     use dokime_protocol::descriptor_pool;
@@ -483,18 +508,6 @@ mod tests {
         model::{Protobuf, lane_declaration},
         schema,
     };
-
-    #[test]
-    fn readiness_announces_only_a_managed_listener() -> Result<()> {
-        let address = SocketAddr::from(([127, 0, 0, 1], 1234));
-        let mut output = Vec::new();
-        announce(address, false, &mut output)?;
-        assert!(output.is_empty());
-
-        announce(address, true, &mut output)?;
-        assert_eq!(output, format!("harmos listening {address}\n").into_bytes());
-        Ok(())
-    }
 
     #[test]
     fn lanes_preserve_declarations_and_operation_assignments() -> Result<()> {

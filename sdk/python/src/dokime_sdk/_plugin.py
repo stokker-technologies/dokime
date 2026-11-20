@@ -39,7 +39,9 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._client import Client
 from ._configuration import load, resolve
+from ._connection import connect
 from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations
@@ -76,13 +78,19 @@ class _Session:
 
 
 class _Endpoint:
-    def __init__(self, endpoint: harmos.plugin.Endpoint, managed: bool) -> None:
+    def __init__(self, endpoint: harmos.plugin.Endpoint, managed: bool, client: Client | None = None) -> None:
         self._endpoint = endpoint
+        self._client = client
         self.address = endpoint.address
         self.managed = managed
+        self.host = client._endpoint if client is not None else None
 
     async def stop(self) -> None:
-        await self._endpoint.stop()
+        # Closing the Registering Client Stops Its Listener and Keeps the Host Entry.
+        if self._client is not None:
+            await self._client.close()
+        else:
+            await self._endpoint.stop()
 
     async def wait(self) -> None:
         termination = asyncio.create_task(self._endpoint.server.wait_for_termination())
@@ -213,7 +221,20 @@ class Plugin:
         pass
 
     async def start(self, address: str | None = None) -> _Endpoint:
-        return _Endpoint(await self._activate(address), False)
+        managed = await _managed_start(self)
+        if managed is not None:
+            return managed
+        values = load()
+        remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
+        if not remote:
+            return _Endpoint(await self._activate(address), False)
+        client = await connect(remote)
+        try:
+            registered = await client.plugins.register(self, address=address)
+        except BaseException:
+            await client.close()
+            raise
+        return _Endpoint(cast(harmos.plugin.Endpoint, registered._endpoint), False, client)
 
     async def serve(self, address: str | None = None) -> None:
         managed = "HARMOS_HOST_ENDPOINT" in os.environ or "HARMOS_LAUNCH_TOKEN" in os.environ
@@ -421,6 +442,16 @@ class Plugin:
 
 
 # === Private Functions === #
+
+
+async def _managed_start(plugin: Plugin) -> _Endpoint | None:
+    # The Pinned Library Launches a Managed Plugin With Its Listener Address.
+    if "HARMOS_ADDRESS" not in os.environ:
+        return None
+    address = resolve("HARMOS_ADDRESS", None, {})
+    endpoint = _Endpoint(await plugin._plugin.start(address), True)
+    print(f"harmos listening {endpoint.address}", flush=True)
+    return endpoint
 
 
 def _distribution_version(plugin: type[Plugin]) -> str:

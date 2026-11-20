@@ -14,6 +14,12 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
 
+`Plugin::run()` and `Plugin::run_with(address)` register with the host selected by `DOKIME_REMOTE` in the process
+environment or working-directory `.env`. Managed launches take precedence.
+Registration sends the SDK version and uses the plugin identifier as its stable
+entry name. Closing the client stops its listener and retains the entry;
+`RegisteredPlugin::unregister()` removes it explicitly.
+
 ## Operation Lanes
 
 `dokime::Lane` re-exports the library declaration. Create `let instrument = Lane::serial("instrument");`, assign it with `operation.lane(&instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Declaration validation rejects undeclared lane references.
@@ -114,8 +120,8 @@ Without either, the command uses its embedded starter and published dependency.
 The plugin binary calls `plugin()?.run()` without parsing arguments.
 `register_with` accepts a `PluginRegisterOptions` address override; otherwise
 `DOKIME_PLUGIN_ADDRESS` in the process environment, then `.env`, then
-`127.0.0.1:0` selects its owned listener. `client.close()` unregisters owned
-plugins and joins their listeners; repeated close is safe.
+`127.0.0.1:0` selects its owned listener. `client.close()` retains the host entries
+and joins their listeners; repeated close is safe.
 
 `dokime::testing::Harness` runs a template against an in-memory host
 with a controlled clock, without hardware.
