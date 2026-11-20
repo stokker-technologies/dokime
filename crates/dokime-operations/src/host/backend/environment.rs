@@ -22,7 +22,8 @@ use harmos_operations::storage::{Info, InfoRequest};
 use harmos_protocol::model::Position;
 
 // Local Imports
-use crate::{Error, Resources, Result};
+use crate::host::Context;
+use crate::{Error, Result};
 use dokime_protocol::host::BackendEnvironmentRequest;
 use dokime_protocol::host::BackendEnvironmentResponse;
 
@@ -44,10 +45,7 @@ pub const ID: &str = "dokime.host.v1.Backend/Environment";
 
 /* === Public Functions === */
 
-pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -> Result<BackendEnvironmentResponse> {
-    resources.check_action_scope(&resources.execution, ID)?;
-    let mut context = resources.context.as_ref().clone();
-    context.caller = Some(resources.clone());
+pub async fn handle(context: &Context, request: BackendEnvironmentRequest) -> Result<BackendEnvironmentResponse> {
     let info = context.storage::<Info>(InfoRequest {}).await?;
     let resolved_at = info.saved.map(Position::from);
     if request.at.as_ref().is_some_and(|at| Some(at) != resolved_at.as_ref()) {
@@ -56,7 +54,7 @@ pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -
     Ok(BackendEnvironmentResponse {
         backend_pid: std::process::id(),
         resolved_at,
-        in_step: !resources.step.is_empty(),
+        in_step: context.caller.as_ref().is_some_and(|caller| !caller.step.is_empty()),
     })
 }
 
@@ -64,4 +62,4 @@ pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -
 
 /* === Tests === */
 
-crate::native::unary!(BackendEnvironmentRequest, BackendEnvironmentResponse, resources, "dokime.host.v1", "Backend", "Environment");
+crate::native::unary!(BackendEnvironmentRequest, BackendEnvironmentResponse, plugin, "dokime.host.v1", "Backend", "Environment");

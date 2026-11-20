@@ -1016,4 +1016,36 @@ mod tests {
         }
         Ok(())
     }
+
+    struct Backend;
+
+    impl LocalHost for Backend {
+        fn call<'a>(&'a self, operation: &'static str, _: Vec<u8>) -> FutureResult<'a, Vec<u8>> {
+            Box::pin(async move {
+                assert_eq!(operation, "dokime.host.v1.Backend/Environment");
+                Ok(crate::wire::host::BackendEnvironmentResponse {
+                    backend_pid: 4242,
+                    in_step: true,
+                    ..Default::default()
+                }
+                .encode_to_vec())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn operation_context_reads_the_backend_environment() -> Result<()> {
+        let context = crate::operations::Context::from_inner(Context::local(
+            Local {
+                host: Arc::new(Backend),
+                scope: String::new(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), Origin::default()),
+            Arc::new(()),
+        ));
+        let environment = context.environment().await?;
+        assert_eq!((environment.backend_pid, environment.in_step), (4242, true));
+        Ok(())
+    }
 }
