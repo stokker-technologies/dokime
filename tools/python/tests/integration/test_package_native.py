@@ -73,7 +73,7 @@ class NativeTests(unittest.TestCase):
             patch.object(distribution.subprocess, "run", side_effect=[result, inspected]) as run,
         ):
             source = distribution.export(root, "dev")
-        self.assertEqual(run.call_args_list[0].args[0], [str(build / "bin/dokime.exe"), "version", "--json"])
+        self.assertEqual(run.call_args_list[0].args[0], [str(build / "bin/dokime.exe"), "--version", "--json"])
         self.assertEqual(
             run.call_args_list[1].args[0],
             [str(build / "bin/dokime.exe"), "plugin", "inspect", "--bundle", str(build / "bin/bench-package.dokime"), "--json"],

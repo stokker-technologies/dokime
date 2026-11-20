@@ -54,7 +54,7 @@ def export(root: Path, profile: str) -> Path:
     suffix = ".exe" if "windows" in native else ""
     # Read the Build Identity Embedded by DOKIME_SOURCE_REVISION and DOKIME_BUILD_CHANNEL.
     result = subprocess.run(
-        [str(build / "bin" / f"dokime{suffix}"), "version", "--json"],
+        [str(build / "bin" / f"dokime{suffix}"), "--version", "--json"],
         capture_output=True,
         text=True,
         encoding="utf-8",
