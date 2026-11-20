@@ -425,9 +425,7 @@ impl Collection {
         });
         self.streams.push(Box::new(move |feed: Arc<Feed>| {
             stream
-                .publish_on(async move |context: &Context, publisher: Publisher<T>| {
-                    produce(&feed, &identifier, context, publisher).await
-                })
+                .publish_on(async move |context: &Context, publisher: Publisher<T>| produce(&feed, &identifier, context, publisher).await)
                 .registration()
         }));
         self
@@ -544,11 +542,7 @@ impl Feed {
             *generation += 1;
             *generation
         };
-        let tick = Arc::new(Tick {
-            generation,
-            at,
-            rows: rows.published,
-        });
+        let tick = Arc::new(Tick { generation, at, rows: rows.published });
         // A Reading Never Outlives the Last Listener, Even One That Left During the Measurement.
         if self.listening() {
             *self.latest.lock().unwrap_or_else(PoisonError::into_inner) = Some(tick.clone());
@@ -802,8 +796,8 @@ mod tests {
         for stream in streams {
             template = template.uses_stream(*stream);
         }
-        let template =
-            template.step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(3)).await).identifier("sample"));
+        let template = template
+            .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(3)).await).identifier("sample"));
         Plugin::of::<()>("1.0.0")
             .identifier("collector")
             .state(counters)

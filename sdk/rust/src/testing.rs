@@ -533,9 +533,12 @@ impl Memory {
                 sequence,
             };
             let rows = sampler.sample.rows(&context, &window).await?;
-            self.sampled(&step, rows.into_iter().enumerate().map(|(offset, payload)| {
-                (sampler.stream.clone(), payload, first.saturating_add((offset as i64).saturating_mul(*period)))
-            }))?;
+            self.sampled(
+                &step,
+                rows.into_iter().enumerate().map(|(offset, payload)| {
+                    (sampler.stream.clone(), payload, first.saturating_add((offset as i64).saturating_mul(*period)))
+                }),
+            )?;
         }
         // A Collection Ticks Only While the Execution Listens; Each Tick's Rows Share Its Due Time.
         let listening = !self.listeners.lock().map_err(|_| poisoned())?.is_empty();
@@ -757,7 +760,8 @@ impl Memory {
         if field.is_empty() || samples.is_empty() {
             return Ok(statistics);
         }
-        let observed = self.observers.iter().find(|(sampler, _)| sampler.stream == stream).map(|(sampler, _)| (&sampler.types, &sampler.name));
+        let observed =
+            self.observers.iter().find(|(sampler, _)| sampler.stream == stream).map(|(sampler, _)| (&sampler.types, &sampler.name));
         let collected = || self.collections.iter().flat_map(|(feed, _)| feed.rows.iter()).find(|fed| fed.stream == stream);
         let (types, name) = observed
             .or_else(|| collected().map(|fed| (&fed.types, &fed.name)))
