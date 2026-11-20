@@ -41,6 +41,8 @@ dokime = { path = "../../../sdk/rust" }
 # Logging
 
 # Utilities
+starship-battery = { workspace = true }
+sysinfo = { workspace = true }
 
 # Serialization
 prost-types = { workspace = true }
@@ -54,6 +56,7 @@ prost-types = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["process"] }
 
 # Networking
 
@@ -67,7 +70,13 @@ prost-types = { workspace = true }
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+criterion = { workspace = true }
+
 # === Target Dependencies === #
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = [
@@ -99,6 +108,11 @@ name = "integration"
 path = "tests/integration/main.rs"
 
 # === Bench Targets === #
+
+[[bench]]
+name = "cpu"
+path = "benches/cpu/main.rs"
+harness = false
 
 # === Example Targets === #
 
