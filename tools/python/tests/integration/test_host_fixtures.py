@@ -374,7 +374,9 @@ class HostFixtureTests(unittest.TestCase):
                 product.mkdir(parents=True)
                 for name in ("dokime-host", "plugin-obc"):
                     (product / f"{name}{extension}").write_bytes(profile.encode())
-                reference = root / "target/reference-host" / paths.target() / profile / "fixture-revision/bin" / f"harmos-conformance{extension}"
+                reference = (
+                    root / "target/reference-host" / paths.target() / profile / "fixture-revision/bin" / f"harmos-conformance{extension}"
+                )
                 reference.parent.mkdir(parents=True)
                 reference.write_bytes(b"reference")
                 fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"

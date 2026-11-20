@@ -67,9 +67,11 @@ jobs:
       with:
         path: target/reference-host
         key: conformance-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.PROFILE }}-${{ steps.library.outputs.revision }}-${{ hashFiles('mise.lock') }}
-    - run: mise run build -- --artifact tests --profile ${{ env.PROFILE }}
+    # The Public Build Wrapper Collects Sccache Counts and Renders ci.summary to GITHUB_STEP_SUMMARY.
+    - name: Build Tests and Report Compiler Cache Counts
+      run: mise run build -- --artifact tests --profile ${{ env.PROFILE }}
     - name: Save Pinned Conformance Host
-      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.reference_host.outputs.cache-hit != 'true'
+      if: success() && steps.reference_host.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
         path: target/reference-host
@@ -120,7 +122,6 @@ jobs:
       COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       DOKIME_HOST_FIXTURE_LANGUAGE: rust
       CI_TRANSPORT: 'true'
-      CI_INPUT_ARCHIVES: '["target/ci/build-cli-{profile}-{platform}.tar.zst"]'
       CI_OUTPUTS: ${{ matrix.outputs }}
       CI_CACHE_PROFILE: test
     strategy:
