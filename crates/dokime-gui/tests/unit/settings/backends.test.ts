@@ -356,3 +356,11 @@ test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
   assert.equal(failure.message, error.message);
   assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
 });
+
+
+test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
+  const endpoint = "http://127.0.0.1:8765";
+  const contents = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint }));
+  assert.equal(contents.filter((element) => element.type === ErrorCard).length, 1);
+  assert.ok(contents.some((element) => element.type === "p" && element.props.children === endpoint));
+});

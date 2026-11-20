@@ -47,9 +47,11 @@ import { SettingsCard } from "./SettingsCard";
 export function BackendsTable({
   failure,
   retry,
+  endpoint,
   onConnect,
 }: {
   failure?: unknown;
+  endpoint?: string | null;
   retry?: (profile: string | null) => void;
   onConnect?: () => void;
 } = {}) {
@@ -65,6 +67,8 @@ export function BackendsTable({
   const deletingProfile = document?.profiles.find((profile) => profile.identifier === deleting);
   const busy = mutating || state.phase === "connecting";
   const connectionFailure = failure ?? (state.phase === "failed" ? state.error : null);
+  const failedProfile = document?.profiles.find((profile) => profile.identifier === lastSelected.current);
+  const failedEndpoint = endpoint || failedProfile?.endpoint;
   useEffect(() => {
     let active = true;
     void preferencesCommands
@@ -147,6 +151,7 @@ export function BackendsTable({
             }}
             retryDisabled={busy}
           />
+          {connectionFailure && failedEndpoint ? <p className="break-all font-mono text-xs">{failedEndpoint}</p> : null}
         </div>
       )}
       {!document && !error && !connectionFailure && (

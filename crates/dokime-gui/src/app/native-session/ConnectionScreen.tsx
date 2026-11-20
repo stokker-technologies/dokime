@@ -50,6 +50,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const [archivedBytes, setArchivedBytes] = useState<number | null>(null);
   const statusRevision = useRef(-1);
   const localAttempt = useRef(false);
+  const [failedEndpoint, setFailedEndpoint] = useState<string | null>(null);
   const busy = state.phase === "connecting";
   const reset = state.phase === "connecting" && state.reset !== false;
   const backingUp = state.phase === "connecting" && state.reset === "backup";
@@ -93,6 +94,15 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
       unlisten?.();
     };
   }, [busy]);
+
+  useEffect(() => {
+    if (!error || diagnostics) return;
+    let active = true;
+    void commands.desktopSessionStatus().then((status) => {
+      if (active) setFailedEndpoint(status.connection.endpoint);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [error, diagnostics]);
 
   if (settings) {
     return <DisconnectedSettings close={() => setSettings(false)} />;
@@ -152,6 +162,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
               </div>
               <BackendsTable
                 failure={error && !diagnostics ? error : undefined}
+                endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : null)}
                 onConnect={() => {
                   localAttempt.current = false;
                 }}
