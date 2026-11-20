@@ -37,11 +37,15 @@ uv run python -m starter_project.plugin
 uv run python -m starter_project
 ```
 
-The plugin module prints its own `Serving on <host>:<port>` line when run by hand.
+With `DOKIME_REMOTE` configured, the plugin registers itself under its stable
+identifier and prints `Registered with <endpoint>`. Without pairing, it prints
+`Serving on <host>:<port>`. The SDK itself stays silent for hand-run plugins.
 Managed launches set `HARMOS_ADDRESS`; only those launches receive the flushed
 readiness line. That address takes precedence over the ordinary plugin address
 configuration. `await plugin.start()` returns an endpoint with `address`,
-`managed`, `wait()` and `stop()`; `serve()` starts and waits in one call.
+`managed`, `host`, `wait()` and `stop()`; `serve()` starts and waits in one call.
+Stopping the plugin or closing its registering client keeps the host entry for
+the next start. Use `unregister()` explicitly to remove it.
 The plugin version comes from its
 owning installed distribution, including editable installs; a class `version`
 overrides that metadata. Source-only plugins must declare a class version.
@@ -82,7 +86,7 @@ finally:
 ```
 
 `execution.start()` and `execution.watch()` also remain available separately.
-Closing a client unregisters its own registrations and closes its connection.
+Closing a client stops its listeners, retains their host entries and closes its connection.
 Execution sealing and sealed progress require the corresponding host contract;
 the SDK reports unsupported contracts explicitly.
 
