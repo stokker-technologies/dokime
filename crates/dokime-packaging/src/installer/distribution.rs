@@ -53,6 +53,8 @@ pub struct Distribution {
     pub schema: u32,
     pub version: String,
     pub target: String,
+    pub source_revision: String,
+    pub channel: String,
 
     #[serde(skip)]
     pub identity: Identity,

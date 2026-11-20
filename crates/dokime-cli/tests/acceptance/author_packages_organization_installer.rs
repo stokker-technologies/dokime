@@ -72,7 +72,7 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
         // Refuse an Incomplete Kit Before Native Tool Invocation or Output Publication.
         fs::write(
             kit.join("distribution.json"),
-            serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":bundle::native_target(),"files":{}}))?,
+            serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":bundle::native_target(),"source_revision":"f7c50e68","channel":"nightly","files":{}}))?,
         )?;
         let refused = Command::from(process::command(&binary))
             .env("DOKIME_AUTHENTICODE_PROVIDER", "none")

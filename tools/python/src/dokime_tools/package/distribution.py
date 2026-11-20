@@ -15,6 +15,7 @@
 import hashlib
 import json
 import stat
+import subprocess
 import tomllib
 import zipfile
 from pathlib import Path
@@ -28,6 +29,7 @@ from pathlib import Path
 # Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output, stage_file
+from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
 
@@ -49,6 +51,16 @@ def export(root: Path, profile: str) -> Path:
     if native not in {"x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"}:
         raise ValueError(f"Package Product: unsupported distribution target: {native}")
     suffix = ".exe" if "windows" in native else ""
+    # Read the Build Identity Embedded by DOKIME_SOURCE_REVISION and DOKIME_BUILD_CHANNEL.
+    result = subprocess.run(
+        [str(build / "bin" / f"dokime{suffix}"), "version", "--json"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        creationflags=spawn_flags(),
+    )
+    identity = json.loads(result.stdout)
     config = tomllib.loads((root / "tools/project.toml").read_text(encoding="utf-8"))
     source = {
         "LICENSE": root / "LICENSE",
@@ -79,7 +91,16 @@ def export(root: Path, profile: str) -> Path:
     for name, path in sorted(source.items()):
         stage_file(path, destination / name)
         hashes[name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
-    manifest = {"schema": 1, "version": config["version"]["value"], "target": native, "files": hashes}
+    if identity["version"] != config["version"]["value"]:
+        raise ValueError("Package Product: Rebuild the CLI for the Configured Product Version")
+    manifest = {
+        "schema": 1,
+        "version": identity["version"],
+        "target": native,
+        "source_revision": identity["revision"] or "unknown",
+        "channel": identity["channel"] or "local",
+        "files": hashes,
+    }
     (destination / "distribution.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return destination
 
