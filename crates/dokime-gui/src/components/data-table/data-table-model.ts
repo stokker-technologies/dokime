@@ -103,6 +103,7 @@ export type DataTableProps<TData extends RowData> = {
   /** Rows are still arriving: the empty slot says so. */
   loading?: boolean;
   onRowClick?: (row: TData) => void;
+  rowDetail?: (row: TData) => ReactNode;
   search?: DataTableSearch;
   selection?: DataTableSelection<TData>;
   /** The table's heading, at the left of the header band. */

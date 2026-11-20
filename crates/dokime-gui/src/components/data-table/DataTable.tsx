@@ -22,7 +22,7 @@
 
 import { type RowData, useTable } from "@tanstack/react-table";
 import { ArrowRight, ChevronLeft, ChevronRight, Eye, type LucideIcon, MoreHorizontal } from "lucide-react";
-import { Children, type MouseEvent, type ReactNode, useId, useMemo, useState } from "react";
+import { Fragment, Children, type MouseEvent, type ReactNode, useId, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
@@ -80,6 +80,7 @@ export function DataTable<TData extends RowData>({
   getRowId,
   loading,
   onRowClick,
+  rowDetail,
   search,
   selection,
   title,
@@ -224,7 +225,7 @@ export function DataTable<TData extends RowData>({
                     className={cn(
                       "h-[var(--table-row-height)] pt-0 pb-px",
                       EDGE_CELL,
-                      meta?.align === "end" && "text-right",
+                      meta?.align === "end" && "text-right tabular-nums",
                       meta?.align === "center" && "text-center",
                       "bg-muted/50",
                     )}
@@ -248,54 +249,62 @@ export function DataTable<TData extends RowData>({
           ) : null}
           {rows.map((row) => {
             const selected = selection?.isSelected(row.original) ?? false;
+            const detail = rowDetail?.(row.original);
             return (
-              <TableRow
-                className={cn("h-[var(--table-row-height)]", onRowClick && "cursor-pointer")}
-                data-row-id={row.id}
-                data-state={selected ? "selected" : undefined}
-                key={row.id}
-                onClick={onRowClick ? (event) => activate(event, row.original) : undefined}
-              >
-                {row.getAllCells().map((cell) => {
-                  const meta = cell.column.columnDef.meta;
-                  const value = cell.getValue();
-                  const content = <table.FlexRender cell={cell} />;
-                  return (
-                    <TableCell
-                      className={cn(
-                        "pt-0 pb-px",
-                        EDGE_CELL,
-                        meta?.align === "end" && "text-right",
-                        meta?.align === "end" && "tabular-nums",
-                        meta?.align === "center" && "text-center",
-                        cell.column.id !== "select" && "overflow-hidden",
-                      )}
-                      key={cell.id}
-                    >
-                      {meta?.primary && onRowClick ? (
-                        <Button
-                          variant="plain"
-                          size="inline"
-                          className="block min-h-[var(--control-height)] w-full min-w-0 rounded-lg text-left"
-                          onClick={() => onRowClick(row.original)}
-                          type="button"
-                        >
-                          {content}
-                        </Button>
-                      ) : meta?.truncate ? (
-                        <div
-                          className="truncate"
-                          title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}
-                        >
-                          {content}
-                        </div>
-                      ) : (
-                        content
-                      )}
+              <Fragment key={row.id}>
+                <TableRow
+                  className={cn("h-[var(--table-row-height)]", onRowClick && "cursor-pointer")}
+                  data-row-id={row.id}
+                  data-state={selected ? "selected" : undefined}
+                  onClick={onRowClick ? (event) => activate(event, row.original) : undefined}
+                >
+                  {row.getAllCells().map((cell) => {
+                    const meta = cell.column.columnDef.meta;
+                    const value = cell.getValue();
+                    const content = <table.FlexRender cell={cell} />;
+                    return (
+                      <TableCell
+                        className={cn(
+                          "pt-0 pb-px",
+                          EDGE_CELL,
+                          meta?.align === "end" && "text-right tabular-nums",
+                          meta?.align === "center" && "text-center",
+                          cell.column.id !== "select" && "overflow-hidden",
+                        )}
+                        key={cell.id}
+                      >
+                        {meta?.primary && onRowClick ? (
+                          <Button
+                            variant="plain"
+                            size="inline"
+                            className="block min-h-[var(--control-height)] w-full min-w-0 rounded-lg text-left"
+                            onClick={() => onRowClick(row.original)}
+                            type="button"
+                          >
+                            {content}
+                          </Button>
+                        ) : meta?.truncate ? (
+                          <div
+                            className="truncate"
+                            title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}
+                          >
+                            {content}
+                          </div>
+                        ) : (
+                          content
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+                {detail ? (
+                  <TableRow>
+                    <TableCell colSpan={columnCount} className="whitespace-normal p-4">
+                      {detail}
                     </TableCell>
-                  );
-                })}
-              </TableRow>
+                  </TableRow>
+                ) : null}
+              </Fragment>
             );
           })}
           {rows.length === 0 && !failure ? (

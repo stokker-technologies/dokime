@@ -25,7 +25,9 @@ import { LoaderCircle } from "lucide-react";
 
 /* === Local Imports === */
 
-import { StepFailure, sortedStepRecords, stepBadgeVariant, stepRecordLabel } from "@/components/document/StepRecordsCard";
+import { ErrorCard } from "@/components/ErrorCard";
+
+import { stepFailure, sortedStepRecords, stepBadgeVariant, stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { Badge } from "@/components/ui/badge";
 import type { StepExecutionRecord } from "@/lib/types";
 import { LIST_STATUS_PILL_CLASS } from "./cycle-workspace-model";
@@ -99,7 +101,7 @@ function RecordRow({ live, ordinal, record }: { live: boolean; ordinal: string; 
       <div className="min-w-0">
         <span className="block font-medium [overflow-wrap:break-word]">{stepRecordLabel(record, false)}</span>
         {message ? <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{message}</span> : null}
-        {record.detail ? <StepFailure detail={record.detail} /> : null}
+        {record.detail ? <ErrorCard failure={stepFailure(record.detail)} /> : null}
       </div>
       <span className="text-xs text-muted-foreground tabular-nums">{duration}</span>
       <Badge className={`${LIST_STATUS_PILL_CLASS} gap-1 capitalize`} variant={stepBadgeVariant(record.status)}>

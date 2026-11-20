@@ -72,6 +72,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   }, [appendTo, choose, openCycles]);
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
+  const waitingPlugins = (pluginsQuery.data ?? []).filter((plugin) => ["failed", "connecting", "unavailable"].includes(plugin.status));
+  const suiteFailure = suitesQuery.isError ? failureOf(suitesQuery.error, "Could Not Load Suites") : null;
+  const waitingForSource = Boolean(suiteFailure?.plugin && waitingPlugins.some((plugin) => plugin.plugin_id === suiteFailure.plugin));
   const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
   const [suiteSearch, setSuiteSearch] = useState("");
@@ -136,6 +139,17 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     }),
   ]);
 
+  const catalogFeedback = waitingPlugins.length || (suiteFailure && !waitingForSource) ? (
+    <div className="grid gap-3">
+      {waitingPlugins.map((plugin) => (
+        <p key={plugin.plugin_id} role="status" className="text-sm text-muted-foreground">
+          Waiting for Plugin {plugin.label}
+        </p>
+      ))}
+      {suiteFailure && !waitingForSource ? <ErrorCard failure={suiteFailure} onRetry={() => void suitesQuery.refetch()} /> : null}
+    </div>
+  ) : undefined;
+
   return (
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
@@ -147,8 +161,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         onChange={(event) => setSuiteSearch(event.target.value)}
       />
       <section className="grid gap-3" aria-label="Library">
-        {suiteRows.map(({ suite, members }) => (
-          <details key={suite.suite_id} className="rounded-lg border bg-card p-4" open={Boolean(suiteSearch) || undefined}>
+        {suiteRows.map(({ suite, members }, index) => (
+          <details key={suite.suite_id} className="rounded-lg border bg-card p-4" open={Boolean(suiteSearch) || (index === 0 && Boolean(catalogFeedback)) || undefined}>
             <summary className="cursor-pointer text-sm font-semibold">
               {suite.name} <span className="ml-2 font-normal text-muted-foreground">{members.length} Templates</span>
             </summary>
@@ -160,6 +174,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                 title={suite.name}
                 description={suite.description || "Templates available in this suite."}
                 emptyText="No Templates Match"
+                failure={index === 0 ? catalogFeedback : undefined}
                 getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
                 onRowClick={setOpenTemplate}
               />
@@ -175,7 +190,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
             getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
             emptyText="No Templates Match"
             loading={suitesQuery.isPending}
-            failure={suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
+            failure={catalogFeedback}
           />
         ) : null}
       </section>

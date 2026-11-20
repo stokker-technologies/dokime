@@ -7,9 +7,13 @@
  * ***
  */
 
-// Require the Generated Report Template
+// Require the Generated Report Template and Embed the Host Build Identity
 
 /* === Modules === */
+
+mod source_identity {
+    include!("../build_identity.rs");
+}
 
 /* === Re-Exports === */
 
@@ -44,6 +48,7 @@ fn main() {
         "Build Report Template: Run `mise run generate` Before Compiling dokime-runtime (missing {})",
         template.display()
     );
+    source_identity::emit();
 }
 
 /* === Tests === */

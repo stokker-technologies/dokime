@@ -54,14 +54,15 @@ use tonic::Code;
 use dokime_client_internal::ClientSettings;
 use dokime_gui::connection::ConnectionError;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Error, Pairing};
+use dokime_protocol::host::StatusGetResponse;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, credentials, services};
 use dokime_sdk::PageRequest;
 use dokime_sdk::StorageTransferSettings;
+use harmos_protocol::host::StatusGetRequest;
 use harmos_protocol::host::status::{
     DiagnosticsGetRequest, DiagnosticsGetResponse, Event, TraceEventsListRequest, TraceEventsListResponse, TraceEventsWatchRequest,
     TraceEventsWatchResponse,
 };
-use harmos_protocol::host::{StatusGetRequest, StatusGetResponse};
 
 /* === Constants === */
 
@@ -139,13 +140,13 @@ fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn error::Erro
         attached.close().await?;
         assert!(second.cancellation().is_cancelled());
         let options = StatusGetOptions { context: session.call_options()? };
-        session.execute(session.client().status.get_with(options)).await?;
+        session.execute("Status.Get", session.client().status.get_with(options)).await?;
 
         // Closing Invalidates Every Lease Before Joining the Host
         owner.close().await?;
         assert!(session.cancellation().is_cancelled());
         assert!(matches!(owner.session(), Err(Error::Disconnected)));
-        assert!(matches!(session.execute(async { Ok(()) }).await, Err(Error::Superseded)));
+        assert!(matches!(session.execute("Status.Get", async { Ok(()) }).await, Err(Error::Superseded)));
 
         // Restart Retains the Store Identity and Creates a New Watch History
         let reopened = owner.start(root.path()).await?;
@@ -276,7 +277,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn erro
         while let Some(frame) = traceability.next().await {
             frame?;
         }
-        assert!(matches!(session.execute(async { Ok(()) }).await, Err(Error::Superseded)));
+        assert!(matches!(session.execute("Status.Get", async { Ok(()) }).await, Err(Error::Superseded)));
         Ok(())
     })
 }
@@ -289,15 +290,15 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn erro
         let mut owner = Connection::new(settings())?;
         let local = owner.start(root.path()).await?;
         let result = AssertUnwindSafe(async {
-            let current = local.execute(local.client().access.listener.get()).await?;
+            let current = local.execute("Access.Listener.Get", local.client().access.listener.get()).await?;
             let mut value = current.value.ok_or("Get Listener: Missing Settings")?;
             value.enabled = true;
             value.endpoint = "127.0.0.1:0".into();
             value.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
-            local.execute(local.client().access.listener.set(value, current.revision)).await?;
+            local.execute("Access.Listener.Set", local.client().access.listener.set(value, current.revision)).await?;
 
             // Export and Reopen the Pairing File Without Exposing Its Credential in Debug
-            let created = local.execute(local.client().access.pairings.create("Desktop Story")).await?;
+            let created = local.execute("Access.Pairings.Create", local.client().access.pairings.create("Desktop Story")).await?;
             let identity = local.identity().status.as_ref().unwrap().identity.as_ref().unwrap().host_id.clone();
             let pairing = Pairing {
                 version: 1,
@@ -321,9 +322,9 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn erro
             assert!(connected.cancellation().is_cancelled());
 
             // Rotation Refuses the Old Pin; Fresh Pairing Reconnects Without Restarting the Host
-            local.execute(local.client().access.certificates.create()).await?;
+            local.execute("Access.Certificates.Create", local.client().access.certificates.create()).await?;
             assert!(remote.attach_remote(Pairing::read(&path)?).await.is_err());
-            let rotated = local.execute(local.client().access.pairings.create("Rotated Desktop Story")).await?;
+            let rotated = local.execute("Access.Pairings.Create", local.client().access.pairings.create("Rotated Desktop Story")).await?;
             assert_ne!(rotated.pinned_certificate_pem, pairing.certificate_pem);
             let replacement = Pairing {
                 version: 1,
@@ -336,7 +337,7 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn erro
             remote.attach_remote(replacement).await?;
             remote.close().await?;
             let options = StatusGetOptions { context: local.call_options()? };
-            local.execute(local.client().status.get_with(options)).await?;
+            local.execute("Status.Get", local.client().status.get_with(options)).await?;
             Ok::<_, Box<dyn error::Error>>(())
         })
         .catch_unwind()

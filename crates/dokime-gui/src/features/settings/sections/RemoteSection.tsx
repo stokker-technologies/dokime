@@ -98,9 +98,6 @@ function ConnectedRemoteSection({
       <SettingsCard title="Remote Access">
         <SettingsRow label="Remote Settings">
           <ErrorCard failure={failureOf(query.error, "Remote Settings Unavailable")} onRetry={() => void query.refetch()} />
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            Try Again
-          </Button>
         </SettingsRow>
       </SettingsCard>
     );

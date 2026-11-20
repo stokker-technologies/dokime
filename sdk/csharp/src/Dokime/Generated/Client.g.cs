@@ -3670,16 +3670,16 @@ internal sealed class StatusResource
     Logs = new StatusLogsResource(invoker);
     TraceEvents = new StatusTraceEventsResource(invoker);
   }
-  public async Task<global::Harmos.Clients.StatusGetResponse> Get(CallOptions context = default)
+  public async Task<global::Dokime.Clients.StatusGetResponse> Get(CallOptions context = default)
   {
     var request = new global::Harmos.Clients.StatusGetRequest
     {
     };
-    var method = new Method<global::Harmos.Clients.StatusGetRequest, global::Harmos.Clients.StatusGetResponse>(MethodType.Unary, "dokime.host.v1.Status", "Get",
+    var method = new Method<global::Harmos.Clients.StatusGetRequest, global::Dokime.Clients.StatusGetResponse>(MethodType.Unary, "dokime.host.v1.Status", "Get",
         Marshallers.Create<global::Harmos.Clients.StatusGetRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Harmos.Clients.StatusGetResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusGetResponse.Parser.ParseFrom(bytes)));
+        Marshallers.Create<global::Dokime.Clients.StatusGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StatusGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    global::Harmos.Clients.StatusGetResponse response;
+    global::Dokime.Clients.StatusGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3690,7 +3690,7 @@ internal sealed class StatusResource
     }
     return response;
   }
-  public async IAsyncEnumerable<global::Harmos.Clients.StatusWatchResponse> Watch(global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.StatusWatchResponse> Watch(global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     var request = new global::Harmos.Clients.StatusWatchRequest
     {
@@ -3699,9 +3699,9 @@ internal sealed class StatusResource
     {
       request.At = at;
     }
-    var method = new Method<global::Harmos.Clients.StatusWatchRequest, global::Harmos.Clients.StatusWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Status", "Watch",
+    var method = new Method<global::Harmos.Clients.StatusWatchRequest, global::Dokime.Clients.StatusWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Status", "Watch",
         Marshallers.Create<global::Harmos.Clients.StatusWatchRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<global::Harmos.Clients.StatusWatchResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.StatusWatchResponse.Parser.ParseFrom(bytes)));
+        Marshallers.Create<global::Dokime.Clients.StatusWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StatusWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -3761,6 +3761,34 @@ internal sealed class StatusLogsResource
   public StatusLogsResource(CallInvoker invoker)
   {
     this.invoker = invoker;
+  }
+  public async Task<global::Harmos.Clients.LogsListResponse> List(global::Harmos.Position? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
+  {
+    var request = new global::Harmos.Clients.LogsListRequest
+    {
+    };
+    if (at is not null)
+    {
+      request.At = at;
+    }
+    if (page is not null)
+    {
+      request.Page = page;
+    }
+    var method = new Method<global::Harmos.Clients.LogsListRequest, global::Harmos.Clients.LogsListResponse>(MethodType.Unary, "dokime.host.v1.status.Logs", "List",
+        Marshallers.Create<global::Harmos.Clients.LogsListRequest>(value => value.ToByteArray(), bytes => global::Harmos.Clients.LogsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Harmos.Clients.LogsListResponse>(value => value.ToByteArray(), bytes => global::Harmos.Clients.LogsListResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Harmos.Clients.LogsListResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call status.logs.list: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
   }
   public async IAsyncEnumerable<global::Harmos.Clients.LogsWatchResponse> Watch(ulong maxBytes, uint maxEvents, global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {

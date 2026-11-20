@@ -31,7 +31,7 @@ import { Switch } from "@/components/ui/switch";
 /* === Types === */
 
 export type PluginTableRow = {
-  /** Rendered under the name when the plugin reports a problem. */
+  /** Rendered full width below the row when the plugin reports a problem. */
   alert?: ReactNode;
   /** Status in its own aligned column. */
   badge?: ReactNode;
@@ -60,7 +60,6 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
             {row.original.name}
           </span>
         </div>
-        {row.original.alert}
       </div>
     ),
     header: "Plugin",
@@ -141,6 +140,7 @@ export function PluginTable({
       failure={failure}
       getRowId={rowKey}
       loading={loading}
+      rowDetail={(row) => row.alert}
       onRowClick={(row) => row.onOpenSettings?.()}
     />
   );

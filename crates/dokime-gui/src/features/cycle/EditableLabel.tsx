@@ -23,11 +23,12 @@
 import { toast } from "@/lib/notifications";
 import { failureOf } from "@/lib/notification-details";
 import { Check, Pencil } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 /* === Local Imports === */
 
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { ErrorCard } from "@/components/ErrorCard";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CLOSED_LABEL_DRAFT, type LabelDraft, labelEditorKey, openLabelEdit, refuseLabel, updateLabelText } from "./label-editor-model";
@@ -52,6 +53,7 @@ const TITLE_CLASS = "font-sans text-lg leading-7 font-semibold";
 /* === Components === */
 
 export function EditableLabel({ label, prefix = "", subject, onRename, initiallyEditing = false }: EditableLabelProps) {
+  const id = useId();
   const [draft, setDraft] = useState<LabelDraft>(() => (initiallyEditing ? openLabelEdit(label) : CLOSED_LABEL_DRAFT));
   const [saving, setSaving] = useState(false);
   const title = `${prefix}${label}`;
@@ -112,9 +114,7 @@ export function EditableLabel({ label, prefix = "", subject, onRename, initially
           <Check />
         </Button>
         {draft.error ? (
-          <NotificationMessage source="Label" title="Label Could Not Save">
-            {draft.error}
-          </NotificationMessage>
+          <ErrorCard notificationContext="action" failure={failureOf(draft.error, "Label Could Not Save", `${id}:${draft.error}`)} />
         ) : (
           <span />
         )}

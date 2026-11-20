@@ -84,7 +84,14 @@ export function PluginList({
     const switchable = entry.value !== undefined;
 
     return {
-      alert: status.reason ? <ErrorCard failure={pluginStartFailure(entry, generation)} /> : null,
+      alert: entry.failure ? (
+        <ErrorCard
+          failure={pluginStartFailure(entry, generation)}
+          onRetry={entry.value?.enabled ? () => reload.mutate(entry.name) : undefined}
+          retryLabel="Restart Plugin"
+          retryDisabled={reload.isPending}
+        />
+      ) : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
         ? {

@@ -13,8 +13,9 @@
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+
 import type { AutosaveState } from "@/features/settings/settings-autosave";
 
 /* === Types === */
@@ -27,27 +28,18 @@ type SettingsFieldStatusProps = {
 /* === Components === */
 
 export function SettingsFieldStatus({ onRetry, state }: SettingsFieldStatusProps) {
+  if (state.kind === "error")
+    return (
+      <ErrorCard
+        notificationContext="action"
+        failure={failureOf(state.failure ?? state.message, "Settings Could Not Be Saved")}
+        onRetry={onRetry}
+        retryLabel="Save Settings"
+      />
+    );
   return (
-    <span className="inline-flex min-h-5 items-center gap-2 text-xs">
-      <NotificationMessage
-        error={state.kind === "error" ? state.failure : undefined}
-        source="Settings"
-        title={state.kind === "error" ? "Settings Could Not Save" : "Settings Updated"}
-        tone={state.kind === "error" ? "error" : state.kind === "saved" ? "success" : "info"}
-      >
-        {state.kind === "idle"
-          ? ""
-          : state.kind === "error"
-            ? state.message
-            : state.kind === "saving"
-              ? "Saving settings."
-              : "Settings saved."}
-      </NotificationMessage>
-      {state.kind === "error" && (
-        <Button variant="link" size="inline" className="underline" onClick={onRetry} type="button">
-          Retry
-        </Button>
-      )}
+    <span role="status" className="inline-flex min-h-5 items-center text-xs text-muted-foreground">
+      {state.kind === "idle" ? "" : state.kind === "saving" ? "Saving Settings…" : "Settings Saved"}
     </span>
   );
 }

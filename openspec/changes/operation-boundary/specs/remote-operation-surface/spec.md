@@ -18,6 +18,27 @@ Dokime SHALL declare a wrapper for each generic Harmos host operation its client
 - **WHEN** a client calls a Harmos host method directly on the Dokime listener
 - **THEN** the host refuses the call and executes no handler
 
+### Requirement: Host Build Identity
+
+Product Status Get and Watch responses SHALL carry the answering host's source revision and publication channel alongside the library health and issued boundary. The runtime SHALL derive these values through the shared product build identity implementation. The semantic version SHALL remain in the status identity's application version.
+
+#### Scenario: Client Identifies a Connected Host
+
+- **WHEN** a client reads or watches product Status
+- **THEN** its response includes the answering host's source revision and channel
+- **AND** the command-line status and desktop connection details display that build
+- **AND** Settings About displays the backend build beside the desktop build when they differ
+
+### Requirement: Retained Log Reads
+
+The product SHALL expose client-only Logs List with the library's page request, response and issued-boundary semantics, delegating to the library's in-process retained log reader. Logs Watch SHALL keep its opening boundary and later-event semantics without an opening snapshot.
+
+#### Scenario: Client Pages Retained Logs
+
+- **WHEN** a client requests product Logs List with page bounds and follows its issued continuation
+- **THEN** the product returns retained redacted events at that read boundary through the library reader
+- **AND** report-save and screenshot journeys use this product operation
+
 ### Requirement: Wrapper Audience
 
 Each Dokime wrapper SHALL declare its caller audience on its own method, and runtime admission SHALL refuse callers outside it, so plugins never reach client administration.

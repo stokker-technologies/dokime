@@ -26,7 +26,7 @@ runs:
       output = Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8')
       output.write(f'VCPKG_DEFAULT_BINARY_CACHE={path.as_posix()}\n')
       output.close()
-      prefix = f"sdk-cpp-v2-{os.environ['RUNNER_OS']}-{os.environ['RUNNER_ARCH']}-{os.environ['RUNNER_IMAGE_ID']}-"
+      prefix = f"sdk-cpp-v3-{os.environ['RUNNER_OS']}-{os.environ['RUNNER_ARCH']}-{os.environ['RUNNER_IMAGE_ID']}-"
       output = Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8')
       output.write(f'prefix={prefix}\n')
       output.close()

@@ -14,7 +14,6 @@ import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { RotateCw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
@@ -190,19 +189,13 @@ export function PluginsSection() {
             builtInRows={builtInRows}
             failure={
               pluginsQuery.isError || programsQuery.isError ? (
-                <div className="grid justify-items-start gap-3">
-                  <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
-                  <Button
-                    onClick={() => {
-                      void pluginsQuery.refetch();
-                      void programsQuery.refetch();
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Try Again
-                  </Button>
-                </div>
+                <ErrorCard
+                  failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")}
+                  onRetry={() => {
+                    void pluginsQuery.refetch();
+                    void programsQuery.refetch();
+                  }}
+                />
               ) : undefined
             }
             loading={pluginsQuery.isPending || programsQuery.isPending}
@@ -258,9 +251,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
-            <NotificationMessage error={removeMutation.error}>
-              {removeMutation.error ? failureOf(removeMutation.error, "Plugin Operation Failed").message : null}
-            </NotificationMessage>
+            <ErrorCard notificationContext="action" failure={failureOf(removeMutation.error, "Operation Failed")} />
           ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">

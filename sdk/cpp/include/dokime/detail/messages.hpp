@@ -1102,6 +1102,13 @@ inline constexpr auto THEME_MODE_UNSPECIFIED = static_cast<::dokime::host::v1::T
 inline constexpr auto THEME_MODE_SYSTEM = static_cast<::dokime::host::v1::ThemeMode>(1);
 inline constexpr auto THEME_MODE_LIGHT = static_cast<::dokime::host::v1::ThemeMode>(2);
 inline constexpr auto THEME_MODE_DARK = static_cast<::dokime::host::v1::ThemeMode>(3);
+namespace host {
+using ::dokime::host::v1::StatusGetResponse;
+}
+namespace host {
+using ::dokime::host::v1::StatusWatchResponse;
+}
+using ::dokime::host::v1::HostBuild;
 using ::dokime::host::v1::StreamSchemasGetResponse;
 using ::dokime::host::v1::StreamSchemasListResponse;
 using ::dokime::host::v1::storage::SourcesGetResponse;

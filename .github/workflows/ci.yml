@@ -50,6 +50,7 @@ jobs:
       check: ${{ steps.impact.outputs.check }}
       build_product: ${{ steps.impact.outputs.build_product }}
       build_tests: ${{ steps.impact.outputs.build_tests }}
+      build_sdk_cpp: ${{ steps.impact.outputs.build_sdk_cpp }}
       build_host_fixtures_csharp: ${{ steps.impact.outputs.build_host_fixtures_csharp }}
       build_python: ${{ steps.impact.outputs.build_python }}
       build_docs: ${{ steps.impact.outputs.build_docs }}
@@ -89,6 +90,16 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_tests == 'true'
+    needs:
+    - impact
+  build_sdk_cpp:
+    name: Build / SDK / C++
+    uses: ./.github/workflows/validate-build-tests.yml
+    with:
+      channel: ci
+      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
+      fixture-language: cpp
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_sdk_cpp == 'true'
     needs:
     - impact
   build_host_fixtures_csharp:
@@ -148,6 +159,7 @@ jobs:
     - build_product
     - build_tests
     - build_python
+    - build_sdk_cpp
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.test == 'true'
     strategy:
       fail-fast: false
@@ -285,6 +297,7 @@ jobs:
     - build_docs
     - check_generated
     - test
+    - build_sdk_cpp
     - build_host_fixtures_csharp
     - test_host_csharp
     - package

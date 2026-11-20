@@ -14,7 +14,9 @@
 
 /* === External Imports === */
 
+import type { Channel } from "@tauri-apps/api/core";
 import * as core from "@tauri-apps/api/core";
+import { normalizeRpcError } from "@/lib/rpc/errors";
 
 /* === Local Imports === */
 
@@ -42,7 +44,12 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
   // Once the desktop stops, a refused or interrupted command belongs to the stop.
-  return core.invoke<T>(command, args).catch(settleUnlessStopping<T>);
+  return core
+    .invoke<T>(command, args)
+    .catch((error: unknown) => {
+      throw normalizeRpcError(error, command);
+    })
+    .catch(settleUnlessStopping<T>);
 }
 
 /* === Public Constants === */
@@ -88,7 +95,7 @@ export const commands = {
   /** Release one generation's media cache. */
   desktopMediaRelease: (generation: string) => invoke<null>("desktop_media_release", { generation }),
   /** Install the bundle just dropped on the window, or pick one natively; `null` when the operator cancels. */
-  desktopPluginInstallFile: (generation: string, drop: boolean, progress: core.Channel<InstallPluginProgress>) =>
+  desktopPluginInstallFile: (generation: string, drop: boolean, progress: Channel<InstallPluginProgress>) =>
     invoke<string | null>("desktop_plugin_install_file", { generation, drop, progress }),
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
@@ -101,6 +108,6 @@ export const commands = {
   desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),
   desktopUpdatesInstall: (candidate: string) => invoke<{ version: string }>("desktop_updates_install", { candidate }),
   desktopPluginReleaseCheck: (generation: string) => invoke<PluginRelease[]>("desktop_plugin_release_check", { generation }),
-  desktopPluginReleaseInstall: (generation: string, candidate: string, progress: core.Channel<InstallPluginProgress>) =>
+  desktopPluginReleaseInstall: (generation: string, candidate: string, progress: Channel<InstallPluginProgress>) =>
     invoke<string>("desktop_plugin_release_install", { generation, candidate, progress }),
 };

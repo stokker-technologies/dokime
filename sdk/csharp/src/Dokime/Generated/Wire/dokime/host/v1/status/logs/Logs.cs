@@ -26,11 +26,13 @@ namespace Dokime.Clients.StatusResources;
           string.Concat(
             "CiBkb2tpbWUvaG9zdC92MS9zdGF0dXMvbG9ncy5wcm90bxIVZG9raW1lLmhv",
             "c3QudjEuc3RhdHVzGiBoYXJtb3MvaG9zdC92MS9zdGF0dXMvbG9ncy5wcm90",
-            "bxodaGFybW9zL21vZGVsL3YxL2NhbGxlcnMucHJvdG8yagoETG9ncxJiCgVX",
-            "YXRjaBInLmhhcm1vcy5ob3N0LnYxLnN0YXR1cy5Mb2dzV2F0Y2hSZXF1ZXN0",
-            "GiguaGFybW9zLmhvc3QudjEuc3RhdHVzLkxvZ3NXYXRjaFJlc3BvbnNlIgTI",
-            "8xgBMAFCIaoCHkRva2ltZS5DbGllbnRzLlN0YXR1c1Jlc291cmNlc2IGcHJv",
-            "dG8z"));
+            "bxodaGFybW9zL21vZGVsL3YxL2NhbGxlcnMucHJvdG8yyQEKBExvZ3MSXQoE",
+            "TGlzdBImLmhhcm1vcy5ob3N0LnYxLnN0YXR1cy5Mb2dzTGlzdFJlcXVlc3Qa",
+            "Jy5oYXJtb3MuaG9zdC52MS5zdGF0dXMuTG9nc0xpc3RSZXNwb25zZSIEyPMY",
+            "ARJiCgVXYXRjaBInLmhhcm1vcy5ob3N0LnYxLnN0YXR1cy5Mb2dzV2F0Y2hS",
+            "ZXF1ZXN0GiguaGFybW9zLmhvc3QudjEuc3RhdHVzLkxvZ3NXYXRjaFJlc3Bv",
+            "bnNlIgTI8xgBMAFCIaoCHkRva2ltZS5DbGllbnRzLlN0YXR1c1Jlc291cmNl",
+            "c2IGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Harmos.Clients.LogsReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, null));

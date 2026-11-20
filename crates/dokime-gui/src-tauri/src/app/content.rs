@@ -132,7 +132,7 @@ pub(crate) async fn fetch_verified(
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.content.artifacts.get_with(artifact_id.clone(), options)).await?;
+            let reply = session.execute("Content.Artifacts.Get", client.content.artifacts.get_with(artifact_id.clone(), options)).await?;
             (reply.file, None)
         }
         ArtifactSource::ExecutionFile { execution_id, relative_path } => {
@@ -140,8 +140,12 @@ pub(crate) async fn fetch_verified(
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply =
-                session.execute(client.content.execution_files.get_with(execution_id.clone(), relative_path.clone(), options)).await?;
+            let reply = session
+                .execute(
+                    "content.execution_files.get",
+                    client.content.execution_files.get_with(execution_id.clone(), relative_path.clone(), options),
+                )
+                .await?;
             (reply.file, None)
         }
         ArtifactSource::ExecutionEvidence { execution_id } => {
@@ -152,7 +156,7 @@ pub(crate) async fn fetch_verified(
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.evidence.archive_with(subject, options)).await?;
+            let reply = session.execute("Evidence.Archive", client.evidence.archive_with(subject, options)).await?;
             (reply.file, None)
         }
         ArtifactSource::CycleEvidence { cycle_id } => {
@@ -163,7 +167,7 @@ pub(crate) async fn fetch_verified(
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.evidence.archive_with(subject, options)).await?;
+            let reply = session.execute("Evidence.Archive", client.evidence.archive_with(subject, options)).await?;
             (reply.file, None)
         }
         ArtifactSource::CycleReport { cycle_id, name } => {
@@ -174,7 +178,7 @@ pub(crate) async fn fetch_verified(
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.reports.get_with(subject, name.clone(), options)).await?;
+            let reply = session.execute("Reports.Get", client.reports.get_with(subject, name.clone(), options)).await?;
             (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
         }
         ArtifactSource::ExecutionReport { execution_id, name } => {
@@ -185,7 +189,7 @@ pub(crate) async fn fetch_verified(
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.reports.get_with(subject, name.clone(), options)).await?;
+            let reply = session.execute("Reports.Get", client.reports.get_with(subject, name.clone(), options)).await?;
             (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
         }
     };
@@ -197,7 +201,7 @@ pub(crate) async fn fetch_verified(
         context: session.call_options()?,
         ..Default::default()
     };
-    let selected = session.execute(client.files.get_with(reference.clone(), options)).await?;
+    let selected = session.execute("Files.Get", client.files.get_with(reference.clone(), options)).await?;
     let selected_file = selected.file.as_ref().ok_or_else(|| invalid("Read Content: Host Omitted Its Selected File"))?;
     if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
         return Err(invalid("Read Content: Selected File Identity Changed"));
@@ -227,7 +231,7 @@ pub(crate) async fn fetch_verified(
             context: session.call_options()?,
         };
         let reading = Instant::now();
-        let reply = session.execute(client.files.read_with(reference.clone(), offset, frame_bytes as u64, options)).await?;
+        let reply = session.execute("Files.Read", client.files.read_with(reference.clone(), offset, frame_bytes as u64, options)).await?;
         transfer += reading.elapsed();
         if reply.total_length != reference.length
             || reply.sha256 != reference.sha256

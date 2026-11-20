@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -17,11 +18,12 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { beforeEach, test, vi } from "vitest";
+import { beforeEach, onTestFinished, test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { createElement, type ComponentProps, type ReactNode } from "react";
+import { act, createElement, isValidElement, type ComponentProps, type ReactNode } from "react";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
-import type { InstalledPluginDetail as PluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
@@ -33,6 +35,7 @@ import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
+import type { NotificationFailure } from "@/lib/notification-details";
 import { FailureSchema, PluginEntrySchema, PluginState } from "@host/model";
 
 /* === Re-Exports === */
@@ -43,6 +46,7 @@ const fixture = vi.hoisted(() => ({
   admitted: vi.fn(),
   installed: vi.fn(),
   settings: vi.fn(),
+  save: vi.fn(),
   detail: vi.fn(),
   installations: vi.fn(),
   captureAdding: false,
@@ -57,7 +61,7 @@ const fixture = vi.hoisted(() => ({
 }));
 const session = { generation: "1", isCurrent: () => true };
 const entry: ManagedPlugin = create(PluginEntrySchema, {
-  name: "equipment",
+  name: "bench",
   revision: new Uint8Array([1]),
   activation: 1n,
   state: PluginState.UNAVAILABLE,
@@ -126,7 +130,7 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 vi.mock("@/features/settings/installed-plugins/installed-plugin-queries", () => ({
   useInstalledPluginDetailQuery: fixture.detail,
-  useInstalledPluginSettingsMutation: () => ({ mutateAsync: vi.fn() }),
+  useInstalledPluginSettingsMutation: () => ({ mutateAsync: fixture.save }),
   useInstalledPluginSecretMutation: () => ({ mutateAsync: vi.fn() }),
   usePluginRestartRefresh: vi.fn(),
 }));
@@ -150,8 +154,22 @@ beforeEach(() => {
   fixture.buttons.length = 0;
   fixture.actions.clear();
   fixture.hash = "";
+  fixture.save.mockResolvedValue(undefined);
   fixture.admitted.mockResolvedValue([]);
   fixture.installed.mockResolvedValue([entry]);
+  fixture.detail.mockImplementation((pluginId: string) => ({
+    data: {
+      plugin_id: pluginId,
+      label: pluginId,
+      version: "1.0.0",
+      runtime: "code",
+      status: "failed",
+      error: null,
+      settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
+      values: { address: "corrected" },
+      secrets: [],
+    },
+  }));
   fixture.settings.mockResolvedValue({
     settings: { contributions: [] },
     values: { address: "corrected" },
@@ -229,8 +247,29 @@ test("Failed Entry Actions Address Its Persisted Name", () => {
   assert.deepEqual(enabled.mock.calls, [[entry, false]]);
 });
 
+test("Failed Entry Retains Its Failure Without a Root Message", () => {
+  const failed = { ...entry, failure: create(FailureSchema, { code: "bench_refused", action: "bench_action" }) };
+  renderToStaticMarkup(
+    createElement(PluginList, {
+      entries: [failed],
+      onRemove: vi.fn(),
+      onOpenSettings: vi.fn(),
+      removingId: null,
+      onSetEnabled: vi.fn(),
+      changingEnabled: false,
+      settingsSectionOf: () => failed.name,
+    }),
+  );
+  const alert = fixture.rows[0].alert;
+  assert.ok(isValidElement<{ failure: NotificationFailure }>(alert));
+  assert.equal(alert.props.failure.plugin, failed.name);
+  assert.equal(alert.props.failure.reason, failed.failure.code);
+  const html = renderToStaticMarkup(alert);
+  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
+});
+
 test("Declared Secret Add", () => {
-  const detail: PluginDetail = {
+  const detail: contracts.InstalledPluginDetail = {
     plugin_id: "equipment.main",
     owner: null,
     label: "Equipment",
@@ -276,4 +315,71 @@ test("Missing Secret Action", () => {
   fixture.hash = "";
   const ordinary = renderToStaticMarkup(createElement(SecretsSection));
   assert.equal(ordinary.includes('role="dialog"'), false);
+});
+
+test("Failed Plugin Keeps Its Settings Below Its Failure", () => {
+  fixture.installations.mockReturnValue({ data: [entry] });
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
+  assert.equal(fixture.detail.mock.calls.length, 1);
+  assert.ok(html.includes("textarea"));
+  assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
+  fixture.buttons[0]();
+  assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
+});
+
+test("Undescribed Plugin Waits Without Requesting Settings", () => {
+  fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, state: PluginState.CONNECTING }] });
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  assert.ok(html.includes('role="status"'));
+  assert.ok(!html.includes('role="alert"'));
+  assert.equal(fixture.detail.mock.calls.length, 0);
+});
+
+test("Independent Failed Section Occupies Its Content Slot", () => {
+  fixture.installations.mockReturnValue({
+    data: [{ ...entry, failure: undefined, description: { id: "bench" }, state: PluginState.READY }],
+  });
+  fixture.detail.mockReturnValue({ isError: true, error: new Error("bench_section"), refetch: vi.fn() });
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
+  assert.ok(html.includes("bench_section"));
+});
+
+test("Disabled Undescribed Plugin Keeps Its Settings Available", () => {
+  fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, value: { enabled: false } }] });
+  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
+  assert.equal(fixture.detail.mock.calls.length, 1);
+  assert.ok(html.includes("textarea"));
+  const content = document.createElement("div");
+  content.innerHTML = html;
+  const textarea = content.querySelector("textarea");
+  assert.ok(textarea);
+  assert.equal(textarea.disabled, false);
+  assert.ok([...content.querySelectorAll('[role="status"]')].every((status) => !status.textContent.trim()));
+});
+
+test("Failed Plugin Settings Save the Corrected Value", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.useFakeTimers();
+  fixture.installations.mockReturnValue({ data: [entry] });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+  await act(async () => root.render(createElement(PluginSettingsSurface, { pluginId: entry.name })));
+  const textarea = host.querySelector("textarea");
+  assert.ok(textarea);
+  assert.equal(textarea.disabled, false);
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "repaired-address");
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(100));
+  assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
 });

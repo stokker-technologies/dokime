@@ -109,6 +109,7 @@ export function EngineSection() {
           </SettingsRow>
           <SettingsRow
             label="Save Stream Settings"
+            notificationContext="action"
             error={mutation.error ? failureOf(mutation.error, "Save Stream Settings").message : undefined}
             failure={mutation.error ?? undefined}
             status={mutation.isPending ? <span role="status">Saving</span> : null}

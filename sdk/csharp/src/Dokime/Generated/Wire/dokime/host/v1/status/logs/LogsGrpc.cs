@@ -46,9 +46,21 @@ namespace Dokime.Clients.StatusResources;
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Harmos.Clients.LogsListRequest> __Marshaller_harmos_host_v1_status_LogsListRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.LogsListRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Harmos.Clients.LogsListResponse> __Marshaller_harmos_host_v1_status_LogsListResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.LogsListResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Harmos.Clients.LogsWatchRequest> __Marshaller_harmos_host_v1_status_LogsWatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.LogsWatchRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Harmos.Clients.LogsWatchResponse> __Marshaller_harmos_host_v1_status_LogsWatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.LogsWatchResponse.Parser));
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Harmos.Clients.LogsListRequest, global::Harmos.Clients.LogsListResponse> __Method_List = new grpc::Method<global::Harmos.Clients.LogsListRequest, global::Harmos.Clients.LogsListResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "List",
+        __Marshaller_harmos_host_v1_status_LogsListRequest,
+        __Marshaller_harmos_host_v1_status_LogsListResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Harmos.Clients.LogsWatchRequest, global::Harmos.Clients.LogsWatchResponse> __Method_Watch = new grpc::Method<global::Harmos.Clients.LogsWatchRequest, global::Harmos.Clients.LogsWatchResponse>(
@@ -68,6 +80,12 @@ namespace Dokime.Clients.StatusResources;
     [grpc::BindServiceMethod(typeof(Logs), "BindService")]
     public abstract partial class LogsBase
     {
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Harmos.Clients.LogsListResponse> List(global::Harmos.Clients.LogsListRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task Watch(global::Harmos.Clients.LogsWatchRequest request, grpc::IServerStreamWriter<global::Harmos.Clients.LogsWatchResponse> responseStream, grpc::ServerCallContext context)
       {
@@ -104,6 +122,26 @@ namespace Dokime.Clients.StatusResources;
       }
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Harmos.Clients.LogsListResponse List(global::Harmos.Clients.LogsListRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return List(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Harmos.Clients.LogsListResponse List(global::Harmos.Clients.LogsListRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_List, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Harmos.Clients.LogsListResponse> ListAsync(global::Harmos.Clients.LogsListRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return ListAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Harmos.Clients.LogsListResponse> ListAsync(global::Harmos.Clients.LogsListRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_List, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual grpc::AsyncServerStreamingCall<global::Harmos.Clients.LogsWatchResponse> Watch(global::Harmos.Clients.LogsWatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
       {
         return Watch(request, new grpc::CallOptions(headers, deadline, cancellationToken));
@@ -127,6 +165,7 @@ namespace Dokime.Clients.StatusResources;
     public static grpc::ServerServiceDefinition BindService(LogsBase serviceImpl)
     {
       return grpc::ServerServiceDefinition.CreateBuilder()
+          .AddMethod(__Method_List, serviceImpl.List)
           .AddMethod(__Method_Watch, serviceImpl.Watch).Build();
     }
 
@@ -137,6 +176,7 @@ namespace Dokime.Clients.StatusResources;
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     public static void BindService(grpc::ServiceBinderBase serviceBinder, LogsBase serviceImpl)
     {
+      serviceBinder.AddMethod(__Method_List, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Harmos.Clients.LogsListRequest, global::Harmos.Clients.LogsListResponse>(serviceImpl.List));
       serviceBinder.AddMethod(__Method_Watch, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Harmos.Clients.LogsWatchRequest, global::Harmos.Clients.LogsWatchResponse>(serviceImpl.Watch));
     }
 

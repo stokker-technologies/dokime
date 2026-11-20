@@ -11,7 +11,14 @@
       ]
     },
     "openssl",
-    "protobuf",
-    "catch2"
-  ]
+    "protobuf"
+  ],
+  "features": {
+    "tests": {
+      "description": "SDK Stories",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  }
 }

@@ -1,15 +1,15 @@
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
 import { watchRemoteImports } from "@/lib/desktop/remote-import";
 import { watchStopping } from "@/lib/desktop/stopping";
 import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
 import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
-import { connectionError } from "./errors";
 import { type ConnectedSession, NativeSession } from "./session";
 
 /** One native owner and fresh backend query/resource scope per generation. */
@@ -98,9 +98,8 @@ function Connected({ session, children }: { session: ConnectedSession; children:
           {error ? (
             <main className="mx-auto max-w-xl space-y-4 p-8">
               <h1 className="font-heading text-2xl">Appearance Unavailable</h1>
-              <NotificationMessage error={error}>{connectionError(error)}</NotificationMessage>
+              <ErrorCard failure={failureOf(error, "Appearance Unavailable")} onRetry={() => setAttempt((value) => value + 1)} />
               <div className="flex gap-3">
-                <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>
                 <Button variant="outline" onClick={() => void owner.disconnect()}>
                   Disconnect
                 </Button>

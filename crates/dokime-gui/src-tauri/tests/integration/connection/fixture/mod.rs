@@ -47,6 +47,7 @@ use dokime_sdk::Grpc;
 use dokime_client_internal::OverviewGetResponse;
 use dokime_client_internal::RuntimeShellSnapshot;
 use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
+use dokime_protocol::host::StatusGetResponse;
 use dokime_protocol::host::backend::OverviewGetRequest;
 use harmos_protocol::host;
 
@@ -125,7 +126,7 @@ impl<const KIND: u8> codegen::Service<HttpRequest> for Rpc<KIND> {
         Box::pin(async move {
             let response = match request.uri().path() {
                 "/dokime.host.v1.Status/Get" => {
-                    let mut reply = host::StatusGetResponse::default();
+                    let mut reply = StatusGetResponse::default();
                     let status = reply.status.get_or_insert_default();
                     status.available = true;
                     status.identity.get_or_insert_default().host_id = service.id;

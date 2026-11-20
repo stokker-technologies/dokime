@@ -64,7 +64,7 @@ pub async fn desktop_settings_read(
         context: client.call_options().map_err(command_error)?,
         ..Default::default()
     };
-    let snapshot = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
+    let snapshot = client.execute("Settings.Get", client.client().settings.get_with(options)).await.map_err(command_error)?;
     let snapshot = with_listener(&client, snapshot).await?;
     Ok(tauri::ipc::Response::new(snapshot.encode_to_vec()))
 }
@@ -85,7 +85,7 @@ pub async fn desktop_settings_update(
         context: client.call_options().map_err(command_error)?,
         ..Default::default()
     };
-    let current = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
+    let current = client.execute("Settings.Get", client.client().settings.get_with(options)).await.map_err(command_error)?;
     let previous = current.value.as_ref().ok_or_else(|| SettingsCommandError::Validation {
         message: "Read Preferences: Host Omitted Settings".into(),
     })?;
@@ -115,7 +115,10 @@ pub async fn desktop_settings_update(
         request_id: Some(update.request_id),
         context: client.call_options().map_err(command_error)?,
     };
-    let saved = client.execute(client.client().settings.set_with(value, update.expected_revision, options)).await.map_err(command_error)?;
+    let saved = client
+        .execute("Settings.Set", client.client().settings.set_with(value, update.expected_revision, options))
+        .await
+        .map_err(command_error)?;
     let saved = with_listener(
         &client,
         host::SettingsGetResponse {
@@ -157,7 +160,7 @@ async fn with_listener(
     let options = AccessListenerGetOptions {
         context: client.call_options().map_err(command_error)?,
     };
-    let listener = client.execute(client.client().access.listener.get_with(options)).await.map_err(command_error)?;
+    let listener = client.execute("Access.Listener.Get", client.client().access.listener.get_with(options)).await.map_err(command_error)?;
     let value = listener.value.ok_or_else(|| SettingsCommandError::Validation {
         message: "Read Preferences: Host Omitted Its Listener Value".into(),
     })?;

@@ -18,10 +18,12 @@
 import { failureOf } from "@/lib/notification-details";
 import { Clipboard, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
+
+import { notificationText } from "@/lib/notifications";
+import { ErrorCard } from "@/components/ErrorCard";
 
 import type { FileRowState } from "@/components/start-cycle-form-model";
 import { parameterInputId } from "@/components/start-cycle-form-model";
@@ -161,7 +163,7 @@ export function ParameterEditor({
                       </div>
                       <span className="size-6" />
                     </div>
-                    {row.error ? <NotificationMessage failure={row.failure}>{row.error}</NotificationMessage> : null}
+                    {row.error ? <ErrorCard notificationContext="action" failure={failureOf(row.failure, "Operation Failed")} /> : null}
                   </div>
                   <div className="justify-self-center">
                     {row.path !== (definition.default ?? "") || row.error ? (
@@ -254,7 +256,7 @@ function ParameterEditorRow({
           {acceptsExpressions(row) ? <ExpressionReferencePopover /> : <span className="size-6 [[data-density=touch]_&]:size-11" />}
         </div>
         {error ? (
-          <NotificationMessage>{error}</NotificationMessage>
+          <ErrorCard failure={failureOf(notificationText(error), "Operation Failed")} />
         ) : expansion ? (
           <p className="flex flex-wrap items-center gap-2 text-xs leading-snug text-muted-foreground">
             {expansion.badge ? (

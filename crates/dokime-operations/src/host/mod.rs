@@ -71,6 +71,7 @@ use dokime_protocol::host::BootstrapPaths;
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
+use dokime_protocol::host::HostBuild;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::host::executions::CommandsCreateRequest;
@@ -122,7 +123,7 @@ pub struct Progress {
 pub struct HostIdentity {
     pub backend_id: String,
     pub epoch: String,
-    pub product_version: String,
+    pub build: HostBuild,
     pub target: String,
     pub started_at: Option<Timestamp>,
     pub display_name: String,

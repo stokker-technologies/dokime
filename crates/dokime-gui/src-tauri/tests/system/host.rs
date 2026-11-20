@@ -401,7 +401,10 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let admitted = session
-                .execute(session.client().plugins.create_with("desktop_plot", placement, PluginValue { enabled: true }, options))
+                .execute(
+                    "Plugins.Create",
+                    session.client().plugins.create_with("desktop_plot", placement, PluginValue { enabled: true }, options),
+                )
                 .await?;
             let mut entry = admitted.entry.ok_or("Admit Desktop Fixture: Missing Entry")?;
             let options = PluginsWatchOptions {
@@ -409,18 +412,18 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let mut watching = session.execute(session.client().plugins.watch_with(options)).await?;
+            let mut watching = session.execute("Plugins.Watch", session.client().plugins.watch_with(options)).await?;
             while entry.state != PluginState::Ready as i32 {
                 if entry.failure.is_some() || entry.state == PluginState::Stopped as i32 {
                     return Err(format!("Admit Desktop Fixture: {:?}", entry.failure).into());
                 }
-                session.execute(watching.next()).await?.ok_or("Admit Desktop Fixture: Watch Closed")?;
+                session.execute("Plugins.Watch", watching.next()).await?.ok_or("Admit Desktop Fixture: Watch Closed")?;
                 let options = PluginsGetOptions {
                     context: session.call_options()?,
                     ..Default::default()
                 };
                 entry = session
-                    .execute(session.client().plugins.get_with(entry.name, options))
+                    .execute("Plugins.Get", session.client().plugins.get_with(entry.name, options))
                     .await?
                     .entry
                     .ok_or("Admit Desktop Fixture: Entry Removed")?;

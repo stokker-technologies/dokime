@@ -78,7 +78,6 @@ vi.mock("@/lib/brand", () => ({ defaultBrand: { label: "Fixture" } }));
 vi.mock("@/shell/BrandMark", () => ({ BrandMark: () => null }));
 vi.mock("@/features/settings/BackendsTable", () => ({ BackendsTable: () => null }));
 vi.mock("@/features/settings/SettingsSurface", () => ({ DisconnectedSettings: () => null }));
-vi.mock("@/components/NotificationMessage", () => ({ NotificationMessage: () => null }));
 vi.mock("@/components/PathPill", () => ({
   PathPill: ({ value }: { value: string }) => createElement("code", { "data-path": value }, value),
 }));
