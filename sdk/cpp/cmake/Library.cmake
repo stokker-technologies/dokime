@@ -13,7 +13,6 @@ set(protocols
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/content/execution_files.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/cycles.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/documents.proto"
-  "${DOKIME_PROTO_ROOT}/dokime/host/v1/effects.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/evidence.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/evidence/health_events.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/evidence/logs.proto"

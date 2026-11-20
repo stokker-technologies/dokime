@@ -11,7 +11,6 @@
 #include "dokime/host/v1/content/execution_files.pb.h"
 #include "dokime/host/v1/cycles.pb.h"
 #include "dokime/host/v1/documents.pb.h"
-#include "dokime/host/v1/effects.pb.h"
 #include "dokime/host/v1/evidence.pb.h"
 #include "dokime/host/v1/evidence/health_events.pb.h"
 #include "dokime/host/v1/evidence/logs.pb.h"
@@ -1112,10 +1111,6 @@ using ::dokime::host::v1::storage::StorageSources;
 namespace plugin {
 using ::dokime::host::v1::BackendEnvironmentResponse;
 using ::dokime::host::v1::DocumentsAppendPartsResponse;
-using ::dokime::host::v1::EffectsCreateResponse;
-using ::dokime::host::v1::EffectsGetResponse;
-using ::dokime::host::v1::EffectsSetResponse;
-using ::dokime::host::v1::EffectWritable;
 using ::dokime::host::v1::evidence::LogsAppendResponse;
 using ::dokime::host::v1::evidence::RecordsAppendResponse;
 using ::dokime::host::v1::evidence::TraceabilitySetResponse;

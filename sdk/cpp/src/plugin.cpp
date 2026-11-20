@@ -451,9 +451,6 @@ Plugin &Plugin::context_operations() {
   registrar.add(HostOperation::EvidenceTraceabilityGet);
   registrar.add(HostOperation::EvidenceTraceabilitySet);
   registrar.add(HostOperation::DocumentsAppendParts);
-  registrar.add(HostOperation::EffectsCreate);
-  registrar.add(HostOperation::EffectsGet);
-  registrar.add(HostOperation::EffectsSet);
   registrar.add(HostOperation::TimeGet);
   registrar.add(HostOperation::TimeSleep);
   return *this;

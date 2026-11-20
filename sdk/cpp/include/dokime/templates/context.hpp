@@ -130,10 +130,6 @@ public:
                     std::optional<std::string> request_id = {});
   void document(std::string document, model::Section part, std::string section = {}, std::optional<std::string> request_id = {});
   void document(std::string document, Card part, std::string section = {}, std::optional<std::string> request_id = {});
-  std::string prepare_effect(std::string resource, std::string inverse_operation, const google::protobuf::Message &inverse,
-                             std::string description = {}, std::optional<std::string> request_id = {});
-  void confirm_effect(std::string ticket, std::optional<std::chrono::system_clock::time_point> at = {}, bool restored = false,
-                      std::optional<std::string> request_id = {});
   Artifact artifact(const std::string &name, const std::vector<std::uint8_t> &data, const std::string &mime = "application/octet-stream",
                     std::optional<std::string> request_id = {});
   CaptureResult capture(const FileSource &source, const std::string &output);
@@ -196,7 +192,6 @@ private:
   friend struct HostContentResource;
   friend struct HostContentArtifactsResource;
   friend struct HostDocumentsResource;
-  friend struct HostEffectsResource;
   friend struct HostEvidenceResource;
   friend struct HostEvidenceLogsResource;
   friend struct HostEvidenceRecordsResource;

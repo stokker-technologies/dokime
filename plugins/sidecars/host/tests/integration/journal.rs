@@ -23,9 +23,9 @@ use std::sync::Mutex;
 // Local Imports
 use dokime::{Error, Result};
 use plugin_host::adapters::Adapter;
-use plugin_host::controls::{Change, Journal as _, Native, State};
+use plugin_host::controls::{Change, Journal, Native, State};
 use plugin_host::domain::controls::{ControlState, Radio};
-use plugin_host::journal::{Journal, Saved, Store};
+use plugin_host::journal::{self, Saved, Store};
 
 /* === Constants === */
 
@@ -129,7 +129,7 @@ fn plan(identifier: &str) -> ControlState {
 }
 
 async fn outstanding(store: &Durable) -> Vec<(String, Option<String>)> {
-    let entries = Journal::new(store).outstanding().await.unwrap();
+    let entries = journal::Journal::new(store).outstanding().await.unwrap();
     entries.into_iter().map(|(target, inverse)| (target, inverse.power_plan)).collect()
 }
 
@@ -138,17 +138,17 @@ async fn outstanding(store: &Durable) -> Vec<(String, Option<String>)> {
 #[tokio::test]
 async fn a_recorded_inverse_outlives_its_journal_until_it_is_cleared() {
     let store = Durable::served();
-    assert!(Journal::new(&store).record("host.power.plan", &plan("balanced")).await.unwrap());
+    assert!(journal::Journal::new(&store).record("host.power.plan", &plan("balanced")).await.unwrap());
 
     assert_eq!(outstanding(&store).await, [("host.power.plan".to_owned(), Some("balanced".to_owned()))]);
-    Journal::new(&store).clear("host.power.plan").await.unwrap();
+    journal::Journal::new(&store).clear("host.power.plan").await.unwrap();
     assert!(outstanding(&store).await.is_empty());
 }
 
 #[tokio::test]
 async fn a_second_record_for_a_target_keeps_the_first_inverse() {
     let store = Durable::served();
-    let journal = Journal::new(&store);
+    let journal = journal::Journal::new(&store);
     assert!(journal.record("host.power.plan", &plan("balanced")).await.unwrap());
     assert!(journal.record("host.radio.wifi", &plan("radio")).await.unwrap());
     assert!(!journal.record("host.power.plan", &plan("performance")).await.unwrap());
@@ -163,19 +163,19 @@ async fn a_second_record_for_a_target_keeps_the_first_inverse() {
 async fn start_restores_outstanding_inverses_newest_first_and_keeps_a_failed_one() {
     let store = Durable::served();
     for (target, inverse) in [("first", "a"), ("second", "b"), ("third", "c")] {
-        Journal::new(&store).record(target, &plan(inverse)).await.unwrap();
+        journal::Journal::new(&store).record(target, &plan(inverse)).await.unwrap();
     }
 
     let restorer = Restorer {
         failing: Some("a".into()),
         ..Restorer::default()
     };
-    assert!(State::default().restore(&restorer, &Journal::new(&store)).await.is_err());
+    assert!(State::default().restore(&restorer, &journal::Journal::new(&store)).await.is_err());
     assert_eq!(restorer.restored.into_inner().unwrap(), ["c", "b"]);
     assert_eq!(outstanding(&store).await, [("first".to_owned(), Some("a".to_owned()))]);
 
     let restorer = Restorer::default();
-    State::default().restore(&restorer, &Journal::new(&store)).await.unwrap();
+    State::default().restore(&restorer, &journal::Journal::new(&store)).await.unwrap();
     assert_eq!(restorer.restored.into_inner().unwrap(), ["a"]);
     assert!(outstanding(&store).await.is_empty());
 }
@@ -183,7 +183,7 @@ async fn start_restores_outstanding_inverses_newest_first_and_keeps_a_failed_one
 #[tokio::test]
 async fn a_host_without_durable_state_refuses_records_and_has_nothing_to_restore() {
     let store = Durable::default();
-    let journal = Journal::new(&store);
+    let journal = journal::Journal::new(&store);
 
     assert!(journal.record("host.power.plan", &plan("balanced")).await.is_err());
     assert!(journal.outstanding().await.unwrap().is_empty());

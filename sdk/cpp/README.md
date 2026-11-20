@@ -85,8 +85,8 @@ termination through `ctx.termination()`.
 Both contexts provide `ctx.plugin<T>()` for the actual author plugin object,
 typed operation calls, host-clock sleep and time, cancellation, declared secrets
 and saved settings. Only `dokime::templates::Context` provides execution identity,
-parameters, prompts, records, statistics, progress, logs, traceability, documents
-and effects. Carrier contexts and the untyped host dispatcher are private.
+parameters, prompts, records, statistics, progress, logs, traceability and
+documents. Carrier contexts and the untyped host dispatcher are private.
 Template contexts also capture files, manage continuous capture, publish artifacts
 and read the host process environment. Artifact uploads share the client's fenced
 transfer implementation.

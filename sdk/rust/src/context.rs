@@ -40,13 +40,10 @@ use crate::RecordsListResponse;
 use crate::client::{ArtifactCreateOptions, mutations};
 use crate::operation::FutureResult;
 use crate::plugin::{CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
-use crate::plugin::{
-    HostEffectsCreateOptions, HostEffectsSetOptions, HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions,
-};
+use crate::plugin::{HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions};
 use crate::templates::{CaptureResult, Environment};
 use crate::templates::{
-    DocumentAppendOptions, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions,
-    TraceabilitySetOptions,
+    DocumentAppendOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions, TraceabilitySetOptions,
 };
 use crate::{FileSource, Metadata, TraceabilityEntry};
 
@@ -682,62 +679,6 @@ impl Context {
         self.host().documents.append_parts_with(self.execution_id().into(), document.into(), section.into(), options).await?;
         Ok(())
     }
-    pub async fn prepare_effect<T: Message>(
-        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
-    ) -> Result<String> {
-        self.prepare_effect_with(resource, inverse_operation, inverse, description, EffectCreateOptions::default()).await
-    }
-    pub async fn prepare_effect_with<T: Message>(
-        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
-        options: EffectCreateOptions,
-    ) -> Result<String> {
-        let reply = self
-            .host()
-            .effects
-            .create_with(
-                resource.into(),
-                inverse_operation.into(),
-                prost::Message::encode_to_vec(&inverse),
-                description.into(),
-                HostEffectsCreateOptions {
-                    request_id: Some(mutations::request_id(options.request_id)?),
-                    ..Default::default()
-                },
-            )
-            .await?;
-        if reply.name.is_empty() {
-            return Err(Error::Invalid("Prepare Effect: Return Its Recovery Ticket Before Applying the Effect".into()));
-        }
-        Ok(reply.name)
-    }
-    pub async fn confirm_effect(&self, ticket: &str, at: Option<Timestamp>, restored: bool) -> Result<()> {
-        self.confirm_effect_with(ticket, at, restored, EffectConfirmOptions::default()).await
-    }
-    pub async fn confirm_effect_with(
-        &self, ticket: &str, at: Option<Timestamp>, restored: bool, options: EffectConfirmOptions,
-    ) -> Result<()> {
-        let host = self.host();
-        let current = host.effects.get(ticket.into()).await?;
-        host.effects
-            .set_with(
-                ticket.into(),
-                crate::plugin::EffectWritable {
-                    applied_at: Some(match at {
-                        Some(at) => at,
-                        None => self.now().await?,
-                    }),
-                    restored,
-                },
-                current.revision,
-                HostEffectsSetOptions {
-                    request_id: Some(mutations::request_id(options.request_id)?),
-                    ..Default::default()
-                },
-            )
-            .await?;
-        Ok(())
-    }
-
     pub(crate) fn end(&self, executions: Executions) -> EndExecution {
         EndExecution {
             executions,
@@ -858,23 +799,18 @@ mod tests {
 
     use harmos_protocol::host::plugins::SettingsListResponse;
     use prost::Message;
-    use prost_types::Timestamp;
 
     use super::{Context, Execution, Local, LocalHost};
     use crate::operation::FutureResult;
     use crate::templates::{
-        DocumentAppendOptions, DocumentPart, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions,
-        RecordAppendOptions, TraceabilitySetOptions,
+        DocumentAppendOptions, DocumentPart, LogAppendOptions, ProgressSetOptions, RecordAppendOptions, TraceabilitySetOptions,
     };
     use crate::wire::host::evidence::{
         LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, TraceabilityGetResponse,
         TraceabilitySetRequest, TraceabilitySetResponse,
     };
     use crate::wire::host::executions::{ProgressGetResponse, ProgressSetRequest, ProgressSetResponse};
-    use crate::wire::host::{
-        DocumentsAppendPartsRequest, DocumentsAppendPartsResponse, EffectsCreateRequest, EffectsCreateResponse, EffectsGetResponse,
-        EffectsSetRequest, EffectsSetResponse,
-    };
+    use crate::wire::host::{DocumentsAppendPartsRequest, DocumentsAppendPartsResponse};
     use crate::{Error, Origin, PluginRun, Record, Result, SettingValue, SettingValues, Severity, TestCase, Value, origin, setting_value};
 
     #[derive(Default)]
@@ -908,22 +844,6 @@ mod tests {
                     "dokime.host.v1.Documents/AppendParts" => {
                         let request = DocumentsAppendPartsRequest::decode(request.as_slice()).map_err(decode)?;
                         (request.request_id, DocumentsAppendPartsResponse { receipt: Some(Default::default()) }.encode_to_vec())
-                    }
-                    "dokime.host.v1.Effects/Create" => {
-                        let request = EffectsCreateRequest::decode(request.as_slice()).map_err(decode)?;
-                        (
-                            request.request_id,
-                            EffectsCreateResponse {
-                                name: "ticket".into(),
-                                ..Default::default()
-                            }
-                            .encode_to_vec(),
-                        )
-                    }
-                    "dokime.host.v1.Effects/Get" => return Ok(EffectsGetResponse::default().encode_to_vec()),
-                    "dokime.host.v1.Effects/Set" => {
-                        let request = EffectsSetRequest::decode(request.as_slice()).map_err(decode)?;
-                        (request.request_id, EffectsSetResponse::default().encode_to_vec())
                     }
                     _ => panic!("Unexpected Context Operation: {operation}"),
                 };
@@ -970,13 +890,7 @@ mod tests {
         context
             .document_with("report", DocumentPart::Card(Box::default()), "", DocumentAppendOptions { request_id: Some("document".into()) })
             .await?;
-        let ticket = context
-            .prepare_effect_with("relay", "relay.restore", (), "", EffectCreateOptions { request_id: Some("prepare".into()) })
-            .await?;
-        context
-            .confirm_effect_with(&ticket, Some(Timestamp::default()), false, EffectConfirmOptions { request_id: Some("confirm".into()) })
-            .await?;
-        assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document", "prepare", "confirm"]);
+        assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document"]);
         Ok(())
     }
 

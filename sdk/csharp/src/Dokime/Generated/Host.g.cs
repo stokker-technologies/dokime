@@ -24,9 +24,6 @@ internal enum HostOperation
   BackendEnvironment,
   ContentArtifactsCreate,
   DocumentsAppendParts,
-  EffectsCreate,
-  EffectsGet,
-  EffectsSet,
   EvidenceLogsAppend,
   EvidenceRecordsList,
   EvidenceRecordsAppend,
@@ -64,9 +61,6 @@ internal static class HostContracts
   internal static readonly Operation<global::Dokime.Clients.BackendEnvironmentRequest, global::Dokime.Clients.BackendEnvironmentResponse> BackendEnvironment = new("dokime.host.v1.Backend/Environment", Visibility.Public, watch: false);
   internal static readonly Operation<global::Dokime.Clients.ContentResources.ArtifactsCreateRequest, global::Dokime.Clients.ContentResources.ArtifactsCreateResponse> ContentArtifactsCreate = new("dokime.host.v1.content.Artifacts/Create", Visibility.Public, watch: false);
   internal static readonly Operation<global::Dokime.Clients.DocumentsAppendPartsRequest, global::Dokime.Clients.DocumentsAppendPartsResponse> DocumentsAppendParts = new("dokime.host.v1.Documents/AppendParts", Visibility.Public, watch: false);
-  internal static readonly Operation<global::Dokime.Clients.EffectsCreateRequest, global::Dokime.Clients.EffectsCreateResponse> EffectsCreate = new("dokime.host.v1.Effects/Create", Visibility.Public, watch: false);
-  internal static readonly Operation<global::Dokime.Clients.EffectsGetRequest, global::Dokime.Clients.EffectsGetResponse> EffectsGet = new("dokime.host.v1.Effects/Get", Visibility.Public, watch: false);
-  internal static readonly Operation<global::Dokime.Clients.EffectsSetRequest, global::Dokime.Clients.EffectsSetResponse> EffectsSet = new("dokime.host.v1.Effects/Set", Visibility.Public, watch: false);
   internal static readonly Operation<global::Dokime.Clients.EvidenceResources.LogsAppendRequest, global::Dokime.Clients.EvidenceResources.LogsAppendResponse> EvidenceLogsAppend = new("dokime.host.v1.evidence.Logs/Append", Visibility.Public, watch: false);
   internal static readonly Operation<global::Dokime.Clients.EvidenceResources.RecordsListRequest, global::Dokime.Clients.EvidenceResources.RecordsListResponse> EvidenceRecordsList = new("dokime.host.v1.evidence.Records/List", Visibility.Public, watch: false);
   internal static readonly Operation<global::Dokime.Clients.EvidenceResources.RecordsAppendRequest, global::Dokime.Clients.EvidenceResources.RecordsAppendResponse> EvidenceRecordsAppend = new("dokime.host.v1.evidence.Records/Append", Visibility.Public, watch: false);
@@ -98,9 +92,6 @@ internal static class HostRequirements
     HostOperation.BackendEnvironment => plugin.Requires(HostContracts.BackendEnvironment),
     HostOperation.ContentArtifactsCreate => plugin.Requires(HostContracts.ContentArtifactsCreate),
     HostOperation.DocumentsAppendParts => plugin.Requires(HostContracts.DocumentsAppendParts),
-    HostOperation.EffectsCreate => plugin.Requires(HostContracts.EffectsCreate),
-    HostOperation.EffectsGet => plugin.Requires(HostContracts.EffectsGet),
-    HostOperation.EffectsSet => plugin.Requires(HostContracts.EffectsSet),
     HostOperation.EvidenceLogsAppend => plugin.Requires(HostContracts.EvidenceLogsAppend),
     HostOperation.EvidenceRecordsList => plugin.Requires(HostContracts.EvidenceRecordsList),
     HostOperation.EvidenceRecordsAppend => plugin.Requires(HostContracts.EvidenceRecordsAppend),
@@ -140,7 +131,6 @@ internal sealed class HostRoot(Context context)
   public HostBackendResource Backend { get; } = new(context);
   public HostContentResource Content { get; } = new(context);
   public HostDocumentsResource Documents { get; } = new(context);
-  public HostEffectsResource Effects { get; } = new(context);
   public HostEvidenceResource Evidence { get; } = new(context);
   public HostExecutionsResource Executions { get; } = new(context);
   public HostFilesResource Files { get; } = new(context);
@@ -214,47 +204,6 @@ internal sealed class HostDocumentsResource(Context context)
     }
     var response = await context.CallAsync(HostContracts.DocumentsAppendParts, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read DocumentsAppendParts: Missing Payload");
-  }
-}
-internal sealed class HostEffectsResource(Context context)
-{
-  public async Task<global::Dokime.Clients.EffectsCreateResponse> Create(string resource, string inverse_operation, ByteString inverse, string description, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
-  {
-    var request = new global::Dokime.Clients.EffectsCreateRequest
-    {
-      Resource = resource,
-      InverseOperation = inverse_operation,
-      Inverse = inverse,
-      Description = description,
-      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
-    };
-    var response = await context.CallAsync(HostContracts.EffectsCreate, request, policy, cancellationToken);
-    return response;
-  }
-  public async Task<global::Dokime.Clients.EffectsGetResponse> Get(string name, global::Harmos.Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
-  {
-    var request = new global::Dokime.Clients.EffectsGetRequest
-    {
-      Name = name,
-    };
-    if (at is not null)
-    {
-      request.At = at;
-    }
-    var response = await context.CallAsync(HostContracts.EffectsGet, request, policy, cancellationToken);
-    return response;
-  }
-  public async Task<global::Dokime.Clients.EffectsSetResponse> Set(string name, global::Dokime.Clients.EffectWritable value, ByteString expected_revision, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
-  {
-    var request = new global::Dokime.Clients.EffectsSetRequest
-    {
-      Name = name,
-      Value = value,
-      ExpectedRevision = expected_revision,
-      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
-    };
-    var response = await context.CallAsync(HostContracts.EffectsSet, request, policy, cancellationToken);
-    return response;
   }
 }
 internal sealed class HostEvidenceResource(Context context)

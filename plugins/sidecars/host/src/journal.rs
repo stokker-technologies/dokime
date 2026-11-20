@@ -22,7 +22,7 @@ use std::future::Future;
 
 // Local Imports
 use crate::domain::controls::ControlState;
-use dokime::encoding::Message as Encoded;
+use dokime::encoding;
 use dokime::operations::Context;
 use dokime::{Error, Message, Result};
 
@@ -82,7 +82,7 @@ impl<'a, S: Store> Journal<'a, S> {
         let Some(saved) = self.store.load().await? else {
             return Ok(None);
         };
-        let effects = Effects::decode(saved.value.as_slice())
+        let effects = <Effects as encoding::Message>::decode(saved.value.as_slice())
             .map_err(|error| Error::Invalid(format!("Read Effect Journal: Restore Its Saved Value: {error}")))?;
         Ok(Some((effects, saved.revision)))
     }
@@ -100,7 +100,7 @@ impl<S: Store> crate::controls::Journal for Journal<'_, S> {
             target: target.into(),
             inverse: Some(inverse.clone()),
         });
-        self.store.save(effects.encode_to_vec(), revision).await?;
+        self.store.save(encoding::Message::encode_to_vec(&effects), revision).await?;
         Ok(true)
     }
 
@@ -113,7 +113,7 @@ impl<S: Store> crate::controls::Journal for Journal<'_, S> {
         if effects.effects.len() == count {
             return Ok(());
         }
-        self.store.save(effects.encode_to_vec(), revision).await
+        self.store.save(encoding::Message::encode_to_vec(&effects), revision).await
     }
 
     async fn outstanding(&self) -> Result<Vec<(String, ControlState)>> {

@@ -43,7 +43,7 @@ macro_rules! unary {
             use harmos_protocol::policy::UNBOUNDED;
             use std::time::Duration;
             use std::result;
-            use crate::native::{Binding, context, failure};
+            use crate::native::{Binding, failure};
             pub struct Operation;
             impl ProtobufOperation for Operation {
                 type Request = $request;
@@ -72,7 +72,7 @@ macro_rules! unary {
         crate::native::plugin_context(&$execution, $id).map_err(failure)
     };
     (@context $caller:ident, $execution:ident, $id:expr) => {
-        context(&$execution, $id).map_err(failure)
+        crate::native::context(&$execution, $id).map_err(failure)
     };
     (@call plugin, $context:ident, $request:ident) => {
         Box::pin(super::handle(&$context, $request)).await.map_err(failure)
@@ -325,9 +325,6 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
         (factory::<host::files::captures::start::Operation>, settings.mutation_timeout),
         (factory::<host::files::captures::stop::Operation>, settings.mutation_timeout),
         (factory::<host::aggregates::get::Operation>, settings.mutation_timeout),
-        (factory::<host::effects::create::Operation>, settings.mutation_timeout),
-        (factory::<host::effects::get::Operation>, settings.mutation_timeout),
-        (factory::<host::effects::set::Operation>, settings.mutation_timeout),
         (factory::<host::media::captures::create::Operation>, settings.mutation_timeout),
         (factory::<host::media::captures::get::Operation>, settings.mutation_timeout),
         (factory::<host::media::captures::stop::Operation>, settings.mutation_timeout),

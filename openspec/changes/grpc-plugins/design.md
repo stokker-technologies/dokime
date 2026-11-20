@@ -289,7 +289,7 @@ declares as a requirement. The SDK methods are thin conveniences over
 | `record(kind, ...)` | Publish a record; returns once the host stored it |
 | `records(kind)` | Read the execution's records of a kind (`count`, `last`) |
 | `statistics(stream, field=None, step=None)` | Statistics of one column of a stream so far, optionally for one step; the field may be omitted when the stream has one value column |
-| `artifact(...)`, file capture, effects | As today's host operations |
+| `artifact(...)`, file capture | As today's host operations; effects are plugin state |
 | `progress(...)`, `log(...)`, traceability, document parts | New small operations replacing evidence-page fields |
 
 ```proto
@@ -412,9 +412,9 @@ async fn cleanup(ctx: &Context) -> Result<()> {
 
 ## What Stays
 
-- The effects journal. It restores external changes after a host or plugin
-  crash, which a cleanup operation cannot; its inverses are ordinary
-  operation calls.
+- The effects journal, now durable plugin state. It restores external changes
+  after a host or plugin crash, which a cleanup operation cannot; the plugin
+  applies its inverses in `initialize`.
 - Cycle responsibilities in the host: lifecycle, queueing, pause and stop,
   continuation, reruns, sealing and reports. "Cycles only group executions"
   describes what a plugin sees.
@@ -666,7 +666,7 @@ transport libraries and authoring derives do not introduce host dependencies.
 | `dokime` at `sdk/rust` | The product SDK itself, not `dokime-sdk` or another facade. `use dokime::prelude::*;` exposes plugin authoring and the client. Absorb `dokime-client` as its client half, then delete that separate crate. No host, operations or storage dependencies. Harmos uses the same `harmos` identity at `sdk/rust`. |
 | `dokime-protocol` | Generated definitions and descriptors from the proto contracts, plus light constructors, operators, `Display` and conversions on those types for product code. No second definition model. Semantics needed by authors in other languages are specified in words and implemented in each SDK. |
 | `dokime-operations` | Every host operation's declaration, gRPC mapping, Rust callee policy and handler together, one file per operation. Requests and replies are protocol messages. Handlers use narrow resource interfaces; they never import runtime. Admission validation, parameter expansion and expression evaluation live with the operations applying them. |
-| `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, effects, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
+| `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
 | `dokime-storage` | The retired runtime storage folders have been replaced by the current crate. Persisted shapes belong here; lifecycle decisions remain in runtime. operation-boundary owns canonical operation access and cuts; storage-interface retains backend scale proof. |
 | `dokime-cli`, `dokime-gui` | Product commands and desktop composition respectively. The CLI embeds the runtime library, not its binary or a server facade. |
 
@@ -734,9 +734,10 @@ and the pinned dependency, retaining the ownership decisions above.
 
 ## Genuinely Unfinished Behavior
 
-Effects Create/Get/Set, Aggregates.Get and Media.Captures Create/Get/Watch/Stop
-currently return Unimplemented. Effects must preserve earliest owner-qualified
-inverse retention, reverse restoration and startup refusal when restoration fails.
+Aggregates.Get and Media.Captures Create/Get/Watch/Stop currently return
+Unimplemented. The product `Effects` operations are removed: effects are plugin
+state (see Host Telemetry Plugin Restoration, effect journal), restored by the
+plugin's `initialize` before its controls run.
 Capture supports local sources but explicitly defers line matchers/markers and
 FTP/FTPS; SFTP and source feature-gating need implementation. Host telemetry with
 its collectors/controls is absent. The restored storage/desktop benchmarks do not
@@ -1376,7 +1377,7 @@ class PromptDeclaration:
 | Deadline and retries | Exists: `operations.py:61` policy, `:91` decorator; `_plugin.py:260` translates step retries. | `policy=` on operation/step/criterion; retain one policy owner, no hard-coded retry delay in the adapter. |
 | Serial admission | NEW; `operations.py:61` and `proto/harmos/model/v1/policy.proto:24` have no serial field. | Policy needs shared admission support; no product semaphore copied beside library admission. Owner decision S1 below blocks this extension alone. |
 | Operation requirements | Exists: `_plugin.py:78` accepts explicit requirements and `:88` infers all host operations. | Remove author `requires`; infer product host requirements and literal `ctx.operation(Operation(...))` declarations from decorated functions/template hooks. Runtime-selected declarations need S2 below. Preserve the host requirement check. |
-| Effects/restoration | Exists: `_context.py:226` / `:231`; host `Effects/Create`, `Get`, `Set`. | Template context keeps `prepare_effect` / `confirm_effect`, preserving durable host restoration and revision checks. |
+| Effects/restoration | Removed: host `Effects/Create`, `Get`, `Set` and every SDK's `prepare_effect` / `confirm_effect`. | A plugin keeps its inverses in durable plugin state and restores them in `initialize` (host plugin `journal.rs`). |
 | Execution observers and streams | Exists: `authoring.py:360`, `:371`, `:382`; `_plugin.py:270`. | Decorated methods on `TestTemplate`, per-execution instance, host-owned windows and stream backpressure. |
 | Plugin-scoped observers | NEW at the product surface; `_plugin.py:124` discovers streams only in templates. | Permit the same `stream` + observer decorators on `Plugin` methods; context has `plugin`, no execution. Bind at activation, close at stop; no second scheduler. |
 | Stream subscriptions | NEW at the product context; no subscribe/watch method in `_context.py:68`. | `operations.Context.subscribe` below delegates admitted library stream demand; no incoming samples injected into a running template. |
@@ -1458,8 +1459,6 @@ class Context(operations.Context):  # dokime_sdk.templates
     async def start_capture(self, source: FileSource, output: str, mode: CaptureMode) -> int: ...  # Start execution-owned continuous capture.
     async def stop_capture(self, capture_id: int) -> CaptureResult: ...  # Settle capture and return artifacts and gaps.
     async def environment(self) -> Environment: ...  # Read host process identity and whether this call is in a step.
-    async def prepare_effect(self, resource: str, inverse_operation: str, inverse: Message, *, description: str = "", request_id: str | None = None) -> str: ...  # Persist inverse intent and return its ticket before applying the effect.
-    async def confirm_effect(self, ticket: str, *, at: datetime | None = None, restored: bool = False, request_id: str | None = None) -> None: ...  # Revision-check and confirm application/restoration of a ticket.
 ```
 
 The template context has all seven base methods plus the execution methods
@@ -1477,8 +1476,8 @@ identity; full `Prompt` input is copied and bound rather than mutated. Zero
 choices implies `OK`; duplicate choices and unrecognized/declined action results
 fail with an actionable error. Records, statistics and capture results unwrap
 payloads; no response messages escape. `records.last()` refuses an empty result.
-An effect inverse remains host-owned recovery intent, not an SDK finally block
-that could be lost with the plugin process. Capture stop and template cleanup
+An effect inverse is durable plugin state, not an SDK finally block that could be
+lost with the plugin process. Capture stop and template cleanup
 still settle on cancellation under their operation policies.
 
 ### Python Client and Bound Handles
@@ -1648,9 +1647,8 @@ facilities internally; execution methods use their existing product host binding
 `Set`; `traceability`: `evidence.Traceability/Get` then `Set`; `log`:
 `evidence.Logs/Append`; `document`: `Documents/AppendParts`; `capture`:
 `Files/Capture`; continuous capture: `files.Captures/Start` then `Stop`;
-effects: `Effects/Create`, then on confirmation `Effects/Get` then `Set`;
 environment: `Backend/Environment`. Each abbreviated name in this paragraph has
-the prefix `dokime.host.v1.`. `Documents/AppendParts`, capture, effects, records,
+the prefix `dokime.host.v1.`. `Documents/AppendParts`, capture, records,
 prompt creation and environment are plugin projections, never client admin
 escape hatches. Follow caller filtering in generation.
 
@@ -1658,7 +1656,7 @@ Generate a UUID request identity once per logical mutation when the caller does
 not supply one. Keep it and the normalized input stable across retries and surface
 it in failure details; a fresh retry with a new identity is a new mutation.
 Create cycle/cases/execution, Start/Stop/Cancel/Seal, note, artifact attachment,
-progress/traceability/document/record/log/effect mutations and prompt answers use
+progress/traceability/document/record/log mutations and prompt answers use
 their request_id fields. File composition derives stable child IDs
 `<id>/create`, `<id>/append/<offset>`, `<id>/publish`, `<id>/attach` and
 `<id>/abandon`; preserve acknowledged Upload handles/fences while retrying.
@@ -2750,6 +2748,64 @@ plugin beside OBC. The decisions:
 | Duration settings | `dokime::operations::Context::duration_setting` and `setting` (`sdk/rust/src/operations.rs`), backed by `crate::context::Context::duration_setting` (`sdk/rust/src/context.rs`); the name is the one `Observer::interval_setting` takes. |
 | Plugin-wide retention | Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
 | Effect journal | Plugin side landed (`plugins/sidecars/host/src/journal.rs`, restore in `src/lib.rs` `initialize`). Blocked on the library: plugins have no durable state value. `harmos_runtime::state::StateManager` is the host application's compile-time state (Dokime composes `State = ()`, `Transaction = Never`, `crates/dokime-runtime/src/services/composition.rs`), and no `harmos.host.v1` service or SDK call reads or writes plugin state. Needed: one opaque, revisioned value per plugin entry, persisted by the host state manager and readable by the plugin from `initialize`. The recovery journal is also unbounded: `crates/dokime-storage/src/backend/recovery.rs` (`flush`) publishes snapshots but never retires entries or snapshots it supersedes. |
+
+### Effect Journal Library Boundary
+
+The following paths describe the inspected library source, not an implemented
+plugin persistence API. The consumer remains blocked on that API; the local
+`journal::Store` is an unconnected contract and its tests use an in-memory fake.
+
+- **State access.** Harmos `crates/harmos-runtime/src/state/manager.rs:159`
+  commits application transactions; `:305` waits for storage and `:316` undoes
+  transactions. These belong to the host application, whose product composition
+  has no state or transactions (`crates/dokime-runtime/src/services/composition.rs:92`).
+  Harmos `sdk/rust/src/context.rs:186` and `:190` only put and get process-local
+  resources in a type-indexed map. OBC's `plugin.state(manual)`
+  (`plugins/sidecars/obc/src/operations/mod.rs:49`) likewise keeps its device in
+  memory; it does not opt into journal or snapshot persistence.
+- **Persistence and bounds.** `crates/dokime-storage/src/backend.rs:140` opens
+  `<data-root>/storage.sqlite3`; `:249` creates `recovery_entries` and
+  `recovery_snapshots` in that database. There are no persisted plugin effect
+  values today. `crates/dokime-storage/src/backend/recovery.rs:216` publishes a
+  snapshot and advances the saved position without deleting covered entries or
+  older published snapshots. Startup only discards entries beyond the saved
+  boundary (`:69`). Recovery storage is therefore unbounded over multi-day runs.
+  The smallest library change is an explicit recovery compaction contract tied
+  to durable snapshot publication, retaining the newest complete snapshot and
+  its uncovered suffix; the existing backend must honor that contract. Bounded
+  replay also needs a successful snapshot policy. The product must not invent
+  a second journal or silently delete existing recovery data.
+- **Inverse semantics.** Harmos
+  `crates/harmos-domain/src/state/transaction.rs:50` applies a transaction to
+  application state; `:66` derives an inverse from that state. The writer captures
+  the inverse before applying the transaction
+  (`crates/harmos-runtime/src/state/writer.rs:247`). This provides undo of managed
+  application state, not a detached promise to undo an external operating-system
+  action later. It does not expose a durable external-effect journal to a plugin.
+  No second product transaction engine is needed or authorized.
+- **Required crash behavior.** A durable record acknowledged before a mutation
+  makes a crash before that mutation restore the already-current absolute state.
+  A crash after the mutation, or after restoration but before clear, must replay
+  the same absolute inverse idempotently. Clear must be durable after restoration;
+  a failed restore retains its entry and fails initialization. These remain
+  requirements, not proven host-restart behavior while the store is unconnected.
+  `plugins/sidecars/host/src/controls/mod.rs:288` applies saved inverses newest
+  first before clearing them. The Windows and Unix platform implementations
+  (`src/platform/windows/controls.rs:171`, `src/platform/unix/controls.rs:118`)
+  set absolute radio, adapter and power-plan states, including when restoring an
+  already-current state; they do not toggle values. No real machine mutations
+  are part of this item's proof.
+- **Operator visibility.** There is no outstanding-effect read operation today.
+  Restoration failure can surface as plugin initialization failure; normal
+  outstanding entries are not visible through an operator API. Once supported
+  state access exists, the plugin can expose `controls::Journal::outstanding`
+  through its existing operation catalog; no second host registry is needed.
+  Until then controls refuse record attempts and no external mutation occurs.
+- **Disposition.** Keep 4.6.5 open. The library owner must supply durable,
+  revision-checked plugin state with acknowledgement after persistence, available
+  during plugin initialization, and the recovery compaction contract. Adoption
+  then replaces the unconnected `Store` boundary with that supported API. Do not
+  add product Effects operations, files, shims or another persistence path.
 
 ### Host Plugin Ownership
 
