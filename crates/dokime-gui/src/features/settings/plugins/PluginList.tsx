@@ -79,7 +79,7 @@ export function PluginList({
     const switchable = entry.value !== undefined;
 
     return {
-      alert: status.reason ? (
+      alert: entry.failure ? (
         <ErrorCard
           failure={pluginStartFailure(entry, generation)}
           onRetry={entry.value?.enabled ? () => reload.mutate(entry.name) : undefined}

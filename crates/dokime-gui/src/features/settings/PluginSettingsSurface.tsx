@@ -13,8 +13,8 @@
  * under Plugins. The page bar carries the breadcrumb and its own Back chevron,
  * and the
  * body is the artifact's own editable settings and declared secrets followed by the
- * status cards it contributes. The Plugins list therefore stays one row per
- * plugin, with nothing nested inside it.
+ * status cards it contributes. The Plugins list keeps entry metadata in one row
+ * and shows a startup failure immediately below its entry.
  */
 
 /* === External Imports === */

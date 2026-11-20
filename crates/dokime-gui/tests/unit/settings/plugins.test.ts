@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { beforeEach, test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { createElement, type ComponentProps, type ReactNode } from "react";
+import { createElement, isValidElement, type ComponentProps, type ReactNode } from "react";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -32,6 +32,7 @@ import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
+import type { NotificationFailure } from "@/lib/notification-details";
 import { FailureSchema, PluginEntrySchema, PluginState } from "@host/model";
 
 /* === Re-Exports === */
@@ -191,6 +192,27 @@ test("Failed Entry Actions Address Its Persisted Name", () => {
   assert.deepEqual(remove.mock.calls, [[entry]]);
   assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
   assert.deepEqual(enabled.mock.calls, [[entry, false]]);
+});
+
+test("Failed Entry Retains Its Failure Without a Root Message", () => {
+  const failed = { ...entry, failure: create(FailureSchema, { code: "bench_refused", action: "bench_action" }) };
+  renderToStaticMarkup(
+    createElement(PluginList, {
+      entries: [failed],
+      onRemove: vi.fn(),
+      onOpenSettings: vi.fn(),
+      removingId: null,
+      onSetEnabled: vi.fn(),
+      changingEnabled: false,
+      settingsSectionOf: () => failed.name,
+    }),
+  );
+  const alert = fixture.rows[0].alert;
+  assert.ok(isValidElement<{ failure: NotificationFailure }>(alert));
+  assert.equal(alert.props.failure.plugin, failed.name);
+  assert.equal(alert.props.failure.reason, failed.failure.code);
+  const html = renderToStaticMarkup(alert);
+  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
 });
 
 test("Declared Secret Add", () => {
