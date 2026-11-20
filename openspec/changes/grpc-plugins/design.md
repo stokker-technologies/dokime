@@ -2703,3 +2703,64 @@ The root README and SDK package READMEs describe the product imports, bound
 connection/client flow, protected lifecycle operations and single starter roots.
 The documentation changes above remain with the owner; workers do not edit
 `docs/` or unrelated prose.
+
+## Host Telemetry Plugin Restoration (Decided by the Owner, 2026-11-20)
+
+`plugins/sidecars/host` (package `plugin-host`, `publish = false`) restores the host
+telemetry plugin last present at `367aae91d^` on the current SDK, shipped as a default
+plugin beside OBC. The decisions:
+
+- **Full parity.** System, network, CPU, Wi-Fi and Bluetooth telemetry, radio and
+  adapter controls, adapter inventory, power plan operations and CPU load control.
+  Fields, units and calculations of the old rows are preserved in
+  `src/domain/telemetry.rs`; old boundary types (`TelemetryContract`, `TelemetryRow`,
+  `StreamSpec`, `Listenable`, section macros, injected configuration) are replaced by
+  SDK rows, streams, observers, operations and flat setting declarations.
+- **Plugin-wide telemetry.** Host streams are catalog streams: retained from plugin
+  connect to disconnect, per the stream-lifetime table above. Their evidence scope is
+  the plugin entry and the stream, without an execution. Samples are batched per
+  observer window through the existing observer path, never one host invocation per
+  sample. At disconnect or host stop the retained window is released; nothing
+  accumulates without an owner, and the bound comes from the existing stream window
+  and storage settings.
+- **Effect journal.** Host-owned and durable. A mutating control records its target
+  and inverse before the write; the earliest inverse per target wins and later
+  prepares join it. The journal survives plugin disconnect and host restart, and the
+  host restores outstanding inverses in reverse first-prepare order before exposing
+  the plugin again; a failed inverse stays pending and is reported. Mutating controls
+  refuse to write unless the journal returned a ticket.
+- **Start snapshot.** The old automatic adapter capture at run start becomes an
+  explicit typed snapshot operation that a consuming template calls from its
+  `initialize` and records itself; the host adds no run-start contribution.
+- **Delivery.** Four packages with disjoint ownership (table below). Package 1 lands
+  the contracts, host prerequisites, settings, domain model, module tree and Build
+  integration; packages 2-4 add only inside their own files.
+
+### Host Prerequisite Status
+
+| Prerequisite | Status |
+|---|---|
+| Duration settings | `dokime::operations::Context::duration_setting` and `setting` (`sdk/rust/src/operations.rs`), backed by `crate::context::Context::duration_setting` (`sdk/rust/src/context.rs`); the name is the one `Observer::interval_setting` takes. |
+| Plugin-wide retention | Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
+| Effect journal | Open (5.13). The `Effects` wire contract carries resource, inverse operation and bytes, description and request identity, which suffices for host-driven restoration. Missing: plugin calls outside an execution are refused by `crates/dokime-operations/src/native.rs` (`context`), the operation context has no effect methods, the handlers return Unimplemented, and the runtime has no plugin-connect hook to restore before exposure. |
+
+### Host Plugin Ownership
+
+Package 1 owns every file not listed below, including `Cargo.toml` of the plugin
+(dependency lines are added by the area that first uses them: `sysinfo` and
+`starship-battery` by package 2, `zbus` by the first of packages 3 and 4; the
+workspace already declares them), `src/lib.rs`, `src/main.rs`, `src/settings.rs`,
+`src/domain/**`, every `mod.rs`, `src/platform/windows/apartment.rs` and
+`tests/integration/{main,settings}.rs`. Packages never edit another package's files.
+
+| Package | Owns | Consumes |
+|---|---|---|
+| 2 System, Network, CPU | `src/streams/{system,network,cpu}.rs`, `src/collectors/{system,network,cpu}.rs` (each may become a directory), `src/platform/windows/{connectivity,power}.rs`, `src/platform/unix/{connectivity,power}.rs`, `tests/integration/{system,network,cpu}.rs`, `benches/**` and the bench target | `domain::telemetry::{System, Network}` and `Column`, `settings::{duration_value, integer, number, text, selected, CpuLoad}`, `Host::{system, network, cpu}`, `platform::windows::apartment::retain`; exposes the power-read interface package 4 uses |
+| 3 Wi-Fi, Bluetooth | `src/streams/{wifi,bluetooth}.rs`, `src/collectors/{wifi,bluetooth}.rs`, `src/platform/windows/{wifi,echo,bluetooth,devices}.rs`, `src/platform/unix/{wifi,echo,bluetooth}.rs`, `tests/integration/{wifi,bluetooth}.rs` | `domain::telemetry::{WifiLink, WifiScan, WifiLatency, Bluetooth}`, settings readers, `Host::{wifi, bluetooth}`, `apartment::retain` |
+| 4 Controls, Adapters, Power | `src/controls/**`, `src/adapters/**`, `src/power/**`, `src/platform/{windows,unix}/{controls,adapters}.rs`, `tests/integration/{controls,adapters,power}.rs` | `domain::controls`, settings readers, `Host::{controls, adapters, power}`, package 2's power reads, and the effect journal once it lands |
+
+Each area registers through its `catalog(plugin: Plugin) -> Result<Plugin>`, which
+`src/lib.rs` already calls, and keeps plugin-wide state in its field of `Host`
+(constructed by `Default`; an area may replace the derive with its own `Default`
+implementation and release resources in `Drop`). Documents for host streams belong
+to the area that declares the stream and need plugin-wide retention first.
