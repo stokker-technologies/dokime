@@ -26,7 +26,7 @@ from harmos._wire.host.v1.status import logs_pb2 as harmos_dot_host_dot_v1_dot_s
 from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n dokime/host/v1/status/logs.proto\x12\x15\x64okime.host.v1.status\x1a harmos/host/v1/status/logs.proto\x1a\x1dharmos/model/v1/callers.proto2j\n\x04Logs\x12\x62\n\x05Watch\x12\'.harmos.host.v1.status.LogsWatchRequest\x1a(.harmos.host.v1.status.LogsWatchResponse\"\x04\xc8\xf3\x18\x01\x30\x01\x42!\xaa\x02\x1e\x44okime.Clients.StatusResourcesb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n dokime/host/v1/status/logs.proto\x12\x15\x64okime.host.v1.status\x1a harmos/host/v1/status/logs.proto\x1a\x1dharmos/model/v1/callers.proto2\xc9\x01\n\x04Logs\x12]\n\x04List\x12&.harmos.host.v1.status.LogsListRequest\x1a\'.harmos.host.v1.status.LogsListResponse\"\x04\xc8\xf3\x18\x01\x12\x62\n\x05Watch\x12\'.harmos.host.v1.status.LogsWatchRequest\x1a(.harmos.host.v1.status.LogsWatchResponse\"\x04\xc8\xf3\x18\x01\x30\x01\x42!\xaa\x02\x1e\x44okime.Clients.StatusResourcesb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,8 +34,10 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dokime_sdk._wire.host.v1.st
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\252\002\036Dokime.Clients.StatusResources'
+  _globals['_LOGS'].methods_by_name['List']._loaded_options = None
+  _globals['_LOGS'].methods_by_name['List']._serialized_options = b'\310\363\030\001'
   _globals['_LOGS'].methods_by_name['Watch']._loaded_options = None
   _globals['_LOGS'].methods_by_name['Watch']._serialized_options = b'\310\363\030\001'
-  _globals['_LOGS']._serialized_start=124
-  _globals['_LOGS']._serialized_end=230
+  _globals['_LOGS']._serialized_start=125
+  _globals['_LOGS']._serialized_end=326
 # @@protoc_insertion_point(module_scope)

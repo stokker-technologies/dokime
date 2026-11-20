@@ -28,6 +28,8 @@ use harmos_runtime::operations::{
 use prost_reflect::{ReflectMessage, ServiceDescriptor};
 
 // Local Imports
+use crate::native;
+use dokime_protocol::host::{StatusGetResponse, StatusWatchResponse};
 
 /* === Constants === */
 
@@ -67,7 +69,7 @@ macro_rules! watch {
             const GRPC: Option<Grpc> = Some(Grpc::new($package, $service, "Watch"));
             const POLICY: OperationPolicy = <$native as NativeOperation>::POLICY;
             const VISIBILITY: Visibility = Visibility::Public;
-            const RESOURCES: &'static [Resource] = &[Resource::of::<HostContext>(), Resource::of::<crate::native::Binding>()];
+            const RESOURCES: &'static [Resource] = &[Resource::of::<HostContext>(), Resource::of::<native::Binding>()];
             fn service() -> Option<ServiceDescriptor> {
                 dokime_protocol::descriptor_pool().get_service_by_name(concat!($package, ".", $service))
             }
@@ -84,6 +86,9 @@ macro_rules! watch {
 
 /* === Structs === */
 
+pub struct StatusGet;
+pub struct StatusWatch;
+
 /* === Enums === */
 
 /* === Traits === */
@@ -96,8 +101,7 @@ unary!(PairingsCreate, declarations::access::PairingsCreate, "dokime.host.v1.acc
 unary!(PairingsList, declarations::access::PairingsList, "dokime.host.v1.access", "Pairings", "List");
 unary!(PairingsDelete, declarations::access::PairingsDelete, "dokime.host.v1.access", "Pairings", "Delete");
 unary!(CertificatesCreate, declarations::access::CertificatesCreate, "dokime.host.v1.access", "Certificates", "Create");
-unary!(StatusGet, declarations::status::Get, "dokime.host.v1", "Status", "Get");
-watch!(StatusWatch, declarations::status::Watch, "dokime.host.v1", "Status");
+unary!(LogsList, declarations::status::LogsList, "dokime.host.v1.status", "Logs", "List");
 watch!(LogsWatch, declarations::status::LogsWatch, "dokime.host.v1.status", "Logs");
 unary!(TraceEventsList, declarations::status::TraceEventsList, "dokime.host.v1.status", "TraceEvents", "List");
 watch!(TraceEventsWatch, declarations::status::TraceEventsWatch, "dokime.host.v1.status", "TraceEvents");
@@ -105,6 +109,54 @@ unary!(DiagnosticsGet, declarations::status::DiagnosticsGet, "dokime.host.v1.sta
 unary!(OperationsList, declarations::host::List, "dokime.host.v1", "Operations", "List");
 unary!(OperationsGet, declarations::host::Get, "dokime.host.v1", "Operations", "Get");
 unary!(InvocationsCreate, declarations::lifecycle::Create, "dokime.host.v1", "Invocations", "Create");
+
+impl ProtobufOperation for StatusGet {
+    type Request = <declarations::status::Get as NativeOperation>::Request;
+    type Response = StatusGetResponse;
+    type Endpoints = ();
+    const ID: &'static str = "dokime.host.v1.Status/Get";
+    const GRPC: Option<Grpc> = Some(Grpc::new("dokime.host.v1", "Status", "Get"));
+    const POLICY: OperationPolicy = <declarations::status::Get as NativeOperation>::POLICY;
+    const VISIBILITY: Visibility = Visibility::Public;
+    const RESOURCES: &'static [Resource] = &[Resource::of::<HostContext>(), Resource::of::<native::Binding>()];
+    fn service() -> Option<ServiceDescriptor> {
+        dokime_protocol::descriptor_pool().get_service_by_name("dokime.host.v1.Status")
+    }
+    async fn run(execution: ExecutionContext, request: Self::Request, _: &()) -> Result<Self::Response, ServingError> {
+        let build = native::context(&execution, Self::ID).map_err(native::failure)?.host.identity().build;
+        let host = execution.resource::<HostContext>().map_err(|_| ServingError::Catalog)?;
+        let response =
+            host.for_call().call::<declarations::status::Get>(request).await.map_err(|source| ServingError::Native(Arc::new(source)))?;
+        Ok(StatusGetResponse {
+            status: response.status,
+            resolved_at: response.resolved_at,
+            build: Some(build),
+        })
+    }
+}
+
+impl ProtobufOperation for StatusWatch {
+    type Request = <declarations::status::Watch as NativeOperation>::Request;
+    type Response = StatusWatchResponse;
+    type Endpoints = ProtobufOutput<Self::Response>;
+    const ID: &'static str = "dokime.host.v1.Status/Watch";
+    const GRPC: Option<Grpc> = Some(Grpc::new("dokime.host.v1", "Status", "Watch"));
+    const POLICY: OperationPolicy = <declarations::status::Watch as NativeOperation>::POLICY;
+    const VISIBILITY: Visibility = Visibility::Public;
+    const RESOURCES: &'static [Resource] = &[Resource::of::<HostContext>(), Resource::of::<native::Binding>()];
+    fn service() -> Option<ServiceDescriptor> {
+        dokime_protocol::descriptor_pool().get_service_by_name("dokime.host.v1.Status")
+    }
+    async fn run(execution: ExecutionContext, request: Self::Request, output: &Self::Endpoints) -> Result<Self::Response, ServingError> {
+        let build = native::context(&execution, Self::ID).map_err(native::failure)?.host.identity().build;
+        forward::<declarations::status::Watch, _>(execution, request, output, |response| StatusWatchResponse {
+            status: response.status,
+            resolved_at: response.resolved_at,
+            build: Some(build.clone()),
+        })
+        .await
+    }
+}
 
 /* === Public Functions === */
 
@@ -118,7 +170,7 @@ where
     O::Response: Clone,
     T: ReflectMessage + Default + Send + 'static,
 {
-    let context = crate::native::context(&execution, O::ID).map_err(crate::native::failure)?;
+    let context = native::context(&execution, O::ID).map_err(native::failure)?;
     let settings = StreamSettings {
         items: NonZeroUsize::new(context.settings.stream_buffer).ok_or(ServingError::Catalog)?,
         bytes: NonZeroUsize::new(context.settings.message_bytes).ok_or(ServingError::Catalog)?,
@@ -200,6 +252,7 @@ mod tests {
         contract::<CertificatesCreate>();
         contract::<StatusGet>();
         contract::<StatusWatch>();
+        contract::<LogsList>();
         contract::<LogsWatch>();
         contract::<TraceEventsList>();
         contract::<TraceEventsWatch>();

@@ -35,6 +35,10 @@ export function AboutSection() {
   const backend = useNativeSessionOptional()?.snapshot.connection.backend ?? null;
   const desktop = useDesktopBuild();
   const build = desktop ?? { productVersion: __APP_VERSION__, sourceRevision: null, channel: null };
+  const versionMatches = backend?.productVersion === build.productVersion;
+  const revisionMatches = (backend?.sourceRevision ?? "unknown") === (build.sourceRevision ?? "unknown");
+  const channelMatches = (backend?.channel ?? "") === (build.channel ?? "");
+  const backendDiffers = backend !== null && !(versionMatches && revisionMatches && channelMatches);
   const [updatesOpen, setUpdatesOpen] = useState(false);
 
   return (
@@ -50,7 +54,7 @@ export function AboutSection() {
             <BuildVersion build={build} />
           </SettingsRow>
         )}
-        {backend ? (
+        {backend && backendDiffers ? (
           <SettingsRow description="The build of the connected backend, which may run elsewhere." label="Backend Version">
             <BuildVersion build={backend} />
           </SettingsRow>

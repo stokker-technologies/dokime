@@ -26,6 +26,7 @@ from harmos._wire.host.v1.plugins_pb2 import (
     PluginsWatchResponse,
     PluginValue,
 )
+from harmos._wire.host.v1.status_pb2 import StatusGetResponse, StatusWatchResponse
 
 from . import plugins
 
@@ -55,5 +56,7 @@ __all__ = [
     "PluginsRestartResponse",
     "PluginsSetResponse",
     "PluginsWatchResponse",
+    "StatusGetResponse",
+    "StatusWatchResponse",
     "plugins",
 ]

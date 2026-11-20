@@ -14,6 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::path::Path;
 
 // Third Party Imports
 
@@ -48,7 +49,7 @@ impl Target {
                 (endpoint.clone(), false)
             }
             ConnectionTarget::Remote { pairing_file } => {
-                let pairing = super::host::Pairing::read(std::path::Path::new(pairing_file)).map_err(ConnectionError::from)?;
+                let pairing = super::host::Pairing::read(Path::new(pairing_file)).map_err(ConnectionError::from)?;
                 (pairing.endpoints[0].clone(), true)
             }
         };
@@ -62,13 +63,14 @@ pub(crate) fn backend(session: &super::host::Session) -> BackendSnapshot {
     let ready = session.identity();
     let status = ready.status.as_ref().expect("ready host status");
     let identity = status.identity.as_ref().expect("ready host identity");
+    let build = ready.build.clone().unwrap_or_default();
     BackendSnapshot {
         backend_id: identity.host_id.clone(),
         epoch: session.product_epoch().to_owned(),
         display_name: identity.application_name.clone(),
         product_version: identity.application_version.clone(),
-        source_revision: None,
-        channel: None,
+        source_revision: Some(build.source_revision).filter(|value| value != "unknown"),
+        channel: Some(build.channel).filter(|value| !value.is_empty()),
         target: String::new(),
         api_version: "v1".into(),
         descriptor_sha256: String::new(),

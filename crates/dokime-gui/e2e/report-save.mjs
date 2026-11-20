@@ -63,7 +63,7 @@ export async function saveReport(desktop, path, { label, executionId }) {
     let at;
     let pageToken = "";
     do {
-      const logs = await call(desktop, "harmos.host.v1.status.Logs", "List", {
+      const logs = await call(desktop, "dokime.host.v1.status.Logs", "List", {
         ...(at ? { at } : {}),
         page: { pageSize: 4096, maxBytes: "3145728", pageToken },
       });

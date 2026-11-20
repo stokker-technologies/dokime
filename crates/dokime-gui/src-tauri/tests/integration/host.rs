@@ -54,14 +54,15 @@ use tonic::Code;
 use dokime_client_internal::ClientSettings;
 use dokime_gui::connection::ConnectionError;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Error, Pairing};
+use dokime_protocol::host::StatusGetResponse;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, credentials, services};
 use dokime_sdk::PageRequest;
 use dokime_sdk::StorageTransferSettings;
+use harmos_protocol::host::StatusGetRequest;
 use harmos_protocol::host::status::{
     DiagnosticsGetRequest, DiagnosticsGetResponse, Event, TraceEventsListRequest, TraceEventsListResponse, TraceEventsWatchRequest,
     TraceEventsWatchResponse,
 };
-use harmos_protocol::host::{StatusGetRequest, StatusGetResponse};
 
 /* === Constants === */
 

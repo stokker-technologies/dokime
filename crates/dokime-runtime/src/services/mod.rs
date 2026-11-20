@@ -61,6 +61,7 @@ use composition::Application;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
 use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_protocol::host::HostBuild;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -298,7 +299,10 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     let identity = HostIdentity {
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
-        product_version: env!("CARGO_PKG_VERSION").into(),
+        build: HostBuild {
+            source_revision: env!("DOKIME_SOURCE_REVISION").into(),
+            channel: env!("DOKIME_BUILD_CHANNEL").into(),
+        },
         target: dokime_packaging::bundle::native_target().into(),
         started_at: Some(Timestamp {
             seconds: host.now_ns().div_euclid(1_000_000_000),
