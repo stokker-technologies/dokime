@@ -143,40 +143,40 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
                 raise ValueError(f"Stage Host Fixtures: Run build:product --profile {profile} or Download Its build-cli Artifact: {source}")
             shutil.copy2(source, output / source.name)
 
-        # Build the Reference Host From the Same Library Revision as the Product.
-        # Its library crates are path dependencies of the pinned checkout. Cargo fingerprints their workspace-relative paths,
-        # so each revision builds in its own target directory rather than reusing another revision's artifacts.
+        # Reuse the Reference Host for This Pinned Revision, Platform and Profile.
         manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
         library = manifest["workspace"]["dependencies"]["harmos"]
-        subprocess.run(
-            [
-                "cargo",
-                "install",
-                "--git",
-                library["git"],
-                "--rev",
-                library["rev"],
-                "--locked",
-                "--profile",
-                profile,
-                "--force",
-                "--root",
-                str(root / "target/reference-host"),
-                "--target-dir",
-                str(root / "target/reference-host/build" / library["rev"]),
-                "--bin",
-                "harmos-conformance",
-                "harmos-conformance",
-            ],
-            cwd=root,
-            env=cargo.compiler_environment(profile),
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        shutil.copy2(root / "target/reference-host/bin" / f"harmos-conformance{extension}", output / f"harmos-conformance{extension}")
+        installation = root / "target/reference-host" / paths.target() / profile / library["rev"]
+        reference = installation / "bin" / f"harmos-conformance{extension}"
+        if not reference.is_file():
+            subprocess.run(
+                [
+                    "cargo",
+                    "install",
+                    "--git",
+                    library["git"],
+                    "--rev",
+                    library["rev"],
+                    "--locked",
+                    "--profile",
+                    profile,
+                    "--root",
+                    str(installation),
+                    "--target-dir",
+                    str(root / "target"),
+                    "--bin",
+                    "harmos-conformance",
+                    "harmos-conformance",
+                ],
+                cwd=root,
+                env=cargo.compiler_environment(profile),
+                check=True,
+                creationflags=spawn_flags(),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+        shutil.copy2(reference, output / reference.name)
 
         # Stage the Python Fixture From the Same Locked Source as the Reference Host.
         metadata = subprocess.run(

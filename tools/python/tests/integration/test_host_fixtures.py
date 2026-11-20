@@ -219,9 +219,28 @@ class HostFixtureTests(unittest.TestCase):
                         self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
                         self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
                         self.assertEqual(reference[reference.index("--profile") + 1], "release")
+                        self.assertNotIn("--force", reference)
+                        self.assertEqual(reference[reference.index("--target-dir") + 1], str(root / "target"))
+                        consumer = commands[0]
+                        selected = [consumer[index + 1] for index, value in enumerate(consumer) if value == "--bin"]
+                        self.assertEqual(selected, list(host_fixtures.RUST_FIXTURES))
+                        self.assertNotIn("--bins", consumer)
                         for command in commands:
                             if command[:3] == ["mise", "run", "build"]:
                                 self.assertEqual(command[command.index("--profile") + 1], "release")
+                        cached = Path(reference[reference.index("--root") + 1]) / "bin" / f"harmos-conformance{extension}"
+                        cached.parent.mkdir(parents=True)
+                        cached.write_bytes(b"cached reference")
+                        run.reset_mock()
+                        host_fixtures.build("release", language)
+                        self.assertFalse(any(call.args[0][:2] == ["cargo", "install"] for call in run.call_args_list))
+                        dev_product = paths.output(root, "build", "dev") / "bin"
+                        dev_product.mkdir(parents=True)
+                        for name in ("dokime-host", "plugin-obc"):
+                            (dev_product / f"{name}{extension}").write_bytes(b"dev product")
+                        run.reset_mock()
+                        host_fixtures.build("dev", language)
+                        self.assertTrue(any(call.args[0][:2] == ["cargo", "install"] for call in run.call_args_list))
             finally:
                 temporary_directory.cleanup()
 
@@ -355,7 +374,7 @@ class HostFixtureTests(unittest.TestCase):
                 product.mkdir(parents=True)
                 for name in ("dokime-host", "plugin-obc"):
                     (product / f"{name}{extension}").write_bytes(profile.encode())
-                reference = root / "target/reference-host/bin" / f"harmos-conformance{extension}"
+                reference = root / "target/reference-host" / paths.target() / profile / "fixture-revision/bin" / f"harmos-conformance{extension}"
                 reference.parent.mkdir(parents=True)
                 reference.write_bytes(b"reference")
                 fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
