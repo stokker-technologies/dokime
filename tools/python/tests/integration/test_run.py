@@ -21,7 +21,7 @@ import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # isort: split
 
@@ -31,7 +31,7 @@ from unittest.mock import patch
 
 # Local Imports
 from dokime_tools.build import paths
-from dokime_tools.test import archive, benchmark, execution, lanes, policy, report
+from dokime_tools.test import archive, benchmark, credentials, execution, lanes, policy, report
 
 # Type Checking Imports
 
@@ -47,6 +47,34 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 class RunTests(unittest.TestCase):
+    def test_unit_lane_owns_credentials_through_success_and_failure(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            directory = Path(temporary_directory.name).resolve()
+            scratch = directory / "scratch"
+            scratch.mkdir()
+            junit = scratch / "junit.xml"
+            junit.write_text('<testsuite><testcase name="passes"/></testsuite>', encoding="utf-8")
+            rules = policy.load(ROOT)
+            store = Mock(environment={"DBUS_SESSION_BUS_ADDRESS": "unix:path=/private-credentials"})
+            with (
+                patch.object(credentials, "Store", return_value=store) as create,
+                patch.object(execution, "execute", return_value=0) as execute,
+            ):
+                result = lanes.record(directory, rules, "unit-rust", "unit", "rust", ".", "dev", [], directory, {}, junit, scratch)
+                self.assertEqual(result["outcome"], "passed")
+                create.assert_called_once()
+                self.assertIs(execute.call_args.args[2], store.environment)
+                store.close.assert_called_once()
+
+                execute.side_effect = RuntimeError("Controlled Runner Failure")
+                self.assertRaises(
+                    RuntimeError, lanes.record, directory, rules, "unit-rust", "unit", "rust", ".", "dev", [], directory, {}, junit, scratch
+                )
+                self.assertEqual(store.close.call_count, 2)
+        finally:
+            temporary_directory.cleanup()
+
     def test_benchmark_baseline_refresh_and_comparison(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
