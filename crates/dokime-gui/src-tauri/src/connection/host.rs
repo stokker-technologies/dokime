@@ -333,8 +333,16 @@ impl Session {
             context: self.call_options()?,
             ..Default::default()
         };
-        let mut watch = self.execute("Plugins.Watch", self.client.plugins.watch_with(options)).await?;
-        self.watches.lock().await.spawn(async move {
+        let mut tasks = self.watches.lock().await;
+        if self.cancellation.is_cancelled() {
+            return Err(Error::Superseded);
+        }
+        while tasks.try_join_next().is_some() {}
+        tasks.spawn(async move {
+            let mut watch = match observer.execute("Plugins.Watch", observer.client.plugins.watch_with(options)).await {
+                Ok(watch) => watch,
+                Err(_) => return,
+            };
             let mut failures = HashMap::new();
             loop {
                 let event = tokio::select! {
