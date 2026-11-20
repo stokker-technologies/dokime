@@ -42,9 +42,7 @@ use crate::operation::FutureResult;
 use crate::plugin::{CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
 use crate::plugin::{HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions};
 use crate::templates::{CaptureResult, Environment};
-use crate::templates::{
-    DocumentAppendOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions, TraceabilitySetOptions,
-};
+use crate::templates::{DocumentAppendOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions, TraceabilitySetOptions};
 use crate::{FileSource, Metadata, TraceabilityEntry};
 
 use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};

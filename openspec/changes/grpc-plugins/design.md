@@ -2649,7 +2649,7 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
-| `crates/dokime-gui/src/report/` and `crates/dokime-runtime/src/documents.rs` | The frontend build and report fixtures compile the standalone renderer; host report operations render retained HTML directly. Both render product reports, as `docs/gui.md` already records. | Keep the host report owner and retire the standalone renderer and its build consumers after the owner resolves the retained rendering contract. |
+| `crates/dokime-gui/src/report/`, `crates/dokime-operations/src/host/reports/create.rs:193` and `crates/dokime-runtime/src/services/state.rs:151` | Current Reports/Create collects a protobuf capture, inserts its Base64 bytes into the generated React template and retains that HTML. Runtime supplies the template; `src/documents.rs` resolves documents and stored report metadata, with no separate HTML renderer. The previous overlap claim and `docs/gui.md:5` are stale. | Keep this single pipeline; the owner must reconcile the stale documentation and review any proposed renderer change against the current retained-report contract before deleting code. |
 | `sdk/cpp/src/plugin.cpp:Plugin::serve`, `sdk/tests/fixtures/cpp/thermal/main.cpp:main` and the library `sdk/cpp/src/server.cpp:Listener::close` | Product serving and the thermal fixture explicitly shut down the process default EventEngine; the library listener settles its dedicated serving engine. These are parallel teardown owners for different engine instances, with a repeated process-global release in the fixture. | Ask the library owner to own the full transport teardown, then delete the product and fixture process-global shutdown calls; do not remove either resource release speculatively. |
 | `crates/dokime-runtime/tests/system/client_edits_settings.rs:SettingsPlugin` and `sdk/rust/src/plugin/mod.rs:into_harmos` | The settings story builds its catalog with the SDK but implements the Instance protocol itself, including lifecycle acknowledgements; authored plugins use the SDK's library-owned listener. | Use an unpublished library-owned settings protocol fixture, then delete the story's manual carrier and SDK catalog dependency after the owner agrees. |
 | `mise.toml:lint:rust` and `tools/python/src/dokime_tools/build/rust/tests.py:build` | Rust lint selects all default-feature targets; test archive production additionally selects the GUI testing feature. The latter therefore found a fixture compilation failure after the lint task passed. | Share the required test-feature inventory and delete the independent hard-coded selection after the task owner agrees; retain both lint and archive proof. |
@@ -2696,6 +2696,11 @@ When implementation lands, these current statements need reconciliation:
 | `docs/sdk-csharp.md:65`, `:81`, `:115`, `:139` | Author bases/attributes, one shared-library/plugin/client starter and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
 | `docs/sdk-cpp.md:5`, `:13`, `:26`, `:85`, `:90` | The library pin is the common maintenance revision; author classes, protected lifecycle operations and blocking bound handles use one argument-free starter whose build stages Release bundle inputs. |
 | `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
+| `docs/architecture.md:449` | External inverses belong to durable plugin state; the product Effects service and per-call confirmation tickets are removed, while durable state access and bounded recovery remain blocked on the library. |
+| `docs/execution-host.md:920` | Effects/Create, Effects/Get and Effects/Set no longer exist in the protocol or SDKs. |
+| `docs/sdk-cpp.md:152` | The product effects surface is removed; the host plugin journal remains unavailable until library-backed plugin persistence exists. |
+| `docs/rust-sdk.md:100` | `operations::Context::environment()` returns the same backend process ID and in-step flag as the template context. |
+| `docs/gui.md:5` | Reports/Create embeds a protobuf capture into the generated React report template; there is no separate native HTML renderer in `dokime-runtime/src/documents.rs`. |
 
 The root README and SDK package READMEs describe the product imports, bound
 connection/client flow, protected lifecycle operations and single starter roots.
@@ -2760,7 +2765,9 @@ plugin persistence API. The consumer remains blocked on that API; the local
   transactions. These belong to the host application, whose product composition
   has no state or transactions (`crates/dokime-runtime/src/services/composition.rs:92`).
   Harmos `sdk/rust/src/context.rs:186` and `:190` only put and get process-local
-  resources in a type-indexed map. OBC's `plugin.state(manual)`
+  resources in a type-indexed map. The plugin-admitted call inventory in
+  `sdk/rust/src/plugin/host.rs:26` contains invocations, discovery, settings and
+  time, with no state or storage calls. OBC's `plugin.state(manual)`
   (`plugins/sidecars/obc/src/operations/mod.rs:49`) likewise keeps its device in
   memory; it does not opt into journal or snapshot persistence.
 - **Persistence and bounds.** `crates/dokime-storage/src/backend.rs:140` opens
@@ -2806,6 +2813,10 @@ plugin persistence API. The consumer remains blocked on that API; the local
   during plugin initialization, and the recovery compaction contract. Adoption
   then replaces the unconnected `Store` boundary with that supported API. Do not
   add product Effects operations, files, shims or another persistence path.
+  The owner's plugin-state decision supersedes the product-owned, provider-bound
+  confirmation tickets in `operation-grammar/specs/operation-contracts/spec.md:590`.
+  That separate change and `docs/architecture.md:449` still need owner
+  reconciliation; this delivery does not implement the old ticket contract.
 
 ### Host Plugin Ownership
 

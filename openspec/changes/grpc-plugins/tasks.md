@@ -192,7 +192,7 @@
   - [x] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Keep CLI and Product-Test Raw Calls in the Unpublished Workspace Client Crate and Remove Generated Host/Transport Escape Hatches From the SDK.
     - [x] Add Bound Case Lists, Fixed-Cut Cycle/Execution Lists, Refresh Operations and Frozen Typed Record/Sample Readers With Digest Verification and Continuation Validation.
     - [x] Add Operation-Specific Mutation Identity Overrides for Cycle/Execution Creation and Controls, Notes and Artifacts; Derive Replay-Stable Execution UUIDs From Request Identities.
-    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability, Documents and Effect Preparation/Confirmation Without Policy Overrides.
+    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability and Documents Without Policy Overrides.
   - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
   - [x] Create All Four Languages With `--from` or `DOKIME_NEW_FROM`, Checkout Starter Sources and Native Local SDK Dependencies; Keep Argument Precedence and Actionable Missing-Starter Errors.
   - [x] Migrate Starter-Creation Stories and Fixture Tooling to `--from`; Remove Test-Owned SDK Dependency Overrides and C++ Archive Coordinates.

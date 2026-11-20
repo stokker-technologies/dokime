@@ -364,7 +364,6 @@ fn admitted(execution: &ExecutionContext, action: &str, plugin_wide: bool) -> Re
     Ok(context)
 }
 
-
 /* === Tests === */
 
 #[cfg(test)]

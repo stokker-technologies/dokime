@@ -57,10 +57,7 @@ struct Restorer {
 
 impl Durable {
     fn served() -> Self {
-        Self {
-            served: true,
-            ..Self::default()
-        }
+        Self { served: true, ..Self::default() }
     }
 }
 
@@ -75,10 +72,7 @@ impl Store for Durable {
                 value: value.clone(),
                 revision: revision.to_be_bytes().to_vec(),
             },
-            None => Saved {
-                value: Vec::new(),
-                revision: Vec::new(),
-            },
+            None => Saved { value: Vec::new(), revision: Vec::new() },
         }))
     }
     async fn save(&self, value: Vec<u8>, expected: Vec<u8>) -> Result<()> {
