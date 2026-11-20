@@ -265,7 +265,8 @@
 - [x] Show Placement and Status in the Desktop Plugin List and `dokime plugin list`, Filterable in the Desktop.
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
 - [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
-- [ ] Move the Launch Readiness Consumers to `Launches/Announce`; Product Consumers Are Migrated, While the Merged Python Starter and Superseded SDK Tests Need the SDK Owner's Scope Decision and Native Proof Is Pending.
+- [ ] Move the Launch Readiness Consumers to `Launches/Announce`; Product Consumers Are Migrated and the Windows Desktop Stories Pass, While the Merged Python Starter and Superseded SDK Tests Need the SDK Owner's Scope Decision.
+- [ ] Separate Launch Readiness Credentials From Managed or Author-Owned Lifecycle Selection; Detached Fixtures Currently Enter the SDK's Default Managed `run` and Exit on Remote Entry Removal or Host Shutdown. Reuse the Library's `remote().run()` After the Owner Selects the Mode Transport.
 
 ## Desktop Failure Presentation
 

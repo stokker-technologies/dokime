@@ -2725,6 +2725,21 @@ delegation, plus resolving the Python `start` merge without the retired output
 protocol. The library process owner is private; replacing the development
 process owner with it remains an owner decision.
 
+### Launch Lifecycle Mode (Owner Decision Pending)
+
+Launch credentials authenticate readiness; they do not select who owns the
+plugin's lifetime. The current product SDK managed branches delegate to the
+library's default managed `run`, including a detached launch that is registered
+as a remote placement. The library sends `Instance.Stop` when that placement is
+removed or its host closes, so the plugin exits instead of remaining available
+for its author to reattach. This is a lifecycle design conflict, not a missing
+Announce capability: the library already supports `remote().run()` with the same
+handshake and keeps that listener alive after Stop.
+
+The launch mode must reach the SDK entry independently of credential presence;
+the mode transport is an owner decision. Do not restore output readiness or
+patch the registration story to accept losing the user-owned process.
+
 ### Registration and Presentation
 
 An unmanaged plugin is started by its author with `DOKIME_REMOTE` configured and
