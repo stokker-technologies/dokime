@@ -162,7 +162,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
 
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
-                <span>Or Connect To A Saved Backend</span>
+                <span>Or Connect to a Saved Backend</span>
                 <span className="h-px flex-1 bg-border" />
               </div>
               <BackendsTable
