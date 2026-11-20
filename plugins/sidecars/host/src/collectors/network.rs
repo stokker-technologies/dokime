@@ -189,7 +189,7 @@ impl State {
 
     fn collect(&mut self, timing: &Timing) -> Result<Network> {
         let mut changes = Vec::new();
-        while let Some(change) = self.notifications.next()? {
+        while let Some(change) = self.notifications.take()? {
             changes.push(change);
         }
         if changes.iter().any(|change| change.kind == "default_route_changed") {

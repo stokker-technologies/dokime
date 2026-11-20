@@ -94,7 +94,7 @@ impl Notifications {
     }
 
     /// Take the Oldest Queued Change.
-    pub fn next(&mut self) -> Result<Option<Change>> {
+    pub fn take(&mut self) -> Result<Option<Change>> {
         self.sink.lock().unwrap_or_else(PoisonError::into_inner).pop()
     }
 }

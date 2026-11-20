@@ -45,12 +45,18 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /* === Public Functions === */
 
 /// A Child Process Command That Opens No Console Window.
+#[allow(clippy::disallowed_methods, reason = "the host plugin starts its probes here without the runtime crate")]
 pub fn command(program: &str) -> Command {
-    #[allow(clippy::disallowed_methods, reason = "the host plugin starts its probes here without the runtime crate")]
-    let mut command = Command::new(program);
     #[cfg(windows)]
-    std::os::windows::process::CommandExt::creation_flags(&mut command, CREATE_NO_WINDOW);
-    command
+    {
+        let mut command = Command::new(program);
+        std::os::windows::process::CommandExt::creation_flags(&mut command, CREATE_NO_WINDOW);
+        command
+    }
+    #[cfg(not(windows))]
+    {
+        Command::new(program)
+    }
 }
 
 /// Run a Command With Null Input, Capturing Its Output Within the Timeout and Killing It After.

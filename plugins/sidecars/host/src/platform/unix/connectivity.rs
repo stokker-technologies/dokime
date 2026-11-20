@@ -85,7 +85,7 @@ impl Notifications {
     }
 
     /// Read Every Waiting Datagram, Then Take the Oldest Queued Change.
-    pub fn next(&mut self) -> Result<Option<Change>> {
+    pub fn take(&mut self) -> Result<Option<Change>> {
         let mut datagrams = 0;
         // Peek the Datagram Size So a Large Kernel Notification Is Never Truncated.
         loop {
