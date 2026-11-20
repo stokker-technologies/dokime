@@ -122,7 +122,6 @@ pub struct Progress {
 pub struct HostIdentity {
     pub backend_id: String,
     pub epoch: String,
-    pub product_version: String,
     pub target: String,
     pub started_at: Option<Timestamp>,
     pub display_name: String,
