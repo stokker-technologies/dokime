@@ -159,7 +159,7 @@ fn invoke(window: &bridge::Window, command: &str, bytes: Vec<u8>) -> Result<taur
 async fn install(fixture: &Fixture, bytes: Vec<u8>) -> Result<PluginEntry, String> {
     let lease = fixture.session.lease(&fixture.generation().to_string()).unwrap();
     let progress = tauri::ipc::Channel::new(|_| Ok(()));
-    dokime_gui::testing::install_plugin_bundle(&lease, bytes, progress, None).await
+    dokime_gui::testing::install(&lease, bytes, progress, None).await
 }
 
 fn hex(bytes: &[u8]) -> String {

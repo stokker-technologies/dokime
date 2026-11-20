@@ -13,9 +13,8 @@
 
 /* === Imports === */
 
-use super::{BackendDiagnostics, DesktopSessionError as Error};
-use crate::connection::host::{self, Connection, ConnectionSettings, Error as HostError};
-use dokime_runtime::Error as RuntimeError;
+use super::{BackendDiagnostics, DesktopSessionError};
+use crate::connection::host::{self, Connection, ConnectionSettings};
 use std::path::PathBuf;
 
 /* === Constants === */
@@ -67,7 +66,7 @@ impl Backend {
 
 /* === Public Functions === */
 
-pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Connection, String), Error> {
+pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Connection, String), DesktopSessionError> {
     on_phase("starting");
     let mut connection = Connection::new(backend.settings()).map_err(|error| failure(backend, error))?;
     let session = connection.start(&backend.root).await.map_err(|error| failure(backend, error))?;
@@ -77,16 +76,16 @@ pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> 
 
 /* === Private Functions === */
 
-fn failure(backend: &Backend, error: HostError) -> Error {
-    if let HostError::Host(RuntimeError::OccupiedRoot(root)) = error {
+fn failure(backend: &Backend, error: host::Error) -> DesktopSessionError {
+    if let host::Error::Host(dokime_runtime::Error::OccupiedRoot(root)) = error {
         let message = format!(
             "The data folder {} is in use by another host. Connect to that host, close its owner or select a fresh storage root.",
             root.display()
         );
-        return Error::BackendRunning { root, message };
+        return DesktopSessionError::BackendRunning { root, message };
     }
     let message = format!("Start Local Host at {}: {error}", backend.root.display());
-    Error::Startup {
+    DesktopSessionError::Startup {
         message: message.clone(),
         diagnostics: Some(Box::new(BackendDiagnostics {
             cause: message,
