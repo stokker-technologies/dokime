@@ -1033,7 +1033,7 @@ async def main() -> None:
   Every handle is bound from creation.
 - `client.plugins.register(plugin)` serves the plugin, adds it and returns when
   it is ready; `client.plugins.install(bundle)` installs a bundle. They replace
-  `create`. `client.close()` unregisters what this client registered.
+  `create`. `client.close()` stops what this client serves; entries stay Offline.
 - `execution.run()` is `start()` followed by `watch()`; both stay as primitives
   for fire-and-forget and for re-attaching. It is not awaitable on its own.
 - `note` and `artifact` exist with the same signature on execution and cycle
@@ -1068,7 +1068,7 @@ async def main() -> None:
 | `execution.artifact` | file upload + `content.Artifacts/Create` |
 | `cycle.seal` | `Cycles/Seal` |
 | `cycle.evidence` | `Evidence/Archive` + file read |
-| `client.close` | delete registered plugins + close the channel |
+| `client.close` | stop owned sidecars (entries stay Offline) + close the channel |
 
 Most handle methods compose several operations, so the Python handles are
 written by hand first; generating them from operation definitions is deferred
@@ -1498,7 +1498,7 @@ class Client:
     async def cycle(self, *, label: str, request_id: str | None = None) -> Cycle: ...  # Create an empty manually advanced cycle.
     def operation[Q: Payload, R: Payload](self, operation: Operation[Q, R]) -> BoundOperation[Q, R]: ...  # Bind one public operation call through the host.
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None: ...  # Replace the single optional unattended answer handler.
-    async def close(self) -> None: ...  # Unregister owned registrations, stop their sidecars, then close the channel.
+    async def close(self) -> None: ...  # Stop owned sidecars, keeping their entries, then close the channel.
 
 class Plugins:
     async def register(self, plugin: Plugin, *, address: str | None = None, request_id: str | None = None) -> RegisteredPlugin: ...  # Serve/register the object and wait for host-owned Ready admission.
@@ -1583,11 +1583,23 @@ subject to host admission, not an implicit rerun. Reattach with `watch()`.
 Execution Start always selects automatic mode; interactive command controls
 remain generated host operations rather than another starter flow.
 
-Register takes ownership only of the sidecar and entry it creates. Failed
-registration unwinds both. Uploaded bundles and pre-existing entries persist
-after `Client.close`; explicit unregister removes their entry. Close is
-idempotent, attempts all owned cleanup even if one step fails, closes the
-channel last and reports collected structured failures. It does not stop a host,
+Register takes ownership only of the sidecar it starts. Failed registration and
+`Client.close` stop that sidecar and never delete the entry: the host keeps a
+registered entry and shows it Offline until the plugin registers again, and only
+an explicit unregister removes it. Close is idempotent, attempts all owned
+cleanup even if one step fails, closes the channel last and reports collected
+structured failures.
+
+Owner amendment, 2026-11-20 (registered plugins run by hand): a plugin's own
+entry point checks, in order, the managed launch variables (delegate to the
+library run entry), then `DOKIME_REMOTE` from the environment or working-directory
+`.env` (an empty value is unset): when set, the plugin binds a free loopback port,
+connects with the client connection and registers itself through
+`dokime.host.v1.Plugins/Create`; otherwise it serves silently. The registration
+name is the plugin identifier, so a restart reuses the entry, and
+`PluginsCreateRequest.sdk_version` (field 6) carries the product SDK version the
+plugin was built with; a host refusal ends the process non-zero with the host's
+message. The SDK prints nothing; starters print one authored line. It does not stop a host,
 cancel admitted executions or terminate an unowned process. A running execution
 may prevent unregister; report the refusal rather than silently cancelling it.
 The answer handler is installed before Start; it observes pending prompts,
@@ -1618,7 +1630,7 @@ land before final client proof. There is no SDK bypass to the carrier.
 | `plugins.register` | Start owned listener; current `harmos.host.v1.Plugins/Create` with remote placement; current `harmos.host.v1.Plugins/Watch` until Ready. Target NEW `dokime.host.v1.Plugins/Create` returns only after host-owned Ready; no SDK polling loop. Preserve entry identity/revision and class bindings. |
 | `plugins.install` | Upload bytes using `dokime.host.v1.files.Uploads/Create`, `Append` in offset order, `Publish`; NEW `dokime.host.v1.Plugins/Create` with managed bundle reference, host-owned inspection/install/Ready; return one entry. |
 | `plugins.get`, registered `refresh` | Current `harmos.host.v1.Plugins/Get`; target NEW `dokime.host.v1.Plugins/Get`; unwrap entry. |
-| Registered `unregister`, `Client.close` | Get entry/revision, then current `harmos.host.v1.Plugins/Delete`; target NEW `dokime.host.v1.Plugins/Delete`; stop SDK-owned sidecar after detach, then close channel for Client.close. Missing previously removed owned entry is already detached. |
+| Registered `unregister` | Get entry/revision, then `dokime.host.v1.Plugins/Delete`; stop SDK-owned sidecar after detach. Missing previously removed owned entry is already detached. `Client.close` only stops owned sidecars and closes the channel. |
 | `client.cycle` | `dokime.host.v1.Cycles/Create`, no origins, `continue_automatically=false`, metadata label; unwrap `cycle`. |
 | `cycles.get`, cycle `refresh` | `dokime.host.v1.Cycles/Get`; unwrap `cycle` and retain revision. |
 | `cycles.list` | `dokime.host.v1.Cycles/List` first page, then remaining pages at the first `resolved_at`, retaining selection/filter/order. |

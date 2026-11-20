@@ -10049,6 +10049,8 @@ pub struct PluginsCreateRequest {
     pub value: ::core::option::Option<PluginValue>,
     #[prost(string, optional, tag = "5")]
     pub origin: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "6")]
+    pub sdk_version: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

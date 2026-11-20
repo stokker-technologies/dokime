@@ -120,9 +120,12 @@ message PluginsCreateRequest {
   PluginValue value = 4;
   // Opaque creator-chosen label; empty or absent means unspecified and replacement preserves it.
   optional string origin = 5;
+  // Product SDK version a registering remote plugin was built against; the host refuses a version it cannot serve.
+  optional string sdk_version = 6;
 }
 
 // Returns the created entry and persisted receipt; identical request-ID replay returns this original response.
+// A remote placement whose name is already registered reuses that entry; the receipt is then absent when nothing changed.
 message PluginsCreateResponse {
   PluginEntry entry = 1;
   harmos.model.v1.Receipt receipt = 2;
