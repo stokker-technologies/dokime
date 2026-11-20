@@ -27,12 +27,12 @@
 - [x] 4.3 Replace PyO3 with the pure Python authoring/client package, explicit close and shipped examples.
 - [x] 4.4 Provide C# authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
 - [x] 4.5 Provide C++ authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
-- [ ] 4.6 Re-author the host telemetry plugin with its collectors and controls; only the OBC plugin is present under `plugins/sidecars/`.
+- [ ] 4.6 Re-author the host telemetry plugin with its collectors and controls; its source is restored under `plugins/sidecars/host`, with collection scheduling and effect-journal integration still open.
 - [x] 4.6.1 Re-author the OBC device operations, suites, documents and independent benchmark workloads on the Rust SDK; remove plugin analysis registration.
 - [x] 4.6.2 Restore `plugins/sidecars/host` (`plugin-host`) with its flat settings, domain rows, area module tree, Build bundle and release plugin declaration (design: Host Telemetry Plugin Restoration).
 - [x] 4.6.3 Expose duration settings on the operation context for observer intervals and other durations.
 - [x] 4.6.4 Withdrawn: host streams are demand-driven collections (design: Host Telemetry Plugin Restoration); nothing is retained outside a listening execution.
-- [x] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields.
+- [ ] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields. Row regrouping is implemented; the collection currently uses producer sleep loops instead of host observer windows and needs the shared-library capability described in the design.
 - [ ] 4.6.5 Implement the host-owned effect journal (5.13) for plugin-level operations, with operation-context effect methods and restoration before a reconnecting plugin is exposed.
 - [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.
 - [ ] 4.6.7 Package 3: Wi-Fi link, scan and latency, and Bluetooth collectors and streams.

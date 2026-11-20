@@ -2758,13 +2758,18 @@ plugin beside OBC. The decisions:
   let plugin = plugin.collection(collection);
   ```
 
-  Each fed stream is a demand-bound producer stream (interval windows demand exactly
-  one row per sample, so they cannot carry a silent or multi-row tick); every
-  listener's producer joins the collection's shared feed, the first listener runs
-  `on_start`, ticks are serialized and shared, so all listeners see one measurement
-  with one timestamp, and the last listener's departure runs `on_stop` and drops the
-  latest reading. The host does not know a producer stream's cadence and stores its
-  rows as timestamped samples.
+  The collection must use the existing host-owned observer windows, without a
+  parallel scheduler. The committed implementation in `sdk/rust/src/stream.rs`
+  instead registers demand-bound producer streams and sleeps between ticks; that
+  implementation is not the agreed design. The shared library's observer API
+  requires exactly one row per stream sample and exposes no listener lifecycle
+  hooks (`Harmos: sdk/rust/src/stream.rs:146-201` at the pinned `504877e` revision;
+  `crates/harmos-runtime/src/plugin/grpc/samples.rs:171-176` validates batch counts).
+  A shared-library capability is needed for one granted collection tick to
+  produce zero or more rows per declared stream with a common timestamp and
+  first/last-listener hooks. Until that capability exists, the collection scheduler
+  and its host ports remain open for owner-directed rework; the producer loop is
+  not an accepted substitute.
 - **Effect journal.** Host-owned and durable. A mutating control records its target
   and inverse before the write; the earliest inverse per target wins and later
   prepares join it. The journal survives plugin disconnect and host restart, and the
