@@ -299,6 +299,7 @@ fn product_plugin_policy_owns_administration_payloads_and_preserves_origin() {
         }),
         value: Some(PluginValue { enabled: true }),
         origin: Some("sample-registration".into()),
+        sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
     };
     let method = pool.get_service_by_name("dokime.host.v1.Plugins").unwrap().methods().find(|method| method.name() == "Create").unwrap();
     assert_eq!(method.input(), request.descriptor());
