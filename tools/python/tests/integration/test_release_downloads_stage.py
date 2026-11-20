@@ -75,8 +75,7 @@ class StageTests(unittest.TestCase):
             self.assertEqual(stage.call_args.kwargs["channel"], "nightly")
             registry_gate.assert_not_called()
             python_registry.assert_not_called()
-            with self.assertRaises(policy.ToolError):
-                rehearse.rehearse(Path.cwd(), settings, channel="stable")
+            self.assertRaises(policy.ToolError, rehearse.rehearse, Path.cwd(), settings, channel="stable")
             registry_gate.assert_called_once_with(Path.cwd(), skip_published=False, channel="stable")
 
     def test_local_rehearsal_prepares_native_packages_without_credentials(self) -> None:
@@ -119,24 +118,23 @@ class StageTests(unittest.TestCase):
             directory_directory = tempfile.TemporaryDirectory()
             directory = directory_directory.name
             try:
-                with self.subTest(missing_archive=missing_archive):
-                    root = Path(directory)
-                    package = root / "target/package/release/windows-x86_64/rust/dokime-distribution-0.1.3-x86_64-pc-windows-msvc.zip"
-                    if not missing_archive:
-                        package.parent.mkdir(parents=True)
-                        bundle = zipfile.ZipFile(package, "w")
-                        try:
-                            bundle.writestr("NOTICE", b"fixture")
-                        finally:
-                            bundle.close()
-                    with (
-                        mock.patch.object(layout, "triple", return_value="x86_64-pc-windows-msvc"),
-                        self.assertRaises(policy.ToolError) as failure,
-                    ):
-                        staging.stage(root, SETTINGS, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes")
-                    self.assertIn(str(package), str(failure.exception))
-                    if not missing_archive:
-                        self.assertIn("THIRD-PARTY-NOTICES", str(failure.exception))
+                root = Path(directory)
+                package = root / "target/package/release/windows-x86_64/rust/dokime-distribution-0.1.3-x86_64-pc-windows-msvc.zip"
+                if not missing_archive:
+                    package.parent.mkdir(parents=True)
+                    bundle = zipfile.ZipFile(package, "w")
+                    try:
+                        bundle.writestr("NOTICE", b"fixture")
+                    finally:
+                        bundle.close()
+                with (
+                    mock.patch.object(layout, "triple", return_value="x86_64-pc-windows-msvc"),
+                    self.assertRaises(policy.ToolError) as failure,
+                ):
+                    staging.stage(root, SETTINGS, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes")
+                self.assertIn(str(package), str(failure.exception))
+                if not missing_archive:
+                    self.assertIn("THIRD-PARTY-NOTICES", str(failure.exception))
             finally:
                 directory_directory.cleanup()
 
@@ -145,22 +143,21 @@ class StageTests(unittest.TestCase):
             directory_directory = tempfile.TemporaryDirectory()
             directory = directory_directory.name
             try:
-                with self.subTest(matching=matching):
-                    sources = [Path(directory) / name for name in ("windows.zip", "linux.zip")]
-                    for index, source in enumerate(sources):
-                        bundle = zipfile.ZipFile(source, "w")
-                        try:
-                            bundle.writestr("NOTICE", b"fixture")
-                            bundle.writestr("THIRD-PARTY-NOTICES", b"licenses" if matching or index == 0 else b"different")
-                        finally:
-                            bundle.close()
-                    if matching:
-                        self.assertEqual(notices.packaged(sources), {"NOTICE": b"fixture", "THIRD-PARTY-NOTICES": b"licenses"})
-                    else:
-                        with self.assertRaises(policy.ToolError) as failure:
-                            notices.packaged(sources)
-                        for source in sources:
-                            self.assertIn(str(source), str(failure.exception))
+                sources = [Path(directory) / name for name in ("windows.zip", "linux.zip")]
+                for index, source in enumerate(sources):
+                    bundle = zipfile.ZipFile(source, "w")
+                    try:
+                        bundle.writestr("NOTICE", b"fixture")
+                        bundle.writestr("THIRD-PARTY-NOTICES", b"licenses" if matching or index == 0 else b"different")
+                    finally:
+                        bundle.close()
+                if matching:
+                    self.assertEqual(notices.packaged(sources), {"NOTICE": b"fixture", "THIRD-PARTY-NOTICES": b"licenses"})
+                else:
+                    with self.assertRaises(policy.ToolError) as failure:
+                        notices.packaged(sources)
+                    for source in sources:
+                        self.assertIn(str(source), str(failure.exception))
             finally:
                 directory_directory.cleanup()
 
@@ -169,148 +166,147 @@ class StageTests(unittest.TestCase):
             directory_directory = tempfile.TemporaryDirectory()
             directory = directory_directory.name
             try:
-                with self.subTest(channel=channel, binary=binary):
-                    root = Path(directory)
-                    feed = {
-                        "version": "0.1.3",
-                        "platforms": {"windows-x86_64": {"url": "https://example.test/setup.exe", "signature": "signed"}},
-                    }
-                    package = root / "target/package/release/windows-x86_64/rust/dokime-distribution-0.1.3-x86_64-pc-windows-msvc.zip"
-                    package.parent.mkdir(parents=True)
-                    bundle = zipfile.ZipFile(package, "w")
-                    try:
-                        for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
-                            bundle.writestr(name, b"fixture\n")
-                    finally:
-                        bundle.close()
-                    python = root / "target/package/release/any/python"
-                    python.mkdir(parents=True)
-                    for name in ("dokime_sdk-0.1.3-py3-none-any.whl", "dokime_sdk-0.1.3.tar.gz"):
-                        (python / name).write_bytes(b"packaged Python")
-                    documentation = root / site.OUTPUT / site.ARCHIVE
-                    documentation.parent.mkdir(parents=True)
-                    archive = zipfile.ZipFile(documentation, "w")
-                    try:
-                        entry = "0.1" if channel == "stable" else "dev"
-                        archive.writestr(site.STAMP, json.dumps({"entry": entry, "version": "0.1.3", "revision": "a" * 40}))
-                        archive.writestr("index.html", "<!doctype html>")
-                    finally:
-                        archive.close()
-                    shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
+                root = Path(directory)
+                feed = {
+                    "version": "0.1.3",
+                    "platforms": {"windows-x86_64": {"url": "https://example.test/setup.exe", "signature": "signed"}},
+                }
+                package = root / "target/package/release/windows-x86_64/rust/dokime-distribution-0.1.3-x86_64-pc-windows-msvc.zip"
+                package.parent.mkdir(parents=True)
+                bundle = zipfile.ZipFile(package, "w")
+                try:
+                    for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
+                        bundle.writestr(name, b"fixture\n")
+                finally:
+                    bundle.close()
+                python = root / "target/package/release/any/python"
+                python.mkdir(parents=True)
+                for name in ("dokime_sdk-0.1.3-py3-none-any.whl", "dokime_sdk-0.1.3.tar.gz"):
+                    (python / name).write_bytes(b"packaged Python")
+                documentation = root / site.OUTPUT / site.ARCHIVE
+                documentation.parent.mkdir(parents=True)
+                archive = zipfile.ZipFile(documentation, "w")
+                try:
+                    entry = "0.1" if channel == "stable" else "dev"
+                    archive.writestr(site.STAMP, json.dumps({"entry": entry, "version": "0.1.3", "revision": "a" * 40}))
+                    archive.writestr("index.html", "<!doctype html>")
+                finally:
+                    archive.close()
+                shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
 
-                    def artifact(_: object, source: Path, output: Path, inventories: list[dict]) -> Path:
-                        destination = output / (source.name + ".cdx.json")
-                        destination.write_text('{"components": []}')
-                        return destination
+                def artifact(_: object, source: Path, output: Path, inventories: list[dict]) -> Path:
+                    destination = output / (source.name + ".cdx.json")
+                    destination.write_text('{"components": []}')
+                    return destination
 
-                    def shell(*_: Any, shell_inventory: Path = shell_inventory) -> Path:
-                        shell_inventory.write_text('{"components": []}')
-                        return shell_inventory
+                def shell(*_: Any, shell_inventory: Path = shell_inventory) -> Path:
+                    shell_inventory.write_text('{"components": []}')
+                    return shell_inventory
 
-                    protocol_sources = set()
-                    for protocol_sources_owner in ("dokime", "harmos"):
-                        for protocol_sources_audience in ("model", "host", "plugin"):
-                            protocol_sources.add(f"{protocol_sources_owner}/{protocol_sources_audience}/v1/service.proto")
+                protocol_sources = set()
+                for protocol_sources_owner in ("dokime", "harmos"):
+                    for protocol_sources_audience in ("model", "host", "plugin"):
+                        protocol_sources.add(f"{protocol_sources_owner}/{protocol_sources_audience}/v1/service.proto")
 
-                    def export(_: Path, command: list[str], protocol_sources: set[str] = protocol_sources) -> None:
-                        self.assertTrue(Path(command[0]).is_file())
-                        exported = Path(command[-1])
-                        for name in protocol_sources:
-                            path = exported / name
-                            path.parent.mkdir(parents=True)
-                            path.write_text('syntax = "proto3";')
+                def export(_: Path, command: list[str], protocol_sources: set[str] = protocol_sources) -> None:
+                    self.assertTrue(Path(command[0]).is_file())
+                    exported = Path(command[-1])
+                    for name in protocol_sources:
+                        path = exported / name
+                        path.parent.mkdir(parents=True)
+                        path.write_text('syntax = "proto3";')
 
-                        for name in ("README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"):
-                            path = exported / name
-                            path.parent.mkdir(parents=True, exist_ok=True)
-                            path.write_text("exported support file")
+                    for name in ("README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"):
+                        path = exported / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text("exported support file")
 
-                    source = root / "input/release.json"
-                    source.parent.mkdir()
-                    source.write_text(json.dumps(feed))
-                    installer = root / "input/dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe"
-                    installer.write_bytes(b"installer")
-                    declared = [
-                        {"name": "release.json", "path": "input/release.json", "target": "windows-x86_64"},
-                        {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
-                    ]
-                    settings = {**SETTINGS, "targets": ["windows-x86_64"]}
-                    config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
-                    with (
-                        mock.patch.object(sbom, "shell", side_effect=shell),
-                        mock.patch.object(sbom, "workspace", return_value=[]),
-                        mock.patch.object(sbom, "artifact", side_effect=artifact),
-                        mock.patch.object(layout, "triple", return_value="x86_64-pc-windows-msvc"),
-                        mock.patch.object(staging, "assets", return_value=declared),
-                        mock.patch.object(context, "native", return_value="windows-x86_64"),
-                        mock.patch.object(dokime_tools.package.verification, "verify"),
-                        mock.patch.object(
-                            dokime_tools.package.definition,
-                            "definitions",
-                            return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}],
-                        ),
-                        mock.patch.object(dokime_tools.package.verification, "binary_bytes", return_value=b"cli"),
-                        mock.patch.object(policy, "execute", side_effect=export),
-                        mock.patch.object(policy, "config", return_value=config),
-                        mock.patch.object(version, "run"),
-                        mock.patch.object(staging, "notes", return_value="notes"),
-                        mock.patch.object(context, "release_tag", return_value="v0.1.3"),
-                        mock.patch.object(context, "revision", return_value="a" * 40),
-                        mock.patch.object(context, "continuous_integration", return_value=False),
-                    ):
-                        files = staging.stage(
-                            root, settings, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes\n", channel=channel
-                        )
-                        if channel == "stable":
-                            rehearse.rehearse(root, settings, target="windows-x86_64", profile="release", stage_only=True)
-                            files = layout.uploads(root, staged=True)
-                    staged = root / context.ASSETS
-                    expected = {
-                        "dokime_sdk-0.1.3-py3-none-any.whl",
-                        "dokime_sdk-0.1.3.tar.gz",
-                        installer.name,
-                        "dokime-compliance-0.1.3.zip",
-                        "dokime-proto-0.1.3.zip",
-                        "release.json",
-                        "SHA256SUMS",
-                    }
-                    if channel == "nightly":
-                        expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json", "dokime-docs-nightly.zip"})
-                    else:
-                        expected.add("dokime-docs-0.1.3.zip")
-                    names = set()
-                    for item in files:
-                        names.add(item["name"])
-                    self.assertEqual(names, expected)
-                    document = json.loads((staged / context.SHARED / context.INDEX).read_text())
-                    self.assertEqual(document["platforms"], feed["platforms"])
-                    self.assertEqual(document["plugins"], {"format_version": 2, "plugins": []})
-                    manifest = document["downloads"]
-                    self.assertEqual((manifest["channel"], manifest["tag"]), (channel, "v0.1.3" if channel == "stable" else "nightly"))
-                    artifact_names = set()
-                    for item in manifest["artifacts"]:
-                        artifact_names.add(item["name"])
-                    self.assertEqual(artifact_names, expected - {"release.json", "SHA256SUMS"})
-                    archive = zipfile.ZipFile(staged / context.SHARED / "dokime-compliance-0.1.3.zip")
-                    try:
-                        self.assertIn("NOTICE", archive.namelist())
-                        self.assertIn("THIRD-PARTY-NOTICES", archive.namelist())
-                        self.assertIn("artifacts/" + installer.name + ".cdx.json", archive.namelist())
-                        self.assertIn("crates/any/dokime-shell.cdx.json", archive.namelist())
-                    finally:
-                        archive.close()
-                    archive = zipfile.ZipFile(staged / context.SHARED / "dokime-proto-0.1.3.zip")
-                    try:
-                        self.assertEqual(
-                            set(archive.namelist()),
-                            protocol_sources | {"README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"},
-                        )
-                    finally:
-                        archive.close()
-                    inventory = {}
-                    for item in layout.uploads(root, staged=True):
-                        inventory[item["name"]] = item
-                    staging.checksums(staged / context.SHARED / context.SUMS, inventory)
+                source = root / "input/release.json"
+                source.parent.mkdir()
+                source.write_text(json.dumps(feed))
+                installer = root / "input/dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe"
+                installer.write_bytes(b"installer")
+                declared = [
+                    {"name": "release.json", "path": "input/release.json", "target": "windows-x86_64"},
+                    {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
+                ]
+                settings = {**SETTINGS, "targets": ["windows-x86_64"]}
+                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
+                with (
+                    mock.patch.object(sbom, "shell", side_effect=shell),
+                    mock.patch.object(sbom, "workspace", return_value=[]),
+                    mock.patch.object(sbom, "artifact", side_effect=artifact),
+                    mock.patch.object(layout, "triple", return_value="x86_64-pc-windows-msvc"),
+                    mock.patch.object(staging, "assets", return_value=declared),
+                    mock.patch.object(context, "native", return_value="windows-x86_64"),
+                    mock.patch.object(dokime_tools.package.verification, "verify"),
+                    mock.patch.object(
+                        dokime_tools.package.definition,
+                        "definitions",
+                        return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}],
+                    ),
+                    mock.patch.object(dokime_tools.package.verification, "binary_bytes", return_value=b"cli"),
+                    mock.patch.object(policy, "execute", side_effect=export),
+                    mock.patch.object(policy, "config", return_value=config),
+                    mock.patch.object(version, "run"),
+                    mock.patch.object(staging, "notes", return_value="notes"),
+                    mock.patch.object(context, "release_tag", return_value="v0.1.3"),
+                    mock.patch.object(context, "revision", return_value="a" * 40),
+                    mock.patch.object(context, "continuous_integration", return_value=False),
+                ):
+                    files = staging.stage(
+                        root, settings, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes\n", channel=channel
+                    )
+                    if channel == "stable":
+                        rehearse.rehearse(root, settings, target="windows-x86_64", profile="release", stage_only=True)
+                        files = layout.uploads(root, staged=True)
+                staged = root / context.ASSETS
+                expected = {
+                    "dokime_sdk-0.1.3-py3-none-any.whl",
+                    "dokime_sdk-0.1.3.tar.gz",
+                    installer.name,
+                    "dokime-compliance-0.1.3.zip",
+                    "dokime-proto-0.1.3.zip",
+                    "release.json",
+                    "SHA256SUMS",
+                }
+                if channel == "nightly":
+                    expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json", "dokime-docs-nightly.zip"})
+                else:
+                    expected.add("dokime-docs-0.1.3.zip")
+                names = set()
+                for item in files:
+                    names.add(item["name"])
+                self.assertEqual(names, expected)
+                document = json.loads((staged / context.SHARED / context.INDEX).read_text())
+                self.assertEqual(document["platforms"], feed["platforms"])
+                self.assertEqual(document["plugins"], {"format_version": 2, "plugins": []})
+                manifest = document["downloads"]
+                self.assertEqual((manifest["channel"], manifest["tag"]), (channel, "v0.1.3" if channel == "stable" else "nightly"))
+                artifact_names = set()
+                for item in manifest["artifacts"]:
+                    artifact_names.add(item["name"])
+                self.assertEqual(artifact_names, expected - {"release.json", "SHA256SUMS"})
+                archive = zipfile.ZipFile(staged / context.SHARED / "dokime-compliance-0.1.3.zip")
+                try:
+                    self.assertIn("NOTICE", archive.namelist())
+                    self.assertIn("THIRD-PARTY-NOTICES", archive.namelist())
+                    self.assertIn("artifacts/" + installer.name + ".cdx.json", archive.namelist())
+                    self.assertIn("crates/any/dokime-shell.cdx.json", archive.namelist())
+                finally:
+                    archive.close()
+                archive = zipfile.ZipFile(staged / context.SHARED / "dokime-proto-0.1.3.zip")
+                try:
+                    self.assertEqual(
+                        set(archive.namelist()),
+                        protocol_sources | {"README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"},
+                    )
+                finally:
+                    archive.close()
+                inventory = {}
+                for item in layout.uploads(root, staged=True):
+                    inventory[item["name"]] = item
+                staging.checksums(staged / context.SHARED / context.SUMS, inventory)
             finally:
                 directory_directory.cleanup()
 
@@ -322,19 +318,16 @@ class StageTests(unittest.TestCase):
             shared = root / context.ASSETS / context.SHARED
             shared.mkdir(parents=True)
             self.assertIsNone(staging._documentation(root, root / context.ASSETS, "v0.2.4", "stable", required=False))
-            with self.assertRaises(policy.ToolError):
-                staging._documentation(root, root / context.ASSETS, "v0.2.4", "stable", required=True)
+            self.assertRaises(policy.ToolError, staging._documentation, root, root / context.ASSETS, "v0.2.4", "stable", required=True)
             archive = root / site.OUTPUT / site.ARCHIVE
             archive.parent.mkdir(parents=True)
             for entry, version, channel in (("dev", "0.2.4", "stable"), ("0.2", "0.2.3", "stable"), ("0.2", "0.2.4", "nightly")):
-                with self.subTest(entry=entry, version=version, channel=channel):
-                    source = zipfile.ZipFile(archive, "w")
-                    try:
-                        source.writestr(site.STAMP, json.dumps({"entry": entry, "version": version}))
-                    finally:
-                        source.close()
-                    with self.assertRaises(policy.ToolError):
-                        staging._documentation(root, root / context.ASSETS, "v0.2.4", channel, required=True)
+                source = zipfile.ZipFile(archive, "w")
+                try:
+                    source.writestr(site.STAMP, json.dumps({"entry": entry, "version": version}))
+                finally:
+                    source.close()
+                self.assertRaises(policy.ToolError, staging._documentation, root, root / context.ASSETS, "v0.2.4", channel, required=True)
         finally:
             directory_directory.cleanup()
 

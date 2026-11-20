@@ -28,9 +28,11 @@ and the pinned updater 2.14.1's signed-version parser; verification is never dis
 ## Runtime Plugin Inventory
 
 Plugin bundles exclude the following development and private inputs at every
-directory depth. Required launch inputs matching these rules are refused with the
-existing actionable error; they are never silently dropped. Build and launch
-scripts and their runtime metadata remain ordinary inputs unless excluded.
+directory depth, matching ASCII names without case sensitivity. Required launch
+inputs matching these rules are refused with an action to move them; Git-ignored
+required inputs retain the Unignore refusal. They are never silently dropped.
+Build and launch scripts and their runtime metadata remain ordinary inputs unless
+excluded.
 
 ```text
 mise.toml .mise.toml mise.lock .tool-versions
@@ -45,7 +47,15 @@ test tests __tests__ .pytest_cache .mypy_cache .ruff_cache .cache
 
 Native bundles already select executable, assets and referenced metadata only.
 Source bundles keep build and launch code, language manifests and lock files.
-Audit the four SDK starters for remaining development-only members.
+The Rust starter inventory has only the executable, icon and bundle metadata.
+Python still includes the separate client entrypoint
+`src/starter_project/__main__.py`; C# includes `src/Example.Client/`,
+`Example.slnx` and `Directory.Build.props` alongside its launch payload and source.
+Removing these requires an owner decision on source-project build inputs. C++
+also includes its selected executable through `assets/plugin/`; that duplicate
+is retained for the overlap decision below. The deterministic starter audit copies
+project inputs and fabricates native build outputs; it does not build or execute
+the four SDK starters.
 
 ## Kit Identity and Default Plugins
 
@@ -166,3 +176,4 @@ requested Python producer and ZIP member writers are removed in this delivery.
 | `crates/dokime-packaging/src/bundle/mod.rs::{create_project,create}` | Both construct native plugin inventories and freeze them through the library writer; CLI bundling calls the former, runtime `host.rs` and test fixtures call the latter. | Delete the raw-executable helper after migrating the runtime convenience API and fixtures to the project/bundle boundary. |
 | `crates/dokime-packaging/src/bundle/mod.rs::create_project` entrypoint insertion and assets traversal; `sdk/cpp/examples/starter/dokime.toml` | C++ selects an executable below `assets/plugin/`, so that same file also enters the assets inventory; CLI project bundling calls both blocks. | Delete the selected executable's assets copy, retaining its `bin/` entrypoint. |
 | `tools/python/src/dokime_tools/ci/signing.py:70` and `crates/dokime-packaging/src/installer/native.rs::prepare` | Release CI signs/verifies exported executables; native preparation signs their staged copies with the same provider. | Delete repeat signing of already verified, unchanged payloads in the native path while preserving verification and re-signing patched artwork. |
+| `tools/python/src/dokime_tools/release/layout.py::plugin_feed` and `crates/dokime-packaging/src/installer/plugins.rs::select` | Release staging publishes package-based plugin names, while installer selection uses bundle identities; `plugin-obc` versus `obc` exposes the mismatch. The new kit declaration also uses inspected bundle identities. | Delete the package-name projection after deciding whether the release catalog still has a consumer; any retained catalog should use the existing bundle inspector's identities. |

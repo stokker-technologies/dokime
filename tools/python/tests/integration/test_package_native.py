@@ -93,8 +93,7 @@ class NativeTests(unittest.TestCase):
         finally:
             archive.close()
         (source / "LICENSE").write_bytes(b"changed")
-        with self.assertRaises(policy.ToolError):
-            distribution.archive(source, root / "changed")
+        self.assertRaises(policy.ToolError, distribution.archive, source, root / "changed")
 
     def test_package_calls_only_the_matching_cli_with_local_artifacts(self) -> None:
         scratch = tempfile.TemporaryDirectory()
@@ -119,8 +118,7 @@ class NativeTests(unittest.TestCase):
                 patch.object(native.subprocess, "run") as run,
             ):
                 if windows and stable and not signed:
-                    with self.assertRaises(ValueError):
-                        native.package(root, "dev")
+                    self.assertRaises(ValueError, native.package, root, "dev")
                     run.assert_not_called()
                     continue
                 native.package(root, "dev")

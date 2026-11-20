@@ -124,7 +124,7 @@ pub(super) fn select(paths: &[PathBuf], names: &[String]) -> Result<Vec<PathBuf>
             packages
                 .get(name)
                 .cloned()
-                .ok_or_else(|| Error::Invalid(format!("Select a Published Plugin Package Name; No {name} in the Plugin Archive")))
+                .ok_or_else(|| Error::Invalid(format!("Select a Plugin Name Declared by a Bundle; No {name} in the Plugin Archive")))
         })
         .collect()
 }

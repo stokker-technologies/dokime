@@ -139,22 +139,37 @@ pub fn create_project(project: &PluginProject, identity: Identity, description: 
                         .ok_or("Create Plugin Bundle: Use UTF-8 Launch Paths")?
                         .replace('\\', "/");
                     let excluded = Path::new(&name).components().any(|part| excluded(part.as_os_str().to_str().unwrap_or("")));
-                    if excluded || (!contents.contains_key(&name) && !name.starts_with("assets/")) {
+                    if excluded {
+                        return Err(format!(
+                            "Create Plugin Bundle: Move Required scripts.{script} Input {} Outside Development and Private Input Paths",
+                            path.display()
+                        )
+                        .into());
+                    }
+                    if !contents.contains_key(&name) && !name.starts_with("assets/") {
                         return Err(format!("Create Plugin Bundle: Unignore Required scripts.{script} Input {}", path.display()).into());
                     }
                 }
             }
-        }
-        let module =
-            project.manifest.scripts.launch.as_ref().and_then(|launch| launch.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]));
-        if let Some(module) = module {
-            let module = module.replace('.', "/");
-            let candidates =
-                [format!("src/{module}/__main__.py"), format!("src/{module}.py"), format!("{module}/__main__.py"), format!("{module}.py")];
-            let ignored =
-                candidates.iter().find(|input| project.root.join(input).is_file()).filter(|input| !contents.contains_key(input.as_str()));
-            if let Some(input) = ignored {
-                return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Module {input}").into());
+            let module = arguments.as_ref().and_then(|command| command.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]));
+            if let Some(module) = module {
+                let module = module.replace('.', "/");
+                let candidates = [
+                    format!("src/{module}/__main__.py"),
+                    format!("src/{module}.py"),
+                    format!("{module}/__main__.py"),
+                    format!("{module}.py"),
+                ];
+                let ignored = candidates
+                    .iter()
+                    .find(|input| project.root.join(input).is_file())
+                    .filter(|input| !contents.contains_key(input.as_str()));
+                if let Some(input) = ignored {
+                    if Path::new(input).components().any(|part| excluded(part.as_os_str().to_str().unwrap_or(""))) {
+                        return Err(format!("Create Plugin Bundle: Move Required scripts.{script} Module {input} Outside Development and Private Input Paths").into());
+                    }
+                    return Err(format!("Create Plugin Bundle: Unignore Required scripts.{script} Module {input}").into());
+                }
             }
         }
     }
@@ -300,8 +315,9 @@ pub fn open(path: &Path) -> Result<Bundle> {
 /* === Private Functions === */
 
 fn excluded(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
     matches!(
-        name,
+        name.as_str(),
         ".git"
             | ".gitignore"
             | ".gitattributes"
@@ -327,8 +343,8 @@ fn excluded(name: &str) -> bool {
             | ".idea"
             | ".vscode"
             | ".vs"
-            | ".DS_Store"
-            | "Thumbs.db"
+            | ".ds_store"
+            | "thumbs.db"
             | ".venv"
             | ".env"
             | "_input"
@@ -567,7 +583,7 @@ mod tests {
             "_input",
             "_output",
             "credentials",
-            "tests",
+            "Tests",
             "test",
             "__tests__",
             ".github",
@@ -588,11 +604,11 @@ mod tests {
         }
         fs::write(root.path().join(".env"), b"private")?;
         for name in [
-            "mise.toml",
+            "Mise.toml",
             ".mise.toml",
             "mise.lock",
             ".tool-versions",
-            ".env.example",
+            ".ENV.example",
             ".env.local",
             ".gitattributes",
             ".gitmodules",
@@ -724,15 +740,20 @@ mod tests {
         fs::create_dir_all(root.path().join("assets/tests"))?;
         fs::write(root.path().join("assets/tests/entry.py"), b"entry")?;
         fs::write(root.path().join("entry.py"), b"entry")?;
+        fs::create_dir_all(root.path().join("tests"))?;
+        fs::write(root.path().join("tests/__main__.py"), b"entry")?;
         let identity = Identity {
             name: "bench".into(),
             version: "1.0.0".parse()?,
             description: String::new(),
             package: Default::default(),
         };
-        for scripts in
-            ["launch=['python','assets/tests/entry.py']", "launch=['python','entry.py']\nbuild=['python','assets/tests/entry.py']"]
-        {
+        for scripts in [
+            "launch=['python','assets/tests/entry.py']",
+            "launch=['python','entry.py']\nbuild=['python','assets/tests/entry.py']",
+            "launch=['python','-m','tests']",
+            "launch=['fixture']\nbuild=['python','-m','tests']",
+        ] {
             fs::write(root.path().join("dokime.toml"), format!("[plugin]\n[scripts]\n{scripts}\n"))?;
             let project = PluginProject::read(root.path())?;
             assert!(super::create_project(&project, identity.clone(), None).is_err());
@@ -747,7 +768,7 @@ mod tests {
             let folder = if language == "csharp" { "Starter" } else { "starter" };
             let source = sdk.join(language).join("examples").join(folder);
             let root = tempfile::tempdir()?;
-            for entry in WalkBuilder::new(&source).hidden(false).build() {
+            for entry in WalkBuilder::new(&source).hidden(false).git_global(false).git_exclude(false).build() {
                 let entry = entry?;
                 if !entry.file_type().is_some_and(|kind| kind.is_file()) {
                     continue;
