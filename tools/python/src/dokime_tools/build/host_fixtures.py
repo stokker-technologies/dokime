@@ -256,6 +256,15 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
     # The release preset keeps it within the bundle bound.
     if "cpp" in languages:
         subprocess.run(
+            ["mise", "-C", "sdk/cpp", "run", "build", "--", "--preset", "release", "--target", "dokime_client"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        subprocess.run(
             ["mise", "-C", "sdk/cpp", "run", "package", "--", "--preset", "release"],
             cwd=root,
             check=True,

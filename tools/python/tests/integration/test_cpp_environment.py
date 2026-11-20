@@ -46,6 +46,16 @@ SDK = runpy.run_path(str(ROOT / "sdk/cpp/tools/sdk.py"))
 
 
 class CppEnvironmentTests(unittest.TestCase):
+    def test_package_consumer_resolves_no_dependency_checkout(self) -> None:
+        environment = SDK["environment"]
+        subprocess_module = environment.__globals__["subprocess"]
+        with (
+            patch.dict(os.environ, {"PATH": "native-tools", "VCINSTALLDIR": "native-compiler"}, clear=True),
+            patch.object(subprocess_module, "check_output", return_value="tools/cmake") as invoke,
+        ):
+            environment(dependencies=False)
+        self.assertEqual([call.args[0] for call in invoke.call_args_list], [["mise", "which", "cmake"], ["mise", "which", "ninja"]])
+
     def test_project_pin_survives_native_environment_loading(self) -> None:
         manifest = json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text(encoding="utf-8"))
         revision = manifest["builtin-baseline"]
@@ -124,7 +134,7 @@ class CppEnvironmentTests(unittest.TestCase):
                 with (
                     self.subTest(action=action, jobs=jobs),
                     patch.dict(main.__globals__, {"ROOT": root, "environment": Mock(return_value=child), "run": invoke}),
-                    patch.object(main.__globals__["sys"], "argv", ["sdk.py", action]),
+                    patch.object(main.__globals__["sys"], "argv", ["sdk.py", action, "--preset", "tests"]),
                     patch.object(main.__globals__["subprocess"], "check_output", return_value="ninja: no work to do."),
                 ):
                     main()

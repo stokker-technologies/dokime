@@ -2,6 +2,9 @@
 include(CMakeFindDependencyMacro)
 # A Bundled Package Carries Its Static Native Dependencies Beside the SDK and States Their Toolchain in dokime-cpp.json.
 if(EXISTS "${PACKAGE_PREFIX_DIR}/dokime-cpp.json")
+  if(CMAKE_VERSION VERSION_LESS 4.2)
+    message(FATAL_ERROR "Configure Dokime: Install CMake 4.2 or Newer to Resolve the Bundled Static Dependencies")
+  endif()
   if(MSVC AND NOT CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "MultiThreadedDLL")
     message(FATAL_ERROR "Configure Dokime: Set CMAKE_MSVC_RUNTIME_LIBRARY to MultiThreadedDLL Before project(); "
       "the Bundled Libraries Use the Release Runtime")

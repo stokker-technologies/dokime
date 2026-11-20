@@ -76,7 +76,10 @@ class WorkflowTests(unittest.TestCase):
             ("csharp", "sdk-test", ["install", "build", "test"]),
             ("cpp", "sdk-test", ["install", "build", "test"]),
         ):
-            with patch.object(workflow.subprocess, "run", return_value=Mock(returncode=0)) as command:
+            with (
+                patch.object(workflow.subprocess, "run", return_value=Mock(returncode=0)) as command,
+                patch.object(Path, "glob", side_effect=lambda _: iter([Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz")])),
+            ):
                 self.assertEqual(workflow.main([operation, "--language", language]), 0)
             observed = [call.args[0][3] if call.args[0][3] == "install" else call.args[0][6] for call in command.call_args_list]
             self.assertEqual(observed, expected)
@@ -92,12 +95,13 @@ class WorkflowTests(unittest.TestCase):
                 with (
                     patch.object(workflow.subprocess, "run", side_effect=results) as command,
                     patch.object(workflow.sys, "stderr", new_callable=io.StringIO) as stderr,
+                    patch.object(Path, "glob", side_effect=lambda _: iter([Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz")])),
                 ):
                     self.assertEqual(workflow.main(["sdk-test", "--language", "cpp", "--profile", profile]), 7)
                 self.assertEqual(command.call_count, failure_at + 1)
                 if failure_at:
                     arguments = command.call_args.args[0]
-                    expected = ["--", "--preset", preset]
+                    expected = ["--", "--preset", preset, "--sdk-package", str(Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz"))]
                     if failure_at == 2:
                         expected.append("--verbose")
                     self.assertEqual(arguments[7:], expected)

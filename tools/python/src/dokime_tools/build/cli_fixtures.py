@@ -122,17 +122,7 @@ def build(profile: str, language: str = "rust") -> None:
             arguments = [str(cli), "new", str(project), "--lang", language, "--from", str(root)]
             if language == "cpp":
                 # Create the Project as an Author Would, Against the Bundled SDK Package.
-                subprocess.run(
-                    ["mise", "-C", "sdk/cpp", "run", "package"],
-                    cwd=root,
-                    env=environment,
-                    check=True,
-                    creationflags=spawn_flags(),
-                    stdin=sys.stdin,
-                    stdout=sys.stdout,
-                    stderr=sys.stderr,
-                )
-                bundle = next((root / "target/cp/tests").glob("dokime-cpp-*.tar.gz"))
+                bundle = next((root / "target/cp/release").glob("dokime-cpp-*.tar.gz"))
                 digest = bundle.with_name(f"{bundle.name}.sha256").read_text(encoding="utf-8").split()[0]
                 arguments = [str(cli), "new", str(project), "--lang", language, "--sdk-url", bundle.as_posix(), "--sdk-sha256", digest]
             subprocess.run(
@@ -210,13 +200,13 @@ def build(profile: str, language: str = "rust") -> None:
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
-                consumer = root / "target/cp/tests/consumers" / example.name
+                plugin = example / "assets/plugin" / f"dokime-plugin{extension}"
                 for placement in ("managed", "remote"):
                     subprocess.run(
                         [
                             sys.executable,
                             str(root / "sdk/cpp/tests/support/run_plugin.py"),
-                            str(consumer / f"dokime-plugin{extension}"),
+                            str(plugin),
                             str(root / "target/cp/tests/tests" / f"dokime-plugin-journey{extension}"),
                             placement,
                         ],
@@ -228,10 +218,7 @@ def build(profile: str, language: str = "rust") -> None:
                         stdout=sys.stdout,
                         stderr=sys.stderr,
                     )
-                (output / "cpp").mkdir(exist_ok=True)
-                for artifact in consumer.iterdir():
-                    if artifact.suffix == ".dll" or artifact.name == f"dokime-plugin{extension}":
-                        shutil.copy2(artifact, output / "cpp" / artifact.name)
+                shutil.copytree(example / "assets/plugin", output / "cpp", dirs_exist_ok=True)
             shutil.copytree(project, output / language / "source", ignore=shutil.ignore_patterns(".venv", "bin", "obj"), dirs_exist_ok=True)
         finally:
             scratch_directory.cleanup()

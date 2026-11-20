@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Focused C++ SDK Build, Proof and Source Distribution Tasks."""
+"""Focused C++ SDK Build, Proof and Native Package Tasks."""
 
 # === Imports === #
 
@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -33,6 +34,7 @@ from time import perf_counter
 # Local Imports
 from dokime_tools.ci.native import visual_studio
 from dokime_tools.process import spawn_flags
+from dokime_tools.release.notices import native_notices
 
 # Type Checking Imports
 
@@ -92,7 +94,7 @@ def run(command: list[str], *, action: str, cwd: Path, env: dict[str, str], log:
         raise subprocess.CalledProcessError(returncode, command)
 
 
-def environment() -> dict[str, str]:
+def environment(*, dependencies: bool = True) -> dict[str, str]:
     environment = dict(os.environ)
     # Resolve Native Build Tools Before vcpkg Enters Its Dependency Workspace.
     started = perf_counter()
@@ -108,64 +110,6 @@ def environment() -> dict[str, str]:
         ).strip()
         tool_directories.append(str(Path(executable).parent))
     print(f"Prepare C++ Tools: Completed After {perf_counter() - started:.2f}s", flush=True)
-
-    # Locate the Pinned Dependency Checkout.
-    started = perf_counter()
-    print("Prepare C++ Dependencies: Locate the Mise Cache", flush=True)
-    cache = subprocess.check_output(["mise", "cache", "path"], text=True, stderr=sys.stderr, creationflags=spawn_flags()).strip()
-    manifest = json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text())
-    revision = manifest["builtin-baseline"]
-    checkout = Path(cache) / "vcpkg" / revision[:12]
-
-    # Bootstrap the Immutable Tool Checkout Outside the Repository.
-    if not checkout.is_dir():
-        checkout.parent.mkdir(parents=True, exist_ok=True)
-        print("Prepare C++ Dependencies: Clone vcpkg", flush=True)
-        subprocess.run(
-            [
-                "git",
-                "clone",
-                "--filter=blob:none",
-                "--no-checkout",
-                "--depth",
-                "1",
-                "https://github.com/microsoft/vcpkg.git",
-                str(checkout),
-            ],
-            check=True,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            creationflags=spawn_flags(),
-        )
-        subprocess.run(
-            ["git", "-C", str(checkout), "fetch", "--depth", "1", "origin", revision],
-            check=True,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            creationflags=spawn_flags(),
-        )
-        subprocess.run(
-            ["git", "-C", str(checkout), "checkout", "--detach", revision],
-            check=True,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            creationflags=spawn_flags(),
-        )
-    actual = subprocess.check_output(
-        ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True, stderr=sys.stderr, creationflags=spawn_flags()
-    ).strip()
-    if actual != revision:
-        raise RuntimeError(f"Prepare C++ Dependencies: Restore vcpkg Checkout {checkout} to {revision}; Found {actual}")
-    executable = checkout / ("vcpkg.exe" if os.name == "nt" else "vcpkg")
-    if not executable.is_file():
-        print("Prepare C++ Dependencies: Bootstrap vcpkg", flush=True)
-        bootstrap = (
-            ["cmd", "/c", str(checkout / "bootstrap-vcpkg.bat"), "-disableMetrics"]
-            if os.name == "nt"
-            else ["sh", str(checkout / "bootstrap-vcpkg.sh"), "-disableMetrics"]
-        )
-        subprocess.run(bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=spawn_flags())
-    print(f"Prepare C++ Dependencies: Completed After {perf_counter() - started:.2f}s; Checkout: {checkout}", flush=True)
 
     # Ninja Uses the Native MSVC Environment on Windows.
     tool_path = environment["PATH"]
@@ -192,10 +136,69 @@ def environment() -> dict[str, str]:
         )
         print(f"Prepare C++ Compiler: Completed After {perf_counter() - started:.2f}s", flush=True)
 
-    # Visual Studio Sets Its Bundled vcpkg Root; Restore the Verified Project Pin.
-    environment["VCPKG_ROOT"] = str(checkout)
-    if "CARGO_BUILD_JOBS" in environment:
-        environment.setdefault("VCPKG_MAX_CONCURRENCY", environment["CARGO_BUILD_JOBS"])
+    if dependencies:
+        # Locate the Pinned Dependency Checkout.
+        started = perf_counter()
+        print("Prepare C++ Dependencies: Locate the Mise Cache", flush=True)
+        cache = subprocess.check_output(["mise", "cache", "path"], text=True, stderr=sys.stderr, creationflags=spawn_flags()).strip()
+        manifest = json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text())
+        revision = manifest["builtin-baseline"]
+        checkout = Path(cache) / "vcpkg" / revision[:12]
+
+        # Bootstrap the Immutable Tool Checkout Outside the Repository.
+        if not checkout.is_dir():
+            checkout.parent.mkdir(parents=True, exist_ok=True)
+            print("Prepare C++ Dependencies: Clone vcpkg", flush=True)
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--filter=blob:none",
+                    "--no-checkout",
+                    "--depth",
+                    "1",
+                    "https://github.com/microsoft/vcpkg.git",
+                    str(checkout),
+                ],
+                check=True,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=spawn_flags(),
+            )
+            subprocess.run(
+                ["git", "-C", str(checkout), "fetch", "--depth", "1", "origin", revision],
+                check=True,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=spawn_flags(),
+            )
+            subprocess.run(
+                ["git", "-C", str(checkout), "checkout", "--detach", revision],
+                check=True,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                creationflags=spawn_flags(),
+            )
+        actual = subprocess.check_output(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True, stderr=sys.stderr, creationflags=spawn_flags()
+        ).strip()
+        if actual != revision:
+            raise RuntimeError(f"Prepare C++ Dependencies: Restore vcpkg Checkout {checkout} to {revision}; Found {actual}")
+        executable = checkout / ("vcpkg.exe" if os.name == "nt" else "vcpkg")
+        if not executable.is_file():
+            print("Prepare C++ Dependencies: Bootstrap vcpkg", flush=True)
+            bootstrap = (
+                ["cmd", "/c", str(checkout / "bootstrap-vcpkg.bat"), "-disableMetrics"]
+                if os.name == "nt"
+                else ["sh", str(checkout / "bootstrap-vcpkg.sh"), "-disableMetrics"]
+            )
+            subprocess.run(bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=spawn_flags())
+        print(f"Prepare C++ Dependencies: Completed After {perf_counter() - started:.2f}s; Checkout: {checkout}", flush=True)
+
+        # Visual Studio Sets Its Bundled vcpkg Root; Restore the Verified Project Pin.
+        environment["VCPKG_ROOT"] = str(checkout)
+        if "CARGO_BUILD_JOBS" in environment:
+            environment.setdefault("VCPKG_MAX_CONCURRENCY", environment["CARGO_BUILD_JOBS"])
     environment["PATH"] = os.pathsep.join(
         dict.fromkeys([*tool_directories, *environment["PATH"].split(os.pathsep), *tool_path.split(os.pathsep)])
     )
@@ -209,16 +212,16 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
         if "=" in line and not line.startswith(("//", "#")):
             key, value = line.split("=", 1)
             cache[key.split(":", 1)[0]] = value
-    command = ["cmake", "--build", str(directory), "--parallel"]
-    if "CARGO_BUILD_JOBS" in environment:
-        command.append(environment["CARGO_BUILD_JOBS"])
-    run(
-        [*command, "--target", "dokime_plugin", "dokime_client", "harmos_cpp", "harmos_cpp_protocol"],
-        action="Build C++ SDK Libraries",
+    pending = subprocess.check_output(
+        ["cmake", "--build", str(directory), "--", "-n", "dokime_client"],
         cwd=ROOT / "sdk/cpp",
         env=environment,
-        log=directory / "package-build.log",
+        text=True,
+        stderr=sys.stderr,
+        creationflags=spawn_flags(),
     )
+    if pending.strip() != "ninja: no work to do.":
+        raise RuntimeError("Package C++ SDK: Run mise -C sdk/cpp run build -- --preset " + directory.name + " Before Packaging")
     prefix = directory / "dokime-cpp"
     shutil.rmtree(prefix, ignore_errors=True)
     run(
@@ -229,7 +232,7 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
         log=directory / "install.log",
     )
 
-    # Bundle the Installed Dependency Closure of gRPC, Protobuf and OpenSSL; Build Helpers and Test Ports Stay Out.
+    # Bundle Native Libraries and Code Generators; Test-Enabled Builds Also Carry Catch2 for Test Consumers.
     triplet = cache["VCPKG_TARGET_TRIPLET"]
     installed = Path(cache["VCPKG_INSTALLED_DIR"])
     versions = {}
@@ -244,12 +247,14 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
         depends.setdefault(fields["Package"], set()).update(names)
     closure = set()
     pending = ["grpc", "protobuf", "openssl"]
+    if cache.get("DOKIME_BUILD_TESTS", "").upper() in {"ON", "TRUE", "YES", "1"}:
+        pending.append("catch2")
     while pending:
         name = pending.pop()
         if name not in closure and not name.startswith("vcpkg-"):
             closure.add(name)
             pending.extend(depends[name])
-    notices = []
+    notices = {"Harmos": directory / "_deps/harmos-src"}
     for name in sorted(closure):
         listing = installed / "vcpkg/info" / f"{name}_{versions[name]}_{triplet}.list"
         for line in listing.read_text(encoding="utf-8").splitlines():
@@ -259,9 +264,8 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
             destination = prefix / line.removeprefix(f"{triplet}/")
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
-        terms = (installed / triplet / "share" / name / "copyright").read_text(encoding="utf-8", errors="replace")
-        notices.append(f"{name} {versions[name]}\n\n{terms.strip()}\n")
-    (prefix / "THIRD-PARTY-NOTICES.txt").write_text(("\n" + "=" * 80 + "\n\n").join(notices), encoding="utf-8", newline="\n")
+        notices[f"{name} {versions[name]}"] = installed / triplet / "share" / name / "copyright"
+    (prefix / "THIRD-PARTY-NOTICES").write_text(native_notices(notices), encoding="utf-8", newline="\n")
     shutil.copy2(ROOT / "LICENSE", prefix / "LICENSE")
     shutil.copy2(ROOT / "NOTICE", prefix / "NOTICE")
 
@@ -279,13 +283,18 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
         "target": target,
         "build_type": cache["CMAKE_BUILD_TYPE"],
         "cxx_standard": 20,
+        "cmake_minimum": "4.2",
         "compiler": {"id": compiler["CMAKE_CXX_COMPILER_ID"], "version": compiler["CMAKE_CXX_COMPILER_VERSION"]},
         "runtime": "MultiThreadedDLL" if os.name == "nt" else "libstdc++ with the C++11 ABI",
+        "libc": dict(zip(("name", "version"), platform.libc_ver(), strict=True)) if os.name != "nt" else None,
         "libraries": "static",
+        "vcpkg_baseline": json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text(encoding="utf-8"))["builtin-baseline"],
         "dependencies": {name: versions[name] for name in sorted(closure)},
     }
     if "MSVC_TOOLSET_VERSION" in compiler:
         manifest["compiler"]["toolset"] = compiler["MSVC_TOOLSET_VERSION"]
+    elif os.name == "nt":
+        manifest["compiler"]["toolset"] = environment["VCTOOLSVERSION"].rstrip("\\/")
     (prefix / "dokime-cpp.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     # Publish the Archive Beside Its Checksum File.
@@ -304,7 +313,8 @@ def package(directory: Path, environment: dict[str, str]) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "build", "test", "check", "format", "package", "consumer"))
-    parser.add_argument("--preset", choices=("development", "tests", "release"), default="tests")
+    parser.add_argument("--preset", choices=("development", "tests", "release"))
+    parser.add_argument("--sdk-package", type=Path, help="Build Only Consumers Against an Extracted SDK Package")
     parser.add_argument("--target")
     parser.add_argument("--exact")
     parser.add_argument("--repeat", type=int)
@@ -312,10 +322,24 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--source", type=Path)
     options = parser.parse_args()
+    options.preset = options.preset or ("release" if options.action in ("package", "consumer") else "tests")
     sdk = ROOT / "sdk/cpp"
     directory = ROOT / "target/cp" / options.preset
     directory.mkdir(parents=True, exist_ok=True)
-    child = dict(os.environ) if options.action == "format" else environment()
+    if options.sdk_package is not None and options.sdk_package.is_file():
+        bundle = tarfile.open(options.sdk_package, "r:gz")
+        try:
+            bundle.extractall(directory / "sdk", filter="data")
+        finally:
+            bundle.close()
+        options.sdk_package = directory / "sdk/dokime-cpp"
+    if options.sdk_package is not None and not (options.sdk_package / "dokime-cpp.json").is_file():
+        raise RuntimeError("Build C++ Package Consumer: Select an Extracted SDK or Its Published Archive With --sdk-package")
+    child = (
+        dict(os.environ)
+        if options.action == "format"
+        else environment(dependencies=options.action not in ("consumer", "test", "package") and options.sdk_package is None)
+    )
     if options.action == "prepare":
         return
     if options.action == "format":
@@ -338,7 +362,10 @@ def main() -> None:
         ]
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
-    elif options.action in ("check", "build", "package"):
+    elif options.action == "package":
+        package(directory, child)
+        return
+    elif options.action in ("check", "build"):
         if options.action == "build":
             command = ["cmake", "--build", "--preset", options.preset, "--parallel"]
             if "CARGO_BUILD_JOBS" in child:
@@ -347,8 +374,25 @@ def main() -> None:
                 command += ["--target", options.target]
             print(f"Build C++ SDK After Configure: {subprocess.list2cmdline(command)}", flush=True)
         configure = ["cmake", "--preset", options.preset, f"-DPython3_EXECUTABLE={sys.executable}"]
+        if options.sdk_package is not None:
+            bundle = options.sdk_package.resolve()
+            build_type = "Release" if options.preset == "release" else "Debug"
+            configure = [
+                "cmake",
+                "--fresh",
+                "-S",
+                str(sdk),
+                "-B",
+                str(directory),
+                "-G",
+                "Ninja",
+                "-DDOKIME_BUILD_TESTS=ON",
+                f"-DDOKIME_SDK_PACKAGE={bundle}",
+                f"-DCMAKE_BUILD_TYPE={build_type}",
+                f"-DPython3_EXECUTABLE={sys.executable}",
+            ]
         cache = directory / "CMakeCache.txt"
-        if cache.is_file():
+        if cache.is_file() and options.sdk_package is None:
             configured = cache.read_text(encoding="utf-8").replace("\\", "/").splitlines()
             toolchain = f"Z_VCPKG_ROOT_DIR:INTERNAL={Path(child['VCPKG_ROOT']).as_posix()}"
             if toolchain not in configured:
@@ -360,8 +404,6 @@ def main() -> None:
             env=child,
             log=directory / "configure.log",
         )
-        if options.action == "package":
-            package(directory, child)
         if options.action != "build":
             return
     elif options.action == "test":
@@ -380,7 +422,7 @@ def main() -> None:
             command += ["--repeat", f"until-fail:{options.repeat}"]
     elif options.action == "consumer":
         # Build the Source Against the Bundled Package Alone, Without the Package Manager.
-        bundle = directory / "dokime-cpp"
+        bundle = options.sdk_package or directory / "dokime-cpp"
         if not (bundle / "dokime-cpp.json").is_file():
             raise RuntimeError(f"Build C++ Package Consumer: Run mise -C sdk/cpp run package -- --preset {options.preset} First")
         source = (options.source or sdk / "examples/starter").resolve()
