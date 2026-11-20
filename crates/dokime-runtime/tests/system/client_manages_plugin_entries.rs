@@ -95,6 +95,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             };
             assert!(client.plugins.create_with("newer", placement.clone(), enabled, newer).await.is_err());
             assert_eq!(client.plugins.list().await?.entries, vec![entry.clone()]);
+            eprintln!("Plugin Registration: Close Host");
             process.close().await?;
 
             // Retain the Same Entry Across Restart and Fence Old Read Cuts
@@ -106,6 +107,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert_eq!(saved.name, entry.name);
             assert_eq!(saved.placement, entry.placement);
             let restarted = client.plugins.restart(saved.name.clone(), saved.revision.clone()).await?;
+            eprintln!("Plugin Registration: Await Restarted Entry Ready");
             let restarted = support::plugin_state(&client.plugins, restarted, PluginState::Ready).await?;
             assert_eq!(restarted.state, PluginState::Ready as i32);
             let options = PluginsListOptions {
@@ -138,6 +140,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
                 suites.iter().map(|suite| &suite.metadata).collect::<Vec<_>>()
             );
             assert!(retained.iter().all(|suite| suite.unavailable));
+            eprintln!("Plugin Registration: Close Host");
             process.close().await?;
 
             // The Offline Entry Survives a Host Restart
@@ -146,6 +149,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
             let saved = client.plugins.get("thermal").await?.entry.unwrap();
+            eprintln!("Plugin Registration: Await Retained Entry Offline");
             let saved = support::plugin_state(&client.plugins, saved, PluginState::Offline).await?;
             assert_eq!(saved.description, readded.description);
 
@@ -164,6 +168,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             plugin.close().await?;
             let offline = support::plugin_state(&client.plugins, again, PluginState::Offline).await?;
             client.plugins.delete(offline.name, offline.revision).await?;
+            eprintln!("Plugin Registration: Close Host");
             process.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })

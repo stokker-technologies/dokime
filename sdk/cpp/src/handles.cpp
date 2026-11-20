@@ -24,6 +24,7 @@
 
 using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using dokime::client::host::PLUGIN_STATE_CONNECTING;
+using dokime::client::host::PLUGIN_STATE_OFFLINE;
 using dokime::client::host::PLUGIN_STATE_READY;
 using dokime::client::host::PLUGIN_STATE_STOPPED;
 using dokime::client::host::PLUGIN_STATE_STOPPING;
@@ -32,6 +33,7 @@ using dokime::client::host::PluginPlacement;
 using dokime::client::host::PluginValue;
 using std::invalid_argument;
 using std::make_shared;
+using std::lock_guard;
 using std::move;
 using std::optional;
 using std::runtime_error;
@@ -99,7 +101,7 @@ Note create_note(const shared_ptr<ClientState> &client, const string &cycle, con
   return note;
 }
 shared_ptr<grpc::ClientContext> ClientState::context() const {
-  std::lock_guard lock(contexts_mutex);
+  lock_guard lock(contexts_mutex);
   if (closed) {
     Failure failure;
     failure.classification = "Cancelled";
@@ -305,7 +307,7 @@ Client::~Client() {
 void Client::close() {
   if (!state_)
     return;
-  std::lock_guard registration_lock(state_->registrations_mutex);
+  lock_guard registration_lock(state_->registrations_mutex);
   if (state_->closed)
     return;
   std::exception_ptr cleanup_failure;
@@ -333,7 +335,7 @@ void Client::close() {
   state_->closed = true;
   state_->prompt_worker.request_stop();
   {
-    std::lock_guard lock(state_->contexts_mutex);
+    lock_guard lock(state_->contexts_mutex);
     for (const auto &context : state_->contexts)
       if (const auto active = context.lock())
         active->TryCancel();
@@ -342,7 +344,7 @@ void Client::close() {
   if (state_->prompt_worker.joinable())
     state_->prompt_worker.join();
   {
-    std::lock_guard lock(state_->prompt_mutex);
+    lock_guard lock(state_->prompt_mutex);
     state_->prompt_handler = {};
     state_->prompt_context.reset();
   }
@@ -360,7 +362,7 @@ void Client::on_prompt(std::function<PromptAnswer(const PromptQuestion &)> handl
   const auto state = state_;
   state->context();
   {
-    std::lock_guard lock(state->prompt_mutex);
+    lock_guard lock(state->prompt_mutex);
     state->prompt_handler = move(handler);
     if (state->prompt_worker.joinable() || !state->prompt_handler)
       return;
@@ -379,7 +381,7 @@ void Client::on_prompt(std::function<PromptAnswer(const PromptQuestion &)> handl
           const auto &prompt = view.prompt();
           std::function<PromptAnswer(const PromptQuestion &)> handler;
           {
-            std::lock_guard lock(state->prompt_mutex);
+            lock_guard lock(state->prompt_mutex);
             handler = state->prompt_handler;
           }
           if (!handler || view.has_response() || answered.contains(prompt.prompt_id()))
@@ -840,7 +842,7 @@ optional<Progress> ProgressStream::next() try {
 }
 Plugins::Plugins(shared_ptr<detail::ClientState> client) : client_(move(client)) {}
 RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<string> address, optional<string> request_id) {
-  std::lock_guard lock(client_->registrations_mutex);
+  lock_guard lock(client_->registrations_mutex);
   client_->context();
   const auto identifier = plugin->identifier();
   if (client_->registrations.contains(identifier))
@@ -902,27 +904,10 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
   } catch (...) {
     const auto failure = std::current_exception();
     std::exception_ptr cleanup_failure;
-    client::PluginsGetOptions lookup;
-    lookup.context = client_->context();
-    try {
-      const auto observed = client_->transport->plugins.get(identifier, lookup);
-      if (observed.entry().placement().remote().url() == endpoint) {
-        client::PluginsDeleteOptions deleting;
-        deleting.context = client_->context();
-        client_->transport->plugins.delete_(identifier, observed.entry().revision(), deleting);
-      }
-    } catch (const Error &error) {
-      const auto status = error.failure.details.find("grpc_status");
-      if (status == error.failure.details.end() || status->second != "5")
-        cleanup_failure = std::current_exception();
-    } catch (...) {
-      cleanup_failure = std::current_exception();
-    }
     try {
       registration->listener->close();
     } catch (...) {
-      if (!cleanup_failure)
-        cleanup_failure = std::current_exception();
+      cleanup_failure = std::current_exception();
     }
     registration->listener.reset();
     registration->plugin.reset();
@@ -933,7 +918,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
   }
 }
 RegisteredPlugin Plugins::get(const string &identifier) {
-  std::lock_guard lock(client_->registrations_mutex);
+  lock_guard lock(client_->registrations_mutex);
   if (const auto found = client_->registrations.find(identifier); found != client_->registrations.end()) {
     RegisteredPlugin registered(found->second);
     registered.refresh();
@@ -968,6 +953,8 @@ string RegisteredPlugin::state() const {
     return "Stopped";
   case PLUGIN_STATE_UNAVAILABLE:
     return "Unavailable";
+  case PLUGIN_STATE_OFFLINE:
+    return "Offline";
   default:
     return "Unspecified";
   }
@@ -982,7 +969,7 @@ RegisteredPlugin &RegisteredPlugin::refresh() {
   return *this;
 }
 void RegisteredPlugin::unregister() {
-  std::lock_guard lock(state_->client->registrations_mutex);
+  lock_guard lock(state_->client->registrations_mutex);
   if (state_->detached)
     return;
   try {

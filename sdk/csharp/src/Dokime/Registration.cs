@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Dokime.Clients;
+using Harmos.Plugins;
 
 namespace Dokime;
 
@@ -218,7 +219,7 @@ public sealed class RegisteredPlugin : IAsyncDisposable
 
 internal sealed record TemplateBinding(Type Type, string Plugin, string Suite, string Template, Templates.Template Contract);
 
-internal sealed class PluginEndpoint(Harmos.Plugins.Listener listener) : IAsyncDisposable
+internal sealed class PluginEndpoint(Listener listener) : IAsyncDisposable
 {
   private Task? closing;
   internal Task Serving { get; } = listener.WaitAsync();

@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn launch_folder_round_trip_runs_the_native_interpreter_in_its_root() -> Result<()> {
+    fn launch_folder_round_trip_runs_the_native_interpreter_in_its_root() -> dokime_packaging::Result<()> {
         // Bundle a Script With an External Interpreter.
         let parent = tempfile::tempdir()?;
         let root = parent.path().join("plugin");

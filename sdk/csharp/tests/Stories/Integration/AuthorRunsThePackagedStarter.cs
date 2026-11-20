@@ -21,7 +21,14 @@ public sealed class AuthorRunsThePackagedStarter
   public async Task StartAtTheHostEndpointRunAndStop()
   {
     // Start the Package-Consuming Executable at the Host-Assigned Endpoint.
-    var start = ReferenceHost.PluginStart(ReferenceHost.Artifact("DOKIME_STARTER"));
+    var start = new ProcessStartInfo(ReferenceHost.Artifact("DOKIME_TEST_HOST"))
+    {
+      RedirectStandardInput = true,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true
+    };
+    start.ArgumentList.Add("--launch-plugin");
+    start.ArgumentList.Add(ReferenceHost.Artifact("DOKIME_STARTER"));
     using var process = Process.Start(start)!;
     var errors = process.StandardError.ReadToEndAsync();
     try

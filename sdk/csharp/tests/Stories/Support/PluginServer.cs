@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Grpc.Net.Client;
+using Harmos.Plugins;
 
 namespace Stories.Support;
 
 internal sealed class PluginServer : IAsyncDisposable
 {
-  private readonly Harmos.Plugins.Listener listener;
+  private readonly Listener listener;
   private readonly GrpcChannel channel;
   internal string Address { get; }
   internal Wire Wire { get; }
-  private PluginServer(Harmos.Plugins.Listener listener)
+  private PluginServer(Listener listener)
   {
     this.listener = listener;
     Address = "http://" + listener.Address;

@@ -118,7 +118,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
                 env=environment,
                 creationflags=spawn_flags(),
             )

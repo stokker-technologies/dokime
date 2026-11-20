@@ -306,32 +306,6 @@ class AuthoringStory(unittest.TestCase):
         self.assertRaises(ValueError, ReportPlugin)
 
 
-class PluginEndpointStory(unittest.IsolatedAsyncioTestCase):
-    async def test_start_exposes_a_connectable_address_without_output(self) -> None:
-        environment = patch.dict(os.environ, {})
-        environment.start()
-        self.addCleanup(environment.stop)
-        printing = patch("builtins.print")
-        output = printing.start()
-        self.addCleanup(printing.stop)
-        endpoint = await ExamplePlugin().start("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.stop)
-        output.assert_not_called()
-        host, port = endpoint.address.rsplit(":", 1)
-        _, writer = await asyncio.open_connection(host, int(port))
-        self.assertEqual(writer.get_extra_info("peername"), (host, int(port)))
-        writer.close()
-        await writer.wait_closed()
-
-    async def test_wait_settles_after_stop(self) -> None:
-        environment = patch.dict(os.environ, {})
-        environment.start()
-        self.addCleanup(environment.stop)
-        endpoint = await ExamplePlugin().start("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.stop)
-        await endpoint.stop()
-        await endpoint.wait()
-
 # === Public Functions === #
 
 # === Private Functions === #

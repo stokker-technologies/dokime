@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace Stories.Support;
 
@@ -27,8 +28,11 @@ internal static class ReferenceHost
     return (process.ExitCode, await stdout + await stderr);
   }
 
-  internal static ProcessStartInfo PluginStart(string plugin)
+  internal static async Task<(int ExitCode, string Evidence, bool StillServing)> RunRemoteAsync(string host, string plugin)
   {
+    var directory = Directory.CreateTempSubdirectory("dokime-remote-fixture-");
+    var launch = JsonSerializer.Serialize(new[] { Path.GetFileName(plugin), "--remote" });
+    File.WriteAllText(Path.Combine(directory.FullName, "dokime.toml"), "[plugin]\n[scripts]\nlaunch = " + launch + "\n");
     var start = new ProcessStartInfo(Artifact("DOKIME_TEST_HOST"))
     {
       RedirectStandardInput = true,
@@ -36,13 +40,8 @@ internal static class ReferenceHost
       RedirectStandardError = true
     };
     start.ArgumentList.Add("--launch-plugin");
-    start.ArgumentList.Add(plugin);
-    return start;
-  }
-
-  internal static async Task<(int ExitCode, string Evidence, bool StillServing)> RunRemoteAsync(string host, string plugin)
-  {
-    var start = PluginStart(plugin);
+    start.ArgumentList.Add(directory.FullName);
+    start.Environment["PATH"] = Path.GetDirectoryName(plugin) + Path.PathSeparator + start.Environment["PATH"];
     using var server = Process.Start(start) ?? throw new InvalidOperationException("Remote Plugin Did Not Start");
     var diagnostics = server.StandardError.ReadToEndAsync();
     (int ExitCode, string Evidence, bool StillServing) result;
@@ -67,6 +66,7 @@ internal static class ReferenceHost
         server.Kill(entireProcessTree: true);
       await server.WaitForExitAsync();
       await diagnostics;
+      directory.Delete(recursive: true);
     }
     return (result.ExitCode, result.Evidence + await diagnostics, result.StillServing);
   }

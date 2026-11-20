@@ -48,8 +48,9 @@ await client.CloseAsync();
 ```
 
 `ConnectionSettings` supplies `Remote`, `PluginAddress` and a `TimeSpan`
-`ConnectTimeout`. Addresses resolve from explicit settings, process environment,
-working-directory `.env`, then defaults. `DOKIME_REMOTE` selects the host; listeners default to `127.0.0.1:0`. A direct remote
+`ConnectTimeout`. `Remote` resolves from explicit settings, process environment,
+then working-directory `.env`. `PluginAddress` overrides a programmatic
+registration's listener; otherwise it binds `127.0.0.1:0`. A direct remote
 is an HTTP origin with an explicit port. Pairing files retain ordered endpoints,
 credentials, pinned HTTPS certificates and host identity.
 

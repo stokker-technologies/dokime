@@ -4,7 +4,7 @@ The C++20 authoring API uses explicit plugin, suite and template classes, ordina
 operation handlers, and separate operation and template contexts. The
 [capture example](examples/starter/src/plugin/main.cpp) serves a plugin without arguments.
 
-Plugins include `dokime/dokime.hpp` or `dokime/plugin.hpp` and link `Dokime::Plugin`,
+Authoring libraries include `dokime/dokime.hpp` or `dokime/plugin.hpp` and link `Dokime::Plugin`,
 which compiles no product gRPC stubs. Clients include `dokime/client.hpp` and link
 `Dokime::Client`, which adds the client stubs on top of `Dokime::Plugin`.
 

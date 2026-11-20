@@ -1935,16 +1935,19 @@ No local SDK file-watcher or polling capture implementation is added.
 
 ### Configuration Loading
 
-`connect` resolves DOKIME_REMOTE. `Plugin.serve` and `Plugins.register` resolve
-programmatic listener binding. Each entry call reads only `.env` directly in the current
-working directory at that call, once; there is no parent-directory search, import
-side effect, process-environment mutation or starter loader. Apply precedence
-separately per variable: explicit non-None argument, process environment key,
-parsed file key, default. An explicit empty remote or an empty process/file remote
-refuses with guidance to set DOKIME_REMOTE; it never silently falls through to a
-different host. With no remote anywhere, refuse because no default host exists.
-The plugin default is `127.0.0.1:0`; an explicitly empty address refuses. The
-reference `.env.example` intentionally contains an empty remote placeholder.
+`connect` resolves DOKIME_REMOTE from an explicit argument, the process environment,
+then `.env` directly in the working directory. A connection without a nonempty
+target refuses with guidance to set DOKIME_REMOTE; no default host exists.
+There is no parent-directory search, import side effect, process-environment
+mutation or starter loader.
+
+The blocking plugin entry delegates launch credentials to the library before
+reading pairing configuration. Otherwise a nonempty DOKIME_REMOTE selects
+self-registration, and an absent or empty remote selects standalone serving.
+Programmatic registration takes an optional listener address and otherwise binds
+`127.0.0.1:0`; listener binding reads no environment configuration. An explicitly
+empty listener address refuses. The reference `.env.example` intentionally
+contains an empty remote placeholder.
 
 Accepted `.env` grammar is deliberately small and identical across languages:
 
@@ -2269,7 +2272,8 @@ argument parsing; its existing synchronous process boundary may block until
 stop. Native run spelling follows the owning plugin-lifecycle contract.
 `connect()` has `connect_with(ConnectionSettings)` for explicit target, timeout
 and authentication overrides; settings fields mirror Python keyword names with
-Duration for connect_timeout. `Plugin::run_with(address)` overrides one address.
+Duration for connect_timeout. Programmatic registration accepts a listener address;
+the blocking run entry selects its mode only from the environment.
 No library mutates process environment. Methods are snake_case; async I/O returns
 `Result<T>`, ProgressStream.next returns `Result<Option<Progress>>` and owns its
 Watch only. Root Client, Cycle, Execution, Case, RegisteredPlugin, Outcome and
@@ -2891,8 +2895,7 @@ that convention cleanup is complete.
 Every starter calls its SDK's single blocking entry. Launch credentials take
 precedence over pairing and dotenv parsing, and the SDK delegates announcement
 to the library. Otherwise a configured remote selects self-registration and an
-absent remote selects standalone serving. Addressable programmatic start and
-registration calls are separate resource APIs; no listener environment variable
+absent remote selects standalone serving. Programmatic registration owns its listener; no listener environment variable
 or output parser participates in startup.
 
 A remote registry entry does not own the process serving it. At the pinned

@@ -39,7 +39,6 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
-from ._client import Client
 from ._configuration import load
 from ._connection import connect
 from ._errors import wire_failure
@@ -75,30 +74,6 @@ class _Session:
     instance: object
     case: Materialization
     origin: bytes
-
-
-class _Endpoint:
-    def __init__(self, endpoint: harmos.plugin.Endpoint, client: Client | None = None) -> None:
-        self._endpoint = endpoint
-        self._client = client
-        self.address = endpoint.address
-
-    async def stop(self) -> None:
-        # Closing the Registering Client Stops Its Listener and Keeps the Host Entry.
-        if self._client is not None:
-            await self._client.close()
-        else:
-            await self._endpoint.stop()
-
-    async def wait(self) -> None:
-        termination = asyncio.create_task(self._endpoint.server.wait_for_termination())
-        try:
-            await asyncio.shield(termination)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await self.stop()
-            await termination
 
 
 class Plugin:
@@ -218,10 +193,6 @@ class Plugin:
     async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
         pass
 
-    async def start(self, address: str = "127.0.0.1:0") -> _Endpoint:
-        """Open an Addressable Listener; the Caller Owns Stop and Wait."""
-        return _Endpoint(await self._activate(address))
-
     async def serve(self) -> None:
         """Run From Launch Credentials, Pairing Configuration or Standalone Defaults."""
         launched = "HARMOS_HOST_ENDPOINT" in os.environ or "HARMOS_LAUNCH_TOKEN" in os.environ
@@ -233,17 +204,22 @@ class Plugin:
             return
         values = load()
         remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
-        if not remote:
-            endpoint = await self.start()
-            await endpoint.wait()
-            return
-        client = await connect(remote)
+        client = await connect(remote) if remote else None
+        endpoint: harmos.plugin.Endpoint | None = None
         try:
-            registered = await client.plugins.register(self)
-            endpoint = _Endpoint(cast(harmos.plugin.Endpoint, registered._endpoint), client)
-            await endpoint.wait()
+            if client is None:
+                endpoint = await self._activate()
+            else:
+                registered = await client.plugins.register(self)
+                endpoint = cast(harmos.plugin.Endpoint, registered._endpoint)
+            await endpoint.server.wait_for_termination()
+        except asyncio.CancelledError:
+            pass
         finally:
-            await client.close()
+            if client is not None:
+                await client.close()
+            elif endpoint is not None:
+                await endpoint.stop()
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
         if address == "":

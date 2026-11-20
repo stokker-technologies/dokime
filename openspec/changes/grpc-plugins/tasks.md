@@ -262,9 +262,9 @@
   - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Listener Completion, Repeated Disposal, Explicit Removal and Client-Close Entry Retention.
   - [ ] Prove Automatic Paired C# Process Startup Against the Combined Host.
 - [ ] Complete C++ Registration and Entry Retention After Preparing Its Native SDK Build.
-- [ ] Expose Addressable Start/Wait APIs and Authored Starter Output After the Library Publishes the Required Listener Lifecycle.
+- [ ] Complete the Remaining Registered-Listener Wait APIs Where Required; Keep the Python Run Surface at `serve` and Keep Readiness off Standard Output.
 - [ ] Agree One Plugin-Presentation Contribution With the Host Owner and Carry Label, Description and Icon Through the Shared Description.
-- [ ] Adopt the Library-Owned Managed Announcement When the Integrating Owner Moves the Pin; Keep Detection Isolated per SDK.
+- [ ] Prove Every SDK's Library-Owned Launch Announcement at the Current Pin, With Credential Detection in Its Single Run Entry.
 - [x] Complete Binding and Workspace-Test-Compilation Gates.
   - [x] Pass the Registration Wire Round-Trip and Compile Every Rust Consumer Test Target.
   - [x] Pass the Release-Context Python Binding, Strict Stub and Generated-Surface Checks.

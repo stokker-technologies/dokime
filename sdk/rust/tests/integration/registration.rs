@@ -175,7 +175,7 @@ async fn a_managed_plugin_delegates_shutdown_and_ignores_ambient_pairing() -> Te
     let launches = Launches::new();
     let mut launch = launches.reserve("managed SDK story").await?;
     command.envs(launch.environment()).env("DOKIME_REMOTE", endpoint);
-    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
+    let mut child = command.stdout(Stdio::inherit()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
     let address = launch.announced().await?;
     launches.shutdown().await;
     let mut client = InstanceClient::connect(format!("http://{address}")).await?;
