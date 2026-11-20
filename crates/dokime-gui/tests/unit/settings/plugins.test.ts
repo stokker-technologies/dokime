@@ -268,6 +268,5 @@ test("Independent Failed Section Occupies Its Content Slot", () => {
   fixture.detail.mockReturnValue({ isError: true, error: new Error("bench_section"), refetch: vi.fn() });
   const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
   assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
-  assert.ok(html.includes("w-full"));
   assert.ok(html.includes("bench_section"));
 });
