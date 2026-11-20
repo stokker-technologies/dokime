@@ -326,6 +326,25 @@ test("ErrorCard Renders Full Record Retry and Copy Without Toast", async () => {
   assert.equal(shown.error.mock.calls.length, 0);
 });
 
+test("Backend Recovery Actions Take Precedence Over Generic Retries", async () => {
+  const { ErrorCard } = await import("@/components/ErrorCard");
+  const assign = vi.fn();
+  const retry = vi.fn();
+  vi.stubGlobal("window", { location: { assign } });
+  for (const [plugin, destination] of [
+    ["bench", "/settings/plugins/bench"],
+    ["", "/settings"],
+  ]) {
+    controls.buttons.length = 0;
+    assign.mockClear();
+    const failure = failureOf({ notificationFailure: { action: "Open Settings", plugin, message: "bench_source" } }, "bench_title");
+    renderToStaticMarkup(createElement(ErrorCard, { failure, onRetry: retry }));
+    controls.buttons[0]();
+    assert.deepEqual(assign.mock.calls, [[destination]]);
+    assert.equal(retry.mock.calls.length, 0);
+  }
+});
+
 test("Shared Failure Delivers Unchanged Once to Toast and History", async () => {
   const { failureOf } = await import("@/lib/notification-details");
   const history = await import("@/lib/notifications");

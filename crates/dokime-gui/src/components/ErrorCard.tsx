@@ -41,10 +41,12 @@ type ErrorCardProps = { failure: NotificationFailure; onRetry?: () => void; retr
 export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabled = false }: ErrorCardProps) {
   const session = useNativeSessionOptional();
   const [recovering, setRecovering] = useState(false);
-  const restart = !onRetry && failure.action === "Restart Plugin" && failure.plugin && session;
+  const restart = failure.action === "Restart Plugin" && failure.plugin && session;
+  const openSettings = failure.action === "Open Settings";
+  const recoveryLabel = openSettings ? "Open Settings" : restart ? "Restart Plugin" : onRetry ? retryLabel : "Reload";
   const recoverable = Boolean(onRetry || restart || !failure.action || failure.action === "Reload" || failure.action === "Open Settings");
   async function recover() {
-    if (onRetry) return onRetry();
+    if (onRetry && retryLabel === recoveryLabel) return onRetry();
     if (restart && session && failure.plugin) {
       setRecovering(true);
       try {
@@ -57,8 +59,8 @@ export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabl
       }
       return;
     }
-    if (failure.action === "Open Settings") {
-      window.location.assign(failure.plugin ? `/settings/plugins/${encodeURIComponent(failure.plugin)}` : "/settings/plugins");
+    if (openSettings) {
+      window.location.assign(failure.plugin ? `/settings/plugins/${encodeURIComponent(failure.plugin)}` : "/settings");
       return;
     }
     window.location.reload();
@@ -87,13 +89,13 @@ export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabl
           .filter((message, index, messages) => !messages.slice(0, index).some((parent) => parent.includes(message)))
           .join("\n")}
       </p>
-      {failure.action && !(onRetry && failure.action === retryLabel) ? (
+      {failure.action && (!recoverable || failure.action !== recoveryLabel) ? (
         <p className="whitespace-pre-wrap text-sm">{failure.action}</p>
       ) : null}
       <div className="flex gap-2">
         {recoverable ? (
           <Button type="button" variant="outline" size="sm" disabled={retryDisabled || recovering} onClick={() => void recover()}>
-            {onRetry ? retryLabel : restart ? "Restart Plugin" : failure.action === "Open Settings" ? failure.action : "Reload"}
+            {recoveryLabel}
           </Button>
         ) : null}
         <Button
