@@ -1377,7 +1377,23 @@ async function stopBackendMeasured() {
     timer.abort();
   }
   await owned.log.close();
-  for (const plugin of owned.plugins) await terminate(plugin);
+  for (const plugin of owned.plugins) {
+    const exited = plugin.exitCode === null ? once(plugin, "exit") : Promise.resolve([plugin.exitCode, plugin.signalCode]);
+    plugin.stdin.end();
+    const timer = new AbortController();
+    try {
+      const [code, signal] = await Promise.race([
+        exited,
+        setTimeout(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
+          throw new Error(`Native plugin owner did not drain within its ${WAIT_MS / 1000} second deadline`);
+        }),
+      ]);
+      assert.equal(signal, null, "native plugin owner drains without a forced signal");
+      assert.equal(code, 0, "native plugin owner reaps its plugin successfully");
+    } finally {
+      timer.abort();
+    }
+  }
   await discardHostCredentials(owned.root);
   backend = undefined;
 }
