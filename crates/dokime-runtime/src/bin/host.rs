@@ -66,7 +66,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut controlled = false;
     let mut remove_credentials = false;
     let mut execution_files = Vec::new();
-    let mut capture = dokime_runtime::CaptureSettings::default();
     let mut environment = None;
     let mut credentials = dokime_runtime::CredentialNamespace::default();
     while let Some(argument) = arguments.next() {
@@ -74,7 +73,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "--endpoint" => endpoint = Some(arguments.next().ok_or("Start Host: Supply --endpoint HOST:PORT")?.parse()?),
             "--storage" => root = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --storage PATH")?)),
             "--controlled-clock" => controlled = true,
-            "--capture-root" => capture.roots.push(PathBuf::from(arguments.next().ok_or("Start Host: Supply --capture-root PATH")?)),
             "--remove-credentials" => remove_credentials = true,
             "--attach-execution-file" => {
                 execution_files.push(PathBuf::from(arguments.next().ok_or("Register Execution File: Supply Its Encoded Metadata Path")?))
@@ -111,7 +109,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
-        capture,
+        capture: dokime_runtime::CaptureSettings::default(),
     };
     let settings = ClientSettings {
         read_timeout: Duration::from_secs(30),

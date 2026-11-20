@@ -14,14 +14,14 @@ import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { type DataTableColumns, type DataTableSearch, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -116,9 +116,7 @@ export function CyclesHome() {
 
   return (
     <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
-      {cycles.isError ? <ErrorCard failure={failureOf(cycles.error, "Cycles Unavailable")} onRetry={() => void cycles.refetch()} /> : null}
-
-      {groups.map((group) => (
+      {groups.map((group, index) => (
         <CycleGroupSection
           group={group}
           search={{ label: "Filter Cycles", value: filter, onChange: setFilter }}
@@ -129,6 +127,11 @@ export function CyclesHome() {
           }
           key={group.id}
           loading={cycles.isPending}
+          failure={
+            index === 0 && cycles.isError ? (
+              <ErrorCard failure={failureOf(cycles.error, "Cycles Unavailable")} onRetry={() => void cycles.refetch()} />
+            ) : null
+          }
           onOpen={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
           onUnarchive={
             showArchived
@@ -155,13 +158,15 @@ function CycleGroupSection({
   group,
   search,
   actions,
+  failure,
   loading,
   onOpen,
   onUnarchive,
 }: {
   group: CycleGroup;
-  search: import("@/components/data-table/data-table-model").DataTableSearch;
-  actions: import("react").ReactNode;
+  search: DataTableSearch;
+  actions: ReactNode;
+  failure?: ReactNode;
   loading: boolean;
   onOpen: (cycleId: string) => void;
   /** Present in the Archived view: each row offers Unarchive. */
@@ -169,32 +174,22 @@ function CycleGroupSection({
 }) {
   const columns = useMemo(() => cycleColumns(onOpen, onUnarchive), [onOpen, onUnarchive]);
 
-  // Section Counts Stay Outside The Table Card.
-  const heading = (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
-      <p className="flex items-baseline gap-2">
-        <span className="font-sans text-lg font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
-          {group.title}
-        </span>
-        <span className="font-mono text-sm tabular-nums text-muted-foreground">{group.rows.length}</span>
-      </p>
-    </div>
-  );
-
   return (
-    <section id={group.id} aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
-      {heading}
-      <div className="min-w-0">
-        <DataTable
-          search={search}
-          actions={actions}
-          columns={columns}
-          data={group.rows}
-          emptyText={loading ? "Loading Cycles" : group.emptyText}
-          getRowId={rowId}
-          onRowClick={(row) => onOpen(row.cycleId)}
-        />
-      </div>
+    <section id={group.id} aria-labelledby={`cycle-group-${group.id}`} className="min-w-0">
+      <DataTable
+        aria-label={group.title}
+        search={search}
+        actions={actions}
+        columns={columns}
+        data={group.rows}
+        failure={failure}
+        description="Open a cycle to inspect its cases and executions."
+        emptyText={group.emptyText}
+        getRowId={rowId}
+        loading={loading}
+        onRowClick={(row) => onOpen(row.cycleId)}
+        title={<span id={`cycle-group-${group.id}`}>{group.title}</span>}
+      />
     </section>
   );
 }

@@ -18,16 +18,13 @@ mod sources;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "updater")]
 use std::time::Duration;
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 #[cfg(feature = "updater")]
@@ -36,10 +33,9 @@ use tauri_plugin_updater::UpdaterExt;
 // Local Imports
 use self::policy::{Mode, UpdatePolicy};
 use super::organization::OrganizationState;
+use crate::settings::{self, Store, UpdateSelection};
 
 /* === Constants === */
-
-const DESKTOP_UPDATE_SETTINGS_BYTES: u64 = 16_384;
 
 #[cfg(feature = "updater")]
 const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
@@ -54,7 +50,7 @@ const DESKTOP_UPDATE_TIMEOUT_MS: u64 = 300_000;
 pub struct UpdateState(Arc<Shared>);
 
 struct Shared {
-    path: PathBuf,
+    store: Arc<Store>,
     inner: Mutex<Inner>,
 }
 
@@ -73,12 +69,6 @@ struct Candidate {
     id: String,
     generation: u64,
     update: tauri_plugin_updater::Update,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Selection {
-    pub mode: Mode,
-    pub source: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -129,17 +119,19 @@ impl UpdateState {
         Ok((inner.policy.clone(), inner.generation))
     }
 
-    fn configure(&self, selection: Selection) -> Result<(), String> {
+    fn configure(&self, selection: UpdateSelection) -> Result<(), String> {
         let mut inner = self.0.inner.lock().map_err(|_| "Update configuration is unavailable")?;
         let mut policy = inner.policy.clone();
         policy.mode = selection.mode;
         policy.source = selection.source.clone();
         policy.validate()?;
-        let bytes = serde_json::to_vec(&selection).map_err(|_| "Update selection could not be encoded")?;
-        if bytes.len() as u64 > DESKTOP_UPDATE_SETTINGS_BYTES {
-            return Err("Update selection exceeds its configured byte budget".into());
-        }
-        harmos_runtime::filesystem::publication::write(&self.0.path, &bytes).map_err(|_| "Update selection could not be saved")?;
+        self.0
+            .store
+            .update(|settings| {
+                settings.updates = Some(selection);
+                Ok(())
+            })
+            .map_err(|error| format!("Update selection could not be saved: {error}"))?;
         inner.policy = policy;
         inner.generation = inner.generation.wrapping_add(1);
         inner.last = None;
@@ -237,36 +229,31 @@ impl UpdateState {
 /* === Public Functions === */
 
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let root = app.state::<crate::paths::ApplicationPaths>().root.clone().join("release-sources");
-    let path = root.join("selection.json");
+    let store = app.state::<Arc<Store>>().inner().clone();
     let mut policy = app.state::<OrganizationState>().update_policy()?;
     let mut error = None;
-    match harmos_runtime::filesystem::input::read(&path, DESKTOP_UPDATE_SETTINGS_BYTES as usize) {
-        Ok(bytes) => {
-            let selection = serde_json::from_slice::<Selection>(&bytes);
-            let selected = selection.map_err(|_| "Saved update selection is invalid".to_owned()).and_then(|selection| {
+    match settings::load(store.path()) {
+        Ok(settings) => {
+            if let Some(selection) = settings.updates {
                 let mut selected = policy.clone();
                 selected.mode = selection.mode;
                 selected.source = selection.source;
-                selected.validate()?;
-                Ok(selected)
-            });
-            match selected {
-                Ok(selected) => policy = selected,
-                Err(reason) => {
-                    policy.mode = Mode::Disabled;
-                    error = Some(reason);
+                match selected.validate() {
+                    Ok(()) => policy = selected,
+                    Err(reason) => {
+                        policy.mode = Mode::Disabled;
+                        error = Some(reason);
+                    }
                 }
             }
         }
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
         Err(_) => {
             policy.mode = Mode::Disabled;
-            error = Some("Saved update selection could not be read; updates are disabled".into());
+            error = Some("Saved desktop settings could not be read; updates are disabled".into());
         }
     }
     let state = UpdateState(Arc::new(Shared {
-        path,
+        store,
         inner: Mutex::new(Inner {
             policy,
             generation: 0,
@@ -286,7 +273,7 @@ pub async fn desktop_updates_status(state: State<'_, UpdateState>) -> Result<Upd
 }
 
 pub async fn desktop_updates_configure(
-    app: AppHandle, state: State<'_, UpdateState>, selection: Selection,
+    app: AppHandle, state: State<'_, UpdateState>, selection: UpdateSelection,
 ) -> Result<UpdateStatus, String> {
     state.configure(selection)?;
     state.automatic(&app);
@@ -338,9 +325,9 @@ pub struct UpdateProbe(UpdateState);
 
 #[cfg(feature = "testing")]
 impl UpdateProbe {
-    pub fn new(path: PathBuf, policy: UpdatePolicy) -> Self {
+    pub fn new(path: std::path::PathBuf, policy: UpdatePolicy) -> Self {
         Self(UpdateState(Arc::new(Shared {
-            path,
+            store: Arc::new(Store::new(path)),
             inner: Mutex::new(Inner {
                 policy,
                 generation: 0,
@@ -351,7 +338,7 @@ impl UpdateProbe {
             }),
         })))
     }
-    pub fn configure(&self, selection: Selection) -> Result<(), String> {
+    pub fn configure(&self, selection: UpdateSelection) -> Result<(), String> {
         self.0.configure(selection)
     }
     pub fn generation(&self) -> Result<u64, String> {

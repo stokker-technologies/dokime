@@ -32,7 +32,6 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{RwLock, Weak};
 use std::time::Duration;
@@ -145,10 +144,6 @@ impl Server {
     }
     pub fn status(&self) -> &Arc<Status> {
         &self.status
-    }
-    /// Replaces the served host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        self.host.set_capture_roots(roots);
     }
     pub async fn close(mut self) -> Result<()> {
         self.plugin_observation.cancel();

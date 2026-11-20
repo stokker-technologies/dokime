@@ -149,7 +149,16 @@ function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled
     return <StatsSummaryGrid row={rows[0]} titled={titled} />;
   }
 
-  return <DataTable columns={COLUMNS} data={described} emptyText="No Statistics Recorded" getRowId={rowLabel} />;
+  return (
+    <DataTable
+      title="Statistics"
+      description="Summary statistics for each recorded metric."
+      columns={COLUMNS}
+      data={described}
+      emptyText="No Statistics Recorded"
+      getRowId={rowLabel}
+    />
+  );
 }
 
 function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
@@ -158,6 +167,8 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   return (
     <DataTable
       aria-label="Trace Statistics"
+      title="Trace Statistics"
+      description="Statistics for the shown window; select a trace to toggle its visibility."
       className={cn("transition-opacity", legend.pending && "opacity-50")}
       columns={columns}
       data={legend.rows}

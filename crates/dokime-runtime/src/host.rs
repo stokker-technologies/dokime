@@ -440,12 +440,6 @@ impl Host {
             .ok_or_else(|| Error::Invalid("Attach Execution File: Open the Host Before Registering Content".into()))?;
         content::attach_execution_file(&context, execution, metadata, file).await.map_err(|source| Error::Invalid(source.to_string()))
     }
-    /// Replaces the folders plugins may capture from; captures opened afterwards use them.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        if let Some(assembly) = &self.assembly {
-            assembly.context.captures.set_roots(roots);
-        }
-    }
     pub fn now_ns(&self) -> i64 {
         self.settings.clock.now_ns()
     }

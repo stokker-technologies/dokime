@@ -258,14 +258,6 @@ impl DesktopSession {
         })
     }
 
-    /// Applies saved capture folders to the owned local host, if it is running.
-    pub async fn set_capture_folders(&self, roots: Vec<PathBuf>) {
-        let resources = self.0.transition.lock().await;
-        if let Some(local) = &resources.local {
-            local.set_capture_roots(roots);
-        }
-    }
-
     pub async fn reset_local_storage(&self, _confirmed: &Path, _root: StorageRoot) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         Err(reset_failure("Back Up and Reset is unavailable until the host can preserve installed plugins, settings, identity and secrets independently of the evidence schema. Preserve this root for backup and select a fresh one.".into()))
     }

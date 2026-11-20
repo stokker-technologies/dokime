@@ -56,7 +56,14 @@ export function DataTableToolbar({ actions, description, filters, onClear, onCle
           {heading ? (
             <div className="min-w-48 flex-1">
               {title ? <h2 className="text-sm font-semibold">{title}</h2> : null}
-              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+              {description ? (
+                <p
+                  className="mt-1 truncate text-xs text-muted-foreground"
+                  title={typeof description === "string" ? description : undefined}
+                >
+                  {description}
+                </p>
+              ) : null}
             </div>
           ) : null}
           {search || actions ? (

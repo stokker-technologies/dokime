@@ -31,7 +31,7 @@ import { Switch } from "@/components/ui/switch";
 /* === Types === */
 
 export type PluginTableRow = {
-  /** Rendered under the name when the plugin reports a problem. */
+  /** Rendered full width below the row when the plugin reports a problem. */
   alert?: ReactNode;
   /** Status in its own aligned column. */
   badge?: ReactNode;
@@ -96,7 +96,7 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     id: "actions",
     header: "Actions",
     cell: ({ row }) => (
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-center justify-end gap-1">
         <Button
           aria-label="Settings"
           title="Settings"
@@ -115,15 +115,31 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
 
 /* === Components === */
 
-export function PluginTable({ label, rows, actions }: { label: string; rows: PluginTableRow[]; actions?: ReactNode }) {
+export function PluginTable({
+  actions,
+  failure,
+  label,
+  loading,
+  rows,
+}: {
+  actions?: ReactNode;
+  failure?: ReactNode;
+  label: string;
+  loading?: boolean;
+  rows: PluginTableRow[];
+}) {
   return (
     <DataTable
       actions={actions}
       aria-label={label}
+      title={label}
+      description="Installed plugins and their current activation state."
       columns={COLUMNS}
       data={rows}
       emptyText="No Plugins"
+      failure={failure}
       getRowId={rowKey}
+      loading={loading}
       rowDetail={(row) => row.alert}
       onRowClick={(row) => row.onOpenSettings?.()}
     />

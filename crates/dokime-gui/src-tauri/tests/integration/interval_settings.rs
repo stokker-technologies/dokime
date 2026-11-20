@@ -21,8 +21,8 @@ use std::{num::NonZeroU32, time::Duration};
 // Third Party Imports
 
 // Local Imports
-use dokime_gui::interval_settings::{self, IntervalSettings};
 use dokime_gui::native_session::backend::Backend;
+use dokime_gui::settings::{self, Store};
 
 /* === Constants === */
 
@@ -48,18 +48,20 @@ use dokime_gui::native_session::backend::Backend;
 fn edited_interval_settings_reach_the_host_placement() {
     // Nothing Saved Starts the Host With the Runtime Defaults
     let application = tempfile::tempdir().unwrap();
-    let file = interval_settings::path(application.path());
-    let backend = Backend::new(application.path().join("store")).with_interval_settings(file.clone());
+    let file = settings::path(application.path());
+    let backend = Backend::new(application.path().join("store")).with_settings(file.clone());
     let placement = backend.settings().host.placement;
     assert_eq!(placement.interval_window, dokime_runtime::INTERVAL_WINDOW);
     assert_eq!(placement.interval_lag, dokime_runtime::INTERVAL_LAG);
 
     // Saved Edits Are the Placement the Next Host Start Uses
-    let edited = IntervalSettings {
-        interval_window_ms: 250,
-        interval_lag_windows: NonZeroU32::new(3).unwrap(),
-    };
-    interval_settings::save(&file, &edited).unwrap();
+    Store::new(file.clone())
+        .update(|saved| {
+            saved.interval_window_ms = 250;
+            saved.interval_lag_windows = NonZeroU32::new(3).unwrap();
+            Ok(())
+        })
+        .unwrap();
     let placement = backend.settings().host.placement;
     assert_eq!(placement.interval_window, Duration::from_millis(250));
     assert_eq!(placement.interval_lag.get(), 3);
