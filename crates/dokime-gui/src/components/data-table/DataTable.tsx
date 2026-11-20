@@ -231,13 +231,13 @@ export function DataTable<TData extends RowData>({
         <TableBody>
           {rows.map((row) => {
             const selected = selection?.isSelected(row.original) ?? false;
+            const detail = rowDetail?.(row.original);
             return (
               <Fragment key={row.id}>
                 <TableRow
                   className={cn("h-[var(--table-row-height)]", onRowClick && "cursor-pointer")}
                   data-row-id={row.id}
                   data-state={selected ? "selected" : undefined}
-                  key={row.id}
                   onClick={onRowClick ? (event) => activate(event, row.original) : undefined}
                 >
                   {row.getAllCells().map((cell) => {
@@ -279,10 +279,10 @@ export function DataTable<TData extends RowData>({
                     );
                   })}
                 </TableRow>
-                {rowDetail?.(row.original) ? (
+                {detail ? (
                   <TableRow>
                     <TableCell colSpan={columnCount} className="whitespace-normal p-4">
-                      {rowDetail(row.original)}
+                      {detail}
                     </TableCell>
                   </TableRow>
                 ) : null}
