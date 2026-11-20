@@ -108,7 +108,8 @@ def build(profile: str, language: str = "rust") -> None:
             print(result.stdout, flush=True)
             print(result.stderr, flush=True)
             result.check_returncode()
-            shutil.copytree(project, output / "rust", dirs_exist_ok=True)
+            # Keep Sources Separate From the Extensionless Native Executable.
+            shutil.copytree(project, output / "rust-source", dirs_exist_ok=True)
         finally:
             scratch_directory.cleanup()
         shutil.copy2(root / "target/debug" / f"rust{extension}", output / f"rust{extension}")

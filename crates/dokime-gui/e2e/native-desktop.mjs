@@ -105,7 +105,7 @@ async function owned() {
   const status = await invoke(local, "desktop_session_status");
   assert.equal(status.ownership, "owned_local");
   assert.equal(status.connection.phase, "connected");
-  const identity = await call(local, "harmos.host.v1.Status", "Get");
+  const identity = await call(local, "dokime.host.v1.Status", "Get");
   assert.ok(identity.status.identity.hostId);
   const saved = await call(local, "Cycles", "Create", {
     requestId: crypto.randomUUID(),
@@ -322,18 +322,26 @@ async function cycleSeal() {
   await desktop.clickNamed("menuitem", "Seal Cycle");
   await until("Seal Confirmation", () => desktop.find("css selector", "[role=dialog]"));
   await desktop.execute(
-    "const button = [...document.querySelectorAll('[role=dialog] button')].find(button => button.textContent.trim() === 'Seal Cycle'); if (!button || button.disabled) throw new Error('Seal Confirmation Unavailable'); button.click();",
+    `const button = [...document.querySelectorAll('[role=dialog] button')].find(button => button.textContent.trim() === 'Seal Cycle');
+     if (!button || button.disabled) {
+       throw new Error('Seal Confirmation Unavailable');
+     }
+     button.click();`,
   );
   const retained = await until("Sealed Cycle With Retained Files", async () => {
     const current = await call(desktop, "Cycles", "Get", { name: cycle.cycleId }).then((reply) => reply.cycle);
-    if (current.phase === "CYCLE_PHASE_SEAL_FAILED") throw new Error(current.sealFailure);
+    if (current.phase === "CYCLE_PHASE_SEAL_FAILED") {
+      throw new Error(current.sealFailure);
+    }
     return current.sealed ? current : null;
   });
   assert.ok(retained.reportFile);
   assert.ok(retained.evidenceFile);
   const executions = await call(desktop, "Executions", "List", { parent: cycle.cycleId });
   assert.equal(executions.executions.length, 2);
-  for (const execution of executions.executions) assert.equal(execution.outcome.notEvaluated.termination, "TERMINATION_NOT_RUN");
+  for (const execution of executions.executions) {
+    assert.equal(execution.outcome.notEvaluated.termination, "TERMINATION_NOT_RUN");
+  }
   await until("Not-Run Rows Render", () =>
     desktop.execute("return document.querySelectorAll('[data-execution-status=not_run]').length === 2;"),
   );
@@ -355,7 +363,9 @@ async function cycleSeal() {
       ]);
       const bytes = await readFile(path);
       digests.push(createHash("sha256").update(bytes).digest("hex"));
-      if (item.extension === "zip") assert.ok(bytes.includes(Buffer.from("report.html")));
+      if (item.extension === "zip") {
+        assert.ok(bytes.includes(Buffer.from("report.html")));
+      }
     }
     assert.equal(digests[0], digests[1]);
   }
@@ -376,7 +386,7 @@ async function settings() {
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
   }
   await desktop.goto("/settings/plugins");
-  const inventory = await call(desktop, "harmos.host.v1.Plugins", "List");
+  const inventory = await call(desktop, "dokime.host.v1.Plugins", "List");
   const rowIds = inventory.entries.map((entry) => entry.name);
   assert.ok(rowIds.length > 0);
   await until("Admitted and Installed Plugin Rows", () =>
@@ -398,12 +408,12 @@ async function settings() {
     ),
     false,
   );
-  const archive = await call(desktop, "harmos.host.v1.status.Diagnostics", "Get", { maxBytes: "1024" });
+  const archive = await call(desktop, "dokime.host.v1.status.Diagnostics", "Get", { maxBytes: "1024" });
   assert.ok(BigInt(archive.totalLength) > 0n);
   const chunks = [Buffer.from(archive.data, "base64")];
   let length = chunks[0].length;
   while (BigInt(length) < BigInt(archive.totalLength)) {
-    const page = await call(desktop, "harmos.host.v1.status.Diagnostics", "Get", {
+    const page = await call(desktop, "dokime.host.v1.status.Diagnostics", "Get", {
       name: archive.name,
       offset: String(length),
       maxBytes: "1024",
@@ -451,7 +461,7 @@ try {
       await desktop.connected();
       await sizeViewport(desktop, { width: 1600, height: 1000 });
       assert.equal((await invoke(desktop, "desktop_session_status")).ownership, "attached");
-      const identity = await call(desktop, "harmos.host.v1.Status", "Get");
+      const identity = await call(desktop, "dokime.host.v1.Status", "Get");
       assert.ok(identity.status.identity.hostId);
     });
     if (options.workflow === "execution") {
