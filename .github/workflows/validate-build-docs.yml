@@ -67,4 +67,4 @@ jobs:
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup.outputs.uv-path }}
     env:
-      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,node,pnpm,python,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:d2lang/d2,node,pnpm,python,uv
