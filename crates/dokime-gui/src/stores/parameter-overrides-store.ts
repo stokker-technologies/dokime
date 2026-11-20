@@ -200,9 +200,6 @@ function parameterStorage(): StateStorage {
       // Distinguish Parameters Never Saved From An Intentionally Empty Map.
       const values = (await commands.desktopSavedSettingsRead()).parameters;
       if (values === undefined) {
-        if (window.localStorage.getItem(PARAMETER_OVERRIDES_STORAGE_KEY) !== null) {
-          throw new Error("Unsupported browser-owned remembered parameters. Select fresh storage before editing.");
-        }
         return null;
       }
       return JSON.stringify({ state: { overrides: values }, version: 1 });
