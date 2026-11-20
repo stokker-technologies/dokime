@@ -11,6 +11,8 @@
 
 /* === Modules === */
 
+mod build_identity;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -24,6 +26,7 @@ use std::{
 };
 
 // Third Party Imports
+use tauri_winres::WindowsResource;
 
 // Local Imports
 
@@ -62,7 +65,20 @@ fn main() {
     let declared = env::var("GITHUB_SHA").ok().filter(|value| commit(value));
     let revision = declared.or_else(|| checkout(&manifest)).unwrap_or_else(|| UNKNOWN.to_owned());
     println!("cargo:rustc-env=DOKIME_SOURCE_REVISION={revision}");
-    println!("cargo:rustc-env=DOKIME_BUILD_CHANNEL={}", channel());
+    let channel = channel();
+    println!("cargo:rustc-env=DOKIME_BUILD_CHANNEL={channel}");
+    let version = env::var("CARGO_PKG_VERSION").expect("Cargo supplies the package version");
+    let version = build_identity::version(&version, &revision, channel);
+    println!("cargo:rustc-env=DOKIME_BUILD_VERSION={version}");
+
+    // Embed the Same Identity in Windows Explorer.
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        WindowsResource::new()
+            .set("ProductName", "Dokime")
+            .set("ProductVersion", &version)
+            .compile()
+            .expect("Embed Command Version: Install the Windows SDK Resource Compiler");
+    }
 }
 
 fn embed_examples() {

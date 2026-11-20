@@ -7,22 +7,26 @@
  * ***
  */
 
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 import { useEffect, useState } from "react";
+
+// Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { DesktopUpdateDialog } from "@/components/DesktopUpdateDialog";
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { isTauriDesktop } from "@/lib/desktop-open";
-import { commands } from "@/lib/desktop/commands";
-import type { BuildIdentity } from "@/lib/desktop/connection";
-
-/* === Local Imports === */
-
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildLabel } from "@/features/settings/sections/build-version";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useBrand } from "@/lib/brand";
+import { isTauriDesktop } from "@/lib/desktop-open";
+import { commands } from "@/lib/desktop/commands";
+import type { BuildIdentity } from "@/lib/desktop/connection";
 
 /* === Components === */
 
@@ -30,6 +34,7 @@ export function AboutSection() {
   const brand = useBrand();
   const backend = useNativeSessionOptional()?.snapshot.connection.backend ?? null;
   const desktop = useDesktopBuild();
+  const build = desktop ?? { productVersion: __APP_VERSION__, sourceRevision: null, channel: null };
   const [updatesOpen, setUpdatesOpen] = useState(false);
 
   return (
@@ -42,7 +47,7 @@ export function AboutSection() {
           </SettingsRow>
         ) : (
           <SettingsRow label="Version">
-            <span className="font-mono text-sm">v{__APP_VERSION__}</span>
+            <BuildVersion build={build} />
           </SettingsRow>
         )}
         {backend ? (
@@ -60,7 +65,7 @@ export function AboutSection() {
           </Button>
         </div>
       </SettingsCard>
-      <DesktopUpdateDialog open={updatesOpen} onOpenChange={setUpdatesOpen} />
+      <DesktopUpdateDialog open={updatesOpen} onOpenChange={setUpdatesOpen} build={build} />
     </>
   );
 }
@@ -70,7 +75,7 @@ function BuildVersion({ build }: { build: BuildIdentity }) {
   const commit = label.commit;
   return (
     <span className="font-mono text-sm">
-      {label.version} ·{" "}
+      {`${label.version} (`}
       {commit ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -89,7 +94,7 @@ function BuildVersion({ build }: { build: BuildIdentity }) {
       ) : (
         label.revision
       )}
-      {label.channel ? <span className="text-muted-foreground"> · {label.channel}</span> : null}
+      , <span className="text-muted-foreground">{label.channel}</span>)
     </span>
   );
 }

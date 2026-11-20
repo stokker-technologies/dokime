@@ -16,10 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::env::consts;
 
 // Third Party Imports
+use clap::CommandFactory;
 
 // Local Imports
+use crate::{Result, cli::Cli};
 
 /* === Constants === */
 
@@ -43,19 +46,19 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) fn run(args: Args) -> crate::Result<()> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let revision = env!("DOKIME_SOURCE_REVISION");
     let channel = env!("DOKIME_BUILD_CHANNEL");
     let revision = (revision != "unknown").then_some(revision);
     let channel = (!channel.is_empty()).then_some(channel);
     let metadata = serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"), "revision": revision, "channel": channel,
-        "target_os": std::env::consts::OS, "target_arch": std::env::consts::ARCH,
+        "target_os": consts::OS, "target_arch": consts::ARCH,
     });
     if args.json {
         println!("{}", serde_json::to_string(&metadata)?);
     } else {
-        println!("Dokime {} ({}, {})", env!("CARGO_PKG_VERSION"), revision.unwrap_or("unknown"), channel.unwrap_or("local"));
+        print!("{}", Cli::command().render_version());
     }
     Ok(())
 }

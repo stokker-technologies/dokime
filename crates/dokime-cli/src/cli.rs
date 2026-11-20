@@ -33,7 +33,7 @@ use crate::commands::Command;
 /* === Structs === */
 
 #[derive(Parser)]
-#[command(name = "dokime", about = "Author Plugins and Control a Dokime Host", version)]
+#[command(name = "dokime", display_name = "Dokime", about = "Author Plugins and Control a Dokime Host", version = env!("DOKIME_BUILD_VERSION"))]
 pub(crate) struct Cli {
     #[arg(long, global = true, help = "Host URL for Remote Commands, or HOST:PORT for Hosting")]
     pub endpoint: Option<String>,
