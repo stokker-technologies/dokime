@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::env;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -26,7 +27,7 @@ use starship_battery::units::power::watt;
 use starship_battery::units::ratio::{percent, ratio};
 use starship_battery::units::thermodynamic_temperature::degree_celsius;
 use starship_battery::units::time::second;
-use starship_battery::{Battery, Manager, State as Charging};
+use starship_battery::{Battery, Manager};
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, RefreshKind};
 
 // Local Imports
@@ -165,13 +166,13 @@ impl State {
             sample_index: Some(self.sample_index),
             probe_status: Some("ok".into()),
             host_name: sysinfo::System::host_name().ok(),
-            user: std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok(),
+            user: env::var("USERNAME").or_else(|_| env::var("USER")).ok(),
             git_user_name: git.name,
             git_user_email: git.email,
             os_name: sysinfo::System::name().ok(),
             os_version: sysinfo::System::long_os_version().ok(),
             kernel_version: sysinfo::System::kernel_version().ok(),
-            cpu_architecture: Some(std::env::consts::ARCH.into()),
+            cpu_architecture: Some(env::consts::ARCH.into()),
             cpu_name: first_cpu.and_then(|cpu| text(cpu.name())),
             cpu_brand: first_cpu.and_then(|cpu| text(cpu.brand())),
             cpu_vendor_id: first_cpu.and_then(|cpu| text(cpu.vendor_id())),
@@ -262,7 +263,7 @@ fn with_battery(row: System, battery: &Battery) -> System {
     System {
         battery_percent: number(battery.state_of_charge().get::<percent>()),
         battery_state: Some(state.to_string()),
-        battery_power_plugged: Some(matches!(state, Charging::Charging | Charging::Full)),
+        battery_power_plugged: Some(matches!(state, starship_battery::State::Charging | starship_battery::State::Full)),
         battery_temperature_c: battery.temperature().and_then(|temperature| number(temperature.get::<degree_celsius>())),
         battery_vendor: battery.vendor().map(str::to_owned),
         battery_model: battery.model().map(str::to_owned),
