@@ -41,8 +41,12 @@ export type PluginTableRow = {
   name: string;
   /** Opens the plugin's own settings page; absent when it contributes none. */
   onOpenSettings?: () => void;
+  /** Who starts the plugin: the host (Managed) or its author (Unmanaged). */
+  placement?: "Managed" | "Unmanaged";
   /** Where the plugin came from, with its version. One muted line. */
   source: string;
+  /** The badge's label, which the status filter matches. */
+  status?: string;
   /** The row's own actions, on the shared trailing column. */
   trailing?: ReactNode;
 };
@@ -66,11 +70,17 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     header: "Plugin",
     meta: { filter: "text", label: "Plugin" },
   }),
-  column.display({
+  column.accessor((row) => row.status ?? "", {
     id: "status",
     header: "Status",
     cell: ({ row }) => row.original.badge,
-    meta: { label: "Status", width: "w-48" },
+    meta: { filter: "facet", label: "Status", width: "w-48" },
+  }),
+  column.accessor((row) => row.placement ?? "", {
+    id: "placement",
+    header: "Placement",
+    cell: ({ getValue }) => <span className="text-xs">{getValue()}</span>,
+    meta: { filter: "facet", label: "Placement", width: "w-28" },
   }),
   column.accessor("source", {
     cell: ({ getValue }) => <span className="text-xs text-muted-foreground">{getValue()}</span>,

@@ -64,7 +64,9 @@ export function programRows(
   const rows: ProgramRow[] = [];
   for (const program of programs) {
     const owner = program.owner;
-    if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.name === owner.installation)) continue;
+    // An entry already has its own row, whether a managed bundle or an unmanaged registered plugin.
+    const installation = owner?.kind === "bundle" ? owner.installation : program.plugin_id;
+    if (installation && entries.some((entry) => entry.name === installation)) continue;
     const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
     const settingsSection =
       frame?.sections.find(
