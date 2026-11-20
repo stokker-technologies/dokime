@@ -30,9 +30,10 @@ use dokime_client_internal::host::PluginEntry;
 use dokime_client_internal::{FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions};
 use dokime_sdk::{FileMetadata, Upload};
 use sha2::{Digest, Sha256};
-const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 /* === Constants === */
+
+const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 // Each progress message re-renders the webview; bound how often one is sent.
 // A native drop is installed right after the webview sees it; an older one is stale.
