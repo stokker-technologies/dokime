@@ -9,6 +9,22 @@ producer, its configuration and tests only after updater and native payload pari
 is established. Retain the CI graph and job names; change packaging steps only.
 The installer is never executed during this delivery.
 
+The default `installer.toml` omits the installer version, which resolves to the
+built CLI's package version. `signing.updater.artifact_base_url_env` is mutually
+exclusive with `artifact_base_url`; it resolves an HTTPS base URL from the named
+environment variable. Release dispatch sets it from the kit's recorded channel
+and version, preserving an explicit publishing override. Only signed Windows
+dispatch passes `--sign`. Exclusions apply to defaults; an explicit named entry
+can add the same identity again, once.
+
+The release key environment keeps Tauri's path-or-content semantics: a path,
+raw minisign key, or its base64 encoding resolves through the library's one
+signing implementation. An omitted release key password is empty, as in Tauri.
+Signatures bind the installer version in their authenticated `version:` trusted
+comment and are verified against the compiled public key before publication.
+This matches the [Tauri updater contract](https://v2.tauri.app/plugin/updater/)
+and the pinned updater 2.14.1's signed-version parser; verification is never disabled.
+
 ## Runtime Plugin Inventory
 
 Plugin bundles exclude the following development and private inputs at every
@@ -37,6 +53,8 @@ Audit the four SDK starters for remaining development-only members.
 and `plugins` in addition to version, target and files. Build/Package writes the
 same `DOKIME_SOURCE_REVISION` and `DOKIME_BUILD_CHANNEL` consumed by executable
 build scripts; no second revision/channel inference or old-shape reader exists.
+The exporter reads `dokime version --json` from that build's CLI to obtain those
+embedded values, rather than asking Git or interpreting workflow names again.
 The kit lists default plugin identities from the first-party built bundles. Local
 kits store those bundles in `plugins/`; downloaded kits select them from the
 verified release plugins archive. Every installer includes defaults unless
@@ -46,7 +64,7 @@ explicitly excluded. Additional `[[plugin]]` name/path entries remain supported.
 [installer]
 version = "1.2.3"
 formats = ["nsis"]
-exclude_plugins = ["plugin-obc"]
+exclude_plugins = ["obc"]
 
 [dokime]
 version = "nightly"
@@ -59,17 +77,54 @@ There is one ZIP regular-member writer: `package/assembly.py::write_file`.
 Distribution and release plugin archives delegate permissions and file-type bits
 to it, retaining their existing integrity and path checks.
 
+Default names are inspected through the built CLI's `plugin inspect --json`,
+not inferred from archive filenames. The first-party `plugin-obc.dokime` declares
+`obc`, so `obc` is its manifest exclusion name and progress identity. The archive
+filename remains unchanged; no alias or second plugin registry is introduced.
+
 ## Release Parity
 
 Before deleting the Python producer, reconcile installer names, product label and
 identifier, current-user Windows hooks, installed resource locations, Linux
 dependencies and desktop template, Authenticode, updater signatures and metadata,
 and release verification expectations. The single updater filename is
-`latest.json`, already consumed by release staging and desktop updater endpoints.
+`release.json`, consumed by desktop updater endpoints. Release staging now reads
+that same name instead of the former intermediate `latest.json`.
 Release filenames stay `dokime-<version>-<target>-setup.exe`, `.deb` and `.rpm`.
 Organization filenames use the distribution slug. Keep signature verification,
 archive bounds and operation deadlines unchanged. Stable Windows publication
 requires updater signing. No fallback producer or compatibility alias remains.
+
+### Parity Audit
+
+The Python references below name the removed producer at the starting revision
+`92f0db8f2`; the Rust references name its replacement responsibilities. Python
+paths are relative to `tools/python/src/dokime_tools/`, installer Rust/NSIS paths
+to `crates/dokime-packaging/src/`, and `src-tauri/` to `crates/dokime-gui/`.
+
+| Concern | Previous Producer Evidence | Unified Producer and Outcome |
+| --- | --- | --- |
+| Output Names | `package/installer.py:147` | `installer/native.rs:566`: release prefix `dokime`, version and target for every format; closed. |
+| Label and Identifier | `package/installer.py:64`, `src-tauri/tauri.conf.json:44` | `installer/native.rs:487` and manifest identity: default pack label and compiled identifier; organization overrides retained; closed. |
+| Windows Scope and Hooks | `package/installer.py:89`, `src-tauri/installer-hooks.nsh:5` | `installer/installer.nsi:59` and `installer/hooks.nsh:2`: current user, no elevation, machine-install refusal in both registry views; CLI PATH hook shared; closed. |
+| Resource Layout | `package/installer.py:80` | `installer/native.rs:110`: Windows executable siblings, organization and plugins folders; Linux real executables/resources under `/usr/lib/<slug>/` with `/usr/bin/` launchers; closed by the existing distribution-identity contract. |
+| Linux Packages | `package/installer.py:119`, `src-tauri/tauri.conf.json:27` | `installer/native.rs:269`, `installer/native.rs:279` and `installer/native.rs:508`: explicit WebKit/GTK/AppIndicator/audio/Soup/JS/SVG/OpenSSL dependencies and one desktop template; closed. |
+| Authenticode | `package/installer.py:95` | `installer/signing.rs:50`: same PowerShell provider for payloads and installer, signing verification retained; closed. |
+| Updater Signature | `package/installer.py:153` | `installer/signing.rs:63`: base64 minisign sidecar, verification against compiled trust before publication; closed. |
+| Updater Metadata | `package/installer.py:164`, `release/staging.py:145` | `installer/signing.rs:150`, `release/staging.py:145`: `release.json` everywhere, version and `platforms.windows-x86_64.{signature,url}` retained; staging adds release sections under the same root; closed. |
+| Release Verification | `package/verification.py:91`, `release/verify.py:45` | Native archives execute declared CLI verification, published assets match SHA256SUMS and configured signature checks; no installer execution added locally; closed. |
+
+Default Windows packaging preserves the built icon and executable payload before signing; a supplied
+organization pack patches its icon before signing. Installation folders and
+registry keys follow distribution identity. Older development installers using
+the product label as their folder/registry key are not migrated. The obsolete
+desktop hook file has no remaining producer consumer, but belongs to the desktop
+owner and must be retired there. Linux package names use `dokime` for the default
+distribution and the identifier slug for organizations; file names use version
+and target uniformly. Hosted native packaging and signed publication remain
+required proof; source parity is not a claim that those jobs ran locally. The
+updater sidecar remains a package output; release staging publishes its signature
+inside `release.json`, rather than declaring the sidecar as a separate asset.
 
 ## Progress Observer
 
@@ -96,3 +151,18 @@ packaging uses a local kit only if project Build/Package can produce it; compare
 produced names and sizes with published Nightly assets. Hosted Nightly must prove
 native Windows/Linux packaging and release verification. Commit locally and never
 push from this worktree.
+
+
+## Retained Overlaps for Owner Decision
+
+No duplicate below is removed without the owner's decision. The explicitly
+requested Python producer and ZIP member writers are removed in this delivery.
+
+| Locations | Responsibilities and Callers | Recommended Deletion |
+| --- | --- | --- |
+| `crates/dokime-packaging/src/installer/{pack,policy}.rs` and `crates/dokime-gui/src-tauri/src/app/{organization/pack,updates/policy}.rs` | Both validate appearance and update policy; installer preparation calls the former, desktop pack loading and updates call the latter. | Delete the packaging copies after choosing a lightweight shared contract owner. |
+| `crates/dokime-packaging/src/installer/distribution.rs::Identity` and `crates/dokime-gui/src-tauri/src/paths.rs::DistributionIdentity` | Both validate reverse-DNS distribution identity; CLI packaging and desktop installation resolution call them respectively. | Delete the desktop validator after exposing the shared identity contract without bundler dependencies. |
+| `crates/dokime-packaging/src/installer/hooks.nsh` and `crates/dokime-gui/src-tauri/installer-hooks.nsh` | Both define machine-install refusal; the unified native packager calls the former, the latter's Python producer is deleted and it has no remaining consumer. | Delete the desktop hook in its owner's delivery. |
+| `crates/dokime-packaging/src/bundle/mod.rs::{create_project,create}` | Both construct native plugin inventories and freeze them through the library writer; CLI bundling calls the former, runtime `host.rs` and test fixtures call the latter. | Delete the raw-executable helper after migrating the runtime convenience API and fixtures to the project/bundle boundary. |
+| `crates/dokime-packaging/src/bundle/mod.rs::create_project` entrypoint insertion and assets traversal; `sdk/cpp/examples/starter/dokime.toml` | C++ selects an executable below `assets/plugin/`, so that same file also enters the assets inventory; CLI project bundling calls both blocks. | Delete the selected executable's assets copy, retaining its `bin/` entrypoint. |
+| `tools/python/src/dokime_tools/ci/signing.py:70` and `crates/dokime-packaging/src/installer/native.rs::prepare` | Release CI signs/verifies exported executables; native preparation signs their staged copies with the same provider. | Delete repeat signing of already verified, unchanged payloads in the native path while preserving verification and re-signing patched artwork. |

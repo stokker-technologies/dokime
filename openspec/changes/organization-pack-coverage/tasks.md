@@ -30,10 +30,10 @@
 - [ ] 7.10 Library: plugin registry persistence mixes durable entries with activation/process state, so every host start rewrites the registry (9 writes observed on an unchanged restart); separate durable from volatile state in the library after the product moves to the library's main line.
 
 - [ ] 8.1 Exclude development/private inputs from plugin bundles, preserve required-input refusals, prove deterministic inventory and audit four language starters; commit separately.
-- [ ] 8.2 Require kit source revision/channel from executable build identity and correct target-version compatibility terminology; commit separately.
-- [ ] 8.3 Establish native/updater parity with file:line evidence and reconcile names, hooks and updater metadata before replacing the Python producer.
-- [ ] 8.4 Route package tasks and workflow packaging steps through the built CLI with a checked-in default manifest and local kit; delete the superseded Python producer and tests.
+- [x] 8.2 Require kit source revision/channel from executable build identity and correct target-version compatibility terminology; commit separately.
+- [x] 8.3 Establish native/updater parity with file:line evidence and reconcile names, hooks and updater metadata before replacing the Python producer.
+- [x] 8.4 Route package tasks and workflow packaging steps through the built CLI with a checked-in default manifest and local kit; delete the superseded Python producer and tests.
 - [ ] 8.5 Declare kit default plugins, resolve local/downloaded defaults and manifest exclusions, and prove resolution and acceptance behavior.
-- [ ] 8.6 Add library step observer and CLI stderr progress with durations, failure context and unchanged JSON/stdout behavior; prove deterministic step sequence.
-- [ ] 8.7 Replace duplicated ZIP member-mode construction with the assembly writer and prove affected Python tooling.
+- [x] 8.6 Add library step observer and CLI stderr progress with durations, failure context and unchanged JSON/stdout behavior; prove deterministic step sequence.
+- [x] 8.7 Replace duplicated ZIP member-mode construction with the assembly writer and prove affected Python tooling.
 - [ ] 8.8 Run scoped/workspace test-target compilation as required, focused Rust tests and installer story, format, repository checks and strict OpenSpec validation; report native packaging/Nightly proof and documentation impact.

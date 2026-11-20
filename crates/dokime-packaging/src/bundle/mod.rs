@@ -123,22 +123,27 @@ pub fn create_project(project: &PluginProject, identity: Identity, description: 
         }
         // Required Inputs Must Not Disappear Because of Ignore or Exclusion Rules.
         for (script, arguments) in [("launch", &project.manifest.scripts.launch), ("build", &project.manifest.scripts.build)] {
-        for argument in arguments.as_deref().unwrap_or_default().iter().skip(1) {
-            let path = project.root.join(argument);
-            let local_input = argument.contains(['/', '\\']) || argument.ends_with(".py") || argument.ends_with(".dll");
-            if local_input && !argument.starts_with('-') && !path.is_file() {
-                return Err(format!("Create Plugin Bundle: Build Required scripts.{script} Input {argument} or Correct Its Path").into());
-            }
-            if path.is_file() {
-                let path = project.path(Path::new(argument))?;
-                let name =
-                    path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Launch Paths")?.replace('\\', "/");
-                let excluded = Path::new(&name).components().any(|part| excluded(part.as_os_str().to_str().unwrap_or("")));
-                if excluded || (!contents.contains_key(&name) && !name.starts_with("assets/")) {
-                    return Err(format!("Create Plugin Bundle: Unignore Required scripts.{script} Input {}", path.display()).into());
+            for argument in arguments.as_deref().unwrap_or_default() {
+                let path = project.root.join(argument);
+                let local_input = argument.contains(['/', '\\']) || argument.ends_with(".py") || argument.ends_with(".dll");
+                if local_input && !argument.starts_with('-') && !path.is_file() {
+                    return Err(
+                        format!("Create Plugin Bundle: Build Required scripts.{script} Input {argument} or Correct Its Path").into()
+                    );
+                }
+                if path.is_file() {
+                    let path = project.path(Path::new(argument))?;
+                    let name = path
+                        .strip_prefix(&project.root)?
+                        .to_str()
+                        .ok_or("Create Plugin Bundle: Use UTF-8 Launch Paths")?
+                        .replace('\\', "/");
+                    let excluded = Path::new(&name).components().any(|part| excluded(part.as_os_str().to_str().unwrap_or("")));
+                    if excluded || (!contents.contains_key(&name) && !name.starts_with("assets/")) {
+                        return Err(format!("Create Plugin Bundle: Unignore Required scripts.{script} Input {}", path.display()).into());
+                    }
                 }
             }
-        }
         }
         let module =
             project.manifest.scripts.launch.as_ref().and_then(|launch| launch.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]));
@@ -386,7 +391,9 @@ fn read(path: &Path, limit: u64) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::{DevelopmentInput, inspect};
+    use crate::project::PluginProject;
     use harmos_runtime::bundle::{self, Facility, Identity, Limits, Manifest};
+    use ignore::WalkBuilder;
     use serde_json::Value;
     use sha2::{Digest, Sha256};
     use std::error::Error;
@@ -554,16 +561,51 @@ mod tests {
         fs::create_dir_all(root.path().join("assets/nested"))?;
         fs::write(root.path().join("assets/icon.svg"), b"icon")?;
         fs::write(root.path().join("assets/nested/ignored.bin"), b"asset")?;
-        for name in [".git", ".venv", "_input", "_output", "credentials", "tests", "test", "__tests__", ".github", ".gitlab", ".hg", ".svn", ".idea", ".vscode", ".vs", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache", "__pycache__"] {
+        for name in [
+            ".git",
+            ".venv",
+            "_input",
+            "_output",
+            "credentials",
+            "tests",
+            "test",
+            "__tests__",
+            ".github",
+            ".gitlab",
+            ".hg",
+            ".svn",
+            ".idea",
+            ".vscode",
+            ".vs",
+            ".pytest_cache",
+            ".mypy_cache",
+            ".ruff_cache",
+            ".cache",
+            "__pycache__",
+        ] {
             fs::create_dir(root.path().join(name))?;
             fs::write(root.path().join(name).join("private"), b"private")?;
         }
         fs::write(root.path().join(".env"), b"private")?;
-        for name in ["mise.toml", ".mise.toml", "mise.lock", ".tool-versions", ".env.example", ".env.local", ".gitattributes", ".gitmodules", ".gitlab-ci.yml", ".hgignore", ".hgtags", ".DS_Store", "Thumbs.db"] {
+        for name in [
+            "mise.toml",
+            ".mise.toml",
+            "mise.lock",
+            ".tool-versions",
+            ".env.example",
+            ".env.local",
+            ".gitattributes",
+            ".gitmodules",
+            ".gitlab-ci.yml",
+            ".hgignore",
+            ".hgtags",
+            ".DS_Store",
+            "Thumbs.db",
+        ] {
             fs::write(root.path().join(name), b"development")?;
         }
         fs::write(root.path().join("operator.pair"), b"private")?;
-        let project = crate::project::PluginProject::read(root.path())?;
+        let project = PluginProject::read(root.path())?;
         let identity = Identity {
             name: "class-identifier".into(),
             version: "1.0.0".parse()?,
@@ -573,10 +615,7 @@ mod tests {
         let bytes = super::create_project(&project, identity, None)?;
         let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
         let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
-        assert_eq!(
-            inventory,
-            ["README.md", "assets/icon.svg", "assets/nested/ignored.bin", "dokime.json", "dokime.toml", "entry.bin"]
-        );
+        assert_eq!(inventory, ["README.md", "assets/icon.svg", "assets/nested/ignored.bin", "dokime.json", "dokime.toml", "entry.bin"]);
         assert_eq!(bundle.manifest().identity.name, "class-identifier");
         assert_eq!(bundle.manifest().identity.version.to_string(), "2.3.4");
         let metadata: Value = serde_json::from_slice(bundle.file("dokime.json").unwrap())?;
@@ -595,7 +634,7 @@ mod tests {
         for name in ["example.dll", "example.deps.json", "example.runtimeconfig.json", "dependency.dll"] {
             fs::write(root.path().join("assets/plugin").join(name), name.as_bytes())?;
         }
-        let project = crate::project::PluginProject::read(root.path())?;
+        let project = PluginProject::read(root.path())?;
         let identity = Identity {
             name: "managed".into(),
             version: "1.2.3".parse()?,
@@ -620,7 +659,7 @@ mod tests {
         fs::write(root.path().join("README.md"), b"readme")?;
         fs::create_dir_all(root.path().join("assets/runtime"))?;
         fs::write(root.path().join("assets/runtime/companion.dll"), b"companion")?;
-        let project = crate::project::PluginProject::read(root.path())?;
+        let project = PluginProject::read(root.path())?;
         let identity = Identity {
             name: "native".into(),
             version: "1.0.0".parse()?,
@@ -643,7 +682,7 @@ mod tests {
         fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch=['fixture','entry.bin']\n")?;
         fs::write(root.path().join("entry.bin"), b"entry")?;
         fs::write(root.path().join(".gitignore"), "entry.bin\n")?;
-        let project = crate::project::PluginProject::read(root.path())?;
+        let project = PluginProject::read(root.path())?;
         let identity = Identity {
             name: "launch".into(),
             version: "1.0.0".parse()?,
@@ -664,7 +703,7 @@ mod tests {
         fs::write(root.path().join("plugin.py"), b"entry")?;
         fs::write(root.path().join("uv.lock"), b"user-owned-lock")?;
         fs::write(root.path().join(".gitignore"), "uv.lock\npyproject.toml\n")?;
-        let project = crate::project::PluginProject::read(root.path())?;
+        let project = PluginProject::read(root.path())?;
         let identity = Identity {
             name: "launch".into(),
             version: "1.0.0".parse()?,
@@ -691,13 +730,54 @@ mod tests {
             description: String::new(),
             package: Default::default(),
         };
-        for scripts in [
-            "launch=['python','assets/tests/entry.py']",
-            "launch=['python','entry.py']\nbuild=['python','assets/tests/entry.py']",
-        ] {
+        for scripts in
+            ["launch=['python','assets/tests/entry.py']", "launch=['python','entry.py']\nbuild=['python','assets/tests/entry.py']"]
+        {
             fs::write(root.path().join("dokime.toml"), format!("[plugin]\n[scripts]\n{scripts}\n"))?;
-            let project = crate::project::PluginProject::read(root.path())?;
+            let project = PluginProject::read(root.path())?;
             assert!(super::create_project(&project, identity.clone(), None).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn starter_bundle_inventories_exclude_development_inputs() -> crate::Result<()> {
+        let sdk = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sdk");
+        for language in ["rust", "python", "csharp", "cpp"] {
+            let folder = if language == "csharp" { "Starter" } else { "starter" };
+            let source = sdk.join(language).join("examples").join(folder);
+            let root = tempfile::tempdir()?;
+            for entry in WalkBuilder::new(&source).hidden(false).build() {
+                let entry = entry?;
+                if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+                    continue;
+                }
+                let path = root.path().join(entry.path().strip_prefix(&source)?);
+                fs::create_dir_all(path.parent().unwrap())?;
+                fs::copy(entry.path(), path)?;
+            }
+            let project = PluginProject::read(root.path())?;
+            let executable = project.manifest.scripts.executable.clone().or_else(|| {
+                project.manifest.scripts.launch.as_ref()?.iter().find(|argument| argument.ends_with(".dll")).map(PathBuf::from)
+            });
+            if let Some(executable) = executable {
+                let path = root.path().join(executable);
+                fs::create_dir_all(path.parent().unwrap())?;
+                fs::write(path, b"runtime fixture")?;
+            }
+            let identity = Identity {
+                name: "bench".into(),
+                version: "0.1.0".parse()?,
+                description: String::new(),
+                package: Default::default(),
+            };
+            let bytes = super::create_project(&project, identity, None)?;
+            let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
+            let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
+            assert!(!inventory.iter().any(|name| {
+                name.split('/').any(|part| matches!(part, "mise.toml" | ".env.example" | ".gitignore" | ".gitattributes" | "tests"))
+            }));
+            eprintln!("{language}: {}", inventory.join(", "));
         }
         Ok(())
     }

@@ -21,7 +21,7 @@ use std::io::Cursor;
 use std::str;
 use std::{
     collections::BTreeMap,
-    path::{Component, Path},
+    path::{Component, Path, PathBuf},
 };
 
 // Third Party Imports
@@ -55,9 +55,13 @@ pub struct Distribution {
     pub target: String,
     pub source_revision: String,
     pub channel: String,
+    pub plugins: Vec<String>,
 
     #[serde(skip)]
     pub identity: Identity,
+
+    #[serde(skip)]
+    pub source: PathBuf,
 
     pub files: BTreeMap<String, String>,
 }
@@ -77,6 +81,19 @@ pub struct Identity {
 /* === Implementations === */
 
 impl Identity {
+    pub(super) fn compiled() -> Result<Self, Error> {
+        let config: Value = serde_json::from_str(include_str!("../../../dokime-gui/src-tauri/tauri.conf.json"))?;
+        let identifier =
+            config["identifier"].as_str().ok_or_else(|| Error::Invalid("Rebuild the CLI With Its Product Identifier".into()))?;
+        let mut identity = Self::new(identifier.to_owned()).map_err(Error::Invalid)?;
+        identity.updater_public_key = config["plugins"]["updater"]["pubkey"]
+            .as_str()
+            .filter(|key| !key.is_empty())
+            .ok_or_else(|| Error::Invalid("Rebuild the CLI With Its Updater Verification Key".into()))?
+            .to_owned();
+        Ok(identity)
+    }
+
     pub fn new(identifier: String) -> Result<Self, String> {
         let valid = identifier.len() <= 253
             && identifier.contains('.')
@@ -148,6 +165,7 @@ pub fn relative(value: &str) -> Result<&Path, Error> {
 
 pub fn validate(directory: &Path, expected: &Artifact) -> Result<Distribution, Error> {
     let mut distribution: Distribution = serde_json::from_slice(&fs::read(directory.join("distribution.json"))?)?;
+    distribution.source = directory.canonicalize()?;
     Version::parse(&distribution.version).map_err(|error| Error::Invalid(error.to_string()))?;
     if distribution.schema != 1
         || (expected.version() != super::release::NIGHTLY && distribution.version != expected.version())
@@ -202,10 +220,7 @@ pub fn validate(directory: &Path, expected: &Artifact) -> Result<Distribution, E
             }
         }
     }
-    let config: Value = serde_json::from_str(include_str!("../../../dokime-gui/src-tauri/tauri.conf.json"))?;
-    let identifier = config["identifier"].as_str().ok_or_else(|| Error::Invalid("Rebuild the CLI With Its Product Identifier".into()))?;
-    distribution.identity = Identity::new(identifier.to_owned()).map_err(Error::Invalid)?;
-    distribution.identity.updater_public_key = config["plugins"]["updater"]["pubkey"].as_str().unwrap_or_default().to_owned();
+    distribution.identity = Identity::compiled()?;
     Ok(distribution)
 }
 

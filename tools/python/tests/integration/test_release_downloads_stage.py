@@ -225,13 +225,13 @@ class StageTests(unittest.TestCase):
                             path.parent.mkdir(parents=True, exist_ok=True)
                             path.write_text("exported support file")
 
-                    source = root / "input/latest.json"
+                    source = root / "input/release.json"
                     source.parent.mkdir()
                     source.write_text(json.dumps(feed))
                     installer = root / "input/dokime-0.1.3-x86_64-pc-windows-msvc-setup.exe"
                     installer.write_bytes(b"installer")
                     declared = [
-                        {"name": "latest.json", "path": "input/latest.json", "target": "windows-x86_64"},
+                        {"name": "release.json", "path": "input/release.json", "target": "windows-x86_64"},
                         {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
                     ]
                     settings = {**SETTINGS, "targets": ["windows-x86_64"]}
