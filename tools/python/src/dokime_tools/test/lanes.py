@@ -188,7 +188,7 @@ def record(
     scratch_root = dokime_tools.test.scratch.Root(environment, destination)
     try:
         scratch_environment = scratch_root.environment
-        credential_store = dokime_tools.test.credentials.Store(scratch_environment) if language == "rust" and category != "unit" else None
+        credential_store = dokime_tools.test.credentials.Store(scratch_environment) if language == "rust" else None
         try:
             child_environment = credential_store.environment if credential_store is not None else scratch_environment
             if language in SCRIPTS:

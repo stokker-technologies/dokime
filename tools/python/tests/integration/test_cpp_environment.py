@@ -17,9 +17,10 @@ import os
 import runpy
 import tempfile
 import unittest
+from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # isort: split
 
@@ -61,15 +62,16 @@ class CppEnvironmentTests(unittest.TestCase):
             inherited = cache / "inherited"
             binary_cache = cache / "archives"
             environment = SDK["environment"]
-            for platform, initialized in (("nt", False), ("nt", True), ("posix", False)):
+            for (platform, initialized), jobs in product((("nt", False), ("nt", True), ("posix", False)), (None, "2")):
                 child = {
                     "PATH": str(inherited),
                     "PROGRAMFILES(X86)": str(cache / "programs"),
                     "SYSTEMROOT": str(cache / "windows"),
                     "VCPKG_ROOT": str(bundled),
                     "VCPKG_DEFAULT_BINARY_CACHE": str(binary_cache),
-                    "CARGO_BUILD_JOBS": "2",
                 }
+                if jobs is not None:
+                    child["CARGO_BUILD_JOBS"] = jobs
                 if initialized:
                     child["VCINSTALLDIR"] = str(cache / "visual-studio")
 
@@ -85,7 +87,7 @@ class CppEnvironmentTests(unittest.TestCase):
                 native_os = SimpleNamespace(name=platform, environ=child, pathsep=os.pathsep)
                 subprocess_module = environment.__globals__["subprocess"]
                 with (
-                    self.subTest(platform=platform, initialized=initialized),
+                    self.subTest(platform=platform, initialized=initialized, jobs=jobs),
                     patch.dict(environment.__globals__, {"os": native_os, "visual_studio": lambda: cache / "visual-studio"}),
                     patch.object(subprocess_module, "check_output", side_effect=output) as invoke,
                     patch.object(subprocess_module, "run") as bootstrap,
@@ -93,13 +95,38 @@ class CppEnvironmentTests(unittest.TestCase):
                     result = environment()
                     self.assertEqual(Path(result["VCPKG_ROOT"]), checkout)
                     self.assertEqual(result["VCPKG_DEFAULT_BINARY_CACHE"], str(binary_cache))
-                    self.assertEqual(result["VCPKG_MAX_CONCURRENCY"], child["CARGO_BUILD_JOBS"])
+                    if jobs is None:
+                        self.assertNotIn("VCPKG_MAX_CONCURRENCY", result)
+                    else:
+                        self.assertEqual(result["VCPKG_MAX_CONCURRENCY"], jobs)
                     paths = result["PATH"].split(os.pathsep)
                     self.assertEqual(paths[0], str(tools))
                     self.assertIn(str(inherited), paths)
                     developer_calls = [call for call in invoke.call_args_list if isinstance(call.args[0], str)]
                     self.assertEqual(len(developer_calls), int(platform == "nt" and not initialized))
                     bootstrap.assert_not_called()
+        finally:
+            temporary.cleanup()
+
+    def test_both_builds_inherit_optional_job_limit(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            main = SDK["main"]
+            for action, jobs in product(("build", "consumer"), (None, "2")):
+                child = {"VCPKG_ROOT": str(root / "vcpkg")}
+                if jobs is not None:
+                    child["CARGO_BUILD_JOBS"] = jobs
+                invoke = Mock()
+                with (
+                    self.subTest(action=action, jobs=jobs),
+                    patch.dict(main.__globals__, {"ROOT": root, "environment": Mock(return_value=child), "run": invoke}),
+                    patch.object(main.__globals__["sys"], "argv", ["sdk.py", action]),
+                    patch.object(main.__globals__["subprocess"], "check_output", return_value="ninja: no work to do."),
+                ):
+                    main()
+                    command = invoke.call_args.args[0]
+                    self.assertEqual(command[command.index("--parallel") :], ["--parallel", *([jobs] if jobs is not None else [])])
         finally:
             temporary.cleanup()
 

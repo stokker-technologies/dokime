@@ -22,14 +22,19 @@ use std::error::Error;
 // Third Party Imports
 use dokime_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
+use prost_types::Timestamp;
+use tokio::time;
 use tonic::transport::Endpoint;
+use uuid::Uuid;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support::CredentialStore;
 use dokime::CapturedRecordSelection;
 use dokime::EvidenceScope;
 use dokime::MapValue;
 use dokime::Metadata;
+use dokime::model::Window;
 use dokime_client_internal::Client;
 use dokime_client_internal::CyclesCreateOptions;
 use dokime_client_internal::CyclesGetOptions;
@@ -49,6 +54,7 @@ use dokime_client_internal::host::PluginRemote;
 use dokime_client_internal::host::PluginValue;
 use dokime_protocol::host::ExecutionsDeleteRequest;
 use dokime_protocol::host::ExecutionsListRequest;
+use dokime_protocol::host::PluginState;
 use dokime_protocol::host::evidence::SamplesListRequest;
 use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
@@ -76,11 +82,11 @@ use dokime_runtime::PluginProcess;
 #[test]
 fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare an Isolated Storage Root for Sealed History
             let root = super::support::tempdir()?;
             let credential_root = super::support::tempdir()?;
-            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let credentials = CredentialStore::start(credential_root.path()).await?;
             // Complete a Real Execution Through the In-Process Host
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
@@ -122,7 +128,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let created = cycles
                 .create_with(
@@ -134,7 +140,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     true,
                     String::new(),
                     CyclesCreateOptions {
-                        request_id: Some(uuid::Uuid::now_v7().to_string()),
+                        request_id: Some(Uuid::now_v7().to_string()),
                         ..Default::default()
                     },
                 )
@@ -221,6 +227,10 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     ..Default::default()
                 }),
                 streams: vec!["thermal.cycle.temperature".into()],
+                between: Some(Window {
+                    start: Some(Timestamp { seconds: 1, nanos: 0 }),
+                    end: Some(Timestamp { seconds: 2, nanos: 0 }),
+                }),
                 page: Some(PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             };
@@ -268,7 +278,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             assert!(!first.next_page_token.is_empty());
             let current = cycles.get_with(cycle.clone(), CyclesGetOptions { at: None, ..Default::default() }).await?;
             let mut value = current.value.unwrap();
-            value.label = uuid::Uuid::now_v7().to_string();
+            value.label = Uuid::now_v7().to_string();
             cycles
                 .set_with(
                     cycle.clone(),

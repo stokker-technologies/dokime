@@ -192,7 +192,8 @@ def environment() -> dict[str, str]:
 
     # Visual Studio Sets Its Bundled vcpkg Root; Restore the Verified Project Pin.
     environment["VCPKG_ROOT"] = str(checkout)
-    environment.setdefault("VCPKG_MAX_CONCURRENCY", environment.get("CARGO_BUILD_JOBS", "3"))
+    if "CARGO_BUILD_JOBS" in environment:
+        environment.setdefault("VCPKG_MAX_CONCURRENCY", environment["CARGO_BUILD_JOBS"])
     environment["PATH"] = os.pathsep.join(
         dict.fromkeys([*tool_directories, *environment["PATH"].split(os.pathsep), *tool_path.split(os.pathsep)])
     )
@@ -237,6 +238,13 @@ def main() -> None:
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
     elif options.action in ("check", "build"):
+        if options.action == "build":
+            command = ["cmake", "--build", "--preset", options.preset, "--parallel"]
+            if "CARGO_BUILD_JOBS" in child:
+                command.append(child["CARGO_BUILD_JOBS"])
+            if options.target:
+                command += ["--target", options.target]
+            print(f"Build C++ SDK After Configure: {subprocess.list2cmdline(command)}", flush=True)
         configure = ["cmake", "--preset", options.preset, f"-DPython3_EXECUTABLE={sys.executable}"]
         cache = directory / "CMakeCache.txt"
         if cache.is_file():
@@ -253,9 +261,6 @@ def main() -> None:
         )
         if options.action != "build":
             return
-        command = ["cmake", "--build", "--preset", options.preset, "--parallel", child.get("CARGO_BUILD_JOBS", "3")]
-        if options.target:
-            command += ["--target", options.target]
     elif options.action == "test":
         print("Test C++ SDK: Check That the Build Is Current", flush=True)
         pending = subprocess.check_output(
@@ -308,7 +313,9 @@ def main() -> None:
             action="Configure Installed C++ Consumer",
             log=directory / "consumer-configure.log",
         )
-        command = ["cmake", "--build", str(consumer), "--parallel", child.get("CARGO_BUILD_JOBS", "3")]
+        command = ["cmake", "--build", str(consumer), "--parallel"]
+        if "CARGO_BUILD_JOBS" in child:
+            command.append(child["CARGO_BUILD_JOBS"])
     else:
         pending = subprocess.check_output(
             ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
