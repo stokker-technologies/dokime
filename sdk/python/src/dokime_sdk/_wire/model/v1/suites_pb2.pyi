@@ -27,11 +27,13 @@ class Suite(_message.Message, metaclass=GeneratedProtocolMessageType):
     TEMPLATES_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
     PARAMETER_GROUPS_FIELD_NUMBER: _ClassVar[int]
+    UNAVAILABLE_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
     templates: _containers.RepeatedCompositeFieldContainer[TestCaseTemplate]
     tags: _containers.RepeatedScalarFieldContainer[str]
     parameter_groups: _containers.RepeatedCompositeFieldContainer[_metadata_pb2.Metadata]
-    def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., templates: _Optional[_Iterable[_Union[TestCaseTemplate, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., parameter_groups: _Optional[_Iterable[_Union[_metadata_pb2.Metadata, _Mapping]]] = ...) -> None: ...
+    unavailable: bool
+    def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., templates: _Optional[_Iterable[_Union[TestCaseTemplate, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., parameter_groups: _Optional[_Iterable[_Union[_metadata_pb2.Metadata, _Mapping]]] = ..., unavailable: _Optional[bool] = ...) -> None: ...
 
 @final
 class TestCaseTemplate(_message.Message, metaclass=GeneratedProtocolMessageType):

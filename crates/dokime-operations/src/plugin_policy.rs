@@ -21,23 +21,31 @@ use std::sync::Arc;
 // Third Party Imports
 use harmos_operations::host::declarations::{plugins, settings};
 use harmos_protocol::host;
+use harmos_protocol::model::{Classification, Failure};
 use harmos_runtime::operations::{
     ExecutionContext, Grpc, HostContext, NativeOperation, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource, ServingError,
     Visibility,
 };
 use prost_reflect::ServiceDescriptor;
+use semver::{Version, VersionReq};
 
 // Local Imports
 use dokime_protocol::host::plugins::{SettingsListRequest, SettingsListResponse, SettingsSetRequest, SettingsSetResponse};
 use dokime_protocol::host::{
     PluginChange, PluginDescription, PluginEntry, PluginGuest, PluginManaged, PluginPlacement, PluginProcess, PluginRemote, PluginSnapshot,
-    PluginValue, PluginsCreateRequest, PluginsCreateResponse, PluginsDeleteRequest, PluginsDeleteResponse, PluginsGetRequest,
+    PluginState, PluginValue, PluginsCreateRequest, PluginsCreateResponse, PluginsDeleteRequest, PluginsDeleteResponse, PluginsGetRequest,
     PluginsGetResponse, PluginsListRequest, PluginsListResponse, PluginsReplaceRequest, PluginsReplaceResponse, PluginsRestartRequest,
     PluginsRestartResponse, PluginsSetRequest, PluginsSetResponse, PluginsWatchRequest, PluginsWatchResponse, plugin_change,
     plugin_placement, plugins_watch_response,
 };
 
 /* === Constants === */
+
+/// The Library's Failure Code for an Activation It Cannot Reach.
+const UNREACHABLE: &str = "plugin_unavailable";
+
+/// The Library's Failure Code for a Create Whose Entry Name Is Already Registered.
+const EXISTS: &str = "entry_exists";
 
 /* === Macros === */
 
@@ -69,6 +77,8 @@ macro_rules! unary {
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub struct Create;
 
 pub struct Watch;
 
@@ -314,13 +324,14 @@ impl Project<PluginPlacement> for host::PluginPlacement {
 impl Project<PluginEntry> for host::PluginEntry {
     fn project(self) -> PluginEntry {
         let value = self;
+        let offline = offline(&value);
         PluginEntry {
             name: value.name,
             placement: value.placement.map(Project::project),
             value: value.value.map(Project::project),
             revision: value.revision,
-            state: value.state,
-            failure: value.failure,
+            state: if offline { PluginState::Offline as i32 } else { value.state },
+            failure: if offline { None } else { value.failure },
             description: value.description.map(|description| PluginDescription {
                 id: description.id,
                 version: description.version,
@@ -366,7 +377,92 @@ unary!(Get, plugins::Get, PluginsGetRequest, PluginsGetResponse, "dokime.host.v1
 
 unary!(List, plugins::List, PluginsListRequest, PluginsListResponse, "dokime.host.v1", "Plugins", "List");
 
-unary!(Create, plugins::Create, PluginsCreateRequest, PluginsCreateResponse, "dokime.host.v1", "Plugins", "Create");
+impl ProtobufOperation for Create {
+    type Request = PluginsCreateRequest;
+    type Response = PluginsCreateResponse;
+    type Endpoints = ();
+    const ID: &'static str = "dokime.host.v1.Plugins/Create";
+    const GRPC: Option<Grpc> = Some(Grpc::new("dokime.host.v1", "Plugins", "Create"));
+    const POLICY: OperationPolicy = <plugins::Create as NativeOperation>::POLICY;
+    const VISIBILITY: Visibility = Visibility::Public;
+    const RESOURCES: &'static [Resource] = &[Resource::of::<HostContext>()];
+    fn service() -> Option<ServiceDescriptor> {
+        dokime_protocol::descriptor_pool().get_service_by_name("dokime.host.v1.Plugins")
+    }
+    async fn run(execution: ExecutionContext, request: Self::Request, _: &()) -> Result<Self::Response, ServingError> {
+        let host = execution.resource::<HostContext>().map_err(|_| ServingError::Catalog)?;
+        let call = host.for_call();
+        let native = |source| ServingError::Native(Arc::new(source));
+        let url = match request.placement.as_ref().and_then(|placement| placement.kind.as_ref()) {
+            Some(plugin_placement::Kind::Remote(remote)) => remote.url.clone(),
+            _ => return Ok(call.call::<plugins::Create>(request.project()).await.map_err(native)?.project()),
+        };
+        if let Some(sdk_version) = &request.sdk_version {
+            compatible(&request.name, sdk_version, env!("CARGO_PKG_VERSION"))?;
+        }
+
+        // A Restarted Registered Plugin Reuses Its Entry, Matched by the Plugin Identifier It Registers Under.
+        let listed = call.call::<plugins::List>(host::PluginsListRequest { at: None }).await.map_err(native)?;
+        let Some(existing) = listed.entries.into_iter().find(|entry| entry.name == request.name) else {
+            return Ok(call.call::<plugins::Create>(request.project()).await.map_err(native)?.project());
+        };
+        let registered = match existing.placement.as_ref().and_then(|placement| placement.kind.as_ref()) {
+            Some(host::plugin_placement::Kind::Remote(registered)) => registered.url.clone(),
+            _ => return Ok(call.call::<plugins::Create>(request.project()).await.map_err(native)?.project()),
+        };
+        // The Library Answers a Replayed Request Identifier With Its Original Response and Refuses a Conflicting One.
+        let value = request.value.unwrap_or_default();
+        let project = request.project();
+        match call.call::<plugins::Create>(project.clone()).await {
+            Ok(replayed) => return Ok(replayed.project()),
+            Err(error) if error.failure().map(Failure::from).is_some_and(|failure| failure.code == EXISTS) => {}
+            Err(error) => return Err(native(error)),
+        }
+        if registered != url {
+            // The Library Keeps a Remote Placement Fixed, So a New Address Replaces the Entry Under the Same Name.
+            call.call::<plugins::Delete>(host::PluginsDeleteRequest {
+                name: existing.name,
+                expected_revision: existing.revision,
+            })
+            .await
+            .map_err(native)?;
+            return Ok(call.call::<plugins::Create>(project).await.map_err(native)?.project());
+        }
+        if existing.value.as_ref().is_none_or(|current| current.enabled != value.enabled) {
+            let set = call
+                .call::<plugins::Set>(host::PluginsSetRequest {
+                    name: existing.name,
+                    value: Some(value.project()),
+                    expected_revision: existing.revision,
+                })
+                .await
+                .map_err(native)?;
+            return Ok(PluginsCreateResponse {
+                entry: set.entry.map(Project::project),
+                receipt: set.receipt,
+            });
+        }
+        if !value.enabled
+            || matches!(host::PluginState::try_from(existing.state), Ok(host::PluginState::Ready | host::PluginState::Connecting))
+        {
+            return Ok(PluginsCreateResponse {
+                entry: Some(existing.project()),
+                receipt: None,
+            });
+        }
+        let restarted = call
+            .call::<plugins::Restart>(host::PluginsRestartRequest {
+                name: existing.name,
+                expected_revision: existing.revision,
+            })
+            .await
+            .map_err(native)?;
+        Ok(PluginsCreateResponse {
+            entry: restarted.entry.map(Project::project),
+            receipt: None,
+        })
+    }
+}
 
 unary!(Set, plugins::Set, PluginsSetRequest, PluginsSetResponse, "dokime.host.v1", "Plugins", "Set");
 
@@ -403,6 +499,93 @@ pub fn entry(value: host::PluginEntry) -> PluginEntry {
     value.project()
 }
 
+/// A Remote Placement the Library Reports Unreachable Is Offline: Its Entry and Description Stay.
+pub fn offline(entry: &host::PluginEntry) -> bool {
+    matches!(entry.placement.as_ref().and_then(|placement| placement.kind.as_ref()), Some(host::plugin_placement::Kind::Remote(_)))
+        && entry.state == host::PluginState::Unavailable as i32
+        && entry.failure.as_ref().is_none_or(|failure| failure.code == UNREACHABLE)
+}
+
 /* === Private Functions === */
 
+/// Refuse a Registered Plugin Built Against a Product SDK This Host Cannot Serve.
+fn compatible(plugin: &str, sdk_version: &str, host_version: &str) -> Result<(), ServingError> {
+    let refuse = |message: String, action: String| {
+        ServingError::Handler(Failure {
+            classification: Classification::Permanent as i32,
+            code: "plugin_incompatible".into(),
+            message,
+            action,
+            plugin: plugin.into(),
+            ..Default::default()
+        })
+    };
+    let built = Version::parse(sdk_version).map_err(|_| {
+        refuse(
+            format!("Register Plugin {plugin}: Invalid SDK Version {sdk_version:?}"),
+            format!("Report the Dokime SDK Version the Plugin Was Built Against; This Host Runs Dokime {host_version}"),
+        )
+    })?;
+    let host = Version::parse(host_version).map_err(|_| ServingError::Catalog)?;
+    let requirement = VersionReq::parse(&format!("^{built}")).map_err(|_| ServingError::Catalog)?;
+    if !requirement.matches(&host) {
+        return Err(refuse(
+            format!("Register Plugin {plugin}: Built Against Dokime SDK {built}, but This Host Runs Dokime {host}"),
+            format!("Rebuild the Plugin With Dokime SDK {host}, or Run a Host Compatible With SDK {built}"),
+        ));
+    }
+    Ok(())
+}
+
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use harmos_protocol::host;
+    use harmos_protocol::model::Failure;
+    use harmos_runtime::operations::ServingError;
+
+    use super::{compatible, entry, offline};
+    use dokime_protocol::host::PluginState;
+
+    fn remote(state: host::PluginState, code: &str) -> host::PluginEntry {
+        host::PluginEntry {
+            name: "fixture".into(),
+            placement: Some(host::PluginPlacement {
+                kind: Some(host::plugin_placement::Kind::Remote(host::PluginRemote { url: "http://127.0.0.1:1".into() })),
+            }),
+            state: state as i32,
+            failure: Some(Failure { code: code.into(), ..Default::default() }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn unreachable_remote_entries_present_as_offline_without_a_failure() {
+        let projected = entry(remote(host::PluginState::Unavailable, "plugin_unavailable"));
+        assert_eq!(projected.state, PluginState::Offline as i32);
+        assert!(projected.failure.is_none());
+        let failed = entry(remote(host::PluginState::Unavailable, "initialize_failed"));
+        assert_eq!(failed.state, PluginState::Unavailable as i32);
+        assert!(failed.failure.is_some());
+        let mut managed = remote(host::PluginState::Unavailable, "plugin_unavailable");
+        managed.placement = Some(host::PluginPlacement {
+            kind: Some(host::plugin_placement::Kind::Managed(host::PluginManaged::default())),
+        });
+        assert!(!offline(&managed));
+        assert!(!offline(&remote(host::PluginState::Ready, "plugin_unavailable")));
+    }
+
+    #[test]
+    fn registration_compatibility_follows_the_sdk_caret_range() {
+        assert!(compatible("fixture", "0.1.5", "0.1.5").is_ok());
+        assert!(compatible("fixture", "0.1.3", "0.1.5").is_ok());
+        for refused in ["0.1.6", "0.2.0", "1.0.0", "", "latest"] {
+            let Err(ServingError::Handler(failure)) = compatible("fixture", refused, "0.1.5") else {
+                panic!("SDK {refused:?} Must Be Refused");
+            };
+            assert_eq!(failure.code, "plugin_incompatible");
+            assert_eq!(failure.plugin, "fixture");
+        }
+    }
+}

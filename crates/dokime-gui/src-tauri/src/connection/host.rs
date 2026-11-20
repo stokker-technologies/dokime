@@ -192,6 +192,7 @@ impl Session {
         let options = PluginsCreateOptions {
             origin: None,
             request_id: Some(format!("desktop-install-{name}")),
+            sdk_version: None,
             context: self.call_options()?,
         };
         let reply = self.execute(self.client.plugins.create_with(name, placement, PluginValue { enabled: true }, options)).await?;

@@ -408,6 +408,7 @@ struct PluginsWatchOptions {
 struct PluginsCreateOptions {
   std::optional<std::string> request_id;
   std::optional<std::string> origin;
+  std::optional<std::string> sdk_version;
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct PluginsSetOptions {
@@ -2450,6 +2451,9 @@ struct PluginsResource {
     *request.mutable_value() = value;
     if (options.origin) {
       request.set_origin(*options.origin);
+    }
+    if (options.sdk_version) {
+      request.set_sdk_version(*options.sdk_version);
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     detail::packages::dokime::host::PluginsCreateResponse response;

@@ -65,6 +65,7 @@ tempfile = { workspace = true }
 
 # Parsing
 regex = { workspace = true }
+semver = { workspace = true }
 
 # Concurrency
 

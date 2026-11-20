@@ -38,6 +38,7 @@ use tokio::sync::watch;
 // Local Imports
 use crate::Host;
 use dokime_operations::host::HostIdentity;
+use dokime_operations::plugin_policy::offline;
 use dokime_operations::{
     Error, Result,
     host::{self, Progress, RunAction, StartedCycle},
@@ -172,13 +173,15 @@ impl host::Host for State {
     fn suites(&self) -> Result<Vec<(String, Suite)>> {
         let plugins = self.catalogs.read().map_err(|source| Error::Unavailable(format!("Read Suites: {source}")))?;
         let mut suites = Vec::new();
-        for plugin in plugins.iter().filter(|entry| entry.state == PluginState::Ready as i32) {
+        // An Offline Plugin Keeps Its Last Reported Suites, Marked Unavailable Until It Registers Again.
+        for plugin in plugins.iter().filter(|entry| entry.state == PluginState::Ready as i32 || offline(entry)) {
             let Some(catalog) = plugin.description.as_ref().and_then(|description| description.declarations.as_ref()) else {
                 continue;
             };
+            let unavailable = plugin.state != PluginState::Ready as i32;
             for section in catalog.sections.iter().filter(|section| section.r#type == "dokime.model.v1.Suites") {
                 let declarations = Suites::decode(section.payload.as_slice())?;
-                suites.extend(declarations.suites.into_iter().map(|suite| (plugin.name.clone(), suite)));
+                suites.extend(declarations.suites.into_iter().map(|suite| (plugin.name.clone(), Suite { unavailable, ..suite })));
             }
         }
         suites.sort_by(|left, right| {

@@ -934,6 +934,9 @@ using ::dokime::detail::payloads::client::host::PLUGIN_STATE_STOPPED;
 namespace host {
 using ::dokime::detail::payloads::client::host::PLUGIN_STATE_STOPPING;
 }
+namespace host {
+using ::dokime::detail::payloads::client::host::PLUGIN_STATE_OFFLINE;
+}
 using ::dokime::detail::payloads::client::AnswersCreateResponse;
 using ::dokime::detail::payloads::client::PROMPT_KIND_CHOICE;
 using ::dokime::detail::payloads::client::PROMPT_KIND_CONFIRMATION;

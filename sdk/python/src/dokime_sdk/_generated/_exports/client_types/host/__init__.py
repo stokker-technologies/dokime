@@ -1,6 +1,7 @@
 # @generated from protocol descriptors; do not edit.
 from dokime_sdk._wire.host.v1.plugins_pb2 import (
     PLUGIN_STATE_CONNECTING,
+    PLUGIN_STATE_OFFLINE,
     PLUGIN_STATE_READY,
     PLUGIN_STATE_STOPPED,
     PLUGIN_STATE_STOPPING,
@@ -76,6 +77,7 @@ SettingsSetResponse.__qualname__ = "host.SettingsSetResponse"
 
 __all__ = [
     "PLUGIN_STATE_CONNECTING",
+    "PLUGIN_STATE_OFFLINE",
     "PLUGIN_STATE_READY",
     "PLUGIN_STATE_STOPPED",
     "PLUGIN_STATE_STOPPING",

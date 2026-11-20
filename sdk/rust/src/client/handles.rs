@@ -313,6 +313,7 @@ impl Plugins {
                 super::PluginsCreateOptions {
                     origin: None,
                     request_id: Some(request_id),
+                    sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
                     context: self.client.context.clone(),
                 },
             )

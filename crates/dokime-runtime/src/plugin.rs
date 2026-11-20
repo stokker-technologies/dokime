@@ -241,7 +241,7 @@ pub async fn await_plugin_ready<S, E>(
         if let Some(entry) = read(state).await? {
             match PluginState::try_from(entry.state) {
                 Ok(PluginState::Ready) => return Ok(entry),
-                Ok(PluginState::Unavailable | PluginState::Stopped) => {
+                Ok(PluginState::Unavailable | PluginState::Offline | PluginState::Stopped) => {
                     if let Some(error) = unavailable(entry) {
                         return Err(error);
                     }
@@ -339,7 +339,7 @@ mod tests {
 
     #[tokio::test]
     async fn entry_readiness_refuses_terminal_states_without_waiting() {
-        for mut state in [PluginState::Unavailable, PluginState::Stopped] {
+        for mut state in [PluginState::Unavailable, PluginState::Offline, PluginState::Stopped] {
             let result = await_plugin_ready(
                 &mut state,
                 |state| {

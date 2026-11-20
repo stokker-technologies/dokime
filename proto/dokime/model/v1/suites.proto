@@ -34,6 +34,8 @@ message Suite {
   repeated .dokime.model.v1.TestCaseTemplate templates = 2;
   repeated string tags = 3;
   repeated .dokime.model.v1.Metadata parameter_groups = 4;
+  // Host-set: the providing plugin is offline, so this is its last reported suite and cannot run until it registers again.
+  bool unavailable = 5;
 }
 
 // TestCaseTemplate value owned by this resource.
