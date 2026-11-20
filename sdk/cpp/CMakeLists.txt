@@ -1,7 +1,17 @@
 cmake_minimum_required(VERSION 3.24)
+option(DOKIME_BUILD_TESTS "Build SDK Stories and Host Fixtures" OFF)
+if(DOKIME_BUILD_TESTS)
+  list(APPEND VCPKG_MANIFEST_FEATURES tests)
+endif()
+# Native Dependencies Build Once: Release Only, Static Libraries on the Dynamic Release Runtime.
+if(CMAKE_HOST_WIN32)
+  set(VCPKG_TARGET_TRIPLET x64-windows-static-md-release CACHE STRING "Dependency Triplet")
+else()
+  set(VCPKG_TARGET_TRIPLET x64-linux-release CACHE STRING "Dependency Triplet")
+endif()
+set(VCPKG_HOST_TRIPLET "${VCPKG_TARGET_TRIPLET}" CACHE STRING "Code Generator Triplet")
+set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
 project(DokimeCpp VERSION 0.1.5 LANGUAGES C CXX)
-
-option(DOKIME_BUILD_TESTS "Build SDK Stories and Host Fixtures" ${PROJECT_IS_TOP_LEVEL})
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

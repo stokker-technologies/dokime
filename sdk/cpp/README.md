@@ -182,7 +182,10 @@ mise -C sdk/cpp run test -- --preset tests
 mise -C sdk/cpp run consumer -- --preset tests
 ```
 
-Native dependency versions follow the pinned library's vcpkg baseline. These
+Native dependency versions follow the pinned library's vcpkg baseline. They build
+once, in Release, as static libraries on the dynamic release runtime
+(`x64-windows-static-md-release`, `x64-linux-release`); Debug SDK builds use that
+runtime on Windows too. Catch2 installs only when stories are configured. These
 tasks use this checkout's `target/cp/` and Debug test preset. The tests cover
 class composition, independent binding, duplicate refusal, primitive conversion,
 dotenv parsing and managed/remote calls. The C++ thermal host fixture is the

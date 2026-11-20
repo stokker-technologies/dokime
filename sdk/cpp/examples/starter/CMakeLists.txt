@@ -1,4 +1,12 @@
 cmake_minimum_required(VERSION 3.24)
+# Native Dependencies Build Once: Release Only, Static Libraries on the Dynamic Release Runtime.
+if(CMAKE_HOST_WIN32)
+  set(VCPKG_TARGET_TRIPLET x64-windows-static-md-release CACHE STRING "Dependency Triplet")
+else()
+  set(VCPKG_TARGET_TRIPLET x64-linux-release CACHE STRING "Dependency Triplet")
+endif()
+set(VCPKG_HOST_TRIPLET "${VCPKG_TARGET_TRIPLET}" CACHE STRING "Code Generator Triplet")
+set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
 project(StarterProject VERSION 0.1.0 LANGUAGES CXX)
 if(NOT TARGET Dokime::Plugin)
   if(DOKIME_SDK_URL)
