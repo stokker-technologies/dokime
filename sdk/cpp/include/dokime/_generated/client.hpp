@@ -517,6 +517,11 @@ struct SettingsSchemaOptions {
 struct StatusDiagnosticsGetOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
+struct StatusLogsListOptions {
+  std::optional<::harmos::Position> at;
+  std::optional<::harmos::PageRequest> page;
+  std::shared_ptr<grpc::ClientContext> context;
+};
 struct StatusLogsWatchOptions {
   std::optional<::harmos::Position> at;
   std::shared_ptr<grpc::ClientContext> context;
@@ -1584,6 +1589,22 @@ struct StatusDiagnosticsResource {
 struct StatusLogsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StatusLogsResource(std::shared_ptr<grpc::Channel> connection) : channel(connection) {}
+  ::harmos::client::LogsListResponse list(client::StatusLogsListOptions options = {}) {
+    detail::packages::harmos::host::status::LogsListRequest request;
+    if (options.at) {
+      *request.mutable_at() = *options.at;
+    }
+    if (options.page) {
+      *request.mutable_page() = *options.page;
+    }
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::harmos::host::status::LogsListResponse response;
+    const auto status = detail::packages::dokime::host::status::Logs::NewStub(channel)->List(context.get(), request, &response);
+    if (!status.ok()) {
+      throw ::dokime::detail::rpc_error("status.logs.list", status, *context);
+    }
+    return response;
+  }
   ::harmos::ClientStream<::harmos::client::LogsWatchResponse> watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events,
                                                                     client::StatusLogsWatchOptions options = {}) {
     detail::packages::harmos::host::status::LogsWatchRequest request;
@@ -2883,26 +2904,26 @@ struct StatusResource {
   StatusTraceEventsResource trace_events;
   explicit StatusResource(std::shared_ptr<grpc::Channel> connection)
       : channel(connection), diagnostics(connection), logs(connection), trace_events(connection) {}
-  ::harmos::client::StatusGetResponse get(client::StatusGetOptions options = {}) {
+  ::dokime::client::host::StatusGetResponse get(client::StatusGetOptions options = {}) {
     detail::packages::harmos::host::StatusGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::packages::harmos::host::StatusGetResponse response;
+    detail::packages::dokime::host::StatusGetResponse response;
     const auto status = detail::packages::dokime::host::Status::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw ::dokime::detail::rpc_error("status.get", status, *context);
     }
     return response;
   }
-  ::harmos::ClientStream<::harmos::client::StatusWatchResponse> watch(client::StatusWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::host::StatusWatchResponse> watch(client::StatusWatchOptions options = {}) {
     detail::packages::harmos::host::StatusWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::StatusWatchResponse>>(
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::StatusWatchResponse>>(
         detail::packages::dokime::host::Status::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader, context]() -> std::optional<::harmos::client::StatusWatchResponse> {
-              detail::packages::harmos::host::StatusWatchResponse response;
+    return {context, [reader, context]() -> std::optional<::dokime::client::host::StatusWatchResponse> {
+              detail::packages::dokime::host::StatusWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {

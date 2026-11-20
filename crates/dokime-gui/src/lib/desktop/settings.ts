@@ -7,9 +7,9 @@
  * ***
  */
 
-/* Parameter overrides and interval settings the desktop shell persists, mirroring
-   the types beside their commands in `src-tauri/src`. Application settings live in
-   `@/lib/application-settings`. */
+/* The desktop's one settings file (`src-tauri/src/settings.rs`): remembered
+   parameter overrides and the stream settings the built-in host starts with.
+   Application settings live in `@/lib/application-settings`. */
 
 /* === Imports === */
 
@@ -31,5 +31,8 @@ export const preferencesCommands = {
 export type ParameterOverride = { raw: string; valueType: string; unit: string | null };
 export type ParameterOverrides = Record<string, Record<string, ParameterOverride>>;
 
-/** The Interval Window and Lag Bound the Built-In Host Starts With (`src-tauri/src/interval_settings.rs`). */
-export type IntervalSettings = { interval_window_ms: number; interval_lag_windows: number };
+/** The Saved File; Keys Are Named as the Standalone Host's Configuration Names Them. */
+export type SavedSettings = { interval_window_ms: number; interval_lag_windows: number; parameters?: ParameterOverrides };
+
+/** Only the Keys Present Change; the Rest of the File Is Kept. */
+export type SavedSettingsChange = Partial<SavedSettings>;

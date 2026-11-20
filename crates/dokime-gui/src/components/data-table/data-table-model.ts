@@ -47,7 +47,7 @@ import type { ReactNode } from "react";
 
 /** How a column reads, sorts and filters; everything is opt-in. */
 export type DataTableColumnMeta = {
-  /** Numbers and dates sit on the right edge; row commands sit centered. */
+  /** Numbers and dates sit on the right edge, as do row commands. */
   align?: "start" | "center" | "end";
   /** Labels a facet value; the raw value as text otherwise. */
   facetLabel?: (value: unknown) => string;
@@ -83,22 +83,30 @@ export type DataTableSelection<TData> = {
 export type DataTableColumns<TData extends RowData> = ColumnDef<DataTableFeatures, TData, any>[];
 
 export type DataTableProps<TData extends RowData> = {
-  /** Controls beside the search box, such as Compare. */
+  /** Controls right of the row filter, in order: the primary action, the
+      secondary actions, then an overflow menu. */
   actions?: ReactNode;
   "aria-label"?: string;
   className?: string;
   columns: DataTableColumns<TData>;
   data: TData[];
   defaultSort?: ColumnSort;
-  /** A line under the title, on the toolbar row. */
+  /** One line under the title in the header band; explanations live here or
+      in a control's tooltip, never between the controls. */
   description?: ReactNode;
+  /** One centred Title Case sentence shown when there are no rows. */
   emptyText: string;
+  /** Shown full width at the top of the body while it is set; rows already
+      read stay below it, and the empty sentence gives way to it. */
+  failure?: ReactNode;
   getRowId: (row: TData) => string;
+  /** Rows are still arriving: the empty slot says so. */
+  loading?: boolean;
   onRowClick?: (row: TData) => void;
   rowDetail?: (row: TData) => ReactNode;
   search?: DataTableSearch;
   selection?: DataTableSelection<TData>;
-  /** The table's heading, on the toolbar row left of the search box. */
+  /** The table's heading, at the left of the header band. */
   title?: ReactNode;
 };
 

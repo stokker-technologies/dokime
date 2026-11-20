@@ -1036,18 +1036,25 @@ using ::dokime::detail::payloads::client::SettingsFrame;
 using ::dokime::detail::payloads::client::SettingsSchemaResponse;
 using ::dokime::detail::payloads::client::SettingsSection;
 using ::dokime::detail::payloads::client::SettingsSectionOwner;
-using ::dokime::detail::payloads::client::SourcesGetResponse;
-using ::dokime::detail::payloads::client::SourcesSetResponse;
-using ::dokime::detail::payloads::client::StorageSource;
-using ::dokime::detail::payloads::client::StorageSources;
-using ::dokime::detail::payloads::client::StreamSchemasGetResponse;
-using ::dokime::detail::payloads::client::StreamSchemasListResponse;
 using ::dokime::detail::payloads::client::TelemetryPreferences;
 using ::dokime::detail::payloads::client::THEME_MODE_DARK;
 using ::dokime::detail::payloads::client::THEME_MODE_LIGHT;
 using ::dokime::detail::payloads::client::THEME_MODE_SYSTEM;
 using ::dokime::detail::payloads::client::THEME_MODE_UNSPECIFIED;
 using ::dokime::detail::payloads::client::ThemeMode;
+namespace host {
+using ::dokime::detail::payloads::client::host::StatusGetResponse;
+}
+namespace host {
+using ::dokime::detail::payloads::client::host::StatusWatchResponse;
+}
+using ::dokime::detail::payloads::client::HostBuild;
+using ::dokime::detail::payloads::client::SourcesGetResponse;
+using ::dokime::detail::payloads::client::SourcesSetResponse;
+using ::dokime::detail::payloads::client::StorageSource;
+using ::dokime::detail::payloads::client::StorageSources;
+using ::dokime::detail::payloads::client::StreamSchemasGetResponse;
+using ::dokime::detail::payloads::client::StreamSchemasListResponse;
 } // namespace dokime::client
 namespace dokime::plugin {
 using ::dokime::detail::payloads::plugin::BackendEnvironmentResponse;

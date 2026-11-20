@@ -29,6 +29,7 @@ from dokime_sdk._wire.host.v1.plugins_pb2 import (
 )
 from dokime_sdk._wire.host.v1.secrets_pb2 import SecretsListResponse
 from dokime_sdk._wire.host.v1.settings_pb2 import SettingsGetResponse, SettingsSetResponse
+from dokime_sdk._wire.host.v1.status_pb2 import StatusGetResponse, StatusWatchResponse
 
 from . import media, plots, plugins
 
@@ -74,6 +75,10 @@ SettingsGetResponse.__module__ = "dokime_sdk.client"
 SettingsGetResponse.__qualname__ = "host.SettingsGetResponse"
 SettingsSetResponse.__module__ = "dokime_sdk.client"
 SettingsSetResponse.__qualname__ = "host.SettingsSetResponse"
+StatusGetResponse.__module__ = "dokime_sdk.client"
+StatusGetResponse.__qualname__ = "host.StatusGetResponse"
+StatusWatchResponse.__module__ = "dokime_sdk.client"
+StatusWatchResponse.__qualname__ = "host.StatusWatchResponse"
 
 __all__ = [
     "PLUGIN_STATE_CONNECTING",
@@ -105,6 +110,8 @@ __all__ = [
     "SecretsListResponse",
     "SettingsGetResponse",
     "SettingsSetResponse",
+    "StatusGetResponse",
+    "StatusWatchResponse",
     "media",
     "plots",
     "plugins",

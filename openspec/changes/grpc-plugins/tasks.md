@@ -32,6 +32,11 @@
 - [x] 4.6.1 Re-author the OBC device operations, suites, documents and independent benchmark workloads on the Rust SDK; remove plugin analysis registration.
 - [x] 4.7 Bundle executable plugins and provide shared Rust/Python/C#/C++ thermal host stories and language fixture producers.
 - [x] 4.8 Restore desktop workspace membership, runtime embedding, generated client routing, native preference export and shipping build ownership.
+- [x] 4.8.1 Remove the Capture Folder Allow-List, Its Desktop Settings and Refusal Stories; Keep Path, Size and Deadline Validation.
+- [x] 4.8.2 Consolidate Native Desktop Stream Settings, Remembered Parameters and Update Selection in `settings.json`; Replace Interval Sampling With Engine / Streams, Without Migrating Retired Files.
+- [x] 4.8.3 Use One Framed DataTable for Desktop Lists, Document Tables, Statistics and Grid Plots, With Header Descriptions, Ordered Controls, In-Place Failures and Persistent Pagination.
+- [ ] 4.8.4 Complete Focused Frontend, Native Settings and Capture Proof and Compile All Workspace Test Targets With Desktop Testing; Report Documentation Impact to the Owner. Compilation, Frontend and Nine Selected Native Tests Pass; Capture Acceptance Is Blocked by the Remote Readiness REWORK in the Design, Before Capture Assertions Run.
+- [ ] 4.8.5 Settle the Scope of the Inherited Updater's Module-Only Feature-Gate Refactor; Do Not Treat Passing Compilation as Convention Closure.
 - [x] 5.1 Remove the template run/signal protocol, plugin walker, embedded plugins, native Python backend and old execution hand-off layer.
 - [x] 5.6 Remove obsolete template/step/criterion/suite/catalog/plugin macros while retaining message/data derives.
 - [x] 5.7 Remove separate client/server/domain crates, host-enabling SDK features, operations contract-only surfaces and their dead consumers.

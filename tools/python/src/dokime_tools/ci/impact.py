@@ -41,6 +41,7 @@ JOBS = (
     "check",
     "build_product",
     "build_tests",
+    "build_sdk_cpp",
     "build_python",
     "build_docs",
     "check_generated",
@@ -177,6 +178,8 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     # Matrix Archives Are The Consumer's Artifact Contract.
     if "test" in selected:
         for row in tests:
+            if row["language"] == "cpp":
+                selected.add("build_sdk_cpp")
             for archive in json.loads(row["archives"]):
                 if "build-tests-" in archive:
                     selected.add("build_tests")

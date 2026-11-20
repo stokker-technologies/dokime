@@ -15197,6 +15197,34 @@ pub mod settings_server {
         const NAME: &'static str = SERVICE_NAME;
     }
 }
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StatusGetResponse {
+    #[prost(message, optional, tag = "1")]
+    pub status: ::core::option::Option<::harmos_protocol::host::HostStatus>,
+    #[prost(message, optional, tag = "2")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::model::Position>,
+    #[prost(message, optional, tag = "3")]
+    pub build: ::core::option::Option<HostBuild>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StatusWatchResponse {
+    #[prost(message, optional, tag = "1")]
+    pub status: ::core::option::Option<::harmos_protocol::host::HostStatus>,
+    #[prost(message, optional, tag = "2")]
+    pub resolved_at: ::core::option::Option<::harmos_protocol::model::Position>,
+    #[prost(message, optional, tag = "3")]
+    pub build: ::core::option::Option<HostBuild>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HostBuild {
+    #[prost(string, tag = "1")]
+    pub source_revision: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub channel: ::prost::alloc::string::String,
+}
 /// Generated client implementations.
 pub mod status_client {
     #![allow(
@@ -15292,7 +15320,7 @@ pub mod status_client {
             &mut self,
             request: impl tonic::IntoRequest<::harmos_protocol::host::StatusGetRequest>,
         ) -> std::result::Result<
-            tonic::Response<::harmos_protocol::host::StatusGetResponse>,
+            tonic::Response<super::StatusGetResponse>,
             tonic::Status,
         > {
             self.inner
@@ -15315,9 +15343,7 @@ pub mod status_client {
             &mut self,
             request: impl tonic::IntoRequest<::harmos_protocol::host::StatusWatchRequest>,
         ) -> std::result::Result<
-            tonic::Response<
-                tonic::codec::Streaming<::harmos_protocol::host::StatusWatchResponse>,
-            >,
+            tonic::Response<tonic::codec::Streaming<super::StatusWatchResponse>>,
             tonic::Status,
         > {
             self.inner
@@ -15356,15 +15382,12 @@ pub mod status_server {
             &self,
             request: tonic::Request<::harmos_protocol::host::StatusGetRequest>,
         ) -> std::result::Result<
-            tonic::Response<::harmos_protocol::host::StatusGetResponse>,
+            tonic::Response<super::StatusGetResponse>,
             tonic::Status,
         >;
         /// Server streaming response type for the Watch method.
         type WatchStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    ::harmos_protocol::host::StatusWatchResponse,
-                    tonic::Status,
-                >,
+                Item = std::result::Result<super::StatusWatchResponse, tonic::Status>,
             >
             + std::marker::Send
             + 'static;
@@ -15457,7 +15480,7 @@ pub mod status_server {
                     > tonic::server::UnaryService<
                         ::harmos_protocol::host::StatusGetRequest,
                     > for GetSvc<T> {
-                        type Response = ::harmos_protocol::host::StatusGetResponse;
+                        type Response = super::StatusGetResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -15505,7 +15528,7 @@ pub mod status_server {
                     > tonic::server::ServerStreamingService<
                         ::harmos_protocol::host::StatusWatchRequest,
                     > for WatchSvc<T> {
-                        type Response = ::harmos_protocol::host::StatusWatchResponse;
+                        type Response = super::StatusWatchResponse;
                         type ResponseStream = T::WatchStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,

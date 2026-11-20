@@ -3,9 +3,9 @@
 using Dokime;
 using Dokime.Clients;
 using Dokime.Clients.ExecutionsResources;
+using Dokime.Clients.PluginsResources;
 using Google.Protobuf;
 using Grpc.Core;
-using Dokime.Clients.PluginsResources;
 using Harmos;
 
 namespace Stories.Support;
@@ -47,7 +47,7 @@ internal sealed class FakeBackend : CallInvoker
     if (options.Headers?.GetValue("authorization") != "Bearer test-token")
       throw new RpcException(new Grpc.Core.Status(StatusCode.Unauthenticated, "Call Fixture: Supply Credentials"));
     if (method == "/dokime.host.v1.Status/Get" && request is Harmos.Clients.StatusGetRequest)
-      return new Harmos.Clients.StatusGetResponse();
+      return new StatusGetResponse();
     if (method == "/dokime.host.v1.Operations/Get" && request is Harmos.Clients.OperationsGetRequest operation)
     {
       if (Operation is null || Operation.Id != operation.Id)

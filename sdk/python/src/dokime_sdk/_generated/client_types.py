@@ -54,8 +54,6 @@ from harmos._wire.host.v1.status_pb2 import (
     HealthComponent,
     HostIdentity,
     HostStatus,
-    StatusGetResponse,
-    StatusWatchResponse,
 )
 from harmos._wire.host.v1.streams_pb2 import StreamIdentity, StreamsListResponse
 
@@ -694,6 +692,7 @@ from dokime_sdk._wire.host.v1.settings_pb2 import (
     TelemetryPreferences,
     ThemeMode,
 )
+from dokime_sdk._wire.host.v1.status_pb2 import HostBuild
 from dokime_sdk._wire.host.v1.storage.sources_pb2 import SourcesGetResponse, SourcesSetResponse, StorageSource, StorageSources
 from dokime_sdk._wire.host.v1.stream_schemas_pb2 import StreamSchemasGetResponse, StreamSchemasListResponse
 from dokime_sdk._wire.host.v1.suites_pb2 import SuitesGetResponse, SuitesListResponse
@@ -1242,6 +1241,8 @@ SettingsSectionOwner.__module__ = "dokime_sdk.client"
 SettingsSectionOwner.__qualname__ = "SettingsSectionOwner"
 TelemetryPreferences.__module__ = "dokime_sdk.client"
 TelemetryPreferences.__qualname__ = "TelemetryPreferences"
+HostBuild.__module__ = "dokime_sdk.client"
+HostBuild.__qualname__ = "HostBuild"
 SourcesGetResponse.__module__ = "dokime_sdk.client"
 SourcesGetResponse.__qualname__ = "SourcesGetResponse"
 SourcesSetResponse.__module__ = "dokime_sdk.client"
@@ -1745,6 +1746,7 @@ __all__ = [
     "HealthEventsListResponse",
     "HealthEventsWatchResponse",
     "HealthItem",
+    "HostBuild",
     "HostCardBlock",
     "HostCardBlockKind",
     "HostCardBody",
@@ -1913,8 +1915,6 @@ __all__ = [
     "SourcesGetResponse",
     "SourcesSetResponse",
     "StatisticValue",
-    "StatusGetResponse",
-    "StatusWatchResponse",
     "StepCriterion",
     "StepStatus",
     "StorageSource",

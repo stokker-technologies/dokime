@@ -248,7 +248,8 @@ after callers stop using `harmos_protocol::host` paths; Harmos payload values th
 The client inventory below is locked for the main-line pin declared in
 `Cargo.toml` at `workspace.dependencies.harmos.rev`. Declarations live under
 `proto/dokime/host/v1`; each wrapper retains its existing SDK resource and method
-name, declares CLIENTS explicitly and reuses the unchanged library messages.
+name, declares CLIENTS explicitly and reuses the unchanged library messages,
+except the product Status responses that add the host build (below).
 The handler registration uses `ProtobufOperation::service()` with the product
 service descriptor, because the payload descriptor belongs to the library.
 Declarations and generated projections do not establish handler implementation.
@@ -279,8 +280,9 @@ Generated methods without an authored caller are not evidence of use.
 | `dokime.host.v1.access.Pairings/List` | CLIENTS | `harmos.host.v1.access.PairingsListRequest` | `harmos.host.v1.access.PairingsListResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
 | `dokime.host.v1.access.Pairings/Delete` | CLIENTS | `harmos.host.v1.access.PairingsDeleteRequest` | `harmos.host.v1.access.PairingsDeleteResponse` | Desktop pairing export; CLI export/revoke; remote-access story |
 | `dokime.host.v1.access.Certificates/Create` | CLIENTS | `harmos.host.v1.access.CertificatesCreateRequest` | `harmos.host.v1.access.CertificatesCreateResponse` | Desktop certificate regeneration |
-| `dokime.host.v1.Status/Get` | CLIENTS | `harmos.host.v1.StatusGetRequest` | `harmos.host.v1.StatusGetResponse` | Desktop/CLI/four SDK connection readiness; runtime status stories |
-| `dokime.host.v1.Status/Watch` | CLIENTS | `harmos.host.v1.StatusWatchRequest` | `harmos.host.v1.StatusWatchResponse` (stream) | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.Status/Get` | CLIENTS | `harmos.host.v1.StatusGetRequest` | `dokime.host.v1.StatusGetResponse` | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.Status/Watch` | CLIENTS | `harmos.host.v1.StatusWatchRequest` | `dokime.host.v1.StatusWatchResponse` (stream) | Desktop/CLI/four SDK connection readiness; runtime status stories |
+| `dokime.host.v1.status.Logs/List` | CLIENTS | `harmos.host.v1.status.LogsListRequest` | `harmos.host.v1.status.LogsListResponse` | Desktop report-save and screenshot journeys page retained logs |
 | `dokime.host.v1.status.Logs/Watch` | CLIENTS | `harmos.host.v1.status.LogsWatchRequest` | `harmos.host.v1.status.LogsWatchResponse` (stream) | Runtime diagnostics story; C++ client-read story |
 | `dokime.host.v1.status.TraceEvents/List` | CLIENTS | `harmos.host.v1.status.TraceEventsListRequest` | `harmos.host.v1.status.TraceEventsListResponse` | Desktop log adapter; runtime diagnostics story |
 | `dokime.host.v1.status.TraceEvents/Watch` | CLIENTS | `harmos.host.v1.status.TraceEventsWatchRequest` | `harmos.host.v1.status.TraceEventsWatchResponse` (stream) | Desktop log adapter; runtime diagnostics story |
@@ -289,12 +291,28 @@ Generated methods without an authored caller are not evidence of use.
 | `dokime.host.v1.Operations/Get` | CLIENTS | `harmos.host.v1.OperationsGetRequest` | `harmos.host.v1.OperationsGetResponse` | Desktop discovery; CLI operation commands; SDK bound operations |
 | `dokime.host.v1.Invocations/Create` | CLIENTS | `harmos.host.v1.InvocationsCreateRequest` | `harmos.host.v1.InvocationsCreateResponse` | CLI and Python/C#/C++ bound operation calls |
 
-This is 15 methods across nine services: Listener 2, Pairings 3, Certificates 1,
-Status 2, Logs 1, TraceEvents 2, Diagnostics 1, Operations 2 and Invocations 1.
-The prior candidate table overstated Logs.List, Invocations.Get/Cancel/Watch,
+This is 16 methods across nine services: Listener 2, Pairings 3, Certificates 1,
+Status 2, Logs 2, TraceEvents 2, Diagnostics 1, Operations 2 and Invocations 1.
+Logs.List was added on 2026-11-20 (owner decision): the client keeps a way to read
+retained logs, because Logs.Watch opens at a boundary and emits only later events
+without a snapshot; it delegates to the library's in-process `LogsList`.
+
+Status Get/Watch answer with product responses (owner decision, 2026-11-20): a
+client identifies the build of the host it talks to. `dokime.host.v1.StatusGetResponse`
+and `StatusWatchResponse` keep the library `HostStatus` at field 1 and the issued
+`Position` at field 2, so their wire prefix matches the library responses, and add
+`HostBuild build = 3` with `source_revision` (full commit, `-dirty` suffix, or
+`unknown`) and `channel` (`release`, `nightly`, empty for local). The values come
+from the single build-identity derivation in `crates/build_identity.rs`, emitted by
+the runtime build script; the semantic version stays in
+`HostIdentity.application_version`. Requests and the health payload stay library
+messages. The library status message has no product extension point, so the
+product response wraps it rather than editing the vendored `harmos.host.v1.HostIdentity`.
+
+The prior candidate table overstated Invocations.Get/Cancel/Watch,
 Schemas.List and Streams.List: no authored product client calls them, so they
 are not wrapped. Time.Get/Sleep are plugin context calls only and are not
-client wrappers. Pairings.List, Status.Watch and Logs.Watch have real product
+client wrappers. Pairings.List, Status.Watch, Logs.List and Logs.Watch have real product
 story callers even where the interactive applications do not call them.
 No used generic method was missing from the candidate table.
 
@@ -337,7 +355,7 @@ separate existing product preference resource, unchanged by this inventory.
 | `dokime.host.v1.plugins.Settings/List` | CLIENTS | `dokime.host.v1.plugins.SettingsListRequest` | `dokime.host.v1.plugins.SettingsListResponse` | Desktop generated dispatch; client_edits_settings.rs reads/reopens; SDK plugin contexts use the separate own-settings facility |
 | `dokime.host.v1.plugins.Settings/Set` | CLIENTS | `dokime.host.v1.plugins.SettingsSetRequest` | `dokime.host.v1.plugins.SettingsSetResponse` | Desktop generated dispatch; client_edits_settings.rs complete conditional replacement/replay |
 
-This adds ten product policy operations beside the 15 generic wrappers, not ten
+This adds ten product policy operations beside the 16 generic wrappers, not ten
 facade-forwarding wrappers. `crates/dokime-client-internal/src/lib.rs` currently
 gets its plugin resources from the library Client; migrate it to these product
 resources. SDK registration owners are Rust `client/handles.rs`, Python

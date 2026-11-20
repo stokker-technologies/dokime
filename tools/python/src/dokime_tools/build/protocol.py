@@ -64,8 +64,7 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
         "find_package(gRPC CONFIG REQUIRED)\n"
         "find_package(OpenSSL REQUIRED)\n"
         "include(FetchContent)\n"
-        "set(HARMOS_BUILD_TESTS ${DOKIME_BUILD_TESTS})\n"
-        "# The Pinned Library Owns Its Internal Wire Headers and Generated Context.\n"
+        "# The Pinned Library Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.\n"
         "FetchContent_Declare(harmos\n"
         f"  URL {url}\n"
         f"  URL_HASH SHA256={checksum}\n"
@@ -186,7 +185,8 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
             exports.read_text().replace(
                 "pub use",
                 '#[allow(unused_imports, reason = "The Shared Generator Emits the Complete Internal Host Inventory")]\npub(crate) use',
-            )
+            ),
+            newline="\n",
         )
         barrels = {
             Path("sdk/python/src/dokime_sdk/__init__.py"),

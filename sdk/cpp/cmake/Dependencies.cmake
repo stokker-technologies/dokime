@@ -3,8 +3,7 @@ find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 include(FetchContent)
-set(HARMOS_BUILD_TESTS ${DOKIME_BUILD_TESTS})
-# The Pinned Library Owns Its Internal Wire Headers and Generated Context.
+# The Pinned Library Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.
 FetchContent_Declare(harmos
   URL https://github.com/stokker-technologies/harmos/archive/18e9b41cb0dd00e27020ee3120e5c973d82eec22.tar.gz
   URL_HASH SHA256=d707f61d3d77451cad0fce7f87579bc5a0b90c0035e881c8034f379c2465bb18

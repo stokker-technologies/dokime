@@ -396,6 +396,32 @@ pub mod logs_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
+        pub async fn list(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                ::harmos_protocol::host::status::LogsListRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<::harmos_protocol::host::status::LogsListResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/dokime.host.v1.status.Logs/List",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("dokime.host.v1.status.Logs", "List"));
+            self.inner.unary(req, path, codec).await
+        }
         pub async fn watch(
             &mut self,
             request: impl tonic::IntoRequest<
@@ -441,6 +467,13 @@ pub mod logs_server {
     /// Generated trait containing gRPC methods that should be implemented for use with LogsServer.
     #[async_trait]
     pub trait Logs: std::marker::Send + std::marker::Sync + 'static {
+        async fn list(
+            &self,
+            request: tonic::Request<::harmos_protocol::host::status::LogsListRequest>,
+        ) -> std::result::Result<
+            tonic::Response<::harmos_protocol::host::status::LogsListResponse>,
+            tonic::Status,
+        >;
         /// Server streaming response type for the Watch method.
         type WatchStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<
@@ -531,6 +564,54 @@ pub mod logs_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
+                "/dokime.host.v1.status.Logs/List" => {
+                    #[allow(non_camel_case_types)]
+                    struct ListSvc<T: Logs>(pub Arc<T>);
+                    impl<
+                        T: Logs,
+                    > tonic::server::UnaryService<
+                        ::harmos_protocol::host::status::LogsListRequest,
+                    > for ListSvc<T> {
+                        type Response = ::harmos_protocol::host::status::LogsListResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                ::harmos_protocol::host::status::LogsListRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Logs>::list(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ListSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/dokime.host.v1.status.Logs/Watch" => {
                     #[allow(non_camel_case_types)]
                     struct WatchSvc<T: Logs>(pub Arc<T>);

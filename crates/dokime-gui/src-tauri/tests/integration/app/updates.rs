@@ -18,11 +18,11 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_gui::testing::policy::Source;
+use dokime_gui::testing::policy::{Mode, UpdatePolicy};
 #[cfg(feature = "updater")]
 use dokime_gui::testing::update_client;
-use dokime_gui::testing::update_policy::Source;
-use dokime_gui::testing::update_policy::{Mode, UpdatePolicy};
-use dokime_gui::testing::{UpdateProbe, UpdateSelection as Selection};
+use dokime_gui::testing::{UpdateProbe, UpdateSelection};
 #[cfg(feature = "updater")]
 use std::{sync::Arc, time::Duration};
 #[cfg(feature = "updater")]
@@ -124,12 +124,12 @@ fn downloaded_update_rejects_signature_with_compiled_trust() {
 #[test]
 fn invalid_selection_preserves_saved_policy_and_switching_invalidates_review() {
     let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("selection.json");
+    let path = root.path().join("settings.json");
     let mut policy = UpdatePolicy::default();
     policy.sources.insert("public".into(), Source::Github { repository: "example/product".into() });
     let state = UpdateProbe::new(path.clone(), policy);
     state
-        .configure(Selection {
+        .configure(UpdateSelection {
             mode: Mode::Manual,
             source: Some("public".into()),
         })
@@ -138,7 +138,7 @@ fn invalid_selection_preserves_saved_policy_and_switching_invalidates_review() {
     let generation = state.generation().unwrap();
     assert!(
         state
-            .configure(Selection {
+            .configure(UpdateSelection {
                 mode: Mode::AutomaticCheck,
                 source: Some("missing".into())
             })
@@ -147,7 +147,7 @@ fn invalid_selection_preserves_saved_policy_and_switching_invalidates_review() {
     assert_eq!(std::fs::read(&path).unwrap(), saved);
     assert_eq!(state.generation().unwrap(), generation);
 
-    state.configure(Selection { mode: Mode::Disabled, source: None }).unwrap();
+    state.configure(UpdateSelection { mode: Mode::Disabled, source: None }).unwrap();
     assert_eq!(state.status().unwrap().mode, Mode::Disabled);
     assert_ne!(state.generation().unwrap(), generation);
     assert!(state.status().unwrap().last_check.is_none());

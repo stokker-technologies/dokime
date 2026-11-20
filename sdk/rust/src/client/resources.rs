@@ -142,6 +142,8 @@ use dokime_protocol::host::SecretsWatchResponse;
 use dokime_protocol::host::SelectionPlan;
 use dokime_protocol::host::SettingsSchemaRequest;
 use dokime_protocol::host::SettingsSchemaResponse;
+use dokime_protocol::host::StatusGetResponse;
+use dokime_protocol::host::StatusWatchResponse;
 use dokime_protocol::host::StreamSchemasGetRequest;
 use dokime_protocol::host::StreamSchemasGetResponse;
 use dokime_protocol::host::StreamSchemasListRequest;
@@ -261,9 +263,7 @@ use harmos_protocol::host::OperationsGetResponse;
 use harmos_protocol::host::OperationsListRequest;
 use harmos_protocol::host::OperationsListResponse;
 use harmos_protocol::host::StatusGetRequest;
-use harmos_protocol::host::StatusGetResponse;
 use harmos_protocol::host::StatusWatchRequest;
-use harmos_protocol::host::StatusWatchResponse;
 use harmos_protocol::host::access::CertificatesCreateRequest;
 use harmos_protocol::host::access::CertificatesCreateResponse;
 use harmos_protocol::host::access::ListenerGetRequest;
@@ -279,6 +279,8 @@ use harmos_protocol::host::access::PairingsListRequest;
 use harmos_protocol::host::access::PairingsListResponse;
 use harmos_protocol::host::status::DiagnosticsGetRequest;
 use harmos_protocol::host::status::DiagnosticsGetResponse;
+use harmos_protocol::host::status::LogsListRequest;
+use harmos_protocol::host::status::LogsListResponse;
 use harmos_protocol::host::status::LogsWatchRequest;
 use harmos_protocol::host::status::LogsWatchResponse;
 use harmos_protocol::host::status::TraceEventsListRequest;
@@ -2333,6 +2335,24 @@ pub struct StatusDiagnosticsGetOptions {
 impl Clone for StatusDiagnosticsGetOptions {
     fn clone(&self) -> Self {
         Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct StatusLogsListOptions {
+    pub at: Option<Position>,
+    pub page: Option<PageRequest>,
+    pub context: CallOptions,
+}
+impl Clone for StatusLogsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -5881,6 +5901,24 @@ pub struct StatusLogs {
 impl StatusLogs {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
+    }
+    pub async fn list(&self) -> Result<LogsListResponse, tonic::Status> {
+        self.list_with(StatusLogsListOptions::default()).await
+    }
+    pub async fn list_with(&self, options: StatusLogsListOptions) -> Result<LogsListResponse, tonic::Status> {
+        let value = LogsListRequest { at: options.at, page: options.page };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<LogsListRequest, LogsListResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.status.Logs/List"),
+                request,
+                LogsListResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("status.logs.list", error))?;
+        let response = response.into_inner();
+        Ok(response)
     }
     pub async fn watch(&self, max_bytes: u64, max_events: u32) -> Result<Watching<LogsWatchResponse>, tonic::Status> {
         self.watch_with(max_bytes, max_events, StatusLogsWatchOptions::default()).await

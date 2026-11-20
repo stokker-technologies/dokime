@@ -113,11 +113,11 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
     });
   }
 
+  const emptyCycle = entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0;
+
   return (
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
-        {query.isPending ? <p>Loading Executions…</p> : null}
-        {query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
           <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
             History is incomplete. Some executions may be unavailable.
@@ -143,6 +143,10 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         ) : null}
         <DataTable
           aria-label="History Executions"
+          title="Executions"
+          description={emptyCycle ? "This sealed cycle contains no executions." : "Executions retained in this history entry."}
+          loading={query.isPending}
+          failure={query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
           data={entry?.executions ?? []}
           getRowId={(execution) => execution.metadata.execution_id}
           emptyText="No Executions in the Loaded History"
@@ -188,10 +192,6 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
             {unrunCaption(entry.unrun_count)}
           </p>
         ) : null}
-        {entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0 ? (
-          <p>This sealed cycle contains no executions.</p>
-        ) : null}
-        {!query.isPending && !query.isError && !entry && !unrun ? <p>No executions found in the loaded history.</p> : null}
         {query.hasNextPage ? (
           <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
             {query.isFetchingNextPage ? "Loading…" : "Load More History"}

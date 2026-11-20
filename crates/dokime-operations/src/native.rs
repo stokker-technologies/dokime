@@ -212,6 +212,7 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
         (factory::<crate::wrappers::CertificatesCreate>, settings.mutation_timeout),
         (factory::<crate::wrappers::StatusGet>, settings.read_timeout),
         (factory::<crate::wrappers::StatusWatch>, settings.watch_timeout),
+        (factory::<crate::wrappers::LogsList>, settings.read_timeout),
         (factory::<crate::wrappers::LogsWatch>, settings.watch_timeout),
         (factory::<crate::wrappers::TraceEventsList>, settings.read_timeout),
         (factory::<crate::wrappers::TraceEventsWatch>, settings.watch_timeout),

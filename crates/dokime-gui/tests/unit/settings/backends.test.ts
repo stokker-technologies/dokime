@@ -22,6 +22,7 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
+import { DataTable } from "@/components/data-table/DataTable";
 import { ErrorCard } from "@/components/ErrorCard";
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
@@ -264,6 +265,7 @@ type TestElementProps = {
   children?: ReactNode;
   actions?: ReactNode;
   failure?: unknown;
+  loading?: boolean;
   onRetry?: () => void;
   notificationContext?: string;
   retry?: (profile: string | null) => void;
@@ -280,10 +282,11 @@ function descendants(node: unknown): ReactElement<TestElementProps>[] {
   return [node, ...Children.toArray(node.props.children).flatMap(descendants)];
 }
 
-test("Backend Loading Stays in the Status Indicator", () => {
-  const contents = descendants(BackendsTable());
-  assert.equal(contents.filter((element) => element.props.role === "status").length, 1);
-  assert.equal(contents.filter((element) => element.type === ErrorCard).length, 0);
+test("Backend Loading Stays in the Table's Status Slot", () => {
+  const table = descendants(BackendsTable()).find((element) => element.type === DataTable);
+  assert.ok(table);
+  assert.equal(table.props.loading, true);
+  assert.equal(table.props.failure, undefined);
 });
 
 test("Occupied Local Remains Usable", async () => {
@@ -351,7 +354,10 @@ test("Readiness Separates Status History from the Product Execution Epoch", asyn
 
 test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
   const error = new Error("bench_connection");
-  const contents = descendants(BackendsTable({ failure: error }));
+  const table = descendants(BackendsTable({ failure: error })).find((element) => element.type === DataTable);
+  assert.ok(table);
+  assert.equal(table.props.loading, false);
+  const contents = descendants(table.props.failure);
   const cards = contents.filter((element) => element.type === ErrorCard);
   assert.equal(cards.length, 1);
   const failure = cards[0].props.failure;
@@ -362,7 +368,11 @@ test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
 
 test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
   const endpoint = "http://127.0.0.1:8765";
-  const contents = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint }));
+  const table = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint })).find(
+    (element) => element.type === DataTable,
+  );
+  assert.ok(table);
+  const contents = descendants(table.props.failure);
   assert.equal(contents.filter((element) => element.type === ErrorCard).length, 1);
   assert.ok(contents.some((element) => element.type === "p" && element.props.children === endpoint));
 });
