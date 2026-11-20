@@ -8,7 +8,7 @@
  */
 
 /**
- * Inspect And Copy Complete Notification Context
+ * Inspect and Copy Complete Notification Context
  */
 
 /* === Imports === */

@@ -109,7 +109,7 @@ function VerificationPromptDialog({ emergencyAction, prompt }: { emergencyAction
           <LoaderCircle className="animate-spin" size={18} />
         </div>
         <div className="grid min-w-0 gap-1">
-          <p className="text-xs font-bold uppercase text-destructive">Waiting For Verification</p>
+          <p className="text-xs font-bold uppercase text-destructive">Waiting for Verification</p>
           <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
             {prompt.title}
           </strong>
