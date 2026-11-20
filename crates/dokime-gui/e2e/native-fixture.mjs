@@ -227,12 +227,12 @@ async function startBackendMeasured(
     await writeFile(join(evidence, `${label}-readiness.json`), JSON.stringify({ ...readiness, elapsedMs: Date.now() - readyStarted }));
   }
   for (const executable of launchPlugin ? plugins : []) {
-    const plugin = spawn(executable, ["--remote"], {
+    const plugin = spawn(credentialHost, ["--launch-plugin", executable], {
       cwd: work,
       env: { ...process.env, ...scratchEnvironment },
       windowsHide: true,
       detached: !windows,
-      stdio: ["ignore", "pipe", "inherit"],
+      stdio: ["pipe", "pipe", "inherit"],
     });
     backend.plugins.push(plugin);
     const lines = createInterface({ input: plugin.stdout });
@@ -242,13 +242,12 @@ async function startBackendMeasured(
         throw new Error(`Start SDK Fixture: Plugin Exited with ${code}`);
       }),
     ]);
-    assert.ok(announced.startsWith("harmos listening "), "SDK fixture announces its bound endpoint");
+    assert.equal(new URL(announced).protocol, "http:", "The native launch owner returns the plugin endpoint");
     lines.on("line", () => {});
-    await executeFile(
-      cliBinary,
-      ["--endpoint", backend.endpoint, "plugin", "register", `http://${announced.slice("harmos listening ".length)}`],
-      { windowsHide: true, timeout: WAIT_MS },
-    );
+    await executeFile(cliBinary, ["--endpoint", backend.endpoint, "plugin", "register", announced], {
+      windowsHide: true,
+      timeout: WAIT_MS,
+    });
   }
   return backend;
 }

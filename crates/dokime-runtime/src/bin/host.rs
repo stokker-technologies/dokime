@@ -18,7 +18,8 @@
 // Standard Library Imports
 use std::error::Error;
 use std::{
-    io::Write,
+    env, fs,
+    io::{self, Write},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -27,12 +28,14 @@ use std::{
 
 // Third Party Imports
 use prost::Message;
-use tokio::io::AsyncReadExt;
-use tracing::instrument::WithSubscriber;
+use tokio::io::{AsyncReadExt, stdin};
+use tracing::{instrument::WithSubscriber, level_filters::LevelFilter};
+use tracing_subscriber::{EnvFilter, prelude::*};
 
 // Local Imports
 use dokime_runtime::{
-    ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
+    CaptureSettings, ControlledClock, CredentialNamespace, Host, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings,
+    PluginProcess, SchedulerClock,
     services::{self, ClientSettings, WallClock},
 };
 
@@ -58,21 +61,23 @@ use dokime_storage::StoredExecutionFile;
 
 // Admissions and flush commits briefly hold the store's blocking locks; worker threads keep
 // plugin transport, clients and the flush timer running meanwhile, and connections decode in parallel.
-#[tokio::main(flavor = "multi_thread")]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut arguments = std::env::args().skip(1);
+    let mut arguments = env::args().skip(1);
     let mut endpoint = None;
     let mut root = None;
+    let mut plugin = None;
     let mut controlled = false;
     let mut remove_credentials = false;
     let mut execution_files = Vec::new();
-    let mut capture = dokime_runtime::CaptureSettings::default();
+    let mut capture = CaptureSettings::default();
     let mut environment = None;
-    let mut credentials = dokime_runtime::CredentialNamespace::default();
+    let mut credentials = CredentialNamespace::default();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--endpoint" => endpoint = Some(arguments.next().ok_or("Start Host: Supply --endpoint HOST:PORT")?.parse()?),
             "--storage" => root = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --storage PATH")?)),
+            "--launch-plugin" => plugin = Some(PathBuf::from(arguments.next().ok_or("Start Plugin: Supply --launch-plugin PATH")?)),
             "--controlled-clock" => controlled = true,
             "--capture-root" => capture.roots.push(PathBuf::from(arguments.next().ok_or("Start Host: Supply --capture-root PATH")?)),
             "--remove-credentials" => remove_credentials = true,
@@ -80,21 +85,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 execution_files.push(PathBuf::from(arguments.next().ok_or("Register Execution File: Supply Its Encoded Metadata Path")?))
             }
             "--credential-namespace" => {
-                credentials =
-                    dokime_runtime::CredentialNamespace::new(arguments.next().ok_or("Start Host: Supply --credential-namespace NAME")?)?
+                credentials = CredentialNamespace::new(arguments.next().ok_or("Start Host: Supply --credential-namespace NAME")?)?
             }
             "--env-file" => environment = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --env-file PATH")?)),
             _ => return Err(format!("Start Host: Unknown Argument {argument}").into()),
         }
     }
-    let root = root.ok_or("Start Host: Supply --storage PATH")?;
     // Resolve Every Environment Read Before the Host Starts; Process Variables Take Precedence.
     let file = environment.as_deref().map(log_directives).transpose()?.flatten();
-    let directives = std::env::var("RUST_LOG").ok().or(file).unwrap_or_default();
-    let filter = tracing_subscriber::EnvFilter::builder()
-        .with_default_directive(tracing::level_filters::LevelFilter::INFO.into())
-        .parse(directives)?;
+    let directives = env::var("RUST_LOG").ok().or(file).unwrap_or_default();
+    let filter = EnvFilter::builder().with_default_directive(LevelFilter::INFO.into()).parse(directives)?;
     if remove_credentials {
+        let root = root.ok_or("Remove Credentials: Supply --storage PATH")?;
         services::remove_credentials(&root, &credentials)?;
         return Ok(());
     }
@@ -107,8 +109,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         placement: PlacementSettings {
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
-            interval_window: dokime_runtime::INTERVAL_WINDOW,
-            interval_lag: dokime_runtime::INTERVAL_LAG,
+            interval_window: INTERVAL_WINDOW,
+            interval_lag: INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
         capture,
@@ -122,10 +124,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         message_bytes: 4 * 1024 * 1024,
         stream_buffer: 8,
     };
+    if let Some(executable) = plugin {
+        let mut plugin = PluginProcess::start(&executable, true, &host_settings.placement).await?;
+        println!("{}", plugin.endpoint());
+        io::stdout().flush()?;
+        let mut input = [0u8; 1];
+        while stdin().read(&mut input).await? != 0 {}
+        plugin.close().await?;
+        return Ok(());
+    }
+    let root = root.ok_or("Start Host: Supply --storage PATH")?;
     if !execution_files.is_empty() {
-        let host = dokime_runtime::Host::open(&root, host_settings, settings).await?;
+        let host = Host::open(&root, host_settings, settings).await?;
         for path in execution_files {
-            let bytes = std::fs::read(path)?;
+            let bytes = fs::read(path)?;
             let stored = StoredExecutionFile::decode(bytes.as_slice())?;
             let file = stored.file.ok_or("Register Execution File: Supply Its Native File Reference")?;
             let execution = file
@@ -142,28 +154,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
     let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
-    use tracing_subscriber::prelude::*;
     // Startup Failures Reach Standard Error With Their Cause Before the Status Layer Exists.
-    let startup = tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr).with_filter(tracing::level_filters::LevelFilter::ERROR));
+    let startup =
+        tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_writer(io::stderr).with_filter(LevelFilter::ERROR));
     let server = services::serve(endpoint, &root, host_settings, settings).with_subscriber(startup).await?;
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(filter).with(server.status().layer()))?;
     tracing::info!("Execution Host Is Ready");
     println!("http://{}", server.endpoint());
-    std::io::stdout().flush()?;
+    io::stdout().flush()?;
     let mut input = [0u8; 1];
-    while tokio::io::stdin().read(&mut input).await? != 0 {}
+    while stdin().read(&mut input).await? != 0 {}
     server.close().await?;
     Ok(())
 }
 
 // The Host Reads Only RUST_LOG; Any Other Variable in the Explicit File Is Refused.
 fn log_directives(path: &Path) -> Result<Option<String>, Box<dyn Error>> {
-    if std::fs::metadata(path)?.len() > 1024 * 1024 {
+    if fs::metadata(path)?.len() > 1024 * 1024 {
         return Err(format!("Read Environment File {}: Select a File of at Most 1 MiB", path.display()).into());
     }
     let mut directives = None;
-    for (index, line) in std::fs::read_to_string(path)?.lines().enumerate() {
+    for (index, line) in fs::read_to_string(path)?.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;

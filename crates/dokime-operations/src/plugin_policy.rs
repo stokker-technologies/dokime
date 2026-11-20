@@ -511,15 +511,17 @@ pub fn offline(entry: &host::PluginEntry) -> bool {
 /// Refuse a Registered Plugin Built Against a Product SDK This Host Cannot Serve.
 fn compatible(plugin: &str, sdk_version: &str, host_version: &str) -> Result<(), ServingError> {
     let refuse = |message: String, action: String| {
-        ServingError::Handler(Failure {
-            classification: Classification::Permanent as i32,
-            code: "plugin_incompatible".into(),
-            message,
-            action,
-            plugin: plugin.into(),
-            ..Default::default()
-        }
-        .into())
+        ServingError::Handler(
+            Failure {
+                classification: Classification::Permanent as i32,
+                code: "plugin_incompatible".into(),
+                message,
+                action,
+                plugin: plugin.into(),
+                ..Default::default()
+            }
+            .into(),
+        )
     };
     let built = Version::parse(sdk_version).map_err(|_| {
         refuse(

@@ -36,8 +36,8 @@ use std::process::Stdio;
 // Third Party Imports
 use dokime_protocol::host::{PluginEntry, PluginState};
 use harmos_protocol::model::{ReadCut, StorageTransferSettings};
-use sha2::{Digest, Sha256};
 use harmos_runtime::plugin::grpc::Launches;
+use sha2::{Digest, Sha256};
 use tokio::process::Child;
 use tokio::process::Command;
 
@@ -101,7 +101,9 @@ impl PythonPlugin {
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
             .spawn()?;
-        let url = format!("http://{}", launch.announced().await?);
+        let address = launch.announced().await?;
+        launches.shutdown().await;
+        let url = format!("http://{address}");
         Ok(Self { child, url })
     }
     pub async fn close(mut self) -> Result<(), Box<dyn Error>> {

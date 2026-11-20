@@ -130,7 +130,8 @@ impl PluginProcess {
         };
         // The Library's Launch Credentials Make the Plugin Announce Its Bound Listener.
         let launches = Launches::new();
-        let mut launch = launches.reserve(command.get_program().to_string_lossy()).await.map_err(|source| Error::Invalid(source.to_string()))?;
+        let mut launch =
+            launches.reserve(command.get_program().to_string_lossy()).await.map_err(|source| Error::Invalid(source.to_string()))?;
         command.envs(environment.iter().cloned());
         command.envs(launch.environment());
         command.env_remove("UV_PROJECT_ENVIRONMENT");
@@ -151,14 +152,16 @@ impl PluginProcess {
                 time::sleep(PROCESS_POLL_INTERVAL).await;
             }
         };
-        let address = time::timeout(PLUGINS_TIMEOUT, async {
+        let announced = time::timeout(PLUGINS_TIMEOUT, async {
             tokio::select! {
                 address = launch.announced() => address.map_err(|source| Error::Invalid(format!("Start Plugin: {source}"))),
                 status = exited => Err(Error::Invalid(format!("Start Plugin: It Exited With {}; Check Its Startup Logs", status?))),
             }
         })
-        .await
-        .map_err(|_| Error::Invalid("Start Plugin: It Did Not Announce Its Listener; Check Its Startup Logs".into()))??;
+        .await;
+        launches.shutdown().await;
+        let address =
+            announced.map_err(|_| Error::Invalid("Start Plugin: It Did Not Announce Its Listener; Check Its Startup Logs".into()))??;
         Ok(Self {
             endpoint: format!("http://{address}"),
             child,
@@ -266,10 +269,7 @@ pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Re
 pub fn plugin_settings() -> GrpcPluginSettings {
     let mut policy = GrpcPluginPolicy::default();
     policy.load.timeout = PLUGINS_TIMEOUT;
-    GrpcPluginSettings {
-        policy,
-        ..Default::default()
-    }
+    GrpcPluginSettings { policy, ..Default::default() }
 }
 
 /* === Private Functions === */

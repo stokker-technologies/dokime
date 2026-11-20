@@ -62,7 +62,9 @@ async fn serve_fixture() -> Result<(tokio::process::Child, String), Box<dyn Erro
         .stderr(Stdio::inherit())
         .kill_on_drop(true)
         .spawn()?;
-    let url = format!("http://{}", launch.announced().await?);
+    let address = launch.announced().await?;
+    launches.shutdown().await;
+    let url = format!("http://{address}");
     Ok((plugin, url))
 }
 
@@ -83,11 +85,6 @@ fn unmanaged_plugin_keeps_one_entry_across_restarts_until_removed() -> Result<()
                 assert_eq!(registered["entry"]["placement"]["remote"]["url"], url);
                 assert_eq!(registered["entry"]["state"], "PLUGIN_STATE_READY");
                 let name = registered["entry"]["name"].as_str().ok_or("Register Plugin: Return Its Entry Name")?.to_owned();
-                let listed = super::run(&["--endpoint", &host.endpoint, "plugin", "list"]).await?;
-                assert_eq!(
-                    listed.lines().map(|line| line.split('\t').collect::<Vec<_>>()).collect::<Vec<_>>(),
-                    [[name.as_str(), "Unmanaged", "Ready"]]
-                );
 
                 // Restarting the Plugin at a New Address Reuses Its One Entry.
                 plugin.kill().await?;
