@@ -49,17 +49,10 @@ def build(profile: str, language: str = "rust") -> None:
     root = configuration.ROOT
     extension = ".exe" if os.name == "nt" else ""
 
-    # Build the CLI Through the Project Task.
-    subprocess.run(
-        ["mise", "run", "build", "--", "--package", "dokime-cli"],
-        cwd=root,
-        check=True,
-        creationflags=spawn_flags(),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-    cli = root / "target/debug" / f"dokime{extension}"
+    # Use the Command-Line Tool From the Matching Product Build.
+    cli = paths.output(root, "build", profile) / "bin" / f"dokime{extension}"
+    if not cli.is_file():
+        raise ValueError(f"Build CLI Fixtures: Run build:product --profile {profile} or Download Its build-cli Artifact: {cli}")
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
     # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.

@@ -59,7 +59,7 @@ class ImpactTests(unittest.TestCase):
         python = {"check", "build_product", "build_tests", "build_python", "build_docs", "check_generated", "test", "package"}
         gui = {"check", "build_product", "build_tests", "build_python", "build_docs", "test", "package"}
         rust_tests = {"check", "build_product", "build_tests", "build_python", "test", "build_host_fixtures_csharp", "test_host_csharp"}
-        csharp = {"check", "test", "build_docs", "build_tests", "build_host_fixtures_csharp", "test_host_csharp"}
+        csharp = {"check", "test", "build_docs", "build_product", "build_tests", "build_host_fixtures_csharp", "test_host_csharp"}
         cpp = {"check", "test", "build_docs"}
         cases = (
             (["README.md"], {"build_docs"}),

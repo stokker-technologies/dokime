@@ -57,6 +57,8 @@ class HostFixtureTests(unittest.TestCase):
                 executable.write_bytes(b"prepared plugin")
                 executable.chmod(0o755)
                 output = root / "target/build/dev/native"
+                (output / "bin").mkdir(parents=True)
+                (output / "bin" / f"dokime{extension}").write_bytes(b"product cli")
 
                 def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
                     if command[1] == "new":
@@ -145,7 +147,8 @@ class HostFixtureTests(unittest.TestCase):
             with (
                 patch.object(desktop_fixtures.configuration, "ROOT", Path(temporary)),
                 patch.object(desktop_fixtures.paths, "target", return_value="windows-x86_64"),
-                patch.object(desktop_fixtures.subprocess, "run", side_effect=[subprocess.CompletedProcess(["mise"], 0), refusal]),
+                patch.object(desktop_fixtures.subprocess, "run", return_value=refusal),
+                patch.object(Path, "is_file", return_value=True),
                 patch.object(desktop_fixtures.shutil, "copy2"),
                 patch.object(desktop_fixtures.sys, "stderr", new_callable=io.StringIO) as stderr,
                 self.assertRaises(subprocess.CalledProcessError) as failure,
@@ -169,6 +172,11 @@ class HostFixtureTests(unittest.TestCase):
                 fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
                 fixture.parent.mkdir(parents=True)
                 fixture.write_bytes(b"fixture source")
+                product = paths.output(root, "build", "release") / "bin"
+                product.mkdir(parents=True)
+                extension = ".exe" if os.name == "nt" else ""
+                for name in ("dokime-host", "plugin-obc"):
+                    (product / f"{name}{extension}").write_bytes(b"product")
                 with (
                     self.subTest(language=language),
                     patch.object(host_fixtures.configuration, "ROOT", root),
@@ -233,6 +241,11 @@ class HostFixtureTests(unittest.TestCase):
             (output / "fixture").write_bytes(b"fixture")
             stamp = output.parent / "stamp.json"
             stamp.write_text('{"files":{"existing":"digest"},"metadata":{"owner":"tests"}}')
+            product = output.parents[1] / "bin"
+            product.mkdir()
+            extension = ".exe" if os.name == "nt" else ""
+            for name in ("dokime-host", "plugin-obc"):
+                (product / f"{name}{extension}").write_bytes(b"product")
             with (
                 patch.object(host_fixtures.configuration, "ROOT", root),
                 patch.object(host_fixtures.generated, "prepare"),
@@ -287,8 +300,8 @@ class HostFixtureTests(unittest.TestCase):
             temporary_directory = tempfile.TemporaryDirectory()
             try:
                 root = Path(temporary_directory.name)
-                for compiler_profile in ("debug", "release"):
-                    executable = root / "target" / compiler_profile / f"dokime{extension}"
+                for compiler_profile in ("dev", "release"):
+                    executable = paths.output(root, "build", compiler_profile) / "bin" / f"dokime{extension}"
                     executable.parent.mkdir(parents=True)
                     executable.write_bytes(compiler_profile.encode())
                 output = paths.output(root, "build", profile)
@@ -296,6 +309,7 @@ class HostFixtureTests(unittest.TestCase):
                 fixtures.mkdir(parents=True)
                 for name in ("dokime-rust-thermal", "plugin-obc"):
                     (fixtures / f"{name}{extension}").write_bytes(b"plugin")
+                (output / "bin/plugin-obc.dokime").write_bytes(b"product bundle")
                 with (
                     self.subTest(profile=profile),
                     patch.object(desktop_fixtures.configuration, "ROOT", root),
@@ -303,11 +317,12 @@ class HostFixtureTests(unittest.TestCase):
                     patch.object(desktop_fixtures.archive, "stamp"),
                 ):
                     desktop_fixtures.build(profile)
-                    selected = "debug" if profile == "dev" else profile
-                    self.assertEqual((output / "fixtures/desktop" / f"dokime{extension}").read_bytes(), selected.encode())
-                    self.assertEqual(run.call_args_list[0].args[0][-2:], ["--profile", profile])
-                    (root / "target" / selected / f"dokime{extension}").unlink()
-                    self.assertRaises(FileNotFoundError, desktop_fixtures.build, profile)
+                    self.assertEqual((output / "fixtures/desktop" / f"dokime{extension}").read_bytes(), profile.encode())
+                    self.assertEqual((output / "fixtures/desktop/plugin-obc.dokime").read_bytes(), b"product bundle")
+                    self.assertEqual(len(run.call_args_list), 1)
+                    self.assertEqual(run.call_args.args[0][0], str(output / "bin" / f"dokime{extension}"))
+                    (output / "bin" / f"dokime{extension}").unlink()
+                    self.assertRaises(ValueError, desktop_fixtures.build, profile)
             finally:
                 temporary_directory.cleanup()
 
@@ -336,6 +351,10 @@ class HostFixtureTests(unittest.TestCase):
                 (root / "Cargo.toml").write_text(
                     '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n'
                 )
+                product = paths.output(root, "build", profile) / "bin"
+                product.mkdir(parents=True)
+                for name in ("dokime-host", "plugin-obc"):
+                    (product / f"{name}{extension}").write_bytes(profile.encode())
                 reference = root / "target/reference-host/bin" / f"harmos-conformance{extension}"
                 reference.parent.mkdir(parents=True)
                 reference.write_bytes(b"reference")
@@ -363,7 +382,8 @@ class HostFixtureTests(unittest.TestCase):
                     selected = "debug" if profile == "dev" else profile
                     output = paths.output(root, "build", profile) / "fixtures/host"
                     for name in (*names, "content_fixture"):
-                        self.assertEqual((output / f"{name}{extension}").read_bytes(), selected.encode())
+                        expected = profile if name in ("dokime-host", "plugin-obc") else selected
+                        self.assertEqual((output / f"{name}{extension}").read_bytes(), expected.encode())
                     commands = [call.args[0] for call in run.call_args_list if call.args[0][:2] != ["cargo", "metadata"]]
                     for command in commands:
                         self.assertEqual(command[command.index("--profile") + 1], profile)

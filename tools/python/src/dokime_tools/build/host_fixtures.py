@@ -108,7 +108,7 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
         for name in (fixture,) if fixture else RUST_FIXTURES:
             shutil.copy2(root / "target" / compiler_profile / f"{name}{extension}", output / f"{name}{extension}")
 
-    # Build the Remaining Rust Host Fixtures Only for the Complete Producer.
+    # Build the Test-Only Content Fixture.
     if "rust" in languages and fixture is None:
         subprocess.run(
             [
@@ -122,13 +122,9 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
                 "--profile",
                 profile,
                 "--package",
-                "dokime-runtime",
-                "--package",
                 "dokime-client-internal",
                 "--bin",
                 "content_fixture",
-                "--bin",
-                "dokime-host",
             ],
             cwd=root,
             check=True,
@@ -138,32 +134,14 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             stderr=sys.stderr,
         )
         shutil.copy2(root / "target" / compiler_profile / f"content_fixture{extension}", output / f"content_fixture{extension}")
-        shutil.copy2(root / "target" / compiler_profile / f"dokime-host{extension}", output / f"dokime-host{extension}")
-        # Build the OBC Charger Plugin the Desktop Stories and Screenshots Install
-        subprocess.run(
-            [
-                "mise",
-                "run",
-                "build",
-                "--",
-                "--cargo",
-                "build",
-                "--locked",
-                "--package",
-                "plugin-obc",
-                "--bin",
-                "plugin-obc",
-                "--profile",
-                profile,
-            ],
-            cwd=root,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        shutil.copy2(root / "target" / compiler_profile / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
+
+        # Stage the Matching Product Host and Plugin Without Recompiling Them.
+        product = paths.output(root, "build", profile) / "bin"
+        for name in ("dokime-host", "plugin-obc"):
+            source = product / f"{name}{extension}"
+            if not source.is_file():
+                raise ValueError(f"Stage Host Fixtures: Run build:product --profile {profile} or Download Its build-cli Artifact: {source}")
+            shutil.copy2(source, output / source.name)
 
         # Build the Reference Host From the Same Library Revision as the Product.
         # Its library crates are path dependencies of the pinned checkout. Cargo fingerprints their workspace-relative paths,

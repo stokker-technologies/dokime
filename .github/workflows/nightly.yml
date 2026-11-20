@@ -89,6 +89,7 @@ jobs:
       profile: release
     needs:
     - plan
+    - build_product
   build_host_fixtures:
     name: Build / SDK / ${{ matrix.language == 'csharp' && 'C#' || 'C++' }} / Fixtures
     uses: ./.github/workflows/validate-build-tests.yml
