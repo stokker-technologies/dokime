@@ -14,7 +14,9 @@
 
 /* === External Imports === */
 
-import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
+import type { Channel } from "@tauri-apps/api/core";
+import * as core from "@tauri-apps/api/core";
+import { normalizeRpcError } from "@/lib/rpc/errors";
 
 /* === Local Imports === */
 
@@ -42,7 +44,12 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
   // Once the desktop stops, a refused or interrupted command belongs to the stop.
-  return invokeCommand<T>(command, args).catch(settleUnlessStopping<T>);
+  return core
+    .invoke<T>(command, args)
+    .catch((error: unknown) => {
+      throw normalizeRpcError(error, command);
+    })
+    .catch(settleUnlessStopping<T>);
 }
 
 /* === Public Constants === */

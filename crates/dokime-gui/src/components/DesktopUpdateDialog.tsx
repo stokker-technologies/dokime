@@ -12,10 +12,10 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 // Local Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { ErrorCard } from "@/components/ErrorCard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,6 +36,7 @@ type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) =
 /* === Components === */
 
 export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdateDialogProps) {
+  const actionFailure = useRef(false);
   const modeId = useId();
   const sourceId = useId();
   const [status, setStatus] = useState<UpdateStatus | null>(null);
@@ -45,6 +46,7 @@ export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdate
 
   useEffect(() => {
     if (!open) return;
+    actionFailure.current = false;
     let active = true;
     void commands
       .desktopUpdatesStatus()
@@ -63,6 +65,7 @@ export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdate
   }, [open]);
 
   async function perform(operation: () => Promise<void>) {
+    actionFailure.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -145,7 +148,9 @@ export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdate
             ) : null}
           </div>
         ) : null}
-        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+        {error ? (
+          <ErrorCard notificationContext={actionFailure.current ? "action" : undefined} failure={failureOf(error, "Operation Failed")} />
+        ) : null}
         <DialogFooter>
           <Button
             data-testid="desktop-updates-check"

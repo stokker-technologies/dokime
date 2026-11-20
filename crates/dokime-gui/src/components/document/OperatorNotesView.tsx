@@ -17,9 +17,11 @@
 
 import { Pencil, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
+
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
 
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { MarkdownText } from "@/components/MarkdownText";
@@ -154,7 +156,7 @@ function NoteEditor({
       <TabsContent value="preview" className="min-h-28 border border-border/40 px-3 py-2">
         <MarkdownText text={draft.markdown} />
       </TabsContent>
-      {failure ? <NotificationMessage error={failure}>{failure.message}</NotificationMessage> : null}
+      {failure ? <ErrorCard notificationContext="action" failure={failureOf(failure, "Operation Failed")} /> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={pending} onClick={onCancel} size="sm" type="button" variant="ghost">
           Cancel

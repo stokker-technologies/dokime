@@ -113,7 +113,7 @@ export function CycleEvidenceView({
 
 function PaneNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
-    <div className="grid justify-items-start gap-2 py-8">
+    <div className="grid justify-items-stretch gap-2 py-8">
       <p className="font-sans text-sm font-semibold">{title}</p>
       <p className="max-w-prose text-sm text-muted-foreground">{message}</p>
       {action ? (

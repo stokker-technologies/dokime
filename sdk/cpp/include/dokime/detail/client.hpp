@@ -22,6 +22,7 @@
 
 // Local Imports
 #include "dokime/_generated/client.hpp"
+#include "dokime/detail/transfers.hpp"
 #include "dokime/handles.hpp"
 
 /* === Macros === */
@@ -96,7 +97,10 @@ struct ProgressState {
   std::optional<harmos::ClientStream<client::ProgressWatchResponse>> watch;
   bool finished = false;
 };
-std::string mutation_identity(std::optional<std::string> request_id);
+UploadOperations uploads(const std::shared_ptr<ClientState> &client);
+std::vector<std::uint8_t> download(const std::shared_ptr<ClientState> &client, const harmos::FileReference &file);
+Artifact publish_artifact(const std::shared_ptr<ClientState> &client, const ArtifactScope &scope, const std::string &name,
+                          const std::vector<std::uint8_t> &data, const std::string &mime, std::optional<std::string> request_id);
 std::chrono::sys_time<std::chrono::nanoseconds> instant(const google::protobuf::Timestamp &value);
 google::protobuf::Timestamp timestamp(std::chrono::sys_time<std::chrono::nanoseconds> value);
 Scalar decode_scalar(const Value &value);

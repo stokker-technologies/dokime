@@ -105,10 +105,12 @@ jobs:
       with:
         name: build-bench-${{ inputs.platform }}
         path: target/ci
-    - name: Restore C++ Dependencies
-      id: cpp_dependencies
+    - name: Download the Built C++ SDK
       if: inputs.work == 'C++ / SDK'
-      uses: ./.github/actions/cpp-cache
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-sdk-cpp-${{ env.PROFILE }}-${{ inputs.platform }}
+        path: target/sdk-cpp
     - run: mise run ${{ inputs.command }} --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -130,12 +132,6 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
-    - name: Save C++ Dependencies
-      if: always() && inputs.work == 'C++ / SDK'
-      uses: ./.github/actions/cpp-cache
-      with:
-        operation: save
-        restored-key: ${{ steps.cpp_dependencies.outputs.restored-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''
