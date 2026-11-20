@@ -48,12 +48,11 @@ jobs:
       uses: ./.github/actions/cpp-cache
     - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
     - name: Save C++ Dependencies
-      if: matrix.language == 'cpp'
+      if: always() && matrix.language == 'cpp'
       uses: ./.github/actions/cpp-cache
       with:
         operation: save
-        key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
-        cache-hit: ${{ steps.cpp_dependencies.outputs.cache-hit }}
+        restored-key: ${{ steps.cpp_dependencies.outputs.restored-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''

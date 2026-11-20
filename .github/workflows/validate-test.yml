@@ -131,12 +131,11 @@ jobs:
         retention-days: 7
         include-hidden-files: true
     - name: Save C++ Dependencies
-      if: inputs.work == 'C++ / SDK'
+      if: always() && inputs.work == 'C++ / SDK'
       uses: ./.github/actions/cpp-cache
       with:
         operation: save
-        key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
-        cache-hit: ${{ steps.cpp_dependencies.outputs.cache-hit }}
+        restored-key: ${{ steps.cpp_dependencies.outputs.restored-key }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''

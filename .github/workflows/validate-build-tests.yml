@@ -235,9 +235,8 @@ jobs:
         retention-days: 7
         compression-level: 0
     - name: Save Pinned C++ Dependencies
-      if: inputs.fixture-language == 'cpp'
+      if: always() && inputs.fixture-language == 'cpp'
       uses: ./.github/actions/cpp-cache
       with:
         operation: save
-        key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
-        cache-hit: ${{ steps.cpp_dependencies.outputs.cache-hit }}
+        restored-key: ${{ steps.cpp_dependencies.outputs.restored-key }}
