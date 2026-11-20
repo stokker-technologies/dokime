@@ -35,6 +35,8 @@ using std::optional;
 using std::runtime_error;
 using std::shared_ptr;
 using std::string;
+using std::uint64_t;
+using std::uint8_t;
 using std::vector;
 using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
@@ -113,10 +115,66 @@ shared_ptr<grpc::ClientContext> ClientState::context() const {
   contexts.push_back(context);
   return context;
 }
-string mutation_identity(optional<string> request_id) {
-  if (request_id && request_id->empty())
-    throw invalid_argument("Mutate Resource: Supply a Nonempty Request Identity");
-  return request_id ? *request_id : harmos::detail::request_id();
+UploadOperations uploads(const shared_ptr<ClientState> &client) {
+  return {[client](const harmos::FileMetadata &metadata, const string &identity) {
+            client::FilesUploadsCreateOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            return client->transport->files.uploads.create(metadata, options);
+          },
+          [client](const harmos::Upload &upload, uint64_t offset, const string &data, const string &identity) {
+            client::FilesUploadsAppendOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            return client->transport->files.uploads.append(upload, offset, data, options);
+          },
+          [client](const harmos::Upload &upload, uint64_t length, const string &digest, const string &identity) {
+            client::FilesUploadsPublishOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            return client->transport->files.uploads.publish(upload, length, digest, options);
+          },
+          [client](const harmos::Upload &upload, const string &identity) {
+            client::FilesUploadsDeleteOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            client->transport->files.uploads.delete_(upload, options);
+          }};
+}
+vector<uint8_t> download(const shared_ptr<ClientState> &client, const harmos::FileReference &file) {
+  client::FilesGetOptions options;
+  options.context = client->context();
+  const auto limits = client->transport->files.get(file, options);
+  if (!limits.chunk_bytes() || file.sha256().size() != 32)
+    throw runtime_error("Download Evidence: Read Valid Transfer Bounds and a SHA-256 Digest");
+  vector<uint8_t> data;
+  while (data.size() < file.length()) {
+    client::FilesReadOptions reading;
+    reading.context = client->context();
+    const auto page = client->transport->files.read(file, data.size(), limits.chunk_bytes(), reading);
+    if (page.total_length() != file.length() || page.sha256() != file.sha256() || page.data().empty() ||
+        page.data().size() > limits.chunk_bytes() || page.data().size() > file.length() - data.size())
+      throw runtime_error("Download Evidence: Read the Retained File Identity and Requested Range");
+    data.insert(data.end(), page.data().begin(), page.data().end());
+  }
+  if (harmos::plugin::detail::sha256(string(data.begin(), data.end())) != file.sha256())
+    throw runtime_error("Download Evidence: Obtain Content Matching the Retained SHA-256 Digest");
+  return data;
+}
+Artifact publish_artifact(const shared_ptr<ClientState> &client, const ArtifactScope &scope, const string &name,
+                          const vector<uint8_t> &data, const string &mime, optional<string> request_id) {
+  const auto identity = mutation_identity(move(request_id));
+  harmos::FileMetadata metadata;
+  metadata.set_scope(scope.execution_id().empty() ? "cycle/" + scope.cycle_id() : "execution/" + scope.execution_id());
+  metadata.set_media_type(mime);
+  metadata.set_expected_length(data.size());
+  const auto file = upload_bytes(uploads(client), data, metadata, identity);
+  client::ContentArtifactsCreateOptions options;
+  options.scope = scope;
+  options.request_id = identity + "/attach";
+  options.context = client->context();
+  const auto result = client->transport->content.artifacts.create(file, name, mime, options);
+  return artifact_value(result.artifact());
 }
 std::chrono::sys_time<nanoseconds> instant(const google::protobuf::Timestamp &value) {
   return std::chrono::sys_time<nanoseconds>(seconds(value.seconds()) + nanoseconds(value.nanos()));
