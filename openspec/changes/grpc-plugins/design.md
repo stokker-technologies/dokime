@@ -2745,3 +2745,14 @@ and `interval_lag_windows`. The capture-folder allow-list and its refusal storie
 are removed; canonical-path validation, capture sizes and deadlines remain.
 Host-owned preferences, pairing credentials and installed distribution metadata
 retain their existing owners; they are not copies of native desktop settings.
+
+### Open Presentation Ownership
+
+These overlaps require an owner decision before either implementation is removed.
+Paths below are relative to `crates/dokime-gui/`.
+
+| Both Locations | Current Callers and Responsibility | Recommended Deletion |
+| --- | --- | --- |
+| `src/stores/ui-store.ts:218` and `src-tauri/src/settings.rs:156` | Shell controls persist sidebar/console geometry and active-cycle state in WebView localStorage; native Engine, parameter and updater callers persist their settings through Store. Desktop-local persistence therefore has two owners, although their saved keys differ. | Fold the desktop-only UI state into Store, then delete the Tauri localStorage writer; retain the UI state API and host-owned appearance preferences. |
+| `src/components/StatsSummaryTable.tsx:136` and `:199` | StatsSummaryTable routes multiple metrics to DataTable but one metric to StatsSummaryGrid; plot/document callers therefore get two statistics presentations. | Delete the single-metric grid branch and component if the owner chooses one statistics presentation; preserve exact values and metric units. |
+| `src/features/explore/ExploreSurface.tsx:124` and `src/components/data-table/DataTable.tsx:309` | History's Load More control appends bounded server pages; the shared footer pages the rows already loaded. History operators encounter two paging controls. | Let the shared footer own bounded server paging, then delete Load More; first settle continuation, row-count and page-indicator behavior rather than fetching all history or inventing a second paging contract. |
