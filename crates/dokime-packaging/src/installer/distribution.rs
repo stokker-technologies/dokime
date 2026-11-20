@@ -222,8 +222,8 @@ pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> R
         let entry_name = entry.name().map_err(|error| Error::Invalid(error.to_string()))?;
         let name = entry_name.trim_end_matches('/');
         let path = destination.join(relative(name)?);
-        let mode = entry.unix_mode().unwrap_or(0o100644) & 0o170000;
-        let ordinary = mode == 0o100000 || (mode == 0o040000 && entry.is_dir());
+        let mode = entry.unix_mode().unwrap_or(0) & 0o170000;
+        let ordinary = mode == 0 || mode == 0o100000 || (mode == 0o040000 && entry.is_dir());
         if !ordinary {
             return Err(Error::Invalid("release distribution contains a link or special file".into()));
         }
@@ -246,7 +246,10 @@ pub fn extract(bytes: &[u8], destination: &Path, maximum_member_bytes: u64) -> R
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use super::*;
+
     #[test]
     fn kit_integrity_refuses_mismatch_missing_files_and_unindexed_appearance() -> Result<(), Error> {
         let source = tempfile::tempdir()?;
@@ -292,7 +295,6 @@ mod tests {
 
     #[test]
     fn extraction_enforces_member_limits_before_writing() -> Result<(), Error> {
-        use std::io::Write;
         let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
         archive.start_file("example-pack.txt", zip::write::SimpleFileOptions::default()).unwrap();
         archive.write_all(b"abc")?;
@@ -302,6 +304,41 @@ mod tests {
         assert!(!directory.path().join("example-pack.txt").exists());
         extract(&bytes, directory.path(), 3)?;
         assert_eq!(fs::read(directory.path().join("example-pack.txt"))?, b"abc");
+        Ok(())
+    }
+
+    #[test]
+    fn extraction_accepts_typeless_members_and_refuses_special_files() -> Result<(), Error> {
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive.add_directory("examples/", zip::write::SimpleFileOptions::default()).unwrap();
+        archive.start_file("examples/NOTICE", zip::write::SimpleFileOptions::default()).unwrap();
+        archive.write_all(b"notice")?;
+        let bytes = archive.finish().unwrap().into_inner();
+        let members: Vec<_> = bytes.windows(4).enumerate().filter_map(|(index, bytes)| (bytes == b"PK\x01\x02").then_some(index)).collect();
+        assert_eq!(members.len(), 2);
+
+        // Model Unix ZIP Writers That Store Permissions Without File-Type Bits
+        let mut typeless = bytes.clone();
+        for member in &members {
+            typeless[member + 5] = 3;
+            typeless[member + 38..member + 42].copy_from_slice(&(0o600u32 << 16).to_le_bytes());
+        }
+        let directory = tempfile::tempdir()?;
+        extract(&typeless, directory.path(), 64)?;
+        assert!(directory.path().join("examples").is_dir());
+        assert_eq!(fs::read(directory.path().join("examples/NOTICE"))?, b"notice");
+
+        // Explicit Links, Devices, Sockets and Other Special Types Stay Refused
+        for mode in [0o120777u32, 0o020600, 0o060600, 0o010600, 0o140600] {
+            let mut special = bytes.clone();
+            let member = members[1];
+            special[member + 5] = 3;
+            special[member + 38..member + 42].copy_from_slice(&(mode << 16).to_le_bytes());
+            let directory = tempfile::tempdir()?;
+            let result = extract(&special, directory.path(), 64);
+            assert!(matches!(result, Err(Error::Invalid(message)) if message.contains("link or special file")));
+            assert!(!directory.path().join("examples/NOTICE").exists());
+        }
         Ok(())
     }
 
