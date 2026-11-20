@@ -40,6 +40,9 @@ taplo = "0.10.0"
 protoc = "36.2"
 "aqua:bufbuild/buf" = "1.75.0"
 
+# Documentation
+"aqua:d2lang/d2" = "0.9.0"
+
 # Release and Signing
 "aqua:EmbarkStudios/cargo-deny" = "0.20.2"
 "aqua:anchore/syft" = "1.57.0"
@@ -76,7 +79,7 @@ run = [
   "{% if not usage.tools_only and not usage.docs_only %}mise run build:python{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise -C sdk/python run install{% endif %}",
   "{% if not usage.without_frontend and not usage.tools_only and not usage.docs_only %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
-  "{% if not usage.without_frontend and not usage.tools_only %}pnpm --dir site install --frozen-lockfile{% endif %}",
+  "{% if not usage.without_frontend and not usage.tools_only %}pnpm --dir sites/docs install --frozen-lockfile{% endif %}",
 ]
 
 [tasks."generate"]
@@ -131,6 +134,23 @@ run = "{{vars.tools}} dokime_tools.docs.site serve"
 [tasks."docs:image"]
 description = "Assemble Published Documentation Archives Into the Site Image"
 run = "{{vars.tools}} dokime_tools.docs.image"
+
+[tasks."docs:test"]
+description = "Test Documentation Tooling"
+usage = 'flag "--select <select>"'
+run = 'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/*.test.ts'
+
+[tasks."docs:format"]
+description = "Format the Documentation Site"
+run = "pnpm --dir sites/docs format"
+
+[tasks."docs:lint"]
+description = "Lint the Documentation Site"
+run = [
+  "pnpm --dir sites/docs lint",
+  "{{vars.python}} ruff check tools/python/src/dokime_tools/docs tools/python/src/dokime_tools/ci/impact.py tools/python/src/dokime_tools/ci/nightly_freshness.py tools/python/tests/integration/test_docs_site.py tools/python/tests/integration/test_ci_impact.py tools/python/tests/integration/test_ci_workflow.py",
+  "{{vars.python}} ty check --project tools/python tools/python/src/dokime_tools/docs tools/python/src/dokime_tools/ci/impact.py tools/python/src/dokime_tools/ci/nightly_freshness.py tools/python/tests/integration/test_docs_site.py tools/python/tests/integration/test_ci_impact.py tools/python/tests/integration/test_ci_workflow.py",
+]
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
@@ -193,7 +213,7 @@ description = "Format TypeScript"
 usage = 'flag "--check"'
 run = [
   "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
-  "pnpm --dir site exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+  "pnpm --dir sites/docs exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
 ]
 
 [tasks."lint:python"]
@@ -215,7 +235,7 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir site exec biome lint ."]
+run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir sites/docs exec biome lint ."]
 
 [tasks.screenshots]
 hide = true
@@ -578,7 +598,6 @@ run = "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profil
 [tasks."package:rust"]
 hide = true
 description = "Package the Desktop Installer, Tools and Plugin Archives"
-tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="native"
@@ -587,7 +606,7 @@ run = [
   "{{vars.tools}} dokime_tools.release.notices",
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
   "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.package.installer --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.package.native --profile {{usage.profile}}",
 ]
 
 [tasks."ci:nightly-freshness"]

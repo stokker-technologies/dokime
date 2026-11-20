@@ -52,12 +52,12 @@ repository = "https://github.com/stokker-technologies/dokime"
 [workspace.dependencies]
 # Local
 dokime-client-internal = { path = "crates/dokime-client-internal" }
-dokime-test-support = { path = "crates/dokime-test-support" }
 dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
 dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
 dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
+dokime-test-support = { path = "crates/dokime-test-support" }
 
 # Git
 # Edit This Pin, Then Run mise run generate -- --protocol and mise run prepare:locks.
@@ -84,8 +84,8 @@ num-bigint = { version = "0.5.1", features = ["serde"] }
 num-traits = { version = "0.2.19" }
 regex = { version = "1.13.1" }
 semver = { version = "1.0.28" }
-spdx = { version = "0.13.5" }
 sha2 = { version = "0.11.1" }
+spdx = { version = "0.13.5" }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
 windows-sys = { version = "0.61.2" }
@@ -155,6 +155,7 @@ rusqlite = { version = "0.41.1", features = ["bundled", "limits"] }
 image = { version = "0.25.10", default-features = false }
 tauri-bundler = { version = "2.10.4" }
 tauri-utils = { version = "2.10.2" }
+tauri-winres = { version = "0.3.6" }
 
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }

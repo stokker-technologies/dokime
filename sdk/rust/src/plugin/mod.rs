@@ -36,12 +36,15 @@ use std::{
     any::{Any, TypeId},
     collections::HashSet,
     env,
+    io::{self, Write},
     marker::PhantomData,
+    net::SocketAddr,
     sync::Arc,
 };
 
 // Third Party Imports
 use ::harmos::{Visibility, plugin};
+use tokio::{runtime::Builder, signal};
 
 // Local Imports
 use crate::SecretDeclaration;
@@ -428,11 +431,11 @@ impl Plugin {
 
     pub fn run_with(self, address: impl Into<String>) -> Result<()> {
         // The Listener Owns Its Runtime; This Thread Only Waits for Shutdown.
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        let runtime = Builder::new_current_thread().enable_all().build()?;
         runtime.block_on(async move {
             let mut listener = self.into_harmos()?.remote().start(address).await?;
-            println!("harmos listening {}", listener.address());
-            tokio::signal::ctrl_c().await?;
+            announce(listener.address(), env::var_os("HARMOS_ADDRESS").is_some(), &mut io::stdout().lock())?;
+            signal::ctrl_c().await?;
             listener.close().await?;
             Ok(())
         })
@@ -442,6 +445,14 @@ impl Plugin {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn announce(address: SocketAddr, managed: bool, output: &mut impl Write) -> Result<()> {
+    if managed {
+        writeln!(output, "harmos listening {address}")?;
+        output.flush()?;
+    }
+    Ok(())
+}
 
 fn lifecycle<H>(name: &'static str, handler: H) -> stream::Registration
 where
@@ -462,7 +473,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{HostOperation, Plugin, Visibility};
+    use std::net::SocketAddr;
+
+    use super::{HostOperation, Plugin, Visibility, announce};
     use crate::operations::{Context, Operation};
     use crate::{Error, Lane, Result};
     use dokime_protocol::descriptor_pool;
@@ -470,6 +483,18 @@ mod tests {
         model::{Protobuf, lane_declaration},
         schema,
     };
+
+    #[test]
+    fn readiness_announces_only_a_managed_listener() -> Result<()> {
+        let address = SocketAddr::from(([127, 0, 0, 1], 1234));
+        let mut output = Vec::new();
+        announce(address, false, &mut output)?;
+        assert!(output.is_empty());
+
+        announce(address, true, &mut output)?;
+        assert_eq!(output, format!("harmos listening {address}\n").into_bytes());
+        Ok(())
+    }
 
     #[test]
     fn lanes_preserve_declarations_and_operation_assignments() -> Result<()> {

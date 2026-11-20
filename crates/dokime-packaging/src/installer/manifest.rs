@@ -15,6 +15,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeSet;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -49,10 +50,15 @@ pub struct Manifest {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Distribution {
+    #[serde(default)]
     pub version: String,
+
     pub identifier: Option<String>,
     pub organization: Option<PathBuf>,
     pub formats: Vec<Format>,
+
+    #[serde(default)]
+    pub exclude_plugins: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +107,8 @@ pub struct UpdaterSigning {
     pub private_key_env: Option<String>,
     pub private_key_path_env: Option<String>,
     pub password_env: String,
-    pub artifact_base_url: String,
+    pub artifact_base_url: Option<String>,
+    pub artifact_base_url_env: Option<String>,
 }
 
 /* === Enums === */
@@ -121,6 +128,28 @@ pub enum Format {
 impl Artifact {
     pub fn version(&self) -> &str {
         self.version.as_deref().unwrap_or(env!("CARGO_PKG_VERSION"))
+    }
+}
+
+impl UpdaterSigning {
+    pub(super) fn base_url(&self) -> Result<String, Error> {
+        let value = match (&self.artifact_base_url, &self.artifact_base_url_env) {
+            (Some(value), None) => value.clone(),
+            (None, Some(name)) => {
+                env::var(name).map_err(|_| Error::Invalid(format!("Set {name} to the HTTPS Updater Artifact Base URL")))?
+            }
+            _ => return Err(Error::Invalid("Set Exactly One of artifact_base_url or artifact_base_url_env".into())),
+        };
+        let url = reqwest::Url::parse(&value).map_err(|_| Error::Invalid("Set an HTTPS Updater Artifact Base URL".into()))?;
+        if url.scheme() != "https"
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(Error::Invalid("Set an HTTPS Updater Artifact Base URL Without Credentials, Query or Fragment".into()));
+        }
+        Ok(value)
     }
 }
 
@@ -176,6 +205,23 @@ impl Plugin {
 }
 
 impl Manifest {
+    pub(super) fn plugin_names(&self, defaults: &[String]) -> Result<Vec<String>, Error> {
+        let mut names = BTreeSet::new();
+        for name in defaults {
+            if !super::distribution::filename(name) || !names.insert(name.clone()) {
+                return Err(Error::Invalid("Rebuild the Kit With Unique Default Plugin Names".into()));
+            }
+        }
+        for name in &self.installer.exclude_plugins {
+            if !defaults.contains(name) {
+                return Err(Error::Invalid(format!("Exclude a Default Plugin Name Declared by the Kit: {name}")));
+            }
+            names.remove(name);
+        }
+        names.extend(self.plugin.iter().filter_map(|plugin| plugin.name.clone()));
+        Ok(names.into_iter().collect())
+    }
+
     pub(super) fn identity(&self, compiled: &super::distribution::Identity) -> Result<super::distribution::Identity, Error> {
         let mut identity = compiled.clone();
         if let Some(identifier) = &self.installer.identifier {
@@ -189,6 +235,9 @@ impl Manifest {
     pub fn read(path: &Path) -> Result<Self, Error> {
         let text = fs::read_to_string(path)?;
         let mut manifest: Self = toml::from_str(&text).map_err(|error| parse_error(path, &error))?;
+        if manifest.installer.version.is_empty() {
+            manifest.installer.version = env!("CARGO_PKG_VERSION").into();
+        }
         let base = path.parent().unwrap_or(Path::new("."));
         manifest.validate_plugins()?;
         if let Some(license) = &mut manifest.license {
@@ -303,6 +352,21 @@ fn native_target() -> String {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn defaults_exclusions_and_explicit_names_resolve_once() {
+        let mut manifest = super::super::fixtures::manifest();
+        let defaults = vec!["obc".into(), "bench".into()];
+        assert_eq!(manifest.plugin_names(&defaults).unwrap(), ["bench", "obc"]);
+        manifest.installer.exclude_plugins.push("bench".into());
+        assert_eq!(manifest.plugin_names(&defaults).unwrap(), ["obc"]);
+        manifest.plugin.push(Plugin { name: Some("obc".into()), path: None });
+        manifest.plugin.push(Plugin { name: Some("bench".into()), path: None });
+        assert_eq!(manifest.plugin_names(&defaults).unwrap(), ["bench", "obc"]);
+        manifest.installer.exclude_plugins.push("missing".into());
+        assert!(manifest.plugin_names(&defaults).is_err());
+        assert!(manifest.plugin_names(&["bench".into(), "bench".into()]).is_err());
+    }
 
     #[test]
     fn manifest_parse_diagnostics() {

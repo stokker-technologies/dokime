@@ -14,6 +14,7 @@
 import asyncio
 import inspect
 import json
+import os
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import distributions, packages_distributions, version
@@ -38,6 +39,7 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._configuration import load, resolve
 from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations
@@ -71,6 +73,26 @@ class _Session:
     instance: object
     case: Materialization
     origin: bytes
+
+
+class _Endpoint:
+    def __init__(self, endpoint: harmos.plugin.Endpoint, managed: bool) -> None:
+        self._endpoint = endpoint
+        self.address = endpoint.address
+        self.managed = managed
+
+    async def stop(self) -> None:
+        await self._endpoint.stop()
+
+    async def wait(self) -> None:
+        termination = asyncio.create_task(self._endpoint.server.wait_for_termination())
+        try:
+            await asyncio.shield(termination)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await self.stop()
+            await termination
 
 
 class Plugin:
@@ -190,27 +212,18 @@ class Plugin:
     async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
         pass
 
-    async def serve(self, address: str | None = None) -> None:
-        from os import environ
+    async def start(self, address: str | None = None) -> _Endpoint:
+        return _Endpoint(await self._activate(address), False)
 
-        # A Host Launch Supplies Credentials; the Library Then Announces the Bound Listener.
-        if address is None and ("HARMOS_HOST_ENDPOINT" in environ or "HARMOS_LAUNCH_TOKEN" in environ):
+    async def serve(self, address: str | None = None) -> None:
+        managed = "HARMOS_HOST_ENDPOINT" in os.environ or "HARMOS_LAUNCH_TOKEN" in os.environ
+        if address is None and managed:
             await self._plugin.run()
             return
-        endpoint = await self._activate(address)
-        termination = asyncio.create_task(endpoint.server.wait_for_termination())
-        try:
-            print(f"harmos listening {endpoint.address}", flush=True)
-            await asyncio.shield(termination)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await endpoint.stop()
-            await termination
+        endpoint = await self.start(address)
+        await endpoint.wait()
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
-        from ._configuration import load, resolve
-
         return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
 
     def _materialize(self, template: _Template) -> Callable[..., Awaitable[Message]]:

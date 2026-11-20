@@ -63,7 +63,7 @@ jobs:
       CI_PROFILE: ${{ inputs.profile }}
       CI_OUTPUTS: '[{"archive":"target/ci/package-{profile}-rust-windows.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
       DOKIME_RELEASE_CONTEXT: 'true'
-      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,github:EmbarkStudios/cargo-about,node,pnpm,powershell,python,rust,uv
+      MISE_ENABLE_TOOLS: github:EmbarkStudios/cargo-about,minisign,node,pnpm,powershell,python,rust,uv
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
