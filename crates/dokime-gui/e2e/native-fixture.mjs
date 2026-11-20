@@ -690,6 +690,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     const destinations = { "/cycles": "Cycles", "/library": "Library", "/history": "History", "/notifications": "Notifications" };
     const sections = {
       backends: "Backends",
+      engine: "Engine",
       appearance: "Appearance",
       plugins: "Plugins",
       secrets: "Secret Storage",

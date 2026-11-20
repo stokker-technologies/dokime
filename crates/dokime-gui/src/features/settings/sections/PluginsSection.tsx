@@ -163,11 +163,15 @@ export function PluginsSection() {
                 {releaseMutation.unavailableReason ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <Button aria-description={releaseMutation.unavailableReason} disabled variant="outline">
-                          Check for Updates
-                        </Button>
-                      </span>
+                      <Button
+                        aria-disabled="true"
+                        className="opacity-50"
+                        aria-description={releaseMutation.unavailableReason}
+                        type="button"
+                        variant="outline"
+                      >
+                        Check for Updates
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent>{releaseMutation.unavailableReason}</TooltipContent>
                   </Tooltip>
