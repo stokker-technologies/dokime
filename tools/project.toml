@@ -76,7 +76,7 @@ lock_commands = [
     "--lockfile-only",
     "--ignore-scripts",
     "--dir",
-    "site",
+    "sites/docs",
   ],
   [
     "uv",
