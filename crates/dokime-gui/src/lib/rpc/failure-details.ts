@@ -20,9 +20,9 @@ import { fromBinary } from "@bufbuild/protobuf";
 
 // Local Imports
 import type { Failure } from "@host/model";
-import type { Wire } from "@/lib/rpc/canonical";
 import type { RpcError } from "@/lib/desktop/rpc";
 import type { NotificationFailure } from "@/lib/notification-details";
+import type { Wire } from "@/lib/rpc/canonical";
 import { FailureSchema } from "./generated/errors";
 
 /* === Re-Exports === */
@@ -56,7 +56,11 @@ export function rpcFailureDetails(error: RpcError, reason: string): Partial<Noti
   try {
     return { ...failure, ...nativeFailure(fromBinary(FailureSchema, Uint8Array.from(error.detail.details)), reason) };
   } catch {
-    return { ...failure, diagnostics: `Undecodable Desktop Details (Base64):\n${toBase64(Uint8Array.from(error.detail.details))}` };
+    return {
+      ...failure,
+      message: `${reason}: ${error.detail.message}`,
+      diagnostics: `Undecodable Desktop Details (Base64):\n${toBase64(Uint8Array.from(error.detail.details))}`,
+    };
   }
 }
 

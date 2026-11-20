@@ -678,7 +678,7 @@ pub(crate) fn status_failure(status: &Status) -> model::Failure {
     };
     decoded.unwrap_or_else(|| model::Failure {
         code: status.code().to_string(),
-        message: status.message().into(),
+        message: if bytes.is_empty() { status.message().into() } else { format!("gRPC {}: {}", status.code() as i32, status.message()) },
         diagnostics: if bytes.is_empty() {
             String::new()
         } else {

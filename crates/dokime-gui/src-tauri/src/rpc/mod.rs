@@ -280,10 +280,6 @@ mod tests {
     use super::*;
     use std::mem;
 
-    fn size<Args, F: Future>(_: impl FnOnce(Args) -> F) -> usize {
-        mem::size_of::<F>()
-    }
-
     #[test]
     fn library_carrier_becomes_one_desktop_protobuf() {
         use base64::{Engine, engine::general_purpose::STANDARD};
@@ -329,14 +325,22 @@ mod tests {
         assert_eq!(decoded.message, plain.message());
         assert_eq!(decoded.code, plain.code().to_string());
         let malformed = tonic::Status::with_details(tonic::Code::Internal, "bench_transport", vec![255].into());
-        assert_eq!(host::status_failure(&malformed).message, malformed.message());
+        let decoded = host::status_failure(&malformed);
+        assert!(decoded.message.contains(malformed.message()));
+        assert!(decoded.message.contains(&(malformed.code() as i32).to_string()));
     }
 
     #[test]
     fn command_future_sizes() {
+        fn measure<Args, F: Future>(handler: &str, _: impl FnOnce(Args) -> F) {
+            let bytes = mem::size_of::<F>();
+            eprintln!("{handler}: {bytes} bytes");
+            assert!(bytes <= 16 * 1024, "{handler} command future uses {bytes} bytes");
+        }
         macro_rules! measure {
             ($handler:path) => {
-                let bytes = size(
+                measure(
+                    stringify!($handler),
                     |(session, bridge, window, request): (
                         tauri::State<'_, ConnectionSession>,
                         tauri::State<'_, Bridge>,
@@ -344,8 +348,6 @@ mod tests {
                         tauri::ipc::Request<'_>,
                     )| $handler(session, bridge, window, request),
                 );
-                eprintln!("{}: {bytes} bytes", stringify!($handler));
-                assert!(bytes <= 16 * 1024, "{} command future uses {bytes} bytes", stringify!($handler));
             };
         }
         measure!(calls::rpc);

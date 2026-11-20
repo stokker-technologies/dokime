@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { forceCloseDatabase, IDBFactory, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
 // Third Party Imports
-import { createElement, isValidElement, type ReactNode, type ReactElement } from "react";
+import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
@@ -379,8 +379,11 @@ test("Product Plain and Undecodable Statuses Keep Code and Message", async () =>
   assert.equal(failure.action, product.action);
   for (const details of [[], [255]]) {
     const plain = failureOf(normalizeRpcError({ kind: "grpc", detail: { code: 14, message: "bench_transport", details } }), "bench_title");
-    assert.equal(plain.message, "bench_transport");
     assert.equal(plain.reason, "UNAVAILABLE");
+    if (details.length) {
+      assert.ok(plain.message.includes("bench_transport"));
+      assert.ok(plain.message.includes(plain.reason));
+    } else assert.equal(plain.message, "bench_transport");
   }
 });
 
