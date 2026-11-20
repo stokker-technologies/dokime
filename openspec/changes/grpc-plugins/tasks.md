@@ -34,7 +34,7 @@
 - [x] 4.6.3 Expose duration settings on the operation context for observer intervals and other durations.
 - [x] 4.6.4 Withdrawn: host streams are demand-driven collections (design: Host Telemetry Plugin Restoration); nothing is retained outside a listening execution.
 - [ ] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields. Row regrouping is implemented; the collection currently uses producer sleep loops instead of host observer windows and needs the shared-library capability described in the design.
-- [ ] 4.6.5 Implement the host-owned effect journal (5.13) for plugin-level operations, with operation-context effect methods and restoration before a reconnecting plugin is exposed.
+- [ ] 4.6.5 Implement the effect journal as host plugin state on the library's state management: `journal.rs` implementing `controls::Journal`, restore newest first in `initialize`, refusal without durable state (landed); durable plugin state served by the library and bounded recovery storage (open).
 - [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.
 - [ ] 4.6.7 Package 3: Wi-Fi link, scan and latency, and Bluetooth collectors and streams.
 - [ ] 4.6.8 Package 4: radio and adapter controls gated on the effect journal, adapter inventory with its typed start snapshot, and power plan operations.
@@ -50,7 +50,7 @@
 - [x] 5.12.1 Implement saved execution/cycle evidence export through the bounded, verified download path.
 - [x] 5.12.2 Restore current-host GUI execution-matrix fixtures and independent native desktop story drivers.
 - [x] 5.12.3 Add the global --connect-timeout override for direct and paired connections, retaining ordered endpoint fallback and reporting every failed endpoint.
-- [ ] 5.13 Implement retained Effects Create/Get/Set and prove inverse retention, owner-qualified confirmations, reverse restoration and failed-startup restoration; all three handlers currently return Unimplemented.
+- [x] 5.13 Remove the unimplemented Effects Create/Get/Set operations, their proto, generated bindings and every SDK's template-context `prepare_effect` / `confirm_effect`; effects are plugin state (4.6.5).
 - [ ] 5.14 Resolve the supported media API with the owner and implement retained Media.Captures Create/Get/Watch/Stop behavior, currently Unimplemented; keep unavailable host capture controls explicit. Aggregates.Get implementation belongs to operation-boundary 5.1.
 - [ ] 5.15 Complete local capture line matchers/markers and retained FTP/FTPS/SSH sources with feature-gated source operations, secret-backed settings, mirroring, one-shot semantics and bounded pending buffers; current capture engine explicitly defers matchers and FTP/FTPS and has no SFTP implementation.
 - [x] 5.16 Implement document structure, bindings, summaries and layout before StructureComplete, then EvidenceCut and card results in `host/documents/get.rs`.
@@ -193,7 +193,7 @@
   - [x] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Keep CLI and Product-Test Raw Calls in the Unpublished Workspace Client Crate and Remove Generated Host/Transport Escape Hatches From the SDK.
     - [x] Add Bound Case Lists, Fixed-Cut Cycle/Execution Lists, Refresh Operations and Frozen Typed Record/Sample Readers With Digest Verification and Continuation Validation.
     - [x] Add Operation-Specific Mutation Identity Overrides for Cycle/Execution Creation and Controls, Notes and Artifacts; Derive Replay-Stable Execution UUIDs From Request Identities.
-    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability, Documents and Effect Preparation/Confirmation Without Policy Overrides.
+    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability and Documents Without Policy Overrides.
   - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
   - [x] Create All Four Languages With `--from` or `DOKIME_NEW_FROM`, Checkout Starter Sources and Native Local SDK Dependencies; Keep Argument Precedence and Actionable Missing-Starter Errors.
   - [x] Migrate Starter-Creation Stories and Fixture Tooling to `--from`; Remove Test-Owned SDK Dependency Overrides and C++ Archive Coordinates.

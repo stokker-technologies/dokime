@@ -29,7 +29,7 @@ Every host operation SHALL co-locate declaration, gRPC mapping, Rust callee poli
 
 ### Requirement: Runtime Host Ownership
 
-Runtime SHALL own execution management, transactions, state, cycle transitions, effects, plugin entries, startup and listeners. Transactions, state and cycle transitions SHALL stay together. CLI and desktop SHALL embed the runtime library; remote access SHALL use listener configuration and one client authorization hook.
+Runtime SHALL own execution management, transactions, state, cycle transitions, plugin entries, startup and listeners. Transactions, state and cycle transitions SHALL stay together. CLI and desktop SHALL embed the runtime library; remote access SHALL use listener configuration and one client authorization hook.
 
 #### Scenario: Host Starts
 

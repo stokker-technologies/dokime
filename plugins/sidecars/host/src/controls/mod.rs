@@ -113,9 +113,6 @@ pub struct Machine {
     pub timing: Timing,
 }
 
-/// The Journal Until the Plugin's Journal Module Lands: Every Record Is Refused, So No Control Writes.
-pub struct Unavailable;
-
 /* === Enums === */
 
 /// One Requested Control Change, Parsed From Its Operation Request.
@@ -358,30 +355,14 @@ impl Native for Machine {
     }
 }
 
-impl Journal for Unavailable {
-    async fn record(&self, _: &str, _: &ControlState) -> Result<bool> {
-        Err(Error::Invalid("Set Control: Retry Once the Host Plugin Journal Is Available; No Control Was Changed".into()))
-    }
-
-    async fn clear(&self, _: &str) -> Result<()> {
-        Ok(())
-    }
-
-    async fn outstanding(&self) -> Result<Vec<(String, ControlState)>> {
-        Ok(Vec::new())
-    }
-}
-
-/// The Operation Context as the Caller; It Does Not Yet Carry the Backend Environment, So Disabling Controls Refuse.
+/// The Operation Context as the Caller.
 impl Caller for Context {
     async fn now(&self) -> Result<Timestamp> {
         Context::now(self).await
     }
 
     async fn environment(&self) -> Result<Environment> {
-        Err(Error::Invalid(
-            "Set Control: Enable the Radio or Adapter Instead; Disabling Needs the Backend Environment the Host Does Not Yet Supply".into(),
-        ))
+        Context::environment(self).await
     }
 }
 
@@ -392,21 +373,21 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
     let radio = Operation::new(RADIO_SET, Visibility::Public, async |ctx: &Context, request: RadioSet| {
         let change = Change::radio(request)?;
         let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.execute(change, &machine, &Unavailable, ctx).await
+        ctx.plugin::<Host>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
     })
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Switch Every Radio of One Kind On or Off, Recording the Prior State for Restoration.");
     let adapter = Operation::new(ADAPTER_SET, Visibility::Public, async |ctx: &Context, request: AdapterSet| {
         let change = Change::adapter(request);
         let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.execute(change, &machine, &Unavailable, ctx).await
+        ctx.plugin::<Host>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
     })
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Enable or Disable One Network Adapter, Recording the Prior State for Restoration.");
     let plan = Operation::new(PLAN_SET, Visibility::Public, async |ctx: &Context, request: PlanSet| {
         let change = Change::plan(request);
         let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.execute(change, &machine, &Unavailable, ctx).await
+        ctx.plugin::<Host>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
     })
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Activate One Power Plan, Recording the Prior Plan for Restoration.");
@@ -423,7 +404,7 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
 /// Restore Every Outstanding Control State; the Restore Operation and the Plugin Start Both Run It.
 pub async fn restore(ctx: &Context) -> Result<()> {
     let machine = Machine { timing: Timing::read(ctx).await? };
-    ctx.plugin::<Host>()?.controls.restore(&machine, &Unavailable).await
+    ctx.plugin::<Host>()?.controls.restore(&machine, &crate::journal::Journal::new(ctx)).await
 }
 
 /// Whether Disabling the Change Cuts One of the Connected Adapters.

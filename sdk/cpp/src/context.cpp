@@ -21,9 +21,6 @@ using std::shared_ptr;
 using std::string;
 using std::unordered_map;
 using std::vector;
-using std::chrono::duration_cast;
-using std::chrono::nanoseconds;
-using std::chrono::system_clock;
 
 /* === Macros === */
 
@@ -151,26 +148,6 @@ void Context::document(string document, Card part, string section, optional<stri
   options.card = move(part);
   host().documents.append_parts(execution(), document, section, move(options));
 }
-string Context::prepare_effect(string resource, string inverse_operation, const google::protobuf::Message &inverse, string description,
-                               optional<string> request_id) {
-  HostEffectsCreateOptions options;
-  options.request_id = dokime::detail::mutation_identity(move(request_id));
-  return host().effects.create(resource, inverse_operation, inverse.SerializeAsString(), description, options).name();
-}
-void Context::confirm_effect(string ticket, optional<system_clock::time_point> at, bool restored, optional<string> request_id) {
-  const auto current = host().effects.get(ticket);
-  auto value = current.value();
-  const auto applied = at ? *at : now();
-  const auto instant = applied.time_since_epoch();
-  const auto elapsed = duration_cast<nanoseconds>(instant).count();
-  value.mutable_applied_at()->set_seconds(elapsed / 1000000000);
-  value.mutable_applied_at()->set_nanos(static_cast<int>(elapsed % 1000000000));
-  value.set_restored(restored);
-  HostEffectsSetOptions options;
-  options.request_id = dokime::detail::mutation_identity(move(request_id));
-  host().effects.set(ticket, value, current.revision(), options);
-}
-
 string Context::resolve(const Declaration &declaration) const {
   if (!bindings_)
     throw invalid_argument("Resolve Declaration: Call From a Template Operation");

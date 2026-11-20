@@ -273,8 +273,6 @@ class AuthoringStory(unittest.TestCase):
             "start_capture",
             "stop_capture",
             "environment",
-            "prepare_effect",
-            "confirm_effect",
         ):
             self.assertFalse(hasattr(operations, name))
             self.assertTrue(callable(getattr(templates, name)))

@@ -17,7 +17,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
 # Third Party Imports
-from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import plugin
 
@@ -28,7 +27,6 @@ from .._evidence import RecordsQuery
 
 # Local Imports
 from .._generated import shared
-from .._generated.plugin_types import EffectWritable
 from .._generated.shared import (
     Card,
     ExecutionProgressValue,
@@ -205,21 +203,6 @@ class Context(operations.Context):
     async def environment(self) -> Environment:
         value = await self._host.backend.environment()
         return Environment(value.backend_pid, value.in_step)
-
-    async def prepare_effect(
-        self, resource: str, inverse_operation: str, inverse: Message, *, description: str = "", request_id: str | None = None
-    ) -> str:
-        response = await self._host.effects.create(
-            resource, inverse_operation, inverse.SerializeToString(), description, request_id=request_id
-        )
-        return response.name
-
-    async def confirm_effect(
-        self, ticket: str, *, at: datetime | None = None, restored: bool = False, request_id: str | None = None
-    ) -> None:
-        current = await self._host.effects.get(ticket)
-        value = EffectWritable(restored=restored, applied_at=_timestamp(at) if at is not None else None)
-        await self._host.effects.set(ticket, value, current.revision, request_id=request_id)
 
     async def capture(self, source: FileSource, output: str) -> CaptureResult:
         return CaptureResult._from_wire(await self._host.files.capture(source._wire(), output))

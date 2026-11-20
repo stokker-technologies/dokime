@@ -15,6 +15,7 @@ pub mod adapters;
 pub mod collectors;
 pub mod controls;
 pub mod domain;
+pub mod journal;
 pub mod platform;
 pub mod power;
 pub mod settings;

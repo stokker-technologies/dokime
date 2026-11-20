@@ -26,6 +26,7 @@ use prost_types::Timestamp;
 
 // Local Imports
 use crate::context::Executions;
+use crate::templates::Environment;
 use crate::{Message, Result};
 
 /* === Constants === */
@@ -82,6 +83,9 @@ impl Context {
     }
     pub async fn duration_setting(&self, identifier: &str) -> Result<Duration> {
         self.inner.duration_setting(identifier).await
+    }
+    pub async fn environment(&self) -> Result<Environment> {
+        self.inner.environment().await
     }
 }
 

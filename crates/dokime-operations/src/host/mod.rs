@@ -19,7 +19,6 @@ pub mod content;
 pub mod credentials;
 pub mod cycles;
 pub mod documents;
-pub mod effects;
 pub mod evidence;
 pub mod execution_state;
 pub mod executions;
