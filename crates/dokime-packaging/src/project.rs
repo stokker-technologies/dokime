@@ -486,7 +486,7 @@ pub fn check_compatibility(requirement: Option<&str>, version: &str) -> Result<(
         .map_err(|cause| format!("Check Plugin Compatibility: Correct compatibility.dokime {requirement:?}: {cause}"))?;
     let version = Version::parse(version)?;
     if !parsed.matches(&version) {
-        return Err(format!("Check Plugin Compatibility: Plugin Requires Dokime {requirement}, Running {version}; Install a Matching Dokime Version or Correct compatibility.dokime").into());
+        return Err(format!("Check Plugin Compatibility: Plugin Requires Dokime {requirement}, Selected Dokime Version {version}; Select a Matching Kit or Correct compatibility.dokime").into());
     }
     Ok(())
 }
