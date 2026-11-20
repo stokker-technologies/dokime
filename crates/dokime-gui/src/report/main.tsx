@@ -67,7 +67,7 @@ void start().catch((error: unknown) => {
   root.render(
     <>
       <DokimeToaster />
-      <ErrorCard notificationContext="background" failure={failureOf(error, "Report Could Not Open")} />
+      <ErrorCard failure={failureOf(error, "Report Could Not Open")} />
     </>,
   );
 });

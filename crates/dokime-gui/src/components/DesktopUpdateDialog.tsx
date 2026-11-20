@@ -46,6 +46,7 @@ export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdate
 
   useEffect(() => {
     if (!open) return;
+    actionFailure.current = false;
     let active = true;
     void commands
       .desktopUpdatesStatus()
