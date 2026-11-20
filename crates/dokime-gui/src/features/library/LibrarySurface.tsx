@@ -139,16 +139,17 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     }),
   ]);
 
-  const catalogFeedback = waitingPlugins.length || (suiteFailure && !waitingForSource) ? (
-    <div className="grid gap-3">
-      {waitingPlugins.map((plugin) => (
-        <p key={plugin.plugin_id} role="status" className="text-sm text-muted-foreground">
-          Waiting for Plugin {plugin.label}
-        </p>
-      ))}
-      {suiteFailure && !waitingForSource ? <ErrorCard failure={suiteFailure} onRetry={() => void suitesQuery.refetch()} /> : null}
-    </div>
-  ) : undefined;
+  const catalogFeedback =
+    waitingPlugins.length || (suiteFailure && !waitingForSource) ? (
+      <div className="grid gap-3">
+        {waitingPlugins.map((plugin) => (
+          <p key={plugin.plugin_id} role="status" className="text-sm text-muted-foreground">
+            Waiting for Plugin {plugin.label}
+          </p>
+        ))}
+        {suiteFailure && !waitingForSource ? <ErrorCard failure={suiteFailure} onRetry={() => void suitesQuery.refetch()} /> : null}
+      </div>
+    ) : undefined;
 
   return (
     <PageShell actions={actions} trail={["Library"]}>
@@ -162,7 +163,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
       />
       <section className="grid gap-3" aria-label="Library">
         {suiteRows.map(({ suite, members }, index) => (
-          <details key={suite.suite_id} className="rounded-lg border bg-card p-4" open={Boolean(suiteSearch) || (index === 0 && Boolean(catalogFeedback)) || undefined}>
+          <details
+            key={suite.suite_id}
+            className="rounded-lg border bg-card p-4"
+            open={Boolean(suiteSearch) || (index === 0 && Boolean(catalogFeedback)) || undefined}
+          >
             <summary className="cursor-pointer text-sm font-semibold">
               {suite.name} <span className="ml-2 font-normal text-muted-foreground">{members.length} Templates</span>
             </summary>
