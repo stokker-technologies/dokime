@@ -76,6 +76,7 @@ export function CaptureFoldersSection() {
         htmlFor={inputId}
         label="Add Folder"
         description="An absolute folder path on this computer."
+        notificationContext="action"
         error={mutation.error ? failureOf(mutation.error, "Save Capture Folders").message : undefined}
         failure={mutation.error ?? undefined}
         status={mutation.isPending ? <span role="status">Saving</span> : null}

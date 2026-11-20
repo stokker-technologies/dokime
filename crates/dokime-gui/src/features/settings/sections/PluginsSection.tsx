@@ -14,7 +14,6 @@ import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, RotateCw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
@@ -161,18 +160,14 @@ export function PluginsSection() {
               </span>
             </div>
           ) : pluginsQuery.isError || programsQuery.isError ? (
-            <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
-              <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
-              <Button
-                onClick={() => {
+            <div className="grid min-h-44 items-stretch gap-3 p-6">
+              <ErrorCard
+                failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")}
+                onRetry={() => {
                   void pluginsQuery.refetch();
                   void programsQuery.refetch();
                 }}
-                size="sm"
-                variant="outline"
-              >
-                Try Again
-              </Button>
+              />
             </div>
           ) : null}
 
@@ -252,9 +247,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
-            <NotificationMessage error={removeMutation.error}>
-              {removeMutation.error ? failureOf(removeMutation.error, "Plugin Operation Failed").message : null}
-            </NotificationMessage>
+            <ErrorCard notificationContext="action" failure={failureOf(removeMutation.error, "Operation Failed")} />
           ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">

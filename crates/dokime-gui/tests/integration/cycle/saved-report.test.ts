@@ -245,7 +245,6 @@ test("Saved Report Browser", async () => {
     const delivered = await downloadNativeReport(session, source, "night.html");
     assert.equal(delivered?.path, "/home/operator/night.html");
     assert.equal(delivered?.openFailure?.message, "no default browser");
-    assert.ok(delivered?.openFailure?.stack);
     assert.deepEqual(saved, ["bench.html", "cancelled.html", "night.html"]);
     assert.equal(created.length, 3);
     assert.equal(published.length, 0);

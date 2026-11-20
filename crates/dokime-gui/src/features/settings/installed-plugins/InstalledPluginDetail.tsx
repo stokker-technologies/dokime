@@ -20,10 +20,7 @@ import { AddSecretDialog } from "@/features/settings/sections/SecretsSection";
 
 import { InstalledPluginRuntimeBadge, InstalledPluginStatusBadge } from "@/features/settings/installed-plugins/InstalledPluginBadges";
 import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
-import type {
-  InstalledPluginDetail as InstalledPluginDetailModel,
-  SettingValues,
-} from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useBrand } from "@/lib/brand";
@@ -31,8 +28,8 @@ import { useBrand } from "@/lib/brand";
 /* === Types === */
 
 type InstalledPluginDetailProps = {
-  detail: InstalledPluginDetailModel;
-  onSaveSettings: (pluginId: string, values: SettingValues) => Promise<void>;
+  detail: contracts.InstalledPluginDetail;
+  onSaveSettings: (pluginId: string, values: contracts.SettingValues) => Promise<void>;
 };
 
 /* === Components === */

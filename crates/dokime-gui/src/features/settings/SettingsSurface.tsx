@@ -145,7 +145,7 @@ function SectionContent({
   if (loadError) {
     return (
       <SettingsCard title="Settings">
-        <div className="grid justify-items-start gap-3 px-4 py-3">
+        <div className="grid justify-items-stretch gap-3 px-4 py-3">
           <ErrorCard failure={failureOf(loadFailure, "Settings Unavailable")} onRetry={retry} />
         </div>
       </SettingsCard>

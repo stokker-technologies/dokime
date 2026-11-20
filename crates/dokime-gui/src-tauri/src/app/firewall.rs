@@ -70,7 +70,8 @@ pub async fn desktop_firewall(
     let options = AccessListenerGetOptions {
         context: session.call_options().map_err(|error| error.to_string())?,
     };
-    let listener = session.execute(client.access.listener.get_with(options)).await.map_err(|error| error.to_string())?;
+    let listener =
+        session.execute("Access.Listener.Get", client.access.listener.get_with(options)).await.map_err(|error| error.to_string())?;
     let address = listener.bound_endpoint.parse::<std::net::SocketAddr>().ok();
     let exposed = address.is_some_and(|address| !address.ip().to_canonical().is_loopback());
     let enabled = listener.value.as_ref().is_some_and(|value| value.enabled);

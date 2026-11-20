@@ -16,6 +16,9 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
+
 import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -171,18 +174,20 @@ export function OperationsItem() {
       <PopoverContent align="end" className="grid w-80 gap-3 text-xs" side="top">
         <span className="font-medium">Backend Operations</span>
         {listed.map((operation) => (
-          <span className="grid gap-1" key={operation.id}>
+          <div className="grid min-w-0 gap-1" key={operation.id}>
             <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <span className="truncate font-medium">{operation.label}</span>
               <span className="text-muted-foreground tabular-nums">
                 {operationPercent(operation) === null ? "" : `${operationPercent(operation)}%`}
               </span>
             </span>
-            <span className={cn("truncate", operation.status === "failed" ? "text-destructive" : "text-muted-foreground")}>
-              {operation.failure ?? operationPhaseLabel(operation)}
-            </span>
+            {operation.failure ? (
+              <ErrorCard failure={failureOf(operation.failure, "Operation Failed", `operation:${operation.id}:${operation.failure}`)} />
+            ) : (
+              <span className="text-muted-foreground">{operationPhaseLabel(operation)}</span>
+            )}
             <OperationBar operation={operation} />
-          </span>
+          </div>
         ))}
       </PopoverContent>
     </Popover>
@@ -265,11 +270,11 @@ function AttentionItem() {
     ...(artifacts.data ?? [])
       .filter((artifact) => artifact.status === "failed" || artifact.error)
       .map((artifact) => ({
-        detail: artifact.error ?? "The installed plugin failed to start.",
+        detail: "Open Plugin Settings",
         id: `plugin:${artifact.plugin_id}`,
         label: artifact.label,
         open: () => {
-          void navigate({ params: { section: "plugins" }, to: "/settings/$section" });
+          void navigate({ params: { pluginId: artifact.plugin_id }, to: "/settings/plugins/$pluginId" });
         },
       })),
   ];

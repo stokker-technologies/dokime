@@ -22,7 +22,8 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { ErrorCard } from "@/components/ErrorCard";
+import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { commands } from "@/lib/desktop/commands";
@@ -262,7 +263,9 @@ test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
 type TestElementProps = {
   children?: ReactNode;
   actions?: ReactNode;
-  failure?: ReactNode;
+  failure?: unknown;
+  onRetry?: () => void;
+  notificationContext?: string;
   retry?: (profile: string | null) => void;
   tabIndex?: number;
   role?: string;
@@ -277,37 +280,10 @@ function descendants(node: unknown): ReactElement<TestElementProps>[] {
   return [node, ...Children.toArray(node.props.children).flatMap(descendants)];
 }
 
-test("Startup Recovery Feedback", async () => {
-  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
-    "@/app/native-session/ConnectionScreen",
-  );
-  const diagnostics = { cause: "fixture startup failure", log: "C:/fixture/application.log" };
-  const tree = ConnectionScreen({
-    launch: { target: null, expectedBackendId: null, localBackendAvailable: true, error: null },
-    launchError: { kind: "startup", diagnostics },
-  });
-  const notices = descendants(tree).filter((element) => element.type === NotificationMessage);
-  assert.equal(notices.length, 1);
-  assert.equal(notices[0].props.children, diagnostics.cause);
-  const recovery = descendants(tree).find(
-    (element) =>
-      element.type === "div" &&
-      Children.toArray(element.props.children).some((child) => isValidElement(child) && child.type === NotificationMessage),
-  );
-  assert.ok(recovery);
-  const contents = descendants(recovery);
-  assert.equal(contents.filter((element) => element.props.value === diagnostics.log).length, 1);
-  const actions = contents.filter((element) => element.type === Button);
-  assert.equal(actions.length, 1);
-  actions[0].props.onClick?.();
-  assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
-  assert.equal(descendants(tree).filter((element) => element.type === "details").length, 0);
-});
-
 test("Backend Loading Stays in the Status Indicator", () => {
   const contents = descendants(BackendsTable());
   assert.equal(contents.filter((element) => element.props.role === "status").length, 1);
-  assert.equal(contents.filter((element) => element.type === NotificationMessage).length, 0);
+  assert.equal(contents.filter((element) => element.type === ErrorCard).length, 0);
 });
 
 test("Occupied Local Remains Usable", async () => {
@@ -328,8 +304,7 @@ test("Occupied Local Remains Usable", async () => {
   const contents = descendants(tree);
   const registry = contents.find((element) => element.type === BackendsTable);
   assert.ok(registry);
-  assert.ok(isValidElement<{ children: string }>(registry.props.failure));
-  assert.equal(registry.props.failure.props.children, failure.message);
+  assert.equal(registry.props.failure, failure);
   assert.ok(registry.props.retry);
   registry.props.retry(null);
   assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
@@ -337,14 +312,6 @@ test("Occupied Local Remains Usable", async () => {
 
   await owner.select({ kind: "profile", identifier: "lab" });
   assert.equal(owner.snapshot().phase, "connected");
-});
-
-test("Backend Failure Replaces Loading with Notification Feedback", () => {
-  const contents = descendants(BackendsTable({ failure: "fixture-failure" }));
-  const notices = contents.filter((element) => element.type === NotificationMessage);
-  assert.equal(notices.length, 1);
-  assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
-  assert.ok(Children.toArray(notices[0].props.children).includes("fixture-failure"));
 });
 
 test("Remote Import Starts from the Backend Toolbar", async () => {
@@ -380,4 +347,48 @@ test("Readiness Separates Status History from the Product Execution Epoch", asyn
   fixture.cycles.mockResolvedValue({ overview: { sessionId: "different-product-epoch" } });
   await owner.select({ kind: "profile", identifier: "lab" });
   assert.equal(owner.snapshot().phase, "failed");
+});
+
+test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
+  const error = new Error("bench_connection");
+  const contents = descendants(BackendsTable({ failure: error }));
+  const cards = contents.filter((element) => element.type === ErrorCard);
+  assert.equal(cards.length, 1);
+  const failure = cards[0].props.failure;
+  assert.ok(failure && typeof failure === "object" && "message" in failure);
+  assert.equal(failure.message, error.message);
+  assert.equal(contents.filter((element) => element.props.role === "status").length, 0);
+});
+
+test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
+  const endpoint = "http://127.0.0.1:8765";
+  const contents = descendants(BackendsTable({ failure: new Error("fixture-connect"), endpoint }));
+  assert.equal(contents.filter((element) => element.type === ErrorCard).length, 1);
+  assert.ok(contents.some((element) => element.type === "p" && element.props.children === endpoint));
+});
+
+test("Startup Recovery Feedback", async () => {
+  const { ConnectionScreen } = await vi.importActual<typeof import("@/app/native-session/ConnectionScreen")>(
+    "@/app/native-session/ConnectionScreen",
+  );
+  const diagnostics = { cause: "fixture-startup-cause", log: "C:/fixture/startup.log" };
+  const error = { kind: "startup", message: diagnostics.cause, diagnostics };
+  const contents = descendants(
+    ConnectionScreen({
+      launch: {
+        target: null,
+        expectedBackendId: null,
+        localBackendAvailable: true,
+        error: null,
+      },
+      launchError: error,
+    }),
+  );
+  const failures = contents.filter((element) => element.type === ErrorCard);
+  assert.equal(failures.length, 1);
+  assert.equal((failures[0].props.failure as { message: string }).message, diagnostics.cause);
+  assert.equal(failures[0].props.notificationContext, "background");
+  assert.ok(contents.some((element) => element.type === PathPill && element.props.value === diagnostics.log));
+  failures[0].props.onRetry?.();
+  assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
 });
