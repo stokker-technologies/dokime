@@ -2703,3 +2703,38 @@ The root README and SDK package READMEs describe the product imports, bound
 connection/client flow, protected lifecycle operations and single starter roots.
 The documentation changes above remain with the owner; workers do not edit
 `docs/` or unrelated prose.
+
+## Registered (Unmanaged) Plugin Lifecycle (Locked by the Owner, 2026-11-20)
+
+An unmanaged plugin is started by its author with `DOKIME_REMOTE` configured and
+registers itself through `dokime.host.v1.Plugins/Create` with a remote placement.
+The host reads no bundle, manifest or project file for it: identity, label,
+operations and catalogs come from the plugin's own description.
+
+- Wire: `PluginsCreateRequest.sdk_version` (optional) carries the product SDK
+  version the plugin was built against. The product Create policy refuses a
+  remote registration whose version's caret range does not contain the host
+  version with `plugin_incompatible`, naming both versions. Managed bundles keep
+  their manifest check.
+- Wire: `PluginState.PLUGIN_STATE_OFFLINE` presents a remote entry the library
+  reports unreachable (`Unavailable` with `plugin_unavailable`) without a
+  failure. Entries are durable and only an explicit Delete removes them; the
+  SDK no longer deletes its entry when the plugin exits.
+- Re-registration reuses the entry matched by name (the plugin identifier). The
+  library first answers replays and refuses conflicting request identifiers;
+  an `entry_exists` refusal with the same address enables or restarts the
+  entry, and a new address deletes and recreates it under the same name.
+- Wire: `Suite.unavailable` marks the last reported suites of an Offline plugin.
+  They stay listed; planning and materialization refuse them with an action.
+- Desktop and `dokime plugin list` show each entry's placement (Managed or
+  Unmanaged) and status (Ready, Starting, Offline, Failed, Disabled, Stopping,
+  Stopped); the desktop list filters by both.
+
+Library gaps at the current pin: a remote placement cannot change its address,
+so a new address drops host-saved plugin settings through Delete and Create; a
+remote entry whose first attach fails (for example after a host restart while
+the plugin is down) is not retried until the plugin registers again; reconnect
+failures that are not unreachability (changed identity, settings that no longer
+fit) also carry `plugin_unavailable` and present as Offline; operations of a
+disconnected plugin leave the library catalog, so only suites and templates are
+retained as unavailable.

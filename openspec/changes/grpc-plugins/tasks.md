@@ -252,3 +252,14 @@
 - [x] Gate Installer Packaging and Its Exclusive Dependencies Behind the CLI-Selected `installer` Feature; Prove Isolated Consumer Dependencies and Packaging/CLI Units.
 - [x] Expose Library-Owned Lane Declarations and Operation Assignment Through All Four Product SDKs; Prove Each Description and Preserve Library Validation.
 - [x] Run the Requested Final Repository, Rust Lint, Release-Context Binding and Supply Checks Without Expanding Local Test Lanes.
+
+
+## Registered Plugins and Launch Consumers
+
+- [x] Present an Unreachable Remote Entry as Offline Without a Failure and Keep It Durable Until an Explicit Delete.
+- [x] Reuse a Registered Plugin's Entry by Its Identifier on Re-Registration, Preserving Replay and Conflict Refusal.
+- [x] Retain an Offline Plugin's Last Reported Suites, Marked Unavailable, and Refuse Planning Them With an Action.
+- [x] Refuse a Remote Registration Built Against an Incompatible Product SDK Version, Naming Both Versions.
+- [x] Show Placement and Status in the Desktop Plugin List and `dokime plugin list`, Filterable in the Desktop.
+- [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
+- [ ] Move the Launch Readiness Consumers to `Launches/Announce` Once the Library Pin Provides It.
