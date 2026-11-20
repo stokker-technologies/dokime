@@ -26,6 +26,8 @@ __pycache__/
 .pyright/
 
 # Documentation build outputs
+/sites/docs/.astro/
+/sites/docs/node_modules/
 
 # Web and Tauri
 /node_modules/

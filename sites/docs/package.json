@@ -6,7 +6,8 @@
     "build": "astro build",
     "dev": "astro dev --host 127.0.0.1",
     "format": "biome format --write .",
-    "lint": "biome lint ."
+    "lint": "biome lint .",
+    "test": "node --test"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "7.3.9",

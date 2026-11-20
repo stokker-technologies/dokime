@@ -82,6 +82,10 @@ tonic = { workspace = true }
 
 # === Build Dependencies === #
 
+[build-dependencies]
+# UI
+tauri-winres = { workspace = true }
+
 # === Dev Dependencies === #
 
 [dev-dependencies]
@@ -122,6 +126,10 @@ tempfile = { workspace = true }
 # === Target Dependencies === #
 
 # === Test Targets === #
+
+[[test]]
+name = "build-identity"
+path = "build_identity.rs"
 
 [[test]]
 name = "system"

@@ -39,7 +39,7 @@ from . import operations
 
 # === Constants === #
 
-SITE = "site"
+SITE = "sites/docs"
 OUTPUT = "target/docs"
 ARCHIVE = "dokime-docs.zip"
 STAMP = "docs.json"

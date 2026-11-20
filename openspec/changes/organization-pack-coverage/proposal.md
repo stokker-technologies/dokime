@@ -59,7 +59,8 @@ release acquisition, including for named plugins; local named plugins live under
 `.dokime` bundles or plugin ZIP/TAR.GZ archives. `--format nsis,deb,rpm`, `--target`,
 `--sign` and `--json` retain their earlier command semantics.
 
-The manifest schema retains every earlier table and key; no keys are added.
+The manifest retains its tables and adds default-plugin exclusions and an updater
+artifact-base URL environment reference as recorded in `design.md`.
 Paths resolve relative to the installer manifest except `plugin.path`, which is
 relative to the selected organization folder. A supplied organization folder is a
 complete replacement. A custom pack without an explicit update mode disables
@@ -70,10 +71,11 @@ requires NSIS; payload preparation tests do not invoke it or a published release
 
 ```toml
 [installer]
-version = "1.2.3" # Required exact installer semantic version.
+version = "1.2.3" # Optional exact installer version; defaults to the built CLI version.
 formats = ["nsis"] # Required, native formats only; Linux uses deb/rpm.
 identifier = "com.example.testhub" # Optional; defaults to compiled product identity.
 organization = "example-pack" # Optional complete appearance pack folder.
+exclude_plugins = ["obc"] # Optional default plugin identities to omit.
 
 [dokime]
 version = "nightly" # Optional; exact release version or nightly; defaults to CLI version.
@@ -94,10 +96,11 @@ timestamp_url = "https://timestamp.example.test" # Windows HTTPS RFC 3161 endpoi
 
 [signing.updater] # Optional; native Windows; installer/product versions must match.
 private_key_file = "updater.key" # Exactly one of these three private-key references.
-# private_key_env = "EXAMPLE_UPDATER_KEY" # Base64 key material.
+# private_key_env = "EXAMPLE_UPDATER_KEY" # Key path, raw key or base64 key material.
 # private_key_path_env = "EXAMPLE_UPDATER_KEY_PATH" # Environment variable holding a path.
 password_env = "EXAMPLE_UPDATER_PASSWORD" # Required password environment reference.
-artifact_base_url = "https://downloads.example.test" # Required HTTPS publishing base.
+artifact_base_url = "https://downloads.example.test" # Exactly one HTTPS publishing base reference.
+# artifact_base_url_env = "EXAMPLE_UPDATER_BASE_URL" # Alternative environment reference.
 ```
 
 Acquisition verifies release `SHA256SUMS`, then every distribution inventory member.
@@ -169,6 +172,6 @@ has not been selected.
 
 Pack validation and update-policy validation currently have both desktop and
 packaging owners, and distribution-identifier validation is also repeated there.
-These overlaps are retained for the owner to decide their shared home. Product
-native packaging still uses the existing Python/Tauri path, while organization
-packaging now uses the restored CLI/Rust path; neither existing path is deleted.
+These overlaps are retained for the owner to decide their shared home. Release
+and organization native packaging now share the CLI/Rust producer; the Python
+native producer and its Tauri overlay tests are superseded.
