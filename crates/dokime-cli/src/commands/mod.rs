@@ -27,7 +27,6 @@ mod plugin;
 mod proto;
 mod server;
 mod status;
-mod version;
 
 /* === Re-Exports === */
 
@@ -82,7 +81,6 @@ pub(crate) enum Command {
     Access(pairing::Command),
 
     Status(status::Args),
-    Version(version::Args),
 
     #[command(subcommand)]
     Operation(operation::Command),
@@ -108,7 +106,6 @@ impl Command {
             Self::Doctor(_) => "Diagnose Storage",
             Self::Access(_) => "Export Access Pairing",
             Self::Status(_) => "Read Host Status",
-            Self::Version(_) => "Read Build Version",
             Self::Operation(command) => command.action(),
         }
     }
@@ -119,13 +116,7 @@ impl Command {
 pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: Settings) -> Result<()> {
     if !matches!(
         command,
-        Command::Installer(_)
-            | Command::New(_)
-            | Command::Dev(_)
-            | Command::Server(_)
-            | Command::Doctor(_)
-            | Command::Version(_)
-            | Command::Proto(_)
+        Command::Installer(_) | Command::New(_) | Command::Dev(_) | Command::Server(_) | Command::Doctor(_) | Command::Proto(_)
     ) {
         settings.pairing = settings.remote.as_deref().map(pairing::File::read).transpose()?;
     }
@@ -143,7 +134,6 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings
         Command::Access(command) => pairing::run(command, endpoint, settings).await,
         Command::Doctor(command) => Box::pin(doctor::run(command, settings)).await,
         Command::Status(args) => status::run(args, endpoint, settings).await,
-        Command::Version(args) => version::run(args),
         Command::Operation(command) => operation::run(command, endpoint, settings).await,
     }
 }
