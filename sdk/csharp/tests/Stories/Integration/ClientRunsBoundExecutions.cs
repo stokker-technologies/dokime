@@ -77,7 +77,10 @@ public sealed class ClientRunsBoundExecutions
     var restarted = Connect(backend);
     var replacement = await restarted.Plugins.RegisterAsync(new ExamplePlugin());
     Assert.Equal(registered.Identifier, replacement.Identifier);
+    var stopped = replacement.WaitAsync(CancellationToken.None);
+    Assert.False(stopped.IsCompleted);
     await replacement.DisposeAsync();
+    await stopped;
     await replacement.DisposeAsync();
     await restarted.CloseAsync();
     Assert.Equal(1, backend.RegisteredCount);
@@ -95,6 +98,20 @@ public sealed class ClientRunsBoundExecutions
     });
     Assert.Equal(connectOnWatch ? 2 : 0, backend.Calls.Count(method => method == "/dokime.host.v1.Plugins/Watch"));
     Assert.DoesNotContain("/dokime.host.v1.Plugins/Delete", backend.Calls);
+  }
+
+  [Fact]
+  public async Task DisposingARegistrationKeepsItsEntryUntilExplicitRemoval()
+  {
+    var backend = new FakeBackend();
+    var client = Connect(backend);
+    var registered = await client.Plugins.RegisterAsync(new ExamplePlugin());
+    await registered.DisposeAsync();
+    Assert.Equal(1, backend.RegisteredCount);
+    Assert.DoesNotContain("/dokime.host.v1.Plugins/Delete", backend.Calls);
+    await registered.UnregisterAsync();
+    Assert.Equal(0, backend.RegisteredCount);
+    await client.CloseAsync();
   }
 
   [Fact]

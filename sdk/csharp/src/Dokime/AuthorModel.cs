@@ -115,10 +115,10 @@ public abstract class Plugin
       return;
     }
     await using var client = await Client.ConnectAsync(settings, cancellationToken);
-    await client.Plugins.RegisterAsync(this, settings, cancellationToken: cancellationToken);
+    var registered = await client.Plugins.RegisterAsync(this, settings, cancellationToken: cancellationToken);
     try
     {
-      await Task.Delay(Timeout.Infinite, cancellationToken);
+      await registered.WaitAsync(cancellationToken);
     }
     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
     {

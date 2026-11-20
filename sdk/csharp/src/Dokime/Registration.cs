@@ -170,6 +170,8 @@ public sealed class RegisteredPlugin : IAsyncDisposable
   }
   public string Identifier => entry.Name;
   public string State => entry.State.ToString();
+  internal Task WaitAsync(CancellationToken cancellationToken) => endpoint?.Serving.WaitAsync(cancellationToken)
+    ?? throw new InvalidOperationException("Wait for Plugin: Register an Owned Listener");
   internal void Observe(PluginEntry observed)
   {
     if (observed.Name != Identifier)
@@ -220,7 +222,10 @@ internal sealed record TemplateBinding(Type Type, string Plugin, string Suite, s
 internal sealed class PluginEndpoint : IAsyncDisposable
 {
   private static readonly SemaphoreSlim console = new(1, 1);
-  private readonly Task serving;
+  internal Task Serving
+  {
+    get;
+  }
   private readonly CancellationTokenSource stop;
   private Task? closing;
   internal string Address
@@ -230,7 +235,7 @@ internal sealed class PluginEndpoint : IAsyncDisposable
   private PluginEndpoint(string address, Task serving, CancellationTokenSource stop)
   {
     Address = address;
-    this.serving = serving;
+    Serving = serving;
     this.stop = stop;
   }
   internal static async Task<PluginEndpoint> StartAsync(Plugin plugin, string address, CancellationToken cancellationToken)
@@ -271,7 +276,7 @@ internal sealed class PluginEndpoint : IAsyncDisposable
     await stop.CancelAsync();
     try
     {
-      await serving;
+      await Serving;
     }
     finally
     {
