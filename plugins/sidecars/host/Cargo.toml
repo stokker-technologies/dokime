@@ -54,6 +54,7 @@ prost-types = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true }
 
 # Networking
 
@@ -91,6 +92,10 @@ windows = { workspace = true, features = [
   "Win32_System_Variant",
   "Win32_System_Wmi",
 ] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+zbus = { workspace = true }
 
 # === Test Targets === #
 

@@ -5725,8 +5725,11 @@ name = "plugin-host"
 version = "0.1.5"
 dependencies = [
  "dokime",
+ "libc",
  "prost-types",
+ "tokio",
  "windows",
+ "zbus",
 ]
 
 [[package]]

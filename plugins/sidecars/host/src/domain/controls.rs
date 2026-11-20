@@ -32,7 +32,7 @@ use dokime::{Error, Message, Result};
 /* === Structs === */
 
 /// The Control State a Mutating Control Captures Before Its Write and Restores as Its Inverse.
-#[derive(Message)]
+#[derive(Clone, Debug, PartialEq, Message)]
 #[dokime(package = "host")]
 pub struct ControlState {
     pub radios: Vec<RadioState>,
@@ -41,7 +41,7 @@ pub struct ControlState {
 }
 
 /// One Radio, Its Kind as `Radio::as_str` Names It, and Whether It Is On.
-#[derive(Message)]
+#[derive(Clone, Debug, PartialEq, Message)]
 #[dokime(package = "host")]
 pub struct RadioState {
     pub id: String,
@@ -49,7 +49,7 @@ pub struct RadioState {
     pub on: bool,
 }
 
-#[derive(Message)]
+#[derive(Clone, Debug, PartialEq, Message)]
 #[dokime(package = "host")]
 pub struct AdapterState {
     pub id: String,
