@@ -77,12 +77,16 @@ export function HistoryComparisonView({ cycles }: HistoryComparisonViewProps) {
       {cycles.length < 2 ? (
         <PageNotice>Select at least two entries in the library to compare them.</PageNotice>
       ) : (
-        <>
-          <div className="min-w-0">
-            <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing to Compare" getRowId={rowLabel} />
-          </div>
-          <p className="text-xs text-muted-foreground">Comparison covers the summary metrics above.</p>
-        </>
+        <div className="min-w-0">
+          <DataTable
+            title="Comparison"
+            columns={columns}
+            data={COMPARISON_ROWS}
+            description="Comparison covers the summary metrics above."
+            emptyText="Nothing to Compare"
+            getRowId={rowLabel}
+          />
+        </div>
       )}
     </>
   );

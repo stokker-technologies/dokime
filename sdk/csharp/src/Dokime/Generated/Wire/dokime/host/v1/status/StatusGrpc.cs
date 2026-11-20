@@ -48,27 +48,27 @@ namespace Dokime.Internal.Client;
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Harmos.Clients.StatusGetRequest> __Marshaller_harmos_host_v1_StatusGetRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.StatusGetRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Harmos.Clients.StatusGetResponse> __Marshaller_harmos_host_v1_StatusGetResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.StatusGetResponse.Parser));
+    static readonly grpc::Marshaller<global::Dokime.Clients.StatusGetResponse> __Marshaller_dokime_host_v1_StatusGetResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.StatusGetResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Harmos.Clients.StatusWatchRequest> __Marshaller_harmos_host_v1_StatusWatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.StatusWatchRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Harmos.Clients.StatusWatchResponse> __Marshaller_harmos_host_v1_StatusWatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Harmos.Clients.StatusWatchResponse.Parser));
+    static readonly grpc::Marshaller<global::Dokime.Clients.StatusWatchResponse> __Marshaller_dokime_host_v1_StatusWatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.StatusWatchResponse.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Method<global::Harmos.Clients.StatusGetRequest, global::Harmos.Clients.StatusGetResponse> __Method_Get = new grpc::Method<global::Harmos.Clients.StatusGetRequest, global::Harmos.Clients.StatusGetResponse>(
+    static readonly grpc::Method<global::Harmos.Clients.StatusGetRequest, global::Dokime.Clients.StatusGetResponse> __Method_Get = new grpc::Method<global::Harmos.Clients.StatusGetRequest, global::Dokime.Clients.StatusGetResponse>(
         grpc::MethodType.Unary,
         __ServiceName,
         "Get",
         __Marshaller_harmos_host_v1_StatusGetRequest,
-        __Marshaller_harmos_host_v1_StatusGetResponse);
+        __Marshaller_dokime_host_v1_StatusGetResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Method<global::Harmos.Clients.StatusWatchRequest, global::Harmos.Clients.StatusWatchResponse> __Method_Watch = new grpc::Method<global::Harmos.Clients.StatusWatchRequest, global::Harmos.Clients.StatusWatchResponse>(
+    static readonly grpc::Method<global::Harmos.Clients.StatusWatchRequest, global::Dokime.Clients.StatusWatchResponse> __Method_Watch = new grpc::Method<global::Harmos.Clients.StatusWatchRequest, global::Dokime.Clients.StatusWatchResponse>(
         grpc::MethodType.ServerStreaming,
         __ServiceName,
         "Watch",
         __Marshaller_harmos_host_v1_StatusWatchRequest,
-        __Marshaller_harmos_host_v1_StatusWatchResponse);
+        __Marshaller_dokime_host_v1_StatusWatchResponse);
 
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
@@ -81,13 +81,13 @@ namespace Dokime.Internal.Client;
     public abstract partial class StatusBase
     {
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task<global::Harmos.Clients.StatusGetResponse> Get(global::Harmos.Clients.StatusGetRequest request, grpc::ServerCallContext context)
+      public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.StatusGetResponse> Get(global::Harmos.Clients.StatusGetRequest request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task Watch(global::Harmos.Clients.StatusWatchRequest request, grpc::IServerStreamWriter<global::Harmos.Clients.StatusWatchResponse> responseStream, grpc::ServerCallContext context)
+      public virtual global::System.Threading.Tasks.Task Watch(global::Harmos.Clients.StatusWatchRequest request, grpc::IServerStreamWriter<global::Dokime.Clients.StatusWatchResponse> responseStream, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -122,32 +122,32 @@ namespace Dokime.Internal.Client;
       }
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Harmos.Clients.StatusGetResponse Get(global::Harmos.Clients.StatusGetRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      public virtual global::Dokime.Clients.StatusGetResponse Get(global::Harmos.Clients.StatusGetRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
       {
         return Get(request, new grpc::CallOptions(headers, deadline, cancellationToken));
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Harmos.Clients.StatusGetResponse Get(global::Harmos.Clients.StatusGetRequest request, grpc::CallOptions options)
+      public virtual global::Dokime.Clients.StatusGetResponse Get(global::Harmos.Clients.StatusGetRequest request, grpc::CallOptions options)
       {
         return CallInvoker.BlockingUnaryCall(__Method_Get, null, options, request);
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Harmos.Clients.StatusGetResponse> GetAsync(global::Harmos.Clients.StatusGetRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.StatusGetResponse> GetAsync(global::Harmos.Clients.StatusGetRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
       {
         return GetAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Harmos.Clients.StatusGetResponse> GetAsync(global::Harmos.Clients.StatusGetRequest request, grpc::CallOptions options)
+      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.StatusGetResponse> GetAsync(global::Harmos.Clients.StatusGetRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_Get, null, options, request);
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncServerStreamingCall<global::Harmos.Clients.StatusWatchResponse> Watch(global::Harmos.Clients.StatusWatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      public virtual grpc::AsyncServerStreamingCall<global::Dokime.Clients.StatusWatchResponse> Watch(global::Harmos.Clients.StatusWatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
       {
         return Watch(request, new grpc::CallOptions(headers, deadline, cancellationToken));
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncServerStreamingCall<global::Harmos.Clients.StatusWatchResponse> Watch(global::Harmos.Clients.StatusWatchRequest request, grpc::CallOptions options)
+      public virtual grpc::AsyncServerStreamingCall<global::Dokime.Clients.StatusWatchResponse> Watch(global::Harmos.Clients.StatusWatchRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncServerStreamingCall(__Method_Watch, null, options, request);
       }
@@ -176,8 +176,8 @@ namespace Dokime.Internal.Client;
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     public static void BindService(grpc::ServiceBinderBase serviceBinder, StatusBase serviceImpl)
     {
-      serviceBinder.AddMethod(__Method_Get, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Harmos.Clients.StatusGetRequest, global::Harmos.Clients.StatusGetResponse>(serviceImpl.Get));
-      serviceBinder.AddMethod(__Method_Watch, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Harmos.Clients.StatusWatchRequest, global::Harmos.Clients.StatusWatchResponse>(serviceImpl.Watch));
+      serviceBinder.AddMethod(__Method_Get, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Harmos.Clients.StatusGetRequest, global::Dokime.Clients.StatusGetResponse>(serviceImpl.Get));
+      serviceBinder.AddMethod(__Method_Watch, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Harmos.Clients.StatusWatchRequest, global::Dokime.Clients.StatusWatchResponse>(serviceImpl.Watch));
     }
 
   }

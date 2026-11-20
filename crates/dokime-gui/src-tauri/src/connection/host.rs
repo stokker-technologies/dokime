@@ -27,7 +27,7 @@ pub use pairing::Pairing;
 use std::{
     collections::{BTreeSet, HashMap},
     future::Future,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
     time::Duration,
 };
@@ -65,7 +65,7 @@ use dokime_runtime::ControlledClock;
 #[cfg(not(feature = "testing"))]
 use dokime_runtime::services::WallClock;
 
-use dokime_client_internal::StatusGetResponse;
+use dokime_client_internal::host::StatusGetResponse;
 use dokime_client_internal::{Client, ClientSettings};
 
 /* === Constants === */
@@ -530,13 +530,6 @@ impl Connection {
 
     pub fn is_embedded(&self) -> bool {
         self.server.is_some()
-    }
-
-    /// Replaces the embedded host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        if let Some(server) = &self.server {
-            server.set_capture_roots(roots);
-        }
     }
 
     pub async fn start(&mut self, root: &Path) -> Result<Session, Error> {

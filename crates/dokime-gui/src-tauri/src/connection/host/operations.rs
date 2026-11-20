@@ -2,7 +2,7 @@
 use super::{Error, Session};
 use dokime_protocol::host;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [4, 243, 199, 224, 120, 22, 171, 211, 122, 53, 24, 172, 109, 140, 140, 122, 89, 133, 6, 99, 67, 235, 242, 156, 126, 116, 146, 143, 54, 205, 12, 3];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [11, 160, 17, 140, 184, 169, 45, 245, 75, 85, 73, 93, 121, 119, 90, 200, 48, 71, 130, 53, 12, 46, 117, 114, 245, 119, 104, 254, 116, 53, 91, 148];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
@@ -63,7 +63,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.host.v1.Settings/Get" => Box::pin(session.call::<host::SettingsGetRequest, host::SettingsGetResponse>("/dokime.host.v1.Settings/Get", payload)).await,
         "/dokime.host.v1.Settings/Schema" => Box::pin(session.call::<host::SettingsSchemaRequest, host::SettingsSchemaResponse>("/dokime.host.v1.Settings/Schema", payload)).await,
         "/dokime.host.v1.Settings/Set" => Box::pin(session.call::<host::SettingsSetRequest, host::SettingsSetResponse>("/dokime.host.v1.Settings/Set", payload)).await,
-        "/dokime.host.v1.Status/Get" => Box::pin(session.call::<harmos_protocol::host::StatusGetRequest, harmos_protocol::host::StatusGetResponse>("/dokime.host.v1.Status/Get", payload)).await,
+        "/dokime.host.v1.Status/Get" => Box::pin(session.call::<harmos_protocol::host::StatusGetRequest, host::StatusGetResponse>("/dokime.host.v1.Status/Get", payload)).await,
         "/dokime.host.v1.StreamSchemas/Get" => Box::pin(session.call::<host::StreamSchemasGetRequest, host::StreamSchemasGetResponse>("/dokime.host.v1.StreamSchemas/Get", payload)).await,
         "/dokime.host.v1.StreamSchemas/List" => Box::pin(session.call::<host::StreamSchemasListRequest, host::StreamSchemasListResponse>("/dokime.host.v1.StreamSchemas/List", payload)).await,
         "/dokime.host.v1.Suites/Get" => Box::pin(session.call::<host::SuitesGetRequest, host::SuitesGetResponse>("/dokime.host.v1.Suites/Get", payload)).await,
@@ -109,6 +109,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.host.v1.plugins.Settings/Set" => Box::pin(session.call::<host::plugins::SettingsSetRequest, host::plugins::SettingsSetResponse>("/dokime.host.v1.plugins.Settings/Set", payload)).await,
         "/dokime.host.v1.prompts.Answers/Create" => Box::pin(session.call::<host::prompts::AnswersCreateRequest, host::prompts::AnswersCreateResponse>("/dokime.host.v1.prompts.Answers/Create", payload)).await,
         "/dokime.host.v1.status.Diagnostics/Get" => Box::pin(session.call::<harmos_protocol::host::status::DiagnosticsGetRequest, harmos_protocol::host::status::DiagnosticsGetResponse>("/dokime.host.v1.status.Diagnostics/Get", payload)).await,
+        "/dokime.host.v1.status.Logs/List" => Box::pin(session.call::<harmos_protocol::host::status::LogsListRequest, harmos_protocol::host::status::LogsListResponse>("/dokime.host.v1.status.Logs/List", payload)).await,
         "/dokime.host.v1.status.TraceEvents/List" => Box::pin(session.call::<harmos_protocol::host::status::TraceEventsListRequest, harmos_protocol::host::status::TraceEventsListResponse>("/dokime.host.v1.status.TraceEvents/List", payload)).await,
         "/dokime.host.v1.storage.Sources/Get" => Box::pin(session.call::<host::storage::SourcesGetRequest, host::storage::SourcesGetResponse>("/dokime.host.v1.storage.Sources/Get", payload)).await,
         "/dokime.host.v1.storage.Sources/Set" => Box::pin(session.call::<host::storage::SourcesSetRequest, host::storage::SourcesSetResponse>("/dokime.host.v1.storage.Sources/Set", payload)).await,
@@ -126,7 +127,7 @@ pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Resu
         "/dokime.host.v1.Plugins/Watch" => Box::pin(session.watch::<host::PluginsWatchRequest, host::PluginsWatchResponse>("/dokime.host.v1.Plugins/Watch", payload)).await,
         "/dokime.host.v1.Prompts/Watch" => Box::pin(session.watch::<host::PromptsWatchRequest, host::PromptsWatchResponse>("/dokime.host.v1.Prompts/Watch", payload)).await,
         "/dokime.host.v1.Secrets/Watch" => Box::pin(session.watch::<host::SecretsWatchRequest, host::SecretsWatchResponse>("/dokime.host.v1.Secrets/Watch", payload)).await,
-        "/dokime.host.v1.Status/Watch" => Box::pin(session.watch::<harmos_protocol::host::StatusWatchRequest, harmos_protocol::host::StatusWatchResponse>("/dokime.host.v1.Status/Watch", payload)).await,
+        "/dokime.host.v1.Status/Watch" => Box::pin(session.watch::<harmos_protocol::host::StatusWatchRequest, host::StatusWatchResponse>("/dokime.host.v1.Status/Watch", payload)).await,
         "/dokime.host.v1.backend.Overview/Watch" => Box::pin(session.watch::<host::backend::OverviewWatchRequest, host::backend::OverviewWatchResponse>("/dokime.host.v1.backend.Overview/Watch", payload)).await,
         "/dokime.host.v1.content.Artifacts/Watch" => Box::pin(session.watch::<host::content::ArtifactsWatchRequest, host::content::ArtifactsWatchResponse>("/dokime.host.v1.content.Artifacts/Watch", payload)).await,
         "/dokime.host.v1.content.ExecutionFiles/Watch" => Box::pin(session.watch::<host::content::ExecutionFilesWatchRequest, host::content::ExecutionFilesWatchResponse>("/dokime.host.v1.content.ExecutionFiles/Watch", payload)).await,

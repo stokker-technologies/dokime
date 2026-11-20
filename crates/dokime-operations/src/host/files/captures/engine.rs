@@ -156,7 +156,7 @@ impl Capture {
                 .iter()
                 .any(|rule| rule.action == FileRuleAction::Include as i32 && (rule.glob.contains('/') || rule.glob.contains("**")));
         let rules = compile(action, &rules)?;
-        let root = admit_root(action, &location, &settings.roots)?;
+        let root = admit_root(action, &location)?;
         let mut source = Source {
             root,
             rules,
@@ -389,18 +389,12 @@ fn local(action: &str, location: &FileLocation) -> Result<PathBuf> {
     }
 }
 
-// The Source Root Must Lie Within a Configured Capture Root After Resolving Links.
-fn admit_root(action: &str, root: &Path, allowed: &[PathBuf]) -> Result<PathBuf> {
+// The Source Root Is an Existing Directory, Resolved Through Its Links.
+fn admit_root(action: &str, root: &Path) -> Result<PathBuf> {
     let resolved = std::fs::canonicalize(root).map_err(|error| match error.kind() {
         std::io::ErrorKind::NotFound => Error::NotFound(format!("{action}: Name an Existing Source Directory")),
         _ => Error::Unavailable(format!("{action}: Make the Source Directory Readable: {error}")),
     })?;
-    let permitted = allowed.iter().filter_map(|root| std::fs::canonicalize(root).ok()).any(|root| resolved.starts_with(root));
-    if !permitted {
-        return Err(Error::Permission(format!(
-            "{action}: Add the Source Directory Under Settings → Capture Folders (capture_roots on a Command-Line Host)"
-        )));
-    }
     if !resolved.is_dir() {
         return Err(Error::Invalid(format!("{action}: Name a Source Directory")));
     }
@@ -608,16 +602,14 @@ mod tests {
     }
 
     #[test]
-    fn sources_must_resolve_inside_a_configured_capture_root() {
-        let allowed = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        std::fs::create_dir(allowed.path().join("device")).unwrap();
-        let roots = vec![allowed.path().to_path_buf()];
-        assert!(admit_root("Capture", &allowed.path().join("device"), &roots).is_ok());
-        assert!(matches!(admit_root("Capture", outside.path(), &roots), Err(Error::Permission(_))));
-        assert!(matches!(admit_root("Capture", &allowed.path().join("device/../.."), &roots), Err(Error::Permission(_))));
-        assert!(matches!(admit_root("Capture", allowed.path(), &[]), Err(Error::Permission(_))));
-        assert!(matches!(admit_root("Capture", &allowed.path().join("missing"), &roots), Err(Error::NotFound(_))));
+    fn sources_resolve_to_existing_directories() {
+        let source = tempfile::tempdir().unwrap();
+        std::fs::create_dir(source.path().join("device")).unwrap();
+        std::fs::write(source.path().join("device.log"), b"").unwrap();
+        let resolved = admit_root("Capture", &source.path().join("device/../device")).unwrap();
+        assert_eq!(resolved, std::fs::canonicalize(source.path().join("device")).unwrap());
+        assert!(matches!(admit_root("Capture", &source.path().join("device.log")), Err(Error::Invalid(_))));
+        assert!(matches!(admit_root("Capture", &source.path().join("missing")), Err(Error::NotFound(_))));
     }
 
     #[test]

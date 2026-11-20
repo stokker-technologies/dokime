@@ -1886,8 +1886,9 @@ matchers=(), markers=())` or `MirrorCapture(interval_s=None)`.
 Here LineField.type is one of the same canonical parameter-kind strings, not a
 second kind enum. These constructor parameters and fields are complete;
 the SDK rejects multiple/absent oneof alternatives and invalid modes before I/O.
-Host allowlists, source validation and execution-owned settlement remain host
-policy. No local SDK file-watcher or polling capture implementation is added.
+Source validation and execution-owned settlement remain host policy. Plugins may
+capture files from any host folder; the capture-folder allow-list is removed.
+No local SDK file-watcher or polling capture implementation is added.
 
 ### Configuration Loading
 
@@ -2909,3 +2910,92 @@ retain those kit defaults unless explicitly excluded. Distribution export includ
 their bundle bytes in the checked file inventory, so portable archives retain the
 same default plugins as local installer staging. No installer execution or machine
 installation is needed to prove this staging behavior.
+## Desktop Tables and Native Settings
+
+Every desktop table uses `src/components/data-table/DataTable.tsx` under
+`crates/dokime-gui/`. It owns the frame, title and one-line description,
+right-aligned filter/action band, column controls, fixed-height empty/loading
+row, full-width failure slot and always-visible pagination footer. Controls
+follow filter, primary action, secondary actions and overflow order. Only
+declared column filters appear; numbers use ungrouped decimal text, numeric
+columns align right, units use square brackets and Actions is last on the right.
+Keyboard order follows the markup: filter/actions, headers, rows, footer.
+Callers keep their existing failure renderer and supply it to the shared slot.
+
+The inventory contains 13 table presentations (paths below are relative to
+`crates/dokime-gui/src/`). Apart from the grid plot, all already used DataTable;
+differences came from caller wrappers and header/state placement. Their shared
+density, sort controls, empty state and footer remain component-owned.
+
+| Table | Source | Presentation Decision |
+| --- | --- | --- |
+| Cycles | `features/cycles-home/CyclesHome.tsx:179` | Keep each group title inside its frame; put the existing failure in the first group's body. |
+| History | `features/explore/HistoryLibrary.tsx:166` | Add the missing title/description; retain the server-owned row filter and selection. |
+| History Executions | `features/explore/HistoryDetailSurface.tsx:139` | Add title/description, move loading/failure into the body and delete the superseded external empty paragraph. |
+| History Comparison | `features/explore/HistoryComparisonView.tsx:81` | Keep the explanation in the description and add the missing title. |
+| Storage Sources | `features/settings/StorageSourcesCard.tsx:156` | Remove the SettingsCard wrapper and external explanations; right-align numeric priority. |
+| Shared Secrets | `features/settings/sections/SecretsSection.tsx:175` | Move the explanation into the description and keep Add, Refresh and transfer overflow after the filter. |
+| Plugins | `features/settings/plugins/PluginTable.tsx:133` | Add title/description and shared loading/failure slots; the disabled update action explains the missing host target through its tooltip and accessible description. |
+| Saved Backends | `features/settings/BackendsTable.tsx:135` | Remove the separate card and external loading/failure band; keep pairing import in the action band. |
+| Suite Templates | `features/library/LibrarySurface.tsx:156` | Name each table in its frame; the empty/loading/failure case also renders through DataTable. |
+| Document Values | `components/document/DocumentSurfaceView.tsx:255` | Add title/description; infer numeric alignment from recorded values. |
+| Metric Statistics | `components/StatsSummaryTable.tsx:153` | Add title/description; preserve exact right-aligned values and each metric's unit-bearing label. |
+| Trace Statistics | `components/StatsSummaryTable.tsx:168` | Add title/description; retain row activation for trace visibility and exact right-aligned values. |
+| Grid Plot | `plots/catalog/GridChartPlot.tsx:105` | Replace raw Table markup with DataTable while preserving validity, cell colors, highlights and independent playback; put units in numeric column headers. |
+
+Native desktop stream settings, remembered parameter values and update selection
+use one `settings.json` and `src-tauri/src/settings.rs` reader/writer. Missing keys
+use defaults; unknown keys are ignored. Retired files and browser parameter values
+are not migrated or deleted. Engine / Streams exposes only `interval_window_ms`
+and `interval_lag_windows`. The capture-folder allow-list and its refusal stories
+are removed; canonical-path validation, capture sizes and deadlines remain.
+Host-owned preferences, pairing credentials and installed distribution metadata
+retain their existing owners; they are not copies of native desktop settings.
+
+### Open Presentation Ownership
+
+These overlaps require an owner decision before either implementation is removed.
+Paths below are relative to `crates/dokime-gui/`.
+
+| Both Locations | Current Callers and Responsibility | Recommended Deletion |
+| --- | --- | --- |
+| `src/stores/ui-store.ts:218` and `src-tauri/src/settings.rs:156` | Shell controls persist sidebar/console geometry and active-cycle state in WebView localStorage; native Engine, parameter and updater callers persist their settings through Store. Desktop-local persistence therefore has two owners, although their saved keys differ. | Fold the desktop-only UI state into Store, then delete the Tauri localStorage writer; retain the UI state API and host-owned appearance preferences. |
+| `src/components/StatsSummaryTable.tsx:136` and `:199` | StatsSummaryTable routes multiple metrics to DataTable but one metric to StatsSummaryGrid; plot/document callers therefore get two statistics presentations. | Delete the single-metric grid branch and component if the owner chooses one statistics presentation; preserve exact values and metric units. |
+| `src/features/explore/ExploreSurface.tsx:124` and `src/components/data-table/DataTable.tsx:309` | History's Load More control appends bounded server pages; the shared footer pages the rows already loaded. History operators encounter two paging controls. | Let the shared footer own bounded server paging, then delete Load More; first settle continuation, row-count and page-indicator behavior rather than fetching all history or inventing a second paging contract. |
+| `src/features/library/LibrarySurface.tsx:144` and `src/components/data-table/DataTable.tsx:204` | Library's catalog filter selects suites and templates; every suite table also has the shared component's local row filter. Library callers can therefore narrow the same templates through two inputs. | Keep the catalog filtering owner and delete the per-suite local filtering path after the owner chooses a persistent placement inside the shared presentation; preserve suite grouping and keyboard focus when a group stops matching. |
+
+The compiler task also has overlapping feature inference in the repository-root
+`tools/python/src/dokime_tools/test/focused.py:167` (`selections`) and `:55`
+(`run`). The changed-path workflow calls both: selections builds required target
+features, then run reads the same target metadata and appends those features
+again. The workspace no-run command therefore repeats `dokime-gui/testing`.
+Keep required-feature policy in run and delete the selection-side copy after the
+tooling owner settles the shared handling of explicit test targets and `--tests`;
+this worker does not change tooling or its compiler selectors.
+
+The inherited updater in `crates/dokime-gui/src-tauri/src/app/updates/mod.rs:63`
+also gates fields and methods directly. The `stkr-rust` module-only gating rule
+requires a structural split of optional updater code/state while keeping saved
+policy under its current single owner. Whether that refactor joins this delivery
+is an open owner scope decision; the settings persistence change does not claim
+that convention cleanup is complete.
+
+### Remote Plugin Readiness Rework
+
+`crates/dokime-runtime/src/plugin.rs:139` starts a remote plugin by removing
+`HARMOS_ADDRESS`, setting `DOKIME_PLUGIN_ADDRESS` to an ephemeral address and
+waiting for a readiness line on stdout. Its callers include
+`crates/dokime-cli/src/commands/dev.rs:98` and the runtime/desktop host stories.
+`sdk/rust/src/plugin/mod.rs:423` selects standalone remote serving without that
+managed variable, and `:447` intentionally emits no readiness line for that mode.
+SDK plugin entrypoints call this run path. Quiet standalone output is an agreed
+contract; the two startup contracts therefore conflict.
+
+This is REWORK. The capture story reaches this conflict before any capture
+assertion, so compilation and capture-path unit proof do not close capture
+acceptance. The owner must choose one canonical private readiness hand-off for
+owned remote launches, then retire the remote stdout-wait path. Restoring general
+standalone announcements, changing the listener mode just to satisfy the story,
+inventing test-only ports/protocols or changing readiness deadlines is not a fix.
+The capture proof remains open until that contract is supplied and the one story
+passes through it.

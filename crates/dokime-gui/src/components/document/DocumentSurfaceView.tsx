@@ -99,6 +99,9 @@ export type DocumentCardContentProps = LiveDocumentSurfaceProps | ReportDocument
 
 /* === Constants === */
 
+/** A recorded number in fixed notation, or the absent-value dash. */
+const NUMBER = /^(-|[-+]?\d+(\.\d+)?([eE][-+]?\d+)?)$/;
+
 /* === Public Functions === */
 
 export function DocumentCardContentView(props: DocumentCardContentProps) {
@@ -239,10 +242,25 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
 export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] }) {
   const column = dataTableColumns<DocumentViewTableRow>();
   const names = tableColumns(rows);
-  const columns = (names.length ? names : ["Value"]).map((name) =>
-    column.accessor((row) => row.cells[name] ?? "-", { id: name, header: name, meta: { filter: "text" } }),
+  // A column whose every recorded cell is a number sits on the right edge.
+  const columns = (names.length ? names : ["Value"]).map((name) => {
+    const numeric = rows.some((row) => row.cells[name] !== undefined) && rows.every((row) => NUMBER.test(row.cells[name] ?? "-"));
+    return column.accessor((row) => row.cells[name] ?? "-", {
+      id: name,
+      header: name,
+      meta: { align: numeric ? "end" : undefined, filter: "text" },
+    });
+  });
+  return (
+    <DataTable
+      title="Recorded Values"
+      description="Rows retained in this document table."
+      columns={columns}
+      data={rows}
+      getRowId={(row) => row.row_id}
+      emptyText="No Table Rows Recorded"
+    />
   );
-  return <DataTable columns={columns} data={rows} getRowId={(row) => row.row_id} emptyText="No Table Rows Recorded" />;
 }
 
 export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {

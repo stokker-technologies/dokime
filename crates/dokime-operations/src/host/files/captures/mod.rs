@@ -21,9 +21,8 @@ pub mod stop;
 
 // Standard Library Imports
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, RwLock};
 
 // Third Party Imports
 use tokio::sync::watch;
@@ -46,8 +45,6 @@ type Outcome = std::result::Result<CapturesStopResponse, Refusal>;
 /// Host-Owned Local File Capture Bounds; Requests Carry No Limits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CaptureSettings {
-    /// Directories Plugins May Capture From; Empty Refuses Every Local Capture.
-    pub roots: Vec<PathBuf>,
     pub maximum_files: usize,
     pub maximum_bytes: u64,
     pub maximum_captures: usize,
@@ -56,7 +53,7 @@ pub struct CaptureSettings {
 
 /// Running Local Captures, Each Owned by the Execution That Started It.
 pub struct Captures {
-    settings: RwLock<CaptureSettings>,
+    settings: CaptureSettings,
     entries: Mutex<BTreeMap<u64, Entry>>,
     next: AtomicU64,
 }
@@ -83,7 +80,6 @@ struct Refusal {
 impl Default for CaptureSettings {
     fn default() -> Self {
         Self {
-            roots: Vec::new(),
             maximum_files: 64,
             maximum_bytes: 256 * 1024 * 1024,
             maximum_captures: 256,
@@ -95,18 +91,14 @@ impl Default for CaptureSettings {
 impl Captures {
     pub fn new(settings: CaptureSettings) -> Self {
         Self {
-            settings: RwLock::new(settings),
+            settings,
             entries: Mutex::new(BTreeMap::new()),
             next: AtomicU64::new(1),
         }
     }
-    /// The Current Bounds; Each New Capture Reads Them Once When It Opens.
-    pub fn settings(&self) -> CaptureSettings {
-        self.settings.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
-    }
-    /// Replaces the Allowed Roots for Captures Opened From Now On; Running Captures Keep Theirs.
-    pub fn set_roots(&self, roots: Vec<PathBuf>) {
-        self.settings.write().unwrap_or_else(std::sync::PoisonError::into_inner).roots = roots;
+    /// The Host's Capture Bounds.
+    pub fn settings(&self) -> &CaptureSettings {
+        &self.settings
     }
     /// Seals Every Running Capture of an Ending Execution, Then Forgets Them All.
     ///

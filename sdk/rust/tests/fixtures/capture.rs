@@ -39,7 +39,6 @@ use dokime::{FileLocation, FileRule, FileRuleAction, FileSelection, FileSource, 
 #[dokime(package = "capture")]
 struct Device {
     root: String,
-    outside: String,
 }
 
 #[derive(dokime::Record)]
@@ -48,13 +47,6 @@ struct Captured {
     files: u32,
     bytes: u64,
     gaps: u32,
-}
-
-#[derive(dokime::Record)]
-#[dokime(package = "capture")]
-struct Refused {
-    refused: bool,
-    classification: String,
 }
 
 #[derive(Default)]
@@ -86,12 +78,6 @@ fn main() -> Result<()> {
         .step(Step::new("Start", start).identifier("start"))
         .step(Step::new("Produce", produce).identifier("produce"))
         .step(Step::new("Stop", stop).identifier("stop"));
-    let refused = Template::of::<()>()
-        .identifier("refused")
-        .label("Escape the Capture Roots")
-        .record(Record::<Refused>::new("refusal", "Refused"))
-        .parameters(device())
-        .step(Step::new("Escape", escape).identifier("escape"));
     let cancelled = Template::of::<()>()
         .identifier("cancelled")
         .label("Cancel a Running Capture")
@@ -104,7 +90,7 @@ fn main() -> Result<()> {
     Plugin::of::<()>("1.0.0")
         .identifier("capture")
         .suite(
-            Suite::of::<()>().identifier("capture").label("Capture").template(copy).template(window).template(refused).template(cancelled),
+            Suite::of::<()>().identifier("capture").label("Capture").template(copy).template(window).template(cancelled),
         )
         .run()
 }
@@ -112,7 +98,6 @@ fn main() -> Result<()> {
 fn device() -> Device {
     Device {
         root: String::new(),
-        outside: String::new(),
     }
 }
 
@@ -181,19 +166,6 @@ async fn stop(ctx: &Context) -> Result<()> {
         gaps: stopped.gaps.len() as u32,
     };
     ctx.record(&Record::<Captured>::new("captured", "Captured"), captured).await?;
-    Ok(())
-}
-
-async fn escape(ctx: &Context) -> Result<()> {
-    let device = ctx.parameters::<Device>()?;
-    let escaped = ctx.capture(tree(&device.outside), "escape").await;
-    // Keep the Typed Refusal; the Story Compares Its Classification, Never Its Message.
-    let classification = escaped.as_ref().err().map(|error| format!("{error:?}")).unwrap_or_default();
-    let refused = Refused {
-        refused: escaped.is_err(),
-        classification,
-    };
-    ctx.record(&Record::<Refused>::new("refusal", "Refused"), refused).await?;
     Ok(())
 }
 

@@ -13,9 +13,9 @@
 
 /* === Imports === */
 
-use super::{BackendDiagnostics, DesktopSessionError as Error};
-use crate::connection::host::{self, Connection, ConnectionSettings, Error as HostError};
-use dokime_runtime::Error as RuntimeError;
+use super::{BackendDiagnostics, DesktopSessionError};
+use crate::connection::host::{self, Connection, ConnectionSettings};
+use crate::settings;
 use std::path::PathBuf;
 
 /* === Constants === */
@@ -30,8 +30,7 @@ use std::path::PathBuf;
 pub struct Backend {
     pub root: PathBuf,
     pub log: Option<PathBuf>,
-    pub capture_folders: Option<PathBuf>,
-    pub interval_settings: Option<PathBuf>,
+    pub settings: Option<PathBuf>,
 }
 
 /* === Enums === */
@@ -42,12 +41,7 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-            log: None,
-            capture_folders: None,
-            interval_settings: None,
-        }
+        Self { root, log: None, settings: None }
     }
 
     pub fn with_log(mut self, log: Option<PathBuf>) -> Self {
@@ -55,24 +49,17 @@ impl Backend {
         self
     }
 
-    /// Starts the host with the folders saved in this file as its capture roots.
-    pub fn with_capture_folders(mut self, file: PathBuf) -> Self {
-        self.capture_folders = Some(file);
-        self
-    }
-
-    /// Starts the host with the interval window and lag bound saved in this file.
-    pub fn with_interval_settings(mut self, file: PathBuf) -> Self {
-        self.interval_settings = Some(file);
+    /// Starts the host with the stream settings saved in this desktop settings file.
+    pub fn with_settings(mut self, file: PathBuf) -> Self {
+        self.settings = Some(file);
         self
     }
 
     /// The connection settings the owned host starts with, including the saved desktop settings.
     pub fn settings(&self) -> ConnectionSettings {
         let mut settings = host::desktop_settings();
-        settings.host.capture.roots = self.capture_folders.as_deref().map(crate::capture_folders::roots).unwrap_or_default();
-        if let Some(file) = &self.interval_settings {
-            crate::interval_settings::resolve(file).apply(&mut settings.host.placement);
+        if let Some(file) = &self.settings {
+            settings::resolve(file).apply(&mut settings.host.placement);
         }
         settings
     }
@@ -80,7 +67,7 @@ impl Backend {
 
 /* === Public Functions === */
 
-pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Connection, String), Error> {
+pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Connection, String), DesktopSessionError> {
     on_phase("starting");
     let mut connection = Connection::new(backend.settings()).map_err(|error| failure(backend, error))?;
     let session = connection.start(&backend.root).await.map_err(|error| failure(backend, error))?;
@@ -90,16 +77,16 @@ pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> 
 
 /* === Private Functions === */
 
-fn failure(backend: &Backend, error: HostError) -> Error {
-    if let HostError::Host(RuntimeError::OccupiedRoot(root)) = error {
+fn failure(backend: &Backend, error: host::Error) -> DesktopSessionError {
+    if let host::Error::Host(dokime_runtime::Error::OccupiedRoot(root)) = error {
         let message = format!(
             "The data folder {} is in use by another host. Connect to that host, close its owner or select a fresh storage root.",
             root.display()
         );
-        return Error::BackendRunning { root, message };
+        return DesktopSessionError::BackendRunning { root, message };
     }
     let message = format!("Start Local Host at {}: {error}", backend.root.display());
-    Error::Startup {
+    DesktopSessionError::Startup {
         message: message.clone(),
         diagnostics: Some(Box::new(BackendDiagnostics {
             cause: message,

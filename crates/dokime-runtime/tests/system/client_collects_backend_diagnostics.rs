@@ -25,6 +25,7 @@ use dokime::SecretWritable;
 use dokime_client_internal::Client;
 use dokime_client_internal::SecretsDeleteOptions;
 use dokime_client_internal::SecretsSetOptions;
+use dokime_client_internal::StatusLogsListOptions;
 use dokime_client_internal::StatusLogsWatchOptions;
 use dokime_client_internal::StatusTraceEventsListOptions;
 use dokime_client_internal::StatusTraceEventsWatchOptions;
@@ -82,6 +83,9 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
             let initial = status.status.unwrap();
             assert!(initial.available);
             assert_eq!(initial.identity.as_ref().unwrap().application_version, env!("CARGO_PKG_VERSION"));
+            let build = status.build.clone().unwrap();
+            assert_eq!(build.source_revision, env!("DOKIME_SOURCE_REVISION"));
+            assert_eq!(build.channel, env!("DOKIME_BUILD_CHANNEL"));
             let mut status_watch = client
                 .status
                 .watch_with(StatusWatchOptions {
@@ -89,7 +93,9 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
                     ..Default::default()
                 })
                 .await?;
-            assert_eq!(status_watch.next().await?.unwrap().status, Some(initial.clone()));
+            let opening = status_watch.next().await?.unwrap();
+            assert_eq!(opening.status, Some(initial.clone()));
+            assert_eq!(opening.build, Some(build));
 
             // Secret Values Are Registered Before Host Events Can Retain Them
             let secret = "thermal";
@@ -157,6 +163,34 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
                 }
             }
             drop((logs, trace, status_watch));
+
+            // Page Retained Logs Without a Live Watch
+            let mut at = None;
+            let mut page_token = String::new();
+            let mut retained = Vec::new();
+            loop {
+                let page = client
+                    .status
+                    .logs
+                    .list_with(StatusLogsListOptions {
+                        at: at.clone(),
+                        page: Some(PageRequest {
+                            page_size: 4096,
+                            max_bytes: 3_145_728,
+                            page_token,
+                        }),
+                        ..Default::default()
+                    })
+                    .await?;
+                retained.extend(page.events);
+                at = page.resolved_at;
+                page_token = page.next_page_token;
+                if page_token.is_empty() {
+                    break;
+                }
+            }
+            assert!(retained.iter().any(|event| event.fields.contains_key("plugin")));
+            assert!(retained.iter().all(|event| !event.message.contains(secret)));
 
             // Continue a Trace Page at Its Issued Boundary
             let first = client

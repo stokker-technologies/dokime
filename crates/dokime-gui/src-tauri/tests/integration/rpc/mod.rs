@@ -132,7 +132,7 @@ use dokime_client_internal::StatusGetOptions;
 use dokime_client_internal::host::PluginEntry;
 use dokime_client_internal::host::plugin_placement;
 use dokime_gui::rpc::{Bridge, FRAME_ERROR};
-use harmos_protocol::host;
+use dokime_protocol::host::StatusGetResponse;
 
 /* === Constants === */
 
@@ -159,7 +159,7 @@ fn invoke(window: &bridge::Window, command: &str, bytes: Vec<u8>) -> Result<taur
 async fn install(fixture: &Fixture, bytes: Vec<u8>) -> Result<PluginEntry, dokime_gui::Error> {
     let lease = fixture.session.lease(&fixture.generation().to_string()).unwrap();
     let progress = tauri::ipc::Channel::new(|_| Ok(()));
-    dokime_gui::testing::install_plugin_bundle(&lease, bytes, progress, None).await
+    dokime_gui::testing::install(&lease, bytes, progress, None).await
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -253,7 +253,7 @@ fn unary_call_bridges() {
             panic!("Status Replies with Canonical Bytes");
         };
         assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-        let identity = host::StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
+        let identity = StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
         assert_eq!(identity.host_id, fixture.session.status().backend.unwrap().backend_id);
         let error =
             bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.host.v1.Missing/Call"}))

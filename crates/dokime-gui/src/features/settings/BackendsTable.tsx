@@ -28,7 +28,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { SettingsCard } from "./SettingsCard";
 
 // Standard Library Imports
 
@@ -135,36 +134,37 @@ export function BackendsTable({
     [busy, connect],
   );
   return (
-    <SettingsCard className="w-full text-left">
-      {(connectionFailure || Boolean(error)) && (
-        <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <ErrorCard
-            notificationContext={connectionFailure && lastSelected.current ? "action" : undefined}
-            failure={failureOf(connectionFailure ?? error, connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed")}
-            onRetry={() => {
-              if (connectionFailure) {
-                if (retry) retry(lastSelected.current);
-                else if (lastSelected.current) connect(lastSelected.current);
-                return;
-              }
-              setError(undefined);
-              void preferencesCommands.desktopBackendsList().then(setDocument).catch(setError);
-            }}
-            retryDisabled={busy}
-          />
-          {connectionFailure && failedEndpoint ? <p className="break-all font-mono text-xs">{failedEndpoint}</p> : null}
-        </div>
-      )}
-      {!document && !error && !connectionFailure && (
-        <p role="status" className="p-4 text-sm text-muted-foreground">
-          Loading backends…
-        </p>
-      )}
+    <>
       <DataTable
         aria-label="Saved Backends"
+        title="Saved Backends"
+        description="Import a pairing file or connect to a saved host."
+        className="w-full text-left"
         data={document?.profiles ?? []}
         getRowId={(profile) => profile.identifier}
         emptyText="No Saved Backends"
+        failure={
+          connectionFailure || (error && !deleting) ? (
+            <div className="grid gap-3 text-sm">
+              <ErrorCard
+                notificationContext={connectionFailure && lastSelected.current ? "action" : undefined}
+                failure={failureOf(connectionFailure ?? error, connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed")}
+                onRetry={() => {
+                  if (connectionFailure) {
+                    if (retry) retry(lastSelected.current);
+                    else if (lastSelected.current) connect(lastSelected.current);
+                    return;
+                  }
+                  setError(undefined);
+                  void preferencesCommands.desktopBackendsList().then(setDocument).catch(setError);
+                }}
+                retryDisabled={busy}
+              />
+              {connectionFailure && failedEndpoint ? <p className="break-all font-mono text-xs">{failedEndpoint}</p> : null}
+            </div>
+          ) : undefined
+        }
+        loading={!document && !error && !connectionFailure}
         columns={columns}
         onRowClick={(profile) => connect(profile.identifier)}
         actions={
@@ -227,7 +227,7 @@ export function BackendsTable({
           {Boolean(error) && <ErrorCard failure={failureOf(error, "Backend Could Not Be Deleted")} />}
         </DialogContent>
       </Dialog>
-    </SettingsCard>
+    </>
   );
 }
 

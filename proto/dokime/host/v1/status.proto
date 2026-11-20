@@ -12,6 +12,7 @@ package dokime.host.v1;
 
 import "harmos/host/v1/status.proto";
 import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
 
 // === Options === //
 
@@ -19,20 +20,46 @@ option csharp_namespace = "Dokime.Clients";
 
 // === Services === //
 
-// Exposes Status to product clients with library-owned payloads and execution policy.
+// Exposes Status to product clients with library-owned requests, health and execution policy, adding the host build.
 service Status {
   // Read the current host identity and contributed health with the status history boundary.
-  rpc Get(.harmos.host.v1.StatusGetRequest) returns (.harmos.host.v1.StatusGetResponse) {
+  rpc Get(.harmos.host.v1.StatusGetRequest) returns (StatusGetResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
   // Validate the optional issued position, emit current status and then changes; this is a live view rather than historical status replay.
-  rpc Watch(.harmos.host.v1.StatusWatchRequest) returns (stream .harmos.host.v1.StatusWatchResponse) {
+  rpc Watch(.harmos.host.v1.StatusWatchRequest) returns (stream StatusWatchResponse) {
     option (harmos.model.v1.callers) = CLIENTS;
   }
 }
 
 // === Requests and Responses === //
 
+// Returns current host health, the host build and the issued status boundary.
+message StatusGetResponse {
+  .harmos.host.v1.HostStatus status = 1;
+  // Issued boundary actually selected for this response; retain and resend it unchanged to continue the same read.
+  .harmos.model.v1.Position resolved_at = 2;
+  // Build of the answering host.
+  HostBuild build = 3;
+}
+
+// Returns a current host health observation, the host build and the issued status boundary.
+message StatusWatchResponse {
+  .harmos.host.v1.HostStatus status = 1;
+  // Issued boundary actually selected for this response; retain and resend it unchanged to continue the same read.
+  .harmos.model.v1.Position resolved_at = 2;
+  // Build of the answering host.
+  HostBuild build = 3;
+}
+
 // === Resources === //
+
+// Identifies the source and publication of the host build; the semantic version is `status.identity.application_version`.
+message HostBuild {
+  // Full source commit, suffixed `-dirty` for uncommitted changes, or `unknown` when the build names none.
+  string source_revision = 1;
+  // Publication channel such as `release` or `nightly`; empty for a local build.
+  string channel = 2;
+}
 
 // === Enums === //

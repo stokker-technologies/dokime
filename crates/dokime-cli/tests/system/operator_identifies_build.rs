@@ -74,6 +74,15 @@ fn operator_identifies_build() -> Result<(), Box<dyn Error>> {
             let host = super::HostProcess::start().await?;
             let status: Value = serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "status", "--json"]).await?)?;
             assert!(status["status"]["identity"].is_object());
+            let host_revision = status["build"]["source_revision"].as_str().ok_or("Host Did Not Report Its Source Revision")?;
+            let host_commit = host_revision.strip_suffix("-dirty").unwrap_or(host_revision);
+            assert_eq!(host_commit, commit);
+            let host_short = &host_commit[..host_commit.len().min(8)];
+            let host_dirty = if host_revision.ends_with("-dirty") { "-dirty" } else { "" };
+            let host_channel = status["build"]["channel"].as_str().filter(|channel| !channel.is_empty()).unwrap_or("local");
+            let host_version = status["status"]["identity"]["application_version"].as_str().unwrap();
+            let text = super::run(&["--endpoint", &host.endpoint, "status"]).await?;
+            assert_eq!(text.lines().next(), Some(format!("{host_version} ({host_short}{host_dirty}, {host_channel})").as_str()));
             host.close().await?;
             Ok(())
         })

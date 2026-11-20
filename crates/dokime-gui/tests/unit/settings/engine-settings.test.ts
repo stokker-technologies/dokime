@@ -8,7 +8,7 @@
  */
 
 /**
- * Interval Settings Are Read, Validated and Saved Through the Desktop Commands
+ * The Engine Page's Stream Settings Are Read, Validated and Saved Through the Desktop Commands
  */
 
 /* === Imports === */
@@ -22,7 +22,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { IntervalSettingsSection } from "@/features/settings/sections/IntervalSettingsSection";
+import { EngineSection } from "@/features/settings/sections/EngineSection";
 
 /* === Re-Exports === */
 
@@ -77,7 +77,7 @@ beforeEach(() => {
 /* === Private Functions === */
 
 function render() {
-  return renderToStaticMarkup(createElement(IntervalSettingsSection));
+  return renderToStaticMarkup(createElement(EngineSection));
 }
 
 /* === Tests === */
@@ -86,7 +86,7 @@ test("Saved Values Show With Nothing to Save", async () => {
   const html = render();
   assert.ok(fixture.read);
   await fixture.read();
-  assert.deepEqual(fixture.invoke.mock.calls, [["desktop_interval_settings_read", undefined]]);
+  assert.deepEqual(fixture.invoke.mock.calls, [["desktop_saved_settings_read", undefined]]);
   assert.ok(html.includes('value="100"'));
   assert.ok(html.includes('value="10"'));
   assert.equal(fixture.save?.disabled, true);
@@ -99,8 +99,8 @@ test("An Edited Window and Lag Save Through the Desktop", async () => {
   fixture.save?.onClick();
   await vi.waitFor(() => assert.equal(fixture.invoke.mock.calls.length, 1));
   assert.deepEqual(fixture.invoke.mock.calls[0], [
-    "desktop_interval_settings_write",
-    { settings: { interval_window_ms: 250, interval_lag_windows: 3 } },
+    "desktop_saved_settings_update",
+    { change: { interval_window_ms: 250, interval_lag_windows: 3 } },
   ]);
 });
 

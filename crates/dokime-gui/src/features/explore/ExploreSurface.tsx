@@ -88,15 +88,16 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
   }, [query]);
 
   const selectedCycles = useMemo(() => cycles.filter((cycle) => selectedIds.has(exploreEntryKey(cycle.target))), [cycles, selectedIds]);
+  const failure = cyclesQuery.isError ? (
+    <ErrorCard
+      failure={failureOf(cyclesQuery.error, "Cycles Unavailable")}
+      onRetry={() => void queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all })}
+    />
+  ) : null;
 
   return (
     <PageShell trail={comparing ? ["History", "Compare"] : ["History"]}>
-      {cyclesQuery.isError ? (
-        <ErrorCard
-          failure={failureOf(cyclesQuery.error, "Cycles Unavailable")}
-          onRetry={() => void queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all })}
-        />
-      ) : null}
+      {comparing ? failure : null}
       {cyclesQuery.coverage && !cyclesQuery.coverage.discovery_complete ? (
         <IncompleteHistoryNotice coverage={cyclesQuery.coverage} />
       ) : null}
@@ -107,6 +108,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
           <HistoryLibrary
             archived={archived}
             cycles={cycles}
+            failure={failure}
             loading={cyclesQuery.isPending}
             onCompare={onCompare}
             onToggleArchived={() => setArchived((current) => !current)}

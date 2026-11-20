@@ -32,7 +32,6 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{RwLock, Weak};
 use std::time::Duration;
@@ -61,6 +60,7 @@ use composition::Application;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
 use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_protocol::host::HostBuild;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -144,10 +144,6 @@ impl Server {
     }
     pub fn status(&self) -> &Arc<Status> {
         &self.status
-    }
-    /// Replaces the served host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        self.host.set_capture_roots(roots);
     }
     pub async fn close(mut self) -> Result<()> {
         self.plugin_observation.cancel();
@@ -298,7 +294,10 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     let identity = HostIdentity {
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
-        product_version: env!("CARGO_PKG_VERSION").into(),
+        build: HostBuild {
+            source_revision: env!("DOKIME_SOURCE_REVISION").into(),
+            channel: env!("DOKIME_BUILD_CHANNEL").into(),
+        },
         target: dokime_packaging::bundle::native_target().into(),
         started_at: Some(Timestamp {
             seconds: host.now_ns().div_euclid(1_000_000_000),

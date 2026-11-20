@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { Activity, CircleUser, FolderInput, Info, type LucideIcon, Network, PackagePlus, Palette, Timer } from "lucide-react";
+import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette, Timer } from "lucide-react";
 
 /* === Constants === */
 
@@ -44,16 +44,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: "primary",
   },
   {
-    id: "capture-folders",
-    label: "Capture Folders",
-    description: "Folders plugins may capture device files from",
-    icon: FolderInput,
-    group: "primary",
-  },
-  {
-    id: "sampling",
-    label: "Interval Sampling",
-    description: "Interval windows of the built-in host",
+    id: "engine",
+    label: "Engine",
+    description: "Stream settings of the built-in host",
     icon: Timer,
     group: "primary",
   },
