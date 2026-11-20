@@ -27,7 +27,6 @@ import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
 import { AboutSection } from "@/features/settings/sections/AboutSection";
 import { BootstrapPaths } from "@/features/settings/sections/BootstrapPaths";
-import { CaptureFoldersSection } from "@/features/settings/sections/CaptureFoldersSection";
 import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
 import { IntervalSettingsSection } from "@/features/settings/sections/IntervalSettingsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
@@ -122,7 +121,6 @@ function SectionContent({
   if (section === "remote") return <RemoteSection advanced={advanced} />;
   if (section === "plugins") return <PluginsSection />;
   if (section === "secrets") return <SecretsSection />;
-  if (section === "capture-folders") return <CaptureFoldersSection />;
   if (section === "sampling") return <IntervalSettingsSection />;
   if (section === "diagnostics")
     return (

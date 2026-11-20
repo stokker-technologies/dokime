@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { Activity, CircleUser, FolderInput, Info, type LucideIcon, Network, PackagePlus, Palette, Timer } from "lucide-react";
+import { Activity, CircleUser, Info, type LucideIcon, Network, PackagePlus, Palette, Timer } from "lucide-react";
 
 /* === Constants === */
 
@@ -41,13 +41,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Secret Storage",
     description: "Shared named secrets on the connected host",
     icon: CircleUser,
-    group: "primary",
-  },
-  {
-    id: "capture-folders",
-    label: "Capture Folders",
-    description: "Folders plugins may capture device files from",
-    icon: FolderInput,
     group: "primary",
   },
   {

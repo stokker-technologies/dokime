@@ -446,13 +446,6 @@ impl Connection {
         self.server.is_some()
     }
 
-    /// Replaces the embedded host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        if let Some(server) = &self.server {
-            server.set_capture_roots(roots);
-        }
-    }
-
     pub async fn start(&mut self, root: &Path) -> Result<Session, Error> {
         self.close().await?;
         let server =

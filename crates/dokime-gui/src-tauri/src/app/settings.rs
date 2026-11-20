@@ -33,7 +33,6 @@ use crate::paths::ApplicationPaths;
 
 pub struct DesktopSettingsState {
     parameters: PathBuf,
-    capture_folders: PathBuf,
     interval_settings: PathBuf,
     serial: Arc<tokio::sync::Mutex<()>>,
 }
@@ -63,7 +62,6 @@ pub fn setup(app: &tauri::App) {
     let root = &app.state::<ApplicationPaths>().root;
     app.manage(DesktopSettingsState {
         parameters: root.join("parameters.json"),
-        capture_folders: crate::capture_folders::path(root),
         interval_settings: crate::interval_settings::path(root),
         serial: Arc::new(tokio::sync::Mutex::new(())),
     });
@@ -95,36 +93,6 @@ pub async fn desktop_parameters_write(
     .await
     .map_err(|error| error.to_string())?
     .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
-}
-
-pub async fn desktop_capture_folders_read(state: State<'_, DesktopSettingsState>) -> Result<Vec<String>, DesktopSettingsError> {
-    let serial = state.serial.clone().lock_owned().await;
-    let path = state.capture_folders.clone();
-    tokio::task::spawn_blocking(move || {
-        let _serial = serial;
-        crate::capture_folders::load(&path)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
-}
-
-/// Saves the folders, then applies them to the owned local host for captures opened from now on.
-pub async fn desktop_capture_folders_write(
-    state: State<'_, DesktopSettingsState>, owner: State<'_, crate::native_session::DesktopSessionControl>, folders: Vec<String>,
-) -> Result<Vec<String>, DesktopSettingsError> {
-    let serial = state.serial.clone().lock_owned().await;
-    let path = state.capture_folders.clone();
-    let saved = folders.clone();
-    tokio::task::spawn_blocking(move || {
-        let _serial = serial;
-        crate::capture_folders::save(&path, &saved)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })?;
-    owner.set_capture_folders(folders.iter().map(PathBuf::from).collect()).await;
-    Ok(folders)
 }
 
 pub async fn desktop_interval_settings_read(

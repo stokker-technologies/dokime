@@ -14,7 +14,6 @@
 
 mod app;
 pub mod bindings;
-pub mod capture_folders;
 pub mod connection;
 mod error;
 pub mod interval_settings;

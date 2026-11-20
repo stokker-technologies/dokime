@@ -30,7 +30,6 @@ use std::path::PathBuf;
 pub struct Backend {
     pub root: PathBuf,
     pub log: Option<PathBuf>,
-    pub capture_folders: Option<PathBuf>,
     pub interval_settings: Option<PathBuf>,
 }
 
@@ -42,22 +41,11 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-            log: None,
-            capture_folders: None,
-            interval_settings: None,
-        }
+        Self { root, log: None, interval_settings: None }
     }
 
     pub fn with_log(mut self, log: Option<PathBuf>) -> Self {
         self.log = log;
-        self
-    }
-
-    /// Starts the host with the folders saved in this file as its capture roots.
-    pub fn with_capture_folders(mut self, file: PathBuf) -> Self {
-        self.capture_folders = Some(file);
         self
     }
 
@@ -70,7 +58,6 @@ impl Backend {
     /// The connection settings the owned host starts with, including the saved desktop settings.
     pub fn settings(&self) -> ConnectionSettings {
         let mut settings = host::desktop_settings();
-        settings.host.capture.roots = self.capture_folders.as_deref().map(crate::capture_folders::roots).unwrap_or_default();
         if let Some(file) = &self.interval_settings {
             crate::interval_settings::resolve(file).apply(&mut settings.host.placement);
         }

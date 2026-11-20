@@ -95,9 +95,6 @@ export const commands = {
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
   desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
-  desktopCaptureFoldersRead: () => invoke<string[]>("desktop_capture_folders_read"),
-  /** Save the folders plugins may capture from and apply them to the owned local host. */
-  desktopCaptureFoldersWrite: (folders: string[]) => invoke<string[]>("desktop_capture_folders_write", { folders }),
   desktopIntervalSettingsRead: () => invoke<IntervalSettings>("desktop_interval_settings_read"),
   /** Save the interval window and lag bound the owned local host starts with. */
   desktopIntervalSettingsWrite: (settings: IntervalSettings) => invoke<IntervalSettings>("desktop_interval_settings_write", { settings }),
