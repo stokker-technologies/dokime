@@ -93,7 +93,7 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
                 "sdk/rust/tests/consumer/Cargo.toml",
                 "--package",
                 "dokime-rust-stories",
-                *(["--bin", fixture] if fixture else ["--bins"]),
+                *[argument for name in ((fixture,) if fixture else RUST_FIXTURES) for argument in ("--bin", name)],
                 "--profile",
                 profile,
             ],
