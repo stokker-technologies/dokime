@@ -2706,6 +2706,27 @@ The documentation changes above remain with the owner; workers do not edit
 
 ## Registered (Unmanaged) Plugin Lifecycle (Locked by the Owner, 2026-11-20)
 
+### Managed Launch Handshake
+
+The library pin is `18e9b41cb0dd00e27020ee3120e5c973d82eec22`.
+Managed startup uses the library's `Launches` reservation and its
+`HARMOS_HOST_ENDPOINT` and `HARMOS_LAUNCH_TOKEN` environment. The plugin serves
+its listener and calls `harmos.plugin.v1.Launches/Announce` once. Standard output
+is ordinary output and never a readiness protocol. A partial credential pair
+is an SDK startup error. Detached development launches use the same handshake.
+
+The source inventory for the product cutover is the workspace library pin and
+generated consumers, `crates/dokime-runtime/src/plugin.rs`, its Python fixture
+support, the CLI first-hour fixture and the desktop e2e fixture. The native
+`dokime-host --launch-plugin` fixture owns the e2e process through
+`PluginProcess`; JavaScript receives that fixture owner's endpoint instead of
+parsing plugin output. SDK edits are limited to managed-entry detection and
+delegation, plus resolving the Python `start` merge without the retired output
+protocol. The library process owner is private; replacing the development
+process owner with it remains an owner decision.
+
+### Registration and Presentation
+
 An unmanaged plugin is started by its author with `DOKIME_REMOTE` configured and
 registers itself through `dokime.host.v1.Plugins/Create` with a remote placement.
 The host reads no bundle, manifest or project file for it: identity, label,

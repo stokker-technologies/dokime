@@ -221,7 +221,7 @@
   - [x] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
   - [x] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
   - [x] Complete Repository, Product-Host Shared Capture and Created-Project Bundle/Inspect/Dev/Client Proof; Linux Proof Remains Independent.
-- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
+- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Entries Retained Until Explicit Remove.
 - [x] Unify Rust, Tooling, Python, C# and C++ Library Pins at the Owner-Selected Maintenance Head and Regenerate Every Tracked Binding.
 - [x] Encode Plugin Initialize and Finalize Hooks as Well-Known Operations in All Four SDKs and Remove Replaced Stop Callbacks.
 - [x] Replace Retired Plugin Remote Arguments With Product Listener Coordinates in Runtime Launchers, C# Serving and Native Fixture/Benchmark Dispatch; Acknowledge Lifecycle Operations in the Settings Protocol Fixture.
@@ -258,9 +258,11 @@
 ## Registered Plugins and Launch Consumers
 
 - [x] Present an Unreachable Remote Entry as Offline Without a Failure and Keep It Durable Until an Explicit Delete.
-- [x] Reuse a Registered Plugin's Entry by Its Identifier on Re-Registration, Preserving Replay and Conflict Refusal.
+- [ ] Reuse a Registered Plugin's Entry by Its Identifier on Re-Registration, Preserving Replay, Conflict Refusal and Saved Settings When Its Address Changes; Blocked by the Library's Managed-Only Replace.
 - [x] Retain an Offline Plugin's Last Reported Suites, Marked Unavailable, and Refuse Planning Them With an Action.
+- [ ] Retain Offline Operation Contributions and Present Suite Availability in the Desktop Catalog; Operation Retention Needs the Library Catalog Owner, and the Desktop Catalog Is Outside This Worker's Files.
 - [x] Refuse a Remote Registration Built Against an Incompatible Product SDK Version, Naming Both Versions.
 - [x] Show Placement and Status in the Desktop Plugin List and `dokime plugin list`, Filterable in the Desktop.
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
-- [ ] Move the Launch Readiness Consumers to `Launches/Announce` Once the Library Pin Provides It.
+- [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
+- [ ] Move the Launch Readiness Consumers to `Launches/Announce`; Product Consumers Are Migrated, While the Merged Python Starter and Superseded SDK Tests Need the SDK Owner's Scope Decision and Native Proof Is Pending.
