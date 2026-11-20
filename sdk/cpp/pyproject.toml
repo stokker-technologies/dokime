@@ -1,3 +1,7 @@
 [tool.ruff]
 # Match the Shared Source Line Width.
 line-length = 140
+
+[tool.ruff.lint]
+# The Linted Rule Set Is Stated, Never Inherited From Tool Defaults.
+select = ["E4", "E7", "E9", "F"]
