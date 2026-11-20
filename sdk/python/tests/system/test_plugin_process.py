@@ -38,7 +38,13 @@ from dokime_tools.test import policy
 
 
 class PluginProcessStory(unittest.TestCase):
-    def test_first_line_connects_and_interrupt_closes_without_traceback(self) -> None:
+    def test_managed_first_line_connects_and_interrupt_closes_without_traceback(self) -> None:
+        self._run(managed=True)
+
+    def test_manual_first_line_connects_and_interrupt_closes_without_traceback(self) -> None:
+        self._run(managed=False)
+
+    def _run(self, *, managed: bool) -> None:
         timeout = policy.load(Path(__file__).resolve().parents[4]).deadline("system")
         # Start the Installed Plugin With Closed Standard Input.
         flags = 0
@@ -60,8 +66,14 @@ if not kernel.SetConsoleCtrlHandler(None, False):
 runpy.run_module("starter_project.plugin", run_name="__main__")
 """
             command = [sys.executable, "-c", launch]
+        environment = dict(os.environ)
+        environment.pop("HARMOS_ADDRESS", None)
+        environment["DOKIME_PLUGIN_ADDRESS"] = "127.0.0.1:0"
+        if managed:
+            environment["HARMOS_ADDRESS"] = "127.0.0.1:0"
         process = subprocess.Popen(
             command,
+            env=environment,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -74,8 +86,9 @@ runpy.run_module("starter_project.plugin", run_name="__main__")
             # Read Exactly the First Line and Connect Without Readiness Polling.
             assert process.stdout is not None
             line = reader.submit(process.stdout.readline).result(timeout=timeout)
-            self.assertTrue(line.startswith("harmos listening "), line)
-            address = urlsplit(f"http://{line.removeprefix('harmos listening ').strip()}")
+            if managed:
+                self.assertTrue(line.startswith("harmos listening "), line)
+            address = urlsplit(f"http://{line.rsplit(' ', 1)[-1].strip()}")
             self.assertEqual(address.scheme, "http")
             assert address.hostname is not None and address.port is not None
             connection = socket.create_connection((address.hostname, address.port), timeout=timeout)

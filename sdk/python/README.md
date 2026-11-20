@@ -37,8 +37,12 @@ uv run python -m starter_project.plugin
 uv run python -m starter_project
 ```
 
-The plugin module prints `harmos listening <host>:<port>` as the first stdout
-line, flushes it, and serves until interrupted. The plugin version comes from its
+The plugin module prints its own `Serving on <host>:<port>` line when run by hand.
+Managed launches set `HARMOS_ADDRESS`; only those launches receive the flushed
+readiness line. That address takes precedence over the ordinary plugin address
+configuration. `await plugin.start()` returns an endpoint with `address`,
+`managed`, `wait()` and `stop()`; `serve()` starts and waits in one call.
+The plugin version comes from its
 owning installed distribution, including editable installs; a class `version`
 overrides that metadata. Source-only plugins must declare a class version.
 The package module connects to the host,
