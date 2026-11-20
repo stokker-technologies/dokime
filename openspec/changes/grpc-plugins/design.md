@@ -2716,13 +2716,55 @@ plugin beside OBC. The decisions:
   `src/domain/telemetry.rs`; old boundary types (`TelemetryContract`, `TelemetryRow`,
   `StreamSpec`, `Listenable`, section macros, injected configuration) are replaced by
   SDK rows, streams, observers, operations and flat setting declarations.
-- **Plugin-wide telemetry.** Host streams are catalog streams: retained from plugin
-  connect to disconnect, per the stream-lifetime table above. Their evidence scope is
-  the plugin entry and the stream, without an execution. Samples are batched per
-  observer window through the existing observer path, never one host invocation per
-  sample. At disconnect or host stop the retained window is released; nothing
-  accumulates without an owner, and the bound comes from the existing stream window
-  and storage settings.
+- **Demand-driven telemetry (supersedes plugin-wide retention).** Host streams are
+  demand-driven by design: nothing is collected, cached or published without a
+  listener, and nothing is retained outside a listening execution. The earlier
+  decision to retain plugin-wide telemetry from plugin connect to disconnect is
+  withdrawn.
+- **Stream shape (owner-locked).** A stream's row holds fields that always exist
+  together; when they do not exist, the stream does not publish. No stream row has an
+  optional, repeated or map field, and no column is nullable. Fields are grouped by
+  availability (connected, battery present, calibrated, sensor present). A
+  collection's outcome is its own stream, `<collection>_probe` with `outcome` and
+  `error`, published every tick (`error` is empty on success); the measured value is
+  published only when it was read. A list is one row per element, every row of one
+  collection sharing its timestamp.
+- **Collections.** One collection per native measurement (system, network, Wi-Fi
+  link, Wi-Fi scan, latency echo, Bluetooth inventory) feeds several declared streams
+  from one measurement with one timestamp, may publish zero or more rows to each,
+  ticks at an interval setting, and runs only while one of its streams has a
+  listener; its start and stop hooks acquire and release native handles, so no handle
+  or cached reading outlives the last listener. The Rust SDK shape, proposed for the
+  owner's review before the other SDKs copy it:
+
+  ```rust
+  let collection = Collection::operation(async |ctx: &operations::Context, rows: &mut Rows| {
+      let reading = read(ctx).await?;
+      rows.publish(WifiAdapter::STREAM, reading.adapter())?;
+      if let Some(link) = reading.link() {
+          rows.publish(WifiLink::STREAM, link)?;
+      }
+      for network in reading.scan() {
+          rows.publish(WifiNetwork::STREAM, network)?;
+      }
+      Ok(())
+  })
+  .stream(Stream::<WifiAdapter>::new(WifiAdapter::STREAM, WifiAdapter::LABEL))
+  .stream(Stream::<WifiLink>::new(WifiLink::STREAM, WifiLink::LABEL))
+  .stream(Stream::<WifiNetwork>::new(WifiNetwork::STREAM, WifiNetwork::LABEL))
+  .interval_setting(settings::WIFI_LINK_INTERVAL)
+  .on_start(|ctx: &operations::Context| Ok(()))
+  .on_stop(|ctx: &operations::Context| Ok(()));
+  let plugin = plugin.collection(collection);
+  ```
+
+  Each fed stream is a demand-bound producer stream (interval windows demand exactly
+  one row per sample, so they cannot carry a silent or multi-row tick); every
+  listener's producer joins the collection's shared feed, the first listener runs
+  `on_start`, ticks are serialized and shared, so all listeners see one measurement
+  with one timestamp, and the last listener's departure runs `on_stop` and drops the
+  latest reading. The host does not know a producer stream's cadence and stores its
+  rows as timestamped samples.
 - **Effect journal.** Host-owned and durable. A mutating control records its target
   and inverse before the write; the earliest inverse per target wins and later
   prepares join it. The journal survives plugin disconnect and host restart, and the
@@ -2741,7 +2783,7 @@ plugin beside OBC. The decisions:
 | Prerequisite | Status |
 |---|---|
 | Duration settings | `dokime::operations::Context::duration_setting` and `setting` (`sdk/rust/src/operations.rs`), backed by `crate::context::Context::duration_setting` (`sdk/rust/src/context.rs`); the name is the one `Observer::interval_setting` takes. |
-| Plugin-wide retention | Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
+| Plugin-wide retention | Withdrawn: host streams are demand-driven; historical facts follow. Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
 | Effect journal | Open (5.13). The `Effects` wire contract carries resource, inverse operation and bytes, description and request identity, which suffices for host-driven restoration. Missing: plugin calls outside an execution are refused by `crates/dokime-operations/src/native.rs` (`context`), the operation context has no effect methods, the handlers return Unimplemented, and the runtime has no plugin-connect hook to restore before exposure. |
 
 ### Host Plugin Ownership

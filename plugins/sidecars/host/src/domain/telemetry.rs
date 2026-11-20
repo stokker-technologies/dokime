@@ -7,7 +7,7 @@
  * ***
  */
 
-// Host Telemetry Rows: One Row Type per Host Stream, Their Column Labels and Units
+// Host Telemetry Rows: Each Row Holds Fields That Always Exist Together, With Their Labels and Units
 
 /* === Modules === */
 
@@ -23,9 +23,22 @@
 
 /* === Constants === */
 
-/// Every Host Stream Identifier, in Catalog Order.
-pub const STREAMS: [&str; 6] =
-    [System::STREAM, Network::STREAM, WifiLink::STREAM, WifiScan::STREAM, WifiLatency::STREAM, Bluetooth::STREAM];
+/// Every Collection Outcome Stream and Its Label; Each Collection Publishes One Outcome per Tick.
+pub const PROBES: [(&str, &str); 6] = [
+    (SYSTEM_PROBE, "Host System Probe"),
+    (NETWORK_PROBE, "Host Network Probe"),
+    (WIFI_LINK_PROBE, "Host Wi-Fi Link Probe"),
+    (WIFI_SCAN_PROBE, "Host Wi-Fi Scan Probe"),
+    (WIFI_LATENCY_PROBE, "Host Wi-Fi Latency Probe"),
+    (BLUETOOTH_PROBE, "Host Bluetooth Probe"),
+];
+
+pub const SYSTEM_PROBE: &str = "system_probe";
+pub const NETWORK_PROBE: &str = "network_probe";
+pub const WIFI_LINK_PROBE: &str = "wifi_link_probe";
+pub const WIFI_SCAN_PROBE: &str = "wifi_scan_probe";
+pub const WIFI_LATENCY_PROBE: &str = "wifi_latency_probe";
+pub const BLUETOOTH_PROBE: &str = "bluetooth_probe";
 
 /* === Macros === */
 
@@ -41,161 +54,360 @@ pub struct Column {
     pub unit: &'static str,
 }
 
-/// Host System Telemetry Row.
-#[derive(dokime::Row)]
+/// One Collection Outcome: `ok`, or `error` With the Error Text; the Text Is Empty on Success.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
-pub struct System {
-    pub sample_index: Option<i64>,
-    pub probe_status: Option<String>,
-    pub probe_error: Option<String>,
-    pub host_name: Option<String>,
-    pub user: Option<String>,
-    pub git_user_name: Option<String>,
-    pub git_user_email: Option<String>,
-    pub os_name: Option<String>,
-    pub os_version: Option<String>,
-    pub kernel_version: Option<String>,
-    pub cpu_architecture: Option<String>,
-    pub cpu_name: Option<String>,
-    pub cpu_brand: Option<String>,
-    pub cpu_vendor_id: Option<String>,
-    pub cpu_frequency_mhz: Option<i64>,
-    pub physical_cpu_count: Option<i64>,
-    pub logical_cpu_count: Option<i64>,
-    pub cpu_load_percent: Option<f64>,
-    pub cpu_capacity_gflops: Option<f64>,
-    pub cpu_load_gflops: Option<f64>,
-    pub memory_total_bytes: Option<i64>,
-    pub memory_used_bytes: Option<i64>,
-    pub memory_pressure_percent: Option<f64>,
-    pub memory_used_gib: Option<f64>,
-    pub memory_total_gib: Option<f64>,
-    pub system_uptime_s: Option<f64>,
-    pub temperature_sensor_count: Option<i64>,
-    pub max_temperature_c: Option<f64>,
-    pub battery_percent: Option<f64>,
-    pub battery_state: Option<String>,
-    pub battery_power_plugged: Option<bool>,
-    pub battery_temperature_c: Option<f64>,
-    pub battery_vendor: Option<String>,
-    pub battery_model: Option<String>,
-    pub battery_serial_number: Option<String>,
-    pub battery_technology: Option<String>,
-    pub battery_state_of_charge_ratio: Option<f64>,
-    pub battery_energy_wh: Option<f64>,
-    pub battery_energy_full_wh: Option<f64>,
-    pub battery_energy_full_design_wh: Option<f64>,
-    pub battery_energy_rate_w: Option<f64>,
-    pub battery_voltage_v: Option<f64>,
-    pub battery_state_of_health_ratio: Option<f64>,
-    pub battery_time_to_full_s: Option<f64>,
-    pub battery_time_to_empty_s: Option<f64>,
-    pub battery_cycle_count: Option<i64>,
-    pub power_plan_name: Option<String>,
-    pub power_plan_guid: Option<String>,
-    pub power_mode: Option<String>,
-    pub power_mode_performance_bias: Option<i64>,
+pub struct Probe {
+    pub outcome: String,
+    pub error: String,
 }
 
-/// Host Network Telemetry Row.
-#[derive(dokime::Row)]
+/// The Host, Operating System and Processor Identity.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct SystemIdentity {
+    pub host_name: String,
+    pub user: String,
+    pub os_name: String,
+    pub os_version: String,
+    pub kernel_version: String,
+    pub cpu_architecture: String,
+    pub cpu_name: String,
+    pub cpu_brand: String,
+    pub cpu_vendor_id: String,
+    pub cpu_frequency_mhz: i64,
+    pub physical_cpu_count: i64,
+    pub logical_cpu_count: i64,
+}
+
+/// The Configured Git User; Silent Until Both Name and Email Are Configured.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct SystemGit {
+    pub git_user_name: String,
+    pub git_user_email: String,
+}
+
+/// Processor Utilization, Memory and Uptime.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct SystemResources {
+    pub cpu_load_percent: f64,
+    pub memory_total_bytes: i64,
+    pub memory_used_bytes: i64,
+    pub memory_pressure_percent: f64,
+    pub memory_used_gib: f64,
+    pub memory_total_gib: f64,
+    pub system_uptime_s: f64,
+    pub temperature_sensor_count: i64,
+}
+
+/// The Hottest Sensor; Silent Without a Readable Sensor.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct SystemTemperature {
+    pub max_temperature_c: f64,
+}
+
+/// Calibrated Capacity and the Load It Implies; Silent Until Calibrated.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct CpuCapacity {
+    pub cpu_capacity_gflops: f64,
+    pub cpu_load_gflops: f64,
+}
+
+/// Battery Charge and Energy; Silent Without a Battery.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct Battery {
+    pub battery_percent: f64,
+    pub battery_state: String,
+    pub battery_power_plugged: bool,
+    pub battery_technology: String,
+    pub battery_state_of_charge_ratio: f64,
+    pub battery_energy_wh: f64,
+    pub battery_energy_full_wh: f64,
+    pub battery_energy_full_design_wh: f64,
+    pub battery_energy_rate_w: f64,
+    pub battery_voltage_v: f64,
+    pub battery_state_of_health_ratio: f64,
+}
+
+/// Battery Vendor, Model and Serial Number When the Battery Reports All Three.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BatteryIdentity {
+    pub battery_vendor: String,
+    pub battery_model: String,
+    pub battery_serial_number: String,
+}
+
+/// Battery Temperature When the Battery Reports It.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BatteryTemperature {
+    pub battery_temperature_c: f64,
+}
+
+/// Time to Full While Charging.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BatteryTimeToFull {
+    pub battery_time_to_full_s: f64,
+}
+
+/// Time to Empty While Discharging.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BatteryTimeToEmpty {
+    pub battery_time_to_empty_s: f64,
+}
+
+/// Charge Cycles When the Battery Reports Them.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BatteryCycles {
+    pub battery_cycle_count: i64,
+}
+
+/// The Active Named Power Plan and the Mode It Selects; Silent Where the Platform Has None.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct PowerPlan {
+    pub power_plan_name: String,
+    pub power_plan_guid: String,
+    pub power_mode: String,
+    pub power_mode_performance_bias: i64,
+}
+
+/// Interface Count and Traffic Across Every Interface.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
 pub struct Network {
-    pub sample_index: Option<i64>,
-    pub probe_status: Option<String>,
-    pub probe_error: Option<String>,
-    pub primary_interface: Option<String>,
-    pub change: Option<String>,
-    pub adapter_id: Option<String>,
-    pub address: Option<String>,
-    pub network_interface_count: Option<i64>,
-    pub network_recv_mb_per_second: Option<f64>,
-    pub network_sent_mb_per_second: Option<f64>,
-    pub network_total_recv_bytes: Option<i64>,
-    pub network_total_sent_bytes: Option<i64>,
-    pub network_rx_errors: Option<i64>,
-    pub network_tx_errors: Option<i64>,
-    pub internet: Option<bool>,
+    pub network_interface_count: i64,
+    pub network_recv_mb_per_second: f64,
+    pub network_sent_mb_per_second: f64,
+    pub network_total_recv_bytes: i64,
+    pub network_total_sent_bytes: i64,
+    pub network_rx_errors: i64,
+    pub network_tx_errors: i64,
 }
 
-/// Host Wi-Fi Link Telemetry Row.
-#[derive(dokime::Row)]
+/// The Adapter Carrying the Default Route; Silent Without One.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct NetworkPrimary {
+    pub primary_interface: String,
+}
+
+/// Whether the Host Reaches the Internet; Silent When the Platform Cannot Tell.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct NetworkInternet {
+    pub internet: bool,
+}
+
+/// One Row per Link or Route Change Since the Previous Collection.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct NetworkChange {
+    pub change: String,
+    pub adapter_id: String,
+}
+
+/// One Row per Address Added or Removed Since the Previous Collection.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct NetworkAddressChange {
+    pub change: String,
+    pub adapter_id: String,
+    pub address: String,
+}
+
+/// The Selected Wi-Fi Adapter and Its Connection State; Silent Without an Adapter.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiAdapter {
+    pub wifi_adapter: String,
+    pub wifi_state: String,
+    pub associated: bool,
+}
+
+/// The Associated Network; Silent While Disconnected.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
 pub struct WifiLink {
-    pub sample_index: Option<i64>,
-    pub probe_status: Option<String>,
-    pub probe_error: Option<String>,
-    pub wifi_adapter: Option<String>,
-    pub wifi_state: Option<String>,
-    pub associated: Option<bool>,
-    pub wifi_ssid: Option<String>,
-    pub wifi_bssid: Option<String>,
-    pub wifi_profile: Option<String>,
-    pub wifi_radio: Option<String>,
-    pub wifi_auth: Option<String>,
-    pub wifi_cipher: Option<String>,
-    pub wifi_signal_percent: Option<f64>,
-    pub wifi_rssi_dbm: Option<f64>,
-    pub wifi_rx_phy_mbps: Option<f64>,
-    pub wifi_tx_phy_mbps: Option<f64>,
-    pub wifi_rx_mbps: Option<f64>,
-    pub wifi_tx_mbps: Option<f64>,
-    pub wifi_channel: Option<i64>,
-    pub wifi_band: Option<String>,
+    pub wifi_ssid: String,
+    pub wifi_bssid: String,
+    pub wifi_channel: i64,
+    pub wifi_band: String,
 }
 
-/// Host Wi-Fi Scan Telemetry Row.
-#[derive(dokime::Row)]
+/// The Authentication of the Association; Silent While Disconnected.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
-pub struct WifiScan {
-    pub sample_index: Option<i64>,
-    pub scan_status: Option<String>,
-    pub scan_error: Option<String>,
-    pub wifi_adapter: Option<String>,
-    pub wifi_ssid: Option<String>,
-    pub wifi_bssid: Option<String>,
-    pub wifi_signal_percent: Option<f64>,
-    pub wifi_rssi_dbm: Option<f64>,
-    pub wifi_channel: Option<i64>,
-    pub wifi_band: Option<String>,
-    pub wifi_security: Option<String>,
-    pub associated: Option<bool>,
-    pub network_count: Option<i64>,
-    pub scan_network_count: Option<i64>,
-    pub active_wifi_channel: Option<i64>,
-    pub active_wifi_band: Option<String>,
-    pub active_wifi_ssid: Option<String>,
-    pub wifi_network_congestion_score: Option<f64>,
-    pub congestion_model: Option<String>,
+pub struct WifiSecurity {
+    pub wifi_auth: String,
 }
 
-/// Host Wi-Fi Latency Telemetry Row.
-#[derive(dokime::Row)]
+/// The Radio Type and Cipher Where the Platform Reports Both; Silent While Disconnected.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiCipher {
+    pub wifi_radio: String,
+    pub wifi_cipher: String,
+}
+
+/// The Profile of the Connection; Silent Without One.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiProfile {
+    pub wifi_profile: String,
+}
+
+/// Signal Quality; Silent While Disconnected.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiSignal {
+    pub wifi_signal_percent: f64,
+}
+
+/// Signal Strength Where the Driver Reports It; Silent While Disconnected.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiRssi {
+    pub wifi_rssi_dbm: f64,
+}
+
+/// Negotiated Receive and Transmit Rates; Silent While Disconnected.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiPhyRate {
+    pub wifi_rx_phy_mbps: f64,
+    pub wifi_tx_phy_mbps: f64,
+}
+
+/// Adapter Traffic Since the Previous Collection; Silent Without Its Counters.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiThroughput {
+    pub wifi_rx_mbps: f64,
+    pub wifi_tx_mbps: f64,
+}
+
+/// One Row per Scanned Network Reporting Its BSSID, Signal and Channel; All Rows of a Scan Share Its Timestamp.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiNetwork {
+    pub wifi_bssid: String,
+    pub wifi_signal_percent: f64,
+    pub wifi_channel: i64,
+    pub wifi_band: String,
+    pub associated: bool,
+    pub network_count: i64,
+}
+
+/// The SSID and Security of Each Scanned Network Broadcasting Both.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiNetworkName {
+    pub wifi_bssid: String,
+    pub wifi_ssid: String,
+    pub wifi_security: String,
+}
+
+/// The Signal Strength of Each Scanned Network Where the Driver Reports It.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiNetworkRssi {
+    pub wifi_bssid: String,
+    pub wifi_rssi_dbm: f64,
+}
+
+/// Congestion of the Associated Channel; Silent While Not Associated.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiCongestion {
+    pub scan_network_count: i64,
+    pub active_wifi_channel: i64,
+    pub active_wifi_band: String,
+    pub active_wifi_ssid: String,
+    pub wifi_network_congestion_score: f64,
+    pub congestion_model: String,
+}
+
+/// Echo Round Trip and Loss; Silent When the Probe Cannot Run or the Reply Is Lost.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
 pub struct WifiLatency {
-    pub sample_index: Option<i64>,
-    pub probe_status: Option<String>,
-    pub probe_error: Option<String>,
-    pub wifi_latency_host: Option<String>,
-    pub wifi_latency_ms: Option<f64>,
-    pub wifi_packet_loss_percent: Option<f64>,
+    pub wifi_latency_host: String,
+    pub wifi_latency_ms: f64,
 }
 
-/// Host Bluetooth Telemetry Row.
-#[derive(dokime::Row)]
+/// Loss of Each Echo That Ran: 0 for a Reply, 100 for a Lost One.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct WifiLoss {
+    pub wifi_latency_host: String,
+    pub wifi_packet_loss_percent: f64,
+}
+
+/// Present Devices and the Radio State.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
 pub struct Bluetooth {
-    pub sample_index: Option<i64>,
-    pub probe_status: Option<String>,
-    pub probe_error: Option<String>,
-    pub bluetooth_adapter: Option<String>,
-    pub bluetooth_adapter_count: Option<i64>,
-    pub bluetooth_connected_device_count: Option<i64>,
-    pub bluetooth_present_device_count: Option<i64>,
-    pub bluetooth_recv_mb_per_second: Option<f64>,
-    pub bluetooth_sent_mb_per_second: Option<f64>,
-    pub bluetooth_radio_state: Option<String>,
-    pub bluetooth_device_names: Vec<String>,
+    pub bluetooth_present_device_count: i64,
+    pub bluetooth_radio_state: String,
+}
+
+/// The Number of Bluetooth Radios; Silent When They Cannot Be Read.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BluetoothRadios {
+    pub bluetooth_adapter_count: i64,
+}
+
+/// Connected Devices; Silent Where the Platform Does Not Report Them.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BluetoothConnections {
+    pub bluetooth_connected_device_count: i64,
+}
+
+/// Bluetooth Traffic; Silent Where the Platform Does Not Report It.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BluetoothTraffic {
+    pub bluetooth_recv_mb_per_second: f64,
+    pub bluetooth_sent_mb_per_second: f64,
+}
+
+/// One Row per Present Device; All Rows of an Inventory Share Its Timestamp.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct BluetoothDevice {
+    pub bluetooth_device_name: String,
+}
+
+/// Measured Closed-Loop Utilization per Controller Period of a Percent Hold.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct LoadPercentControl {
+    pub target_percent: f64,
+    pub measured_percent: f64,
+    pub duty_percent: f64,
+    pub generator_flops: f64,
+}
+
+/// Measured Closed-Loop Throughput per Controller Period of a FLOP/s Hold.
+#[derive(Clone, Debug, PartialEq, dokime::Row)]
+#[dokime(package = "host")]
+pub struct LoadFlopsControl {
+    pub target_flops: f64,
+    pub measured_flops: f64,
+    pub duty_percent: f64,
+    pub generator_flops: f64,
 }
 
 /* === Enums === */
@@ -215,17 +427,16 @@ impl Column {
     }
 }
 
-impl System {
-    pub const STREAM: &'static str = "system";
-    pub const LABEL: &'static str = "Host System";
+impl Probe {
+    pub const COLUMNS: &'static [Column] = &[Column::new("outcome", "Outcome", ""), Column::new("error", "Error", "")];
+}
+
+impl SystemIdentity {
+    pub const STREAM: &'static str = "system_identity";
+    pub const LABEL: &'static str = "Host System Identity";
     pub const COLUMNS: &'static [Column] = &[
-        Column::new("sample_index", "Sample Index", ""),
-        Column::new("probe_status", "Probe Status", ""),
-        Column::new("probe_error", "Probe Error", ""),
         Column::new("host_name", "Host Name", ""),
         Column::new("user", "User", ""),
-        Column::new("git_user_name", "Git User Name", ""),
-        Column::new("git_user_email", "Git User Email", ""),
         Column::new("os_name", "OS Name", ""),
         Column::new("os_version", "OS Version", ""),
         Column::new("kernel_version", "Kernel Version", ""),
@@ -236,9 +447,21 @@ impl System {
         Column::new("cpu_frequency_mhz", "CPU Frequency", "MHz"),
         Column::new("physical_cpu_count", "Physical CPU Count", ""),
         Column::new("logical_cpu_count", "Logical CPU Count", ""),
+    ];
+}
+
+impl SystemGit {
+    pub const STREAM: &'static str = "system_git";
+    pub const LABEL: &'static str = "Host Git Identity";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("git_user_name", "Git User Name", ""), Column::new("git_user_email", "Git User Email", "")];
+}
+
+impl SystemResources {
+    pub const STREAM: &'static str = "system";
+    pub const LABEL: &'static str = "Host System";
+    pub const COLUMNS: &'static [Column] = &[
         Column::new("cpu_load_percent", "CPU Load", "%"),
-        Column::new("cpu_capacity_gflops", "Calibrated CPU Capacity", "GFLOP/s"),
-        Column::new("cpu_load_gflops", "Estimated CPU Load", "GFLOP/s"),
         Column::new("memory_total_bytes", "Memory Total", "B"),
         Column::new("memory_used_bytes", "Memory Used", "B"),
         Column::new("memory_pressure_percent", "Memory Pressure", "%"),
@@ -246,14 +469,31 @@ impl System {
         Column::new("memory_total_gib", "Memory Total", "GiB"),
         Column::new("system_uptime_s", "System Uptime", "s"),
         Column::new("temperature_sensor_count", "Temperature Sensor Count", ""),
-        Column::new("max_temperature_c", "Max Temperature", "°C"),
+    ];
+}
+
+impl SystemTemperature {
+    pub const STREAM: &'static str = "system_temperature";
+    pub const LABEL: &'static str = "Host Temperature";
+    pub const COLUMNS: &'static [Column] = &[Column::new("max_temperature_c", "Max Temperature", "°C")];
+}
+
+impl CpuCapacity {
+    pub const STREAM: &'static str = "cpu_capacity";
+    pub const LABEL: &'static str = "Host CPU Capacity";
+    pub const COLUMNS: &'static [Column] = &[
+        Column::new("cpu_capacity_gflops", "Calibrated CPU Capacity", "GFLOP/s"),
+        Column::new("cpu_load_gflops", "Estimated CPU Load", "GFLOP/s"),
+    ];
+}
+
+impl Battery {
+    pub const STREAM: &'static str = "battery";
+    pub const LABEL: &'static str = "Host Battery";
+    pub const COLUMNS: &'static [Column] = &[
         Column::new("battery_percent", "Battery", "%"),
         Column::new("battery_state", "Battery State", ""),
         Column::new("battery_power_plugged", "Battery Power Plugged", ""),
-        Column::new("battery_temperature_c", "Battery Temperature", "°C"),
-        Column::new("battery_vendor", "Battery Vendor", ""),
-        Column::new("battery_model", "Battery Model", ""),
-        Column::new("battery_serial_number", "Battery Serial Number", ""),
         Column::new("battery_technology", "Battery Technology", ""),
         Column::new("battery_state_of_charge_ratio", "Battery State of Charge", ""),
         Column::new("battery_energy_wh", "Battery Energy", "Wh"),
@@ -262,9 +502,47 @@ impl System {
         Column::new("battery_energy_rate_w", "Battery Energy Rate", "W"),
         Column::new("battery_voltage_v", "Battery Voltage", "V"),
         Column::new("battery_state_of_health_ratio", "Battery State of Health", ""),
-        Column::new("battery_time_to_full_s", "Battery Time to Full", "s"),
-        Column::new("battery_time_to_empty_s", "Battery Time to Empty", "s"),
-        Column::new("battery_cycle_count", "Battery Cycle Count", ""),
+    ];
+}
+
+impl BatteryIdentity {
+    pub const STREAM: &'static str = "battery_identity";
+    pub const LABEL: &'static str = "Host Battery Identity";
+    pub const COLUMNS: &'static [Column] = &[
+        Column::new("battery_vendor", "Battery Vendor", ""),
+        Column::new("battery_model", "Battery Model", ""),
+        Column::new("battery_serial_number", "Battery Serial Number", ""),
+    ];
+}
+
+impl BatteryTemperature {
+    pub const STREAM: &'static str = "battery_temperature";
+    pub const LABEL: &'static str = "Host Battery Temperature";
+    pub const COLUMNS: &'static [Column] = &[Column::new("battery_temperature_c", "Battery Temperature", "°C")];
+}
+
+impl BatteryTimeToFull {
+    pub const STREAM: &'static str = "battery_time_to_full";
+    pub const LABEL: &'static str = "Host Battery Time to Full";
+    pub const COLUMNS: &'static [Column] = &[Column::new("battery_time_to_full_s", "Battery Time to Full", "s")];
+}
+
+impl BatteryTimeToEmpty {
+    pub const STREAM: &'static str = "battery_time_to_empty";
+    pub const LABEL: &'static str = "Host Battery Time to Empty";
+    pub const COLUMNS: &'static [Column] = &[Column::new("battery_time_to_empty_s", "Battery Time to Empty", "s")];
+}
+
+impl BatteryCycles {
+    pub const STREAM: &'static str = "battery_cycles";
+    pub const LABEL: &'static str = "Host Battery Cycles";
+    pub const COLUMNS: &'static [Column] = &[Column::new("battery_cycle_count", "Battery Cycle Count", "")];
+}
+
+impl PowerPlan {
+    pub const STREAM: &'static str = "power_plan";
+    pub const LABEL: &'static str = "Host Power Plan";
+    pub const COLUMNS: &'static [Column] = &[
         Column::new("power_plan_name", "Power Plan", ""),
         Column::new("power_plan_guid", "Power Plan GUID", ""),
         Column::new("power_mode", "Power Mode", ""),
@@ -276,13 +554,6 @@ impl Network {
     pub const STREAM: &'static str = "network";
     pub const LABEL: &'static str = "Host Network";
     pub const COLUMNS: &'static [Column] = &[
-        Column::new("sample_index", "Sample Index", ""),
-        Column::new("probe_status", "Probe Status", ""),
-        Column::new("probe_error", "Probe Error", ""),
-        Column::new("primary_interface", "Primary Interface", ""),
-        Column::new("change", "Change", ""),
-        Column::new("adapter_id", "Adapter", ""),
-        Column::new("address", "Address", ""),
         Column::new("network_interface_count", "Network Interface Count", ""),
         Column::new("network_recv_mb_per_second", "Network RX", "MB/s"),
         Column::new("network_sent_mb_per_second", "Network TX", "MB/s"),
@@ -290,7 +561,41 @@ impl Network {
         Column::new("network_total_sent_bytes", "Network Total TX", "B"),
         Column::new("network_rx_errors", "Network RX Errors", ""),
         Column::new("network_tx_errors", "Network TX Errors", ""),
-        Column::new("internet", "Internet", ""),
+    ];
+}
+
+impl NetworkPrimary {
+    pub const STREAM: &'static str = "network_primary";
+    pub const LABEL: &'static str = "Host Primary Interface";
+    pub const COLUMNS: &'static [Column] = &[Column::new("primary_interface", "Primary Interface", "")];
+}
+
+impl NetworkInternet {
+    pub const STREAM: &'static str = "network_internet";
+    pub const LABEL: &'static str = "Host Internet";
+    pub const COLUMNS: &'static [Column] = &[Column::new("internet", "Internet", "")];
+}
+
+impl NetworkChange {
+    pub const STREAM: &'static str = "network_change";
+    pub const LABEL: &'static str = "Host Network Change";
+    pub const COLUMNS: &'static [Column] = &[Column::new("change", "Change", ""), Column::new("adapter_id", "Adapter", "")];
+}
+
+impl NetworkAddressChange {
+    pub const STREAM: &'static str = "network_address_change";
+    pub const LABEL: &'static str = "Host Address Change";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("change", "Change", ""), Column::new("adapter_id", "Adapter", ""), Column::new("address", "Address", "")];
+}
+
+impl WifiAdapter {
+    pub const STREAM: &'static str = "wifi_adapter";
+    pub const LABEL: &'static str = "Host Wi-Fi Adapter";
+    pub const COLUMNS: &'static [Column] = &[
+        Column::new("wifi_adapter", "Wi-Fi Adapter", ""),
+        Column::new("wifi_state", "Wi-Fi State", ""),
+        Column::new("associated", "Associated", ""),
     ];
 }
 
@@ -298,46 +603,91 @@ impl WifiLink {
     pub const STREAM: &'static str = "wifi_link";
     pub const LABEL: &'static str = "Host Wi-Fi Link";
     pub const COLUMNS: &'static [Column] = &[
-        Column::new("sample_index", "Sample Index", ""),
-        Column::new("probe_status", "Probe Status", ""),
-        Column::new("probe_error", "Probe Error", ""),
-        Column::new("wifi_adapter", "Wi-Fi Adapter", ""),
-        Column::new("wifi_state", "Wi-Fi State", ""),
-        Column::new("associated", "Associated", ""),
         Column::new("wifi_ssid", "Wi-Fi SSID", ""),
         Column::new("wifi_bssid", "Wi-Fi BSSID", ""),
-        Column::new("wifi_profile", "Wi-Fi Profile", ""),
-        Column::new("wifi_radio", "Wi-Fi Radio", ""),
-        Column::new("wifi_auth", "Wi-Fi Auth", ""),
-        Column::new("wifi_cipher", "Wi-Fi Cipher", ""),
-        Column::new("wifi_signal_percent", "Wi-Fi Signal", "%"),
-        Column::new("wifi_rssi_dbm", "Wi-Fi RSSI", "dBm"),
-        Column::new("wifi_rx_phy_mbps", "Wi-Fi RX PHY Rate", "Mbps"),
-        Column::new("wifi_tx_phy_mbps", "Wi-Fi TX PHY Rate", "Mbps"),
-        Column::new("wifi_rx_mbps", "Wi-Fi RX Throughput", "Mbps"),
-        Column::new("wifi_tx_mbps", "Wi-Fi TX Throughput", "Mbps"),
         Column::new("wifi_channel", "Wi-Fi Channel", ""),
         Column::new("wifi_band", "Wi-Fi Band", ""),
     ];
 }
 
-impl WifiScan {
-    pub const STREAM: &'static str = "wifi_scan";
-    pub const LABEL: &'static str = "Host Wi-Fi Scan";
+impl WifiSecurity {
+    pub const STREAM: &'static str = "wifi_security";
+    pub const LABEL: &'static str = "Host Wi-Fi Security";
+    pub const COLUMNS: &'static [Column] = &[Column::new("wifi_auth", "Wi-Fi Auth", "")];
+}
+
+impl WifiCipher {
+    pub const STREAM: &'static str = "wifi_cipher";
+    pub const LABEL: &'static str = "Host Wi-Fi Radio and Cipher";
+    pub const COLUMNS: &'static [Column] = &[Column::new("wifi_radio", "Wi-Fi Radio", ""), Column::new("wifi_cipher", "Wi-Fi Cipher", "")];
+}
+
+impl WifiProfile {
+    pub const STREAM: &'static str = "wifi_profile";
+    pub const LABEL: &'static str = "Host Wi-Fi Profile";
+    pub const COLUMNS: &'static [Column] = &[Column::new("wifi_profile", "Wi-Fi Profile", "")];
+}
+
+impl WifiSignal {
+    pub const STREAM: &'static str = "wifi_signal";
+    pub const LABEL: &'static str = "Host Wi-Fi Signal";
+    pub const COLUMNS: &'static [Column] = &[Column::new("wifi_signal_percent", "Wi-Fi Signal", "%")];
+}
+
+impl WifiRssi {
+    pub const STREAM: &'static str = "wifi_rssi";
+    pub const LABEL: &'static str = "Host Wi-Fi RSSI";
+    pub const COLUMNS: &'static [Column] = &[Column::new("wifi_rssi_dbm", "Wi-Fi RSSI", "dBm")];
+}
+
+impl WifiPhyRate {
+    pub const STREAM: &'static str = "wifi_phy_rate";
+    pub const LABEL: &'static str = "Host Wi-Fi PHY Rate";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("wifi_rx_phy_mbps", "Wi-Fi RX PHY Rate", "Mbps"), Column::new("wifi_tx_phy_mbps", "Wi-Fi TX PHY Rate", "Mbps")];
+}
+
+impl WifiThroughput {
+    pub const STREAM: &'static str = "wifi_throughput";
+    pub const LABEL: &'static str = "Host Wi-Fi Throughput";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("wifi_rx_mbps", "Wi-Fi RX Throughput", "Mbps"), Column::new("wifi_tx_mbps", "Wi-Fi TX Throughput", "Mbps")];
+}
+
+impl WifiNetwork {
+    pub const STREAM: &'static str = "wifi_network";
+    pub const LABEL: &'static str = "Host Wi-Fi Network";
     pub const COLUMNS: &'static [Column] = &[
-        Column::new("sample_index", "Sample Index", ""),
-        Column::new("scan_status", "Scan Status", ""),
-        Column::new("scan_error", "Scan Error", ""),
-        Column::new("wifi_adapter", "Wi-Fi Adapter", ""),
-        Column::new("wifi_ssid", "Wi-Fi SSID", ""),
         Column::new("wifi_bssid", "Wi-Fi BSSID", ""),
         Column::new("wifi_signal_percent", "Wi-Fi Signal", "%"),
-        Column::new("wifi_rssi_dbm", "Wi-Fi RSSI", "dBm"),
         Column::new("wifi_channel", "Wi-Fi Channel", ""),
         Column::new("wifi_band", "Wi-Fi Band", ""),
-        Column::new("wifi_security", "Wi-Fi Security", ""),
         Column::new("associated", "Associated", ""),
         Column::new("network_count", "Channel Networks", ""),
+    ];
+}
+
+impl WifiNetworkName {
+    pub const STREAM: &'static str = "wifi_network_name";
+    pub const LABEL: &'static str = "Host Wi-Fi Network Name";
+    pub const COLUMNS: &'static [Column] = &[
+        Column::new("wifi_bssid", "Wi-Fi BSSID", ""),
+        Column::new("wifi_ssid", "Wi-Fi SSID", ""),
+        Column::new("wifi_security", "Wi-Fi Security", ""),
+    ];
+}
+
+impl WifiNetworkRssi {
+    pub const STREAM: &'static str = "wifi_network_rssi";
+    pub const LABEL: &'static str = "Host Wi-Fi Network RSSI";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("wifi_bssid", "Wi-Fi BSSID", ""), Column::new("wifi_rssi_dbm", "Wi-Fi RSSI", "dBm")];
+}
+
+impl WifiCongestion {
+    pub const STREAM: &'static str = "wifi_congestion";
+    pub const LABEL: &'static str = "Host Wi-Fi Congestion";
+    pub const COLUMNS: &'static [Column] = &[
         Column::new("scan_network_count", "Scan Networks", ""),
         Column::new("active_wifi_channel", "Active Wi-Fi Channel", ""),
         Column::new("active_wifi_band", "Active Wi-Fi Band", ""),
@@ -350,31 +700,72 @@ impl WifiScan {
 impl WifiLatency {
     pub const STREAM: &'static str = "wifi_latency";
     pub const LABEL: &'static str = "Host Wi-Fi Latency";
-    pub const COLUMNS: &'static [Column] = &[
-        Column::new("sample_index", "Sample Index", ""),
-        Column::new("probe_status", "Probe Status", ""),
-        Column::new("probe_error", "Probe Error", ""),
-        Column::new("wifi_latency_host", "Wi-Fi Latency Host", ""),
-        Column::new("wifi_latency_ms", "Wi-Fi Latency", "ms"),
-        Column::new("wifi_packet_loss_percent", "Wi-Fi Packet Loss", "%"),
-    ];
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("wifi_latency_host", "Wi-Fi Latency Host", ""), Column::new("wifi_latency_ms", "Wi-Fi Latency", "ms")];
+}
+
+impl WifiLoss {
+    pub const STREAM: &'static str = "wifi_loss";
+    pub const LABEL: &'static str = "Host Wi-Fi Packet Loss";
+    pub const COLUMNS: &'static [Column] =
+        &[Column::new("wifi_latency_host", "Wi-Fi Latency Host", ""), Column::new("wifi_packet_loss_percent", "Wi-Fi Packet Loss", "%")];
 }
 
 impl Bluetooth {
     pub const STREAM: &'static str = "bluetooth";
     pub const LABEL: &'static str = "Host Bluetooth";
     pub const COLUMNS: &'static [Column] = &[
-        Column::new("sample_index", "Sample Index", ""),
-        Column::new("probe_status", "Probe Status", ""),
-        Column::new("probe_error", "Probe Error", ""),
-        Column::new("bluetooth_adapter", "Bluetooth Adapter", ""),
-        Column::new("bluetooth_adapter_count", "Bluetooth Adapters", ""),
-        Column::new("bluetooth_connected_device_count", "Connected Bluetooth Devices", ""),
         Column::new("bluetooth_present_device_count", "Present Bluetooth Devices", ""),
+        Column::new("bluetooth_radio_state", "Bluetooth Radio State", ""),
+    ];
+}
+
+impl BluetoothRadios {
+    pub const STREAM: &'static str = "bluetooth_radios";
+    pub const LABEL: &'static str = "Host Bluetooth Radios";
+    pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_adapter_count", "Bluetooth Adapters", "")];
+}
+
+impl BluetoothConnections {
+    pub const STREAM: &'static str = "bluetooth_connections";
+    pub const LABEL: &'static str = "Host Bluetooth Connections";
+    pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_connected_device_count", "Connected Bluetooth Devices", "")];
+}
+
+impl BluetoothTraffic {
+    pub const STREAM: &'static str = "bluetooth_traffic";
+    pub const LABEL: &'static str = "Host Bluetooth Traffic";
+    pub const COLUMNS: &'static [Column] = &[
         Column::new("bluetooth_recv_mb_per_second", "Bluetooth RX", "MB/s"),
         Column::new("bluetooth_sent_mb_per_second", "Bluetooth TX", "MB/s"),
-        Column::new("bluetooth_radio_state", "Bluetooth Radio State", ""),
-        Column::new("bluetooth_device_names", "Bluetooth Devices", ""),
+    ];
+}
+
+impl BluetoothDevice {
+    pub const STREAM: &'static str = "bluetooth_device";
+    pub const LABEL: &'static str = "Host Bluetooth Device";
+    pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_device_name", "Bluetooth Device", "")];
+}
+
+impl LoadPercentControl {
+    pub const STREAM: &'static str = "cpu_load_percent_control";
+    pub const LABEL: &'static str = "CPU Load Control";
+    pub const COLUMNS: &'static [Column] = &[
+        Column::new("target_percent", "Target", "%"),
+        Column::new("measured_percent", "Measured", "%"),
+        Column::new("duty_percent", "Duty", "%"),
+        Column::new("generator_flops", "Generator", "FLOP/s"),
+    ];
+}
+
+impl LoadFlopsControl {
+    pub const STREAM: &'static str = "cpu_load_flops_control";
+    pub const LABEL: &'static str = "CPU Throughput Control";
+    pub const COLUMNS: &'static [Column] = &[
+        Column::new("target_flops", "Target", "FLOP/s"),
+        Column::new("measured_flops", "Measured", "FLOP/s"),
+        Column::new("duty_percent", "Duty", "%"),
+        Column::new("generator_flops", "Generator", "FLOP/s"),
     ];
 }
 

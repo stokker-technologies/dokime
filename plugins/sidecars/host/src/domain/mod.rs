@@ -12,6 +12,7 @@
 /* === Modules === */
 
 pub mod controls;
+pub mod readings;
 pub mod telemetry;
 
 /* === Re-Exports === */

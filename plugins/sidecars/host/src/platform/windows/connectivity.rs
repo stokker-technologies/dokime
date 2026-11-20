@@ -23,8 +23,9 @@ use std::sync::{Mutex, PoisonError};
 // Third Party Imports
 use windows::Win32::Foundation::{ERROR_SUCCESS, HANDLE, RPC_E_CHANGED_MODE, WIN32_ERROR};
 use windows::Win32::NetworkManagement::IpHelper::{
-    CancelMibChangeNotify2, ConvertInterfaceLuidToGuid, GetIfEntry2, MIB_IF_ROW2, MIB_IPFORWARD_ROW2, MIB_IPINTERFACE_ROW, MIB_NOTIFICATION_TYPE, MIB_UNICASTIPADDRESS_ROW, MibAddInstance, MibDeleteInstance,
-    NotifyIpInterfaceChange, NotifyRouteChange2, NotifyUnicastIpAddressChange,
+    CancelMibChangeNotify2, ConvertInterfaceLuidToGuid, GetIfEntry2, MIB_IF_ROW2, MIB_IPFORWARD_ROW2, MIB_IPINTERFACE_ROW,
+    MIB_NOTIFICATION_TYPE, MIB_UNICASTIPADDRESS_ROW, MibAddInstance, MibDeleteInstance, NotifyIpInterfaceChange, NotifyRouteChange2,
+    NotifyUnicastIpAddressChange,
 };
 use windows::Win32::NetworkManagement::Ndis::{IfOperStatusUp, NET_LUID_LH};
 use windows::Win32::Networking::NetworkListManager::{
@@ -91,6 +92,7 @@ impl Notifications {
         Ok(())
     }
 
+    /// Take the Oldest Queued Change.
     pub fn next(&mut self) -> Result<Option<Change>> {
         self.sink.lock().unwrap_or_else(PoisonError::into_inner).pop()
     }

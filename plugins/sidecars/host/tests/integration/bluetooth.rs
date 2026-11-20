@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 // Local Imports
 use plugin_host::collectors::bluetooth::State;
-use plugin_host::domain::telemetry::Bluetooth;
+use plugin_host::domain::readings::Bluetooth;
 
 /* === Constants === */
 

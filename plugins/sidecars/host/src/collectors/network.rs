@@ -25,7 +25,7 @@ use sysinfo::{NetworkData, Networks};
 
 // Local Imports
 use crate::adapters::{self, AdapterStatus};
-use crate::domain::telemetry::Network;
+use crate::domain::readings::Network;
 #[cfg(unix)]
 use crate::platform::unix::connectivity;
 #[cfg(windows)]
@@ -90,7 +90,7 @@ struct Timing {
 /* === Implementations === */
 
 impl Collector {
-    /// Collect One Throughput Row Carrying the Oldest Change Not Yet Reported, if Any.
+    /// Collect One Throughput Reading With Every Change Queued Since the Previous One.
     ///
     /// Native change watching starts with the first collection, so it runs only once the stream
     /// is observed.
@@ -115,6 +115,13 @@ impl Collector {
             probe_error: Some(error.to_string()),
             ..Network::default()
         }))
+    }
+}
+
+impl Collector {
+    /// Stop Watching Native Changes and Drop the Counters When the Last Listener Leaves.
+    pub fn stop(&self) {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner).take();
     }
 }
 
@@ -181,8 +188,11 @@ impl State {
     }
 
     fn collect(&mut self, timing: &Timing) -> Result<Network> {
-        let change = self.notifications.next()?;
-        if change.as_ref().is_some_and(|change| change.kind == "default_route_changed") {
+        let mut changes = Vec::new();
+        while let Some(change) = self.notifications.next()? {
+            changes.push(change);
+        }
+        if changes.iter().any(|change| change.kind == "default_route_changed") {
             self.refresh_primary = true;
         }
         self.sample_index += 1;
@@ -191,7 +201,8 @@ impl State {
         self.networks.refresh(true);
         self.last_refresh = now;
         if self.refresh_primary {
-            self.primary_interface = adapters::native(timing.probe_timeout)?.adapters.into_iter().find(|adapter| adapter.primary).map(|adapter| adapter.id);
+            self.primary_interface =
+                adapters::native(timing.probe_timeout)?.adapters.into_iter().find(|adapter| adapter.primary).map(|adapter| adapter.id);
             self.refresh_primary = false;
         }
         let sum = |value: fn(&NetworkData) -> u64| self.networks.values().map(value).sum::<u64>();
@@ -204,9 +215,7 @@ impl State {
             sample_index: Some(self.sample_index),
             probe_status: Some("ok".into()),
             primary_interface: self.primary_interface.clone(),
-            change: change.as_ref().map(|change| change.kind.clone()),
-            adapter_id: change.as_ref().map(|change| change.adapter_id.clone()),
-            address: change.and_then(|change| change.address),
+            changes,
             network_interface_count: Some(self.networks.len() as i64),
             network_recv_mb_per_second: Some(rate(NetworkData::received)),
             network_sent_mb_per_second: Some(rate(NetworkData::transmitted)),

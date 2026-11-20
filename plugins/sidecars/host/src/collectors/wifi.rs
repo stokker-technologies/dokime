@@ -18,14 +18,14 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 // Third Party Imports
 use sysinfo::Networks;
 
 // Local Imports
-use crate::domain::telemetry::{WifiLatency, WifiLink, WifiScan};
+use crate::domain::readings::{WifiLatency, WifiLink, WifiScan};
 use crate::platform::ScannedNetwork;
 use dokime::{Error, Result};
 
@@ -45,7 +45,7 @@ const OVERLAP_CHANNEL_SPAN: f64 = 5.0;
 
 /* === Structs === */
 
-/// Wi-Fi Collection State Retained Between Observer Ticks.
+/// Wi-Fi Collection State, Released at Each Collection's Stop.
 #[derive(Default)]
 pub struct Collector {
     link: Arc<Mutex<Link>>,
@@ -185,6 +185,18 @@ impl Collector {
             Ok(latency_row(*sample_index, &options.host, round_trip_ms(&options)))
         })
         .await
+    }
+}
+
+impl Collector {
+    /// Drop the Adapter Counters When the Link Collection's Last Listener Leaves.
+    pub fn stop_link(&self) {
+        *self.link.lock().unwrap_or_else(PoisonError::into_inner) = Link::default();
+    }
+
+    /// Forget the Last Active Scan When the Scan Collection's Last Listener Leaves.
+    pub fn stop_scan(&self) {
+        *self.scan.lock().unwrap_or_else(PoisonError::into_inner) = Scan::default();
     }
 }
 

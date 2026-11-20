@@ -25,7 +25,7 @@ use std::time::Instant;
 use super::controller::{Controller, Summary};
 use super::sampling::Source;
 use super::workers::Workers;
-use crate::domain::telemetry::Column;
+use crate::domain::telemetry::{LoadFlopsControl, LoadPercentControl};
 use crate::settings::CpuLoad;
 use dokime::{Error, Result};
 
@@ -61,20 +61,14 @@ pub struct LoadSummary {
     pub samples: u64,
 }
 
-/// Measured Closed-Loop CPU Load and Generator Throughput per Controller Period.
-#[derive(Clone, dokime::Row)]
-#[dokime(package = "host")]
-pub struct LoadControl {
-    pub mode: String,
-    pub target_percent: Option<f64>,
-    pub measured_percent: Option<f64>,
-    pub target_flops: Option<f64>,
-    pub measured_flops: Option<f64>,
-    pub duty_percent: f64,
-    pub generator_flops: f64,
-}
-
 /* === Enums === */
+
+/// One Controller Period's Row, in the Stream of the Hold's Target Mode.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LoadControl {
+    Percent(LoadPercentControl),
+    Flops(LoadFlopsControl),
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LoadTarget {
@@ -122,32 +116,21 @@ impl LoadSummary {
 }
 
 impl LoadControl {
-    pub const STREAM: &'static str = "cpu_load_control";
-    pub const LABEL: &'static str = "CPU Load Control";
-    pub const COLUMNS: &'static [Column] = &[
-        Column::new("mode", "Target Mode", ""),
-        Column::new("target_percent", "Target", "%"),
-        Column::new("measured_percent", "Measured", "%"),
-        Column::new("target_flops", "Target", "FLOP/s"),
-        Column::new("measured_flops", "Measured", "FLOP/s"),
-        Column::new("duty_percent", "Duty", "%"),
-        Column::new("generator_flops", "Generator", "FLOP/s"),
-    ];
-
     pub fn measured(target: LoadTarget, measured: f64, duty: f64, generator_flops: f64) -> Self {
-        let (target_percent, target_flops) = target.split();
-        let (mode, measured_percent, measured_flops) = match target {
-            LoadTarget::Percent(_) => ("percent", Some(measured), None),
-            LoadTarget::Flops(_) => ("flops", None, Some(measured)),
-        };
-        Self {
-            mode: mode.into(),
-            target_percent,
-            measured_percent,
-            target_flops,
-            measured_flops,
-            duty_percent: duty * PERCENT_SCALE,
-            generator_flops,
+        let duty_percent = duty * PERCENT_SCALE;
+        match target {
+            LoadTarget::Percent(target_percent) => Self::Percent(LoadPercentControl {
+                target_percent,
+                measured_percent: measured,
+                duty_percent,
+                generator_flops,
+            }),
+            LoadTarget::Flops(target_flops) => Self::Flops(LoadFlopsControl {
+                target_flops,
+                measured_flops: measured,
+                duty_percent,
+                generator_flops,
+            }),
         }
     }
 }
@@ -318,10 +301,12 @@ mod tests {
     #[test]
     fn control_rows_carry_only_the_target_mode() {
         for target in [LoadTarget::Percent(30.0), LoadTarget::Flops(123.0)] {
-            let row = LoadControl::measured(target, 20.0, 0.25, 123.0);
-            assert_eq!(row.duty_percent, 25.0);
-            assert_eq!(row.target_percent.is_some(), matches!(target, LoadTarget::Percent(_)));
-            assert_eq!(row.measured_flops.is_some(), matches!(target, LoadTarget::Flops(_)));
+            let duty_percent = match (LoadControl::measured(target, 20.0, 0.25, 123.0), target) {
+                (LoadControl::Percent(row), LoadTarget::Percent(30.0)) => row.duty_percent,
+                (LoadControl::Flops(row), LoadTarget::Flops(123.0)) => row.duty_percent,
+                (row, target) => panic!("{target:?} Published {row:?}"),
+            };
+            assert_eq!(duty_percent, 25.0);
         }
         assert_eq!(LoadTarget::Percent(25.0).approximate_flops(4.0), 1_000_000_000.0);
         assert_eq!(LoadTarget::Flops(1_000_000_000.0).approximate_percent(4.0), 25.0);

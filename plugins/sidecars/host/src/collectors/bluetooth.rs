@@ -22,8 +22,8 @@ use std::time::{Duration, Instant};
 // Third Party Imports
 
 // Local Imports
-use crate::domain::telemetry::Bluetooth;
-use dokime::encoding::Message;
+use crate::controls::Timing;
+use crate::domain::readings::Bluetooth;
 use dokime::{Error, Result};
 
 /* === Constants === */
@@ -34,7 +34,7 @@ use dokime::{Error, Result};
 
 /* === Structs === */
 
-/// Bluetooth Collection State Retained Between Observer Ticks.
+/// Bluetooth Collection State, Released at the Collection's Stop.
 #[derive(Default)]
 pub struct Collector {
     state: Arc<Mutex<State>>,
@@ -45,6 +45,7 @@ pub struct Options {
     pub adapter: Option<String>,
     pub probe_timeout: Duration,
     pub deep_refresh_interval: Duration,
+    pub timing: Timing,
 }
 
 /// The Sample Count and the Last Native Inventory, Reused Between Deep Refreshes.
@@ -52,7 +53,7 @@ pub struct Options {
 pub struct State {
     sample_index: u64,
     last_deep_refresh: Option<Instant>,
-    cached: Option<Vec<u8>>,
+    cached: Option<Bluetooth>,
 }
 
 /* === Enums === */
@@ -78,6 +79,13 @@ impl Collector {
     }
 }
 
+impl Collector {
+    /// Drop the Cached Inventory When the Last Listener Leaves.
+    pub fn stop(&self) {
+        *self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = State::default();
+    }
+}
+
 impl State {
     /// One Row at `now`: a Fresh Inventory When the Deep Refresh Is Due, Else the Cached One; a Failed Refresh Reuses the Cache as Stale.
     pub fn collect_at(
@@ -89,12 +97,11 @@ impl State {
             self.last_deep_refresh = Some(now);
             match probe() {
                 Ok(snapshot) => {
-                    let encoded = snapshot.encode_to_vec();
-                    self.cached = Some(encoded);
+                    self.cached = Some(snapshot.clone());
                     (snapshot, "ok")
                 }
                 Err(error) => {
-                    let (mut row, status) = match self.cached()? {
+                    let (mut row, status) = match self.cached.clone() {
                         Some(cached) => (cached, "stale"),
                         None => (Bluetooth::default(), "error"),
                     };
@@ -103,7 +110,7 @@ impl State {
                 }
             }
         } else {
-            match self.cached()? {
+            match self.cached.clone() {
                 Some(cached) => (cached, "ok"),
                 None => (Bluetooth::default(), "unavailable"),
             }
@@ -111,15 +118,6 @@ impl State {
         row.sample_index = Some(i64::try_from(self.sample_index).unwrap_or(i64::MAX));
         row.probe_status = Some(status.into());
         Ok(row)
-    }
-
-    fn cached(&self) -> Result<Option<Bluetooth>> {
-        let Some(cached) = &self.cached else {
-            return Ok(None);
-        };
-        Bluetooth::decode(cached.as_slice())
-            .map(Some)
-            .map_err(|error| Error::Invalid(format!("Reuse the Bluetooth Inventory: {error}; Restart the Plugin")))
     }
 }
 
@@ -129,7 +127,7 @@ impl State {
 
 #[cfg(windows)]
 fn inventory(options: &Options) -> std::result::Result<Bluetooth, String> {
-    crate::platform::windows::bluetooth::snapshot(options.adapter.as_deref())
+    crate::platform::windows::bluetooth::snapshot(options.adapter.as_deref(), &options.timing)
 }
 
 #[cfg(unix)]

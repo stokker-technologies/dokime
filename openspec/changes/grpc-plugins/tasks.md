@@ -31,7 +31,8 @@
 - [x] 4.6.1 Re-author the OBC device operations, suites, documents and independent benchmark workloads on the Rust SDK; remove plugin analysis registration.
 - [x] 4.6.2 Restore `plugins/sidecars/host` (`plugin-host`) with its flat settings, domain rows, area module tree, Build bundle and release plugin declaration (design: Host Telemetry Plugin Restoration).
 - [x] 4.6.3 Expose duration settings on the operation context for observer intervals and other durations.
-- [ ] 4.6.4 Retain plugin-wide catalog streams from plugin connect to disconnect, scoped by plugin and stream, queryable through sample and plot operations; needs an `EvidenceScope` plugin selector.
+- [x] 4.6.4 Withdrawn: host streams are demand-driven collections (design: Host Telemetry Plugin Restoration); nothing is retained outside a listening execution.
+- [x] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields.
 - [ ] 4.6.5 Implement the host-owned effect journal (5.13) for plugin-level operations, with operation-context effect methods and restoration before a reconnecting plugin is exposed.
 - [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.
 - [ ] 4.6.7 Package 3: Wi-Fi link, scan and latency, and Bluetooth collectors and streams.

@@ -193,7 +193,6 @@ fn iw_output(args: &[&str], timeout: Duration) -> Result<String, String> {
     String::from_utf8(output.stdout).map_err(|error| format!("Read iw Output: {error}"))
 }
 
-
 fn split_nmcli_fields(line: &str) -> Vec<String> {
     let mut fields = Vec::new();
     let mut field = String::new();

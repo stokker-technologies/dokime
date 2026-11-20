@@ -26,6 +26,7 @@ use crate::Host;
 use crate::collectors::cpu::Load;
 use crate::collectors::cpu::hold::{self, LoadControl, LoadHold, LoadSummary};
 use crate::collectors::cpu::sampling::Sampler;
+use crate::domain::telemetry::{LoadFlopsControl, LoadPercentControl};
 use crate::settings::{self, CpuLoad};
 use dokime::operations::{Context, Operation};
 use dokime::plugin::{Plugin, Publisher, Stream};
@@ -63,16 +64,15 @@ pub struct LoadRead {}
 
 /// Declare the Load Control Stream and the Public CPU Load Operations.
 pub fn catalog(plugin: Plugin) -> Result<Plugin> {
-    let stream = Stream::<LoadControl>::new(LoadControl::STREAM, LoadControl::LABEL)
-        .description("Measured Closed-Loop CPU Load and Generator Throughput per Controller Period.")
-        .publish_on(publish);
+    let percent = Stream::<LoadPercentControl>::new(LoadPercentControl::STREAM, LoadPercentControl::LABEL).publish_on(publish_percent);
+    let flops = Stream::<LoadFlopsControl>::new(LoadFlopsControl::STREAM, LoadFlopsControl::LABEL).publish_on(publish_flops);
     let load = Operation::new(LOAD, Visibility::Public, read)
         .policy(settings::policy(LOAD_BUDGET, Duration::ZERO))
         .description("Report the Calibrated CPU Capacity, Current Utilization and Their Product.");
     let load_hold = Operation::new(LOAD_HOLD, Visibility::Public, load_hold)
         .policy(settings::policy(HOLD_BUDGET, settings::CPU_LOAD_CANCELLATION_GRACE))
         .description("Hold a CPU Utilization or Throughput Target Until Cancelled, Publishing Each Controller Period.");
-    Ok(plugin.stream(stream).operation(load).operation(load_hold))
+    Ok(plugin.stream(percent).stream(flops).operation(load).operation(load_hold))
 }
 
 /* === Private Functions === */
@@ -100,17 +100,28 @@ async fn load_hold(ctx: &Context, request: LoadHold) -> Result<LoadSummary> {
     .await
 }
 
-/// Forward Every Hold's Controller Rows While the Stream Has Demand.
-async fn publish(ctx: &dokime::templates::Context, publisher: Publisher<LoadControl>) -> Result<()> {
+/// Forward Every Percent Hold's Controller Rows While the Stream Has Demand.
+async fn publish_percent(ctx: &dokime::templates::Context, publisher: Publisher<LoadPercentControl>) -> Result<()> {
     let mut rows = ctx.plugin::<Host>()?.cpu.subscribe();
     loop {
         match rows.recv().await {
-            Ok(row) => publisher.publish(row).await?,
-            Err(RecvError::Lagged(_)) => continue,
+            Ok(LoadControl::Percent(row)) => publisher.publish(row).await?,
+            Ok(LoadControl::Flops(_)) | Err(RecvError::Lagged(_)) => continue,
             Err(RecvError::Closed) => return Ok(()),
         }
     }
 }
 
+/// Forward Every FLOP/s Hold's Controller Rows While the Stream Has Demand.
+async fn publish_flops(ctx: &dokime::templates::Context, publisher: Publisher<LoadFlopsControl>) -> Result<()> {
+    let mut rows = ctx.plugin::<Host>()?.cpu.subscribe();
+    loop {
+        match rows.recv().await {
+            Ok(LoadControl::Flops(row)) => publisher.publish(row).await?,
+            Ok(LoadControl::Percent(_)) | Err(RecvError::Lagged(_)) => continue,
+            Err(RecvError::Closed) => return Ok(()),
+        }
+    }
+}
 
 /* === Tests === */

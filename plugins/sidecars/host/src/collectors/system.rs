@@ -28,12 +28,11 @@ use starship_battery::units::thermodynamic_temperature::degree_celsius;
 use starship_battery::units::time::second;
 use starship_battery::{Battery, Manager, State as Charging};
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, RefreshKind};
-use tokio::sync::OnceCell;
 
 // Local Imports
 use crate::Host;
 use crate::collectors::cpu::Load;
-use crate::domain::telemetry::System;
+use crate::domain::readings::System;
 use crate::platform::command;
 use crate::settings;
 use dokime::operations::Context;
@@ -44,18 +43,17 @@ use dokime::{Error, Result};
 const BYTES_PER_GIBIBYTE: f64 = 1_073_741_824.0;
 const PERCENT_SCALE: f64 = 100.0;
 
-
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
 
-/// System Collection State Retained Between Collections, Created on the First One.
+/// System Collection State, Created by the First Collection and Released at the Collection's Stop.
 #[derive(Default)]
 pub struct Collector {
     state: Arc<Mutex<Option<State>>>,
-    git: OnceCell<GitIdentity>,
+    git: Mutex<Option<GitIdentity>>,
 }
 
 /// Git Identity Is Static Context, Read Once Rather Than per Sample.
@@ -90,7 +88,15 @@ impl Collector {
     /// Collect One System Row; a Failed Probe Becomes a Row Naming the Failure.
     pub async fn collect(&self, ctx: &Context) -> Result<System> {
         let timeout = settings::duration_value(ctx, settings::SYSTEM_PROBE_TIMEOUT).await?;
-        let git = self.git.get_or_init(|| async { git_identity(timeout).await }).await.clone();
+        let known = self.git.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let git = match known {
+            Some(git) => git,
+            None => {
+                let git = git_identity(timeout).await;
+                *self.git.lock().unwrap_or_else(PoisonError::into_inner) = Some(git.clone());
+                git
+            }
+        };
         let capacity_gflops = ctx.plugin::<Host>()?.cpu.capacity_gflops(ctx).await.ok();
         let state = self.state.clone();
         let collected = tokio::task::spawn_blocking(move || {
@@ -108,6 +114,14 @@ impl Collector {
             probe_error: Some(error.to_string()),
             ..System::default()
         }))
+    }
+}
+
+impl Collector {
+    /// Release the Native Inventory and the Git Identity When the Last Listener Leaves.
+    pub fn stop(&self) {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner).take();
+        self.git.lock().unwrap_or_else(PoisonError::into_inner).take();
     }
 }
 

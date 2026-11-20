@@ -7,7 +7,7 @@
  * ***
  */
 
-// Host Telemetry: Plugin-Wide System, Network, CPU, Wi-Fi and Bluetooth Streams With Host Controls
+// Host Telemetry: Demand-Driven System, Network, CPU, Wi-Fi and Bluetooth Collections With Host Controls
 
 /* === Modules === */
 
@@ -43,7 +43,7 @@ pub const IDENTIFIER: &str = "host";
 
 /* === Structs === */
 
-/// Plugin-Wide State: One Value per Area, Retained From Connect to Disconnect.
+/// Plugin State: One Value per Area; Collection State Lives Only While a Collection Has a Listener.
 #[derive(Default)]
 pub struct Host {
     pub system: collectors::system::Collector,

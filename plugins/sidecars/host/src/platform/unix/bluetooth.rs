@@ -21,7 +21,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use crate::domain::telemetry::Bluetooth;
+use crate::domain::readings::Bluetooth;
 
 /* === Constants === */
 
