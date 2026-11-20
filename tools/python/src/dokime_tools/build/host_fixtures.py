@@ -252,12 +252,11 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             stderr=sys.stderr,
         )
 
-    # Build the C++ Fixture With the Pinned Native Dependency Graph.
+    # Build the C++ Fixture Against the Bundled Release SDK Package, as an Author's Project Would.
     # The release preset keeps it within the bundle bound.
     if "cpp" in languages:
-        directory = root / "target/cp/release"
         subprocess.run(
-            ["mise", "-C", "sdk/cpp", "run", "prepare"],
+            ["mise", "-C", "sdk/cpp", "run", "package", "--", "--preset", "release"],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
@@ -266,7 +265,18 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             stderr=sys.stderr,
         )
         subprocess.run(
-            ["mise", "-C", "sdk/cpp", "run", "build", "--", "--preset", "release", "--target", "dokime-system-suite"],
+            [
+                "mise",
+                "-C",
+                "sdk/cpp",
+                "run",
+                "consumer",
+                "--",
+                "--preset",
+                "release",
+                "--source",
+                str(root / "sdk/tests/fixtures/cpp/thermal"),
+            ],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
@@ -274,10 +284,8 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        native = directory / "tests"
+        native = root / "target/cp/release/consumers/thermal"
         shutil.copy2(native / f"dokime-system-suite{extension}", output / f"dokime-system-suite{extension}")
-        for library in native.glob("*.dll"):
-            shutil.copy2(library, output / library.name)
 
     # Build the Pure Python Fixture Without a Host Dependency.
     if "python" in languages:

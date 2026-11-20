@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
+# Without a Bundled SDK Package, Build the SDK and Its Native Dependencies From Source Through vcpkg.
+if(NOT DOKIME_SDK_URL AND NOT CMAKE_PREFIX_PATH AND NOT CMAKE_TOOLCHAIN_FILE AND DEFINED ENV{VCPKG_ROOT})
+  set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+endif()
 # Native Dependencies Build Once: Release Only, Static Libraries on the Dynamic Release Runtime.
 if(CMAKE_HOST_WIN32)
   set(VCPKG_TARGET_TRIPLET x64-windows-static-md-release CACHE STRING "Dependency Triplet")

@@ -28,18 +28,8 @@ foreach(placement managed remote)
   set_tests_properties(plugin_executes_case_${placement} PROPERTIES TIMEOUT 240)
 endforeach()
 
-set(thermal "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/cpp/thermal")
-add_library(dokime_thermal_protocol STATIC)
-set(thermal_generated "${CMAKE_CURRENT_BINARY_DIR}/g")
-file(MAKE_DIRECTORY "${thermal_generated}")
-protobuf_generate(TARGET dokime_thermal_protocol LANGUAGE cpp
-  PROTOS "${thermal}/thermal.proto" IMPORT_DIRS "${thermal}"
-  PROTOC_OUT_DIR "${thermal_generated}"
-  DEPENDENCIES protobuf::protoc "${CMAKE_CURRENT_SOURCE_DIR}/../vcpkg.json" "${thermal}/thermal.proto")
-target_include_directories(dokime_thermal_protocol SYSTEM PUBLIC "${thermal_generated}")
-target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Plugin)
-add_executable(dokime-system-suite "${thermal}/main.cpp")
-target_link_libraries(dokime-system-suite PRIVATE dokime_thermal_protocol)
+# The Thermal Fixture Is a Standalone Project That Also Builds Against the Bundled Package.
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/cpp/thermal" thermal)
 
 add_executable(dokime-value-plugin support/value_plugin.cpp)
 target_link_libraries(dokime-value-plugin PRIVATE Dokime::Plugin)

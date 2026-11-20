@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -19,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tomllib
 from pathlib import Path
 from time import perf_counter
 
@@ -200,6 +202,105 @@ def environment() -> dict[str, str]:
     return environment
 
 
+def package(directory: Path, environment: dict[str, str]) -> Path:
+    """Bundle the SDK Libraries of One Preset With Their Native Dependency Closure Into One Relocatable Archive."""
+    cache = {}
+    for line in (directory / "CMakeCache.txt").read_text(encoding="utf-8").splitlines():
+        if "=" in line and not line.startswith(("//", "#")):
+            key, value = line.split("=", 1)
+            cache[key.split(":", 1)[0]] = value
+    command = ["cmake", "--build", str(directory), "--parallel"]
+    if "CARGO_BUILD_JOBS" in environment:
+        command.append(environment["CARGO_BUILD_JOBS"])
+    run(
+        [*command, "--target", "dokime_plugin", "dokime_client", "harmos_cpp", "harmos_cpp_protocol"],
+        action="Build C++ SDK Libraries",
+        cwd=ROOT / "sdk/cpp",
+        env=environment,
+        log=directory / "package-build.log",
+    )
+    prefix = directory / "dokime-cpp"
+    shutil.rmtree(prefix, ignore_errors=True)
+    run(
+        ["cmake", "--install", str(directory), "--prefix", str(prefix)],
+        action="Install C++ SDK",
+        cwd=ROOT / "sdk/cpp",
+        env=environment,
+        log=directory / "install.log",
+    )
+
+    # Bundle the Installed Dependency Closure of gRPC, Protobuf and OpenSSL; Build Helpers and Test Ports Stay Out.
+    triplet = cache["VCPKG_TARGET_TRIPLET"]
+    installed = Path(cache["VCPKG_INSTALLED_DIR"])
+    versions = {}
+    depends = {}
+    for paragraph in (installed / "vcpkg/status").read_text(encoding="utf-8").split("\n\n"):
+        fields = dict(line.split(": ", 1) for line in paragraph.splitlines() if ": " in line)
+        if fields.get("Architecture") != triplet or fields.get("Status") != "install ok installed":
+            continue
+        if "Feature" not in fields:
+            versions[fields["Package"]] = fields["Version"]
+        names = [name.split(":")[0].strip() for name in fields.get("Depends", "").split(",") if name.strip()]
+        depends.setdefault(fields["Package"], set()).update(names)
+    closure = set()
+    pending = ["grpc", "protobuf", "openssl"]
+    while pending:
+        name = pending.pop()
+        if name not in closure and not name.startswith("vcpkg-"):
+            closure.add(name)
+            pending.extend(depends[name])
+    notices = []
+    for name in sorted(closure):
+        listing = installed / "vcpkg/info" / f"{name}_{versions[name]}_{triplet}.list"
+        for line in listing.read_text(encoding="utf-8").splitlines():
+            source = installed / line
+            if line.endswith("/") or not source.is_file():
+                continue
+            destination = prefix / line.removeprefix(f"{triplet}/")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        terms = (installed / triplet / "share" / name / "copyright").read_text(encoding="utf-8", errors="replace")
+        notices.append(f"{name} {versions[name]}\n\n{terms.strip()}\n")
+    (prefix / "THIRD-PARTY-NOTICES.txt").write_text(("\n" + "=" * 80 + "\n\n").join(notices), encoding="utf-8", newline="\n")
+    shutil.copy2(ROOT / "LICENSE", prefix / "LICENSE")
+    shutil.copy2(ROOT / "NOTICE", prefix / "NOTICE")
+
+    # State the Toolchain and Runtime the Bundled Static Libraries Require.
+    compiler = {}
+    for line in next((directory / "CMakeFiles").glob("*/CMakeCXXCompiler.cmake")).read_text(encoding="utf-8").splitlines():
+        for key in ("CMAKE_CXX_COMPILER_ID", "CMAKE_CXX_COMPILER_VERSION", "MSVC_TOOLSET_VERSION"):
+            if line.startswith(f"set({key} "):
+                compiler[key] = line.split(" ", 1)[1].rstrip(")").strip('"')
+    target = "x86_64-pc-windows-msvc" if os.name == "nt" else "x86_64-unknown-linux-gnu"
+    version = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+    manifest = {
+        "name": "dokime-cpp",
+        "version": version,
+        "target": target,
+        "build_type": cache["CMAKE_BUILD_TYPE"],
+        "cxx_standard": 20,
+        "compiler": {"id": compiler["CMAKE_CXX_COMPILER_ID"], "version": compiler["CMAKE_CXX_COMPILER_VERSION"]},
+        "runtime": "MultiThreadedDLL" if os.name == "nt" else "libstdc++ with the C++11 ABI",
+        "libraries": "static",
+        "dependencies": {name: versions[name] for name in sorted(closure)},
+    }
+    if "MSVC_TOOLSET_VERSION" in compiler:
+        manifest["compiler"]["toolset"] = compiler["MSVC_TOOLSET_VERSION"]
+    (prefix / "dokime-cpp.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+    # Publish the Archive Beside Its Checksum File.
+    archive = directory / f"dokime-cpp-{version}-{target}.tar.gz"
+    output = tarfile.TarFile.gzopen(archive, "w")
+    try:
+        output.add(prefix, arcname="dokime-cpp")
+    finally:
+        output.close()
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    archive.with_name(f"{archive.name}.sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8", newline="\n")
+    print(f"Package C++ SDK: {archive} ({archive.stat().st_size} Bytes, SHA-256 {digest})", flush=True)
+    return archive
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("prepare", "build", "test", "check", "format", "package", "consumer"))
@@ -237,7 +338,7 @@ def main() -> None:
         ]
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
-    elif options.action in ("check", "build"):
+    elif options.action in ("check", "build", "package"):
         if options.action == "build":
             command = ["cmake", "--build", "--preset", options.preset, "--parallel"]
             if "CARGO_BUILD_JOBS" in child:
@@ -259,6 +360,8 @@ def main() -> None:
             env=child,
             log=directory / "configure.log",
         )
+        if options.action == "package":
+            package(directory, child)
         if options.action != "build":
             return
     elif options.action == "test":
@@ -276,66 +379,34 @@ def main() -> None:
         if options.repeat:
             command += ["--repeat", f"until-fail:{options.repeat}"]
     elif options.action == "consumer":
-        pending = subprocess.check_output(
-            ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
-        )
-        if pending.strip() != "ninja: no work to do.":
-            raise RuntimeError(f"Build Installed Consumer: Build This Preset Before Installing Its Package\n{pending.strip()}")
-        prefix = directory / "installed"
-        run(
-            ["cmake", "--install", str(directory), "--prefix", str(prefix)],
-            action="Install C++ SDK",
-            cwd=sdk,
-            env=child,
-            log=directory / "install.log",
-        )
-        consumer = ROOT / "target/cp/consumer"
+        # Build the Source Against the Bundled Package Alone, Without the Package Manager.
+        bundle = directory / "dokime-cpp"
+        if not (bundle / "dokime-cpp.json").is_file():
+            raise RuntimeError(f"Build C++ Package Consumer: Run mise -C sdk/cpp run package -- --preset {options.preset} First")
+        source = (options.source or sdk / "examples/starter").resolve()
+        consumer = directory / "consumers" / source.name
+        build_type = json.loads((bundle / "dokime-cpp.json").read_text(encoding="utf-8"))["build_type"]
         run(
             [
                 "cmake",
                 "--fresh",
-                "--preset",
-                "development",
                 "-S",
-                str(options.source or sdk / "examples/starter"),
+                str(source),
                 "-B",
                 str(consumer),
                 "-G",
                 "Ninja",
-                f"-DCMAKE_TOOLCHAIN_FILE={child['VCPKG_ROOT']}/scripts/buildsystems/vcpkg.cmake",
-                f"-DCMAKE_PREFIX_PATH={prefix}",
-                f"-DVCPKG_INSTALLED_DIR={ROOT}/target/cp/v",
-                "-DVCPKG_MANIFEST_INSTALL=OFF",
-                "-DCMAKE_BUILD_TYPE=Debug",
+                f"-DCMAKE_PREFIX_PATH={bundle}",
+                f"-DCMAKE_BUILD_TYPE={build_type}",
             ],
-            cwd=options.source or sdk / "examples/starter",
+            cwd=source,
             env=child,
-            action="Configure Installed C++ Consumer",
+            action="Configure C++ Package Consumer",
             log=directory / "consumer-configure.log",
         )
         command = ["cmake", "--build", str(consumer), "--parallel"]
         if "CARGO_BUILD_JOBS" in child:
             command.append(child["CARGO_BUILD_JOBS"])
-    else:
-        pending = subprocess.check_output(
-            ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
-        )
-        if pending.strip() != "ninja: no work to do.":
-            raise RuntimeError(f"Package C++ SDK: Build This Preset Before Installing Its Package\n{pending.strip()}")
-        prefix = directory / "installed"
-        run(
-            ["cmake", "--install", str(directory), "--prefix", str(prefix)],
-            action="Install C++ SDK",
-            cwd=sdk,
-            env=child,
-            log=directory / "install.log",
-        )
-        archive = tarfile.TarFile.gzopen(directory / "dokime-cpp.tar.gz", "w")
-        try:
-            archive.add(prefix, arcname="dokime-cpp")
-        finally:
-            archive.close()
-        return
     run(command, action=f"{options.action.title()} C++ SDK", cwd=sdk, env=child, log=directory / f"{options.action}.log")
 
 

@@ -179,8 +179,21 @@ mise -C sdk/cpp run format
 mise -C sdk/cpp run check -- --preset tests
 mise -C sdk/cpp run build -- --preset tests
 mise -C sdk/cpp run test -- --preset tests
+mise -C sdk/cpp run package -- --preset tests
 mise -C sdk/cpp run consumer -- --preset tests
 ```
+
+`package -- --preset release` writes `target/cp/release/dokime-cpp-<version>-<target>.tar.gz`
+and its `.sha256`: headers, the static SDK and library archives, the static gRPC,
+protobuf and OpenSSL closure with their code generators, relocatable CMake packages,
+`dokime-cpp.json` (build type, compiler, runtime, dependency versions) and
+`THIRD-PARTY-NOTICES.txt`. A project sets the extracted root in `CMAKE_PREFIX_PATH`,
+or passes `DOKIME_SDK_URL` and `DOKIME_SDK_SHA256` as the starter's presets do, and
+builds without a package manager. The Windows package needs Visual Studio 2022 or
+later and `CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL` before `project()`; the Linux
+package needs GCC 11 or later with the C++11 libstdc++ ABI. Other toolchains run
+`package` from this checkout to build their own. `consumer -- --source PATH` builds
+a project against the package of the selected preset.
 
 Native dependency versions follow the pinned library's vcpkg baseline. They build
 once, in Release, as static libraries on the dynamic release runtime

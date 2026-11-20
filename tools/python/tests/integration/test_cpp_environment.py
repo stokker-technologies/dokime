@@ -113,6 +113,9 @@ class CppEnvironmentTests(unittest.TestCase):
         try:
             root = Path(temporary.name)
             main = SDK["main"]
+            bundle = root / "target/cp/tests/dokime-cpp"
+            bundle.mkdir(parents=True)
+            (bundle / "dokime-cpp.json").write_text(json.dumps({"build_type": "Debug"}), encoding="utf-8")
             for action, jobs in product(("build", "consumer"), (None, "2")):
                 child = {"VCPKG_ROOT": str(root / "vcpkg")}
                 if jobs is not None:

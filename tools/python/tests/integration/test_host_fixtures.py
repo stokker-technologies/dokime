@@ -200,8 +200,9 @@ class HostFixtureTests(unittest.TestCase):
                     )
                     stamp.assert_not_called()
                     if language == "cpp":
-                        self.assertEqual(commands[0][-1], "prepare")
-                        self.assertIn("dokime-system-suite", commands[1])
+                        self.assertEqual(commands[0][4:], ["package", "--", "--preset", "release"])
+                        self.assertEqual(commands[1][4:8], ["consumer", "--", "--preset", "release"])
+                        self.assertEqual(Path(commands[1][-1]), root / "sdk/tests/fixtures/cpp/thermal")
                     if language == "csharp":
                         self.assertEqual([command[4] for command in commands], ["build", "package", "publish:system"])
                     if language == "rust":
