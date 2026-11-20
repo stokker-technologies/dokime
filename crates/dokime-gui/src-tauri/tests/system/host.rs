@@ -538,7 +538,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
             let plot_request = PlotRequest {
                 plot_id: Some("module-voltage".into()),
-                stream: "obc.measurement".into(),
+                stream: "obc.benchmark.plots.measurement".into(),
                 y_keys: vec!["voltage_v".into()],
                 scope: Some(EvidenceScope {
                     execution_id: Some(execution.clone()),

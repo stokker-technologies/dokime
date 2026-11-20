@@ -86,7 +86,9 @@ async function pick(desktop, command, args, path, operation = "Open") {
     return current.done ? current : null;
   });
   await desktop.execute("delete window.__storyPicker;");
-  if (result.failure) throw Object.assign(new Error(JSON.stringify(result.failure)), { detail: result.failure });
+  if (result.failure) {
+    throw Object.assign(new Error(JSON.stringify(result.failure)), { detail: result.failure });
+  }
   return result.value;
 }
 
@@ -140,8 +142,8 @@ try {
 
   // Listener and Pairings Have Independent Library Resource Owners.
   const address = `127.0.0.1:${await unusedPort()}`;
-  const listener = await call(a, "harmos.host.v1.access.Listener", "Get");
-  await call(a, "harmos.host.v1.access.Listener", "Set", {
+  const listener = await call(a, "dokime.host.v1.access.Listener", "Get");
+  await call(a, "dokime.host.v1.access.Listener", "Set", {
     value: { enabled: true, endpoint: address, certificateNames: ["localhost", "127.0.0.1"] },
     expectedRevision: listener.revision,
   });
@@ -151,12 +153,12 @@ try {
     ["a", a],
     ["b", b],
   ]) {
-    const before = await call(a, "harmos.host.v1.access.Pairings", "List");
+    const before = await call(a, "dokime.host.v1.access.Pairings", "List");
     const access = join(work, `client-${name}.pair`);
     assert.equal(await pick(a, "desktop_pairing_create", {}, access, "Save"), access);
     const pairing = JSON.parse(await readFile(access, "utf8"));
     assert.ok(pairing.certificate_pem && pairing.access_key);
-    const after = await call(a, "harmos.host.v1.access.Pairings", "List");
+    const after = await call(a, "dokime.host.v1.access.Pairings", "List");
     const admitted = after.pairings.find((item) => !before.pairings.some((prior) => prior.id === item.id));
     assert.ok(admitted, "Each Desktop Receives Its Own Revocable Pairing");
     imported.push({ name: admitted.id, pairing, access });
@@ -283,13 +285,13 @@ try {
   assert.ok(await c.exists("button", "Start Local Backend"));
 
   // Revocation Removes Only One Pairing and Preserves the Other Client.
-  await call(a, "harmos.host.v1.access.Pairings", "Delete", { name: imported[1].name });
+  await call(a, "dokime.host.v1.access.Pairings", "Delete", { name: imported[1].name });
   await assert.rejects(call(b, "Suites", "List", {}), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
   assert.deepEqual((await call(a, "Suites", "List", {})).values, catalogA.values);
   assert.ok(await b.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"));
 
   // Certificate Rotation Refuses the Old Trust Pin and a New Pairing Recovers.
-  await call(a, "harmos.host.v1.access.Certificates", "Create", {});
+  await call(a, "dokime.host.v1.access.Certificates", "Create", {});
   await assert.rejects(invoke(a, "desktop_backend_use", { identifier: "story-a" }));
   await invoke(a, "desktop_session_select", {
     selection: {

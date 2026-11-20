@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 # isort: split
@@ -29,7 +30,7 @@ from unittest.mock import patch
 
 # Local Imports
 import dokime_tools.build.rust.tests
-from dokime_tools.build import cargo, desktop_fixtures, host_fixtures, lint, paths
+from dokime_tools.build import cargo, cli_fixtures, desktop_fixtures, host_fixtures, lint, paths
 from dokime_tools.prepare import generated
 
 # Type Checking Imports
@@ -46,6 +47,48 @@ from dokime_tools.prepare import generated
 
 
 class HostFixtureTests(unittest.TestCase):
+    def test_rust_cli_fixture_keeps_extensionless_executable_separate_from_source(self) -> None:
+        for platform, extension in (("posix", ""), ("nt", ".exe")):
+            temporary_directory = tempfile.TemporaryDirectory()
+            root = Path(temporary_directory.name)
+            try:
+                executable = root / "target/debug" / f"rust{extension}"
+                executable.parent.mkdir(parents=True)
+                executable.write_bytes(b"prepared plugin")
+                executable.chmod(0o755)
+                output = root / "target/build/dev/native"
+
+                def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+                    if command[1] == "new":
+                        project = Path(command[2])
+                        project.mkdir()
+                        (project / "dokime.toml").write_text("[plugin]\n", encoding="utf-8")
+                    return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+                patches = (
+                    patch.object(cli_fixtures.configuration, "ROOT", root),
+                    patch.object(cli_fixtures.paths, "output", return_value=output),
+                    patch.object(cli_fixtures, "os", SimpleNamespace(name=platform)),
+                    patch.object(cli_fixtures.subprocess, "run", side_effect=run),
+                    patch.object(cli_fixtures.archive, "stamp"),
+                )
+                for pending in patches:
+                    pending.start()
+                try:
+                    cli_fixtures.build("dev", "rust")
+                finally:
+                    for pending in reversed(patches):
+                        pending.stop()
+
+                fixture = output / "fixtures/cli" / executable.name
+                source = output / "fixtures/cli/rust-source/dokime.toml"
+                self.assertEqual(fixture.read_bytes(), executable.read_bytes())
+                self.assertTrue(source.is_file())
+                if os.name != "nt":
+                    self.assertEqual(fixture.stat().st_mode & 0o777, executable.stat().st_mode & 0o777)
+            finally:
+                temporary_directory.cleanup()
+
     def test_selected_rust_fixture_skips_unrelated_producers(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         root = Path(temporary_directory.name)
