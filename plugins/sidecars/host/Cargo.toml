@@ -41,6 +41,7 @@ dokime = { path = "../../../sdk/rust" }
 # Logging
 
 # Utilities
+sysinfo = { workspace = true }
 
 # Serialization
 prost-types = { workspace = true }
@@ -54,6 +55,7 @@ prost-types = { workspace = true }
 # Concurrency
 
 # Async
+tokio = { workspace = true, features = ["process"] }
 
 # Networking
 
@@ -68,6 +70,9 @@ prost-types = { workspace = true }
 # === Dev Dependencies === #
 
 # === Target Dependencies === #
+
+[target.'cfg(unix)'.dependencies]
+zbus = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = [
