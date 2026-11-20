@@ -186,7 +186,8 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
             exports.read_text().replace(
                 "pub use",
                 '#[allow(unused_imports, reason = "The Shared Generator Emits the Complete Internal Host Inventory")]\npub(crate) use',
-            )
+            ),
+            newline="\n",
         )
         barrels = {
             Path("sdk/python/src/dokime_sdk/__init__.py"),
