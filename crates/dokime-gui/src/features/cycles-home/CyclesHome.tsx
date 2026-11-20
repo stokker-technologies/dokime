@@ -177,6 +177,7 @@ function CycleGroupSection({
   return (
     <section id={group.id} aria-labelledby={`cycle-group-${group.id}`} className="min-w-0">
       <DataTable
+        aria-label={group.title}
         search={search}
         actions={actions}
         columns={columns}

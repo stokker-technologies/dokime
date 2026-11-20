@@ -206,7 +206,7 @@ export function DataTable<TData extends RowData>({
         title={title}
       />
 
-      <Table aria-label={ariaLabel} className="w-full min-w-full table-fixed">
+      <Table aria-label={ariaLabel ?? (typeof title === "string" ? title : undefined)} className="w-full min-w-full table-fixed">
         <TableHeader className="bg-muted/50 border-b">
           {table.getHeaderGroups().map((group) => (
             <TableRow className="hover:bg-transparent" key={group.id}>

@@ -2766,3 +2766,10 @@ again. The workspace no-run command therefore repeats `dokime-gui/testing`.
 Keep required-feature policy in run and delete the selection-side copy after the
 tooling owner settles the shared handling of explicit test targets and `--tests`;
 this worker does not change tooling or its compiler selectors.
+
+The inherited updater in `crates/dokime-gui/src-tauri/src/app/updates/mod.rs:63`
+also gates fields and methods directly. The `stkr-rust` module-only gating rule
+requires a structural split of optional updater code/state while keeping saved
+policy under its current single owner. Whether that refactor joins this delivery
+is an open owner scope decision; the settings persistence change does not claim
+that convention cleanup is complete.

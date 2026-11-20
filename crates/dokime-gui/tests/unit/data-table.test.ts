@@ -168,6 +168,7 @@ test("Only Declared Filters Are Offered and Actions Stay Last", () => {
   const helper = dataTableColumns<{ id: string; count: number }>();
   const html = renderToStaticMarkup(
     createElement(DataTable<{ id: string; count: number }>, {
+      title: "fixture-title",
       columns: helper.columns([
         helper.display({
           id: "actions",
@@ -188,6 +189,7 @@ test("Only Declared Filters Are Offered and Actions Stay Last", () => {
   assert.equal((headings.match(/aria-haspopup="dialog"/g) ?? []).length, 1);
   assert.match(headings, /aria-label="Filter fixture-id"/);
   assert.match(html, /text-right[^>]*>1200<\/td>/);
+  assert.match(html, /<table[^>]*aria-label="fixture-title"/);
 });
 
 test("Row Actions Are Named Icon Buttons with a Menu Only for the Rest", () => {

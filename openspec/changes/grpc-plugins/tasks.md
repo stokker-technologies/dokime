@@ -36,6 +36,7 @@
 - [x] 4.8.2 Consolidate Native Desktop Stream Settings, Remembered Parameters and Update Selection in `settings.json`; Replace Interval Sampling With Engine / Streams, Without Migrating Retired Files.
 - [x] 4.8.3 Use One Framed DataTable for Desktop Lists, Document Tables, Statistics and Grid Plots, With Header Descriptions, Ordered Controls, In-Place Failures and Persistent Pagination.
 - [ ] 4.8.4 Complete Focused Frontend, Native Settings and Capture Proof and Compile All Workspace Test Targets With Desktop Testing; Report Documentation Impact to the Owner.
+- [ ] 4.8.5 Settle the Scope of the Inherited Updater's Module-Only Feature-Gate Refactor; Do Not Treat Passing Compilation as Convention Closure.
 - [x] 5.1 Remove the template run/signal protocol, plugin walker, embedded plugins, native Python backend and old execution hand-off layer.
 - [x] 5.6 Remove obsolete template/step/criterion/suite/catalog/plugin macros while retaining message/data derives.
 - [x] 5.7 Remove separate client/server/domain crates, host-enabling SDK features, operations contract-only surfaces and their dead consumers.
