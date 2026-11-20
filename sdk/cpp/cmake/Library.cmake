@@ -127,6 +127,9 @@ dokime_protocol(dokime_plugin_protocol ${plugin_messages} ${client_headers})
 target_link_libraries(dokime_plugin_protocol PUBLIC Harmos::Cpp protobuf::libprotobuf)
 dokime_protocol(dokime_client_protocol ${client_messages} ${client_services})
 target_link_libraries(dokime_client_protocol PUBLIC dokime_plugin_protocol gRPC::grpc++)
+target_precompile_headers(dokime_client_protocol PRIVATE <grpcpp/server_context.h> <grpcpp/support/async_stream.h>
+  <grpcpp/support/async_unary_call.h> <grpcpp/support/client_callback.h> <grpcpp/support/server_callback.h>
+  <grpcpp/impl/server_callback_handlers.h> <grpcpp/support/sync_stream.h>)
 
 # Keep Authored SDK Diagnostics Identical Across Both Libraries.
 if(MSVC)

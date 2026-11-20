@@ -25,4 +25,8 @@ function(dokime_protocol target)
   # WinGDI Defines GetObject; Generated Storage Methods Must Keep Their Wire Name.
   target_compile_definitions(${target} PRIVATE "$<$<PLATFORM_ID:Windows>:NOGDI>")
   target_compile_options(${target} PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/bigobj>")
+  # Generated Sources Share One Precompiled Protobuf Runtime.
+  target_precompile_headers(${target} PRIVATE <google/protobuf/descriptor.h> <google/protobuf/extension_set.h>
+    <google/protobuf/generated_message_reflection.h> <google/protobuf/generated_message_tctable_impl.h>
+    <google/protobuf/reflection_ops.h> <google/protobuf/wire_format.h>)
 endfunction()
