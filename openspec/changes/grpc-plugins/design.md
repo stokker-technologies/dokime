@@ -2888,3 +2888,14 @@ Each area registers through its `catalog(plugin: Plugin) -> Result<Plugin>`, whi
 (constructed by `Default`; an area may replace the derive with its own `Default`
 implementation and release resources in `Drop`). Documents for host streams belong
 to the area that declares the stream and need plugin-wide retention first.
+
+### Host Integration Gate
+
+The current library pin has no durable plugin state. `journal::Journal::check` and
+`record` share the journal's durable-state boundary; controls check it before any
+platform call, and record the inverse before writing. CPU load holds use the same
+boundary before calibration or worker creation. `impl journal::Store for
+operations::Context` is the single connection point for the eventual library API.
+Read-only operations and telemetry remain available. No in-memory mutation fallback
+is permitted. The wire contract remains fluid; no replacement Effects protocol is
+introduced here.

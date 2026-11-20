@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::future;
 use std::time::Duration;
 
 // Third Party Imports
@@ -30,7 +31,7 @@ use crate::domain::telemetry::{LoadFlopsControl, LoadPercentControl};
 use crate::settings::{self, CpuLoad};
 use dokime::operations::{Context, Operation};
 use dokime::plugin::{Plugin, Publisher, Stream};
-use dokime::{Result, Visibility};
+use dokime::{Error, Result, Visibility};
 
 /* === Constants === */
 
@@ -82,20 +83,21 @@ async fn read(ctx: &Context, _: LoadRead) -> Result<Load> {
 }
 
 async fn load_hold(ctx: &Context, request: LoadHold) -> Result<LoadSummary> {
+    crate::journal::Journal::new(ctx).check().await?;
     let cpu = &ctx.plugin::<Host>()?.cpu;
     let settings = CpuLoad::read(ctx).await?;
     let capacity_gflops = cpu.capacity_gflops(ctx).await?;
     let period = settings.sample_period;
     let sampler = tokio::task::spawn_blocking(move || Sampler::start(capacity_gflops, period))
         .await
-        .map_err(|error| dokime::Error::Invalid(format!("Hold CPU Load: {error}; Restart the Plugin")))??;
+        .map_err(|error| Error::Invalid(format!("Hold CPU Load: {error}; Restart the Plugin")))??;
     let source = sampler.source();
     let cancel = async {
         ctx.cancelled().await;
     };
     hold::hold(request, settings, source, cancel, |row| {
         cpu.publish(row);
-        std::future::ready(Ok(()))
+        future::ready(Ok(()))
     })
     .await
 }

@@ -78,6 +78,19 @@ impl<'a, S: Store> Journal<'a, S> {
         Self { store }
     }
 
+    /// Refuse Before Any Native Probe or Mutation When the Store Is Not Durable.
+    pub async fn check(&self) -> Result<()> {
+        self.durable().await.map(drop)
+    }
+
+    async fn durable(&self) -> Result<(Effects, Vec<u8>)> {
+        self.read().await?.ok_or_else(|| {
+            Error::Invalid(
+                "Host Controls Need Durable Plugin State: the Library Cannot Persist Control Inverses; Connect Durable Plugin State Before Changing Host Controls".into(),
+            )
+        })
+    }
+
     async fn read(&self) -> Result<Option<(Effects, Vec<u8>)>> {
         let Some(saved) = self.store.load().await? else {
             return Ok(None);
@@ -89,10 +102,12 @@ impl<'a, S: Store> Journal<'a, S> {
 }
 
 impl<S: Store> crate::controls::Journal for Journal<'_, S> {
+    async fn check(&self) -> Result<()> {
+        Journal::check(self).await
+    }
+
     async fn record(&self, target: &str, inverse: &ControlState) -> Result<bool> {
-        let Some((mut effects, revision)) = self.read().await? else {
-            return Err(Error::Invalid("Set Control: Run a Host That Keeps Durable Plugin State; No Control Was Changed".into()));
-        };
+        let (mut effects, revision) = self.durable().await?;
         if effects.effects.iter().any(|effect| effect.target == target) {
             return Ok(false);
         }

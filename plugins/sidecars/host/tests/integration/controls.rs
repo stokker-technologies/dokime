@@ -30,6 +30,7 @@ use plugin_host::controls::{
 };
 use plugin_host::domain::controls::{AdapterState, ControlState, Radio, RadioState};
 use plugin_host::power::PLAN_GET;
+use plugin_host::journal;
 
 /* === Constants === */
 
@@ -55,6 +56,8 @@ struct Fake {
     written: Mutex<Vec<ControlState>>,
     journal: Mutex<Vec<(String, ControlState)>>,
 }
+
+struct NonDurable;
 
 /* === Enums === */
 
@@ -104,6 +107,13 @@ impl Native for Fake {
 }
 
 impl Journal for Fake {
+    async fn check(&self) -> Result<()> {
+        if self.journal_unavailable {
+            return Err(Error::Invalid("journal unavailable".into()));
+        }
+        Ok(())
+    }
+
     async fn record(&self, target: &str, inverse: &ControlState) -> Result<bool> {
         self.record_call(format!("record {target}"));
         if self.journal_unavailable {
@@ -125,6 +135,16 @@ impl Journal for Fake {
 
     async fn outstanding(&self) -> Result<Vec<(String, ControlState)>> {
         Ok(self.journal.lock().unwrap().clone())
+    }
+}
+
+impl journal::Store for NonDurable {
+    async fn load(&self) -> Result<Option<journal::Saved>> {
+        Ok(None)
+    }
+
+    async fn save(&self, _: Vec<u8>, _: Vec<u8>) -> Result<()> {
+        panic!("A Non-Durable Store Must Never Receive a Record")
     }
 }
 
@@ -234,7 +254,17 @@ async fn an_unavailable_journal_refuses_before_any_write() {
     let state = State::default();
     assert!(state.execute(plan("performance"), &fake, &fake, &fake).await.is_err());
 
-    assert_eq!(fake.calls(), ["read", "record host.power.plan"]);
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test]
+async fn a_non_durable_store_refuses_a_control_before_any_platform_call() {
+    let fake = Fake { before: plan_state("balanced"), ..Default::default() };
+    let journal = journal::Journal::new(&NonDurable);
+    let error = State::default().execute(plan("performance"), &fake, &journal, &fake).await.err().unwrap();
+    assert!(matches!(error, Error::Invalid(_)));
+    assert!(fake.calls().is_empty());
+    assert!(fake.written.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

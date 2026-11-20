@@ -11,7 +11,7 @@
 
 /* === Modules === */
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 mod platform {
     pub use crate::platform::windows::controls::{administrator, apply, bluetooth_adapter, connected_addresses, read_adapter, read_radio};
 }
@@ -137,6 +137,9 @@ pub trait Native {
 
 /// The Durable Plugin Journal a Mutating Control Records Its Target and Inverse In Before It Writes.
 pub trait Journal {
+    /// Refuse All Native Calls Until Durable Recording Is Available.
+    fn check(&self) -> impl Future<Output = Result<()>>;
+
     /// Record the Inverse Unless the Target Already Has One; True When This Record Is the Target's Earliest. An Error Means the
     /// Journal Is Unavailable.
     fn record(&self, target: &str, inverse: &ControlState) -> impl Future<Output = Result<bool>>;
@@ -242,6 +245,7 @@ impl State {
     /// Apply One Change: Read, Guard, Record the Inverse, Write, and Restore at Once When the Write Fails.
     pub async fn execute(&self, change: Change, native: &impl Native, journal: &impl Journal, caller: &impl Caller) -> Result<Applied> {
         let _gate = self.gate.lock().await;
+        journal.check().await?;
 
         // Refuse Without Privilege
         if matches!(change, Change::Adapter { .. }) && !native.administrator().await? {
