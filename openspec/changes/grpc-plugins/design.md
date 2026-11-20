@@ -2729,6 +2729,9 @@ plugin beside OBC. The decisions:
   `error`, published every tick (`error` is empty on success); the measured value is
   published only when it was read. A list is one row per element, every row of one
   collection sharing its timestamp.
+  An echo without a reply publishes `timeout` in `wifi_latency_probe` and 100%
+  loss in `wifi_loss`; it publishes no `wifi_latency` value. A probe that cannot
+  run publishes `error` and its diagnostic instead of measured values.
 - **Collections.** One collection per native measurement (system, network, Wi-Fi
   link, Wi-Fi scan, latency echo, Bluetooth inventory) feeds several declared streams
   from one measurement with one timestamp, may publish zero or more rows to each,

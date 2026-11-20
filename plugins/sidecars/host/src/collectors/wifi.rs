@@ -18,6 +18,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
+use std::result;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -231,7 +232,7 @@ pub fn congestion(active_channel: Option<u32>, per_channel: &BTreeMap<u32, u32>,
 }
 
 /// The Scan Rows of One Collection: One per Network, or One Status Row When None Was Observed.
-pub fn scan_rows(sample_index: u64, report: std::result::Result<ScanReport, String>, network_weight: f64) -> Vec<WifiScan> {
+pub fn scan_rows(sample_index: u64, report: result::Result<ScanReport, String>, network_weight: f64) -> Vec<WifiScan> {
     let status_row = |status: &str, error: Option<String>| WifiScan {
         sample_index: Some(index(sample_index)),
         scan_status: Some(status.into()),
@@ -285,7 +286,7 @@ pub fn scan_rows(sample_index: u64, report: std::result::Result<ScanReport, Stri
 }
 
 /// The Latency Row of One Echo: a Reply, a Loss or a Probe That Could Not Run.
-pub fn latency_row(sample_index: u64, host: &str, echo: std::result::Result<Option<f64>, String>) -> WifiLatency {
+pub fn latency_row(sample_index: u64, host: &str, echo: result::Result<Option<f64>, String>) -> WifiLatency {
     let mut row = WifiLatency {
         sample_index: Some(index(sample_index)),
         wifi_latency_host: Some(host.into()),
@@ -298,7 +299,7 @@ pub fn latency_row(sample_index: u64, host: &str, echo: std::result::Result<Opti
             row.wifi_packet_loss_percent = Some(0.0);
         }
         Ok(None) => {
-            row.probe_status = Some("ok".into());
+            row.probe_status = Some("timeout".into());
             row.wifi_packet_loss_percent = Some(LOST_PERCENT);
         }
         Err(error) => {
@@ -435,7 +436,7 @@ fn read_link(options: &LinkOptions, row: &mut WifiLink) -> Option<String> {
 
 // WlanScan Only When an Active Scan Is Due; Otherwise the Driver's Cached BSS List.
 #[cfg(windows)]
-fn scan(options: &ScanOptions, active: bool) -> std::result::Result<ScanReport, String> {
+fn scan(options: &ScanOptions, active: bool) -> result::Result<ScanReport, String> {
     let window = active.then_some(options.window);
     let networks = crate::platform::windows::wifi::scan_networks(options.adapter.as_deref(), window)?;
     Ok(ScanReport { networks, active, error: None })
@@ -443,7 +444,7 @@ fn scan(options: &ScanOptions, active: bool) -> std::result::Result<ScanReport, 
 
 // NetworkManager Rescans Only When an Active Scan Is Due; a Refused Rescan Falls Back to Its Cached List.
 #[cfg(unix)]
-fn scan(options: &ScanOptions, active: bool) -> std::result::Result<ScanReport, String> {
+fn scan(options: &ScanOptions, active: bool) -> result::Result<ScanReport, String> {
     use crate::platform::unix::wifi::{adapter_matches, nmcli_wifi_rows};
     let (rows, active, error) = match nmcli_wifi_rows(active, options.probe_timeout) {
         Ok(rows) => (rows, active, None),
@@ -469,12 +470,12 @@ fn scan(options: &ScanOptions, active: bool) -> std::result::Result<ScanReport, 
 }
 
 #[cfg(windows)]
-fn round_trip_ms(options: &LatencyOptions) -> std::result::Result<Option<f64>, String> {
+fn round_trip_ms(options: &LatencyOptions) -> result::Result<Option<f64>, String> {
     crate::platform::windows::echo::round_trip_ms(&options.host, options.reply_timeout, options.payload_bytes)
 }
 
 #[cfg(unix)]
-fn round_trip_ms(options: &LatencyOptions) -> std::result::Result<Option<f64>, String> {
+fn round_trip_ms(options: &LatencyOptions) -> result::Result<Option<f64>, String> {
     crate::platform::unix::echo::round_trip_ms(&options.host, options.reply_timeout, options.payload_bytes, options.process_timeout)
 }
 

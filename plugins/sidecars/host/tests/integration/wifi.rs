@@ -151,18 +151,31 @@ fn active_scans_honor_the_minimum_interval() {
 }
 
 #[test]
-fn a_missing_reply_is_loss_and_only_a_failed_probe_is_an_error() {
+fn an_echo_reply_reports_the_measured_latency() {
     let reply = latency_row(1, "host", Ok(Some(12.5)));
     assert_eq!(reply.probe_status.as_deref(), Some("ok"));
     assert_eq!(reply.wifi_latency_ms, Some(12.5));
     assert_eq!(reply.wifi_packet_loss_percent, Some(0.0));
+    assert_eq!(reply.probe_error, None);
+}
+
+#[test]
+fn an_echo_timeout_reports_loss_without_a_latency() {
     let lost = latency_row(2, "host", Ok(None));
-    assert_eq!(lost.probe_status.as_deref(), Some("ok"));
+    assert_eq!(lost.probe_status.as_deref(), Some("timeout"));
     assert_eq!(lost.wifi_latency_ms, None);
     assert_eq!(lost.wifi_packet_loss_percent, Some(100.0));
-    let failed = latency_row(3, "host", Err("unresolved".into()));
+    assert_eq!(lost.probe_error, None);
+}
+
+#[test]
+fn an_echo_failure_has_no_measured_values() {
+    let error = String::from("probe-failure");
+    let failed = latency_row(3, "host", Err(error.clone()));
     assert_eq!(failed.probe_status.as_deref(), Some("error"));
-    assert_eq!(failed.probe_error.as_deref(), Some("unresolved"));
+    assert_eq!(failed.probe_error, Some(error));
+    assert_eq!(failed.wifi_latency_ms, None);
+    assert_eq!(failed.wifi_packet_loss_percent, None);
     assert_eq!(failed.wifi_packet_loss_percent, None);
     assert_eq!(failed.wifi_latency_host.as_deref(), Some("host"));
 }
