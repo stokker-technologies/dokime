@@ -24,6 +24,7 @@
 - [x] 4.1 Make `sdk/rust` the host-free product `dokime` authoring/client crate with generated service coverage.
 - [x] 4.2 Provide `dokime new`, plugin, bundle, installer and protocol commands in the one CLI; remove cargo-dokime.
 - [x] 4.2.1 Apply the 2026-11-19 plugin verbs: replace CLI `plugin add` with `plugin register` without an alias, retain bundle `plugin install`, remove Python's refusing `plugins.upload` method without adding an `install` stub, and update command consumers, README and the locked SDK specification. Prove CLI units/remote registration/managed installation and Python units/host-free integration.
+- [x] 4.2.2 Replace the version subcommand with `--version`/`-V` and `--version --json`, migrate its story consumer and share source revision/channel derivation between CLI and desktop builds.
 - [x] 4.3 Replace PyO3 with the pure Python authoring/client package, explicit close and shipped examples.
 - [x] 4.4 Provide C# authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
 - [x] 4.5 Provide C++ authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
