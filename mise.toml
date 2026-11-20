@@ -598,7 +598,6 @@ run = "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profil
 [tasks."package:rust"]
 hide = true
 description = "Package the Desktop Installer, Tools and Plugin Archives"
-tools = { "aqua:ip7z/7zip" = "26.05" }
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--target <target>" default="native"
@@ -607,7 +606,7 @@ run = [
   "{{vars.tools}} dokime_tools.release.notices",
   "{{vars.tools}} dokime_tools.package.run rust --profile {{usage.profile}} --target {{usage.target}}",
   "{{vars.tools}} dokime_tools.package.distribution --profile {{usage.profile}}",
-  "{{vars.tools}} dokime_tools.package.installer --profile {{usage.profile}}",
+  "{{vars.tools}} dokime_tools.package.native --profile {{usage.profile}}",
 ]
 
 [tasks."ci:nightly-freshness"]

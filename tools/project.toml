@@ -124,7 +124,7 @@ target = "linux-x86_64"
 
 [[release.assets]]
 kind = "installer"
-path = "target/package/{profile}/{target}/rust/latest.json"
+path = "target/package/{profile}/{target}/rust/release.json"
 signed_only = true
 target = "windows-x86_64"
 
