@@ -86,15 +86,12 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
                 archive = zipfile.ZipFile(output, "x", compression=zipfile.ZIP_DEFLATED)
                 try:
                     for original, name in contents:
-                        metadata = zipfile.ZipInfo.from_file(original, name)
-                        metadata.create_system = 3
-                        metadata.external_attr = (stat.S_IFREG | (0o755 if original == source else 0o644)) << 16
-                        metadata.compress_type = zipfile.ZIP_DEFLATED
-                        archive.writestr(metadata, original.read_bytes())
+                        write_file(archive, original, name, 0o755 if original == source else 0o644)
                 finally:
                     archive.close()
             else:
-                with tarfile.open(output, "x:gz") as archive:
+                archive = tarfile.open(output, "x:gz")
+                try:
                     for original, name in contents:
                         metadata = archive.gettarinfo(str(original), arcname=name)
                         metadata.mode = 0o755 if original == source else 0o644
@@ -103,6 +100,8 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
                             archive.addfile(metadata, stream)
                         finally:
                             stream.close()
+                finally:
+                    archive.close()
             changelog_file.unlink()
             continue
         destinations = set()
@@ -130,27 +129,29 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
                 if unsafe or overlaps:
                     raise policy.ToolError("Package Product: unsafe or duplicate bundle destination")
                 destinations.add(name.casefold())
-                mode = entry.get("mode")
-                if mode is None:
-                    archive.write(source, name)
-                    continue
+                mode = entry.get("mode", 0o644)
                 if type(mode) is not int or not 0 <= mode <= 0o777:
                     raise policy.ToolError("Package Product: bundle mode must contain only ordinary permission bits")
-                metadata = zipfile.ZipInfo.from_file(source, name)
-                metadata.create_system = 3
-                metadata.external_attr = (stat.S_IFREG | mode) << 16
-                metadata.compress_type = zipfile.ZIP_DEFLATED
-                original = source.open("rb")
-                try:
-                    destination = archive.open(metadata, "w")
-                    try:
-                        shutil.copyfileobj(original, destination)
-                    finally:
-                        destination.close()
-                finally:
-                    original.close()
+                write_file(archive, source, name, mode)
         finally:
             archive.close()
+
+
+def write_file(archive: zipfile.ZipFile, source: Path, name: str, mode: int = 0o644) -> None:
+    """Write a Regular ZIP Member With Explicit Unix Permissions."""
+    metadata = zipfile.ZipInfo.from_file(source, name)
+    metadata.create_system = 3
+    metadata.external_attr = (stat.S_IFREG | mode) << 16
+    metadata.compress_type = zipfile.ZIP_DEFLATED
+    original = source.open("rb")
+    try:
+        destination = archive.open(metadata, "w")
+        try:
+            shutil.copyfileobj(original, destination)
+        finally:
+            destination.close()
+    finally:
+        original.close()
 
 
 # === Private Functions === #
