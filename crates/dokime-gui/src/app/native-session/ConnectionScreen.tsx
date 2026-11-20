@@ -180,7 +180,7 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         </div>
         {!busy && diagnostics && (
           <div className="grid gap-3 text-left text-sm">
-            <ErrorCard failure={failureOf(error, "Backend Could Not Start")} onRetry={() => void owner.select({ kind: "owned_local" })} />
+            <ErrorCard notificationContext="background" failure={failureOf(error, "Backend Could Not Start")} onRetry={() => void owner.select({ kind: "owned_local" })} />
             {diagnostics.log && <PathPill value={diagnostics.log} />}
           </div>
         )}

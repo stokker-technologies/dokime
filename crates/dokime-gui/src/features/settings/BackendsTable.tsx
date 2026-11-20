@@ -15,6 +15,7 @@
 
 import { ErrorCard } from "@/components/ErrorCard";
 
+import { toast } from "@/lib/notifications";
 import { failureOf } from "@/lib/notification-details";
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
@@ -88,6 +89,7 @@ export function BackendsTable({
       const status = await commands.desktopSessionStatus();
       if (status.connection.phase === "disconnected") await owner.disconnect();
     } catch (failure) {
+      toast.error(failureOf(failure, "Backend Could Not Be Deleted"));
       setError(failure);
     } finally {
       setBusy(false);
@@ -174,6 +176,7 @@ export function BackendsTable({
                   onConnect?.();
                 }
               } catch (failure) {
+                toast.error(failureOf(failure, "Backend Could Not Be Imported"));
                 setError(failure);
               } finally {
                 setBusy(false);

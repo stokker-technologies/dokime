@@ -85,7 +85,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             titleInvalid={error !== null && !form.title.trim()}
             values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
           />
-          {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
+          {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button disabled={create.isPending} onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel

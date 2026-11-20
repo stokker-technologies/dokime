@@ -156,7 +156,7 @@ function NoteEditor({
       <TabsContent value="preview" className="min-h-28 border border-border/40 px-3 py-2">
         <MarkdownText text={draft.markdown} />
       </TabsContent>
-      {failure ? <ErrorCard failure={failureOf(failure, "Operation Failed")} /> : null}
+      {failure ? <ErrorCard notificationContext="action" failure={failureOf(failure, "Operation Failed")} /> : null}
       <div className="flex justify-end gap-2">
         <Button disabled={pending} onClick={onCancel} size="sm" type="button" variant="ghost">
           Cancel

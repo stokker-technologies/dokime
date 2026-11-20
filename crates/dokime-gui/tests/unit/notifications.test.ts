@@ -453,3 +453,23 @@ test("Description Readiness Remains a Quiet Waiting State", async () => {
   assert.equal(shown.error.mock.calls.length, 0);
   assert.equal((await history.notificationPage()).records.length, 0);
 });
+
+
+test("Feedback Is Recorded", async () => {
+  const history = await import("@/lib/notifications");
+  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
+  const failure = failureOf(new Error("fixture-action"), "fixture-title");
+  const write = vi.spyOn(IDBObjectStore.prototype, "put");
+  for (let render = 0; render < 2; render++)
+    renderToStaticMarkup(createElement(ErrorCard, { failure, notificationContext: "action" }));
+  await vi.waitFor(() => assert.equal(write.mock.calls.length, 1));
+  const page = await history.notificationPage();
+  assert.deepEqual(page.records.map((entry) => entry.failure), [failure]);
+  assert.equal(shown.error.mock.calls.length, 1);
+  history.openNotificationDetails(page.records[0]);
+  renderToStaticMarkup(createElement(NotificationDetailsDialog));
+  renderToStaticMarkup(createElement(ErrorCard, { failure: failureOf(new Error("fixture-load"), "fixture-load-title") }));
+  assert.equal(write.mock.calls.length, 1);
+  assert.equal(shown.error.mock.calls.length, 1);
+});

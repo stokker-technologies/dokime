@@ -163,7 +163,7 @@ export function ParameterEditor({
                       </div>
                       <span className="size-6" />
                     </div>
-                    {row.error ? <ErrorCard failure={failureOf(row.failure, "Operation Failed")} /> : null}
+                    {row.error ? <ErrorCard notificationContext="action" failure={failureOf(row.failure, "Operation Failed")} /> : null}
                   </div>
                   <div className="justify-self-center">
                     {row.path !== (definition.default ?? "") || row.error ? (

@@ -74,7 +74,7 @@ export function PluginDropZone({ disabled, error, failure, filename, onDrop, onP
           </Button>
         </div>
       </fieldset>
-      {error ? <ErrorCard failure={failureOf(failure, "Operation Failed")} /> : null}
+      {error ? <ErrorCard notificationContext="action" failure={failureOf(failure, "Operation Failed")} /> : null}
     </div>
   );
 }

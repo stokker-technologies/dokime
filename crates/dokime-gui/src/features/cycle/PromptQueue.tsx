@@ -157,7 +157,7 @@ function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
         submittingAction={responseMutation.isPending ? (responseMutation.variables?.action ?? null) : null}
         values={values}
       />
-      {responseMutation.isError ? <ErrorCard failure={failureOf(responseMutation.error, "Response Not Accepted")} /> : null}
+      {responseMutation.isError ? <ErrorCard notificationContext="action" failure={failureOf(responseMutation.error, "Response Not Accepted")} /> : null}
     </div>
   );
 }

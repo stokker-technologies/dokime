@@ -273,7 +273,7 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
       >
         {busy ? "Downloading…" : name}
       </Button>
-      {Boolean(error) && <ErrorCard failure={failureOf(error, "Operation Failed")} />}
+      {Boolean(error) && <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />}
     </div>
   );
 }

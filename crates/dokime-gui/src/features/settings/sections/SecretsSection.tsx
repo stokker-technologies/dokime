@@ -170,7 +170,7 @@ function ConnectedSecrets({ session }: { session: ConnectedSession }) {
           All plugins on this host can look up these identifiers. Values stay in its OS keyring.
         </p>
         {error ? (
-          <ErrorCard failure={failureOf(error, "Operation Failed")} />
+          <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />
         ) : query.error ? (
           <ErrorCard failure={failureOf(query.error, "Secrets Unavailable")} onRetry={() => void query.refetch()} />
         ) : null}
@@ -329,7 +329,7 @@ function SecretEditor({
           <DialogTitle>{editor.kind === "new" ? "Add Secret" : "Edit Secret"}</DialogTitle>
           <DialogDescription>Values stay in the host’s OS keyring.</DialogDescription>
         </DialogHeader>
-        {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
+        {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
         <form
           className="grid gap-3"
           onSubmit={(event) => {

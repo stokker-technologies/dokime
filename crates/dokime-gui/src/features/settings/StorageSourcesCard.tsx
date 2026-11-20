@@ -190,7 +190,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
           }
         >
           {mutation.error ? (
-            <ErrorCard failure={failureOf(mutation.error, "Operation Failed")} />
+            <ErrorCard notificationContext="action" failure={failureOf(mutation.error, "Operation Failed")} />
           ) : (
             <ErrorCard failure={failureOf(query.error, "Storage Sources Unavailable")} onRetry={() => void query.refetch()} />
           )}

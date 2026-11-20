@@ -181,7 +181,7 @@ export function SettingsDialog({
             titleInvalid={error === EMPTY_SETTINGS_TITLE_ERROR}
             values={draft}
           />
-          {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
+          {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button disabled={saving} onClick={() => onOpenChange(false)} type="button" variant="outline">
               {editable ? "Cancel" : "Close"}

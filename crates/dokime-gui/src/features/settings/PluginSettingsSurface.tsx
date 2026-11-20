@@ -118,7 +118,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 >
                   Reload
                 </Button>
-                {reload.isError ? <ErrorCard failure={failureOf(reload.error, "Operation Failed")} /> : null}
+                {reload.isError ? <ErrorCard notificationContext="action" failure={failureOf(reload.error, "Operation Failed")} /> : null}
               </SettingsRow>
             </SettingsCard>
             {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}

@@ -23,7 +23,7 @@ void (async () => {
   root.render(
     <>
       <DokimeToaster />
-      <ErrorCard failure={failureOf(error, "Application Could Not Start")} />
+      <ErrorCard notificationContext="background" failure={failureOf(error, "Application Could Not Start")} />
     </>,
   );
 });

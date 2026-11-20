@@ -147,7 +147,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
           <DialogHeader>
             <DialogTitle>{mode === "export" ? "Export Secrets" : "Import Secrets"}</DialogTitle>
           </DialogHeader>
-          {Boolean(error) && <ErrorCard failure={failureOf(error, "Operation Failed")} />}
+          {Boolean(error) && <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />}
 
           {mode === "export" && (
             <form

@@ -351,7 +351,7 @@ export function TemplateDialog({
       <div className="mx-4">
         <ActiveCycleInline cycle={activeCycle} hasOpenCycles={hasOpenCycles} onChange={onChangeCycle} onNewCycle={onNewCycle} />
       </div>
-      {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
+      {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
     </div>
   );
 

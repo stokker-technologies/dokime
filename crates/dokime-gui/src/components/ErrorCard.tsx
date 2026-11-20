@@ -34,11 +34,11 @@ import { toast } from "@/lib/notifications";
 
 /* === Types === */
 
-type ErrorCardProps = { failure: NotificationFailure; onRetry?: () => void; retryLabel?: string; retryDisabled?: boolean };
+type ErrorCardProps = { notificationContext?: "action" | "background"; failure: NotificationFailure; onRetry?: () => void; retryLabel?: string; retryDisabled?: boolean };
 
 /* === Components === */
 
-export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabled = false }: ErrorCardProps) {
+export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabled = false, notificationContext }: ErrorCardProps) {
   const session = useNativeSessionOptional();
   const [recovering, setRecovering] = useState(false);
   const restart = failure.action === "Restart Plugin" && failure.plugin && session;
@@ -66,8 +66,9 @@ export function ErrorCard({ failure, onRetry, retryLabel = "Reload", retryDisabl
     window.location.reload();
   }
   useEffect(() => {
-    routeFailure(failure, "view");
-  }, [failure]);
+    if (notificationContext) toast.error(failure, { context: notificationContext });
+    else routeFailure(failure, "view");
+  }, [failure, notificationContext]);
   if (isWaitingFailure(failure))
     return (
       <p role="status" className="col-span-full w-full text-sm text-muted-foreground">

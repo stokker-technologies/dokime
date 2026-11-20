@@ -264,10 +264,10 @@ export function MediaGallerySurface({
                     </>
                   ) : null}
                   {nativeOpenError?.artifactId === selectedArtifact.artifact_id ? (
-                    <ErrorCard failure={failureOf(nativeOpenError.failure, "Operation Failed")} />
+                    <ErrorCard notificationContext="action" failure={failureOf(nativeOpenError.failure, "Operation Failed")} />
                   ) : null}
                   {nativeDownloadError?.artifactId === selectedArtifact.artifact_id ? (
-                    <ErrorCard failure={failureOf(nativeDownloadError.failure, "Operation Failed")} />
+                    <ErrorCard notificationContext="action" failure={failureOf(nativeDownloadError.failure, "Operation Failed")} />
                   ) : null}
                 </div>
               </div>

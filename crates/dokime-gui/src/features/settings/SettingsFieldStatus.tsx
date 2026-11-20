@@ -30,7 +30,7 @@ type SettingsFieldStatusProps = {
 export function SettingsFieldStatus({ onRetry, state }: SettingsFieldStatusProps) {
   if (state.kind === "error")
     return (
-      <ErrorCard
+      <ErrorCard notificationContext="action"
         failure={failureOf(state.failure ?? state.message, "Settings Could Not Be Saved")}
         onRetry={onRetry}
         retryLabel="Save Settings"

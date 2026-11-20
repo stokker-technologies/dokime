@@ -16,7 +16,7 @@
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 /* === Local Imports === */
 
@@ -36,6 +36,7 @@ type SettingsRowProps = {
   /** A problem with this field, delivered through notifications. */
   error?: ReactNode;
   failure?: unknown;
+  notificationContext?: "action";
   htmlFor?: string;
   label: ReactNode;
   /** The autosave readout; see `SettingsFieldStatus`. */
@@ -44,7 +45,8 @@ type SettingsRowProps = {
 
 /* === Components === */
 
-export function SettingsRow({ children, className, control, description, error, failure, htmlFor, label, status }: SettingsRowProps) {
+export function SettingsRow({ children, className, control, description, error, failure, htmlFor, label, status, notificationContext }: SettingsRowProps) {
+  const id = useId();
   return (
     <div
       className={cn(
@@ -68,7 +70,7 @@ export function SettingsRow({ children, className, control, description, error, 
         </div>
         {status ? <div className="text-right">{status}</div> : null}
       </div>
-      {error ? <ErrorCard failure={failureOf(failure ?? notificationText(error), "Operation Failed")} /> : null}
+      {error ? <ErrorCard notificationContext={notificationContext} failure={failureOf(failure ?? notificationText(error), "Operation Failed", failure ? undefined : `${id}:${notificationText(error)}`)} /> : null}
     </div>
   );
 }

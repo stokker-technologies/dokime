@@ -219,7 +219,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
           {deleteTarget?.checkpoint && deleteRetries[retryKey(deleteTarget)] ? (
             <p className="text-sm text-muted-foreground">Retry this deletion to confirm its result.</p>
           ) : null}
-          {deleteError ? <ErrorCard failure={failureOf(deleteError, "Operation Failed")} /> : null}
+          {deleteError ? <ErrorCard notificationContext="action" failure={failureOf(deleteError, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button
               variant="outline"
@@ -355,7 +355,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? <ErrorCard failure={failureOf(error, "Operation Failed")} /> : null}
+      {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
     </div>
   );
 }
