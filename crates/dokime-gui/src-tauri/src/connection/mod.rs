@@ -218,7 +218,9 @@ impl ConnectionSession {
         settings.connect_timeout = std::time::Duration::from_millis(preferences.connect_timeout_ms);
         settings.services.read_timeout = std::time::Duration::from_millis(preferences.request_timeout_ms);
         let client = host::Session::connect_target(&target.target, &settings).await.map_err(|error| {
-            tracing::warn!(%error, "Connect to Host Failed");
+            if !matches!(&error, host::Error::Rpc(_)) {
+                tracing::warn!(%error, "Connect to Host Failed");
+            }
             ConnectionError::from(error)
         })?;
         let backend = transport::backend(&client);

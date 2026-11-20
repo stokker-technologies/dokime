@@ -412,8 +412,9 @@ impl DesktopSession {
             .await;
             match preferences {
                 Ok(preferences) => self.0.connection.set_preferences(preferences),
-                Err(error) if matches!(&ownership, BackendOwnership::Attached) => {
-                    tracing::warn!(?error, "Read Local Preferences Failed During Attachment; Keeping Current Client Limits");
+                Err(_) if matches!(&ownership, BackendOwnership::Attached) => {
+                    // The request boundary records failures; this event records the fallback.
+                    tracing::info!("Using Current Client Limits While Local Preferences Are Unavailable");
                 }
                 Err(error) => return Err(error),
             }
@@ -425,7 +426,19 @@ impl DesktopSession {
             return Err(error);
         }
         match connected {
-            Ok(_) => {
+            Ok(connection) => {
+                let client =
+                    self.0.connection.lease(&connection.generation).map_err(|error| DesktopSessionError::Connection { error })?.client();
+                let local =
+                    resources.local.as_ref().map(|local| local.session()).transpose().map_err(|error| DesktopSessionError::Startup {
+                        message: error.to_string(),
+                        diagnostics: None,
+                    })?;
+                // The owned host keeps its observer across selection changes. An attached
+                // view of that same host shares its product epoch and needs no second watch.
+                if local.as_ref().is_none_or(|local| local.product_epoch() != client.product_epoch()) {
+                    let _ = client.observe_plugins().await;
+                }
                 let snapshot = {
                     let mut state = self.0.state.lock().expect("desktop owner poisoned");
                     if state.revision == revision {

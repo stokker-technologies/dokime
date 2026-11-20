@@ -326,7 +326,7 @@ impl Session {
         Box::pin(operations::watch(self, path, payload)).await
     }
 
-    async fn observe_plugins(&self) -> Result<(), Error> {
+    pub(crate) async fn observe_plugins(&self) -> Result<(), Error> {
         use dokime_client_internal::host::{plugin_change, plugins_watch_response};
         let observer = self.clone();
         let options = PluginsWatchOptions {
@@ -506,7 +506,6 @@ impl Session {
             return Err(Status::resource_exhausted("Discover Host Operations: Catalog Exceeds the Connection Retention Budget").into());
         }
         session.methods = methods.into_iter().collect();
-        session.observe_plugins().await?;
         Ok(session)
     }
 }
@@ -542,6 +541,8 @@ impl Connection {
             Ok(session) => {
                 self.server = Some(server);
                 self.session = Some(session.clone());
+                // Request failures are recorded by execute; observation is background work.
+                let _ = session.observe_plugins().await;
                 Ok(session)
             }
             Err(error) => {
