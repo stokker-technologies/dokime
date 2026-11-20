@@ -217,10 +217,13 @@ mod tests {
         let parent = tempfile::tempdir()?;
         let root = parent.path().join("plugin");
         fs::create_dir(&root)?;
-        fs::write(root.join("dokime.toml"), r#"[plugin]
+        fs::write(
+            root.join("dokime.toml"),
+            r#"[plugin]
 [scripts]
 launch = ["python", "-c", "from pathlib import Path; print(Path('payload.bin').read_bytes().hex())"]
-"#)?;
+"#,
+        )?;
         fs::write(root.join("payload.bin"), [2, 3, 5, 7])?;
         let project = PluginProject::read(&root)?;
         let identity = Identity {

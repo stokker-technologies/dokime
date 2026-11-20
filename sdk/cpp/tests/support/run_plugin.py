@@ -24,12 +24,12 @@ from queue import Queue
 # isort: split
 
 # Local Imports
+from dokime_sdk._wire.host.v1.plugins_pb2 import PLUGIN_STATE_READY, PluginEntry, PluginsCreateRequest, PluginsCreateResponse
+from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
+from dokime_tools.process import spawn_flags
 from grpc import ServicerContext, server
 from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
 from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
-from dokime_tools.process import spawn_flags
-from dokime_sdk._wire.host.v1.plugins_pb2 import PluginsCreateRequest, PluginsCreateResponse, PluginEntry, PLUGIN_STATE_READY
-from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 
 # Type Checking Imports
 
@@ -55,7 +55,9 @@ def main() -> None:
             return LaunchesAnnounceResponse()
 
         def Create(self, request: PluginsCreateRequest, context: ServicerContext) -> PluginsCreateResponse:
-            entry = PluginEntry(name=request.name, placement=request.placement, value=request.value, revision=b"fixture", state=PLUGIN_STATE_READY)
+            entry = PluginEntry(
+                name=request.name, placement=request.placement, value=request.value, revision=b"fixture", state=PLUGIN_STATE_READY
+            )
             ready.put(entry.placement.remote.url.removeprefix("http://"))
             return PluginsCreateResponse(entry=entry)
 

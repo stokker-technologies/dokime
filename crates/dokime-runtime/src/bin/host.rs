@@ -34,8 +34,8 @@ use tracing_subscriber::{EnvFilter, prelude::*};
 
 // Local Imports
 use dokime_runtime::{
-    ControlledClock, CredentialNamespace, Host, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings,
-    PluginProcess, SchedulerClock,
+    ControlledClock, CredentialNamespace, Host, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, PluginProcess,
+    SchedulerClock,
     services::{self, ClientSettings, WallClock},
 };
 

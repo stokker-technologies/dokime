@@ -20,8 +20,8 @@ use std::{env, path::PathBuf, process::Stdio};
 
 // Third Party Imports
 use harmos_protocol::plugin::instance_client::InstanceClient;
-use prost::Message;
 use harmos_runtime::plugin::grpc::Launches;
+use prost::Message;
 use tokio::{
     process::{Child, Command},
     sync::mpsc,

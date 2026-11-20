@@ -9,8 +9,14 @@ internal sealed class PluginServer : IAsyncDisposable
 {
   private readonly Listener listener;
   private readonly GrpcChannel channel;
-  internal string Address { get; }
-  internal Wire Wire { get; }
+  internal string Address
+  {
+    get;
+  }
+  internal Wire Wire
+  {
+    get;
+  }
   private PluginServer(Listener listener)
   {
     this.listener = listener;

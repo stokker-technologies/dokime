@@ -21,23 +21,16 @@ public sealed class AuthorRunsThePackagedStarter
   public async Task StartAtTheHostEndpointRunAndStop()
   {
     // Start the Package-Consuming Executable at the Host-Assigned Endpoint.
-    var start = new ProcessStartInfo(ReferenceHost.Artifact("DOKIME_TEST_HOST"))
-    {
-      RedirectStandardInput = true,
-      RedirectStandardOutput = true,
-      RedirectStandardError = true
-    };
-    start.ArgumentList.Add("--launch-plugin");
-    start.ArgumentList.Add(ReferenceHost.Artifact("DOKIME_STARTER"));
+    await using var launch = await LaunchHost.StartAsync();
+    var start = launch.Command(ReferenceHost.Artifact("DOKIME_STARTER"));
     using var process = Process.Start(start)!;
     var errors = process.StandardError.ReadToEndAsync();
     try
     {
       using var setup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-      var readiness = await process.StandardOutput.ReadLineAsync(setup.Token);
-      Assert.NotNull(readiness);
+      var readiness = await launch.Address.WaitAsync(setup.Token);
       var output = process.StandardOutput.ReadToEndAsync();
-      using var channel = GrpcChannel.ForAddress(readiness!);
+      using var channel = GrpcChannel.ForAddress("http://" + readiness);
       var wire = new Wire(channel.CreateCallInvoker());
 
       // Discover and Materialize the Starter's Authored Template.
@@ -84,7 +77,6 @@ public sealed class AuthorRunsThePackagedStarter
       await wire.InvokeAsync<ExecutionsCleanupResponse>(description, template.Cleanup,
           new ExecutionsCleanupRequest { Execution = "starter-execution", TestCase = testCase, Origin = origin }, "starter-execution");
       await wire.StopAsync();
-      process.StandardInput.Close();
       await process.WaitForExitAsync(setup.Token);
       Assert.True(process.ExitCode == 0, await errors);
       await output;

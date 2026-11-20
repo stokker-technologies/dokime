@@ -14,15 +14,14 @@
 #include <set>
 
 // Third Party Imports
-#include <openssl/evp.h>
 #include <grpc/event_engine/event_engine.h>
+#include <openssl/evp.h>
 
 // Local Imports
 #include "dokime/client.hpp"
 #include "dokime/detail/client.hpp"
 #include "dokime/detail/transfers.hpp"
 
-using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using dokime::client::host::PLUGIN_STATE_CONNECTING;
 using dokime::client::host::PLUGIN_STATE_OFFLINE;
 using dokime::client::host::PLUGIN_STATE_READY;
@@ -31,9 +30,10 @@ using dokime::client::host::PLUGIN_STATE_STOPPING;
 using dokime::client::host::PLUGIN_STATE_UNAVAILABLE;
 using dokime::client::host::PluginPlacement;
 using dokime::client::host::PluginValue;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::invalid_argument;
-using std::make_shared;
 using std::lock_guard;
+using std::make_shared;
 using std::move;
 using std::optional;
 using std::runtime_error;
@@ -348,7 +348,6 @@ void Client::close() {
     state_->prompt_handler = {};
     state_->prompt_context.reset();
   }
-  state_->registrations.clear();
   state_->bindings.clear();
   state_->registrations.clear();
   state_->transport.reset();
@@ -1013,8 +1012,8 @@ void Plugin::serve() {
     return;
   }
   const auto values = detail::configuration::load();
-  const auto remote = detail::configuration::environment("DOKIME_REMOTE").value_or(
-      values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
+  const auto remote =
+      detail::configuration::environment("DOKIME_REMOTE").value_or(values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
   if (remote.empty()) {
     compose().run("127.0.0.1:0");
     ShutdownDefaultEventEngine();
@@ -1024,7 +1023,10 @@ void Plugin::serve() {
   settings.remote = remote;
   auto client = connect(settings);
   // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
-  auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this, [](Plugin *) {}), {}, {});
+  auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this,
+                                                                       [](Plugin *) {
+                                                                       }),
+                                                    {}, {});
   registered.wait();
   client.close();
   ShutdownDefaultEventEngine();

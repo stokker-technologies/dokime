@@ -206,13 +206,15 @@ class Plugin:
         remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
         client = await connect(remote) if remote else None
         endpoint: harmos.plugin.Endpoint | None = None
+        termination: asyncio.Task[bool] | None = None
         try:
             if client is None:
                 endpoint = await self._activate()
             else:
                 registered = await client.plugins.register(self)
                 endpoint = cast(harmos.plugin.Endpoint, registered._endpoint)
-            await endpoint.server.wait_for_termination()
+            termination = asyncio.create_task(endpoint.server.wait_for_termination())
+            await asyncio.shield(termination)
         except asyncio.CancelledError:
             pass
         finally:
@@ -220,6 +222,8 @@ class Plugin:
                 await client.close()
             elif endpoint is not None:
                 await endpoint.stop()
+            if termination is not None:
+                await termination
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
         if address == "":

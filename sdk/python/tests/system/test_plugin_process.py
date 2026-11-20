@@ -20,17 +20,17 @@ import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from queue import Queue
 from importlib.metadata import version
 from pathlib import Path
+from queue import Queue
 from urllib.parse import urlsplit
 
 # Third Party Imports
 from dokime_tools.test import policy
 from grpc import ServicerContext, StatusCode, server
-from starter_project.plugin import ExamplePlugin
 from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
 from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
+from starter_project.plugin import ExamplePlugin
 
 # Local Imports
 from dokime_sdk import Failure
@@ -91,7 +91,14 @@ class PluginProcessStory(unittest.TestCase):
         directory = Path(tempfile.mkdtemp(prefix="dokime-managed-plugin-"))
         self.addCleanup(shutil.rmtree, directory)
         (directory / ".env").write_text('DOKIME_REMOTE="unterminated\n', encoding="utf-8")
-        self._run({"HARMOS_HOST_ENDPOINT": self.endpoint.removeprefix("http://"), "HARMOS_LAUNCH_TOKEN": "fixture-launch", "DOKIME_REMOTE": self.endpoint}, directory=directory)
+        self._run(
+            {
+                "HARMOS_HOST_ENDPOINT": self.endpoint.removeprefix("http://"),
+                "HARMOS_LAUNCH_TOKEN": "fixture-launch",
+                "DOKIME_REMOTE": self.endpoint,
+            },
+            directory=directory,
+        )
         self.assertEqual(self.host.requests, [])
 
     def test_paired_start_registers_once_and_a_second_start_reuses_the_entry(self) -> None:

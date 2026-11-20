@@ -206,6 +206,7 @@ private:
 };
 class Plugins {
   friend class Plugin;
+
 public:
   template <class T>
   RegisteredPlugin register_plugin(T plugin, std::optional<std::string> address = {}, std::optional<std::string> request_id = {}) {

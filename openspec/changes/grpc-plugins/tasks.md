@@ -308,6 +308,15 @@
 - [x] Select the Four SDK Run Entries by Launch Credentials, Then Pairing, Then Standalone Serving; Point Every Starter at That Entry.
 - [x] Remove Retired Address Configuration, SDK Readiness Helpers and Superseded Python Readiness Tests; Reuse C# Library Listeners and C++ Product Registration.
 - [ ] Identify and Repair the Registration Hang Without Changing Its Guard.
+  - [x] Identify External-Endpoint Stop During Host Shutdown as the Cause; Preserve the Registration-Across-Restart Contract and Its Existing Guard.
+  - [ ] Pin the Library's Ownership Fix and Pass the Failing Registration Restart and Remote Authoring Cases.
 - [ ] Pass Generation Drift, Workspace Test Compilation With Desktop Testing, the Requested Focused Stories and SDK Selections, Native SDK Compilation, Frontend Build/Units, Formatting, Repository/Supply/Binding Gates and Strict OpenSpec Validation.
-- [ ] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
+  - [x] Pass Generation Drift and Compile All Workspace Test Targets With Desktop Testing and All Rust SDK Consumer Test Targets.
+  - [x] Pass the Two Selected CLI First-Hour Stories, Native-Interpreter Launch Round Trip, GUI Host Story and Desktop Acceptance Matrix.
+  - [x] Pass Python Units, Host-Free Integration and the Three Launch/Registration Process Cases; Preserve Cancellation Cleanup Until the Listener Settles.
+  - [x] Build the C# Debug Solution and Packaged Starter; Pass Six Client Registration/Execution Cases and Direct Child Launch, Announcement and Clean Stop.
+  - [x] Compile the C++ Debug SDK Test Targets, Build the Frontend and Pass Fourteen Plugin-List Unit Cases.
+  - [x] Pass Formatting, Repository, Supply, Unused-Dependency, Release-Context Binding and Strict Change Validation Gates.
+  - [ ] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
+- [x] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
 - [ ] Resolve the Read-Only Library's Remote-Removal Ownership Defect and Prove User-Owned Reattachment; Preserve This Obligation if the Library Capability Is Unavailable.

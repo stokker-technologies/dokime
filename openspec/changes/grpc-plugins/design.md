@@ -2899,10 +2899,22 @@ absent remote selects standalone serving. Programmatic registration owns its lis
 or output parser participates in startup.
 
 A remote registry entry does not own the process serving it. At the pinned
-library revision, `crates/harmos-runtime/src/plugin/grpc/mod.rs` sends
-Instance.Stop for both remote and managed removals. Rust and C# default launch
-entries use managed listeners, while Python's Stop is already transport-inert.
-The library must gate endpoint Stop on its existing spawned-process ownership.
+library revision `18e9b41cb0dd00e27020ee3120e5c973d82eec22`,
+`crates/harmos-runtime/src/plugin/grpc/mod.rs:923` turns host shutdown into Stop,
+and `:938` sends Instance.Stop before inspecting its optional spawned process at
+`:954`. Initialization failure at `:674` and reconnect failure at `:1078` also
+send Stop. The library must gate every such call on its existing spawned-process
+ownership, including entry removal and host shutdown. Rust and C# default launch listeners
+currently exit on that call. Registration across a host restart remains required:
+its Ready wait observes Offline after the first host has stopped the external
+fixture. This is a lifecycle defect, not a retired readiness test, and its guard
+must remain unchanged.
+
+The Python library's `sdk/python/src/harmos/_authoring.py:426` answers Stop without
+closing its endpoint, including when that endpoint was started through managed
+run. The library must keep addressable listeners independent while allowing its
+managed run entry to finish on Stop. The product delegates announcement and does
+not duplicate either transport policy.
 Product launch reservations remain token-and-endpoint authentication only; no
 second product lifecycle marker is introduced.
 

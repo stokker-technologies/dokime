@@ -27,13 +27,9 @@ use std::{
 // Third Party Imports
 use harmos_protocol::model::{Classification, Failure};
 use harmos_protocol::plugin::{InstanceStopRequest, instance_client::InstanceClient};
-use prost::Message;
 use harmos_runtime::plugin::grpc::Launches;
-use tokio::{
-    net::TcpListener,
-    process::Command,
-    sync::Notify,
-};
+use prost::Message;
+use tokio::{net::TcpListener, process::Command, sync::Notify};
 use tokio_stream::{Stream, wrappers::TcpListenerStream};
 use tonic::{Code, Request, Response, Status, transport::Server};
 
