@@ -1606,6 +1606,21 @@ The answer handler is installed before Start; it observes pending prompts,
 answers each identity once and is removed on close. The desktop remains the
 normal starter prompt UI.
 
+The current library pin does not complete this amendment in every language.
+Rust's addressable listener keeps its completion wait private, C# exposes only
+the blocking run entry, and C++ keeps listener waiting private. Product run
+entries retain managed delegation; a public start/address/wait surface and
+uniform starter output wait for the library lifecycle API rather than copying
+its shutdown machinery. The existing C# registration readiness capture remains
+an overlap with the library's listener ownership; its removal needs the owner's
+decision and the addressable library API.
+
+The shared description currently carries identifier, version, SDK/protocol
+versions and declarations, but has no plugin label, description or icon fields.
+Those presentation values require a shared library/host description contract.
+Manifest scripts, bundle inputs and compatibility ranges remain packaging data;
+hand-run registration must not read a manifest to obtain presentation values.
+
 Execution seal does not start, cancel or wait for active work. Repetition returns
 the same outcome. A normal run or cancellation already seals the execution;
 notes/artifacts after it go to the cycle until cycle seal. Cycle seal seals

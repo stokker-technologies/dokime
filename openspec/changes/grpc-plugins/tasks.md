@@ -220,7 +220,7 @@
   - [x] Integrate the SDK-Owned C++ Projection With the Shared Protocol Generator Under Its Owner; Keep Tracked Bindings Generated.
   - [x] Complete Native Windows C++ SDK Unit/Integration, Installed Debug CMake Consumer, Generated Binding/Compiler, Formatting and SDK Checking Proof.
   - [x] Complete Repository, Product-Host Shared Capture and Created-Project Bundle/Inspect/Dev/Client Proof; Linux Proof Remains Independent.
-- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
+- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.install`, With Readiness Owned by the Host and Registered Entries Retained on Client Close.
 - [x] Unify Rust, Tooling, Python, C# and C++ Library Pins at the Owner-Selected Maintenance Head and Regenerate Every Tracked Binding.
 - [x] Encode Plugin Initialize and Finalize Hooks as Well-Known Operations in All Four SDKs and Remove Replaced Stop Callbacks.
 - [x] Replace Retired Plugin Remote Arguments With Product Listener Coordinates in Runtime Launchers, C# Serving and Native Fixture/Benchmark Dispatch; Acknowledge Lifecycle Operations in the Settings Protocol Fixture.
@@ -245,6 +245,18 @@
 - [ ] Keep Unanswered Starter Prompts Pending Across the Host Mutation Deadline and Explicit Controlled-Clock Advancement; Answer Them to Seal Passed With Retained Evidence. Resolve the Clock Jump Versus Continuous Stream Conflict Without Relaxing Either Policy.
 - [x] Complete the Requested Native Windows Python Shape Proof Set on the Dev-Merged Candidate With Positive Retry Backoff, the Library's Frozen Bundle Version Fix and Final Rust/TypeScript Lints.
 - [x] Rerun the Existing Scratch Python Project Against the Merged Host, Select Its Execution From CLI Summary JSON, Answer Through the CLI and Preserve Its Saved Archive Without Regenerating or Deleting Project Files.
+
+## Hand-Run Plugin Registration
+
+- [x] Add `PluginsCreateRequest.sdk_version` at Field 6 and Regenerate the Tracked Bindings.
+- [ ] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
+- [ ] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
+- [ ] Complete C# Paired Startup, Stable Identity, Refusals and Entry Retention With Focused Proof.
+- [ ] Complete C++ Registration and Entry Retention After Preparing Its Native SDK Build.
+- [ ] Expose Addressable Start/Wait APIs and Authored Starter Output After the Library Publishes the Required Listener Lifecycle.
+- [ ] Carry Plugin Label, Description and Icon Through the Shared Description After the Library and Host Supply That Contract.
+- [ ] Adopt the Library-Owned Managed Announcement When the Integrating Owner Moves the Pin; Keep Detection Isolated per SDK.
+- [ ] Complete Binding, Repository, Created-Python-Starter and Workspace-Test-Compilation Gates.
 
 ## Library Pin, Installer Feature and SDK Lanes
 
