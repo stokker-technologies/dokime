@@ -35,13 +35,8 @@ use harmos_protocol::plugin::instance_client::InstanceClient;
 use harmos_protocol::plugin::{InstanceGetRequest, InstanceGetResponse, InstanceStopRequest};
 use harmos_runtime::bundle::validate_launch;
 use harmos_runtime::operations::ProtobufOperation;
-use harmos_runtime::plugin::grpc::{GrpcPluginPolicy, GrpcPluginSettings};
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    process::ChildStdout,
-    task::JoinHandle,
-    time,
-};
+use harmos_runtime::plugin::grpc::{GrpcPluginPolicy, GrpcPluginSettings, Launches};
+use tokio::time;
 use tonic::transport::{Channel, Endpoint};
 
 // Local Imports
@@ -95,7 +90,6 @@ pub struct PlacementSettings {
 pub struct PluginProcess {
     endpoint: String,
     child: OwnedChild,
-    drain: JoinHandle<()>,
     remote: bool,
     settings: PlacementSettings,
 }
@@ -134,15 +128,14 @@ impl PluginProcess {
             },
             None => crate::process::command(executable),
         };
+        // The Library's Launch Credentials Make the Plugin Announce Its Bound Listener.
+        let launches = Launches::new();
+        let mut launch = launches.reserve(command.get_program().to_string_lossy()).await.map_err(|source| Error::Invalid(source.to_string()))?;
         command.envs(environment.iter().cloned());
+        command.envs(launch.environment());
         command.env_remove("UV_PROJECT_ENVIRONMENT");
-        if remote {
-            command.env_remove("HARMOS_ADDRESS").env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0");
-        } else {
-            command.env("HARMOS_ADDRESS", "127.0.0.1:0");
-        }
         let program = command.get_program().to_string_lossy().into_owned();
-        command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+        command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
         let mut child = OwnedChild::spawn(command).map_err(|source| {
             if source.kind() == ErrorKind::NotFound {
                 Error::Invalid(format!("Start Plugin: Install {program} and Put It on PATH, or Correct dokime.toml, Then Retry"))
@@ -150,18 +143,25 @@ impl PluginProcess {
                 Error::Io(source)
             }
         })?;
-        let output = child.0.stdout.take().ok_or_else(|| Error::Invalid("Start the Plugin with a Readiness Output Pipe".into()))?;
-        let mut lines = BufReader::new(ChildStdout::from_std(output)?).lines();
-        let line = time::timeout(PLUGINS_TIMEOUT, lines.next_line())
-            .await
-            .map_err(|_| Error::Invalid("Plugin Did Not Announce Readiness; Check Its Startup Logs".into()))??
-            .ok_or_else(|| Error::Invalid("Plugin Exited Before Readiness; Check Its Startup Logs".into()))?;
-        let endpoint = announced_endpoint(&line)?;
-        let drain = tokio::spawn(async move { while lines.next_line().await.ok().flatten().is_some() {} });
+        let exited = async {
+            loop {
+                if let Some(status) = child.0.try_wait()? {
+                    return Ok::<_, io::Error>(status);
+                }
+                time::sleep(PROCESS_POLL_INTERVAL).await;
+            }
+        };
+        let address = time::timeout(PLUGINS_TIMEOUT, async {
+            tokio::select! {
+                address = launch.announced() => address.map_err(|source| Error::Invalid(format!("Start Plugin: {source}"))),
+                status = exited => Err(Error::Invalid(format!("Start Plugin: It Exited With {}; Check Its Startup Logs", status?))),
+            }
+        })
+        .await
+        .map_err(|_| Error::Invalid("Start Plugin: It Did Not Announce Its Listener; Check Its Startup Logs".into()))??;
         Ok(Self {
-            endpoint,
+            endpoint: format!("http://{address}"),
             child,
-            drain,
             remote,
             settings: settings.clone(),
         })
@@ -221,11 +221,6 @@ impl PluginProcess {
         Ok(())
     }
 }
-impl Drop for PluginProcess {
-    fn drop(&mut self) {
-        self.drain.abort();
-    }
-}
 
 /* === Public Functions === */
 
@@ -271,23 +266,13 @@ pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Re
 pub fn plugin_settings() -> GrpcPluginSettings {
     let mut policy = GrpcPluginPolicy::default();
     policy.load.timeout = PLUGINS_TIMEOUT;
-    GrpcPluginSettings { policy }
+    GrpcPluginSettings {
+        policy,
+        ..Default::default()
+    }
 }
 
 /* === Private Functions === */
-
-fn announced_endpoint(line: &str) -> Result<String> {
-    let endpoint = match line.strip_prefix("harmos listening ") {
-        Some(address) => format!("http://{address}"),
-        None => line.to_owned(),
-    };
-    let parsed = Endpoint::from_shared(endpoint.clone())
-        .map_err(|_| Error::Invalid("Serve the Plugin Instance and Print Its Endpoint URL on Standard Output".into()))?;
-    if !matches!(parsed.uri().scheme_str(), Some("http" | "https")) || parsed.uri().authority().is_none() {
-        return Err(Error::Invalid("Serve the Plugin Instance and Print Its Endpoint URL on Standard Output".into()));
-    }
-    Ok(endpoint)
-}
 
 async fn connect(endpoint: &str, settings: &PlacementSettings) -> Result<InstanceClient<Channel>> {
     let endpoint = Endpoint::from_shared(endpoint.to_owned())
@@ -308,7 +293,7 @@ mod tests {
     use dokime_packaging::project::PluginProject;
     use dokime_protocol::host::{PluginEntry, PluginState};
 
-    use super::{PluginProcess, announced_endpoint, await_plugin_ready};
+    use super::{PluginProcess, await_plugin_ready};
     use crate::{Error, Result};
 
     #[tokio::test]
@@ -428,15 +413,6 @@ mod tests {
         let project = PluginProject::read(root.path()).map_err(|source| Error::Invalid(source.to_string()))?;
         let command = PluginProcess::command(&project, project.manifest.scripts.launch.as_deref().unwrap())?;
         assert_eq!(command.get_program(), project.root.join("bin/interpreter").as_os_str());
-        Ok(())
-    }
-
-    #[test]
-    fn readiness_accepts_native_and_launch_announcements() -> Result<()> {
-        assert_eq!(announced_endpoint("http://127.0.0.1:1234")?, "http://127.0.0.1:1234");
-        assert_eq!(announced_endpoint("harmos listening 127.0.0.1:1234")?, "http://127.0.0.1:1234");
-        assert!(announced_endpoint("startup log").is_err());
-        assert!(announced_endpoint("file:///tmp/plugin").is_err());
         Ok(())
     }
 }

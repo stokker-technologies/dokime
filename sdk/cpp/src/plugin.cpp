@@ -531,7 +531,7 @@ Plugin::Plugin(Plugin &&other) noexcept
   plugin_->plugin = this;
 }
 void Plugin::serve(optional<string> address) const {
-  if (!address && dokime::detail::configuration::environment("HARMOS_ADDRESS")) {
+  if (!address && (dokime::detail::configuration::environment("HARMOS_HOST_ENDPOINT") || dokime::detail::configuration::environment("HARMOS_LAUNCH_TOKEN"))) {
     compose().run();
     ShutdownDefaultEventEngine();
     return;

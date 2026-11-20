@@ -23,6 +23,7 @@ use std::process::Stdio;
 
 // Third Party Imports
 use harmos_runtime::bundle::{Bundle, Facility, Limits};
+use harmos_runtime::plugin::grpc::Launches;
 use prost_reflect::{DynamicMessage, SerializeOptions};
 use serde_json::{Deserializer, Serializer, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -53,18 +54,15 @@ use dokime_runtime::process;
 /// Serve the Native Starter Fixture at an Ephemeral Address and Return Its URL.
 async fn serve_fixture() -> Result<(tokio::process::Child, String), Box<dyn Error>> {
     let executable = super::fixtures().join(format!("rust{EXE_SUFFIX}"));
-    let mut plugin = Command::from(process::command(executable))
-        .env_remove("HARMOS_ADDRESS")
-        .env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0")
-        .stdout(Stdio::piped())
+    let launches = Launches::new();
+    let mut launch = launches.reserve("rust starter fixture").await?;
+    let plugin = Command::from(process::command(executable))
+        .envs(launch.environment())
+        .stdout(Stdio::null())
         .stderr(Stdio::inherit())
         .kill_on_drop(true)
         .spawn()?;
-    let mut lines = BufReader::new(plugin.stdout.take().unwrap()).lines();
-    let announcement = lines.next_line().await?.ok_or("Register Plugin: Read Its Bound Endpoint")?;
-    let url =
-        format!("http://{}", announcement.strip_prefix("harmos listening ").ok_or("Register Plugin: Read Its Listener Announcement")?);
-    tokio::spawn(async move { while let Ok(Some(_)) = lines.next_line().await {} });
+    let url = format!("http://{}", launch.announced().await?);
     Ok((plugin, url))
 }
 

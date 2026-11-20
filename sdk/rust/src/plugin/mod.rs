@@ -417,7 +417,7 @@ impl Plugin {
     }
     pub fn run(self) -> Result<()> {
         // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
-        let managed = env::var_os("HARMOS_ADDRESS").is_some();
+        let managed = env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some();
         if managed {
             return self.into_harmos()?.run().map_err(Error::from);
         }

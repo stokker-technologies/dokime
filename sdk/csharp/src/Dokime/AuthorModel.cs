@@ -100,7 +100,7 @@ public abstract class Plugin
 
   public Task RunAsync(ConnectionSettings? settings = null, CancellationToken cancellationToken = default)
   {
-    if (System.Environment.GetEnvironmentVariable("HARMOS_ADDRESS") is not null)
+    if (System.Environment.GetEnvironmentVariable("HARMOS_HOST_ENDPOINT") is not null || System.Environment.GetEnvironmentVariable("HARMOS_LAUNCH_TOKEN") is not null)
       return Adapter.RunAsync(cancellationToken: cancellationToken);
     var values = Configuration.Load();
     var address = Configuration.Resolve("DOKIME_PLUGIN_ADDRESS", settings?.PluginAddress, values);

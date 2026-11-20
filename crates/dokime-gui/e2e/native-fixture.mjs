@@ -229,7 +229,7 @@ async function startBackendMeasured(
   for (const executable of launchPlugin ? plugins : []) {
     const plugin = spawn(executable, ["--remote"], {
       cwd: work,
-      env: { ...process.env, ...scratchEnvironment, HARMOS_ADDRESS: "127.0.0.1:0" },
+      env: { ...process.env, ...scratchEnvironment },
       windowsHide: true,
       detached: !windows,
       stdio: ["ignore", "pipe", "inherit"],

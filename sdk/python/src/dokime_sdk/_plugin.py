@@ -191,6 +191,12 @@ class Plugin:
         pass
 
     async def serve(self, address: str | None = None) -> None:
+        from os import environ
+
+        # A Host Launch Supplies Credentials; the Library Then Announces the Bound Listener.
+        if address is None and ("HARMOS_HOST_ENDPOINT" in environ or "HARMOS_LAUNCH_TOKEN" in environ):
+            await self._plugin.run()
+            return
         endpoint = await self._activate(address)
         termination = asyncio.create_task(endpoint.server.wait_for_termination())
         try:

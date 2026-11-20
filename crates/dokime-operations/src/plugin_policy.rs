@@ -518,7 +518,8 @@ fn compatible(plugin: &str, sdk_version: &str, host_version: &str) -> Result<(),
             action,
             plugin: plugin.into(),
             ..Default::default()
-        })
+        }
+        .into())
     };
     let built = Version::parse(sdk_version).map_err(|_| {
         refuse(
@@ -581,9 +582,10 @@ mod tests {
         assert!(compatible("fixture", "0.1.5", "0.1.5").is_ok());
         assert!(compatible("fixture", "0.1.3", "0.1.5").is_ok());
         for refused in ["0.1.6", "0.2.0", "1.0.0", "", "latest"] {
-            let Err(ServingError::Handler(failure)) = compatible("fixture", refused, "0.1.5") else {
+            let Err(ServingError::Handler(refusal)) = compatible("fixture", refused, "0.1.5") else {
                 panic!("SDK {refused:?} Must Be Refused");
             };
+            let failure = Failure::from(&refusal);
             assert_eq!(failure.code, "plugin_incompatible");
             assert_eq!(failure.plugin, "fixture");
         }
