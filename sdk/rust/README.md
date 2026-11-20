@@ -14,7 +14,7 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
 
-`Plugin::run()` registers with the host selected by `DOKIME_REMOTE` in the process
+`Plugin::run()` and `Plugin::run_with(address)` register with the host selected by `DOKIME_REMOTE` in the process
 environment or working-directory `.env`. Managed launches take precedence.
 Registration sends the SDK version and uses the plugin identifier as its stable
 entry name. Closing the client stops its listener and retains the entry;

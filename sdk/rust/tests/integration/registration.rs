@@ -25,8 +25,15 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::model::{Classification, Failure};
+use harmos_protocol::plugin::{InstanceStopRequest, instance_client::InstanceClient};
 use prost::Message;
-use tokio::{net::TcpListener, sync::Notify};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    net::TcpListener,
+    process::Command,
+    sync::Notify,
+};
 use tokio_stream::{Stream, wrappers::TcpListenerStream};
 use tonic::{Code, Request, Response, Status, transport::Server};
 
@@ -40,7 +47,6 @@ use dokime_protocol::host::{
     PluginsGetResponse, PluginsListRequest, PluginsListResponse, PluginsReplaceRequest, PluginsReplaceResponse, PluginsRestartRequest,
     PluginsRestartResponse, PluginsSetRequest, PluginsSetResponse, PluginsWatchRequest, PluginsWatchResponse,
 };
-use harmos_protocol::model::{Classification, Failure};
 
 /* === Constants === */
 
@@ -163,6 +169,23 @@ fn plugin() -> Plugin {
 /* === Tests === */
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_managed_plugin_delegates_shutdown_and_ignores_ambient_pairing() -> TestResult {
+    let (host, endpoint) = Host::start().await?;
+    let mut command = Command::from(crate::process::command(binary("dokime-rust-plugin")));
+    command.env("HARMOS_ADDRESS", "127.0.0.1:0").env("DOKIME_REMOTE", endpoint);
+    let mut child = command.stdout(Stdio::piped()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
+    let mut lines = BufReader::new(child.stdout.take().ok_or("Missing Plugin Output")?).lines();
+    let line = lines.next_line().await?.ok_or("Missing Managed Announcement")?;
+    let address = line.strip_prefix("harmos listening ").ok_or("Invalid Managed Announcement")?;
+    let mut client = InstanceClient::connect(format!("http://{address}")).await?;
+    client.stop(InstanceStopRequest { reason: "fixture-complete".into() }).await?;
+    assert!(child.wait().await?.success());
+    assert!(lines.next_line().await?.is_none());
+    assert!(host.requests().is_empty());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn registration_sends_the_sdk_version_and_close_keeps_the_entry() -> TestResult {
     let (host, endpoint) = Host::start().await?;
     for _ in 0..2 {
@@ -206,7 +229,7 @@ async fn a_refused_registration_reports_the_host_message() -> TestResult {
         return Err("The Fixture Host Refusal Must Fail Registration".into());
     };
     assert!(error.to_string().contains(REFUSAL), "{error}");
-    assert!(error.to_string().contains(REFUSAL_ACTION), "{error}");
+    assert!(format!("{error:?}").contains(REFUSAL_ACTION), "{error:?}");
     client.close().await?;
     Ok(())
 }
@@ -215,7 +238,7 @@ async fn a_refused_registration_reports_the_host_message() -> TestResult {
 async fn a_paired_plugin_process_registers_itself_and_exits_nonzero_on_refusal() -> TestResult {
     let (host, endpoint) = Host::start().await?;
     let command = |remote: &str| {
-        let mut command = tokio::process::Command::from(crate::process::command(binary("dokime-rust-plugin")));
+        let mut command = Command::from(crate::process::command(binary("dokime-rust-plugin")));
         command.env_remove("HARMOS_ADDRESS").env("DOKIME_REMOTE", remote).env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0");
         command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
         command
@@ -236,6 +259,7 @@ async fn a_paired_plugin_process_registers_itself_and_exits_nonzero_on_refusal()
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains(REFUSAL));
+    assert!(String::from_utf8_lossy(&output.stderr).contains(REFUSAL_ACTION));
     assert_eq!(host.requests()[1].name, requests[0].name);
     Ok(())
 }

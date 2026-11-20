@@ -292,7 +292,7 @@ impl Plugins {
                 listener.close().await?;
                 if let Ok(failure) = <Failure as prost::Message>::decode(error.details()) {
                     if !failure.message.is_empty() {
-                        return Err(invalid(&failure.message, &failure.action));
+                        return Err(failure.into());
                     }
                 }
                 return Err(error.into());
