@@ -227,6 +227,7 @@ test("Entry States Follow Current Activation and Enablement", () => {
 });
 
 test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
+  const managed = create(PluginEntrySchema, { ...entry, name: "equipment" });
   const registered: ManagedPlugin = create(PluginEntrySchema, {
     name: "bench",
     state: PluginState.OFFLINE,
@@ -235,7 +236,7 @@ test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
   });
   renderToStaticMarkup(
     createElement(PluginList, {
-      entries: [entry, registered],
+      entries: [managed, registered],
       onRemove: vi.fn(),
       onOpenSettings: vi.fn(),
       removingId: null,
