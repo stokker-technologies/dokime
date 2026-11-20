@@ -33,13 +33,16 @@
 - [x] 4.6.2 Restore `plugins/sidecars/host` (`plugin-host`) with its flat settings, domain rows, area module tree, Build bundle and release plugin declaration (design: Host Telemetry Plugin Restoration).
 - [x] 4.6.3 Expose duration settings on the operation context for observer intervals and other durations.
 - [x] 4.6.4 Withdrawn: host streams are demand-driven collections (design: Host Telemetry Plugin Restoration); nothing is retained outside a listening execution.
-- [ ] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields. Row regrouping is implemented; the collection currently uses producer sleep loops instead of host observer windows and needs the shared-library capability described in the design.
+- [ ] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields. Row regrouping is implemented; retain the current product producer scheduler unchanged until the library collection capability exists, then adopt it and delete the product scheduler.
 - [ ] 4.6.5 Implement the effect journal as host plugin state on the library's state management: `journal.rs` implementing `controls::Journal`, restore newest first in `initialize`, refusal without durable state (landed); durable plugin state served by the library and bounded recovery storage (open).
 - [x] Stage Both Declared Default Plugins in the Native Kit and Portable Distribution Archive on Windows and Linux; Include Bundle Checksums.
 - [x] Review Every Unix-Gated Host Source and Test Branch Against the Journal and Collection Signatures; No Native Linux Compilation Is Claimed.
 - [x] Release Collection-Owned COM Usage on Stop and Probe-Owned Usage After Read/Write; Keep Only the CPU Calibration Scalar After All Calibration Threads Join.
 - [x] Remove Unused Windows Adapter Helpers From devices.rs; Keep Bluetooth Inventory and the Controls-Owned Adapter Implementation.
 - [x] Gate Mutating Host Controls at the Journal Boundary Before Any Platform Call When Plugin State Is Not Durable; Include CPU Load Holds and Preserve Read-Only Operations.
+- [ ] Connect the Host Journal's Context Store to the Library's Durable, Revision-Checked Plugin State Once That Capability Exists; Prove Crash Recovery and Bounded Recovery Storage.
+- [ ] Complete Hosted Native Linux Compilation and Focused Host Tests; Source Review on Windows Does Not Substitute for This Proof.
+- [ ] Complete This Host Integration Unit's Focused Windows Proof: Protocol Drift, Host and SDK Tests, Workspace Test-Target Compilation With Desktop testing, Packaging Tests, Format, Repository, Supply and Strict OpenSpec Validation.
 - [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.
 - [ ] 4.6.7 Package 3: Wi-Fi link, scan and latency, and Bluetooth collectors and streams.
 - [ ] 4.6.8 Package 4: radio and adapter controls gated on the effect journal, adapter inventory with its typed start snapshot, and power plan operations.

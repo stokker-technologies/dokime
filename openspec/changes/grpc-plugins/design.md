@@ -2721,7 +2721,8 @@ plugin beside OBC. The decisions:
   SDK rows, streams, observers, operations and flat setting declarations.
 - **Demand-driven telemetry (supersedes plugin-wide retention).** Host streams are
   demand-driven by design: nothing is collected, cached or published without a
-  listener, and nothing is retained outside a listening execution. The earlier
+  listener, and no native resource is retained outside collection demand. The calibrated CPU
+  scalar may remain cached. The earlier
   decision to retain plugin-wide telemetry from plugin connect to disconnect is
   withdrawn.
 - **Stream shape (owner-locked).** A stream's row holds fields that always exist
@@ -2764,18 +2765,13 @@ plugin beside OBC. The decisions:
   let plugin = plugin.collection(collection);
   ```
 
-  The collection must use the existing host-owned observer windows, without a
-  parallel scheduler. The committed implementation in `sdk/rust/src/stream.rs`
-  instead registers demand-bound producer streams and sleeps between ticks; that
-  implementation is not the agreed design. The shared library's observer API
-  requires exactly one row per stream sample and exposes no listener lifecycle
-  hooks (`Harmos: sdk/rust/src/stream.rs:146-201` at the pinned `504877e` revision;
-  `crates/harmos-runtime/src/plugin/grpc/samples.rs:171-176` validates batch counts).
-  A shared-library capability is needed for one granted collection tick to
-  produce zero or more rows per declared stream with a common timestamp and
-  first/last-listener hooks. Until that capability exists, the collection scheduler
-  and its host ports remain open for owner-directed rework; the producer loop is
-  not an accepted substitute.
+  The eventual library collection capability must use host-owned windows. The
+  current product `Collection` in `sdk/rust/src/stream.rs` uses demand-bound
+  producer streams with sleeping ticks. The owner keeps that scheduler unchanged
+  in this integration unit until the library supplies multi-stream ticks with
+  zero or more rows, a common timestamp and first/last-listener hooks. Adoption
+  and deletion of the interim product scheduler remain open; this integration
+  does not claim they are complete.
 - **Effect journal.** Plugin state, persisted by the host through the library's state
   management; no product effects store and no product `Effects` operations.
   `plugins/sidecars/host/src/journal.rs` implements `controls::Journal` over one opaque,
@@ -2906,3 +2902,10 @@ its inventory. Standalone radio and connectivity probes own scoped leases. The
 CPU `OnceCell<f64>` retains only the calibrated machine value: calibration's
 scoped threads are all joined before it returns, and no worker or handle is
 stored in the cell. This scalar retention is permitted outside listener demand.
+
+The shipping build already includes `plugin-host` beside OBC. The release plugin
+inventory in `tools/project.toml` declares both native targets; installer manifests
+retain those kit defaults unless explicitly excluded. Distribution export includes
+their bundle bytes in the checked file inventory, so portable archives retain the
+same default plugins as local installer staging. No installer execution or machine
+installation is needed to prove this staging behavior.
