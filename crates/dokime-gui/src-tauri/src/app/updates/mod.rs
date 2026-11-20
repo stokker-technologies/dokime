@@ -33,7 +33,7 @@ use tauri_plugin_updater::UpdaterExt;
 // Local Imports
 use self::policy::{Mode, UpdatePolicy};
 use super::organization::OrganizationState;
-use crate::settings::{Store, UpdateSelection};
+use crate::settings::{self, Store, UpdateSelection};
 
 /* === Constants === */
 
@@ -232,7 +232,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let store = app.state::<Arc<Store>>().inner().clone();
     let mut policy = app.state::<OrganizationState>().update_policy()?;
     let mut error = None;
-    match crate::settings::load(store.path()) {
+    match settings::load(store.path()) {
         Ok(settings) => {
             if let Some(selection) = settings.updates {
                 let mut selected = policy.clone();

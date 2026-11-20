@@ -15,6 +15,7 @@
 
 use super::{BackendDiagnostics, DesktopSessionError};
 use crate::connection::host::{self, Connection, ConnectionSettings};
+use crate::settings;
 use std::path::PathBuf;
 
 /* === Constants === */
@@ -58,7 +59,7 @@ impl Backend {
     pub fn settings(&self) -> ConnectionSettings {
         let mut settings = host::desktop_settings();
         if let Some(file) = &self.settings {
-            crate::settings::resolve(file).apply(&mut settings.host.placement);
+            settings::resolve(file).apply(&mut settings.host.placement);
         }
         settings
     }

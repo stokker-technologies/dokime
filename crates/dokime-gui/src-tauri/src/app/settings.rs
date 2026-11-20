@@ -18,11 +18,12 @@ use std::{num::NonZeroU32, sync::Arc};
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, State};
+use tauri::{App, Manager, State};
+use tokio::task;
 
 // Local Imports
 use crate::paths::ApplicationPaths;
-use crate::settings::{DesktopSettings, Store};
+use crate::settings::{self, DesktopSettings, Store, Values};
 
 /* === Constants === */
 
@@ -38,7 +39,7 @@ use crate::settings::{DesktopSettings, Store};
 pub struct SettingsChange {
     pub interval_window_ms: Option<u64>,
     pub interval_lag_windows: Option<NonZeroU32>,
-    pub parameters: Option<crate::settings::Values>,
+    pub parameters: Option<Values>,
 }
 
 /* === Enums === */
@@ -62,14 +63,14 @@ impl From<String> for DesktopSettingsError {
 
 /* === Public Functions === */
 
-pub fn setup(app: &tauri::App) {
+pub fn setup(app: &App) {
     let root = &app.state::<ApplicationPaths>().root;
-    app.manage(Arc::new(Store::new(crate::settings::path(root))));
+    app.manage(Arc::new(Store::new(settings::path(root))));
 }
 
 pub async fn desktop_saved_settings_read(store: State<'_, Arc<Store>>) -> Result<DesktopSettings, DesktopSettingsError> {
     let path = store.path().to_path_buf();
-    tokio::task::spawn_blocking(move || crate::settings::load(&path))
+    task::spawn_blocking(move || settings::load(&path))
         .await
         .map_err(|error| error.to_string())?
         .map_err(|error| DesktopSettingsError::Persistence { message: error.to_string() })
@@ -80,7 +81,7 @@ pub async fn desktop_saved_settings_update(
     store: State<'_, Arc<Store>>, change: SettingsChange,
 ) -> Result<DesktopSettings, DesktopSettingsError> {
     let store = store.inner().clone();
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         store.update(|settings| {
             if let Some(window) = change.interval_window_ms {
                 settings.interval_window_ms = window;
