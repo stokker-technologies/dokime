@@ -35,6 +35,7 @@
 - [x] 4.6.4 Withdrawn: host streams are demand-driven collections (design: Host Telemetry Plugin Restoration); nothing is retained outside a listening execution.
 - [ ] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields. Row regrouping is implemented; the collection currently uses producer sleep loops instead of host observer windows and needs the shared-library capability described in the design.
 - [ ] 4.6.5 Implement the effect journal as host plugin state on the library's state management: `journal.rs` implementing `controls::Journal`, restore newest first in `initialize`, refusal without durable state (landed); durable plugin state served by the library and bounded recovery storage (open).
+- [x] Release Collection-Owned COM Usage on Stop and Probe-Owned Usage After Read/Write; Keep Only the CPU Calibration Scalar After All Calibration Threads Join.
 - [x] Remove Unused Windows Adapter Helpers From devices.rs; Keep Bluetooth Inventory and the Controls-Owned Adapter Implementation.
 - [x] Gate Mutating Host Controls at the Journal Boundary Before Any Platform Call When Plugin State Is Not Durable; Include CPU Load Holds and Preserve Read-Only Operations.
 - [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.

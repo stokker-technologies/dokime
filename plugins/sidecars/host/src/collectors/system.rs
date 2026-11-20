@@ -11,6 +11,34 @@
 
 /* === Modules === */
 
+#[cfg(target_os = "windows")]
+mod native {
+    use super::PowerPlan;
+    use crate::platform::windows::power;
+
+pub(super) fn power_plan() -> PowerPlan {
+    let Ok((guid, name)) = power::active_plan() else {
+        return PowerPlan::default();
+    };
+    let mode = name.as_deref().map(power::mode);
+    PowerPlan {
+        mode: mode.map(str::to_owned),
+        performance_bias: mode.map(power::performance_bias),
+        name,
+        guid: Some(guid),
+    }
+}
+}
+
+#[cfg(unix)]
+mod native {
+    use super::PowerPlan;
+
+pub(super) fn power_plan() -> PowerPlan {
+    PowerPlan::default()
+}
+}
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -34,7 +62,7 @@ use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, RefreshKind};
 use crate::Host;
 use crate::collectors::cpu::Load;
 use crate::domain::readings::System;
-use crate::platform::command;
+use crate::platform::{Lease, command};
 use crate::settings;
 use dokime::operations::Context;
 use dokime::{Error, Result};
@@ -53,7 +81,7 @@ const PERCENT_SCALE: f64 = 100.0;
 /// System Collection State, Created by the First Collection and Released at the Collection's Stop.
 #[derive(Default)]
 pub struct Collector {
-    state: Arc<Mutex<Option<State>>>,
+    state: Arc<Mutex<Option<Listening>>>,
     git: Mutex<Option<GitIdentity>>,
 }
 
@@ -62,6 +90,11 @@ pub struct Collector {
 pub struct GitIdentity {
     pub name: Option<String>,
     pub email: Option<String>,
+}
+
+struct Listening {
+    state: Option<State>,
+    _lease: Lease,
 }
 
 struct State {
@@ -86,6 +119,15 @@ struct PowerPlan {
 /* === Implementations === */
 
 impl Collector {
+    /// Acquire Collection Resources Before Its First Tick.
+    pub fn start(&self) -> Result<()> {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        if state.is_none() {
+            *state = Some(Listening { state: None, _lease: Lease::acquire()? });
+        }
+        Ok(())
+    }
+
     /// Collect One System Row; a Failed Probe Becomes a Row Naming the Failure.
     pub async fn collect(&self, ctx: &Context) -> Result<System> {
         let timeout = settings::duration_value(ctx, settings::SYSTEM_PROBE_TIMEOUT).await?;
@@ -102,11 +144,11 @@ impl Collector {
         let state = self.state.clone();
         let collected = tokio::task::spawn_blocking(move || {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
-            if state.is_none() {
-                *state = Some(State::new()?);
+            let listening = state.as_mut().ok_or_else(|| Error::Invalid("Collect System Telemetry: Start the Collection Before Reading".into()))?;
+            if listening.state.is_none() {
+                listening.state = Some(State::new()?);
             }
-            let state = state.as_mut().expect("State Created Above");
-            state.collect(capacity_gflops, git)
+            listening.state.as_mut().expect("State Created Above").collect(capacity_gflops, git)
         })
         .await
         .map_err(|error| Error::Invalid(format!("Collect System Telemetry: {error}; Restart the Plugin")))?;
@@ -128,9 +170,6 @@ impl Collector {
 
 impl State {
     fn new() -> Result<Self> {
-        // Reading Components Enters the Apartment on This Thread for WMI and Never Leaves It.
-        #[cfg(windows)]
-        crate::platform::windows::apartment::retain()?;
         let invalid = |error: sysinfo::Error| Error::Invalid(format!("Read System Inventory: {error}; Restart the Plugin"));
         Ok(Self {
             sample_index: 0,
@@ -159,7 +198,7 @@ impl State {
             .collect::<Vec<_>>();
         let first_cpu = self.system.cpus().first();
         let text = |value: &str| Some(value.trim()).filter(|value| !value.is_empty()).map(str::to_owned);
-        let power = power_plan();
+        let power = native::power_plan();
         let uptime =
             sysinfo::System::uptime().map_err(|error| Error::Invalid(format!("Read System Uptime: {error}; Restart the Plugin")))?;
         let row = System {
@@ -236,27 +275,6 @@ async fn git_identity(timeout: Duration) -> GitIdentity {
     }
 }
 
-#[cfg(windows)]
-fn power_plan() -> PowerPlan {
-    use crate::platform::windows::power;
-    let Ok((guid, name)) = power::active_plan() else {
-        return PowerPlan::default();
-    };
-    let mode = name.as_deref().map(power::mode);
-    PowerPlan {
-        mode: mode.map(str::to_owned),
-        performance_bias: mode.map(power::performance_bias),
-        name,
-        guid: Some(guid),
-    }
-}
-
-/// Unix System Rows Carry No Power Plan; the Power Area Reads the ACPI Platform Profile.
-#[cfg(unix)]
-fn power_plan() -> PowerPlan {
-    PowerPlan::default()
-}
-
 fn with_battery(row: System, battery: &Battery) -> System {
     let state = battery.state();
     let number = |value: f32| value.is_finite().then(|| f64::from(value));
@@ -297,5 +315,26 @@ mod tests {
         let identity = super::parse_git_identity(output);
         assert_eq!(identity.name.as_deref(), Some("Second Name"));
         assert_eq!(identity.email, None);
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod lifetime_tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{Collector, Listening};
+    use crate::platform::windows::apartment;
+
+    #[test]
+    fn stop_releases_the_collection_lease_once() {
+        let releases = Arc::new(AtomicUsize::new(0));
+        let collector = Collector::default();
+        *collector.state.lock().unwrap() = Some(Listening { state: None, _lease: apartment::tests::fake(releases.clone()) });
+        assert_eq!(releases.load(Ordering::SeqCst), 0);
+        collector.stop();
+        assert_eq!(releases.load(Ordering::SeqCst), 1);
+        collector.stop();
+        assert_eq!(releases.load(Ordering::SeqCst), 1);
     }
 }

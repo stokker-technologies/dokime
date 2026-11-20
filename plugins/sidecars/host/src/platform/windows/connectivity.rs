@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::ffi::c_void;
+use std::{mem, ptr};
 use std::sync::{Mutex, PoisonError};
 
 // Third Party Imports
@@ -108,7 +109,7 @@ impl Drop for Notifications {
         }
         if !cancelled {
             // Preserve Callback Memory if the OS Could Not Confirm Deregistration.
-            let live = std::mem::replace(&mut self.sink, Box::new(Mutex::new(Pending::new(BTreeMap::new()))));
+            let live = mem::replace(&mut self.sink, Box::new(Mutex::new(Pending::new(BTreeMap::new()))));
             let _ = Box::leak(live);
         }
     }
@@ -127,7 +128,7 @@ impl Drop for Apartment {
 
 /// Internet Over IPv4 or IPv6 as the Network List Manager Reports It, Without Own Traffic.
 pub fn internet() -> Option<bool> {
-    super::apartment::retain().ok()?;
+    let _lease = super::apartment::Lease::acquire().ok()?;
     // SAFETY: Initializing COM has no preconditions; a thread already in another apartment keeps it.
     let initialized = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
     if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {
@@ -190,7 +191,7 @@ unsafe extern "system" fn address(context: *const c_void, row: *const MIB_UNICAS
     // SAFETY: The OS passes a live row for the callback's duration.
     let row = unsafe { &*row };
     // SAFETY: The address belongs to the live row.
-    let text = unsafe { adapters::socket_address(std::ptr::addr_of!(row.Address).cast::<SOCKADDR>()) }.map(|(text, _)| text);
+    let text = unsafe { adapters::socket_address(ptr::addr_of!(row.Address).cast::<SOCKADDR>()) }.map(|(text, _)| text);
     push(context, if kind == MibDeleteInstance { "address_removed" } else { "address_added" }, &row.InterfaceLuid, text, None);
 }
 

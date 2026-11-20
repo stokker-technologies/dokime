@@ -28,6 +28,7 @@ pub mod wifi;
 // Third Party Imports
 
 // Local Imports
+use dokime::Result;
 
 /* === Constants === */
 
@@ -37,11 +38,20 @@ pub mod wifi;
 
 /* === Structs === */
 
+/// Unix Collections Need No COM Apartment Resource.
+pub struct Lease;
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Lease {
+    pub fn acquire() -> Result<Self> {
+        Ok(Self)
+    }
+}
 
 /* === Public Functions === */
 

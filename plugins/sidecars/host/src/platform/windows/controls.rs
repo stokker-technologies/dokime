@@ -17,13 +17,15 @@
 
 // Standard Library Imports
 use std::collections::BTreeSet;
+use std::fmt::Display;
+use std::{mem, ptr, slice};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::sync::mpsc;
 use std::time::Instant;
 
 // Third Party Imports
 use windows::Devices::Enumeration::DeviceInformation;
-use windows::Devices::Radios::{RadioAccessStatus, RadioKind};
+use windows::Devices::Radios::{self, RadioAccessStatus, RadioKind};
 use windows::Foundation::TypedEventHandler;
 use windows::Win32::Devices::DeviceAndDriverInstallation::{
     CM_DEVNODE_STATUS_FLAGS, CM_Get_DevNode_Status, CM_PROB, CM_PROB_DISABLED, CR_SUCCESS, DI_QUIETINSTALL, DICS_DISABLE, DICS_ENABLE,
@@ -63,14 +65,16 @@ const TCP_ESTABLISHED: u32 = 5;
 /* === Structs === */
 
 /// A Windows Runtime Apartment Joined for the Current Thread.
-struct Apartment;
+struct Apartment {
+    _lease: super::apartment::Lease,
+}
 
 /// A Device Information Set, Destroyed on Drop.
 struct Devices(HDEVINFO);
 
 /// A Radio State Change Registration, Removed on Drop.
 struct Watching {
-    radio: windows::Devices::Radios::Radio,
+    radio: Radios::Radio,
     token: i64,
 }
 
@@ -82,10 +86,10 @@ struct Watching {
 
 impl Apartment {
     fn new() -> Result<Self> {
-        crate::platform::windows::apartment::retain()?;
+        let lease = super::apartment::Lease::acquire()?;
         // SAFETY: Paired With RoUninitialize in Drop on the Same Thread.
         unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.map_err(probe)?;
-        Ok(Self)
+        Ok(Self { _lease: lease })
     }
 }
 
@@ -114,7 +118,7 @@ impl Drop for Watching {
 /// Whether the Process Runs in the Built-In Administrators Group.
 pub fn administrator() -> Result<bool> {
     let mut sid = [0u64; 16];
-    let mut bytes = std::mem::size_of_val(&sid) as u32;
+    let mut bytes = mem::size_of_val(&sid) as u32;
     // SAFETY: The SID Buffer Holds `bytes` Bytes.
     unsafe { CreateWellKnownSid(WinBuiltinAdministratorsSid, None, Some(PSID(sid.as_mut_ptr().cast())), &mut bytes) }.map_err(probe)?;
     let mut member = BOOL::default();
@@ -126,12 +130,12 @@ pub fn administrator() -> Result<bool> {
 /// Every Radio of One Kind With Whether It Is On.
 pub fn read_radio(kind: Radio, _: &Timing) -> Result<ControlState> {
     let _apartment = Apartment::new()?;
-    let selector = windows::Devices::Radios::Radio::GetDeviceSelector().map_err(probe)?;
+    let selector = Radios::Radio::GetDeviceSelector().map_err(probe)?;
     let devices = DeviceInformation::FindAllAsyncAqsFilter(&selector).map_err(probe)?.join().map_err(probe)?;
     let mut radios = Vec::new();
     for device in devices {
         let id = device.Id().map_err(probe)?;
-        let radio = windows::Devices::Radios::Radio::FromIdAsync(&id).map_err(probe)?.join().map_err(probe)?;
+        let radio = Radios::Radio::FromIdAsync(&id).map_err(probe)?.join().map_err(probe)?;
         let actual = match radio.Kind().map_err(probe)? {
             RadioKind::WiFi => Radio::Wifi,
             RadioKind::Bluetooth => Radio::Bluetooth,
@@ -171,13 +175,13 @@ pub fn apply(state: &ControlState, restoring: bool, timing: &Timing) -> Result<(
     if !state.radios.is_empty() {
         let deadline = Instant::now() + timing.radio_settle;
         let _apartment = Apartment::new()?;
-        let access = windows::Devices::Radios::Radio::RequestAccessAsync().map_err(probe)?.join().map_err(probe)?;
+        let access = Radios::Radio::RequestAccessAsync().map_err(probe)?.join().map_err(probe)?;
         if access != RadioAccessStatus::Allowed {
             return Err(Error::Invalid(format!("Set Radio: Allow Radio Access for the Host Plugin; Windows Refused With {}", access.0)));
         }
         for value in &state.radios {
-            let radio = windows::Devices::Radios::Radio::FromIdAsync(&value.id.as_str().into()).map_err(probe)?.join().map_err(probe)?;
-            let target = if value.on { windows::Devices::Radios::RadioState::On } else { windows::Devices::Radios::RadioState::Off };
+            let radio = Radios::Radio::FromIdAsync(&value.id.as_str().into()).map_err(probe)?.join().map_err(probe)?;
+            let target = if value.on { Radios::RadioState::On } else { Radios::RadioState::Off };
             if radio.State().map_err(probe)? == target && !restoring {
                 continue;
             }
@@ -247,8 +251,8 @@ pub fn connected_addresses(pid: u32, timing: &Timing) -> Result<BTreeSet<String>
                 let table = buffer.as_ptr().cast::<MIB_TCPTABLE_OWNER_PID>();
                 // SAFETY: The API Wrote dwNumEntries Rows Into the Buffer.
                 let rows = unsafe {
-                    std::slice::from_raw_parts(
-                        std::ptr::addr_of!((*table).table).cast::<MIB_TCPROW_OWNER_PID>(),
+                    slice::from_raw_parts(
+                        ptr::addr_of!((*table).table).cast::<MIB_TCPROW_OWNER_PID>(),
                         (*table).dwNumEntries as usize,
                     )
                 };
@@ -262,8 +266,8 @@ pub fn connected_addresses(pid: u32, timing: &Timing) -> Result<BTreeSet<String>
                 let table = buffer.as_ptr().cast::<MIB_TCP6TABLE_OWNER_PID>();
                 // SAFETY: The API Wrote dwNumEntries Rows Into the Buffer.
                 let rows = unsafe {
-                    std::slice::from_raw_parts(
-                        std::ptr::addr_of!((*table).table).cast::<MIB_TCP6ROW_OWNER_PID>(),
+                    slice::from_raw_parts(
+                        ptr::addr_of!((*table).table).cast::<MIB_TCP6ROW_OWNER_PID>(),
                         (*table).dwNumEntries as usize,
                     )
                 };
@@ -282,20 +286,20 @@ pub fn connected_addresses(pid: u32, timing: &Timing) -> Result<BTreeSet<String>
 
 /* === Private Functions === */
 
-fn radio_power(state: windows::Devices::Radios::RadioState) -> Result<RadioPower> {
+fn radio_power(state: Radios::RadioState) -> Result<RadioPower> {
     match state {
-        windows::Devices::Radios::RadioState::On => Ok(RadioPower::On),
-        windows::Devices::Radios::RadioState::Off => Ok(RadioPower::Off),
-        windows::Devices::Radios::RadioState::Disabled | windows::Devices::Radios::RadioState::Unknown => {
+        Radios::RadioState::On => Ok(RadioPower::On),
+        Radios::RadioState::Off => Ok(RadioPower::Off),
+        Radios::RadioState::Disabled | Radios::RadioState::Unknown => {
             Err(Error::Invalid("Read Radio: Enable the Radio in Hardware or Policy First".into()))
         }
         value => Err(Error::Invalid(format!("Read Radio: Report the Unknown Radio State {}", value.0))),
     }
 }
 
-fn set_radio(radio: &windows::Devices::Radios::Radio, target: windows::Devices::Radios::RadioState, deadline: Instant) -> Result<()> {
+fn set_radio(radio: &Radios::Radio, target: Radios::RadioState, deadline: Instant) -> Result<()> {
     let (changed, changes) = mpsc::sync_channel(1);
-    let handler = TypedEventHandler::<windows::Devices::Radios::Radio, IInspectable>::new(move |_, _| {
+    let handler = TypedEventHandler::<Radios::Radio, IInspectable>::new(move |_, _| {
         let _ = changed.try_send(());
         Ok(())
     });
@@ -320,7 +324,7 @@ fn set_adapter(id: &str, enabled: bool) -> Result<()> {
     let devices = open()?;
     let device = adapter_device(&devices, id)?;
     let mut install = SP_DEVINSTALL_PARAMS_W {
-        cbSize: std::mem::size_of::<SP_DEVINSTALL_PARAMS_W>() as u32,
+        cbSize: mem::size_of::<SP_DEVINSTALL_PARAMS_W>() as u32,
         ..Default::default()
     };
     // SAFETY: The Device Belongs to the Live Information Set.
@@ -329,7 +333,7 @@ fn set_adapter(id: &str, enabled: bool) -> Result<()> {
     unsafe { SetupDiSetDeviceInstallParamsW(devices.0, Some(&device), &install) }.map_err(probe)?;
     let change = SP_PROPCHANGE_PARAMS {
         ClassInstallHeader: SP_CLASSINSTALL_HEADER {
-            cbSize: std::mem::size_of::<SP_CLASSINSTALL_HEADER>() as u32,
+            cbSize: mem::size_of::<SP_CLASSINSTALL_HEADER>() as u32,
             InstallFunction: DIF_PROPERTYCHANGE,
         },
         StateChange: if enabled { DICS_ENABLE } else { DICS_DISABLE },
@@ -338,7 +342,7 @@ fn set_adapter(id: &str, enabled: bool) -> Result<()> {
     };
     // SAFETY: The Header Begins a Property Change Structure of the Passed Size.
     unsafe {
-        SetupDiSetClassInstallParamsW(devices.0, Some(&device), Some(&change.ClassInstallHeader), std::mem::size_of_val(&change) as u32)
+        SetupDiSetClassInstallParamsW(devices.0, Some(&device), Some(&change.ClassInstallHeader), mem::size_of_val(&change) as u32)
     }
     .map_err(probe)?;
     unsafe { SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, devices.0, Some(&device)) }.map_err(probe)?;
@@ -355,7 +359,7 @@ fn open() -> Result<Devices> {
 
 fn entry(devices: &Devices, index: u32) -> Result<Option<SP_DEVINFO_DATA>> {
     let mut device = SP_DEVINFO_DATA {
-        cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
+        cbSize: mem::size_of::<SP_DEVINFO_DATA>() as u32,
         ..Default::default()
     };
     // SAFETY: The Set Is Live and the Structure Declares Its Size.
@@ -403,7 +407,7 @@ fn ip_text(address: Ipv6Addr) -> String {
     address.to_ipv4_mapped().map(|address| address.to_string()).unwrap_or_else(|| address.to_string())
 }
 
-fn probe(error: impl std::fmt::Display) -> Error {
+fn probe(error: impl Display) -> Error {
     Error::Invalid(format!("Set Control: Retry Once Windows Answers: {error}"))
 }
 
@@ -415,11 +419,11 @@ mod tests {
 
     #[test]
     fn native_radio_power_refuses_disabled_and_unknown_states() {
-        assert_eq!(radio_power(windows::Devices::Radios::RadioState::On).unwrap(), RadioPower::On);
-        assert_eq!(radio_power(windows::Devices::Radios::RadioState::Off).unwrap(), RadioPower::Off);
-        assert!(radio_power(windows::Devices::Radios::RadioState::Disabled).is_err());
-        assert!(radio_power(windows::Devices::Radios::RadioState::Unknown).is_err());
-        assert!(radio_power(windows::Devices::Radios::RadioState(99)).is_err());
+        assert_eq!(radio_power(Radios::RadioState::On).unwrap(), RadioPower::On);
+        assert_eq!(radio_power(Radios::RadioState::Off).unwrap(), RadioPower::Off);
+        assert!(radio_power(Radios::RadioState::Disabled).is_err());
+        assert!(radio_power(Radios::RadioState::Unknown).is_err());
+        assert!(radio_power(Radios::RadioState(99)).is_err());
     }
 
     #[test]

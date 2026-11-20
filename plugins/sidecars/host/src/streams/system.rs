@@ -65,6 +65,7 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
         .stream(Stream::<BatteryCycles>::new(BatteryCycles::STREAM, BatteryCycles::LABEL))
         .stream(Stream::<PowerPlan>::new(PowerPlan::STREAM, PowerPlan::LABEL))
         .interval_setting(settings::SYSTEM_INTERVAL)
+        .on_start(|ctx: &Context| ctx.plugin::<Host>()?.system.start())
         .on_stop(|ctx: &Context| {
             ctx.plugin::<Host>()?.system.stop();
             Ok(())

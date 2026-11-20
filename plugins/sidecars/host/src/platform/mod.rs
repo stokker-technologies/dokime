@@ -14,10 +14,15 @@
 pub mod command;
 #[cfg(unix)]
 pub mod unix;
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 pub mod windows;
 
 /* === Re-Exports === */
+
+#[cfg(target_os = "windows")]
+pub use windows::apartment::Lease;
+#[cfg(unix)]
+pub use unix::Lease;
 
 /* === Imports === */
 

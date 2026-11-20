@@ -27,6 +27,7 @@ pub mod workers;
 /* === Imports === */
 
 // Standard Library Imports
+use std::thread;
 use std::time::{Duration, Instant};
 
 // Third Party Imports
@@ -59,6 +60,7 @@ const PERCENT_SCALE: f64 = 100.0;
 /// Nothing samples in the background: utilization is read when a row or operation asks for it,
 /// and a hold samples only while it runs.
 pub struct Collector {
+    // Only a Machine Value Is Cached; calibrate Joins Every Worker Before Returning.
     capacity_gflops: OnceCell<f64>,
     control: broadcast::Sender<LoadControl>,
 }
@@ -110,7 +112,7 @@ impl Collector {
         let utilization_percent = tokio::task::spawn_blocking(|| {
             let mut system = System::new().map_err(|error| Error::Invalid(format!("Read CPU Load: {error}; Restart the Plugin")))?;
             system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
-            std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+            thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
             system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
             Ok::<_, Error>(f64::from(system.global_cpu_usage()).clamp(0.0, PERCENT_SCALE))
         })
@@ -147,12 +149,12 @@ pub fn calibrate(window: Duration, batch_iterations: u32) -> Result<f64> {
     if window.is_zero() || batch_iterations == 0 {
         return Err(Error::Invalid("Calibrate CPU Capacity: Configure a Positive Window and Batch".into()));
     }
-    let threads = std::thread::available_parallelism()
+    let threads = thread::available_parallelism()
         .map_err(|error| Error::Invalid(format!("Calibrate CPU Capacity: {error}; Restart the Plugin")))?
         .get();
     let start = Instant::now();
     let deadline = start + window;
-    let operations = std::thread::scope(|scope| {
+    let operations = thread::scope(|scope| {
         let workers = (0..threads).map(|_| scope.spawn(move || Kernel::new(batch_iterations).until(deadline))).collect::<Vec<_>>();
         workers.into_iter().try_fold(0u64, |total, worker| {
             let operations =

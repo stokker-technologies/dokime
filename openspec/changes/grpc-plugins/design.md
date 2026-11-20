@@ -2899,3 +2899,10 @@ operations::Context` is the single connection point for the eventual library API
 Read-only operations and telemetry remain available. No in-memory mutation fallback
 is permitted. The wire contract remains fluid; no replacement Effects protocol is
 introduced here.
+
+System collection start acquires its COM usage lease; stop drops the native
+inventory before releasing the lease. A stopped collection cannot lazily recreate
+its inventory. Standalone radio and connectivity probes own scoped leases. The
+CPU `OnceCell<f64>` retains only the calibrated machine value: calibration's
+scoped threads are all joined before it returns, and no worker or handle is
+stored in the cell. This scalar retention is permitted outside listener demand.
