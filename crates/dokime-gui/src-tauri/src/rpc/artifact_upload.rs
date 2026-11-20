@@ -8,7 +8,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{Bridge, Context, RpcError, read_u64};
+use super::{Bridge, Context, Error, read_u64};
 use crate::connection::ConnectionSession;
 use crate::rpc::protocol;
 use dokime_protocol::host::content;
@@ -50,15 +50,15 @@ struct Writer {
 /* === Implementations === */
 
 impl ArtifactUploads {
-    async fn open(&self, context: Context, artifact: content::ArtifactsCreateRequest) -> Result<Response, RpcError> {
+    async fn open(&self, context: Context, artifact: content::ArtifactsCreateRequest) -> Result<Response, Error> {
         context.check()?;
         let context = Arc::new(context);
         let (id, upload) = {
             let mut registry = self.0.lock().expect("artifact uploads poisoned");
             if registry.entries.len() >= 2 {
-                return Err(RpcError::LimitExceeded);
+                return Err(Error::LimitExceeded);
             }
-            registry.next_id = registry.next_id.checked_add(1).ok_or(RpcError::LimitExceeded)?;
+            registry.next_id = registry.next_id.checked_add(1).ok_or(Error::LimitExceeded)?;
             let id = registry.next_id;
             let upload = Arc::new(Upload {
                 context: context.clone(),
@@ -87,18 +87,17 @@ impl ArtifactUploads {
             request.request_id = format!("desktop-{}-{id}-open", context.generation);
             let production: files::UploadsCreateResponse =
                 context.execute(client.unary("/dokime.host.v1.files.Uploads/Create", request)).await?;
-            writer.chunk_bytes = usize::try_from(production.chunk_bytes).map_err(|_| RpcError::LimitExceeded)?;
-            writer.chunk_bytes = writer
-                .chunk_bytes
-                .min(usize::try_from(production.message_bytes.saturating_sub(1024)).map_err(|_| RpcError::LimitExceeded)?);
+            writer.chunk_bytes = usize::try_from(production.chunk_bytes).map_err(|_| Error::LimitExceeded)?;
+            writer.chunk_bytes =
+                writer.chunk_bytes.min(usize::try_from(production.message_bytes.saturating_sub(1024)).map_err(|_| Error::LimitExceeded)?);
             if writer.chunk_bytes == 0 {
-                return Err(RpcError::LimitExceeded);
+                return Err(Error::LimitExceeded);
             }
             writer.request.upload = production.upload;
             if writer.request.upload.is_none() {
-                return Err(RpcError::InvalidRequest);
+                return Err(Error::InvalidRequest);
             }
-            Ok::<_, RpcError>(())
+            Ok::<_, Error>(())
         }
         .await;
         if let Err(error) = result {
@@ -110,7 +109,7 @@ impl ArtifactUploads {
         Ok(Response::new(response))
     }
 
-    fn get(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Upload>, RpcError> {
+    fn get(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Upload>, Error> {
         self.0
             .lock()
             .expect("artifact uploads poisoned")
@@ -118,17 +117,17 @@ impl ArtifactUploads {
             .get(&id)
             .filter(|upload| upload.context.owner == owner && upload.context.generation == generation)
             .cloned()
-            .ok_or(RpcError::UnknownStream)
+            .ok_or(Error::UnknownStream)
     }
 
-    async fn write(&self, owner: &str, generation: u64, id: u64, sequence: u64, bytes: Vec<u8>) -> Result<(), RpcError> {
+    async fn write(&self, owner: &str, generation: u64, id: u64, sequence: u64, bytes: Vec<u8>) -> Result<(), Error> {
         if bytes.len() > protocol::UPLOAD_SLICE_BYTES as usize {
-            return Err(RpcError::LimitExceeded);
+            return Err(Error::LimitExceeded);
         }
         let upload = self.get(owner, generation, id)?;
         let mut writer = upload.writer.lock().await;
         if writer.closed || sequence != writer.next_sequence {
-            return Err(RpcError::InvalidAck);
+            return Err(Error::InvalidAck);
         }
         upload.context.check()?;
         let client = upload.context.client();
@@ -138,13 +137,13 @@ impl ArtifactUploads {
             request.request_id = format!("desktop-{generation}-{id}-{sequence}-{}", request.offset);
             let reply: files::UploadsAppendResponse = tokio::select! {
                 biased;
-                _ = upload.cancel.cancelled() => return Err(RpcError::Cancelled),
+                _ = upload.cancel.cancelled() => return Err(Error::Cancelled),
                 reply = upload.context.execute(client.unary("/dokime.host.v1.files.Uploads/Append", request)) => reply?,
             };
-            let production = reply.upload.ok_or(RpcError::InvalidRequest)?;
-            let next = writer.request.offset.checked_add(chunk.len() as u64).ok_or(RpcError::LimitExceeded)?;
+            let production = reply.upload.ok_or(Error::InvalidRequest)?;
+            let next = writer.request.offset.checked_add(chunk.len() as u64).ok_or(Error::LimitExceeded)?;
             if production.accepted_length != next {
-                return Err(RpcError::InvalidAck);
+                return Err(Error::InvalidAck);
             }
             writer.request.offset = next;
             writer.request.upload = Some(production);
@@ -154,11 +153,11 @@ impl ArtifactUploads {
         Ok(())
     }
 
-    async fn finish(&self, owner: &str, generation: u64, id: u64) -> Result<Response, RpcError> {
+    async fn finish(&self, owner: &str, generation: u64, id: u64) -> Result<Response, Error> {
         let upload = self.get(owner, generation, id)?;
         let mut writer = upload.writer.lock().await;
         if writer.closed {
-            return Err(RpcError::UnknownStream);
+            return Err(Error::UnknownStream);
         }
         writer.closed = true;
         let client = upload.context.client();
@@ -176,10 +175,10 @@ impl ArtifactUploads {
         let artifact: content::ArtifactsCreateResponse =
             upload.context.execute(client.unary("/dokime.host.v1.content.Artifacts/Create", request)).await?;
         self.remove(owner, generation, id);
-        upload.context.reply(artifact.artifact.ok_or(RpcError::InvalidRequest)?)
+        upload.context.reply(artifact.artifact.ok_or(Error::InvalidRequest)?)
     }
 
-    async fn cancel(&self, owner: &str, generation: u64, id: u64) -> Result<(), RpcError> {
+    async fn cancel(&self, owner: &str, generation: u64, id: u64) -> Result<(), Error> {
         let upload = self.get(owner, generation, id)?;
         upload.cancel.cancel();
         let mut writer = upload.writer.lock().await;
@@ -190,7 +189,7 @@ impl ArtifactUploads {
         };
         request.request_id = format!("desktop-{generation}-{id}-cancel");
         let client = upload.context.client();
-        let result: Result<files::UploadsDeleteResponse, RpcError> =
+        let result: Result<files::UploadsDeleteResponse, Error> =
             upload.context.execute(client.unary("/dokime.host.v1.files.Uploads/Delete", request)).await;
         self.remove(owner, generation, id);
         result.map(|_| ())
@@ -236,7 +235,7 @@ impl ArtifactUploads {
 #[tauri::command]
 pub async fn artifact_upload_open<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<Response, RpcError> {
+) -> Result<Response, Error> {
     Box::pin(async move {
         let (context, header) = bridge.prepare::<content::ArtifactsCreateRequest>(&session, webview.label(), request.body())?;
         bridge.uploads.open(context, header).await
@@ -247,12 +246,12 @@ pub async fn artifact_upload_open<R: Runtime>(
 #[tauri::command]
 pub async fn artifact_upload_write<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     Box::pin(async move {
         let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         session.lease(&generation.to_string())?;
         if payload.len() < 16 {
-            return Err(RpcError::InvalidRequest);
+            return Err(Error::InvalidRequest);
         }
         bridge.uploads.write(webview.label(), generation, read_u64(payload)?, read_u64(&payload[8..])?, payload[16..].to_vec()).await
     })
@@ -262,12 +261,12 @@ pub async fn artifact_upload_write<R: Runtime>(
 #[tauri::command]
 pub async fn artifact_upload_finish<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<Response, RpcError> {
+) -> Result<Response, Error> {
     Box::pin(async move {
         let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         session.lease(&generation.to_string())?;
         if payload.len() != 8 {
-            return Err(RpcError::InvalidRequest);
+            return Err(Error::InvalidRequest);
         }
         bridge.uploads.finish(webview.label(), generation, read_u64(payload)?).await
     })
@@ -277,12 +276,12 @@ pub async fn artifact_upload_finish<R: Runtime>(
 #[tauri::command]
 pub async fn artifact_upload_cancel<R: Runtime>(
     session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
-) -> Result<(), RpcError> {
+) -> Result<(), Error> {
     Box::pin(async move {
         let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         session.lease(&generation.to_string())?;
         if payload.len() != 8 {
-            return Err(RpcError::InvalidRequest);
+            return Err(Error::InvalidRequest);
         }
         bridge.uploads.cancel(webview.label(), generation, read_u64(payload)?).await
     })

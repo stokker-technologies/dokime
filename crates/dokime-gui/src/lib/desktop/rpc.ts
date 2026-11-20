@@ -7,7 +7,9 @@
  * ***
  */
 
-/* Native RPC failures, mirroring `Error` in `src-tauri/src/error.rs`. */
+/* Native RPC failures mirror `Error` in `src-tauri/src/error.rs`.
+ * Grpc.details always encodes generated harmos.model.v1.Failure, normalized by
+ * the native boundary for product, library and plain-status failures alike. */
 
 /* === Local Imports === */
 
@@ -17,6 +19,7 @@ import type { ConnectionError } from "./connection";
 
 export type RpcError =
   | { kind: "session"; detail: ConnectionError }
+  | { kind: "local"; detail: { message: string } }
   | { kind: "invalid_request" }
   | { kind: "incompatible_descriptor" }
   | { kind: "limit_exceeded" }

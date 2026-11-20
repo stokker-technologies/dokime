@@ -26,7 +26,6 @@ import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } fr
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
 import { ErrorCard } from "@/components/ErrorCard";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { type EditorParameterRow, editorProblems, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
 import {
@@ -352,11 +351,7 @@ export function TemplateDialog({
       <div className="mx-4">
         <ActiveCycleInline cycle={activeCycle} hasOpenCycles={hasOpenCycles} onChange={onChangeCycle} onNewCycle={onNewCycle} />
       </div>
-      {error ? (
-        <NotificationMessage source="Template" error={error}>
-          {failureOf(error, "Operation Failed").message}
-        </NotificationMessage>
-      ) : null}
+      {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
     </div>
   );
 
@@ -381,11 +376,7 @@ export function TemplateDialog({
           >
             Next
           </Button>
-          {problems ? (
-            <NotificationMessage source="Template Inputs" title="Template Inputs Need Attention" failure={validation}>
-              {problems} {problems === 1 ? "problem" : "problems"}
-            </NotificationMessage>
-          ) : null}
+          {problems ? <ErrorCard failure={failureOf(validation, "Template Inputs Need Attention")} /> : null}
         </span>
       ) : (
         <Button

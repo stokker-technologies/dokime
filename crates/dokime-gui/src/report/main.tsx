@@ -10,12 +10,13 @@
 /* === External Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { failureOf } from "@/lib/notification-details";
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 /* === Local Imports === */
+
+import { ErrorCard } from "@/components/ErrorCard";
 
 import { BrandProvider, defaultBrand } from "@/lib/brand";
 import { applyReportAppearance } from "./report-appearance";
@@ -66,9 +67,7 @@ void start().catch((error: unknown) => {
   root.render(
     <>
       <DokimeToaster />
-      <NotificationMessage context="background" source="Report" title="Report Could Not Open" error={error}>
-        {failureOf(error, "Operation Failed").message}
-      </NotificationMessage>
+      <ErrorCard failure={failureOf(error, "Report Could Not Open")} />
     </>,
   );
 });

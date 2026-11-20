@@ -9,14 +9,15 @@
 
 /* === External Imports === */
 
-import { ChevronDown, LoaderCircle } from "lucide-react";
-import { type ComponentProps, useState } from "react";
+import { LoaderCircle } from "lucide-react";
+import type { ComponentProps } from "react";
 
 /* === Local Imports === */
 
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { formatDuration } from "@/lib/format";
 import type { StepExecutionRecord, StepFailureDetail } from "@/lib/types";
 
@@ -73,7 +74,7 @@ export function StepRecordList({
                 {stepRecordLabel(record, showRecordType)}
               </span>
               {duration ? <span className="mt-1 block text-xs leading-tight text-muted-foreground">{duration}</span> : null}
-              {record.detail ? <StepFailure detail={record.detail} /> : null}
+              {record.detail ? <ErrorCard failure={stepFailure(record.detail)} /> : null}
             </div>
             <Badge className="justify-self-end gap-1 text-xs capitalize" variant={stepBadgeVariant(record.status)}>
               {record.status === "running" ? <LoaderCircle aria-hidden className="animate-spin" size={10} /> : null}
@@ -86,51 +87,15 @@ export function StepRecordList({
   );
 }
 
-/**
- * Why one step failed: the line inline, the rest a click away.
- *
- * The message is what an operator has to read to know what went wrong, so it is
- * never hidden. The cause chain, the location, the spans and the frames are what
- * a maintainer needs and nobody else does, so they sit behind the expander.
- */
-export function StepFailure({ detail }: { detail: StepFailureDetail }) {
-  const [open, setOpen] = useState(false);
-  const hasStory = detail.chain.length > 0 || detail.location.length > 0 || detail.span_trace.length > 0 || detail.backtrace.length > 0;
-
-  return (
-    <Collapsible onOpenChange={setOpen} open={open}>
-      <p className="mt-1 text-xs leading-snug text-destructive [overflow-wrap:anywhere]">{detail.message}</p>
-      {hasStory ? (
-        <>
-          <CollapsibleTrigger className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <ChevronDown className={open ? "rotate-180 transition-transform" : "transition-transform"} size={12} />
-            {open ? "Hide Details" : "Show Details"}
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-2 grid gap-2 rounded-lg border bg-muted/30 p-2 text-xs leading-snug">
-              {detail.chain.length ? (
-                <span className="text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line">
-                  {detail.chain.map((cause) => `caused by: ${cause}`).join("\n")}
-                </span>
-              ) : null}
-              {detail.location ? <span className="text-muted-foreground [overflow-wrap:anywhere]">At {detail.location}</span> : null}
-              {detail.span_trace.length ? (
-                <span className="text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line">
-                  {detail.span_trace.map((span) => `in ${span}`).join("\n")}
-                </span>
-              ) : null}
-              {detail.backtrace ? (
-                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-muted-foreground">{detail.backtrace}</pre>
-              ) : null}
-            </div>
-          </CollapsibleContent>
-        </>
-      ) : null}
-    </Collapsible>
-  );
-}
-
 /* === Public Functions === */
+
+export function stepFailure(detail: StepFailureDetail) {
+  return {
+    ...failureOf(detail, "Execution Failed"),
+    causes: detail.chain,
+    diagnostics: [detail.location, ...detail.span_trace, detail.backtrace].filter(Boolean).join("\n"),
+  };
+}
 
 export function sortedStepRecords(records: StepExecutionRecord[]): StepExecutionRecord[] {
   const executionStarts = new Map<string, number>();

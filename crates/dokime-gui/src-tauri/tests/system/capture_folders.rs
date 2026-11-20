@@ -83,8 +83,9 @@ async fn admit_plugin(session: &Session, endpoint: &str) -> Result<(), Box<dyn E
     let placement = PluginPlacement {
         kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: endpoint.into() })),
     };
-    let admitted =
-        session.execute(session.client().plugins.create_with("capture", placement, PluginValue { enabled: true }, options)).await?;
+    let admitted = session
+        .execute("Plugins.Create", session.client().plugins.create_with("capture", placement, PluginValue { enabled: true }, options))
+        .await?;
     ready(session, admitted.entry.ok_or("Admit Capture Fixture: Missing Entry")?).await
 }
 
@@ -94,18 +95,18 @@ async fn ready(session: &Session, mut entry: dokime_protocol::host::PluginEntry)
         context: session.call_options()?,
         ..Default::default()
     };
-    let mut watching = session.execute(session.client().plugins.watch_with(options)).await?;
+    let mut watching = session.execute("Plugins.Watch", session.client().plugins.watch_with(options)).await?;
     while entry.state != PluginState::Ready as i32 {
         if entry.failure.is_some() {
             return Err(format!("Admit Capture Fixture: {:?}", entry.failure).into());
         }
-        session.execute(watching.next()).await?.ok_or("Admit Capture Fixture: Watch Closed")?;
+        session.execute("Plugins.Watch", watching.next()).await?.ok_or("Admit Capture Fixture: Watch Closed")?;
         let options = PluginsGetOptions {
             context: session.call_options()?,
             ..Default::default()
         };
         entry = session
-            .execute(session.client().plugins.get_with(entry.name, options))
+            .execute("Plugins.Get", session.client().plugins.get_with(entry.name, options))
             .await?
             .entry
             .ok_or("Admit Capture Fixture: Entry Removed")?;
@@ -251,12 +252,12 @@ fn capture_folders_persist_and_apply_to_the_built_in_host() -> Result<(), Box<dy
             ..Default::default()
         };
         let entry = session
-            .execute(session.client().plugins.get_with("capture", options))
+            .execute("Plugins.Get", session.client().plugins.get_with("capture", options))
             .await?
             .entry
             .ok_or("Reopen Capture Fixture: Entry Removed")?;
         let options = PluginsDeleteOptions { context: session.call_options()? };
-        session.execute(session.client().plugins.delete_with(entry.name, entry.revision, options)).await?;
+        session.execute("Plugins.Delete", session.client().plugins.delete_with(entry.name, entry.revision, options)).await?;
         let mut plugin = PluginProcess::start(&dokime_gui::test_support::fixture("dokime-rust-capture"), true, &placement).await?;
         admit_plugin(&session, plugin.endpoint()).await?;
         let (termination, artifacts) = copy(&session, device.path(), "restarted").await?;
