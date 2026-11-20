@@ -7,7 +7,7 @@
  * ***
  */
 
-// Network Streams and Their Observers
+// Network Stream and Its Observer
 
 /* === Modules === */
 
@@ -20,8 +20,12 @@
 // Third Party Imports
 
 // Local Imports
+use crate::Host;
+use crate::domain::telemetry::Network;
+use crate::settings;
 use dokime::Result;
-use dokime::plugin::Plugin;
+use dokime::operations::Context;
+use dokime::plugin::{Observer, Plugin, Stream};
 
 /* === Constants === */
 
@@ -39,11 +43,17 @@ use dokime::plugin::Plugin;
 
 /* === Public Functions === */
 
-/// Declare the Network Streams and Observers.
+/// Declare the Network Stream, Sampled at the Editable Network Interval While Observed.
 pub fn catalog(plugin: Plugin) -> Result<Plugin> {
-    Ok(plugin)
+    let stream = Stream::<Network>::new(Network::STREAM, Network::LABEL);
+    let observer = Observer::operation(&stream, collect).interval_setting(settings::NETWORK_INTERVAL);
+    Ok(plugin.stream(stream).observer(observer))
 }
 
 /* === Private Functions === */
+
+async fn collect(ctx: &Context) -> Result<Network> {
+    ctx.plugin::<Host>()?.network.collect(ctx).await
+}
 
 /* === Tests === */
