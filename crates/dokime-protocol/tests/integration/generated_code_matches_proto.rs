@@ -289,7 +289,7 @@ fn product_plugin_policy_owns_administration_payloads_and_preserves_origin() {
         }
     }
 
-    // Preserve Optional Creation Provenance Through Typed and Reflected Decoding.
+    // Preserve Optional Creation Provenance and SDK Compatibility Through Typed and Reflected Decoding.
     let request = PluginsCreateRequest {
         request_id: "register-sample".into(),
         name: "sample".into(),
@@ -298,14 +298,20 @@ fn product_plugin_policy_owns_administration_payloads_and_preserves_origin() {
         }),
         value: Some(PluginValue { enabled: true }),
         origin: Some("sample-registration".into()),
+        sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
     };
     let method = pool.get_service_by_name("dokime.host.v1.Plugins").unwrap().methods().find(|method| method.name() == "Create").unwrap();
     assert_eq!(method.input(), request.descriptor());
     let reflected = DynamicMessage::decode(method.input(), request.encode_to_vec().as_slice()).unwrap();
     assert_eq!(reflected.transcode_to::<PluginsCreateRequest>().unwrap(), request);
-    let absent = PluginsCreateRequest { origin: None, ..request };
+    let absent = PluginsCreateRequest {
+        origin: None,
+        sdk_version: None,
+        ..request
+    };
     let decoded = PluginsCreateRequest::decode(absent.encode_to_vec().as_slice()).unwrap();
     assert_eq!(decoded.origin, None);
+    assert_eq!(decoded.sdk_version, None);
 }
 
 #[test]

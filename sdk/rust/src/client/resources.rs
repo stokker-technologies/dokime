@@ -1906,6 +1906,7 @@ impl Clone for PluginsWatchOptions {
 pub struct PluginsCreateOptions {
     pub request_id: Option<String>,
     pub origin: Option<String>,
+    pub sdk_version: Option<String>,
     pub context: CallOptions,
 }
 impl Clone for PluginsCreateOptions {
@@ -1913,6 +1914,7 @@ impl Clone for PluginsCreateOptions {
         Self {
             request_id: self.request_id.clone(),
             origin: self.origin.clone(),
+            sdk_version: self.sdk_version.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -5040,6 +5042,7 @@ impl Plugins {
             placement: Some(placement),
             value: Some(value),
             origin: options.origin,
+            sdk_version: options.sdk_version,
         };
         let request = options.context.request(value);
         let response = self

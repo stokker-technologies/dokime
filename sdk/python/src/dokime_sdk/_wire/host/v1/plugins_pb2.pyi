@@ -27,12 +27,14 @@ class PluginState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     PLUGIN_STATE_UNAVAILABLE: _ClassVar[PluginState]
     PLUGIN_STATE_STOPPED: _ClassVar[PluginState]
     PLUGIN_STATE_STOPPING: _ClassVar[PluginState]
+    PLUGIN_STATE_OFFLINE: _ClassVar[PluginState]
 PLUGIN_STATE_UNSPECIFIED: PluginState
 PLUGIN_STATE_CONNECTING: PluginState
 PLUGIN_STATE_READY: PluginState
 PLUGIN_STATE_UNAVAILABLE: PluginState
 PLUGIN_STATE_STOPPED: PluginState
 PLUGIN_STATE_STOPPING: PluginState
+PLUGIN_STATE_OFFLINE: PluginState
 
 @final
 class PluginsGetRequest(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -98,12 +100,14 @@ class PluginsCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageT
     PLACEMENT_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     ORIGIN_FIELD_NUMBER: _ClassVar[int]
+    SDK_VERSION_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     name: str
     placement: PluginPlacement
     value: PluginValue
     origin: str
-    def __init__(self, request_id: _Optional[str] = ..., name: _Optional[str] = ..., placement: _Optional[_Union[PluginPlacement, _Mapping]] = ..., value: _Optional[_Union[PluginValue, _Mapping]] = ..., origin: _Optional[str] = ...) -> None: ...
+    sdk_version: str
+    def __init__(self, request_id: _Optional[str] = ..., name: _Optional[str] = ..., placement: _Optional[_Union[PluginPlacement, _Mapping]] = ..., value: _Optional[_Union[PluginValue, _Mapping]] = ..., origin: _Optional[str] = ..., sdk_version: _Optional[str] = ...) -> None: ...
 
 @final
 class PluginsCreateResponse(_message.Message, metaclass=GeneratedProtocolMessageType):

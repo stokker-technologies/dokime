@@ -1034,7 +1034,7 @@ async def main() -> None:
   Every handle is bound from creation.
 - `client.plugins.register(plugin)` serves the plugin, adds it and returns when
   it is ready; `client.plugins.install(bundle)` installs a bundle. They replace
-  `create`. `client.close()` unregisters what this client registered.
+  `create`. `client.close()` stops what this client serves; entries stay Offline.
 - `execution.run()` is `start()` followed by `watch()`; both stay as primitives
   for fire-and-forget and for re-attaching. It is not awaitable on its own.
 - `note` and `artifact` exist with the same signature on execution and cycle
@@ -1047,7 +1047,7 @@ async def main() -> None:
 ### Configuration
 
 - Well-known variables read by the SDK: `DOKIME_REMOTE` (an `http://host:port`
-  origin or a `.pair` file) and `DOKIME_PLUGIN_ADDRESS` (default `127.0.0.1:0`).
+  origin or a `.pair` file); plugin listeners default to `127.0.0.1:0`.
 - Precedence: keyword argument, process environment, `.env` in the working
   directory, default. The SDK loads `.env` itself. This replaces the earlier
   rule that no client parses a `.env` file.
@@ -1069,7 +1069,7 @@ async def main() -> None:
 | `execution.artifact` | file upload + `content.Artifacts/Create` |
 | `cycle.seal` | `Cycles/Seal` |
 | `cycle.evidence` | `Evidence/Archive` + file read |
-| `client.close` | delete registered plugins + close the channel |
+| `client.close` | stop owned sidecars (entries stay Offline) + close the channel |
 
 Most handle methods compose several operations, so the Python handles are
 written by hand first; generating them from operation definitions is deferred
@@ -1497,7 +1497,7 @@ class Client:
     async def cycle(self, *, label: str, request_id: str | None = None) -> Cycle: ...  # Create an empty manually advanced cycle.
     def operation[Q: Payload, R: Payload](self, operation: Operation[Q, R]) -> BoundOperation[Q, R]: ...  # Bind one public operation call through the host.
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None: ...  # Replace the single optional unattended answer handler.
-    async def close(self) -> None: ...  # Unregister owned registrations, stop their sidecars, then close the channel.
+    async def close(self) -> None: ...  # Stop owned sidecars, keeping their entries, then close the channel.
 
 class Plugins:
     async def register(self, plugin: Plugin, *, address: str | None = None, request_id: str | None = None) -> RegisteredPlugin: ...  # Serve/register the object and wait for host-owned Ready admission.
@@ -1582,16 +1582,57 @@ subject to host admission, not an implicit rerun. Reattach with `watch()`.
 Execution Start always selects automatic mode; interactive command controls
 remain generated host operations rather than another starter flow.
 
-Register takes ownership only of the sidecar and entry it creates. Failed
-registration unwinds both. Uploaded bundles and pre-existing entries persist
-after `Client.close`; explicit unregister removes their entry. Close is
-idempotent, attempts all owned cleanup even if one step fails, closes the
-channel last and reports collected structured failures. It does not stop a host,
+Register takes ownership only of the sidecar it starts. Failed registration and
+`Client.close` stop that sidecar and never delete the entry: the host keeps a
+registered entry and shows it Offline until the plugin registers again, and only
+an explicit unregister removes it. Close is idempotent, attempts all owned
+cleanup even if one step fails, closes the channel last and reports collected
+structured failures.
+
+Owner amendment, 2026-11-20 (registered plugins run by hand): a plugin's own
+entry point checks, in order, the managed launch variables (delegate to the
+library run entry), then `DOKIME_REMOTE` from the environment or working-directory
+`.env` (an empty value is unset): when set, the plugin binds a free loopback port,
+connects with the client connection and registers itself through
+`dokime.host.v1.Plugins/Create`; otherwise it serves silently. The registration
+name is the plugin identifier, so a restart reuses the entry, and
+`PluginsCreateRequest.sdk_version` (field 6) carries the product SDK version the
+plugin was built with; a host refusal ends the process non-zero with the host's
+message. The SDK prints nothing; starters print one authored line. It does not stop a host,
 cancel admitted executions or terminate an unowned process. A running execution
 may prevent unregister; report the refusal rather than silently cancelling it.
 The answer handler is installed before Start; it observes pending prompts,
 answers each identity once and is removed on close. The desktop remains the
 normal starter prompt UI.
+
+The current pin exposes addressable listeners in all four SDKs. Product C#
+registration uses the library StartAsync and WaitAsync APIs directly; no console
+capture or second serving task owns that listener. Starter run entries stay
+silent and delegate authenticated launch announcement to the library.
+
+The shared description currently carries identifier, version, SDK/protocol
+versions and declarations, but has no plugin label, description or icon fields.
+Generic declaration contributions are available, but the host has no agreed
+plugin-presentation contribution or projection for these values. The SDK and host
+owners must select one representation rather than introduce a parallel metadata
+family. This is an unresolved product contract, not a missing generic contribution
+facility in the library.
+Architecture invariant 7 assigns ownership: "Dokime owns plugin contracts, the
+four author SDKs and starters". The C# `PluginDescription` in
+`sdk/csharp/src/Dokime/AuthorModel.cs` and C++ `PluginDescription` in
+`sdk/cpp/include/dokime/plugin.hpp` serve host-free author inspection, while
+`proto/dokime/host/v1/plugins.proto` has a separate advertised description used by
+host plugin reads. Report this parallel description family to the owner before
+replacing it; prefer deriving inspection and host presentation from one advertised
+product contribution rather than maintaining independent metadata assembly.
+Manifest scripts, bundle inputs and compatibility ranges remain packaging data;
+hand-run registration must not read a manifest to obtain presentation values.
+The current manifests also carry tags, authors, license, repository, optional
+publisher and readme references that the advertised description does not expose.
+These catalog values remain part of the presentation-contract decision.
+
+The Rust integration harness uses library Launches reservations to discover the
+listener; standard output is ordinary output in every placement.
 
 Execution seal does not start, cancel or wait for active work. Repetition returns
 the same outcome. A normal run or cancellation already seals the execution;
@@ -1617,7 +1658,7 @@ land before final client proof. There is no SDK bypass to the carrier.
 | `plugins.register` | Start owned listener; current `harmos.host.v1.Plugins/Create` with remote placement; current `harmos.host.v1.Plugins/Watch` until Ready. Target NEW `dokime.host.v1.Plugins/Create` returns only after host-owned Ready; no SDK polling loop. Preserve entry identity/revision and class bindings. |
 | `plugins.install` | Upload bytes using `dokime.host.v1.files.Uploads/Create`, `Append` in offset order, `Publish`; NEW `dokime.host.v1.Plugins/Create` with managed bundle reference, host-owned inspection/install/Ready; return one entry. |
 | `plugins.get`, registered `refresh` | Current `harmos.host.v1.Plugins/Get`; target NEW `dokime.host.v1.Plugins/Get`; unwrap entry. |
-| Registered `unregister`, `Client.close` | Get entry/revision, then current `harmos.host.v1.Plugins/Delete`; target NEW `dokime.host.v1.Plugins/Delete`; stop SDK-owned sidecar after detach, then close channel for Client.close. Missing previously removed owned entry is already detached. |
+| Registered `unregister` | Get entry/revision, then `dokime.host.v1.Plugins/Delete`; stop SDK-owned sidecar after detach. Missing previously removed owned entry is already detached. `Client.close` only stops owned sidecars and closes the channel. |
 | `client.cycle` | `dokime.host.v1.Cycles/Create`, no origins, `continue_automatically=false`, metadata label; unwrap `cycle`. |
 | `cycles.get`, cycle `refresh` | `dokime.host.v1.Cycles/Get`; unwrap `cycle` and retain revision. |
 | `cycles.list` | `dokime.host.v1.Cycles/List` first page, then remaining pages at the first `resolved_at`, retaining selection/filter/order. |
@@ -1892,16 +1933,19 @@ No local SDK file-watcher or polling capture implementation is added.
 
 ### Configuration Loading
 
-`connect` resolves DOKIME_REMOTE. `Plugin.serve` and `Plugins.register` resolve
-DOKIME_PLUGIN_ADDRESS. Each entry call reads only `.env` directly in the current
-working directory at that call, once; there is no parent-directory search, import
-side effect, process-environment mutation or starter loader. Apply precedence
-separately per variable: explicit non-None argument, process environment key,
-parsed file key, default. An explicit empty remote or an empty process/file remote
-refuses with guidance to set DOKIME_REMOTE; it never silently falls through to a
-different host. With no remote anywhere, refuse because no default host exists.
-The plugin default is `127.0.0.1:0`; an explicitly empty address refuses. The
-reference `.env.example` intentionally contains an empty remote placeholder.
+`connect` resolves DOKIME_REMOTE from an explicit argument, the process environment,
+then `.env` directly in the working directory. A connection without a nonempty
+target refuses with guidance to set DOKIME_REMOTE; no default host exists.
+There is no parent-directory search, import side effect, process-environment
+mutation or starter loader.
+
+The blocking plugin entry delegates launch credentials to the library before
+reading pairing configuration. Otherwise a nonempty DOKIME_REMOTE selects
+self-registration, and an absent or empty remote selects standalone serving.
+Programmatic registration takes an optional listener address and otherwise binds
+`127.0.0.1:0`; listener binding reads no environment configuration. An explicitly
+empty listener address refuses. The reference `.env.example` intentionally
+contains an empty remote placeholder.
 
 Accepted `.env` grammar is deliberately small and identical across languages:
 
@@ -2226,7 +2270,8 @@ argument parsing; its existing synchronous process boundary may block until
 stop. Native run spelling follows the owning plugin-lifecycle contract.
 `connect()` has `connect_with(ConnectionSettings)` for explicit target, timeout
 and authentication overrides; settings fields mirror Python keyword names with
-Duration for connect_timeout. `Plugin::run_with(address)` overrides one address.
+Duration for connect_timeout. Programmatic registration accepts a listener address;
+the blocking run entry selects its mode only from the environment.
 No library mutates process environment. Methods are snake_case; async I/O returns
 `Result<T>`, ProgressStream.next returns `Result<Option<Progress>>` and owns its
 Watch only. Root Client, Cycle, Execution, Case, RegisteredPlugin, Outcome and
@@ -2646,7 +2691,7 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | Both Locations | Current Callers and Responsibility | Recommendation for the Owner |
 |---|---|---|
 | `sdk/csharp/src/Dokime/Client.cs:ArtifactAsync` and `FileTransfers.cs:UploadAsync` | Bound cycle/execution artifacts use the client loop; template evidence and file inputs use the transfer helper. Both create, append, publish, verify and abandon uploads. | Keep the transfer owner and delete the client loop after owner approval; retain child mutation identities and abandon only unpublished uploads. |
-| `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Owned registration and carrier stories independently capture stdout, observe listener readiness and settle serving. | Keep one owned endpoint implementation and delete the story server helper after the owner selects its test access boundary. |
+| `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Registration and carrier stories both use the library addressable listener. The product wrapper retains idempotent close, while the test helper owns its channel. | Console-capture ownership was removed with the library listener adoption. |
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
@@ -2910,6 +2955,77 @@ retain those kit defaults unless explicitly excluded. Distribution export includ
 their bundle bytes in the checked file inventory, so portable archives retain the
 same default plugins as local installer staging. No installer execution or machine
 installation is needed to prove this staging behavior.
+
+## Registered (Unmanaged) Plugin Lifecycle (Locked by the Owner, 2026-11-20)
+
+### Managed Launch Handshake
+
+The library pin is `18e9b41cb0dd00e27020ee3120e5c973d82eec22`.
+Managed startup uses the library's `Launches` reservation and its
+`HARMOS_HOST_ENDPOINT` and `HARMOS_LAUNCH_TOKEN` environment. The plugin serves
+its listener and calls `harmos.plugin.v1.Launches/Announce` once. Standard output
+is ordinary output and never a readiness protocol. A partial credential pair
+is an SDK startup error. Detached development launches use the same handshake.
+
+The source inventory for the product cutover is the workspace library pin and
+generated consumers, `crates/dokime-runtime/src/plugin.rs`, its Python fixture
+support, the CLI first-hour fixture and the desktop e2e fixture. The native
+`dokime-host --launch-plugin` fixture owns the e2e process through
+`PluginProcess`; JavaScript receives that fixture owner's endpoint instead of
+parsing plugin output. SDK entries select announcement, self-registration or standalone serving from
+the environment; retired address configuration and output parsers are removed. The library process owner is private; replacing the development
+process owner with it remains an owner decision.
+
+### Registry Process Ownership (Library Capability Required)
+
+Launch credentials authenticate readiness and do not transfer process ownership.
+The library registry must send Instance.Stop only when its activation owns a
+spawned process. In `crates/harmos-runtime/src/plugin/grpc/mod.rs`, Ending::Stop
+currently calls the endpoint even when `process` is None. Removing a remote entry
+must instead settle its host-side activity and close the registry connection,
+without stopping its externally owned endpoint. Managed process teardown keeps
+its Stop, exit, kill and reap policies unchanged. This removes the need for a
+second product lifecycle marker or for mode selection based on credentials.
+
+The product cannot enforce this private registry boundary. It retains ordinary
+launch reservations and self-registration, and does not bypass registry teardown.
+The library checkout is read-only for this delivery.
+
+### Registration and Presentation
+
+An unmanaged plugin is started by its author with `DOKIME_REMOTE` configured and
+registers itself through `dokime.host.v1.Plugins/Create` with a remote placement.
+The host reads no bundle, manifest or project file for it: identity, label,
+operations and catalogs come from the plugin's own description.
+
+- Wire: `PluginsCreateRequest.sdk_version` (optional) carries the product SDK
+  version the plugin was built against. The product Create policy refuses a
+  remote registration whose version's caret range does not contain the host
+  version with `plugin_incompatible`, naming both versions. Managed bundles keep
+  their manifest check.
+- Wire: `PluginState.PLUGIN_STATE_OFFLINE` presents a remote entry the library
+  reports unreachable (`Unavailable` with `plugin_unavailable`) without a
+  failure. Entries are durable and only an explicit Delete removes them; the
+  SDK no longer deletes its entry when the plugin exits.
+- Re-registration reuses the entry matched by name (the plugin identifier). The
+  library first answers replays and refuses conflicting request identifiers;
+  an `entry_exists` refusal with the same address enables or restarts the
+  entry, and a new address deletes and recreates it under the same name.
+- Wire: `Suite.unavailable` marks the last reported suites of an Offline plugin.
+  They stay listed; planning and materialization refuse them with an action.
+- Desktop and `dokime plugin list` show each entry's placement (Managed or
+  Unmanaged) and status (Ready, Starting, Offline, Failed, Disabled, Stopping,
+  Stopped); the desktop list filters by both.
+
+Library gaps at the current pin: a remote placement cannot change its address,
+so a new address drops host-saved plugin settings through Delete and Create; a
+remote entry whose first attach fails (for example after a host restart while
+the plugin is down) is not retried until the plugin registers again; reconnect
+failures that are not unreachability (changed identity, settings that no longer
+fit) also carry `plugin_unavailable` and present as Offline; operations of a
+disconnected plugin leave the library catalog, so only suites and templates are
+retained as unavailable.
+
 ## Desktop Tables and Native Settings
 
 Every desktop table uses `src/components/data-table/DataTable.tsx` under
@@ -2980,22 +3096,35 @@ policy under its current single owner. Whether that refactor joins this delivery
 is an open owner scope decision; the settings persistence change does not claim
 that convention cleanup is complete.
 
-### Remote Plugin Readiness Rework
+### Launch Entry and Lifecycle Ownership
 
-`crates/dokime-runtime/src/plugin.rs:139` starts a remote plugin by removing
-`HARMOS_ADDRESS`, setting `DOKIME_PLUGIN_ADDRESS` to an ephemeral address and
-waiting for a readiness line on stdout. Its callers include
-`crates/dokime-cli/src/commands/dev.rs:98` and the runtime/desktop host stories.
-`sdk/rust/src/plugin/mod.rs:423` selects standalone remote serving without that
-managed variable, and `:447` intentionally emits no readiness line for that mode.
-SDK plugin entrypoints call this run path. Quiet standalone output is an agreed
-contract; the two startup contracts therefore conflict.
+Every starter calls its SDK's single blocking entry. Launch credentials take
+precedence over pairing and dotenv parsing, and the SDK delegates announcement
+to the library. Otherwise a configured remote selects self-registration and an
+absent remote selects standalone serving. Programmatic registration owns its listener; no listener environment variable
+or output parser participates in startup.
 
-This is REWORK. The capture story reaches this conflict before any capture
-assertion, so compilation and capture-path unit proof do not close capture
-acceptance. The owner must choose one canonical private readiness hand-off for
-owned remote launches, then retire the remote stdout-wait path. Restoring general
-standalone announcements, changing the listener mode just to satisfy the story,
-inventing test-only ports/protocols or changing readiness deadlines is not a fix.
-The capture proof remains open until that contract is supplied and the one story
-passes through it.
+A remote registry entry does not own the process serving it. At the pinned
+library revision `18e9b41cb0dd00e27020ee3120e5c973d82eec22`,
+`crates/harmos-runtime/src/plugin/grpc/mod.rs:923` turns host shutdown into Stop,
+and `:938` sends Instance.Stop before inspecting its optional spawned process at
+`:954`. Initialization failure at `:674` and reconnect failure at `:1078` also
+send Stop. The library must gate every such call on its existing spawned-process
+ownership, including entry removal and host shutdown. Rust and C# default launch listeners
+currently exit on that call. Registration across a host restart remains required:
+its Ready wait observes Offline after the first host has stopped the external
+fixture. This is a lifecycle defect, not a retired readiness test, and its guard
+must remain unchanged.
+
+The Python library's `sdk/python/src/harmos/_authoring.py:426` answers Stop without
+closing its endpoint, including when that endpoint was started through managed
+run. The library must keep addressable listeners independent while allowing its
+managed run entry to finish on Stop. The product delegates announcement and does
+not duplicate either transport policy.
+Product launch reservations remain token-and-endpoint authentication only; no
+second product lifecycle marker is introduced.
+
+The launch source inventory comprises the four SDK entry implementations and
+starters, SDK listener configuration and readiness fixtures, the product launcher
+and registration stories, generated bindings after merging dev, and desktop
+plugin-table integration. Required proof stays open until performed.

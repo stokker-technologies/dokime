@@ -7,7 +7,7 @@
  * ***
  */
 
-/* The installed plugin bundles, one aligned row each.
+/* The plugin entries, managed bundles and unmanaged registered plugins, one aligned row each.
  *
  * Name, source, enabled, settings, actions: the same columns the host and launch
  * programs use, so the whole page is one list. The bundle's identity digest
@@ -102,6 +102,8 @@ export function PluginList({
         : undefined,
       key: entry.name,
       name,
+      placement: entryPlacement(entry),
+      status: status.label,
       onOpenSettings: configurable ? () => onOpenSettings(entry) : undefined,
       source: entrySource(entry),
       trailing: (
@@ -141,27 +143,34 @@ export function PluginList({
  * is doing now, and a refused change names what keeps running.
  */
 export function statusPresentation(entry: ManagedPlugin): StatusPresentation {
-  if (entry.failure) return { label: "Unavailable", reason: entry.failure.message, variant: "destructive" };
+  if (entry.failure) return { label: "Failed", reason: entry.failure.message, variant: "destructive" };
   if (!entry.value?.enabled) return { label: "Disabled", reason: null, variant: "outline" };
   switch (entry.state) {
     case PluginState.READY:
-      return { label: "Active", reason: null, variant: "success" };
+      return { label: "Ready", reason: null, variant: "success" };
     case PluginState.CONNECTING:
-      return { label: "Connecting…", reason: null, variant: "outline" };
+      return { label: "Starting", reason: null, variant: "outline" };
+    case PluginState.OFFLINE:
+      return { label: "Offline", reason: null, variant: "warning" };
     case PluginState.STOPPING:
-      return { label: "Stopping…", reason: null, variant: "outline" };
+      return { label: "Stopping", reason: null, variant: "outline" };
     case PluginState.STOPPED:
       return { label: "Stopped", reason: null, variant: "outline" };
     default:
-      return { label: "Unavailable", reason: null, variant: "warning" };
+      return { label: "Failed", reason: null, variant: "destructive" };
   }
+}
+
+/** Managed entries are started by the host; unmanaged ones by their author. */
+export function entryPlacement(entry: ManagedPlugin): "Managed" | "Unmanaged" {
+  return entry.placement?.kind.case === "remote" ? "Unmanaged" : "Managed";
 }
 
 /* === Private Functions === */
 
 function entrySource(entry: ManagedPlugin): string {
   const placement = entry.placement?.kind;
-  const source = placement?.case === "remote" ? placement.value.url : placement?.case === "managed" ? "Managed Bundle" : "Host Guest";
+  const source = placement?.case === "remote" ? placement.value.url : placement?.case === "managed" ? "Bundle" : "Host Guest";
   const version = entry.description?.version;
   return version ? `${source} · v${version}` : source;
 }

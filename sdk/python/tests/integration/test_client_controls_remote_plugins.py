@@ -14,6 +14,7 @@
 import asyncio
 import unittest
 from collections.abc import AsyncIterator
+from importlib.metadata import version
 
 # Third Party Imports
 from grpc import StatusCode
@@ -41,10 +42,10 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.entries: dict[str, plugins_pb2.PluginEntry] = {}
         self.trace: list[str] = []
+        self.requests: list[plugins_pb2.PluginsCreateRequest] = []
         self.observing = asyncio.Event()
         self.ready = asyncio.Event()
         self.fail_ready = False
-        self.refuse_delete: set[str] = set()
         owner = self
 
         class Plugins(PluginsServicer):
@@ -52,6 +53,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
                 self, request: plugins_pb2.PluginsCreateRequest, context: ServicerContext
             ) -> plugins_pb2.PluginsCreateResponse:
                 owner.trace.append("Create")
+                owner.requests.append(request)
                 owner.entries[request.name] = plugins_pb2.PluginEntry(
                     name=request.name,
                     placement=request.placement,
@@ -95,8 +97,6 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
                 self, request: plugins_pb2.PluginsDeleteRequest, context: ServicerContext
             ) -> plugins_pb2.PluginsDeleteResponse:
                 owner.trace.append("Delete")
-                if request.name in owner.refuse_delete:
-                    await context.abort(StatusCode.FAILED_PRECONDITION, "Running Execution Refuses Detach")
                 if request.expected_revision != owner.entries[request.name].revision:
                     await context.abort(StatusCode.ABORTED, "Revision Changed")
                 del owner.entries[request.name]
@@ -111,7 +111,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.client = await connect(self.endpoint)
         self.addAsyncCleanup(self.client.close)
 
-    async def test_register_waits_for_ready_then_close_unregisters_only_owned_entries(self) -> None:
+    async def test_register_waits_for_ready_then_close_keeps_the_entry(self) -> None:
         self.assertFalse(hasattr(self.client.plugins, "upload"))
         self.assertFalse(hasattr(self.client.plugins, "install"))
 
@@ -127,14 +127,15 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         registered = await registration
         self.assertEqual(plugin.identifier, registered.identifier)
         self.assertEqual((registered.identifier, registered.version, registered.state), ("example", "1.0.0", "Ready"))
+        self.assertEqual([(request.name, request.sdk_version) for request in self.requests], [("example", version("dokime-sdk"))])
         self.entries["other"] = plugins_pb2.PluginEntry(name="other", revision=b"other", state="PLUGIN_STATE_READY")
         await self.client.plugins.get("other")
         await registered.refresh()
         self.trace.clear()
         await self.client.close()
         await self.client.close()
-        self.assertEqual(self.trace, ["Get", "Delete"])
-        self.assertEqual(list(self.entries), ["other"])
+        self.assertEqual(self.trace, [])
+        self.assertEqual(sorted(self.entries), ["example", "other"])
         self.assertIsNone(registered._endpoint)
 
     async def test_lookup_of_an_owned_entry_preserves_its_sidecar_lifetime(self) -> None:
@@ -163,37 +164,8 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         await self.client.close()
         with self.assertRaises(asyncio.CancelledError):
             await registration
-        self.assertEqual(self.entries, {})
+        self.assertEqual(list(self.entries), ["pending"])
         self.assertEqual(self.client.plugins._owned, {})
-
-    async def test_close_reports_refusal_attempts_every_entry_and_closes_the_channel_last(self) -> None:
-        class RunningPlugin(Plugin):
-            identifier = "running"
-            version = "1.0.0"
-
-        class IdlePlugin(Plugin):
-            identifier = "idle"
-            version = "1.0.0"
-
-        client = await connect(self.endpoint)
-        self.addAsyncCleanup(client._transport.close)
-        self.ready.set()
-        running = await client.plugins.register(RunningPlugin(), address="127.0.0.1:0")
-        assert running._endpoint is not None
-        self.addAsyncCleanup(running._endpoint.stop)
-        await client.plugins.register(IdlePlugin(), address="127.0.0.1:0")
-        self.refuse_delete.add("running")
-        self.trace.clear()
-        with self.assertRaises(SdkError) as failed:
-            await client.close()
-        self.assertEqual(self.trace, ["Get", "Delete", "Get", "Delete"])
-        self.assertEqual(list(self.entries), ["running"])
-        self.assertIsNotNone(running._endpoint)
-        assert running._endpoint is not None
-        await running._endpoint.stop()
-        with self.assertRaises(SdkError) as repeated:
-            await client.close()
-        self.assertIs(failed.exception, repeated.exception)
 
     async def test_reported_readiness_failure_keeps_causes_and_unwinds(self) -> None:
         class FailingPlugin(Plugin):
@@ -209,10 +181,10 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(cause)
         assert cause is not None
         self.assertEqual(cause.details, {"port": "1"})
-        self.assertEqual(self.entries, {})
-        self.assertEqual(self.trace[-2:], ["Get", "Delete"])
+        self.assertEqual(list(self.entries), ["failing"])
+        self.assertNotIn("Delete", self.trace)
 
-    async def test_cancelling_registration_releases_its_sidecar_and_entry(self) -> None:
+    async def test_cancelling_registration_releases_its_sidecar_and_keeps_the_entry(self) -> None:
         class WaitingPlugin(Plugin):
             identifier = "waiting"
             version = "1.0.0"
@@ -222,7 +194,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         registration.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await registration
-        self.assertEqual(self.entries, {})
+        self.assertEqual(list(self.entries), ["waiting"])
         self.assertEqual(self.client.plugins._owned, {})
 
 

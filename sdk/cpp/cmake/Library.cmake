@@ -151,3 +151,5 @@ add_library(Dokime::Client ALIAS dokime_client)
 set_target_properties(dokime_client PROPERTIES EXPORT_NAME Client)
 target_link_libraries(dokime_client PUBLIC dokime_plugin dokime_client_protocol PRIVATE OpenSSL::Crypto)
 target_compile_options(dokime_client PRIVATE ${DOKIME_CXX_WARNINGS})
+
+target_compile_definitions(dokime_client PRIVATE DOKIME_SDK_VERSION="${DokimeCpp_VERSION}")

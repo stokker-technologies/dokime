@@ -12,7 +12,7 @@ A connected client SHALL be able to call every operation the backend serves to c
 ### Requirement: Environment Configuration
 
 The SDK SHALL read `DOKIME_REMOTE` (an `http://host:port` origin or a `.pair` file)
-and `DOKIME_PLUGIN_ADDRESS` (default `127.0.0.1:0`). It SHALL load `.env` from the
+and SHALL bind plugin listeners to `127.0.0.1:0` unless a programmatic call supplies an address. It SHALL load `.env` from the
 working directory itself. Configuration precedence SHALL be keyword argument,
 process environment, `.env`, default. `.env` SHALL contain addresses only;
 secrets SHALL remain in Secret Storage.

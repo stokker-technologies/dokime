@@ -9524,6 +9524,8 @@ pub struct PluginsCreateRequest {
     pub value: ::core::option::Option<PluginValue>,
     #[prost(string, optional, tag = "5")]
     pub origin: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "6")]
+    pub sdk_version: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -9728,6 +9730,7 @@ pub enum PluginState {
     Unavailable = 3,
     Stopped = 4,
     Stopping = 5,
+    Offline = 6,
 }
 impl PluginState {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -9742,6 +9745,7 @@ impl PluginState {
             Self::Unavailable => "PLUGIN_STATE_UNAVAILABLE",
             Self::Stopped => "PLUGIN_STATE_STOPPED",
             Self::Stopping => "PLUGIN_STATE_STOPPING",
+            Self::Offline => "PLUGIN_STATE_OFFLINE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -9753,6 +9757,7 @@ impl PluginState {
             "PLUGIN_STATE_UNAVAILABLE" => Some(Self::Unavailable),
             "PLUGIN_STATE_STOPPED" => Some(Self::Stopped),
             "PLUGIN_STATE_STOPPING" => Some(Self::Stopping),
+            "PLUGIN_STATE_OFFLINE" => Some(Self::Offline),
             _ => None,
         }
     }

@@ -39,7 +39,8 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
-from ._configuration import load, resolve
+from ._configuration import load
+from ._connection import connect
 from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations
@@ -73,26 +74,6 @@ class _Session:
     instance: object
     case: Materialization
     origin: bytes
-
-
-class _Endpoint:
-    def __init__(self, endpoint: harmos.plugin.Endpoint, managed: bool) -> None:
-        self._endpoint = endpoint
-        self.address = endpoint.address
-        self.managed = managed
-
-    async def stop(self) -> None:
-        await self._endpoint.stop()
-
-    async def wait(self) -> None:
-        termination = asyncio.create_task(self._endpoint.server.wait_for_termination())
-        try:
-            await asyncio.shield(termination)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await self.stop()
-            await termination
 
 
 class Plugin:
@@ -212,21 +193,42 @@ class Plugin:
     async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
         pass
 
-    async def start(self, address: str | None = None) -> _Endpoint:
-        managed = "HARMOS_ADDRESS" in os.environ
-        if managed:
-            address = resolve("HARMOS_ADDRESS", None, {})
-        endpoint = _Endpoint(await self._activate(address), managed)
-        if managed:
-            print(f"harmos listening {endpoint.address}", flush=True)
-        return endpoint
-
-    async def serve(self, address: str | None = None) -> None:
-        endpoint = await self.start(address)
-        await endpoint.wait()
+    async def serve(self) -> None:
+        """Run From Launch Credentials, Pairing Configuration or Standalone Defaults."""
+        launched = "HARMOS_HOST_ENDPOINT" in os.environ or "HARMOS_LAUNCH_TOKEN" in os.environ
+        if launched:
+            try:
+                await self._plugin.run()
+            except asyncio.CancelledError:
+                pass
+            return
+        values = load()
+        remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
+        client = await connect(remote) if remote else None
+        endpoint: harmos.plugin.Endpoint | None = None
+        termination: asyncio.Task[bool] | None = None
+        try:
+            if client is None:
+                endpoint = await self._activate()
+            else:
+                registered = await client.plugins.register(self)
+                endpoint = cast(harmos.plugin.Endpoint, registered._endpoint)
+            termination = asyncio.create_task(endpoint.server.wait_for_termination())
+            await asyncio.shield(termination)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if client is not None:
+                await client.close()
+            elif endpoint is not None:
+                await endpoint.stop()
+            if termination is not None:
+                await termination
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
-        return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
+        if address == "":
+            raise ValueError("Start Plugin: Supply a Nonempty Listener Address")
+        return await self._plugin.start("127.0.0.1:0" if address is None else address)
 
     def _materialize(self, template: _Template) -> Callable[..., Awaitable[Message]]:
         async def execute(adapter: object, transport: harmos.plugin.Context, request: TestCasesMaterializeRequest) -> Message:

@@ -16,6 +16,7 @@ pub use dokime_runtime::process;
 mod authoring;
 
 mod data;
+mod registration;
 mod resource_release;
 mod resources;
 mod testing;

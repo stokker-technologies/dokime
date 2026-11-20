@@ -2820,7 +2820,7 @@ internal sealed class PluginsResource
       yield return response;
     }
   }
-  public async Task<global::Dokime.Clients.PluginsCreateResponse> Create(string name, global::Dokime.Clients.PluginPlacement placement, global::Dokime.Clients.PluginValue value, string? requestId = null, string? origin = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PluginsCreateResponse> Create(string name, global::Dokime.Clients.PluginPlacement placement, global::Dokime.Clients.PluginValue value, string? requestId = null, string? origin = null, string? sdkVersion = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.PluginsCreateRequest
     {
@@ -2832,6 +2832,10 @@ internal sealed class PluginsResource
     if (origin is not null)
     {
       request.Origin = origin;
+    }
+    if (sdkVersion is not null)
+    {
+      request.SdkVersion = sdkVersion;
     }
     var method = new Method<global::Dokime.Clients.PluginsCreateRequest, global::Dokime.Clients.PluginsCreateResponse>(MethodType.Unary, "dokime.host.v1.Plugins", "Create",
         Marshallers.Create<global::Dokime.Clients.PluginsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsCreateRequest.Parser.ParseFrom(bytes)),

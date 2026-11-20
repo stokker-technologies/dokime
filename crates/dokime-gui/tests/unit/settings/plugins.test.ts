@@ -31,7 +31,8 @@ import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/
 import { PluginSettingsSurface } from "@/features/settings/PluginSettingsSurface";
 import { PluginList, statusPresentation } from "@/features/settings/plugins/PluginList";
 import type { PluginTableRow } from "@/features/settings/plugins/PluginTable";
-import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
+import { bundleSettingsPage, programRows } from "@/features/settings/plugins/PluginPrograms";
+import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
@@ -223,6 +224,36 @@ test("Entry States Follow Current Activation and Enablement", () => {
   assert.equal(statusPresentation({ ...entry, failure: undefined, value: { enabled: false } }).variant, "outline");
   assert.equal(startNotification({ ...entry, failure: undefined }), null);
   assert.notEqual(startNotification(entry), null);
+});
+
+test("Unmanaged Offline Entry Lists Once With Its Placement and Status", () => {
+  const managed = create(PluginEntrySchema, { ...entry, name: "equipment" });
+  const registered: ManagedPlugin = create(PluginEntrySchema, {
+    name: "bench",
+    state: PluginState.OFFLINE,
+    value: { enabled: true },
+    placement: { kind: { case: "remote", value: { url: "http://127.0.0.1:1" } } },
+  });
+  renderToStaticMarkup(
+    createElement(PluginList, {
+      entries: [managed, registered],
+      onRemove: vi.fn(),
+      onOpenSettings: vi.fn(),
+      removingId: null,
+      onSetEnabled: vi.fn(),
+      changingEnabled: false,
+      settingsSectionOf: () => null,
+    }),
+  );
+  assert.deepEqual(
+    fixture.rows.map((row) => [row.key, row.placement, row.status]),
+    [
+      ["equipment", "Managed", "Failed"],
+      ["bench", "Unmanaged", "Offline"],
+    ],
+  );
+  const program = { plugin_id: "bench", owner: { kind: "remote", url: "http://127.0.0.1:1" } } as RuntimeInstalledPluginRecord;
+  assert.deepEqual(programRows([program], [registered], null), []);
 });
 
 test("Failed Entry Actions Address Its Persisted Name", () => {
