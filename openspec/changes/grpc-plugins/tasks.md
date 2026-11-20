@@ -261,7 +261,7 @@
 - [ ] Reuse a Registered Plugin's Entry by Its Identifier on Re-Registration, Preserving Replay, Conflict Refusal and Saved Settings When Its Address Changes; Blocked by the Library's Managed-Only Replace.
 - [x] Retain an Offline Plugin's Last Reported Suites, Marked Unavailable, and Refuse Planning Them With an Action.
 - [ ] Retain Offline Operation Contributions and Present Suite Availability in the Desktop Catalog; Operation Retention Needs the Library Catalog Owner, and the Desktop Catalog Is Outside This Worker's Files.
-- [x] Refuse a Remote Registration Built Against an Incompatible Product SDK Version, Naming Both Versions.
+- [ ] Refuse Every Incompatible Remote Registration, Naming Both Versions; Supplied Versions Are Checked, but URL-Only CLI Registration Has No Product SDK Version Metadata and All SDK Callers Must Supply Their Built Version.
 - [x] Show Placement and Status in the Desktop Plugin List and `dokime plugin list`, Filterable in the Desktop.
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
 - [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
