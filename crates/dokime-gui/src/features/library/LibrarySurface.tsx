@@ -140,7 +140,6 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
 
-      {suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
       <Input
         aria-label="Filter Templates"
         placeholder="Filter Templates"
@@ -158,7 +157,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                 aria-label={suite.name}
                 columns={columns}
                 data={members.map((template) => ({ suite, template }))}
-                description={suite.description || undefined}
+                title={suite.name}
+                description={suite.description || "Templates available in this suite."}
                 emptyText="No Templates Match"
                 getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
                 onRowClick={setOpenTemplate}
@@ -167,9 +167,16 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           </details>
         ))}
         {!suiteRows.length ? (
-          <p className="text-sm text-muted-foreground">
-            {suitesQuery.isPending ? "Loading Suites…" : suitesQuery.isError ? "Suites Unavailable" : "No Templates Match"}
-          </p>
+          <DataTable
+            title="Templates"
+            description="Templates available in the connected host's suites."
+            columns={columns}
+            data={[]}
+            getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
+            emptyText="No Templates Match"
+            loading={suitesQuery.isPending}
+            failure={suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
+          />
         ) : null}
       </section>
 

@@ -164,6 +164,31 @@ test("Loading and Failure Take the Body Slot While Rows Read Keep Their Place", 
   assert.equal((footer.match(/<button[^>]*disabled=""/g) ?? []).length, 2);
 });
 
+test("Only Declared Filters Are Offered and Actions Stay Last", () => {
+  const helper = dataTableColumns<{ id: string; count: number }>();
+  const html = renderToStaticMarkup(
+    createElement(DataTable<{ id: string; count: number }>, {
+      columns: helper.columns([
+        helper.display({
+          id: "actions",
+          header: "fixture-actions",
+          cell: () => createElement("button", { type: "button", "data-fixture": "action" }),
+        }),
+        helper.accessor("count", { header: "fixture-count", meta: { align: "end" } }),
+        helper.accessor("id", { header: "fixture-id", meta: { filter: "text" } }),
+      ]),
+      data: [{ id: "row", count: 1200 }],
+      getRowId: (row) => row.id,
+      emptyText: "fixture-empty",
+    }),
+  );
+  const headings = html.match(/<thead[\s\S]*?<\/thead>/)?.[0] ?? "";
+  assert.ok(headings.indexOf("fixture-count") < headings.indexOf("fixture-id"));
+  assert.ok(headings.indexOf("fixture-id") < headings.indexOf("fixture-actions"));
+  assert.equal((headings.match(/aria-haspopup="dialog"/g) ?? []).length, 1);
+  assert.match(html, /text-right[^>]*>1200<\/td>/);
+});
+
 test("Row Actions Are Named Icon Buttons with a Menu Only for the Rest", () => {
   const action = vi.fn();
   const primary = { label: "fixture-open", icon: Eye, onSelect: action };

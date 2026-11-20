@@ -117,8 +117,6 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
   return (
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
-        {query.isPending ? <p>Loading Executions…</p> : null}
-        {query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
           <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
         ) : null}
@@ -138,6 +136,10 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         ) : null}
         <DataTable
           aria-label="History Executions"
+          title="Executions"
+          description="Executions retained in this history entry."
+          loading={query.isPending}
+          failure={query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
           data={entry?.executions ?? []}
           getRowId={(execution) => execution.metadata.execution_id}
           emptyText="No Executions in the Loaded History"

@@ -88,7 +88,8 @@ export function DataTable<TData extends RowData>({
   const [inspectedId, setInspectedId] = useState<string | null>(null);
   // Resolve Columns
   const resolvedColumns = useMemo(() => {
-    const filtered = columns.map((column) => {
+    const ordered = [...columns.filter((column) => column.id !== "actions"), ...columns.filter((column) => column.id === "actions")];
+    const filtered = ordered.map((column) => {
       const id = column.id ?? ("accessorKey" in column ? String(column.accessorKey) : "");
       const inferredWidth = /^(status|state|outcome)$/.test(id)
         ? "w-36"
@@ -106,7 +107,7 @@ export function DataTable<TData extends RowData>({
       const filter = column.meta?.filter;
       if (filter === "facet") return { ...column, filterFn: facetFilter };
       if (filter === "text") return { ...column, filterFn: "includesString" };
-      return { ...column, filterFn: "includesString", meta: { ...column.meta, filter: "text" } };
+      return column;
     }) as DataTableColumns<TData>;
     const helper = dataTableColumns<TData>();
     if (!filtered.some((column) => column.id === "actions"))
@@ -264,6 +265,7 @@ export function DataTable<TData extends RowData>({
                         "pt-0 pb-px",
                         EDGE_CELL,
                         meta?.align === "end" && "text-right",
+                        meta?.align === "end" && "tabular-nums",
                         meta?.align === "center" && "text-center",
                         cell.column.id !== "select" && "overflow-hidden",
                       )}

@@ -10,7 +10,7 @@
 /* === External Imports === */
 
 import { ArrowRight, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
@@ -69,6 +69,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
 /* === Types === */
 
 type HistoryLibraryProps = {
+  failure?: ReactNode;
   /** The Archived view: archived rows only, each with Unarchive. */
   archived: boolean;
   cycles: ExploreEntry[];
@@ -89,6 +90,7 @@ type HistoryLibraryProps = {
 export function HistoryLibrary({
   archived,
   cycles,
+  failure,
   loading,
   onCompare,
   onToggleArchived,
@@ -162,6 +164,8 @@ export function HistoryLibrary({
 
   return (
     <DataTable
+      title={archived ? "Archived History" : "History"}
+      description="Browse saved entries or select entries to compare."
       actions={
         <>
           {compare}
@@ -170,6 +174,7 @@ export function HistoryLibrary({
       }
       columns={columns}
       data={cycles}
+      failure={failure}
       emptyText={archived ? "No Archived History" : "No History Matches"}
       getRowId={entryKey}
       loading={loading}

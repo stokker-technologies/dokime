@@ -2703,3 +2703,45 @@ The root README and SDK package READMEs describe the product imports, bound
 connection/client flow, protected lifecycle operations and single starter roots.
 The documentation changes above remain with the owner; workers do not edit
 `docs/` or unrelated prose.
+
+## Desktop Tables and Native Settings
+
+Every desktop table uses `src/components/data-table/DataTable.tsx` under
+`crates/dokime-gui/`. It owns the frame, title and one-line description,
+right-aligned filter/action band, column controls, fixed-height empty/loading
+row, full-width failure slot and always-visible pagination footer. Controls
+follow filter, primary action, secondary actions and overflow order. Only
+declared column filters appear; numbers use ungrouped decimal text, numeric
+columns align right, units use square brackets and Actions is last on the right.
+Keyboard order follows the markup: filter/actions, headers, rows, footer.
+Callers keep their existing failure renderer and supply it to the shared slot.
+
+The inventory contains 13 table presentations (paths below are relative to
+`crates/dokime-gui/src/`). Apart from the grid plot, all already used DataTable;
+differences came from caller wrappers and header/state placement. Their shared
+density, sort controls, empty state and footer remain component-owned.
+
+| Table | Source | Presentation Decision |
+| --- | --- | --- |
+| Cycles | `features/cycles-home/CyclesHome.tsx:179` | Keep each group title inside its frame; put the existing failure in the first group's body. |
+| History | `features/explore/HistoryLibrary.tsx:166` | Add the missing title/description; retain the server-owned row filter and selection. |
+| History Executions | `features/explore/HistoryDetailSurface.tsx:137` | Add title/description and move loading/failure from the surrounding page into the body. |
+| History Comparison | `features/explore/HistoryComparisonView.tsx:81` | Keep the explanation in the description and add the missing title. |
+| Storage Sources | `features/settings/StorageSourcesCard.tsx:156` | Remove the SettingsCard wrapper and external explanations; right-align numeric priority. |
+| Shared Secrets | `features/settings/sections/SecretsSection.tsx:175` | Move the explanation into the description and keep Add, Refresh and transfer overflow after the filter. |
+| Plugins | `features/settings/plugins/PluginTable.tsx:133` | Add title/description and shared loading/failure slots; the disabled update action explains the missing host target through its tooltip and accessible description. |
+| Saved Backends | `features/settings/BackendsTable.tsx:135` | Remove the separate card and external loading/failure band; keep pairing import in the action band. |
+| Suite Templates | `features/library/LibrarySurface.tsx:156` | Name each table in its frame; the empty/loading/failure case also renders through DataTable. |
+| Document Values | `components/document/DocumentSurfaceView.tsx:255` | Add title/description; infer numeric alignment from recorded values. |
+| Metric Statistics | `components/StatsSummaryTable.tsx:153` | Add title/description; preserve exact right-aligned values and each metric's unit-bearing label. |
+| Trace Statistics | `components/StatsSummaryTable.tsx:168` | Add title/description; retain row activation for trace visibility and exact right-aligned values. |
+| Grid Plot | `plots/catalog/GridChartPlot.tsx:103` | Replace raw Table markup with DataTable while preserving validity, cell colors, highlights and independent playback; put units in numeric column headers. |
+
+Native desktop stream settings, remembered parameter values and update selection
+use one `settings.json` and `src-tauri/src/settings.rs` reader/writer. Missing keys
+use defaults; unknown keys are ignored. Retired files and browser parameter values
+are not migrated or deleted. Engine / Streams exposes only `interval_window_ms`
+and `interval_lag_windows`. The capture-folder allow-list and its refusal stories
+are removed; canonical-path validation, capture sizes and deadlines remain.
+Host-owned preferences, pairing credentials and installed distribution metadata
+retain their existing owners; they are not copies of native desktop settings.

@@ -251,7 +251,16 @@ export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] })
       meta: { align: numeric ? "end" : undefined, filter: "text" },
     });
   });
-  return <DataTable columns={columns} data={rows} getRowId={(row) => row.row_id} emptyText="No Table Rows Recorded" />;
+  return (
+    <DataTable
+      title="Recorded Values"
+      description="Rows retained in this document table."
+      columns={columns}
+      data={rows}
+      getRowId={(row) => row.row_id}
+      emptyText="No Table Rows Recorded"
+    />
+  );
 }
 
 export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {

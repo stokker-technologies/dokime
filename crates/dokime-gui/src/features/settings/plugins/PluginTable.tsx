@@ -133,6 +133,8 @@ export function PluginTable({
     <DataTable
       actions={actions}
       aria-label={label}
+      title={label}
+      description="Installed plugins and their current activation state."
       columns={COLUMNS}
       data={rows}
       emptyText="No Plugins"

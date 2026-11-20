@@ -79,6 +79,7 @@ export function HistoryComparisonView({ cycles }: HistoryComparisonViewProps) {
       ) : (
         <div className="min-w-0">
           <DataTable
+            title="Comparison"
             columns={columns}
             data={COMPARISON_ROWS}
             description="Comparison covers the summary metrics above."

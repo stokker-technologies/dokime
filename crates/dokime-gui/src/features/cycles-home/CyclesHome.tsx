@@ -116,9 +116,7 @@ export function CyclesHome() {
 
   return (
     <PageShell actions={actions} onPointerCancel={release} onPointerDown={freeze} onPointerUp={release} trail={["Cycles"]}>
-      {cycles.isError ? <ErrorCard failure={failureOf(cycles.error, "Cycles Unavailable")} onRetry={() => void cycles.refetch()} /> : null}
-
-      {groups.map((group) => (
+      {groups.map((group, index) => (
         <CycleGroupSection
           group={group}
           search={{ label: "Filter Cycles", value: filter, onChange: setFilter }}
@@ -129,6 +127,11 @@ export function CyclesHome() {
           }
           key={group.id}
           loading={cycles.isPending}
+          failure={
+            index === 0 && cycles.isError ? (
+              <ErrorCard failure={failureOf(cycles.error, "Cycles Unavailable")} onRetry={() => void cycles.refetch()} />
+            ) : null
+          }
           onOpen={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
           onUnarchive={
             showArchived
@@ -155,6 +158,7 @@ function CycleGroupSection({
   group,
   search,
   actions,
+  failure,
   loading,
   onOpen,
   onUnarchive,
@@ -162,6 +166,7 @@ function CycleGroupSection({
   group: CycleGroup;
   search: DataTableSearch;
   actions: ReactNode;
+  failure?: ReactNode;
   loading: boolean;
   onOpen: (cycleId: string) => void;
   /** Present in the Archived view: each row offers Unarchive. */
@@ -176,6 +181,8 @@ function CycleGroupSection({
         actions={actions}
         columns={columns}
         data={group.rows}
+        failure={failure}
+        description="Open a cycle to inspect its cases and executions."
         emptyText={group.emptyText}
         getRowId={rowId}
         loading={loading}

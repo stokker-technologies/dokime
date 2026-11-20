@@ -134,6 +134,8 @@ export function BackendsTable({
     <>
       <DataTable
         aria-label="Saved Backends"
+        title="Saved Backends"
+        description="Import a pairing file or connect to a saved host."
         className="w-full text-left"
         data={document?.profiles ?? []}
         getRowId={(profile) => profile.identifier}
