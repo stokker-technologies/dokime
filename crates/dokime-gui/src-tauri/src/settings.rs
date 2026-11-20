@@ -7,7 +7,7 @@
  * ***
  */
 
-// Desktop Settings: Everything This Desktop Remembers, in One File Under Its Application Root
+// Native Desktop Settings: Stream Placement, Remembered Parameters and Update Selection
 
 /* === Modules === */
 
@@ -18,14 +18,16 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    io::Read,
+    fs::File,
+    io::{self, Read},
     num::NonZeroU32,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, PoisonError},
     time::Duration,
 };
 
 // Third Party Imports
+use harmos_runtime::filesystem::publication;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -132,13 +134,13 @@ impl Store {
     }
 
     /// Reads the file, applies the change and publishes the result; a file that cannot be read is left as it is.
-    pub fn update<T>(&self, change: impl FnOnce(&mut DesktopSettings) -> std::io::Result<T>) -> std::io::Result<T> {
-        let _serial = self.serial.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    pub fn update<T>(&self, change: impl FnOnce(&mut DesktopSettings) -> io::Result<T>) -> io::Result<T> {
+        let _serial = self.serial.lock().unwrap_or_else(PoisonError::into_inner);
         let mut settings = load(&self.path)?;
         let result = change(&mut settings)?;
         validate(&settings)?;
-        let bytes = serde_json::to_vec(&settings).map_err(std::io::Error::other)?;
-        harmos_runtime::filesystem::publication::write(&self.path, &bytes)?;
+        let bytes = serde_json::to_vec(&settings).map_err(io::Error::other)?;
+        publication::write(&self.path, &bytes)?;
         Ok(result)
     }
 }
@@ -151,10 +153,10 @@ pub fn path(root: &Path) -> PathBuf {
 }
 
 /// The saved settings; an absent file is the defaults.
-pub fn load(path: &Path) -> std::io::Result<DesktopSettings> {
-    let file = match std::fs::File::open(path) {
+pub fn load(path: &Path) -> io::Result<DesktopSettings> {
+    let file = match File::open(path) {
         Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(DesktopSettings::default()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(DesktopSettings::default()),
         Err(error) => return Err(error),
     };
     let mut bytes = Vec::new();
@@ -178,7 +180,7 @@ pub fn resolve(path: &Path) -> DesktopSettings {
 
 /* === Private Functions === */
 
-fn validate(settings: &DesktopSettings) -> std::io::Result<()> {
+fn validate(settings: &DesktopSettings) -> io::Result<()> {
     if !(1..=MAX_WINDOW_MS).contains(&settings.interval_window_ms) {
         return Err(invalid(format!("Save Interval Settings: Enter an Interval Window from 1 to {MAX_WINDOW_MS} ms")));
     }
@@ -186,14 +188,14 @@ fn validate(settings: &DesktopSettings) -> std::io::Result<()> {
         validate_parameters(values)?;
     }
     if let Some(updates) = &settings.updates
-        && serde_json::to_vec(updates).map_err(std::io::Error::other)?.len() > MAX_UPDATE_BYTES
+        && serde_json::to_vec(updates).map_err(io::Error::other)?.len() > MAX_UPDATE_BYTES
     {
         return Err(invalid("Save Update Selection: Keep It Within Its Byte Budget".into()));
     }
     Ok(())
 }
 
-fn validate_parameters(values: &Values) -> std::io::Result<()> {
+fn validate_parameters(values: &Values) -> io::Result<()> {
     let valid_id = |id: &str| !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control);
     let count = values.values().map(BTreeMap::len).sum::<usize>();
     if values.len() > 4096
@@ -210,21 +212,24 @@ fn validate_parameters(values: &Values) -> std::io::Result<()> {
     {
         return Err(invalid("Save Remembered Parameters: Correct the Invalid Values".into()));
     }
-    if serde_json::to_vec(values).map_err(std::io::Error::other)?.len() > MAX_PARAMETER_BYTES {
+    if serde_json::to_vec(values).map_err(io::Error::other)?.len() > MAX_PARAMETER_BYTES {
         return Err(invalid("Save Remembered Parameters: Keep Them Under 1 MiB".into()));
     }
     Ok(())
 }
 
-fn invalid(message: String) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::InvalidInput, message)
+fn invalid(message: String) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 
 /* === Tests === */
 
 #[cfg(test)]
 mod tests {
-    use super::{DesktopSettings, Store, load, path};
+    use super::{DesktopSettings, Store, UpdateSelection, Value, load, path};
+    use crate::app::updates::policy::Mode;
+    use std::collections::BTreeMap;
+    use std::fs;
     use std::num::NonZeroU32;
 
     #[test]
@@ -250,11 +255,47 @@ mod tests {
                 .is_err()
         );
         assert_eq!(load(store.path()).unwrap(), edited);
-        std::fs::write(store.path(), br#"{"interval_window_ms":250,"capture_folders":["D:/device"]}"#).unwrap();
+        fs::write(store.path(), br#"{"interval_window_ms":250,"capture_folders":["D:/device"]}"#).unwrap();
         assert_eq!(load(store.path()).unwrap().interval_lag_windows, DesktopSettings::default().interval_lag_windows);
-        std::fs::write(store.path(), br#"{"interval_lag_windows":0}"#).unwrap();
+        fs::write(store.path(), br#"{"interval_lag_windows":0}"#).unwrap();
         assert!(load(store.path()).is_err());
         assert!(store.update(|_| Ok(())).is_err());
-        assert_eq!(std::fs::read(store.path()).unwrap(), br#"{"interval_lag_windows":0}"#);
+        assert_eq!(fs::read(store.path()).unwrap(), br#"{"interval_lag_windows":0}"#);
+    }
+
+    #[test]
+    fn section_updates_preserve_the_other_saved_settings() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::new(path(root.path()));
+        let parameters = BTreeMap::from([(
+            "template".into(),
+            BTreeMap::from([(
+                "voltage".into(),
+                Value {
+                    raw: "115".into(),
+                    value_type: "int".into(),
+                    unit: Some("V".into()),
+                },
+            )]),
+        )]);
+        store
+            .update(|settings| {
+                settings.parameters = Some(parameters.clone());
+                settings.updates = Some(UpdateSelection { mode: Mode::Disabled, source: None });
+                Ok(())
+            })
+            .unwrap();
+        store
+            .update(|settings| {
+                settings.interval_window_ms = 250;
+                settings.interval_lag_windows = NonZeroU32::new(4).unwrap();
+                Ok(())
+            })
+            .unwrap();
+
+        let saved = load(store.path()).unwrap();
+        assert_eq!(saved.parameters, Some(parameters));
+        assert_eq!(saved.updates, Some(UpdateSelection { mode: Mode::Disabled, source: None }));
+        assert_eq!((saved.interval_window_ms, saved.interval_lag_windows.get()), (250, 4));
     }
 }

@@ -24,12 +24,7 @@ pub use pairing::Pairing;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    future::Future,
-    path::Path,
-    sync::Arc,
-    time::Duration,
-};
+use std::{future::Future, path::Path, sync::Arc, time::Duration};
 
 // Third Party Imports
 use prost::Message;
