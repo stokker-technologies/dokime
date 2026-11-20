@@ -21,7 +21,7 @@ mod types;
 
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
-pub use crate::stream::{Observer, Stream};
+pub use crate::stream::{Collection, Observer, Rows, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
 pub use ::harmos::plugin::Publisher;
@@ -54,7 +54,7 @@ use crate::host::Request;
 use crate::message::Wire;
 use crate::operation::{self, Operation};
 use crate::operations;
-use crate::stream::{self, Sampler};
+use crate::stream::{self, Feed, Sampler};
 use crate::template::validate_names;
 use crate::testing::Selected;
 use crate::{Declarations, Error, Lane, Message, Result};
@@ -84,6 +84,7 @@ struct Assembly {
     state: Arc<dyn Any + Send + Sync>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
+    feeds: Vec<Arc<Feed>>,
     dependencies: Vec<DependencyRegistration>,
     suites: Vec<Suite>,
     settings: Vec<SettingDeclaration>,
@@ -174,6 +175,7 @@ impl Plugin {
                 state: Arc::new(()),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
+                feeds: Vec::new(),
                 dependencies: Vec::new(),
                 suites: Vec::new(),
                 settings: Vec::new(),
@@ -268,6 +270,17 @@ impl Plugin {
         self.assembly.registrations.push(stream.registration());
         self
     }
+    /// Feed Several Streams From One Measurement per Tick, Only While One of Them Has a Listener.
+    pub fn collection(mut self, collection: Collection) -> Self {
+        match collection.into_parts() {
+            Ok((feed, registrations)) => {
+                self.assembly.feeds.push(feed);
+                self.assembly.registrations.extend(registrations);
+            }
+            Err(error) => self.assembly.errors.push(error.to_string()),
+        }
+        self
+    }
     pub fn observer(mut self, observer: Observer) -> Self {
         if observer.execution {
             self.assembly
@@ -304,6 +317,7 @@ impl Plugin {
             requirements: self.assembly.requirements,
             state: self.assembly.state,
             samplers: self.assembly.samplers,
+            feeds: self.assembly.feeds,
         })
     }
 
@@ -320,6 +334,7 @@ impl Plugin {
             state,
             requirements: _,
             samplers: _,
+            feeds: _,
             dependencies,
             suites,
             settings,
