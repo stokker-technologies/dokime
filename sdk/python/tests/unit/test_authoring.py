@@ -347,6 +347,17 @@ class PluginEndpointStory(unittest.IsolatedAsyncioTestCase):
         await endpoint.stop()
         await endpoint.wait()
 
+    async def test_empty_managed_address_names_the_managed_configuration(self) -> None:
+        environment = patch.dict(os.environ, {"HARMOS_ADDRESS": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
+        try:
+            await ExamplePlugin().start()
+        except ValueError as error:
+            self.assertIn("HARMOS_ADDRESS", str(error))
+        else:
+            self.fail("Start Plugin: Reject an Empty Managed Address")
+
 
 # === Public Functions === #
 

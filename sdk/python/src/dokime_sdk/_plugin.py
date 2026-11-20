@@ -39,6 +39,7 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._configuration import load, resolve
 from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations
@@ -214,7 +215,7 @@ class Plugin:
     async def start(self, address: str | None = None) -> _Endpoint:
         managed = "HARMOS_ADDRESS" in os.environ
         if managed:
-            address = os.environ["HARMOS_ADDRESS"]
+            address = resolve("HARMOS_ADDRESS", None, {})
         endpoint = _Endpoint(await self._activate(address), managed)
         if managed:
             print(f"harmos listening {endpoint.address}", flush=True)
@@ -225,8 +226,6 @@ class Plugin:
         await endpoint.wait()
 
     async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
-        from ._configuration import load, resolve
-
         return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
 
     def _materialize(self, template: _Template) -> Callable[..., Awaitable[Message]]:
