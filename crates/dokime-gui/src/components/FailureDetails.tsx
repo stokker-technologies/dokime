@@ -33,7 +33,9 @@ type FailureDetailsProps = { failure: NotificationFailure };
 export function FailureDetails({ failure }: FailureDetailsProps) {
   return (
     <details>
-      <summary className="cursor-pointer text-sm font-medium">Technical Details</summary>
+      <summary className="cursor-pointer rounded text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        Technical Details
+      </summary>
       <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">{failureText(failure)}</pre>
     </details>
   );

@@ -35,7 +35,6 @@ import { createDebouncedWriter } from "@/features/settings/settings-autosave";
 
 const fixture = vi.hoisted(() => ({
   read: vi.fn(),
-  notices: vi.fn(),
   update: vi.fn(),
   cache: vi.fn(),
   invalidate: vi.fn(),
@@ -86,14 +85,11 @@ function snapshot(): PreferencesSnapshot {
 
 /* === Entry Point === */
 
-vi.mock("@/lib/notifications", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
-vi.mock("@/components/NotificationMessage", () => ({
-  NotificationMessage: (props: unknown) => {
-    fixture.notices(props);
-    return null;
-  },
+vi.mock("@/lib/notifications", async (original) => ({
+  ...(await original<typeof import("@/lib/notifications")>()),
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
+
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/lib/desktop/settings", () => ({
   preferencesCommands: {
@@ -205,27 +201,10 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
   assert.deepEqual(fixture.appearance.mock.calls[0], [{ density: "touch", themeFamily: "other" }]);
 });
 
-test("Failed Saves Preserve Revisions", async () => {
-  for (const failure of [{ kind: "conflict" }, { kind: "persistence", message: "fixture failure" }]) {
-    fixture.saveError = failure;
-    fixture.update.mockRejectedValueOnce(failure);
-    renderToStaticMarkup(createElement(SavePreferencesProbe, { scope: "local" }));
-    const mutation = fixture.mutations.at(-1);
-    assert.ok(mutation);
-    await assert.rejects(mutation.mutationFn({ previous: snapshot(), settings: snapshot().settings }), (error) => error === failure);
-    const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-    assert.ok(fixture.notices.mock.calls.length > 0);
-    assert.doesNotMatch(html, /role="alert"/);
-    assert.equal(fixture.cache.mock.calls.length, 0);
-    assert.deepEqual(fixture.snapshot?.revision, [7]);
-  }
-});
-
 test("Offline Local Edits Remain Available While Backend Reads Fail", async () => {
   fixture.backendError = { kind: "disconnected" };
   const html = renderToStaticMarkup(createElement(ApplicationPreferences));
   assert.ok(html.includes('aria-label="Theme Mode"'));
-  assert.equal(fixture.notices.mock.calls.length, 0);
   assert.match(html, /role="alert"/);
   assert.ok(!html.includes('aria-label="Report Points"'));
   usePreferences("local");
@@ -245,7 +224,6 @@ test("Offline Local Edits Remain Available While Backend Reads Fail", async () =
 test("Loading Does Not Render Editable Defaults", () => {
   fixture.loading = true;
   const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-  assert.equal(fixture.notices.mock.calls.length, 0);
   assert.match(html, /role="status"/);
   assert.ok(!html.includes("<form"));
 });
@@ -497,4 +475,40 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
   assert.equal(input.value, "3000", "an earlier save cannot replace the newer edit");
   await act(async () => vi.advanceTimersByTimeAsync(100));
   assert.deepEqual(save.mock.calls, [[{ budget: 2500 }], [{ budget: 3000 }]]);
+});
+
+test("Rejected Preference Mutations Keep Their Reviewed Revision", async () => {
+  const previous = snapshot();
+  const refusal = { kind: "conflict" };
+  fixture.update.mockRejectedValueOnce(refusal);
+  renderToStaticMarkup(createElement(SavePreferencesProbe, { scope: "local" }));
+  const mutation = fixture.mutations.at(-1);
+  assert.ok(mutation);
+  await assert.rejects(mutation.mutationFn({ previous, settings: previous.settings }), (error) => error === refusal);
+  assert.deepEqual(previous, snapshot());
+  assert.equal(fixture.cache.mock.calls.length, 0);
+});
+
+test("Shared Preference Failure Occupies Its Content Slot", () => {
+  const error = new Error("bench_write");
+  fixture.saveError = error;
+  const html = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, localOnly: true }));
+  assert.ok(html.includes('role="alert"'));
+  assert.ok(html.includes(error.message));
+  assert.deepEqual(fixture.snapshot?.revision, snapshot().revision);
+});
+
+test("Failed Saves Preserve Revisions After Persistence Refusal", async () => {
+  const previous = snapshot();
+  const refusal = { kind: "persistence", message: "fixture-write-refused" };
+  fixture.update.mockRejectedValueOnce(refusal);
+  renderToStaticMarkup(createElement(SavePreferencesProbe, { scope: "local" }));
+  const mutation = fixture.mutations.at(-1);
+  assert.ok(mutation);
+  const settings = { ...previous.settings, client: { ...previous.settings.client, request_timeout_ms: 6789 } };
+  await assert.rejects(mutation.mutationFn({ previous, settings }), (error) => error === refusal);
+  assert.deepEqual(previous, snapshot());
+  assert.equal(fixture.cache.mock.calls.length, 0);
+  assert.equal(fixture.appearance.mock.calls.length, 0);
+  assert.deepEqual(fixture.update.mock.calls[0], ["local", { expected_revision: previous.revision, settings }]);
 });

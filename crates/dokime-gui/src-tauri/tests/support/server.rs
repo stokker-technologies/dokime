@@ -111,7 +111,10 @@ impl Fixture {
             kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
-            .execute(session.client().plugins.create_with("desktop_thermal", placement, PluginValue { enabled: true }, options))
+            .execute(
+                "Plugins.Create",
+                session.client().plugins.create_with("desktop_thermal", placement, PluginValue { enabled: true }, options),
+            )
             .await
             .unwrap();
         let mut entry = admitted.entry.unwrap();
@@ -120,16 +123,16 @@ impl Fixture {
             context: session.call_options().unwrap(),
             ..Default::default()
         };
-        let mut watching = session.execute(session.client().plugins.watch_with(options)).await.unwrap();
+        let mut watching = session.execute("Plugins.Watch", session.client().plugins.watch_with(options)).await.unwrap();
         while entry.state != PluginState::Ready as i32 {
             assert!(entry.failure.is_none(), "Admit Desktop Fixture: {:?}", entry.failure);
             assert_ne!(entry.state, PluginState::Stopped as i32);
-            session.execute(watching.next()).await.unwrap().expect("Admit Desktop Fixture: Watch Closed");
+            session.execute("Plugins.Watch", watching.next()).await.unwrap().expect("Admit Desktop Fixture: Watch Closed");
             let options = PluginsGetOptions {
                 context: session.call_options().unwrap(),
                 ..Default::default()
             };
-            entry = session.execute(session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
+            entry = session.execute("Plugins.Get", session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
         }
         drop(watching);
         plugin

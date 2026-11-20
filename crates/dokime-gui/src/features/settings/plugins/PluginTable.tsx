@@ -64,7 +64,6 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
             {row.original.name}
           </span>
         </div>
-        {row.original.alert}
       </div>
     ),
     header: "Plugin",
@@ -135,6 +134,7 @@ export function PluginTable({ label, rows, actions }: { label: string; rows: Plu
       data={rows}
       emptyText="No Plugins"
       getRowId={rowKey}
+      rowDetail={(row) => row.alert}
       onRowClick={(row) => row.onOpenSettings?.()}
     />
   );

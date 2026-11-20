@@ -266,3 +266,14 @@
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
 - [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
 - [ ] Move the Launch Readiness Consumers to `Launches/Announce`; Product Consumers Are Migrated, While the Merged Python Starter and Superseded SDK Tests Need the SDK Owner's Scope Decision and Native Proof Is Pending.
+
+## Desktop Failure Presentation
+
+- [x] Normalize Library Postcard Carriers and Product Status Details to One Generated Failure Protobuf at the Desktop Bridge; Preserve Plain Status Codes and Messages.
+- [x] Log Failed Host Requests and Deduplicated Plugin Failures at the Native Session Boundary With Operation, Code, Message, Action and Plugin Fields.
+- [x] Share Full-Width Failure Presentation, Decoded Copyable Details and Supported Recovery Actions; Keep Dependent Plugin Sections Quiet and Limit Toasts to Operator Actions.
+- [x] Keep Failed Plugin Settings Editable and Saveable Beneath Their Failure Card; Retain Identity and Secret Availability and Handle Disabled Undescribed Entries.
+- [x] Record Operator Action Failures Through Explicit Notification Opt-In; Keep Passive Reads and Reopened History Details Out of History.
+- [x] Retain Failed Connection Endpoints and Complete Notification Metadata in Copied Details.
+- [x] Restore Focused Coverage for Failure Identity, Root-First Causes, Admission Identifiers, Startup Recovery and Preference Persistence Refusals.
+- [ ] Complete the Release-Artifact-Dependent Binding Gate and Native Desktop Stories on the Required Platforms.

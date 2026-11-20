@@ -109,6 +109,7 @@ export function IntervalSettingsSection() {
           </SettingsRow>
           <SettingsRow
             label="Save Interval Settings"
+            notificationContext="action"
             error={mutation.error ? failureOf(mutation.error, "Save Interval Settings").message : undefined}
             failure={mutation.error ?? undefined}
             status={mutation.isPending ? <span role="status">Saving</span> : null}

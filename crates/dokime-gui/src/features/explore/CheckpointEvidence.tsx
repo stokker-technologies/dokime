@@ -16,7 +16,6 @@ import { nativeValuesToJson } from "@/lib/host/values";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import {
   artifactStateLabel,
@@ -274,7 +273,7 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
       >
         {busy ? "Downloading…" : name}
       </Button>
-      {Boolean(error) && <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage>}
+      {Boolean(error) && <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />}
     </div>
   );
 }

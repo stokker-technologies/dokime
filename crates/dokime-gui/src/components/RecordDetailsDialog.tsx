@@ -9,9 +9,12 @@
 
 /* === External Imports === */
 
-import { AlertTriangle, Braces, Clipboard, Clock } from "lucide-react";
+import { Braces, Clipboard, Clock } from "lucide-react";
 
 /* === Local Imports === */
+
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 
 import { RecordGlyph } from "@/components/RecordGlyph";
 import { Badge } from "@/components/ui/badge";
@@ -79,10 +82,7 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
         <div className="min-h-0 overflow-y-auto p-4">
           <div className="grid min-w-0 gap-4">
             {record.level === "error" ? (
-              <div className="flex min-w-0 gap-2 rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-1 shrink-0" size={16} />
-                <p className="[overflow-wrap:anywhere]">{title}</p>
-              </div>
+              <ErrorCard failure={failureOf(record.message ?? title, "Record Failed", record.record_id)} />
             ) : null}
 
             <dl className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">

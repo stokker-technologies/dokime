@@ -188,7 +188,7 @@ native_commands! {
     // Stage the bundle just dropped on the window, or pick one natively; `None` when the operator cancels.
     async desktop_plugin_install_file
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, dropped: tauri::State<'_, crate::app::plugins::DroppedFiles>, app: tauri::AppHandle]
-        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<Option<String>, String>
+        (generation: String, drop: bool, progress: tauri::ipc::Channel<crate::app::plugins::InstallProgress>) -> Result<Option<String>, crate::Error>
         => crate::app::plugins::desktop_plugin_install_file;
 
     sync desktop_set_title

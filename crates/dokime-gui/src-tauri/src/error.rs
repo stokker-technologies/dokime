@@ -36,6 +36,9 @@ pub enum Error {
     #[error("connection: {0:?}")]
     Session(ConnectionError),
 
+    #[error("{message}")]
+    Local { message: String },
+
     #[error("invalid native RPC request")]
     InvalidRequest,
 
@@ -68,6 +71,18 @@ pub enum Error {
 impl From<ConnectionError> for Error {
     fn from(error: ConnectionError) -> Self {
         Self::Session(error)
+    }
+}
+
+impl From<String> for Error {
+    fn from(message: String) -> Self {
+        Self::Local { message }
+    }
+}
+
+impl From<&str> for Error {
+    fn from(message: &str) -> Self {
+        Self::Local { message: message.into() }
     }
 }
 

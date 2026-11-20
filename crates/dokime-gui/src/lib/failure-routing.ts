@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import { failureText, type NotificationFailure } from "@/lib/notification-details";
+import { isWaitingFailure, failureText, type NotificationFailure } from "@/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -35,7 +35,7 @@ export type FailureContext = "view" | "action" | "background";
 /* === Public Functions === */
 
 export function failureDestinations(context: FailureContext) {
-  return { inline: context === "view", toast: context !== "view", history: context !== "view", console: true };
+  return { inline: context === "view", toast: context === "action", history: context !== "view", console: true };
 }
 
 export function reportFailure(failure: NotificationFailure, context: string): void {
@@ -50,6 +50,7 @@ export function reportFailure(failure: NotificationFailure, context: string): vo
 }
 
 export function routeFailure(failure: NotificationFailure, context: FailureContext) {
+  if (isWaitingFailure(failure)) return { inline: true, toast: false, history: false, console: false };
   reportFailure(failure, context);
   return failureDestinations(context);
 }
