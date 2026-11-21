@@ -38,6 +38,8 @@ class HostFixtureStory(TestCase):
     def test_sdk_fixture_lookup_uses_prepared_profiles_and_explicit_overrides(self) -> None:
         root = Path(__file__).resolve().parents[4]
         host = runpy.run_path(str(root / "sdk/python/tests/support/host.py"))["Host"]
+        self.enterContext(patch("platform.system", return_value="Windows" if os.name == "nt" else "Linux"))
+        self.enterContext(patch("platform.machine", return_value="x86_64"))
         extension = ".exe" if os.name == "nt" else ""
         original = Path.is_file
         for profile in ("dev", "release"):
