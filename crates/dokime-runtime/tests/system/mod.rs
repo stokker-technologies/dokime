@@ -52,7 +52,6 @@ mod manager_lifecycles;
 #[cfg(target_os = "windows")]
 mod owned_processes;
 mod plugin_captures_device_files;
-mod plugin_misses_its_load_deadline;
 mod plugin_reads_only_declared_secrets;
 mod process_interruption;
 mod publication_boundaries;

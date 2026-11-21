@@ -1,6 +1,6 @@
 ## Nightly Regression Repairs
 
-- [ ] Reproduce and Retire the Superseded Load-Deadline Failure Story Against the Locked Offline Contract; Prove Retained Readiness Tests.
+- [x] Reproduce and Retire the Superseded Load-Deadline Failure Story Against the Locked Offline Contract; Its Timeout-Prose Assertion Failed at Line 67 After Offline Projection Removed the Failure. Four Retained Readiness Tests Pass.
 - [ ] Reproduce and Retire the Superseded Unreachable-Remote Health Story; Identify Its Blocked Watch Await and Prove Retained Offline Registration Tests.
 - [x] Keep Embedded Reports Free of Live RPC Dependencies While Preserving Session-Owned Plugin Restart; Complete the Planning Session Mock and Prove Six Focused Desktop Integrations, 41 Neighboring Units and TypeScript Checking.
 - [ ] Resolve the Packaged C++ SDK Archive Before Entering the SDK Task Directory; Prove the CI Dispatch Regression and Native Package Consumers.
