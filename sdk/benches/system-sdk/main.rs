@@ -317,7 +317,7 @@ async fn run(channel: Channel, endpoint: &str, language: &str) -> BenchResult<()
             Some((scenario::CALLS * scenario::CONCURRENCY) as f64 / started.elapsed().as_secs_f64()),
             None,
         ));
-        let scenario = Scenario::new();
+        let scenario = Scenario::default();
         let (rate, loaded) = throughput(channel.clone(), endpoint, &scenario.channels, pid).await?;
         measurements.push(Measurement::new(
             language,

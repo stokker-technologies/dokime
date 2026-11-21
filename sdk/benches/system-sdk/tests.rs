@@ -64,7 +64,7 @@ fn accepted_count_uses_host_receipt_time_with_an_exclusive_end() {
 
 #[test]
 fn scenario_separates_channels_and_ceiling_and_increases_row_rate() {
-    let scenario = Scenario::new();
+    let scenario = Scenario::default();
     assert_eq!(scenario.channels.first().unwrap(), "thermal.load.channel_000");
     assert_eq!(scenario.channels.last().unwrap(), "thermal.load.channel_127");
     assert!(!scenario.channels.contains(&scenario.ceiling));
