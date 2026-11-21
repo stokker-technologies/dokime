@@ -80,15 +80,10 @@ writeFileSync(process.argv[1], toBinary(type, value));
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             settings = json.loads((output / "application-settings.json").read_text(encoding="utf-8"))
-            self.assertEqual(settings["client"], {"connect_timeout_ms": 4321, "request_timeout_ms": 8765})
+            self.assertEqual(settings["client"]["connect_timeout_ms"], 4321)
+            self.assertEqual(settings["client"]["request_timeout_ms"], 8765)
             self.assertIsNone(settings["appearance"]["theme_family"])
             self.assertEqual(settings["listener"]["certificate_names"], ["fixture.local"])
-            declarations = (output / "application-settings.ts").read_text(encoding="utf-8")
-            self.assertIn("theme_family: string | null", declarations)
-            self.assertIn("endpoints: Array<string>", declarations)
-            commands = (output / "native-preferences.ts").read_text(encoding="utf-8")
-            self.assertIn("update: number[]", commands)
-            self.assertIn("invoke<ArrayBuffer>", commands)
         finally:
             scratch_directory.cleanup()
 

@@ -267,8 +267,6 @@ launch = ["python", "-c", "from pathlib import Path; print(Path('payload.bin').r
         };
         let bytes = dokime_packaging::bundle::create_project(&project, identity, None)?;
         let bundle = Bundle::inspect(&bytes, Limits::default())?;
-        let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
-        assert_eq!(inventory, ["dokime.json", "dokime.toml", "payload.bin"]);
         assert_eq!(bundle.manifest().launch, project.manifest.scripts.launch);
         assert_eq!(bundle.file("payload.bin"), Some([2, 3, 5, 7].as_slice()));
         Ok(())

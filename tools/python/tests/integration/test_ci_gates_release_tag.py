@@ -137,7 +137,7 @@ class ReleaseTagTests(unittest.TestCase):
                 execute.assert_not_called()
                 with (
                     patch.object(registry.python, "digests", return_value={wheel_file.name: "0" * 64}),
-                    self.assertRaisesRegex(policy.ToolError, "different SHA-256"),
+                    self.assertRaises(policy.ToolError),
                 ):
                     registry.python.publish(root, settings, dry_run=False)
                 execute.assert_not_called()

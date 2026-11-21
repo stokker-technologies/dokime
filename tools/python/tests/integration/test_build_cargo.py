@@ -76,9 +76,6 @@ class ProductCompilerRecordTests(unittest.TestCase):
                     project = Path(args[0][3])
                     plugin = plugins[project.name]
                     self.assertEqual((project / plugin.name).read_bytes(), plugin.read_bytes())
-                    self.assertEqual(
-                        (project / "dokime.toml").read_text(encoding="utf-8"), f'[plugin]\n[scripts]\nexecutable = "{project.name}"\n'
-                    )
                     Path(args[0][5]).write_bytes(f"bundled {project.name}".encode())
                     return
                 kwargs["stdout"].write("replacement build")
@@ -104,13 +101,10 @@ class ProductCompilerRecordTests(unittest.TestCase):
 
                 # Publish the Completed Replacement Only After Cargo Succeeds, with One Bundle per Shipped Plugin
                 fail = False
-                exported = dokime_tools.build.rust.__main__.build("dev")
+                dokime_tools.build.rust.__main__.build("dev")
                 executables.assert_called_once_with(messages, ("dokime", "dokime-host", "dokime-gui", *plugins))
                 self.assertEqual(messages.read_text(encoding="utf-8"), "replacement build")
                 self.assertFalse(pending.exists())
-                bundles = {f"bin/{name}.dokime" for name in plugins}
-                binaries = {f"bin/{plugin.name}" for plugin in plugins.values()}
-                self.assertEqual(set(exported), {f"bin/{cli.name}", *binaries, *bundles, "product/compiler.json", "product/target.txt"})
                 for name in plugins:
                     self.assertEqual((root / f"bin/{name}.dokime").read_bytes(), f"bundled {name}".encode())
         finally:

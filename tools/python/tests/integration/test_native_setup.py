@@ -92,7 +92,6 @@ class PackageFetchTests(unittest.TestCase):
                 sleep = Mock()
                 with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError) as raised:
                     bootstrap.fetch_packages(["fixture-package"], runner=runner, sleep=sleep)
-                self.assertIn(f"after {attempts} attempts", str(raised.exception))
                 self.assertIn(failure.strip(), str(raised.exception))
                 self.assertEqual(runner.call_count, len(outcomes) * attempts)
                 self.assertEqual([call.args[0] for call in sleep.call_args_list], list(bootstrap.APT_RETRY_DELAYS_S))

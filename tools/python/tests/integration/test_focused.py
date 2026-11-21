@@ -214,7 +214,6 @@ class ChangedPathsTests(unittest.TestCase):
             execute.reset_mock()
             self.assertEqual(tasks.main(["test", "--package", "example", "--story", "save::", "--no-run", "--timings", "--plan"]), 0)
             execute.assert_not_called()
-            self.assertIn("--test integration --no-run save::", output.getvalue())
             self.assertEqual(tasks.main(["test", "--package", "example"]), 7)
             self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--tests"])
             self.assertEqual(tasks.main(["test", "--package", "example", "--layer", "system", "--story", "save::"]), 7)

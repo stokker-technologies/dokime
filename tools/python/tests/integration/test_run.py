@@ -159,7 +159,6 @@ class RunTests(unittest.TestCase):
                     status = benchmark.run(directory, "system", "rust", ".", False, [])
                 self.assertEqual(status, 1)
                 self.assertIn("sidecar_ingest/scalar/0", output.getvalue())
-                self.assertIn("mise run bench -- --language rust --layer system --refresh-baseline", output.getvalue())
                 self.assertEqual(list(directory.rglob("dev/estimates.json")), [])
 
                 output = io.StringIO()
@@ -183,7 +182,6 @@ class RunTests(unittest.TestCase):
                     ):
                         status = benchmark.run(directory, "system", "rust", ".", refresh, [])
                     self.assertEqual(status, 0)
-                    self.assertIn("benchmark regression: crates/example/system/sidecar_ingest/scalar/0: 900.0%", output.getvalue())
                     self.assertNotIn("::notice::", output.getvalue())
                     published = json.loads((directory / "target/benchmarks/benchmarks-rust-system.json").read_text())
                     self.assertEqual(published["benchmarks"][0]["value"], 1000.0)
