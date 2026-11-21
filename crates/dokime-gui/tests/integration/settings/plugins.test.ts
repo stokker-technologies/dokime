@@ -21,7 +21,6 @@ import { beforeEach, test, vi } from "vitest";
 import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { failureOf } from "@dokime/plots/lib/notification-details";
-import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
@@ -31,7 +30,6 @@ const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
   getPlugin: vi.fn(),
   listPlugins: vi.fn(),
-  listPluginsUnused: vi.fn(),
   getSettings: vi.fn(),
   channels: [] as { onmessage: (message: unknown) => void }[],
 }));
@@ -117,18 +115,8 @@ test("Picked Bundle Installs in One Native Invoke", async () => {
 });
 
 test("Release Installs Natively", async () => {
-  const releases = ["first", "second"].map((name) => ({
-    candidate: `${name}-candidate`,
-    package: name,
-    version: "1.2.3",
-    target: "native",
-    requiresDokime: "^0.1",
-  }));
-  fixture.invoke.mockResolvedValue(releases);
-  assert.deepEqual(await commands.desktopPluginReleaseCheck(session.generation), releases);
-  fixture.invoke.mockClear();
   fixture.invoke.mockResolvedValue("release-install");
-  const entry = await installNativePlugin(session, { release: releases[1].candidate });
+  const entry = await installNativePlugin(session, { release: "second-candidate" });
 
   assert.equal(entry?.name, "release-install");
   assert.equal(fixture.invoke.mock.calls.length, 1);

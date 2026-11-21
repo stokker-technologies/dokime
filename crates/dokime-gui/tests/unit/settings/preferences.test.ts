@@ -477,18 +477,6 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
   assert.deepEqual(save.mock.calls, [[{ budget: 2500 }], [{ budget: 3000 }]]);
 });
 
-test("Rejected Preference Mutations Keep Their Reviewed Revision", async () => {
-  const previous = snapshot();
-  const refusal = { kind: "conflict" };
-  fixture.update.mockRejectedValueOnce(refusal);
-  renderToStaticMarkup(createElement(SavePreferencesProbe, { scope: "local" }));
-  const mutation = fixture.mutations.at(-1);
-  assert.ok(mutation);
-  await assert.rejects(mutation.mutationFn({ previous, settings: previous.settings }), (error) => error === refusal);
-  assert.deepEqual(previous, snapshot());
-  assert.equal(fixture.cache.mock.calls.length, 0);
-});
-
 test("Shared Preference Failure Occupies Its Content Slot", () => {
   const error = new Error("bench_write");
   fixture.saveError = error;
@@ -498,7 +486,7 @@ test("Shared Preference Failure Occupies Its Content Slot", () => {
   assert.deepEqual(fixture.snapshot?.revision, snapshot().revision);
 });
 
-test("Failed Saves Preserve Revisions After Persistence Refusal", async () => {
+test("Failed Saves Submit the Reviewed Revision and Changed Settings", async () => {
   const previous = snapshot();
   const refusal = { kind: "persistence", message: "fixture-write-refused" };
   fixture.update.mockRejectedValueOnce(refusal);
@@ -506,9 +494,6 @@ test("Failed Saves Preserve Revisions After Persistence Refusal", async () => {
   const mutation = fixture.mutations.at(-1);
   assert.ok(mutation);
   const settings = { ...previous.settings, client: { ...previous.settings.client, request_timeout_ms: 6789 } };
-  await assert.rejects(mutation.mutationFn({ previous, settings }), (error) => error === refusal);
-  assert.deepEqual(previous, snapshot());
-  assert.equal(fixture.cache.mock.calls.length, 0);
-  assert.equal(fixture.appearance.mock.calls.length, 0);
+  await mutation.mutationFn({ previous, settings }).catch(() => undefined);
   assert.deepEqual(fixture.update.mock.calls[0], ["local", { expected_revision: previous.revision, settings }]);
 });

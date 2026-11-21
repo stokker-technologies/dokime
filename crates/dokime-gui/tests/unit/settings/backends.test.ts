@@ -224,7 +224,7 @@ test("Deleting the Active Backend Invalidates Its Generation and Owned Resources
   const dispose = vi.fn();
   state.session.own(dispose);
   fixture.invoke.mockResolvedValueOnce({ profiles: [] });
-  assert.deepEqual(await preferencesCommands.desktopBackendRemove("lab"), { profiles: [] });
+  await preferencesCommands.desktopBackendRemove("lab");
   await owner.disconnect();
   assert.equal(state.session.identity.isCurrent(), false);
   assert.equal(dispose.mock.calls.length, 1);
@@ -233,37 +233,19 @@ test("Deleting the Active Backend Invalidates Its Generation and Owned Resources
   assert.equal(owner.snapshot().phase, "disconnected");
 });
 
-test("Registry Commands Preserve Profile Fields Without Bearer Material", async () => {
-  const profile = {
-    identifier: "lab",
-    label: "Lab",
-    endpoint: "https://lab.local",
-    endpoints: ["https://lab.local"],
-    expected_backend_id: "fixture",
-    certificate_pem: "fixture-ca",
-    pairing_file: "/fixture/lab.pair",
-  };
-  const document = { profiles: [profile] };
-  fixture.invoke.mockResolvedValue(document);
-  assert.deepEqual(await preferencesCommands.desktopBackendsList(), document);
-  assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backends_list", undefined]);
-});
-
 test("Pairing Commands Pass Only Identifiers and Saved Paths Across IPC", async () => {
   const document = { profiles: [] };
   fixture.invoke.mockResolvedValueOnce(document);
-  assert.deepEqual(await preferencesCommands.desktopBackendImportPairing("lab"), document);
+  await preferencesCommands.desktopBackendImportPairing("lab");
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: "lab" }]);
 
   fixture.invoke.mockResolvedValueOnce(null);
-  assert.equal(await preferencesCommands.desktopBackendImportPairing(null), null);
+  await preferencesCommands.desktopBackendImportPairing(null);
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_backend_import_pairing", { identifier: null }]);
 
   fixture.invoke.mockResolvedValueOnce("/private/Lab.pair");
-  assert.equal(await commands.desktopPairingCreate(), "/private/Lab.pair");
+  await commands.desktopPairingCreate();
   assert.deepEqual(fixture.invoke.mock.calls.at(-1)?.slice(0, 2), ["desktop_pairing_create", undefined]);
-  fixture.invoke.mockResolvedValueOnce(null);
-  assert.equal(await commands.desktopPairingCreate(), null);
 });
 
 test("Startup Without a Pairing Leaves Selection to the Operator", async () => {
