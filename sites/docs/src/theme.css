@@ -1,25 +1,202 @@
 /* Dokime — SPDX-License-Identifier: Apache-2.0 */
-/* Organization Typography for the Documentation Site; the Faces Stay in organization/fonts/. */
+/* The Desktop and Reports Import This Same Theme, Including Its Focus Policy. */
+@layer base, starlight, theme, components, utilities;
+@import "@dokime/document/styles.css";
+@source ".";
 
-@font-face {
-  font-display: swap;
-  font-family: "Roboto Variable";
-  font-style: normal;
-  font-weight: 100 900;
-  src: url("../../../organization/fonts/roboto-latin-wght-normal.woff2") format("woff2");
+/* Starlight's Neutral Scale Runs From Ink to Ground in Both Modes. */
+:root,
+::backdrop {
+  --sl-font: var(--brand-font-sans);
+  --sl-font-mono: var(--brand-font-mono);
+  --sl-font-system-mono: var(--brand-font-mono);
+  --sl-color-white: var(--foreground);
+  --sl-color-gray-1: var(--foreground);
+  --sl-color-gray-2: var(--muted-foreground);
+  --sl-color-gray-3: var(--muted-foreground);
+  --sl-color-gray-4: var(--input);
+  --sl-color-gray-5: var(--border);
+  --sl-color-gray-6: var(--muted);
+  --sl-color-gray-7: var(--muted);
+  --sl-color-black: var(--background);
+  --sl-color-accent-low: var(--accent);
+  --sl-color-accent: var(--link);
+  --sl-color-accent-high: var(--link);
+  --sl-color-text: var(--foreground);
+  --sl-color-text-accent: var(--link);
+  --sl-color-text-invert: var(--primary-foreground);
+  --sl-color-bg: var(--background);
+  --sl-color-bg-nav: var(--background);
+  --sl-color-bg-sidebar: var(--background);
+  --sl-color-bg-inline-code: var(--muted);
+  --sl-color-bg-accent: var(--primary);
+  --sl-color-hairline: var(--border);
+  --sl-color-hairline-light: var(--border);
+  --sl-color-hairline-shade: var(--border);
+  --sl-color-backdrop-overlay: color-mix(in srgb, var(--background) 80%, transparent);
+  --sl-color-orange: var(--warning);
+  --sl-color-orange-high: var(--warning);
+  --sl-color-orange-low: var(--muted);
+  --sl-color-green: var(--success);
+  --sl-color-green-high: var(--success);
+  --sl-color-green-low: var(--muted);
+  --sl-color-blue: var(--info);
+  --sl-color-blue-high: var(--info);
+  --sl-color-blue-low: var(--muted);
+  --sl-color-purple: var(--info);
+  --sl-color-purple-high: var(--info);
+  --sl-color-purple-low: var(--muted);
+  --sl-color-red: var(--destructive);
+  --sl-color-red-high: var(--destructive);
+  --sl-color-red-low: var(--muted);
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: none;
+  --sl-text-xl: var(--brand-text-xl);
+  --sl-text-2xl: var(--brand-text-2xl);
+  --sl-text-3xl: var(--brand-text-3xl);
+  --sl-text-4xl: var(--brand-text-4xl);
+  --sl-text-5xl: var(--brand-text-5xl);
+  --sl-text-6xl: var(--brand-text-6xl);
+  --sl-text-h1: clamp(var(--brand-text-2xl), 4vw, var(--brand-text-3xl));
+  --sl-text-h2: var(--brand-text-2xl);
+  --sl-text-h3: var(--brand-text-xl);
+  --sl-text-h4: var(--sl-text-lg);
+  --sl-line-height: 1.65;
+  --sl-content-width: 48rem;
+  --sl-sidebar-width: 18rem;
 }
 
-@font-face {
-  font-display: swap;
-  font-family: "Roboto Mono Variable";
-  font-style: normal;
-  font-weight: 100 700;
-  src: url("../../../organization/fonts/roboto-mono-latin-wght-normal.woff2") format("woff2");
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
 }
 
-:root {
-  --sl-font: "Roboto Variable", system-ui, sans-serif;
-  --sl-font-mono: "Roboto Mono Variable", ui-monospace, monospace;
+h1,
+.site-title {
+  font-family: var(--brand-font-heading);
+  font-weight: 600;
+}
+
+.site-title {
+  gap: 0.75rem;
+  color: var(--foreground);
+  font-size: var(--brand-text-xl);
+}
+
+.site-title img {
+  height: 2.5rem;
+}
+
+.sidebar-content :is(a, summary),
+starlight-toc a {
+  border-radius: var(--brand-radius);
+}
+
+.sidebar-content :is(a, summary):hover,
+starlight-toc a:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.sidebar-content a[aria-current="page"] {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.sidebar-content .group-label,
+starlight-toc h2,
+.starlight-aside__title {
+  font-family: var(--brand-font-mono);
+  font-size: var(--sl-text-sm);
+  font-weight: 500;
+}
+
+starlight-toc a[aria-current="true"] {
+  color: var(--link);
+  background: var(--muted);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-underline-offset: 0.2em;
+}
+
+.sl-markdown-content h2:not(:where(.not-content *)) {
+  padding-block-end: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.sl-markdown-content :is(code, pre):not(:where(.not-content *)),
+.pagination-links a,
+site-search :is(button[data-open-modal], dialog, kbd),
+starlight-theme-select select,
+.sl-link-button {
+  border-radius: var(--brand-radius);
+}
+
+.pagination-links a:hover {
+  background: var(--muted);
+  border-color: var(--link);
+}
+
+.pagination-links .link-title {
+  font-size: var(--brand-text-xl);
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+  background: var(--muted);
+  font-size: var(--sl-text-sm);
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding: 0.75rem;
+  border-color: var(--border);
+}
+
+.starlight-aside {
+  --sl-color-asides-text-accent: var(--foreground);
+  border-inline-start-width: 1px;
+  background: var(--muted);
+}
+
+.starlight-aside__icon {
+  display: none;
+}
+
+.sl-badge {
+  --sl-color-bg-badge: var(--muted);
+  --sl-color-text-badge: var(--foreground);
+  border-radius: var(--brand-radius);
+  font-family: var(--brand-font-mono);
+}
+
+site-search dialog::backdrop {
+  background: var(--sl-color-backdrop-overlay);
+  backdrop-filter: none;
+}
+
+#starlight__search {
+  --pagefind-ui-primary: var(--link);
+  --pagefind-ui-text: var(--foreground);
+  --pagefind-ui-font: var(--brand-font-sans);
+  --pagefind-ui-background: var(--popover);
+  --pagefind-ui-border: var(--input);
+  --pagefind-ui-border-radius: var(--brand-radius);
+  --pagefind-ui-tag: var(--muted);
+  --sl-search-corners: var(--brand-radius);
+}
+
+#starlight__search mark {
+  color: var(--foreground);
+  background: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--link);
+  text-underline-offset: 0.15em;
+}
+
+.hero h1 {
+  font-family: var(--brand-font-heading);
+  font-size: var(--sl-text-h1);
 }
 
 .d2-diagram {
