@@ -23,6 +23,7 @@ import sys
 # isort: split
 
 # Local Imports
+from dokime_tools import policy
 from dokime_tools.build import cargo, configuration, outputs, paths
 from dokime_tools.package.staging import clear_output, stage_file
 
@@ -35,9 +36,6 @@ from ...process import spawn_flags
 # === Constants === #
 
 
-PLUGINS = ("plugin-host", "plugin-obc")
-EXECUTABLES = ("dokime", "dokime-host", "dokime-gui", *PLUGINS)
-
 # === Types === #
 
 # === Classes === #
@@ -47,6 +45,8 @@ EXECUTABLES = ("dokime", "dokime-host", "dokime-gui", *PLUGINS)
 
 def build(profile: str) -> list[str]:
     """Build Shipping Native Host and Command-Line Bytes."""
+    plugins = [plugin["package"] for plugin in policy.config(configuration.ROOT).get("release", {}).get("plugins", [])]
+    executables = ("dokime", "dokime-host", "dokime-gui", *plugins)
     output = paths.output(configuration.ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)
@@ -70,13 +70,13 @@ def build(profile: str) -> list[str]:
     binaries = output / "bin"
     clear_output(binaries)
     staged = []
-    for path in outputs.executables(messages, EXECUTABLES).values():
+    for path in outputs.executables(messages, executables).values():
         stage_file(path, binaries / path.name)
         staged.append(binaries / path.name)
 
     # Bundle Each Shipped Plugin With the Command-Line Tool Built Beside It
     extension = ".exe" if os.name == "nt" else ""
-    for plugin in PLUGINS:
+    for plugin in plugins:
         project = output / "product" / plugin
         project.mkdir(parents=True, exist_ok=True)
         stage_file(binaries / f"{plugin}{extension}", project / f"{plugin}{extension}")
