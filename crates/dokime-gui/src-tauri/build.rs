@@ -79,9 +79,9 @@ fn main() {
 }
 
 fn brand_text(file: &str, field: &str) -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/generated/organization").join(file);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../packages/document/src/generated/organization").join(file);
     println!("cargo:rerun-if-changed={}", path.display());
-    let bytes = fs::read(&path).expect("generated brand file");
+    let bytes = fs::read(&path).expect("Generate Organization Assets Through mise run generate:typescript");
     let manifest: Value = serde_json::from_slice(&bytes).expect("generated brand JSON");
     manifest[field].as_str().filter(|text| !text.trim().is_empty()).expect("generated brand text field").to_owned()
 }
