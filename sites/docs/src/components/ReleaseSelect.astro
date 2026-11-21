@@ -1,6 +1,7 @@
 ---
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Offer the Site's Entries From Its Root versions.json; Without It, Show Only the Current Entry.
+import { Icon } from "@astrojs/starlight/components";
 import ThemeSelect from "@astrojs/starlight/components/ThemeSelect.astro";
 
 const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
@@ -13,6 +14,7 @@ const root = base.slice(0, base.length - entry.length - 1);
   <select aria-label="Release">
     <option value={entry} selected>{entry === "dev" ? "Development" : entry}</option>
   </select>
+  <Icon name="down-caret" size="1rem" />
 </label>
 <ThemeSelect><slot /></ThemeSelect>
 
@@ -42,7 +44,15 @@ const root = base.slice(0, base.length - entry.length - 1);
 </script>
 
 <style>
+  .release-select {
+    --release-select-pad: 0.75rem;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
   .release-select select {
+    appearance: none;
     background: var(--background);
     border: 1px solid var(--input);
     border-radius: var(--brand-radius);
@@ -51,8 +61,16 @@ const root = base.slice(0, base.length - entry.length - 1);
     font-size: var(--sl-text-sm);
     min-height: 2.5rem;
     max-width: 100%;
-    padding: 0.5rem 0.75rem;
+    padding-block: 0.5rem;
+    padding-inline: var(--release-select-pad) calc(var(--release-select-pad) + 1.5rem);
     cursor: pointer;
+  }
+
+  .release-select :global(svg) {
+    position: absolute;
+    inset-inline-end: var(--release-select-pad);
+    color: var(--foreground);
+    pointer-events: none;
   }
 
   .release-select select:hover {
