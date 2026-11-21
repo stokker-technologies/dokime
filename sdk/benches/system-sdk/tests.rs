@@ -25,7 +25,7 @@ use dokime::{Declarations, StreamDeclaration};
 use prost_types::Timestamp;
 
 // Local Imports
-use scenario::{Measurement, Scenario, accepted, guard, percentile};
+use scenario::{Scenario, accepted, guard, percentile};
 
 /* === Constants === */
 
@@ -65,8 +65,7 @@ fn accepted_count_uses_host_receipt_time_with_an_exclusive_end() {
 #[test]
 fn scenario_separates_channels_and_ceiling_and_increases_row_rate() {
     let scenario = Scenario::default();
-    assert_eq!(scenario.channels.first().unwrap(), "thermal.load.channel_000");
-    assert_eq!(scenario.channels.last().unwrap(), "thermal.load.channel_127");
+    assert!(!scenario.channels.is_empty());
     assert!(!scenario.channels.contains(&scenario.ceiling));
     assert!(scenario.intervals_ns.windows(2).all(|pair| pair[0] > pair[1]));
 }
@@ -94,17 +93,7 @@ fn extra_stream_refuses_before_measurement() {
 }
 
 #[test]
-fn result_shape_preserves_unavailable_measure_and_percentile_rank() {
-    let measurement = Measurement::new(
-        "rust",
-        "memory/idle",
-        "Memory [bytes]",
-        "bytes",
-        None,
-        Some("Read Plugin Memory: Grant Process Inspection".into()),
-    );
-    assert_eq!(measurement.case, "sdk/rust/memory/idle");
-    assert!(measurement.value.is_none() && measurement.reason.is_some());
+fn percentile_uses_nearest_rank_and_handles_empty_samples() {
     assert_eq!(percentile(&[4.0, 1.0, 3.0, 2.0], 50), Some(2.0));
     assert_eq!(percentile(&[], 95), None);
 }

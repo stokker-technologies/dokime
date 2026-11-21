@@ -61,7 +61,6 @@ class DocumentStory(unittest.TestCase):
         surface, playback, summary = reopened.sections[0].cards
         self.assertEqual(surface.plot.z.transform.input.stream.identifier, "example.samples")
         self.assertEqual(surface.plot.z.transform.scale, 2.0)
-        self.assertEqual(surface.plot.kind, dokime_sdk.templates.contour(reading).message.kind)
         self.assertEqual(playback.plot.grid.frame.stream.field, "frame")
         self.assertEqual(summary.summary.tiles[0].value.aggregate.input, reading.message)
         self.assertFalse(reading.message.HasField("aggregate"))

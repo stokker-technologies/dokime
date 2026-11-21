@@ -343,9 +343,11 @@ class AuthoringStory(unittest.TestCase):
         first, second = [suite.templates[0] for suite in plugin._suites]
         self.assertEqual(first.resolve(ReportTestTemplate.report), "first.report.report")
         self.assertEqual(second.resolve(ReportTestTemplate.report), "second.report.report")
-        first.documents[0].message.sections[0].metadata.label = "Changed"
-        self.assertEqual(ReportTestTemplate.report.message.sections[0].metadata.label, "Measurements")
-        self.assertEqual(second.definition().documents[0].sections[0].metadata.label, "Measurements")
+        first_section = first.documents[0].message.sections[0]
+        declared_section = ReportTestTemplate.report.message.sections[0]
+        first_section.metadata.identifier = "changed"
+        self.assertNotEqual(first_section.metadata.identifier, declared_section.metadata.identifier)
+        self.assertEqual(second.definition().documents[0].sections[0], declared_section)
         self.assertEqual(ReportTestTemplate.report.message.metadata.identifier, "report")
         self.assertRaises(ValueError, first.resolve, Document("Unknown"))
         ReportTestTemplate.documents = [ReportTestTemplate.report, ReportTestTemplate.report]
