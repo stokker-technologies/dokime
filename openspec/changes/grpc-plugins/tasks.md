@@ -195,9 +195,9 @@
   - [ ] Complete Typed Stream Subscription and Real-Host Failure/Cancelled Plugin Initialization Finalization, Admission Draining and Repeated Shutdown Proof; the Operation-Encoded Hooks and Their Native Host Invocation Are Implemented.
   - [ ] Bind Typed Host/Plugin Stream Subscription After the Library Provides Admitted Sample Demand, Backpressure and Close in Inherited Scope.
   - [ ] Publish Records From Plugin Observers After the Library Allows Product Call-Context Resources on Scoped Sample Child Calls.
-  - [ ] Prove Product Failure Classifications, Causes, Identity and Actionable Details From Bound Python Operations.
-  - [ ] Expose and Prove a Decorated Operation's Immutable Typed Declaration Through `operations.declaration`.
-  - [ ] Complete and Prove Python Text/List/Choice/Required Parameters, Traceability Cards, Plot Markers, Section Repeats and Bound Record Fields.
+  - [x] Prove Product Failure Classifications, Causes, Identity and Actionable Details From Bound Python Operations.
+  - [x] Expose and Prove a Decorated Operation's Immutable Typed Declaration Through `operations.declaration`.
+  - [x] Complete and Prove Python Text/List/Choice/Required Parameters, Traceability Cards, Plot Markers, Section Repeats and Bound Record Fields.
   - [ ] Adopt Library-Owned Minimum/Maximum Setting Bounds When Its Setting Declaration and Validation Support Them.
   - [ ] Agree and Implement Stop-Completes-Run Across the Product Declaration, Runtime and Durable Sealing Owners; No Equivalent Contract Exists in This Candidate.
   - [ ] Adopt Library Observer Columns With Per-Row Optional Presence and Prove Absent, Zero and Nonzero Fields Through Product Storage.

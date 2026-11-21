@@ -1627,6 +1627,11 @@ still settle on cancellation under their operation policies.
   traceability evidence cards and section repeats already have product wire support.
   Their Python builders compose those messages. Rust exposes the same message
   fields, but its current convenience builders do not provide every requested method.
+- Rust `sdk/rust/src/error.rs::Error::failure` preserves library classification and
+  actionable failure fields; Python bound operations already translate them into
+  the product `FailureError`. Rust authors construct `Operation::new` values and
+  select `.policy`; there is no decorated-function lookup to mirror. Python's
+  public `operations.declaration` reads its existing immutable decorator metadata.
 
 ### Python Client and Bound Handles
 
@@ -2839,6 +2844,7 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | Both Locations | Current Callers and Responsibility | Recommendation for the Owner |
 |---|---|---|
 | `sdk/python/src/dokime_sdk/templates/_parameters.py:Parameter.numbers` and `Parameter.list` in the same file | `tests/integration/test_documents_survive_wire_roundtrip.py` uses `numbers` for a defaulted float list; `tests/unit/test_authoring.py` and the SDK README use `list` for an explicitly typed list. Both construct list parameter messages. | Delete `numbers` after migrating its caller to `list(..., float).default(...)`, once the owner approves; retain both until that decision. |
+| `sdk/python/src/dokime_sdk/templates/_documents.py:Document._definition/Section._definition` and `sdk/python/src/dokime_sdk/_authoring.py:_Template.definition` / `templates/_context.py:Context.document` | The private dictionary serializers have no SDK callers. Catalog construction and scoped document publication consume protobuf `.message` values directly. | Delete the unused dictionary serializers after owner approval; keep the canonical protobuf path. |
 | `sdk/csharp/src/Dokime/Client.cs:ArtifactAsync` and `FileTransfers.cs:UploadAsync` | Bound cycle/execution artifacts use the client loop; template evidence and file inputs use the transfer helper. Both create, append, publish, verify and abandon uploads. | Keep the transfer owner and delete the client loop after owner approval; retain child mutation identities and abandon only unpublished uploads. |
 | `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Registration and carrier stories both use the library addressable listener. The product wrapper retains idempotent close, while the test helper owns its channel. | Console-capture ownership was removed with the library listener adoption. |
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
