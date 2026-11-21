@@ -176,7 +176,6 @@ fn an_echo_failure_has_no_measured_values() {
     assert_eq!(failed.probe_error, Some(error));
     assert_eq!(failed.wifi_latency_ms, None);
     assert_eq!(failed.wifi_packet_loss_percent, None);
-    assert_eq!(failed.wifi_packet_loss_percent, None);
     assert_eq!(failed.wifi_latency_host.as_deref(), Some("host"));
 }
 

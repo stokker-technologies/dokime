@@ -89,13 +89,6 @@ class Parameter:
         result.message.expansion.cartesian = True
         return result
 
-    @classmethod
-    def numbers(cls, identifier: str, label: str, values: Iterable[float]) -> "Parameter":
-        result = cls(identifier, label, "VALUE_TYPE_LIST")
-        result.message.element_type = shared.VALUE_TYPE_NUMBER
-        result.default([float(value) for value in values])
-        return result
-
     def unit(self, unit: str) -> Self:
         self.message.unit = unit
         return self
