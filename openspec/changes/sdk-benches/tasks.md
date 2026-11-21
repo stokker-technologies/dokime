@@ -2,8 +2,8 @@
 
 ## 1. Preconditions
 
-- [ ] 1.1 Confirm the plugin launch handshake change has landed on `dev` and resolve this change's source paths against the start-up and SDK run entries it introduced; verify by reading the landed SDK run entries in all four languages.
-- [ ] 1.2 Confirm the plugin contract freeze has not been declared; if it has, raise the conflict with the owner before continuing.
+- [x] 1.1 Confirm the plugin launch handshake change has landed on `dev` and resolve this change's source paths against the start-up and SDK run entries it introduced; verify by reading the landed SDK run entries in all four languages.
+- [x] 1.2 Confirm the plugin contract freeze has not been declared; if it has, raise the conflict with the owner before continuing.
 
 ## 2. Reference Plugins
 
@@ -16,12 +16,15 @@
 
 - [ ] 3.1 Add the `system-sdk` bench target with the catalog guard that compares each plugin's admitted catalog with the Rust reference plugin; verify a deterministic test that a plugin with one extra stream is refused with that stream's identifier and records no measurement.
 - [ ] 3.2 Implement the fixed scenario and the round trip, throughput at 128 × 1 kHz, single-stream ceiling, start to ready, idle and loaded memory measures in the existing report row shape, with units in square brackets and `not_measured` rows for unmeasurable stages; verify `mise run bench -- --language rust --layer system --binary system-sdk --once` produces every case name for each available language.
+  - REWORK: `sdk/rust/src/stream.rs::columns_rows` and the other SDK observer adapters require exactly the host-granted sample count. A fixed 1 ms observer cannot return increasing `rows_per_window` to discover a single-stream ceiling. The owner must choose between varying the existing observer interval setting and changing the sampling contract; no alternate sampler is added.
 - [ ] 3.3 Route `--binary system-sdk` and the language `--select` variants through `tools/python/src/dokime_tools/task/bench.py` and `test/benchmark.py`, and add the build of the bench target and its fixtures to `build:rust:bench`; verify the task selection with the existing tooling tests.
 
 ## 4. Baselines and Report
 
 - [ ] 4.1 Restore and save the bench baseline cache per platform and job variant on `dev` (`.github/actions/setup/action.yml`, `tools/python/src/dokime_tools/ci/native.py`) so hosted runs compare with the previous `dev` run; verify a second hosted `dev` run reports `baseline_value` for every case.
-- [ ] 4.2 Add the cross-language section to the Nightly report in `tools/python/src/dokime_tools/release/reports.py`, one table per measure with one column per language and one block per platform and no thresholds; verify with a fixture-driven report test.
+  - [x] Enable the existing cache plan from the reusable bench job, save successful `dev` baselines, and keep native baseline identity stable across runner replacement while separating OS, architecture, compiler and scenario arguments. Prove cache partitioning and baseline reuse with deterministic tooling fixtures.
+  - [ ] Verify baseline values in two hosted `dev` runs after authorized delivery.
+- [x] 4.2 Add the cross-language section to the Nightly report in `tools/python/src/dokime_tools/release/reports.py`, one table per measure with one column per language and one block per platform and no thresholds; verify with a fixture-driven report test.
 
 ## 5. Nightly Jobs
 
@@ -34,5 +37,5 @@
 
 ## 7. Documentation and Final Validation
 
-- [ ] 7.1 Report the documentation impact to the owner: `docs/project/tooling.md` bench tasks and jobs, the cross-language report, and the SDK guides that name the reference plugin.
+- [x] 7.1 Report the documentation impact to the owner: `docs/project/tooling.md` bench tasks and jobs, the cross-language report, and the SDK guides that name the reference plugin.
 - [ ] 7.2 After source closure, obtain hosted Nightly results for every `Bench / SDK / <Language>` and `Bench / Protocol` job on both platforms and report the measured rows, `not_measured` stages and regressions without claiming any pass or fail verdict.

@@ -31,10 +31,12 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
+import dokime_tools.policy
 import dokime_tools.test.desktop
 import dokime_tools.test.scratch
 
 from ..build import paths
+from ..release import reports
 from . import archive, desktop_bench, execution, lanes, policy, pytest, report
 
 # Type Checking Imports
@@ -102,10 +104,6 @@ def run(
     if "--test" in extra:
         print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
 
-    import dokime_tools.policy
-
-    from ..release import reports
-
     revision = os.environ.get("GITHUB_SHA") or dokime_tools.policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
     summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent, boundaries=boundaries)
     output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
@@ -144,7 +142,10 @@ def rust(
     if not messages.is_file():
         raise policy.TestError("Run Benchmark Tests: missing benchmark compiler metadata; run build:rust:bench first")
     archive.fixtures(directory, "bench", [messages.relative_to(directory).as_posix()])
-    compatibility = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    # Runner Names and Image Patch Versions Are Observations, Not Baseline Partitions.
+    compatible = {key: value for key, value in identity.items() if key not in {"runner", "platform"}}
+    compatible["platform"] = identity.get("platform", [])[:2]
+    compatibility = hashlib.sha256(json.dumps(compatible, sort_keys=True).encode()).hexdigest()
     rows = []
     status = 0
     executed = False
@@ -249,7 +250,10 @@ def python(
     owner = Path(project)
     if owner.is_absolute() or ".." in owner.parts:
         raise policy.TestError("Run Benchmark Tests: benchmark project escapes the repository")
-    compatibility = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    # Runner Names and Image Patch Versions Are Observations, Not Baseline Partitions.
+    compatible = {key: value for key, value in identity.items() if key not in {"runner", "platform"}}
+    compatible["platform"] = identity.get("platform", [])[:2]
+    compatibility = hashlib.sha256(json.dumps(compatible, sort_keys=True).encode()).hexdigest()
     home = report.native_directory(directory, report.BENCHMARKS / "python" / compatibility / owner / category)
     output = home / "new.json"
     stored = home / f"{BASELINE}.json"

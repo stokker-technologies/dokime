@@ -435,6 +435,20 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotEqual(rust["restore-keys"], crates["restore-keys"])
             tests = native.default_caches(root, environment | {"CI_CACHE_PROFILE": "test"})["sccache"]
             self.assertNotEqual(tests["restore-keys"], crates["restore-keys"])
+
+            # Restore Only the Same Platform and Bench Variant Across Runs.
+            self.assertNotIn("bench_baselines", original)
+            environment |= {"CI_BENCH": "true", "CI_BENCH_LAYER": "sdk-rust", "GITHUB_RUN_ID": "100", "GITHUB_RUN_ATTEMPT": "1"}
+            baseline = native.default_caches(root, environment)["bench_baselines"]
+            following = native.default_caches(root, environment | {"GITHUB_RUN_ID": "101"})["bench_baselines"]
+            self.assertNotEqual(baseline["key"], following["key"])
+            self.assertEqual(baseline["restore-keys"], following["restore-keys"])
+            self.assertTrue(following["key"].startswith(baseline["restore-keys"]))
+            retry = native.default_caches(root, environment | {"GITHUB_RUN_ATTEMPT": "2"})["bench_baselines"]
+            self.assertNotEqual(baseline["key"], retry["key"])
+            for selection in ({"RUNNER_OS": "Windows"}, {"CI_BENCH_LAYER": "sdk-python"}, {"RUNNER_ARCH": "ARM64"}):
+                other = native.default_caches(root, environment | selection)["bench_baselines"]
+                self.assertNotEqual(baseline["restore-keys"], other["restore-keys"])
         finally:
             temporary_directory.cleanup()
 

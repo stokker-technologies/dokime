@@ -124,10 +124,7 @@ def stage(directory: Path, shared: Path, version: str) -> list[Path]:
     source = directory / "target/nightly-reports"
     index = shared / "benchmarks.json"
 
-    def sort_key(row: dict) -> tuple:
-        return (row["suite"], row["name"])
-
-    benchmarks = sorted(summary["benchmarks"], key=sort_key)
+    benchmarks = sorted(summary["benchmarks"], key=lambda row: (row["suite"], row["name"]))
     policy.write_json(index, {"benchmarks": benchmarks})
     policy.write_json(shared / "reports.json", summary)
     destination = shared / f"dokime-reports-{version}.zip"
@@ -189,7 +186,60 @@ def table(summary: dict, results: dict, url: str, *, documentation: bool | None 
     for name, job in sorted(results.items()):
         lines.append(f"| Suite / {name} | {job['result']} |")
     lines.append(f"| Run | [Workflow Results]({url}) |")
+    comparison = sdk_comparison(summary["benchmarks"])
+    if comparison:
+        lines.extend(["", comparison])
     return "\n".join(lines)
+
+
+def sdk_comparison(rows: Sequence[dict]) -> str:
+    """Compare the Same SDK Measure Across Languages Within Each Native Platform."""
+    languages = {"rust": "Rust", "python": "Python", "csharp": "C#", "cpp": "C++"}
+    platforms = {}
+    for row in rows:
+        parts = row["name"].split("/", 2)
+        if len(parts) != 3 or parts[0] != "sdk" or parts[1] not in languages:
+            continue
+        _, language, measure = parts
+        platform = row["platform"]
+        unit = row["unit"]
+        measures = platforms.setdefault(platform, {})
+        values = measures.setdefault((measure, unit), {})
+        if language in values:
+            raise policy.ToolError(f"Collect SDK Comparison: duplicate measurement: {platform}/{language}/{measure} [{unit}]")
+        values[language] = row
+
+    lines = []
+    for platform, measures in sorted(platforms.items()):
+        title = platform.replace("|", "\\|").replace("\n", " ")
+        lines.extend([f"### SDK Comparison / {title}", ""])
+        for (measure, unit), values in sorted(measures.items()):
+            label = measure.replace("_", " ").replace("/", " / ").title()
+            title = f"{label} [{unit}]".replace("|", "\\|").replace("\n", " ")
+            cells = []
+            for language in languages:
+                row = values.get(language)
+                if row is None:
+                    cells.append("Unavailable")
+                elif row.get("status") == "not_measured":
+                    reason = row["reason"].replace("|", "\\|").replace("\n", " ")
+                    cells.append(f"Not Measured: {reason}")
+                else:
+                    value = row["value"]
+                    if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value):
+                        raise policy.ToolError(f"Collect SDK Comparison: non-finite benchmark measurement: {row['name']}")
+                    cells.append(f"{value:.6g}")
+            lines.extend(
+                [
+                    f"#### {title}",
+                    "",
+                    "| " + " | ".join(languages.values()) + " |",
+                    "|---|---|---|---|",
+                    "| " + " | ".join(cells) + " |",
+                    "",
+                ]
+            )
+    return "\n".join(lines).rstrip()
 
 
 # === Private Functions === #

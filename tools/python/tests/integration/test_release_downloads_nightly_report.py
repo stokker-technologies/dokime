@@ -13,6 +13,7 @@
 
 # Standard Library Imports
 import json
+import re
 import tempfile
 import unittest
 import zipfile
@@ -45,6 +46,64 @@ from .environment import isolate_environment
 
 
 class NightlyReportTests(unittest.TestCase):
+    def test_sdk_comparison_keeps_platforms_units_and_languages_separate(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            for platform, multiplier in (("linux-x86_64", 1), ("windows-x86_64", 10)):
+                for language, value in (("rust", 12), ("python", 24), ("csharp", 18), ("cpp", 9)):
+                    rows = []
+                    for measure, unit in (("round_trip/echo/p50", "ns"), ("throughput/ceiling", "samples/s")):
+                        name = f"sdk/{language}/{measure}"
+                        rows.append(
+                            {
+                                "name": name,
+                                **reports.identity(f"sdk/{language}", platform, name, "echo"),
+                                "unit": unit,
+                                "value": value * multiplier,
+                                "baseline_value": None,
+                                "threshold_percent": 20,
+                            }
+                        )
+                    output = root / "target/nightly-reports" / platform / language / f"benchmarks-sdk-{language}.json"
+                    policy.write_json(output, {"benchmarks": rows})
+            summary, files = reports.collect(root)
+            self.assertEqual(len(files), 8)
+            self.assertEqual(len(summary["benchmarks"]), 16)
+            comparison = reports.sdk_comparison(summary["benchmarks"])
+            blocks = [block for block in comparison.split("### SDK Comparison / ") if block]
+            self.assertEqual(len(blocks), 2)
+            for block, platform, values in zip(
+                blocks, ("linux-x86_64", "windows-x86_64"), ([12, 24, 18, 9], [120, 240, 180, 90]), strict=True
+            ):
+                title, *lines = block.splitlines()
+                self.assertEqual(title, platform)
+                units = [re.search(r"\[([^]]+)\]$", line) for line in lines if line.startswith("#### ")]
+                self.assertEqual([match[1] for match in units if match], ["ns", "samples/s"])
+                data = [line for line in lines if line.startswith("| ")][1::2]
+                self.assertEqual([[int(cell.strip()) for cell in line.split("|")[1:-1]] for line in data], [values, values])
+            self.assertTrue(reports.table(summary, {}, "https://example.test/run").endswith(comparison))
+
+            # Include Partial Jobs Without Inventing Measurements.
+            rows = summary["benchmarks"][:2]
+            rows[1] = {**rows[1], "status": "not_measured", "reason": "memory|unavailable\nplatform", "value": None}
+            partial = reports.sdk_comparison(rows)
+            data = [line for line in partial.splitlines() if line.startswith("| ")][1::2]
+            self.assertEqual(len(data), 2)
+            self.assertTrue(all(len(re.split(r"(?<!\\)\|", line)[1:-1]) == 4 for line in data))
+            self.assertEqual(re.split(r"(?<!\\)\|", data[0])[4].strip(), str(rows[0]["value"]))
+            self.assertIn("memory\\|unavailable platform", re.split(r"(?<!\\)\|", data[1])[4])
+
+            # Refuse Ambiguous Values Instead of Choosing One Job's Row.
+            with self.assertRaises(policy.ToolError):
+                reports.sdk_comparison([rows[0], rows[0]])
+            for value in (float("nan"), float("inf"), True, None):
+                with self.assertRaises(policy.ToolError):
+                    reports.sdk_comparison([{**rows[0], "value": value}])
+            self.assertEqual(reports.sdk_comparison([]), "")
+        finally:
+            temporary.cleanup()
+
     def test_failed_desktop_split_jobs_merge_only_their_selected_cases(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         try:
