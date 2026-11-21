@@ -112,6 +112,13 @@ function runtimeImports(source: string): string[] {
 
 function resolveLocal(specifier: string, importer: string): string | null {
   let base: string | undefined;
+  if (specifier.startsWith("@dokime/plots/")) {
+    const packageRoot = resolve(root, "../../packages/plots");
+    const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8")) as { exports: Record<string, string> };
+    const entry = manifest.exports[`./${specifier.slice("@dokime/plots/".length)}`];
+    assert.ok(entry, `resolve the shared plot export ${specifier}`);
+    base = resolve(packageRoot, entry);
+  }
   for (const [alias, paths] of Object.entries(config.compilerOptions.paths)) {
     if (!alias.endsWith("/*") || !specifier.startsWith(alias.slice(0, -1))) continue;
     base = resolve(root, paths[0].replace("*", specifier.slice(alias.length - 1)));

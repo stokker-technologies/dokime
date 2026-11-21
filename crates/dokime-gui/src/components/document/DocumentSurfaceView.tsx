@@ -50,7 +50,7 @@ import type {
   TelemetryStream,
   TraceabilitySnapshot,
 } from "@/lib/types";
-import { PlotInteractionProvider } from "@/plots/interaction";
+import { PlotInteractionProvider } from "@dokime/plots/interaction";
 import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 
 /* === Types === */
@@ -368,7 +368,9 @@ function tableColumns(rows: DocumentViewTableRow[]): string[] {
   const seen = new Set<string>();
   for (const row of rows) {
     for (const column of Object.keys(row.cells)) {
-      if (seen.has(column)) continue;
+      if (seen.has(column)) {
+        continue;
+      }
       seen.add(column);
       columns.push(column);
     }
@@ -380,7 +382,9 @@ function reportPlotStates(documentPlots: DocumentViewPlot[], reportPlots: Record
   return Object.fromEntries(
     documentPlots.flatMap((plot) => {
       const payload = reportPlots[plot.plot_id];
-      if (!payload) return [];
+      if (!payload) {
+        return [];
+      }
       return [
         [
           plot.plot_id,

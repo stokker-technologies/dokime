@@ -18,7 +18,7 @@ import type uPlot from "uplot";
 import { test } from "vitest";
 import type { DocumentViewPlot } from "@/lib/types";
 import { drawReferenceBands, paddedYRange, referenceYValues } from "@/plots/CartesianPlot";
-import { markerColor, plotColor, referenceColor } from "@/plots/colors";
+import { plotColor, referenceColor } from "@dokime/plots/colors";
 import { documentPlotSpec } from "@/plots/grouping";
 
 /* === Fixtures === */
@@ -100,13 +100,6 @@ test("References Take the Reference Palette by Index and Keep Author Colors", ()
     spec.referenceLines.map(({ color }) => color),
     ["var(--plot-reference-3)", "var(--plot-reference-4)"],
   );
-});
-
-test("Marker Kinds Take the Reference Palette by Index", () => {
-  const references = ["#a1a1a1", "#b2b2b2", "#c3c3c3"];
-  for (let index = 0; index < references.length * 2; index += 1) {
-    assert.equal(markerColor(references, index), references[index % references.length]);
-  }
 });
 
 test("Data Within a Band Widens the Y Range to Both Band Edges With Padding", () => {

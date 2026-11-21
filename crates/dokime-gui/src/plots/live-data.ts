@@ -30,7 +30,7 @@ import { toast } from "@/lib/notifications";
 import { summaryInFlight } from "@/lib/statistics";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
@@ -100,8 +100,9 @@ export function useLivePlotPayloads({
     const groups: DocumentViewPlot[][] = [];
     for (const plot of requestPlots) {
       const last = groups.at(-1);
-      if (!last || last.length === NATIVE_PLOT_MAX_REQUESTS || last[0].plot_type !== plot.plot_type) groups.push([plot]);
-      else last.push(plot);
+      if (!last || last.length === NATIVE_PLOT_MAX_REQUESTS || last[0].plot_type !== plot.plot_type) {
+        groups.push([plot]);
+      } else last.push(plot);
     }
     return groups;
   }, [requestPlots]);
@@ -159,7 +160,9 @@ export function useLivePlotPayloads({
 
   useEffect(
     () => () => {
-      for (const dispose of groupsRef.current.values()) dispose();
+      for (const dispose of groupsRef.current.values()) {
+        dispose();
+      }
       groupsRef.current.clear();
       pendingRef.current.clear();
     },
@@ -180,14 +183,18 @@ export function useLivePlotPayloads({
       scopeWindowKey,
     } = requestInputs;
     const dataChanged = dataKeyRef.current !== dataKey;
-    if (dataChanged) refreshFailuresRef.current.clear();
+    if (dataChanged) {
+      refreshFailuresRef.current.clear();
+    }
     dataKeyRef.current = dataKey;
     const viewChanged = viewKeyRef.current !== scopeWindowKey;
     viewKeyRef.current = scopeWindowKey;
 
     const testCycleId = requestScope?.cycleId;
     if (!enabled || !testCycleId || selectedPlots.length === 0 || !requestVisible) {
-      for (const dispose of groupsRef.current.values()) dispose();
+      for (const dispose of groupsRef.current.values()) {
+        dispose();
+      }
       groupsRef.current.clear();
     }
     if (!enabled || !testCycleId || selectedPlots.length === 0) {
@@ -239,14 +246,18 @@ export function useLivePlotPayloads({
       desired.set(JSON.stringify([nativeSession.identity.generation, requests, refreshKey]), { plots, requests });
     }
     for (const [key, dispose] of groupsRef.current) {
-      if (desired.has(key)) continue;
+      if (desired.has(key)) {
+        continue;
+      }
       dispose();
       groupsRef.current.delete(key);
     }
     if (dataChanged)
       commit((current) => Object.fromEntries(Object.entries(current).filter(([id]) => requestPlots.some((plot) => plot.plot_id === id))));
     for (const [key, group] of desired) {
-      if (groupsRef.current.has(key)) continue;
+      if (groupsRef.current.has(key)) {
+        continue;
+      }
       const activePlots = group.plots;
       const requests = group.requests;
       const flushFrameRef = { current: null as number | null };
@@ -255,7 +266,9 @@ export function useLivePlotPayloads({
       let active = true;
       const streams = new Set<NativePlotStream>();
       const releases = new Set<() => void>();
-      for (const plot of activePlots) pendingRef.current.add(plot.plot_id);
+      for (const plot of activePlots) {
+        pendingRef.current.add(plot.plot_id);
+      }
       let reopenTimer: number | null = null;
       let reopenDelayMs = RECONNECT_INITIAL_MS;
       const received = new Set<string>();
@@ -265,7 +278,9 @@ export function useLivePlotPayloads({
       const reportRefreshFailure = (error: unknown, plotId = "stream") => {
         received.clear();
         awaitingRefresh = false;
-        for (const plot of activePlots) pendingRef.current.delete(plot.plot_id);
+        for (const plot of activePlots) {
+          pendingRef.current.delete(plot.plot_id);
+        }
         onRefreshChange?.({ refreshing: pendingRef.current.size > 0 });
         const failure = failureOf(error, "Plot Refresh Failed");
         if (!refreshFailuresRef.current.has(plotId)) {
@@ -298,7 +313,9 @@ export function useLivePlotPayloads({
       const flush = () => {
         flushFrameRef.current = null;
         flushTimerRef.current = null;
-        if (!active || !nativeSession.identity.isCurrent() || Object.keys(queued).length === 0) return;
+        if (!active || !nativeSession.identity.isCurrent() || Object.keys(queued).length === 0) {
+          return;
+        }
         const updates = queued;
         queued = {};
         // Only Complete Revisions Reach The Visible Model, In One Shared Commit.
@@ -306,12 +323,16 @@ export function useLivePlotPayloads({
       };
 
       const enqueue = (messages: readonly PlotPayloadStreamMessage[]) => {
-        if (!active || messages.length === 0) return;
+        if (!active || messages.length === 0) {
+          return;
+        }
         reopenDelayMs = RECONNECT_INITIAL_MS;
         const next = applyDocumentPlotMessages({ ...modelRef.current, ...queued }, messages);
         for (const message of messages) {
           const plotState = next[message.plot_id];
-          if (!plotState) continue;
+          if (!plotState) {
+            continue;
+          }
           // Retain Only The Latest State Per Plot While Rendering Is Inactive.
           queued[message.plot_id] = plotState;
           if (plotState.status === "error") {
@@ -323,13 +344,17 @@ export function useLivePlotPayloads({
             received.add(message.plot_id);
             if (activePlots.every((plot) => received.has(plot.plot_id))) {
               awaitingRefresh = false;
-              for (const plot of activePlots) pendingRef.current.delete(plot.plot_id);
+              for (const plot of activePlots) {
+                pendingRef.current.delete(plot.plot_id);
+              }
               onRefreshChange?.({ refreshing: pendingRef.current.size > 0, updatedAt: Date.now() });
               received.clear();
             }
           }
         }
-        if (flushFrameRef.current !== null || flushTimerRef.current !== null) return;
+        if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
+          return;
+        }
         if (renderActiveRef.current) {
           flushFrameRef.current = window.requestAnimationFrame(flush);
           return;
@@ -343,7 +368,9 @@ export function useLivePlotPayloads({
         }
         clearScheduledFlush(flushFrameRef, flushTimerRef);
         flush();
-        if (awaitingRefresh) reportRefreshFailure(new Error("The plot stream ended before the view finished refreshing."));
+        if (awaitingRefresh) {
+          reportRefreshFailure(new Error("The plot stream ended before the view finished refreshing."));
+        }
         onRefreshChange?.({ refreshing: pendingRef.current.size > 0 });
         commit((current) => ({
           ...current,
@@ -389,7 +416,9 @@ export function useLivePlotPayloads({
             ]),
           ),
         }));
-        if (!terminal) scheduleReopen();
+        if (!terminal) {
+          scheduleReopen();
+        }
       };
 
       const scheduleReopen = () => {
@@ -420,7 +449,9 @@ export function useLivePlotPayloads({
           const release = nativeSession.own(() => void stream.cancel().catch(() => undefined));
           releases.add(release);
           try {
-            if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
+            if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
+              return;
+            }
             for await (const message of stream) {
               if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
                 break;
@@ -441,7 +472,9 @@ export function useLivePlotPayloads({
           } finally {
             release();
             releases.delete(release);
-            if (streams.delete(stream)) await stream.cancel();
+            if (streams.delete(stream)) {
+              await stream.cancel();
+            }
           }
           markStreamEnded();
         } catch (exc: unknown) {
@@ -454,14 +487,18 @@ export function useLivePlotPayloads({
       const readSnapshot = async () => {
         try {
           const envelopes = await fetchNativePlotPayloads(nativeSession.identity, requests, { signal: controller.signal });
-          if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) return;
+          if (!active || controller.signal.aborted || !nativeSession.identity.isCurrent()) {
+            return;
+          }
           const expected = new Set(activePlots.map((plot) => plot.plot_id));
           if (envelopes.length !== expected.size || envelopes.some((envelope) => !expected.delete(envelope.plot_id))) {
             throw new Error("Read Plot Group: Refresh the Incomplete Plot Selection");
           }
           enqueue(envelopes.map((envelope) => ({ ...envelope, kind: "snapshot" })));
         } catch (error) {
-          if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) return;
+          if (!active || isAbortError(error) || !nativeSession.identity.isCurrent()) {
+            return;
+          }
           reportRefreshFailure(error);
           const failure = failureOf(error, "Plot Refresh Failed");
           commit((current) => ({
@@ -482,19 +519,26 @@ export function useLivePlotPayloads({
         }
       };
 
-      if (automatic) void consumeStream();
-      else void readSnapshot();
+      if (automatic) {
+        void consumeStream();
+      } else void readSnapshot();
 
       groupsRef.current.set(key, () => {
         active = false;
-        for (const plot of activePlots) pendingRef.current.delete(plot.plot_id);
+        for (const plot of activePlots) {
+          pendingRef.current.delete(plot.plot_id);
+        }
         controller.abort();
         if (reopenTimer !== null) {
           window.clearTimeout(reopenTimer);
           reopenTimer = null;
         }
-        for (const release of releases) release();
-        for (const stream of streams) void stream.cancel().catch(() => undefined);
+        for (const release of releases) {
+          release();
+        }
+        for (const stream of streams) {
+          void stream.cancel().catch(() => undefined);
+        }
         streams.clear();
         clearScheduledFlush(flushFrameRef, flushTimerRef);
       });

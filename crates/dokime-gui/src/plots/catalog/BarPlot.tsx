@@ -18,7 +18,7 @@ import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { categoryFractions, categoryTotals, formatCategoryTotal } from "@/plots/categories";
 import type { StatisticValue } from "@/lib/statistics";
-import { plotColor } from "@/plots/colors";
+import { plotColor } from "@dokime/plots/colors";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
@@ -34,8 +34,12 @@ type BarReading = {
 /* === Components === */
 
 export function BarPlot({ plot }: { plot: PlotCardSpec }) {
-  if (plot.pareto) return <ParetoPlot plot={plot} />;
-  if (plot.arrangement) return <ArrangedBarPlot plot={plot} />;
+  if (plot.pareto) {
+    return <ParetoPlot plot={plot} />;
+  }
+  if (plot.arrangement) {
+    return <ArrangedBarPlot plot={plot} />;
+  }
   const bars = latestBars(plot);
   const minimum = Math.min(0, ...bars.map((bar) => bar.value));
   const maximum = Math.max(0, ...bars.map((bar) => bar.value));
@@ -97,14 +101,22 @@ function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
   const exact = new Map<string, StatisticValue>();
   plot.series.forEach((series, seriesIndex) => {
     for (const point of series.points) {
-      if (typeof point.y !== "number" || !Number.isFinite(point.y)) continue;
+      if (typeof point.y !== "number" || !Number.isFinite(point.y)) {
+        continue;
+      }
       const key = String(point.x);
-      if (!categories.has(key)) categories.set(key, new Map());
+      if (!categories.has(key)) {
+        categories.set(key, new Map());
+      }
       categories.get(key)?.set(seriesIndex, point.y);
-      if (point.exact_y !== undefined) exact.set(JSON.stringify([key, seriesIndex]), point.exact_y);
+      if (point.exact_y !== undefined) {
+        exact.set(JSON.stringify([key, seriesIndex]), point.exact_y);
+      }
     }
   });
-  if (!categories.size) return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
+  if (!categories.size) {
+    return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
+  }
   const stacked = plot.arrangement === "stacked";
   let minimum = 0;
   let maximum = 0;
@@ -135,8 +147,9 @@ function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
       const start = stacked ? (value < 0 ? negative : positive) : 0;
       const end = start + value;
       if (stacked) {
-        if (value < 0) negative = end;
-        else positive = end;
+        if (value < 0) {
+          negative = end;
+        } else positive = end;
       }
       return {
         seriesIndex,
@@ -200,9 +213,13 @@ function ParetoPlot({ plot }: { plot: PlotCardSpec }) {
   if (plot.arrangement || plot.series.length > 1)
     return <PlotPlaceholder title={plot.title} {...plotUnavailableText("Pareto cannot have an arrangement or series binding.")} />;
   const totals = categoryTotals(plot);
-  if (totals.entries === undefined) return <PlotPlaceholder title={plot.title} {...plotUnavailableText(totals.error)} />;
+  if (totals.entries === undefined) {
+    return <PlotPlaceholder title={plot.title} {...plotUnavailableText(totals.error)} />;
+  }
   const entries = [...totals.entries].sort((left, right) => right.value - left.value || left.order - right.order);
-  if (!entries.length) return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
+  if (!entries.length) {
+    return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
+  }
   const fractions = categoryFractions(entries);
   const maximum = entries[0].value;
   const valueAxis = scaleLinear([0, maximum || 1], [280, 20]);

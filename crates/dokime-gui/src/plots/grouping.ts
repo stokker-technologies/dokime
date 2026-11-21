@@ -17,7 +17,7 @@ import { scaleStatisticValue, type StatisticValue } from "@/lib/statistics";
 import { numericValue } from "@/lib/utils";
 import type { DocumentReferenceBand, DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream } from "@/lib/types";
 import { elapsedColumnUnit } from "@/plots/axis";
-import { plotColor, referenceColor } from "@/plots/colors";
+import { plotColor, referenceColor } from "@dokime/plots/colors";
 import { histogramAxes } from "@/plots/histogram-axes";
 import type { PlotCardSpec } from "@/plots/types";
 
@@ -127,9 +127,13 @@ export function documentPlotSpec({
  * `elapsedColumnUnit`.
  */
 export function resolvedElapsedUnit(plot: DocumentViewPlot, xFormat: Wire<ValueFormat> | null): string | null {
-  if (plot.plot_type !== "time_series" || xFormat) return null;
+  if (plot.plot_type !== "time_series" || xFormat) {
+    return null;
+  }
   const declared = plot.x_axis;
-  if (declared) return declared.kind === "elapsed" ? declared.unit : null;
+  if (declared) {
+    return declared.kind === "elapsed" ? declared.unit : null;
+  }
   return elapsedColumnUnit(plot.x);
 }
 
@@ -148,7 +152,9 @@ export { plotColor };
 
 /** Shared by live snapshots, zoom summaries and frozen HTML; never mutates query payloads. */
 function scalePresentation(plot: PlotCardSpec, scale: number): PlotCardSpec {
-  if (scale === 1) return plot;
+  if (scale === 1) {
+    return plot;
+  }
   const scaled = (value: number | null | undefined) => (value == null ? value : value * scale);
   const cartesian = plot.cartesian;
   return {
@@ -244,21 +250,32 @@ function referenceValue(
   telemetry: Record<string, TelemetryStream> | null | undefined,
   parameters: Record<string, unknown> | null | undefined,
 ): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (!value) return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (!value) {
+    return null;
+  }
   const source = value.source;
   let result: number | null = null;
   if (source.type === "telemetry") {
     const stream = source.stream ?? plot.stream;
     result = numberValue(latestSample(telemetry, stream)?.[source.field]);
   }
-  if (source.type === "parameter") result = numberValue(parameters?.[source.name]);
+  if (source.type === "parameter") {
+    result = numberValue(parameters?.[source.name]);
+  }
   for (const transform of value.transforms ?? []) {
-    if (result === null) return null;
-    if (transform.type === "scale") result *= transform.factor;
-    else if (transform.type === "offset") result += transform.value;
+    if (result === null) {
+      return null;
+    }
+    if (transform.type === "scale") {
+      result *= transform.factor;
+    } else if (transform.type === "offset") result += transform.value;
     else return null;
-    if (!Number.isFinite(result)) return null;
+    if (!Number.isFinite(result)) {
+      return null;
+    }
   }
   return result;
 }
@@ -315,7 +332,9 @@ function plotState({
   if (hasFinitePoint) {
     return {};
   }
-  if (plotType === "grid_chart" || plotType === "contour") return {};
+  if (plotType === "grid_chart" || plotType === "contour") {
+    return {};
+  }
 
   const latest = latestSample(telemetry, stream);
   if (stream === "host.wifi.scan") {

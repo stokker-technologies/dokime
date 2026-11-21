@@ -1,0 +1,27 @@
+{
+  "name": "@dokime/plots",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./colors": "./src/colors.ts",
+    "./reduce": "./src/reduce.ts",
+    "./histogram-bins": "./src/histogram-bins.ts",
+    "./viewport": "./src/viewport.ts",
+    "./interaction": "./src/interaction.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

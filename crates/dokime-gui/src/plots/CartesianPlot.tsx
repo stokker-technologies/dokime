@@ -34,15 +34,15 @@ import type {
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
-import { markerColor, resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
-import { usePlotInteraction } from "@/plots/interaction";
+import { markerColor, resolvePlotCssColor, resolvePlotThemeColors } from "@dokime/plots/colors";
+import { usePlotInteraction } from "@dokime/plots/interaction";
 import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "@/plots/markers";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PromptMarker } from "@/plots/prompt-markers";
-import { windowIndices } from "@/plots/reduce";
+import { windowIndices } from "@dokime/plots/reduce";
 import type { PlotViewportMode } from "@/plots/types";
-import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
+import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@dokime/plots/viewport";
 
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 
@@ -247,7 +247,9 @@ export const CartesianPlot = memo(function CartesianPlot({
   onViewportChangeRef.current =
     onViewportChange ?? (!localViewport && !zoom && plotId ? (window) => setSummaryWindow(plotId, window) : undefined);
   useEffect(() => {
-    if (!plotId || zoom || localViewport) return;
+    if (!plotId || zoom || localViewport) {
+      return;
+    }
     return () => setSummaryWindow(plotId, null);
   }, [localViewport, plotId, setSummaryWindow, zoom]);
   const kinds = useMemo(() => markerKinds(markers, promptMarkers), [markers, promptMarkers]);
@@ -413,17 +415,27 @@ export const CartesianPlot = memo(function CartesianPlot({
         // whole run.
         setScale: [
           (plot, key) => {
-            if (key !== "x") return;
+            if (key !== "x") {
+              return;
+            }
             const { min, max } = plot.scales.x;
-            if (min == null || max == null) return;
+            if (min == null || max == null) {
+              return;
+            }
             const range = { min, max };
-            if (windowServes(drawnRef.current, range)) return;
+            if (windowServes(drawnRef.current, range)) {
+              return;
+            }
             queueMicrotask(() => {
-              if (plotRef.current !== plot) return;
+              if (plotRef.current !== plot) {
+                return;
+              }
               plot.setData(drawnData(drawnRef.current, range, plot.over.clientWidth, zoom), false);
               plot.setScale("x", range);
               const heldY = heldRangeRef.current?.y;
-              if (heldY) plot.setScale("y", heldY);
+              if (heldY) {
+                plot.setScale("y", heldY);
+              }
             });
           },
         ],
@@ -432,7 +444,9 @@ export const CartesianPlot = memo(function CartesianPlot({
             const held = heldViewport(plot.select, { width: plot.over.clientWidth, height: plot.over.clientHeight }, (position, axis) =>
               plot.posToVal(position, axis),
             );
-            if (!held) return;
+            if (!held) {
+              return;
+            }
             heldRangeRef.current = held;
             setFollowing(false);
             // A y-only zoom returns x to its live follow, so the statistics
@@ -445,7 +459,9 @@ export const CartesianPlot = memo(function CartesianPlot({
             const left = plot.cursor.left;
             const nextTooltip = markerTooltip(plot, kindsRef.current, root.getBoundingClientRect());
             setHoveredMarker((current) => {
-              if (!nextTooltip) return current ? null : current;
+              if (!nextTooltip) {
+                return current ? null : current;
+              }
               return current?.key === nextTooltip.key &&
                 current.label === nextTooltip.label &&
                 current.left === nextTooltip.left &&
@@ -453,7 +469,9 @@ export const CartesianPlot = memo(function CartesianPlot({
                 ? current
                 : nextTooltip;
             });
-            if (!tableLegend || left == null || left < 0) return;
+            if (!tableLegend || left == null || left < 0) {
+              return;
+            }
             const next = {
               x: plot.posToVal(left, "x"),
               span: (plot.scales.x.max ?? 0) - (plot.scales.x.min ?? 0),
@@ -616,7 +634,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       );
     }
     renderedSeries.forEach((item, index) => {
-      if (hiddenTracesRef.current.has(item.key)) plot.setSeries(index + 1, { show: false });
+      if (hiddenTracesRef.current.has(item.key)) {
+        plot.setSeries(index + 1, { show: false });
+      }
     });
     setTraceColors((current) => (current.join("|") === resolvedSeriesColors.join("|") ? current : resolvedSeriesColors));
     plotRef.current = plot;
@@ -643,7 +663,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       setHoveredMarker(null);
       try {
         plot.setSize(nextSize);
-        if (zoom) plot.setData(drawnData(drawnRef.current, heldRangeRef.current?.x ?? null, plot.over.clientWidth, true), false);
+        if (zoom) {
+          plot.setData(drawnData(drawnRef.current, heldRangeRef.current?.x ?? null, plot.over.clientWidth, true), false);
+        }
       } catch (error) {
         setPlotLoadError(failureOf(error, "Plot Unavailable"));
       }
@@ -730,15 +752,21 @@ export const CartesianPlot = memo(function CartesianPlot({
   // series in place, without rebuilding the plot.
   useEffect(() => {
     const plot = plotRef.current;
-    if (!plot) return;
+    if (!plot) {
+      return;
+    }
     renderedSeries.forEach((item, index) => {
       const show = !hiddenTraces.has(item.key);
-      if (plot.series[index + 1]?.show !== show) plot.setSeries(index + 1, { show });
+      if (plot.series[index + 1]?.show !== show) {
+        plot.setSeries(index + 1, { show });
+      }
     });
   }, [hiddenTraces, renderedSeries]);
 
   const legendRows = useMemo(() => {
-    if (!tableLegend) return null;
+    if (!tableLegend) {
+      return null;
+    }
     const frame = backendCartesian;
     const cursorPoints = cursor !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursor.x)) : null;
     const firstPointSeconds = frame?.series[0]?.x[0];
@@ -821,7 +849,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       try {
         if (heldRangeRef.current && !resetChanged && !viewportModeChanged) {
           applyHeldViewport(plot, heldRangeRef.current, fullRange(), () => {
-            if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
+            if (viewportMode === "live") {
+              setLiveXScale(plot, liveXRange, xScale, timeAxis);
+            }
           });
           dataSignatureRef.current = dataSignature;
           return;
@@ -886,7 +916,9 @@ export const CartesianPlot = memo(function CartesianPlot({
                   const plot = plotRef.current;
                   if (plot && chartFrame) {
                     plot.setData(drawnData(drawnRef.current, null, plot.over.clientWidth, zoom), true);
-                    if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
+                    if (viewportMode === "live") {
+                      setLiveXScale(plot, liveXRange, xScale, timeAxis);
+                    }
                   }
                 }}
               >
@@ -1088,9 +1120,15 @@ export function liveCartesianXRange(
   let latest = Number.NEGATIVE_INFINITY;
   for (const series of cartesian?.series ?? []) {
     for (const value of series.x) {
-      if (!Number.isFinite(value)) continue;
-      if (value < earliest) earliest = value;
-      if (value > latest) latest = value;
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+      if (value < earliest) {
+        earliest = value;
+      }
+      if (value > latest) {
+        latest = value;
+      }
     }
   }
   if (!Number.isFinite(latest) || !Number.isFinite(earliest)) {
@@ -1138,9 +1176,12 @@ function setLiveXScale(plot: uPlot, range: PlotViewportRange | null, xScale: Doc
  */
 function applyHeldViewport(plot: uPlot, held: HeldViewport, data: uPlot.AlignedData, followX: () => void): void {
   plot.setData(data, true);
-  if (held.x) plot.setScale("x", held.x);
-  else followX();
-  if (held.y) plot.setScale("y", held.y);
+  if (held.x) {
+    plot.setScale("x", held.x);
+  } else followX();
+  if (held.y) {
+    plot.setScale("y", held.y);
+  }
 }
 
 /** Whether `[min, max]` is finite and wider than float noise around its bounds. */
@@ -1168,14 +1209,18 @@ export function drawnData(drawn: DrawnWindow, range: PlotViewportRange | null, c
   const [x, ...traces] = source as unknown as [number[], ...(number | null | undefined)[][]];
   const indices = windowIndices(x, traces, range, columns, fitPixels);
   drawn.everySample = indices === null;
-  if (!indices) return source;
+  if (!indices) {
+    return source;
+  }
 
   return [indices.map((index) => x[index]), ...traces.map((trace) => indices.map((index) => trace[index] ?? null))] as uPlot.AlignedData;
 }
 
 /** Whether what is drawn already resolves the visible x `range`. */
 function windowServes(drawn: DrawnWindow, range: PlotViewportRange): boolean {
-  if (drawn.everySample) return true;
+  if (drawn.everySample) {
+    return true;
+  }
   const drawnRange = drawn.range;
   if (drawnRange) {
     const tolerance = Math.max(Math.abs(range.max - range.min), Number.MIN_VALUE) * 1e-9;
@@ -1322,7 +1367,9 @@ export function seriesPointMarks(style: DocumentPlotStyle, densePoints: boolean,
 
 /** A gap leaves a lone sample without a segment, even when ordinary line marks are off. */
 function isolatedAlignedPoints(plot: uPlot, seriesIdx: number, show: boolean): number[] | null {
-  if (show) return null;
+  if (show) {
+    return null;
+  }
   const values = plot.data[seriesIdx] as Array<number | null | undefined>;
   const series = plot.series[seriesIdx];
   const [from, to] = series.idxs ?? [0, values.length - 1];
@@ -1330,14 +1377,22 @@ function isolatedAlignedPoints(plot: uPlot, seriesIdx: number, show: boolean): n
   if (series.spanGaps) {
     let single = -1;
     for (let index = 0; index < values.length; index += 1) {
-      if (!isNumber(values[index])) continue;
-      if (single >= 0) return null;
+      if (!isNumber(values[index])) {
+        continue;
+      }
+      if (single >= 0) {
+        return null;
+      }
       single = index;
     }
-    if (single >= from && single <= to) isolated.push(single);
+    if (single >= from && single <= to) {
+      isolated.push(single);
+    }
   } else {
     for (let index = from; index <= to; index += 1) {
-      if (isNumber(values[index]) && !isNumber(values[index - 1]) && !isNumber(values[index + 1])) isolated.push(index);
+      if (isNumber(values[index]) && !isNumber(values[index - 1]) && !isNumber(values[index + 1])) {
+        isolated.push(index);
+      }
     }
   }
   return isolated.length ? isolated : null;
@@ -1496,7 +1551,9 @@ function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
     const top = Math.round(plot.valToPos(line.value, "y", true)) + 0.5;
-    if (top < bbox.top || top > bottom) return;
+    if (top < bbox.top || top > bottom) {
+      return;
+    }
     ctx.moveTo(bbox.left, top);
     ctx.lineTo(right, top);
     ctx.stroke();
@@ -1527,7 +1584,9 @@ export function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], 
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (const edge of [top, bottom]) {
-      if (edge < bbox.top || edge > bottomEdge) continue;
+      if (edge < bbox.top || edge > bottomEdge) {
+        continue;
+      }
       const y = Math.round(edge) + 0.5;
       ctx.moveTo(bbox.left, y);
       ctx.lineTo(bbox.left + bbox.width, y);

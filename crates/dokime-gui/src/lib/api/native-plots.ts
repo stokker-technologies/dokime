@@ -41,7 +41,7 @@ import type {
   DocumentViewPlot,
   PlotPayloadStreamMessage,
 } from "@/lib/types";
-import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import { NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
 import type { SnapshotsWatchResponse } from "@host/model";
 import {
   Aggregate,
@@ -274,12 +274,18 @@ export async function fetchNativePlotPayloads(
       });
       ensureActive(session, options.signal);
       const resolved = required(response.resolvedAt, "Read Plot Snapshots: Missing Read Cut");
-      if (at && cutKey(at) !== cutKey(resolved)) throw new Error("Read Plot Snapshots: Read Cut Changed");
+      if (at && cutKey(at) !== cutKey(resolved)) {
+        throw new Error("Read Plot Snapshots: Read Cut Changed");
+      }
       at = resolved;
       envelopes.push(...response.envelopes.map((envelope) => mapNativePlotEnvelope(envelope, plotTypes.get(envelope.plotId))));
       token = response.nextPageToken;
-      if (!token) return envelopes;
-      if (seen.has(token)) throw new Error("Read Plot Snapshots: Repeated Continuation");
+      if (!token) {
+        return envelopes;
+      }
+      if (seen.has(token)) {
+        throw new Error("Read Plot Snapshots: Repeated Continuation");
+      }
       seen.add(token);
     }
     throw new NativeApiLimitError("Read Plot Snapshots", "page budget exhausted");
@@ -311,13 +317,17 @@ export async function openNativePlotStream(
     await source?.cancel().catch(() => undefined);
     throw normalizeCancellation(error, session, options.signal);
   }
-  if (!source) throw new Error("Native plot watch returned no stream.");
+  if (!source) {
+    throw new Error("Native plot watch returned no stream.");
+  }
 
   let ended = false;
   const iterator = source[Symbol.asyncIterator]();
   let removeAbortListener: (() => void) | undefined;
   const cancel = async (): Promise<void> => {
-    if (ended) return;
+    if (ended) {
+      return;
+    }
     ended = true;
     removeAbortListener?.();
     removeAbortListener = undefined;
@@ -337,7 +347,9 @@ export async function openNativePlotStream(
 
   const mapped: AsyncIterator<NativePlotStreamMessage> = {
     async next() {
-      if (ended) return { done: true, value: undefined };
+      if (ended) {
+        return { done: true, value: undefined };
+      }
       try {
         ensureActive(session, options.signal);
         const result = await iterator.next();
@@ -372,13 +384,19 @@ export async function openNativePlotStream(
  * with its warnings rather than ending the whole stream on a mapping throw.
  */
 export function mapNativePlotWatchPage(frame: PlotWatchPage, plotTypes?: PlotTypes): NativePlotStreamMessage {
-  if (frame.resyncRequired) throw new Error("Watch Plot Snapshots: Resynchronization Required");
-  if (frame.updates.length === 0) throw new Error("Native plot revision has no updates.");
+  if (frame.resyncRequired) {
+    throw new Error("Watch Plot Snapshots: Resynchronization Required");
+  }
+  if (frame.updates.length === 0) {
+    throw new Error("Native plot revision has no updates.");
+  }
   return { updates: frame.updates.map((update) => mapNativePlotStreamUpdate(update, plotTypes?.get(update.envelope?.plotId ?? ""))) };
 }
 
 function mapNativePlotStreamUpdate(frame: PlotStreamUpdate, plotType?: DocumentPlotType | null): NativePlotStreamUpdate {
-  if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
+  if (!frame.envelope) {
+    throw new Error("Native plot stream frame has no envelope.");
+  }
   // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
   if (frame.kind === hostModel.PlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
     return { kind: "pending", plot_id: frame.envelope.plotId };
@@ -453,7 +471,9 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
       throw new Error(`Unsupported data expression source: ${sourceType}`);
   }
   const rawTransforms = input.transforms;
-  if (rawTransforms !== undefined && !Array.isArray(rawTransforms)) throw new Error("Data expression transforms must be an array.");
+  if (rawTransforms !== undefined && !Array.isArray(rawTransforms)) {
+    throw new Error("Data expression transforms must be an array.");
+  }
   if (Array.isArray(rawTransforms) && rawTransforms.length > MAX_PLOT_TRANSFORMS)
     throw new NativeApiLimitError("Plots Expression", "Transform Budget Reached");
   for (const raw of rawTransforms ?? []) {
@@ -476,7 +496,9 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
       const rank = /^p(\d{1,3})$/.exec(name)?.[1];
       const percentile = rank === undefined ? 0 : Number(rank);
       const kind = rank !== undefined && percentile <= 100 ? Aggregate.PERCENTILE : kinds[name];
-      if (kind === undefined) throw new Error(`Unsupported aggregate: ${name}`);
+      if (kind === undefined) {
+        throw new Error(`Unsupported aggregate: ${name}`);
+      }
       expression = { label: "", kind: { case: "aggregate", value: { input: expression, kind, percentile } } };
       continue;
     }
@@ -485,7 +507,9 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
       case "scale":
       case "offset": {
         const value = type === "scale" ? transform.factor : transform.value;
-        if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${type} requires a finite number`);
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          throw new Error(`${type} requires a finite number`);
+        }
         kind = { case: type, value };
         break;
       }
@@ -519,8 +543,12 @@ function downsampleTechnique(value?: DocumentDownsampleTechnique | null): Downsa
 }
 
 function axisScale(value?: DocumentAxisScale | null): AxisScale {
-  if (value === "log") return hostModel.AxisScale.LOG;
-  if (value === "linear" || value == null) return hostModel.AxisScale.LINEAR;
+  if (value === "log") {
+    return hostModel.AxisScale.LOG;
+  }
+  if (value === "linear" || value == null) {
+    return hostModel.AxisScale.LINEAR;
+  }
   throw new Error(`Unsupported plot axis scale: ${String(value)}`);
 }
 
@@ -535,7 +563,9 @@ function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number][
     contains: hostModel.FilterOperator.CONTAINS,
     exists: hostModel.FilterOperator.EXISTS,
   }[value];
-  if (operator === undefined) throw new Error(`Unsupported plot filter operator: ${String(value)}`);
+  if (operator === undefined) {
+    throw new Error(`Unsupported plot filter operator: ${String(value)}`);
+  }
   return operator;
 }
 
@@ -609,11 +639,15 @@ function object(value: unknown, label: string): Record<string, unknown> {
 }
 
 function ensureActive(session: SessionIdentity, signal?: AbortSignal): void {
-  if (signal?.aborted || !session.isCurrent()) throw abortError();
+  if (signal?.aborted || !session.isCurrent()) {
+    throw abortError();
+  }
 }
 
 function normalizeCancellation(error: unknown, session: SessionIdentity, signal?: AbortSignal): unknown {
-  if (signal?.aborted || !session.isCurrent()) return abortError();
+  if (signal?.aborted || !session.isCurrent()) {
+    return abortError();
+  }
   return error;
 }
 

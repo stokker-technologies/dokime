@@ -22,7 +22,7 @@ import { createRoot } from "react-dom/client";
 // Local Imports
 import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
 import { CartesianPlot } from "@/plots/CartesianPlot";
-import { PlotInteractionProvider } from "@/plots/interaction";
+import { PlotInteractionProvider } from "@dokime/plots/interaction";
 import { HistogramChart } from "@/components/HistogramChart";
 import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
@@ -63,12 +63,16 @@ declare global {
 /* === Private Functions === */
 
 async function settled() {
-  for (let frame = 0; frame < 8; frame += 1) await new Promise(requestAnimationFrame);
+  for (let frame = 0; frame < 8; frame += 1) {
+    await new Promise(requestAnimationFrame);
+  }
 }
 
 function startCanvasFixture() {
   const rootElement = document.getElementById("root");
-  if (!rootElement) throw new Error("Canvas fixture root is missing");
+  if (!rootElement) {
+    throw new Error("Canvas fixture root is missing");
+  }
   const root = createRoot(rootElement);
   const arcs = new WeakMap<Path2D, Array<[number, number]>>();
   const painted = new WeakMap<HTMLCanvasElement, Set<string>>();
@@ -85,10 +89,14 @@ function startCanvasFixture() {
   CanvasRenderingContext2D.prototype.fill = function (pathOrRule?: Path2D | CanvasFillRule, rule?: CanvasFillRule) {
     Reflect.apply(nativeFill, this, pathOrRule instanceof Path2D ? [pathOrRule, rule] : [pathOrRule]);
     const points = pathOrRule instanceof Path2D ? arcs.get(pathOrRule) : null;
-    if (!points) return;
+    if (!points) {
+      return;
+    }
     const samples = painted.get(this.canvas) ?? new Set<string>();
     for (const [x, y] of points) {
-      if (x < 0 || y < 0 || x >= this.canvas.width || y >= this.canvas.height) continue;
+      if (x < 0 || y < 0 || x >= this.canvas.width || y >= this.canvas.height) {
+        continue;
+      }
       const pixel = this.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
       if (pixel[3] > 0) samples.add(`${x}:${y}`);
     }
@@ -382,7 +390,9 @@ function startCanvasFixture() {
     counts: () => [...document.querySelectorAll("canvas")].map((canvas) => painted.get(canvas)?.size ?? 0),
     async toggle(index) {
       const row = document.querySelectorAll("tbody tr")[index];
-      if (!(row instanceof HTMLElement)) throw new Error("Legend row is missing");
+      if (!(row instanceof HTMLElement)) {
+        throw new Error("Legend row is missing");
+      }
       row.click();
       await settled();
     },

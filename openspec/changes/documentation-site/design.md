@@ -31,6 +31,49 @@ from the body; relative links between guides become site routes and links to oth
 files point to the repository browser at the built revision. The build fails on a broken page link
 or heading anchor. The organization logo and typefaces are referenced from `organization/`.
 
+## Shared Frontend Packages
+
+The owner locked the extraction on 2026-11-21: pnpm workspace packages own the
+existing components, with no compatibility paths or duplicate renderers.
+`packages/plots` owns display-only plot components and data shaping, retaining
+uPlot and the existing d3 modules. `packages/document` owns document rendering
+and consumes plots. `packages/report` owns the standalone template, embeds host
+protobuf responses and reuses the live decoder without importing RPC clients or
+transports. Desktop consumes the packages; the documentation site consumes plots
+and document rendering where shown. Nothing shared imports the desktop.
+Formatting stays fixed without digit grouping, with a decimal point, and labels
+carry units as `Mean [Mbps]`.
+
+At the assigned base revision there is no `packages/dokime` directory. Its intended
+role and the location of shared presentation foundations require owner direction.
+The report's current `ErrorCard` imports desktop session recovery and plugin RPC;
+the extraction must preserve the existing import-boundary test's intent. Changes
+under `docs/` and provider workflows belong to the owner and are reported only.
+
+The landed independent slice moves palette resolution, point reduction,
+histogram-bin shaping, viewport interaction and the React plot interaction
+provider into `packages/plots/src/`, exported through explicit package subpaths.
+Their old desktop locations are removed and desktop callers import the workspace
+package. Native plot reads, the remaining plot components, documents and reports
+still belong to the desktop pending the decisions above. Root `pnpm-lock.yaml`
+replaces both application locks; cache keys and shell inventory read that lock.
+
+One existing overlapping public path requires owner review: desktop
+`src/lib/document-plots.ts` forwards plot shaping from `src/plots/grouping.ts`.
+`PlotGroupGrid.tsx` uses the forwarding module and direct grouping imports, while
+plot tests use grouping directly. Prefer removing the forwarding module and
+giving the extracted shaping implementation one package entry when its move is
+authorized; neither path is removed in the independent slice.
+
+The existing document and plot presentation type families also require owner
+review against the generated host messages before renderer extraction:
+`src/lib/document-contracts.ts` and `src/lib/types/view-contracts.ts` describe
+handwritten projection fields, while `target/generated/host/model.ts` exposes the
+canonical messages. Native document/plot adapters consume the messages and
+produce the projection families used by rendering components. Prefer composing
+required local rendering state with generated fields and retiring duplicated
+wire-shaped declarations; no family is removed by this independent move.
+
 ## Archives
 
 | Channel | Asset | Source | Site Entry |

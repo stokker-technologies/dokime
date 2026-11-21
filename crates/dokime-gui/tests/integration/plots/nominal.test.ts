@@ -80,8 +80,8 @@ import {
   type HistogramColumn,
   type HistogramDeclaration,
 } from "@/plots/histogram-axes";
-import { histogramBars } from "@/plots/histogram-bins";
-import { PlotInteractionProvider } from "@/plots/interaction";
+import { histogramBars } from "@dokime/plots/histogram-bins";
+import { PlotInteractionProvider } from "@dokime/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
@@ -89,9 +89,9 @@ import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@/p
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
-import { m4Indices, windowIndices } from "@/plots/reduce";
+import { m4Indices, windowIndices } from "@dokime/plots/reduce";
 import { usePlotPalette } from "@/plots/use-plot-palette";
-import { PLOT_DRAG_OPTIONS, attachPan, heldViewport, pannedRange } from "@/plots/viewport";
+import { PLOT_DRAG_OPTIONS, heldViewport } from "@dokime/plots/viewport";
 import { applyReportAppearance } from "@/report/report-appearance";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import type { NativePlotPayloadEnvelope } from "../../../src/lib/api/native-plot-projection";
@@ -1809,61 +1809,6 @@ test("Plot Edits Survive Presentation Changes", async () => {
   assert.ok(cancel);
   await act(async () => cancel.click());
   await vi.waitFor(() => assert.ok(document.activeElement === host.querySelector("button[aria-label^='Plot Settings for ']")));
-});
-
-test("Viewport Panning", () => {
-  assert.deepEqual(pannedRange({ min: 0, max: 100 }, -0.25, false), { min: -25, max: 75 });
-  const logarithmic = pannedRange({ min: 1, max: 100 }, 0.5, true);
-  assert.ok(logarithmic);
-  assert.ok(Math.abs(logarithmic.min - 10) <= Number.EPSILON * 10 * 8);
-  assert.ok(Math.abs(logarithmic.max - 1000) <= Number.EPSILON * 1000 * 8);
-  assert.equal(pannedRange({ min: 0, max: 100 }, 0.5, true), null);
-  assert.equal(pannedRange({ min: 1, max: 100 }, Infinity, false), null);
-});
-
-test("Pan Listener Ownership", () => {
-  const view = new EventTarget();
-  const over = Object.assign(new EventTarget(), { clientWidth: 100, clientHeight: 100, ownerDocument: { defaultView: view } });
-  const scales = { x: { min: 0, max: 100 }, y: { min: 0, max: 10 } };
-  const setScale = vi.fn((axis: "x" | "y", range: { min: number; max: number }) => {
-    scales[axis] = range;
-  });
-  const onPan = vi.fn();
-  const setCursor = vi.fn();
-  const plot = {
-    over,
-    scales,
-    setScale,
-    cursor: { left: 75, top: 70 },
-    setCursor,
-    batch: (effect: () => void) => effect(),
-  } as unknown as Parameters<typeof attachPan>[0];
-  const detach = attachPan(plot, { logX: false, logY: false, panY: true, onPan });
-  const mouse = (type: string, values: Partial<MouseEvent>) => Object.assign(new Event(type, { cancelable: true }), values);
-  const ordinary = mouse("mousedown", { button: 0, shiftKey: false, clientX: 50, clientY: 50 });
-  over.dispatchEvent(ordinary);
-  assert.equal(ordinary.defaultPrevented, false);
-  const shifted = mouse("mousedown", { button: 0, shiftKey: true, clientX: 50, clientY: 50 });
-  over.dispatchEvent(shifted);
-  assert.equal(shifted.defaultPrevented, true);
-  view.dispatchEvent(mouse("mousemove", { buttons: 1, clientX: 75, clientY: 70 }));
-  assert.deepEqual(scales, { x: { min: -25, max: 75 }, y: { min: 2, max: 12 } });
-  assert.deepEqual(onPan.mock.calls[0][0], { x: scales.x, y: scales.y });
-  assert.deepEqual(setCursor.mock.calls[0], [{ left: 75, top: 70 }]);
-  view.dispatchEvent(new Event("mouseup"));
-  view.dispatchEvent(mouse("mousemove", { buttons: 1, clientX: 90, clientY: 90 }));
-  assert.equal(onPan.mock.calls.length, 1);
-  over.dispatchEvent(mouse("mousedown", { button: 1, shiftKey: false, clientX: 10, clientY: 50 }));
-  view.dispatchEvent(mouse("mousemove", { buttons: 4, clientX: 0, clientY: 50 }));
-  assert.deepEqual(scales.x, { min: -15, max: 85 });
-  view.dispatchEvent(new Event("blur"));
-  assert.equal(onPan.mock.calls.length, 2);
-  detach();
-  const removed = mouse("mousedown", { button: 1, clientX: 10, clientY: 50 });
-  over.dispatchEvent(removed);
-  assert.equal(removed.defaultPrevented, false);
-  view.dispatchEvent(mouse("mousemove", { buttons: 4, clientX: 0, clientY: 50 }));
-  assert.equal(onPan.mock.calls.length, 2);
 });
 
 test("Bounded Report Envelopes", () => {

@@ -17,7 +17,7 @@ import { useAppearance } from "@/lib/appearance";
 import { useApplicationTheme } from "@/lib/application-theme";
 import type { ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
-import { plotPaletteFromVariables, resolvePlotThemeColors } from "@/plots/colors";
+import { plotPaletteFromVariables, resolvePlotThemeColors } from "@dokime/plots/colors";
 import { useUiStore } from "@/stores/ui-store";
 
 /* === Public Functions === */

@@ -19,7 +19,7 @@ import { type ReactNode, useState } from "react";
 import { formatNumber, formatUnitLabel } from "@/lib/format";
 
 import { HISTOGRAM_COUNT_LABEL } from "@/plots/histogram-axes";
-import { type HistogramDistribution, histogramBars } from "@/plots/histogram-bins";
+import { type HistogramDistribution, histogramBars } from "@dokime/plots/histogram-bins";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText } from "@/plots/plot-placeholder";
 

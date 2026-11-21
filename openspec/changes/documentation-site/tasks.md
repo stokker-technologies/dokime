@@ -18,3 +18,12 @@
 - [x] 6.3 Select only the documentation job for guides, Markdown, OpenSpec and site changes; run documentation tooling checks inside that job.
 - [x] 6.4 Publish the current entry plus published release lines as a Nightly documentation image; route documentation-only Nightlies without moving the product tag.
 - [x] 6.5 Prove the updated site build, tooling, workflow lint and local container build.
+
+- [x] 7.1 Establish the pnpm workspace; migrate workspace locks, frontend tasks, cache keys and shell inventory lock inputs.
+- [ ] 7.2 Decide ownership of the shared presentation foundation: packages/dokime is absent at the assigned base revision.
+- [x] 7.3 Move host-independent palette, reduction, histogram-bin, viewport and interaction modules into packages/plots, migrate all their consumers and move their standalone tests.
+- [ ] 7.4 Move remaining plot components, shaping, scale and reference rendering into packages/plots after resolving native ErrorCard recovery ownership; retain uPlot and d3.
+- [ ] 7.5 Move document rendering and the shared generated-response decoder into packages/document; migrate desktop consumers without compatibility exports.
+- [ ] 7.6 Move the standalone template into packages/report and preserve its RPC and transport import boundary using the live decoder.
+- [ ] 7.7 Connect sites/docs to the shared plots and document renderer without desktop imports; report required owner documentation and workflow edits.
+- [ ] 7.8 Prove the complete extraction's frozen workspace install, package and desktop type checks, frontend lint and unit/integration tests, desktop/report/site builds, format, repository check and strict OpenSpec validation.

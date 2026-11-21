@@ -86,21 +86,29 @@ export function heldViewport(
   area: PlotArea,
   posToVal: (position: number, axis: "x" | "y") => number,
 ): HeldViewport | null {
-  if (!(select.width > 0) || !(select.height > 0)) return null;
+  if (!(select.width > 0) || !(select.height > 0)) {
+    return null;
+  }
   const x = spansAxis(select.left, select.width, area.width)
     ? null
     : orderedRange(posToVal(select.left, "x"), posToVal(select.left + select.width, "x"));
   const y = spansAxis(select.top, select.height, area.height)
     ? null
     : orderedRange(posToVal(select.top, "y"), posToVal(select.top + select.height, "y"));
-  if (!x && !y) return null;
+  if (!x && !y) {
+    return null;
+  }
   return { x, y };
 }
 
 /** Translate A Visible Range Without Changing Its Linear Width Or Logarithmic Ratio. */
 export function pannedRange(range: ViewportRange, fraction: number, logarithmic: boolean): ViewportRange | null {
-  if (!Number.isFinite(fraction) || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min >= range.max) return null;
-  if (logarithmic && range.min <= 0) return null;
+  if (!Number.isFinite(fraction) || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min >= range.max) {
+    return null;
+  }
+  if (logarithmic && range.min <= 0) {
+    return null;
+  }
   const first = logarithmic ? Math.log(range.min) : range.min;
   const last = logarithmic ? Math.log(range.max) : range.max;
   const shift = (last - first) * fraction;
@@ -115,7 +123,9 @@ export function attachPan(
   options: PanOptions,
 ): () => void {
   const view = plot.over.ownerDocument.defaultView;
-  if (!view) return () => undefined;
+  if (!view) {
+    return () => undefined;
+  }
   let start: PanStart | null = null;
   const stop = () => {
     start = null;
@@ -124,29 +134,41 @@ export function attachPan(
     view.removeEventListener("blur", stop);
   };
   const move = (event: MouseEvent) => {
-    if (!start) return;
+    if (!start) {
+      return;
+    }
     if (!(event.buttons & start.buttons)) {
       stop();
       return;
     }
     const x = pannedRange(start.x, (start.left - event.clientX) / start.width, options.logX);
     const y = start.y ? pannedRange(start.y, (event.clientY - start.top) / start.height, options.logY) : null;
-    if (!x || (start.y && !y)) return;
+    if (!x || (start.y && !y)) {
+      return;
+    }
     event.preventDefault();
     options.onPan({ x, y });
     plot.batch(() => {
       plot.setScale("x", x);
-      if (y) plot.setScale("y", y);
+      if (y) {
+        plot.setScale("y", y);
+      }
     });
     const { left, top } = plot.cursor;
     if (left != null && top != null) plot.setCursor({ left, top });
   };
   const down = (event: MouseEvent) => {
-    if (!((event.button === 0 && event.shiftKey) || event.button === 1)) return;
+    if (!((event.button === 0 && event.shiftKey) || event.button === 1)) {
+      return;
+    }
     const { min, max } = plot.scales.x;
-    if (min == null || max == null || !(plot.over.clientWidth > 0) || !(plot.over.clientHeight > 0)) return;
+    if (min == null || max == null || !(plot.over.clientWidth > 0) || !(plot.over.clientHeight > 0)) {
+      return;
+    }
     const x = orderedRange(min, max);
-    if (!x) return;
+    if (!x) {
+      return;
+    }
     stop();
     const yScale = plot.scales.y;
     const y = options.panY && yScale.min != null && yScale.max != null ? orderedRange(yScale.min, yScale.max) : null;
@@ -180,6 +202,8 @@ function spansAxis(start: number, extent: number, full: number): boolean {
 }
 
 function orderedRange(first: number, second: number): ViewportRange | null {
-  if (!Number.isFinite(first) || !Number.isFinite(second) || first === second) return null;
+  if (!Number.isFinite(first) || !Number.isFinite(second) || first === second) {
+    return null;
+  }
   return { min: Math.min(first, second), max: Math.max(first, second) };
 }

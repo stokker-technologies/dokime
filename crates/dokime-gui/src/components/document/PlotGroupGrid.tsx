@@ -29,7 +29,7 @@ import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
 import { groupRepeatsPlotTitle } from "@/plots/grouping";
-import { PlotInteractionProvider, usePlotInteraction } from "@/plots/interaction";
+import { PlotInteractionProvider, usePlotInteraction } from "@dokime/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText, STREAM_ERROR } from "@/plots/plot-placeholder";
@@ -158,18 +158,24 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const plotId = props.descriptor.plot_id;
-    if (eager || !root.current) return;
+    if (eager || !root.current) {
+      return;
+    }
     const element = root.current;
     visibilityObserver ??= new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) visibilityListeners.get(entry.target)?.(entry.isIntersecting);
+        for (const entry of entries) {
+          visibilityListeners.get(entry.target)?.(entry.isIntersecting);
+        }
       },
       { rootMargin: "200px" },
     );
     visibilityListeners.set(element, (shown) => {
       useSummaryWindowStore.getState().setVisible(plotId, shown);
       setVisible(shown);
-      if (shown) setMounted(true);
+      if (shown) {
+        setMounted(true);
+      }
     });
     visibilityObserver.observe(element);
     return () => {
@@ -223,10 +229,14 @@ const LivePlotCard = memo(function LivePlotCard({
   const setPanelWidth = useSummaryWindowStore((store) => store.setPanelWidth);
   useEffect(() => {
     const panel = panelRef.current;
-    if (!panel || zoom) return;
+    if (!panel || zoom) {
+      return;
+    }
     const measure = () => {
       const width = Math.round(panel.getBoundingClientRect().width);
-      if (width < 1) return;
+      if (width < 1) {
+        return;
+      }
       setPanelWidth(descriptor.plot_id, width);
     };
     measure();
@@ -294,7 +304,9 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "contour") {
     return <ContourPlot plot={plot} />;
   }
-  if (plot.plotType === "pie") return <PiePlot plot={plot} />;
+  if (plot.plotType === "pie") {
+    return <PiePlot plot={plot} />;
+  }
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;
   }

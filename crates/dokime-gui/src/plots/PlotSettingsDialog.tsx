@@ -43,7 +43,7 @@ import { useReportDefaults } from "@/lib/application-settings";
 import { formatDecimal } from "@/lib/format";
 import { failureOf } from "@/lib/notification-details";
 import type { DocumentDownsampleTechnique } from "@/lib/types";
-import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import { NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
 import type { PlotSettingsButtonProps } from "./plot-settings";
 
 /* === Constants === */

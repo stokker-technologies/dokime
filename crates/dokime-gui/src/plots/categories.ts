@@ -11,7 +11,7 @@
 
 import type { StatisticValue } from "@/lib/statistics";
 import { formatNumber } from "@/lib/format";
-import { plotColor } from "@/plots/colors";
+import { plotColor } from "@dokime/plots/colors";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
@@ -32,7 +32,9 @@ export function categoryTotals(plot: PlotCardSpec): CategoryTotals {
         return { error: "Supply a category for every total." };
       }
       const key = String(point.x);
-      if (keys.has(key)) return { error: `Duplicate category total ${key}; aggregate samples explicitly.` };
+      if (keys.has(key)) {
+        return { error: `Duplicate category total ${key}; aggregate samples explicitly.` };
+      }
       if (typeof point.y !== "number" || !Number.isFinite(point.y) || point.y < 0)
         return { error: `Category ${key} requires a finite nonnegative total.` };
       keys.add(key);
@@ -50,8 +52,12 @@ export function formatCategoryTotal(entry: { value: number; exact?: StatisticVal
 /** Normalize Before Summing So Finite Magnitudes Cannot Overflow the Total. */
 export function categoryFractions(entries: readonly CategoryTotal[]): number[] {
   let maximum = 0;
-  for (const entry of entries) maximum = Math.max(maximum, entry.value);
-  if (maximum === 0) return entries.map(() => 0);
+  for (const entry of entries) {
+    maximum = Math.max(maximum, entry.value);
+  }
+  if (maximum === 0) {
+    return entries.map(() => 0);
+  }
   const total = entries.reduce((sum, entry) => sum + entry.value / maximum, 0);
   return entries.map((entry) => entry.value / maximum / total);
 }

@@ -52,16 +52,22 @@ export function windowIndices(
   const length = x.length;
   // Reports Share One X Grid: Budget Four Corners Per Trace Plus The Two Extent Endpoints.
   const buckets = Math.max(1, Math.floor(fitPixels ? (columns - 2) / (4 * Math.max(1, series.length)) : columns));
-  if (length <= 4 * buckets) return null;
+  if (length <= 4 * buckets) {
+    return null;
+  }
 
   const from = range ? Math.max(0, lowerBound(x, range.min) - 1) : 0;
   const to = range ? Math.min(length, upperBound(x, range.max) + 1) : length;
   const picked = new Set<number>([0, length - 1]);
   if (to - from <= 4 * buckets) {
-    for (let index = from; index < to; index += 1) picked.add(index);
+    for (let index = from; index < to; index += 1) {
+      picked.add(index);
+    }
   } else {
     for (const y of series) {
-      for (const index of m4Indices(x, y, from, to, buckets)) picked.add(index);
+      for (const index of m4Indices(x, y, from, to, buckets)) {
+        picked.add(index);
+      }
     }
   }
   const indices = [...picked].sort((left, right) => left - right);
@@ -70,12 +76,18 @@ export function windowIndices(
     for (let position = 1; position < indices.length; position += 1) {
       const before = indices[position - 1];
       const after = indices[position];
-      if (y[before] == null || y[after] == null) continue;
+      if (y[before] == null || y[after] == null) {
+        continue;
+      }
       let first = -1;
       let last = -1;
       for (let index = before + 1; index < after; index += 1) {
-        if (typeof y[index] === "number" && Number.isFinite(y[index])) continue;
-        if (first < 0) first = index;
+        if (typeof y[index] === "number" && Number.isFinite(y[index])) {
+          continue;
+        }
+        if (first < 0) {
+          first = index;
+        }
         last = index;
       }
       if (first >= 0) {
@@ -92,7 +104,9 @@ export function windowIndices(
  * keeps its first, lowest, highest and last finite sample, in index order.
  */
 export function m4Indices(x: readonly number[], y: Values, from: number, to: number, buckets: number): number[] {
-  if (to <= from || buckets <= 0) return [];
+  if (to <= from || buckets <= 0) {
+    return [];
+  }
 
   const bounds = spanBuckets(x, from, to, buckets);
   const kept: number[] = [];
@@ -103,13 +117,23 @@ export function m4Indices(x: readonly number[], y: Values, from: number, to: num
     let highest = -1;
     for (let index = bounds[bucket]; index < bounds[bucket + 1]; index += 1) {
       const value = y[index];
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      if (first < 0) first = index;
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        continue;
+      }
+      if (first < 0) {
+        first = index;
+      }
       last = index;
-      if (lowest < 0 || value < (y[lowest] as number)) lowest = index;
-      if (highest < 0 || value > (y[highest] as number)) highest = index;
+      if (lowest < 0 || value < (y[lowest] as number)) {
+        lowest = index;
+      }
+      if (highest < 0 || value > (y[highest] as number)) {
+        highest = index;
+      }
     }
-    if (first < 0) continue;
+    if (first < 0) {
+      continue;
+    }
     const corners = [...new Set([first, lowest, highest, last])].sort((left, right) => left - right);
     kept.push(...corners);
   }
@@ -124,8 +148,9 @@ function lowerBound(x: readonly number[], value: number): number {
   let high = x.length;
   while (low < high) {
     const middle = (low + high) >>> 1;
-    if (x[middle] < value) low = middle + 1;
-    else high = middle;
+    if (x[middle] < value) {
+      low = middle + 1;
+    } else high = middle;
   }
   return low;
 }
@@ -136,8 +161,9 @@ function upperBound(x: readonly number[], value: number): number {
   let high = x.length;
   while (low < high) {
     const middle = (low + high) >>> 1;
-    if (x[middle] <= value) low = middle + 1;
-    else high = middle;
+    if (x[middle] <= value) {
+      low = middle + 1;
+    } else high = middle;
   }
   return low;
 }
@@ -162,7 +188,9 @@ function spanBuckets(x: readonly number[], from: number, to: number, count: numb
   bounds[0] = from;
   for (let bucket = 1; bucket < count; bucket += 1) {
     const edge = first + bucket * width;
-    while (index < to && x[index] < edge) index += 1;
+    while (index < to && x[index] < edge) {
+      index += 1;
+    }
     bounds[bucket] = index;
   }
   bounds[count] = to;
