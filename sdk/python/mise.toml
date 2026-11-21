@@ -37,7 +37,7 @@ run = 'mise -C ../.. run build:python -- --profile {{env.DOKIME_BUILD_PROFILE | 
 
 [tasks.package]
 description = "Package the Built Python Distributions"
-run = 'uv run --no-sync --project ../../tools/python python tools/package.py'
+run = 'mise -C ../.. run package:python -- --profile {{env.DOKIME_BUILD_PROFILE | default(value="dev")}}'
 
 [tasks.install]
 hide = true
