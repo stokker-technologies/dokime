@@ -52,6 +52,12 @@ jobs:
         name: package-${{ env.PROFILE }}-rust-unix
         path: target/ci
         github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: package-${{ env.PROFILE }}-cpp-*
+        path: target/ci
+        merge-multiple: true
+        github-token: ${{ github.token }}
     - run: mise run release:publish -- --dry --channel ${{ inputs.channel == 'nightly' && 'nightly' || 'stable' }} --profile ${{ env.PROFILE }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
