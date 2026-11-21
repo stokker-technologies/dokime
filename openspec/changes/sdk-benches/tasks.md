@@ -7,8 +7,8 @@
 
 ## 2. Reference Plugins
 
-- [ ] 2.1 Give Rust its reference plugin per design.md, seeded from `sdk/rust/examples/thermal.rs` (fixture `dokime-rust-thermal`), with the echo operation, the 128 load streams and the single-stream ceiling stream; verify `mise run build:host-fixtures -- --language rust` builds it and the thermal equivalence stories still pass.
-- [ ] 2.2 Give Python the same reference plugin declarations, seeded from `sdk/python/examples/thermal` and `sdk/tests/fixtures/python/thermal`; verify `python_plugin_matches_rust_thermal_evidence` still passes.
+- [x] 2.1 Give Rust its reference plugin per design.md, seeded from `sdk/rust/examples/thermal.rs` (fixture `dokime-rust-thermal`), with the echo operation, the 128 load streams and the single-stream ceiling stream; verify `mise run build:host-fixtures -- --language rust` builds it and the thermal equivalence stories still pass.
+- [x] 2.2 Give Python the same reference plugin declarations, seeded from `sdk/python/examples/thermal` and `sdk/tests/fixtures/python/thermal`; verify `python_plugin_matches_rust_thermal_evidence` still passes.
 - [ ] 2.3 Give C# the same reference plugin declarations, seeded from `sdk/tests/fixtures/csharp/SystemPlugin`; verify `mise run build:host-fixtures -- --language csharp` builds it and `csharp_plugin_matches_rust_thermal_evidence` still passes.
 - [ ] 2.4 Give C++ the same reference plugin declarations, seeded from `sdk/tests/fixtures/cpp/thermal`; verify `mise run build:host-fixtures -- --language cpp` builds it and `cpp_plugin_matches_rust_thermal_evidence` still passes.
 
@@ -30,6 +30,8 @@
 
 - [x] 5.1 Add `Bench / SDK / <Language> (<platform>)` for Rust, Python, C# and C++ on `unix` and `windows` to `.github/workflows/nightly.yml`, reusing the `Build / Bench`, `Build / SDK / Python` and `Build / SDK / <Language> / Fixtures` archives, and add them to the `needs` of `Release / Report / Nightly` only; verify the job graph shows `Release / Publish / GitHub` independent of them.
 - [ ] 5.2 Add the `Bench / Protocol` Criterion target for evidence, sample, plot and report messages (encode, decode, size) and its `Bench / Protocol (<platform>)` job; verify it appears in `benchmarks.json` and the release notes of a Nightly run.
+  - [x] Implement the four populated message fixtures, eight encode/decode cases, encoded-size records and both platform jobs; build the target in the development profile and run its native diagnostic through the existing bench task.
+  - [ ] Verify merged measurements and release notes after authorized Nightly delivery.
 
 ## 6. Storage Bench After the Cutover
 

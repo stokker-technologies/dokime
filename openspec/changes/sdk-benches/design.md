@@ -271,6 +271,12 @@ declaration entry, although its observers accept interval setting names. Those
 SDK owners must expose the existing concepts before their reference plugins can
 run this same scenario; the bench does not invent a second sampling mechanism.
 
+The Rust high-level `Cases::get` in `sdk/rust/src/client/handles.rs` sends an
+empty parent, whereas `crates/dokime-operations/src/host/cases/get.rs` reads a
+cycle-scoped case. The earlier driver call was refused for a missing cycle. The
+SDK owner must align that getter with the existing scoped contract; the driver
+uses the existing frozen-origin admission through `Cycles.Create` instead.
+
 ### High-Rate Counting Prerequisite
 
 The corrected interval sweep reached the 100 ns setting, but reading its retained
