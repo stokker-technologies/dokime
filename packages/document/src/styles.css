@@ -1,0 +1,879 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Imports === */
+
+/* Standard Library Imports */
+
+/* Third Party Imports */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+/* Local Imports */
+@import "./generated/organization/theme.css";
+
+@source "../../plots/src";
+@source ".";
+
+/* === Variables === */
+
+/* Variants */
+
+@theme {
+  --breakpoint-tablet: 37.5rem;
+  --layout-sidebar-case: calc(var(--spacing) * 10) minmax(0, 1fr) auto;
+  --layout-sidebar-destination: calc(var(--spacing) * 6) minmax(0, 1fr) auto;
+  --layout-settings-row: minmax(0, 1fr) calc(var(--spacing) * 80);
+  --layout-step-record: calc(var(--spacing) * 8) minmax(0, 1fr) auto var(--pill-width);
+  --layout-plot-window: auto minmax(0, 1fr) calc(var(--spacing) * 24);
+  --layout-record-label: calc(var(--spacing) * 18) minmax(0, 1fr);
+  --layout-record-value: calc(var(--spacing) * 18) max-content;
+  --layout-comparison: minmax(0, 1fr) calc(var(--spacing) * 6) minmax(0, 1fr);
+}
+
+@theme inline {
+  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
+
+  @keyframes progress-indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected="true"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/* Theme */
+
+@theme inline {
+  --font-heading: var(--brand-font-heading);
+  --font-sans: var(--brand-font-sans);
+  --font-mono: var(--brand-font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-link: var(--link, var(--primary));
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--focus-ring, light-dark(#001b4a, #93c5fd));
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius: var(--brand-radius);
+  --radius-sm: var(--brand-radius-sm);
+  --radius-md: var(--brand-radius-md);
+  --radius-lg: var(--brand-radius-lg);
+  --radius-xl: var(--brand-radius-xl);
+  --radius-2xl: var(--brand-radius-2xl);
+  --radius-3xl: var(--brand-radius-3xl);
+  --radius-4xl: var(--brand-radius-4xl);
+  --text-xl: var(--brand-text-xl);
+  --text-2xl: var(--brand-text-2xl);
+  --text-3xl: var(--brand-text-3xl);
+  --text-4xl: var(--brand-text-4xl);
+  --text-5xl: var(--brand-text-5xl);
+  --text-6xl: var(--brand-text-6xl);
+  --text-7xl: var(--brand-text-7xl);
+}
+
+/* Layout Breakpoints */
+
+@theme {
+  /* From here settings cards pair up in two columns: at 1600px the content
+     column beside the open sidebar still gives each card a full label column
+     and a usable value. A 1366px tablet stays one column. */
+  --breakpoint-wide: 100rem;
+}
+
+/* Theme Values */
+
+:root {
+  /* The application menu bar: one thin row of menu titles above the shell,
+     28px on a desk and 40px at touch. */
+  --menu-bar-height: 1.75rem;
+  --status-bar-height: 2rem;
+  --settings-row-py: 0.75rem;
+  /* The settings content column: one label width and one value measure so
+     every row's control starts and ends on the same two lines. */
+  --settings-row-height: 2.5rem;
+  --settings-label-width: 20rem;
+  --settings-value-max: 40rem;
+
+  /* Live shell rhythm. Every shell region shares the same inset and gap so the
+     sidebar, page bar and status bar read as one grid. */
+  --nav-rail-width: 12.5rem;
+  /* The one contextual sidebar: a quarter of the window when open, never
+     wider than 352px nor narrower than its longest destination; 56px
+     collapsed to icons. */
+  --sidebar-width: clamp(14rem, 24vw, 22rem);
+  --sidebar-width-collapsed: 3.5rem;
+  --sidebar-indent: 0.75rem;
+  /* The open sidebar's logo: a sixth of the window, legible on short
+     windows and never towering on tall ones. */
+  --sidebar-logo-height: clamp(4rem, 16.67vh, 10rem);
+  /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
+  --sidebar-row-height: 2.5rem;
+  /* The cycle explorer's one-line rows: 28px on a desk, 44px at touch, with
+     the same width for every trailing action column and one indent step. */
+  --tree-row-height: 1.75rem;
+  --tree-action-width: 1.5rem;
+  --tree-indent: 1rem;
+  /* A bar is its control plus air above and below, and a bar's controls sit
+     12px apart. Every bar that hosts a button — the page bar, the Cycles and
+     Library filter rows, the evidence toolbar — reads these three, so none of
+     them can drift: 32px control + 2 x 8px = 48px. */
+  --bar-control-height: var(--control-height);
+  --bar-pad-y: 0.5rem;
+  --bar-gap: 0.75rem;
+  /* The one top-bar height. The sidebar's brand bar, the page title bar and
+     any bar that sits beside them read it, so their bottom edges are one line
+     at every density. */
+  --page-bar-height: 3rem;
+  --shell-inset: 1rem;
+  --shell-gap: 0.5rem;
+  --shell-text-base: 0.875rem;
+  /* Page content. Every page fills the main column inside the one shell
+     inset; cards and sections sit one inset apart, so the gutter between two
+     cards matches the margin around them. Only running prose takes a reading
+     measure; lists, tables and cards take the whole content width. The column
+     breakpoint is `--breakpoint-wide` in the `@theme` block above. */
+  --section-gap: var(--shell-inset);
+  --prose-measure: 72ch;
+  --control-height: 2rem;
+  --control-height-primary: var(--control-height);
+  --list-row-height: 2.5rem;
+  /* One pill: 22px tall, 10px of horizontal air, 12px text on a 20px line
+     inside the 1px border, and one column wide enough for the longest status
+     word this app can print — "Disconnected" — so no status ever clips or crowds its own edges. */
+  --pill-height: 1.5rem;
+  --pill-pad-x: 0.5rem;
+  --pill-text: 0.75rem;
+  --pill-leading: 1.25rem;
+  --pill-width: 6rem;
+}
+
+/* Plot references and markers: a muted sequence apart from the theme's series
+   palette (`--chart-*`), so a reference never reads as a trace. See docs/gui.md. */
+:root {
+  --plot-reference-1: #415166;
+  --plot-reference-2: #9c8378;
+  --plot-reference-3: #435f52;
+  --plot-reference-4: #8f889f;
+}
+
+.dark {
+  --plot-reference-1: #8ba2b2;
+  --plot-reference-2: #e5d5c3;
+  --plot-reference-3: #987f7f;
+  --plot-reference-4: #dacbde;
+}
+
+:root[data-density="compact"] {
+  --status-bar-height: 2rem;
+  --settings-row-py: 0.5rem;
+  --settings-row-height: 2.25rem;
+  --bar-control-height: var(--control-height);
+  --bar-pad-y: 0.5rem;
+  --bar-gap: 0.75rem;
+  --page-bar-height: 2.5rem;
+  --shell-inset: 0.75rem;
+  --shell-gap: 0.5rem;
+  --control-height: 2rem;
+  --control-height-primary: var(--control-height);
+  --list-row-height: 2.5rem;
+  --sidebar-indent: 0.75rem;
+  --sidebar-row-height: 2.5rem;
+  --pill-height: 1.5rem;
+  --pill-leading: 1.25rem;
+}
+
+/* Touch Density Uses The Shared Control Height And Larger Text. */
+:root[data-density="touch"] {
+  --menu-bar-height: 2.5rem;
+  --status-bar-height: 2rem;
+  --settings-row-py: 1rem;
+  --settings-row-height: 3rem;
+  --nav-rail-width: 6rem;
+  --sidebar-width: clamp(16rem, 28vw, 24rem);
+  --sidebar-indent: 0.75rem;
+  --sidebar-row-height: 2.5rem;
+  --tree-row-height: 2.75rem;
+  --tree-action-width: 2.75rem;
+  --tree-indent: 1.25rem;
+  /* 48px control with 8px above and below. */
+  --bar-control-height: var(--control-height);
+  --bar-pad-y: 0.5rem;
+  --bar-gap: 0.75rem;
+  --page-bar-height: 4rem;
+  --shell-inset: 1rem;
+  --shell-gap: 0.5rem;
+  --shell-text-base: 1rem;
+  --control-height: 2rem;
+  --control-height-primary: var(--control-height);
+  --list-row-height: 2.5rem;
+  --pill-height: 1.5rem;
+  --pill-pad-x: 0.5rem;
+  --pill-text: 0.875rem;
+  --pill-leading: 1.25rem;
+  --pill-width: 6rem;
+}
+
+/* The Same Controls At Every Density; Narrow Screens Always Use Touch Targets. */
+:root[data-density="touch"] {
+  --control-height: 2.75rem;
+  --list-row-height: 3rem;
+  --sidebar-row-height: 3rem;
+  --status-bar-height: 2.75rem;
+}
+@media (max-width: 1023px) {
+  :root,
+  :root[data-density] {
+    --control-height: 2.75rem;
+    --control-height-primary: var(--control-height);
+    --bar-control-height: var(--control-height);
+    --list-row-height: 3rem;
+    --sidebar-row-height: 3rem;
+    --tree-row-height: 2.75rem;
+    --tree-action-width: 2.75rem;
+    --status-bar-height: 2.75rem;
+    --menu-bar-height: 2.75rem;
+    --page-bar-height: 4rem;
+    --shell-inset: 1rem;
+  }
+}
+
+/* === Base Styles === */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+  }
+
+  h1 {
+    @apply font-heading;
+  }
+
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-sans;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+}
+
+/* === Layout === */
+
+/* Touch typography. The v2 pass grew the containers but not the text: at
+   1920x1200 a 12px caption beside a 48px control still reads as desktop. The
+   utility classes are retargeted rather than the theme scale so a size an
+   author asked for explicitly (an `h-[...]`, a `text-[11px]`) still wins. */
+:root[data-density="touch"] .text-xs,
+:root[data-density="touch"] .text-\[11px\],
+:root[data-density="touch"] .text-\[0\.68rem\] {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+:root[data-density="touch"] .text-sm,
+:root[data-density="touch"] .text-\[0\.8rem\] {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+:root[data-density="touch"] .text-base {
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+:root[data-density="touch"] .text-lg {
+  font-size: 1.3125rem;
+  line-height: 1.35;
+}
+
+:root[data-density="touch"] :is(h1, h2, h3, h4, h5) {
+  font-size: 1.3125rem;
+  line-height: 1.35;
+}
+
+/* The rail stacks its icon over its label below the desktop breakpoint. The
+   frozen-report shell still uses it; the live sidebar has its own width. */
+@media (max-width: 1279px) {
+  :root {
+    --nav-rail-width: 6rem;
+  }
+}
+
+/* Focus view: the evidence is the whole screen, so a plot card that was sized
+   to share a row with a cases pane grows to something readable at arm's
+   length. The utility class is retargeted rather than the card component,
+   which the document renderer owns. */
+:root[data-focus="on"] .min-h-\[18rem\] {
+  min-height: 20rem;
+}
+
+:root[data-density="touch"][data-focus="on"] .min-h-\[18rem\] {
+  min-height: 25rem;
+}
+
+/* === Components === */
+
+@layer components {
+  .uplot {
+    color: var(--foreground);
+    font-family: var(--brand-font-sans);
+    line-height: 1.5;
+    width: min-content;
+  }
+
+  .u-title {
+    font-family: var(--brand-font-sans);
+    font-size: var(--brand-text-xl);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .u-wrap {
+    position: relative;
+    user-select: none;
+  }
+
+  .u-over,
+  .u-under {
+    position: absolute;
+  }
+
+  .u-under {
+    overflow: hidden;
+  }
+
+  .uplot canvas {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .u-axis {
+    position: absolute;
+  }
+
+  .u-legend {
+    margin: auto;
+    font-size: var(--brand-text-xs);
+    text-align: center;
+  }
+
+  .u-inline {
+    display: block;
+  }
+
+  .u-inline * {
+    display: inline-block;
+  }
+
+  .u-inline tr {
+    margin-right: 1rem;
+  }
+
+  .u-legend th {
+    font-weight: 600;
+  }
+
+  .u-series > * {
+    padding: 0.25rem;
+  }
+
+  .u-legend th > * {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .u-legend .u-marker {
+    width: 1em;
+    height: 1em;
+    margin-right: 0.25rem;
+    /* biome-ignore lint/complexity/noImportantStyles: uPlot sets an inline background shorthand. */
+    background-clip: padding-box !important;
+  }
+
+  .u-inline.u-live th::after {
+    content: ":";
+    vertical-align: middle;
+  }
+
+  .u-inline:not(.u-live) .u-value {
+    display: none;
+  }
+
+  .u-series th {
+    cursor: pointer;
+  }
+
+  .u-legend .u-off > * {
+    opacity: 0.3;
+  }
+
+  /* The box-zoom selection: an accent wash with a crisp edge, readable on a
+     light and a dark canvas alike. */
+  .u-select {
+    position: absolute;
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 80%, transparent);
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+
+  .u-cursor-x,
+  .u-cursor-y {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .u-hz .u-cursor-x,
+  .u-vt .u-cursor-y {
+    height: 100%;
+    border-right: 1px dashed var(--ring);
+  }
+
+  .u-hz .u-cursor-y,
+  .u-vt .u-cursor-x {
+    width: 100%;
+    border-bottom: 1px dashed var(--ring);
+  }
+
+  .u-cursor-pt {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: 0 solid;
+    border-radius: 50%;
+    /* biome-ignore lint/complexity/noImportantStyles: uPlot sets an inline background shorthand. */
+    background-clip: padding-box !important;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .u-axis.u-off,
+  .u-select.u-off,
+  .u-cursor-x.u-off,
+  .u-cursor-y.u-off,
+  .u-cursor-pt.u-off {
+    display: none;
+  }
+
+  .document-grid {
+    grid-auto-flow: row dense;
+    grid-auto-rows: auto;
+  }
+
+  .document-grid > .document-card {
+    grid-column: span 12 / span 12;
+    grid-row: span var(--document-card-row-span, 1) / span var(--document-card-row-span, 1);
+  }
+
+  .document-grid > .document-card[data-col-span-base="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-base="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-base="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-base="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-base="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-base="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-base="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-base="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-base="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-base="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-base="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-base="12"] {
+    grid-column: span 12 / span 12;
+  }
+
+  .document-card[data-density="compact"] {
+    @apply text-sm;
+  }
+
+  .document-card[data-density="compact"] [data-slot="card-header"] {
+    @apply min-h-12 px-3 py-2;
+  }
+
+  .document-card[data-density="compact"] [data-slot="card-content"] {
+    @apply p-3;
+  }
+
+  .document-card[data-density="spacious"] [data-slot="card-content"] {
+    @apply p-4;
+  }
+
+  .plot-empty {
+    @apply min-h-72;
+  }
+}
+
+@media (min-width: 640px) {
+  .document-grid > .document-card[data-col-span-sm="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-sm="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-sm="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-sm="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-sm="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-sm="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-sm="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-sm="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-sm="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-sm="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-sm="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-sm="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (min-width: 768px) {
+  .document-grid > .document-card[data-col-span-md="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-md="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-md="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-md="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-md="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-md="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-md="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-md="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-md="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-md="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-md="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-md="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (min-width: 1024px) {
+  .document-grid > .document-card[data-col-span-lg="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-lg="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-lg="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-lg="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-lg="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-lg="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-lg="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-lg="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-lg="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-lg="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-lg="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-lg="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (min-width: 1280px) {
+  .document-grid > .document-card[data-col-span-xl="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-xl="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-xl="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-xl="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-xl="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-xl="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-xl="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-xl="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-xl="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-xl="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-xl="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-xl="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+/* Sonner's dark-theme description rule is unlayered even for unstyled toasts. */
+[data-sonner-toaster] [data-sonner-toast][data-styled="false"] [data-description] {
+  color: var(--muted-foreground);
+}
+
+/* === Utilities === */
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* === Animations === */
+
+/* Shared Brand Composition; Organization Themes Override These Variables. */
+.brand {
+  --brand-logo-size: 1.5rem;
+  --brand-flow: row;
+  --brand-align: center;
+  --brand-gap: 0.5rem;
+  display: flex;
+  min-width: 0;
+  flex-direction: var(--brand-flow);
+  align-items: var(--brand-align);
+  gap: var(--brand-gap);
+}
+.brand-row {
+  --brand-flow: row;
+}
+.brand-column {
+  --brand-flow: column;
+}
+.brand-start {
+  --brand-align: flex-start;
+}
+.brand-center {
+  --brand-align: center;
+}
+.brand .logo {
+  height: var(--brand-logo-size);
+  width: auto;
+  max-width: 100%;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.brand .wordmark {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1;
+}
+.connection-brand {
+  --brand-logo-size: 2.5rem;
+  --brand-gap: 1rem;
+  font-size: 1.875rem;
+}
+.sidebar-brand {
+  font-size: 1rem;
+}
