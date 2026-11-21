@@ -93,9 +93,6 @@ fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<()
             OperationFactory::protobuf::<host::files::capture::Operation>()?,
             OperationFactory::protobuf::<host::files::captures::start::Operation>()?,
             OperationFactory::protobuf::<host::files::captures::stop::Operation>()?,
-            OperationFactory::protobuf::<host::effects::create::Operation>()?,
-            OperationFactory::protobuf::<host::effects::get::Operation>()?,
-            OperationFactory::protobuf::<host::effects::set::Operation>()?,
         ] {
             let contract = factory.contract()?;
             let id = contract.operation().id.as_str();

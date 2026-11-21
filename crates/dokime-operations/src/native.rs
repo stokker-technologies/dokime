@@ -43,7 +43,7 @@ macro_rules! unary {
             use harmos_protocol::policy::UNBOUNDED;
             use std::time::Duration;
             use std::result;
-            use crate::native::{Binding, context, failure};
+            use crate::native::{Binding, failure};
             pub struct Operation;
             impl ProtobufOperation for Operation {
                 type Request = $request;
@@ -62,11 +62,20 @@ macro_rules! unary {
                 async fn run(
                     execution: ExecutionContext, request: Self::Request, _: &(),
                 ) -> result::Result<Self::Response, ServingError> {
-                    let context = context(&execution, Self::ID).map_err(failure)?;
+                    let context = crate::native::unary!(@context $caller, execution, Self::ID)?;
                     crate::native::unary!(@call $caller, context, request)
                 }
             }
         }
+    };
+    (@context plugin, $execution:ident, $id:expr) => {
+        crate::native::plugin_context(&$execution, $id).map_err(failure)
+    };
+    (@context $caller:ident, $execution:ident, $id:expr) => {
+        crate::native::context(&$execution, $id).map_err(failure)
+    };
+    (@call plugin, $context:ident, $request:ident) => {
+        Box::pin(super::handle(&$context, $request)).await.map_err(failure)
     };
     (@call context, $context:ident, $request:ident) => {
         Box::pin(super::handle(&$context, $request)).await.map_err(failure)
@@ -149,24 +158,12 @@ impl Binding {
 /* === Public Functions === */
 
 pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
-    let host = execution.resource::<HostContext>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
-    let binding = execution.resource::<Binding>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
-    let mut context = binding
-        .0
-        .get()
-        .and_then(Weak::upgrade)
-        .ok_or_else(|| Error::Unavailable(format!("{action}: Assemble the Host Context")))?
-        .as_ref()
-        .clone();
-    let host = host.borrow();
-    let plugin = execution.resource::<CallingPlugin>().is_ok();
-    if plugin {
-        let resources =
-            host.context().get::<Resources>().ok_or_else(|| Error::Permission(format!("{action}: Enter an Active Execution")))?;
-        resources.check_action_scope(&resources.execution, action)?;
-        context.caller = Some(resources.clone());
-    }
-    Ok(context)
+    admitted(execution, action, false)
+}
+
+/// The Host Context for an Operation a Plugin May Also Call Outside an Execution, Scoped to It When Inside One.
+pub fn plugin_context(execution: &ExecutionContext, action: &str) -> Result<Context> {
+    admitted(execution, action, true)
 }
 
 pub fn failure(source: Error) -> ServingError {
@@ -329,9 +326,6 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
         (factory::<host::files::captures::start::Operation>, settings.mutation_timeout),
         (factory::<host::files::captures::stop::Operation>, settings.mutation_timeout),
         (factory::<host::aggregates::get::Operation>, settings.mutation_timeout),
-        (factory::<host::effects::create::Operation>, settings.mutation_timeout),
-        (factory::<host::effects::get::Operation>, settings.mutation_timeout),
-        (factory::<host::effects::set::Operation>, settings.mutation_timeout),
         (factory::<host::media::captures::create::Operation>, settings.mutation_timeout),
         (factory::<host::media::captures::get::Operation>, settings.mutation_timeout),
         (factory::<host::media::captures::stop::Operation>, settings.mutation_timeout),
@@ -345,6 +339,31 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
 }
 
 /* === Private Functions === */
+
+fn admitted(execution: &ExecutionContext, action: &str, plugin_wide: bool) -> Result<Context> {
+    let host = execution.resource::<HostContext>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
+    let binding = execution.resource::<Binding>().map_err(|source| Error::Unavailable(format!("{action}: {source}")))?;
+    let mut context = binding
+        .0
+        .get()
+        .and_then(Weak::upgrade)
+        .ok_or_else(|| Error::Unavailable(format!("{action}: Assemble the Host Context")))?
+        .as_ref()
+        .clone();
+    let host = host.borrow();
+    let plugin = execution.resource::<CallingPlugin>().is_ok();
+    if plugin {
+        let Some(resources) = host.context().get::<Resources>() else {
+            if plugin_wide {
+                return Ok(context);
+            }
+            return Err(Error::Permission(format!("{action}: Enter an Active Execution")));
+        };
+        resources.check_action_scope(&resources.execution, action)?;
+        context.caller = Some(resources.clone());
+    }
+    Ok(context)
+}
 
 /* === Tests === */
 

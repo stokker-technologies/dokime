@@ -8,7 +8,6 @@
  */
 
 using Dokime.Clients;
-using Google.Protobuf;
 
 namespace Dokime.Templates;
 
@@ -65,19 +64,6 @@ public sealed partial class Context
   {
     var reply = await Host.Backend.Environment(cancellationToken: cancellationToken);
     return new Environment(reply.BackendPid, reply.InStep);
-  }
-  public async Task<string> PrepareEffectAsync(string resource, string inverseOperation, IMessage inverse, string description = "",
-    string? requestId = null, CancellationToken cancellationToken = default)
-  {
-    var reply = await Host.Effects.Create(resource, inverseOperation, inverse.ToByteString(), description, Client.Identity(requestId), cancellationToken: cancellationToken);
-    return reply.Name;
-  }
-  public async Task ConfirmEffectAsync(string ticket, DateTimeOffset? at = null, bool restored = false, string? requestId = null,
-    CancellationToken cancellationToken = default)
-  {
-    var current = await Host.Effects.Get(ticket, cancellationToken: cancellationToken);
-    var value = new EffectWritable { AppliedAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(at ?? await NowAsync(cancellationToken)), Restored = restored };
-    await Host.Effects.Set(ticket, value, current.Revision, Client.Identity(requestId), cancellationToken: cancellationToken);
   }
 }
 

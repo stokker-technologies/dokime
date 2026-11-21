@@ -3,7 +3,6 @@
 #include "dokime/host/v1/backend.pb.h"
 #include "dokime/host/v1/content/artifacts.pb.h"
 #include "dokime/host/v1/documents.pb.h"
-#include "dokime/host/v1/effects.pb.h"
 #include "dokime/host/v1/evidence.pb.h"
 #include "dokime/host/v1/evidence/logs.pb.h"
 #include "dokime/host/v1/evidence/records.pb.h"
@@ -30,12 +29,6 @@ using ::dokime::host::v1::BackendEnvironmentRequest;
 using ::dokime::host::v1::BackendEnvironmentResponse;
 using ::dokime::host::v1::DocumentsAppendPartsRequest;
 using ::dokime::host::v1::DocumentsAppendPartsResponse;
-using ::dokime::host::v1::EffectsCreateRequest;
-using ::dokime::host::v1::EffectsCreateResponse;
-using ::dokime::host::v1::EffectsGetRequest;
-using ::dokime::host::v1::EffectsGetResponse;
-using ::dokime::host::v1::EffectsSetRequest;
-using ::dokime::host::v1::EffectsSetResponse;
 using ::dokime::host::v1::EvidenceStatisticsRequest;
 using ::dokime::host::v1::EvidenceStatisticsResponse;
 using ::dokime::host::v1::FilesCaptureRequest;
@@ -86,7 +79,6 @@ using ::dokime::host::v1::files::UploadsResumeRequest;
 using ::dokime::host::v1::files::UploadsResumeResponse;
 using ::dokime::model::Window;
 using ::dokime::plugin::CaptureMode;
-using ::dokime::plugin::EffectWritable;
 using ::google::protobuf::Duration;
 using ::google::protobuf::Timestamp;
 using ::harmos::DiscoveredOperation;
@@ -525,40 +517,6 @@ Receipt HostEvidenceLogsResource::append(const string &execution, const Severity
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-::dokime::plugin::EffectsCreateResponse HostEffectsResource::create(const string &resource, const string &inverse_operation,
-                                                                    const string &inverse, const string &description,
-                                                                    HostEffectsCreateOptions options) {
-  EffectsCreateRequest request;
-  request.set_resource(resource);
-  request.set_inverse_operation(inverse_operation);
-  request.set_inverse(inverse);
-  request.set_description(description);
-  request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
-  auto operation = Operation<EffectsCreateRequest, EffectsCreateResponse>("dokime.host.v1.Effects/Create", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
-  return response;
-}
-::dokime::plugin::EffectsGetResponse HostEffectsResource::get(const string &name, HostEffectsGetOptions options) {
-  EffectsGetRequest request;
-  request.set_name(name);
-  if (options.at) {
-    *request.mutable_at() = *options.at;
-  }
-  auto operation = Operation<EffectsGetRequest, EffectsGetResponse>("dokime.host.v1.Effects/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
-  return response;
-}
-::dokime::plugin::EffectsSetResponse HostEffectsResource::set(const string &name, const EffectWritable &value,
-                                                              const string &expected_revision, HostEffectsSetOptions options) {
-  EffectsSetRequest request;
-  request.set_name(name);
-  *request.mutable_value() = value;
-  request.set_expected_revision(expected_revision);
-  request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
-  auto operation = Operation<EffectsSetRequest, EffectsSetResponse>("dokime.host.v1.Effects/Set", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
-  return response;
-}
 Receipt HostDocumentsResource::append_parts(const string &execution, const string &document, const string &section,
                                             HostDocumentsAppendPartsOptions options) {
   DocumentsAppendPartsRequest request;
@@ -611,7 +569,7 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
 } // namespace dokime::templates
 namespace dokime::templates {
 HostRoot Context::host() {
-  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
+  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
 }
 } // namespace dokime::templates
 namespace dokime {
@@ -630,12 +588,6 @@ Registrar &Registrar::add(templates::HostOperation operation) {
   case HostOperation::DocumentsAppendParts:
     return add(Dependency{
         Operation<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse>("dokime.host.v1.Documents/AppendParts", VISIBILITY_PUBLIC)});
-  case HostOperation::EffectsCreate:
-    return add(Dependency{Operation<EffectsCreateRequest, EffectsCreateResponse>("dokime.host.v1.Effects/Create", VISIBILITY_PUBLIC)});
-  case HostOperation::EffectsGet:
-    return add(Dependency{Operation<EffectsGetRequest, EffectsGetResponse>("dokime.host.v1.Effects/Get", VISIBILITY_PUBLIC)});
-  case HostOperation::EffectsSet:
-    return add(Dependency{Operation<EffectsSetRequest, EffectsSetResponse>("dokime.host.v1.Effects/Set", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceLogsAppend:
     return add(Dependency{Operation<LogsAppendRequest, LogsAppendResponse>("dokime.host.v1.evidence.Logs/Append", VISIBILITY_PUBLIC)});
   case HostOperation::EvidenceRecordsList:

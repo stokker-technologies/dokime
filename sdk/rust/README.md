@@ -72,6 +72,20 @@ context. Plugin-wide observers use `Observer::operation` or
 `Observer::operation_window` with the operation context; they read plugin-owned
 state and have no execution-only methods.
 
+## Collections and Durable Plugin State
+
+`Plugin::collection` registers the library `Collection` directly. Declare native
+member streams, publish through `CollectionOutput`, select an `interval_setting`,
+and acquire/release resources through `on_start`/`on_stop`. The host owns demand,
+windows and timestamps. Bind a collection invocation to shared author state with
+`operations::Context::from_collection`; never retain an earlier invocation.
+Collection sampling requires a product host; the in-process template harness
+refuses it rather than running another scheduler.
+
+Operation contexts expose `state()?`: call `get::<T>().await?` before
+`put(&value).await?` on the same handle. Put compares the observed revision;
+conflicts require a fresh read and reapplication within the operation's policy.
+
 ## Values and Operations
 
 Records and simple operations accept `bool`, `String`, `i64` and `f64`; the SDK
@@ -151,5 +165,5 @@ Reuse a request identity with identical inputs when replaying a mutation.
 Execution creation derives the same execution UUID from that identity.
 Template contexts also support `artifact()` and `artifact_with()`; they share the
 client's fenced upload implementation and attach only to the calling execution.
-Context records, progress, logs, traceability, documents and effect mutations
-also accept operation-specific request identity options through `_with` methods.
+Context records, progress, logs, traceability and document mutations also
+accept operation-specific request identity options through `_with` methods.

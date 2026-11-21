@@ -10,6 +10,7 @@
 
 [installer]
 # The CLI Built With the Kit Supplies the Product Version and Native Target.
+# Keep the Kit's Host and OBC Default Plugins on Windows and Linux.
 formats = ["nsis"]
 
 # === Product === #

@@ -26,21 +26,6 @@ impl Request for dokime_protocol::host::DocumentsAppendPartsRequest {
     const ID: &'static str = "dokime.host.v1.Documents/AppendParts";
     const WATCH: bool = false;
 }
-impl Request for dokime_protocol::host::EffectsCreateRequest {
-    type Response = dokime_protocol::host::EffectsCreateResponse;
-    const ID: &'static str = "dokime.host.v1.Effects/Create";
-    const WATCH: bool = false;
-}
-impl Request for dokime_protocol::host::EffectsGetRequest {
-    type Response = dokime_protocol::host::EffectsGetResponse;
-    const ID: &'static str = "dokime.host.v1.Effects/Get";
-    const WATCH: bool = false;
-}
-impl Request for dokime_protocol::host::EffectsSetRequest {
-    type Response = dokime_protocol::host::EffectsSetResponse;
-    const ID: &'static str = "dokime.host.v1.Effects/Set";
-    const WATCH: bool = false;
-}
 impl Request for dokime_protocol::host::evidence::LogsAppendRequest {
     type Response = dokime_protocol::host::evidence::LogsAppendResponse;
     const ID: &'static str = "dokime.host.v1.evidence.Logs/Append";

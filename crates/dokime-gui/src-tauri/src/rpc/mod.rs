@@ -127,13 +127,12 @@ impl Context {
             _ = self.owner_cancel.cancelled() => Err(Error::Cancelled),
             result = self.lease.guard(future) => result.map_err(Error::from)?.map_err(Into::into),
         };
-        let result = result.map_err(|error| match &error {
+        result.map_err(|error| match &error {
             Error::Grpc { message, details, .. } if message.len().saturating_add(details.len()) > protocol::FRAME_BYTES as usize => {
                 Error::LimitExceeded
             }
             _ => error,
-        });
-        result
+        })
     }
 
     fn check(&self) -> Result<(), Error> {

@@ -37,13 +37,12 @@ use prost_types::Timestamp;
 use crate::client::{ArtifactCreateOptions, mutations, queries::Paging};
 use crate::operation::FutureResult;
 use crate::plugin::{
-    CaptureMode, EffectWritable, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEffectsCreateOptions,
-    HostEffectsSetOptions, HostEvidenceTraceabilityGetOptions, HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions,
-    HostPromptsCreateOptions, Prompt, Step,
+    CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions,
+    HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions, HostPromptsCreateOptions, Prompt, Step,
 };
 use crate::templates::{
-    CaptureResult, DocumentAppendOptions, DocumentPart, EffectConfirmOptions, EffectCreateOptions, Environment, LogAppendOptions,
-    ProgressSetOptions, PromptAnswer, RecordAppendOptions, RecordRow, StatisticsReadOptions, StatisticsSnapshot, TraceabilitySetOptions,
+    CaptureResult, DocumentAppendOptions, DocumentPart, Environment, LogAppendOptions, ProgressSetOptions, PromptAnswer,
+    RecordAppendOptions, RecordRow, StatisticsReadOptions, StatisticsSnapshot, TraceabilitySetOptions,
 };
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
@@ -387,6 +386,16 @@ impl Context {
             .ok_or_else(|| Error::Invalid(format!("Read Setting: Declare and Configure {identifier}")))
     }
 
+    /// Read a Duration Setting, Such as the One an Observer's `interval_setting` Names.
+    pub async fn duration_setting(&self, identifier: &str) -> Result<Duration> {
+        match self.setting(identifier).await?.value {
+            Some(crate::setting_value::Value::Duration(duration)) => Duration::try_from(duration).map_err(|error| {
+                Error::Invalid(format!("Read Setting {identifier}: Configure a Nonnegative Duration in the Plugin Settings: {error}"))
+            }),
+            _ => Err(Error::Invalid(format!("Read Setting {identifier}: Configure a Duration in the Plugin Settings"))),
+        }
+    }
+
     pub async fn prompt_answer(&self, prompt: impl Into<Prompt>, values: HashMap<String, Value>) -> Result<PromptAnswer> {
         let prompt = prompt.into();
         let mut definition = prompt.definition;
@@ -667,62 +676,6 @@ impl Context {
         self.host().documents.append_parts_with(self.execution_id().into(), document.into(), section.into(), options).await?;
         Ok(())
     }
-    pub async fn prepare_effect<T: Message>(
-        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
-    ) -> Result<String> {
-        self.prepare_effect_with(resource, inverse_operation, inverse, description, EffectCreateOptions::default()).await
-    }
-    pub async fn prepare_effect_with<T: Message>(
-        &self, resource: impl Into<String>, inverse_operation: impl Into<String>, inverse: T, description: impl Into<String>,
-        options: EffectCreateOptions,
-    ) -> Result<String> {
-        let reply = self
-            .host()
-            .effects
-            .create_with(
-                resource.into(),
-                inverse_operation.into(),
-                prost::Message::encode_to_vec(&inverse),
-                description.into(),
-                HostEffectsCreateOptions {
-                    request_id: Some(mutations::request_id(options.request_id)?),
-                    ..Default::default()
-                },
-            )
-            .await?;
-        if reply.name.is_empty() {
-            return Err(Error::Invalid("Prepare Effect: Return Its Recovery Ticket Before Applying the Effect".into()));
-        }
-        Ok(reply.name)
-    }
-    pub async fn confirm_effect(&self, ticket: &str, at: Option<Timestamp>, restored: bool) -> Result<()> {
-        self.confirm_effect_with(ticket, at, restored, EffectConfirmOptions::default()).await
-    }
-    pub async fn confirm_effect_with(
-        &self, ticket: &str, at: Option<Timestamp>, restored: bool, options: EffectConfirmOptions,
-    ) -> Result<()> {
-        let host = self.host();
-        let current = host.effects.get(ticket.into()).await?;
-        host.effects
-            .set_with(
-                ticket.into(),
-                EffectWritable {
-                    applied_at: Some(match at {
-                        Some(at) => at,
-                        None => self.now().await?,
-                    }),
-                    restored,
-                },
-                current.revision,
-                HostEffectsSetOptions {
-                    request_id: Some(mutations::request_id(options.request_id)?),
-                    ..Default::default()
-                },
-            )
-            .await?;
-        Ok(())
-    }
-
     pub(crate) fn end(&self, executions: Executions) -> EndExecution {
         EndExecution {
             executions,
@@ -839,26 +792,23 @@ pub(crate) fn clear(executions: &Executions) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
+    use harmos_protocol::host::plugins::SettingsListResponse;
     use prost::Message;
-    use prost_types::Timestamp;
 
     use super::{Context, Execution, Local, LocalHost};
     use crate::operation::FutureResult;
     use crate::templates::{
-        DocumentAppendOptions, DocumentPart, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions,
-        RecordAppendOptions, TraceabilitySetOptions,
+        DocumentAppendOptions, DocumentPart, LogAppendOptions, ProgressSetOptions, RecordAppendOptions, TraceabilitySetOptions,
     };
     use crate::wire::host::evidence::{
         LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, TraceabilityGetResponse,
         TraceabilitySetRequest, TraceabilitySetResponse,
     };
     use crate::wire::host::executions::{ProgressGetResponse, ProgressSetRequest, ProgressSetResponse};
-    use crate::wire::host::{
-        DocumentsAppendPartsRequest, DocumentsAppendPartsResponse, EffectsCreateRequest, EffectsCreateResponse, EffectsGetResponse,
-        EffectsSetRequest, EffectsSetResponse,
-    };
-    use crate::{Error, Origin, PluginRun, Record, Result, Severity, TestCase, Value, origin};
+    use crate::wire::host::{DocumentsAppendPartsRequest, DocumentsAppendPartsResponse};
+    use crate::{Error, Origin, PluginRun, Record, Result, SettingValue, SettingValues, Severity, TestCase, Value, origin, setting_value};
 
     #[derive(Default)]
     struct Host(Mutex<Vec<String>>);
@@ -891,22 +841,6 @@ mod tests {
                     "dokime.host.v1.Documents/AppendParts" => {
                         let request = DocumentsAppendPartsRequest::decode(request.as_slice()).map_err(decode)?;
                         (request.request_id, DocumentsAppendPartsResponse { receipt: Some(Default::default()) }.encode_to_vec())
-                    }
-                    "dokime.host.v1.Effects/Create" => {
-                        let request = EffectsCreateRequest::decode(request.as_slice()).map_err(decode)?;
-                        (
-                            request.request_id,
-                            EffectsCreateResponse {
-                                name: "ticket".into(),
-                                ..Default::default()
-                            }
-                            .encode_to_vec(),
-                        )
-                    }
-                    "dokime.host.v1.Effects/Get" => return Ok(EffectsGetResponse::default().encode_to_vec()),
-                    "dokime.host.v1.Effects/Set" => {
-                        let request = EffectsSetRequest::decode(request.as_slice()).map_err(decode)?;
-                        (request.request_id, EffectsSetResponse::default().encode_to_vec())
                     }
                     _ => panic!("Unexpected Context Operation: {operation}"),
                 };
@@ -953,13 +887,76 @@ mod tests {
         context
             .document_with("report", DocumentPart::Card(Box::default()), "", DocumentAppendOptions { request_id: Some("document".into()) })
             .await?;
-        let ticket = context
-            .prepare_effect_with("relay", "relay.restore", (), "", EffectCreateOptions { request_id: Some("prepare".into()) })
-            .await?;
-        context
-            .confirm_effect_with(&ticket, Some(Timestamp::default()), false, EffectConfirmOptions { request_id: Some("confirm".into()) })
-            .await?;
-        assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document", "prepare", "confirm"]);
+        assert_eq!(*host.0.lock().unwrap(), ["record", "progress", "log", "traceability", "document"]);
+        Ok(())
+    }
+
+    struct Settings;
+
+    impl LocalHost for Settings {
+        fn call<'a>(&'a self, operation: &'static str, _: Vec<u8>) -> FutureResult<'a, Vec<u8>> {
+            Box::pin(async move {
+                assert_eq!(operation, "harmos.plugin.v1.plugins.Settings/List");
+                let values = [
+                    ("interval", setting_value::Value::Duration(prost_types::Duration { seconds: 2, nanos: 500_000_000 })),
+                    ("negative", setting_value::Value::Duration(prost_types::Duration { seconds: -1, nanos: 0 })),
+                    ("label", setting_value::Value::Text("Bench".into())),
+                ];
+                let value = SettingValues {
+                    values: values.into_iter().map(|(name, value)| (name.into(), SettingValue { value: Some(value) })).collect(),
+                };
+                Ok(SettingsListResponse { value: Some(value), ..Default::default() }.encode_to_vec())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn duration_settings_decode_saved_durations_and_refuse_other_values() -> Result<()> {
+        let context = Context::local(
+            Local {
+                host: Arc::new(Settings),
+                scope: "execution".into(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), Origin::default()),
+            Arc::new(()),
+        );
+        assert_eq!(context.duration_setting("interval").await?, Duration::from_millis(2_500));
+        for refused in ["negative", "label", "missing"] {
+            assert!(matches!(context.duration_setting(refused).await, Err(Error::Invalid(_))), "{refused}");
+        }
+        Ok(())
+    }
+
+    struct Backend;
+
+    impl LocalHost for Backend {
+        fn call<'a>(&'a self, operation: &'static str, _: Vec<u8>) -> FutureResult<'a, Vec<u8>> {
+            Box::pin(async move {
+                assert_eq!(operation, "dokime.host.v1.Backend/Environment");
+                Ok(crate::wire::host::BackendEnvironmentResponse {
+                    backend_pid: 4242,
+                    in_step: true,
+                    ..Default::default()
+                }
+                .encode_to_vec())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn operation_context_reads_the_backend_environment() -> Result<()> {
+        let context = crate::operations::Context::from_inner(Context::local(
+            Local {
+                host: Arc::new(Backend),
+                scope: String::new(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), Origin::default()),
+            Arc::new(()),
+        ));
+        let environment = context.environment().await?;
+        assert_eq!((environment.backend_pid, environment.in_step), (4242, true));
         Ok(())
     }
 }

@@ -1369,41 +1369,6 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.DocumentScope").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectsCreateRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectsCreateRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectsCreateResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectsCreateResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectsGetRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectsGetRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectsGetResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectsGetResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectsSetRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectsSetRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectsSetResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectsSetResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::EffectWritable {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.EffectWritable").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::host::v1::evidence::NotesGetRequest {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.evidence.NotesGetRequest").expect("generated protocol descriptor")

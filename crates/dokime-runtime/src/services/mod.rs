@@ -447,6 +447,85 @@ mod tests {
     use dokime_test_support::credentials;
 
     #[test]
+    fn host_plugin_launcher_stays_ready_while_collections_publish() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            tokio::time::timeout(crate::PLUGINS_TIMEOUT, async {
+                // Start the Shipped Plugin With the Product Launcher on Fresh Storage.
+                let root = credentials::tempdir()?;
+                let installation = credentials::tempdir()?;
+                let executable = std::env::current_exe()?
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join(format!("plugin-host{}", std::env::consts::EXE_SUFFIX));
+                if !executable.is_file() {
+                    return Err("Build the Shipped Plugin With mise run build -- --package plugin-host".into());
+                }
+                let message_bytes = NonZeroUsize::new(4 * 1024 * 1024).unwrap();
+                let stream_window = NonZeroUsize::new(8).unwrap();
+                let settings = HostSettings {
+                    installation: Some(installation.path().to_path_buf()),
+                    placement: PlacementSettings {
+                        reconnect_delay: Duration::from_secs(1),
+                        stream_window,
+                        interval_window: crate::INTERVAL_WINDOW,
+                        interval_lag: crate::INTERVAL_LAG,
+                        message_bytes,
+                    },
+                    storage: dokime_storage::storage_defaults(),
+                    clock: Arc::new(WallClock),
+                    capture: CaptureSettings::default(),
+                    credentials: credentials::namespace(),
+                };
+                let mut plugin = crate::PluginProcess::start(&executable, true, &settings.placement).await?;
+                let host = crate::Host::open(
+                    root.path(),
+                    settings,
+                    ClientSettings {
+                        read_timeout: crate::PLUGINS_TIMEOUT,
+                        mutation_timeout: crate::PLUGINS_TIMEOUT,
+                        watch_timeout: harmos_protocol::policy::UNBOUNDED,
+                        max_cases: 1000,
+                        page_items: 500,
+                        message_bytes: message_bytes.get(),
+                        stream_buffer: stream_window.get(),
+                    },
+                )
+                .await?;
+                let admitted = host.add_remote("host", plugin.endpoint()).await?;
+                host.await_plugin_ready(&admitted).await?;
+
+                // Observe Two Consecutive Collection Ticks, Without Running a Control.
+                let runtime = &host.assembly.as_ref().unwrap().runtime;
+                let stream = runtime
+                    .streams
+                    .current_publication("network_probe")
+                    .ok_or("Observe Host Network Probe: Admit the Collection Stream")?;
+                let mut rows = stream.watch();
+                for _ in 0..2 {
+                    let row = tokio_stream::StreamExt::next(&mut rows)
+                        .await
+                        .ok_or("Observe Host Network Probe: Keep the Collection Publication Open")?;
+                    let harmos_runtime::streams::Item::Row(row) = row else {
+                        return Err("Observe Host Network Probe: Resolve the Stream Gap".into());
+                    };
+                    assert!(!row.value.payload.is_empty());
+                    assert!(row.value.published_unix_micros.is_some());
+                    assert_eq!(host.entry_state(&admitted)?, harmos_protocol::host::PluginState::Ready);
+                }
+
+                // Release Demand and Join Only the Host and Child This Story Started.
+                drop(rows);
+                host.shutdown().await?;
+                plugin.close().await?;
+                Ok::<(), Box<dyn Error>>(())
+            })
+            .await?
+        }))
+    }
+
+    #[test]
     fn client_wrapper_watches_settle_on_disconnect_and_host_stop() -> Result<(), Box<dyn Error>> {
         credentials::run(Box::pin(async {
             // Start an Isolated Host and Observe Every Relayed Watch Opening.

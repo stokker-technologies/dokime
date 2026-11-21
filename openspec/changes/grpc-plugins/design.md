@@ -341,7 +341,7 @@ declares as a requirement. The SDK methods are thin conveniences over
 | `record(kind, ...)` | Publish a record; returns once the host stored it |
 | `records(kind)` | Read the execution's records of a kind (`count`, `last`) |
 | `statistics(stream, field=None, step=None)` | Statistics of one column of a stream so far, optionally for one step; the field may be omitted when the stream has one value column |
-| `artifact(...)`, file capture, effects | As today's host operations |
+| `artifact(...)`, file capture | As today's host operations; effects are plugin state |
 | `progress(...)`, `log(...)`, traceability, document parts | New small operations replacing evidence-page fields |
 
 ```proto
@@ -464,9 +464,9 @@ async fn cleanup(ctx: &Context) -> Result<()> {
 
 ## What Stays
 
-- The effects journal. It restores external changes after a host or plugin
-  crash, which a cleanup operation cannot; its inverses are ordinary
-  operation calls.
+- The effects journal, now durable plugin state. It restores external changes
+  after a host or plugin crash, which a cleanup operation cannot; the plugin
+  applies its inverses in `initialize`.
 - Cycle responsibilities in the host: lifecycle, queueing, pause and stop,
   continuation, reruns, sealing and reports. "Cycles only group executions"
   describes what a plugin sees.
@@ -718,7 +718,7 @@ transport libraries and authoring derives do not introduce host dependencies.
 | `dokime` at `sdk/rust` | The product SDK itself, not `dokime-sdk` or another facade. `use dokime::prelude::*;` exposes plugin authoring and the client. Absorb `dokime-client` as its client half, then delete that separate crate. No host, operations or storage dependencies. Harmos uses the same `harmos` identity at `sdk/rust`. |
 | `dokime-protocol` | Generated definitions and descriptors from the proto contracts, plus light constructors, operators, `Display` and conversions on those types for product code. No second definition model. Semantics needed by authors in other languages are specified in words and implemented in each SDK. |
 | `dokime-operations` | Every host operation's declaration, gRPC mapping, Rust callee policy and handler together, one file per operation. Requests and replies are protocol messages. Handlers use narrow resource interfaces; they never import runtime. Admission validation, parameter expansion and expression evaluation live with the operations applying them. |
-| `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, effects, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
+| `dokime-runtime` | The host: execution manager, transactions, state, cycle transitions, managed/remote plugin entries, listener and `main.rs`. Transactions, state and cycle transitions remain together. Runtime composes resources and registers handlers directly. Host embedders depend on this library. |
 | `dokime-storage` | The retired runtime storage folders have been replaced by the current crate. Persisted shapes belong here; lifecycle decisions remain in runtime. operation-boundary owns canonical operation access and cuts; storage-interface retains backend scale proof. |
 | `dokime-cli`, `dokime-gui` | Product commands and desktop composition respectively. The CLI embeds the runtime library, not its binary or a server facade. |
 
@@ -786,9 +786,10 @@ and the pinned dependency, retaining the ownership decisions above.
 
 ## Genuinely Unfinished Behavior
 
-Effects Create/Get/Set, Aggregates.Get and Media.Captures Create/Get/Watch/Stop
-currently return Unimplemented. Effects must preserve earliest owner-qualified
-inverse retention, reverse restoration and startup refusal when restoration fails.
+Aggregates.Get and Media.Captures Create/Get/Watch/Stop currently return
+Unimplemented. The product `Effects` operations are removed: effects are plugin
+state (see Host Telemetry Plugin Restoration, effect journal), restored by the
+plugin's `initialize` before its controls run.
 Capture supports local sources but explicitly defers line matchers/markers and
 FTP/FTPS; SFTP and source feature-gating need implementation. Host telemetry with
 its collectors/controls is absent. The restored storage/desktop benchmarks do not
@@ -1428,7 +1429,7 @@ class PromptDeclaration:
 | Deadline and retries | Exists: `operations.py:61` policy, `:91` decorator; `_plugin.py:260` translates step retries. | `policy=` on operation/step/criterion; retain one policy owner, no hard-coded retry delay in the adapter. |
 | Serial admission | NEW; `operations.py:61` and `proto/harmos/model/v1/policy.proto:24` have no serial field. | Policy needs shared admission support; no product semaphore copied beside library admission. Owner decision S1 below blocks this extension alone. |
 | Operation requirements | Exists: `_plugin.py:78` accepts explicit requirements and `:88` infers all host operations. | Remove author `requires`; infer product host requirements and literal `ctx.operation(Operation(...))` declarations from decorated functions/template hooks. Runtime-selected declarations need S2 below. Preserve the host requirement check. |
-| Effects/restoration | Exists: `_context.py:226` / `:231`; host `Effects/Create`, `Get`, `Set`. | Template context keeps `prepare_effect` / `confirm_effect`, preserving durable host restoration and revision checks. |
+| Effects/restoration | Removed: host `Effects/Create`, `Get`, `Set` and every SDK's `prepare_effect` / `confirm_effect`. | A plugin keeps its inverses in durable plugin state and restores them in `initialize` (host plugin `journal.rs`). |
 | Execution observers and streams | Exists: `authoring.py:360`, `:371`, `:382`; `_plugin.py:270`. | Decorated methods on `TestTemplate`, per-execution instance, host-owned windows and stream backpressure. |
 | Plugin-scoped observers | NEW at the product surface; `_plugin.py:124` discovers streams only in templates. | Permit the same `stream` + observer decorators on `Plugin` methods; context has `plugin`, no execution. Bind at activation, close at stop; no second scheduler. |
 | Stream subscriptions | NEW at the product context; no subscribe/watch method in `_context.py:68`. | `operations.Context.subscribe` below delegates admitted library stream demand; no incoming samples injected into a running template. |
@@ -1510,8 +1511,6 @@ class Context(operations.Context):  # dokime_sdk.templates
     async def start_capture(self, source: FileSource, output: str, mode: CaptureMode) -> int: ...  # Start execution-owned continuous capture.
     async def stop_capture(self, capture_id: int) -> CaptureResult: ...  # Settle capture and return artifacts and gaps.
     async def environment(self) -> Environment: ...  # Read host process identity and whether this call is in a step.
-    async def prepare_effect(self, resource: str, inverse_operation: str, inverse: Message, *, description: str = "", request_id: str | None = None) -> str: ...  # Persist inverse intent and return its ticket before applying the effect.
-    async def confirm_effect(self, ticket: str, *, at: datetime | None = None, restored: bool = False, request_id: str | None = None) -> None: ...  # Revision-check and confirm application/restoration of a ticket.
 ```
 
 The template context has all seven base methods plus the execution methods
@@ -1529,8 +1528,8 @@ identity; full `Prompt` input is copied and bound rather than mutated. Zero
 choices implies `OK`; duplicate choices and unrecognized/declined action results
 fail with an actionable error. Records, statistics and capture results unwrap
 payloads; no response messages escape. `records.last()` refuses an empty result.
-An effect inverse remains host-owned recovery intent, not an SDK finally block
-that could be lost with the plugin process. Capture stop and template cleanup
+An effect inverse is durable plugin state, not an SDK finally block that could be
+lost with the plugin process. Capture stop and template cleanup
 still settle on cancellation under their operation policies.
 
 ### Python Client and Bound Handles
@@ -1741,9 +1740,8 @@ facilities internally; execution methods use their existing product host binding
 `Set`; `traceability`: `evidence.Traceability/Get` then `Set`; `log`:
 `evidence.Logs/Append`; `document`: `Documents/AppendParts`; `capture`:
 `Files/Capture`; continuous capture: `files.Captures/Start` then `Stop`;
-effects: `Effects/Create`, then on confirmation `Effects/Get` then `Set`;
 environment: `Backend/Environment`. Each abbreviated name in this paragraph has
-the prefix `dokime.host.v1.`. `Documents/AppendParts`, capture, effects, records,
+the prefix `dokime.host.v1.`. `Documents/AppendParts`, capture, records,
 prompt creation and environment are plugin projections, never client admin
 escape hatches. Follow caller filtering in generation.
 
@@ -1751,7 +1749,7 @@ Generate a UUID request identity once per logical mutation when the caller does
 not supply one. Keep it and the normalized input stable across retries and surface
 it in failure details; a fresh retry with a new identity is a new mutation.
 Create cycle/cases/execution, Start/Stop/Cancel/Seal, note, artifact attachment,
-progress/traceability/document/record/log/effect mutations and prompt answers use
+progress/traceability/document/record/log mutations and prompt answers use
 their request_id fields. File composition derives stable child IDs
 `<id>/create`, `<id>/append/<offset>`, `<id>/publish`, `<id>/attach` and
 `<id>/abandon`; preserve acknowledged Upload handles/fences while retrying.
@@ -2749,10 +2747,12 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
-| `crates/dokime-gui/src/report/` and `crates/dokime-runtime/src/documents.rs` | The frontend build and report fixtures compile the standalone renderer; host report operations render retained HTML directly. Both render product reports, as `docs/gui.md` already records. | Keep the host report owner and retire the standalone renderer and its build consumers after the owner resolves the retained rendering contract. |
+| `crates/dokime-gui/src/report/`, `crates/dokime-operations/src/host/reports/create.rs:193` and `crates/dokime-runtime/src/services/state.rs:151` | Current Reports/Create collects a protobuf capture, inserts its Base64 bytes into the generated React template and retains that HTML. Runtime supplies the template; `src/documents.rs` resolves documents and stored report metadata, with no separate HTML renderer. The previous overlap claim and `docs/gui.md:5` are stale. | Keep this single pipeline; the owner must reconcile the stale documentation and review any proposed renderer change against the current retained-report contract before deleting code. |
 | `crates/dokime-gui/benches/system/fixture.rs:Fixture::start` and `crates/dokime-gui/src-tauri/src/connection/host.rs:Session::install_plugin` | The benchmark admits a remote fixture and desktop installation admits a managed plugin; both independently issue Create, Watch and Get until Ready. Their callers are benchmark fixture startup and desktop installation respectively. | Keep readiness admission in Session and delete the benchmark loop once that owner supports remote placements; the owner must choose before either mechanism is removed. |
 | `crates/dokime-runtime/src/plugin.rs:PluginProcess` and the library `crates/harmos-runtime/src/plugin/grpc/mod.rs` | Development CLI, host fixtures and product stories use the product launcher for project scripts and externally owned children; registry-managed placements use the library launcher. Both implement native child startup, Stop and bounded exit handling, with distinct process owners. | Consider a library-owned reusable spawned-process lifecycle and delete the product mechanics after it supports project launch inputs; retain the external launcher's ownership and never transfer it through launch credentials. No consolidation is authorized here. |
 | `crates/dokime-runtime/src/host.rs:remove_plugin` and `detach_plugin` | Host facade consumers can invoke either method; detach forwards directly to remove with identical durable deletion behavior. | Prefer remove and delete the redundant detach entry point after the owner confirms its public API contract; this adoption does not change it. |
+| `proto/dokime/host/v1/plugins.proto:PluginState` and `proto/harmos/host/v1/plugins.proto:PluginState` | Product RPC projections (`crates/dokime-operations/src/plugin_policy.rs:333`) add Offline while native `Host::entry_state` exposes the library family without Offline. The launch proof uses the native return type; desktop/client projections retain the product type. | Prefer library-owned Offline classification and then delete the product enum after owner approval; preserve current Offline behavior and add no conversion or alias for the launch test. |
+| `sdk/rust/src/stream.rs:Stream` and library `sdk/rust/src/stream.rs:Stream` | Product templates, observers and push producers use the context-adapting product wrapper; native host collections use the library stream directly. Both own identifiers, descriptions and row types. | Prefer one library stream after author-context composition is available, then delete the product wrapper; collection adoption does not authorize removing template and producer support. |
 | `sdk/cpp/src/plugin.cpp:Plugin::serve`, `sdk/tests/fixtures/cpp/thermal/main.cpp:main` and the library `sdk/cpp/src/server.cpp:Listener::close` | Product serving and the thermal fixture explicitly shut down the process default EventEngine; the library listener settles its dedicated serving engine. These are parallel teardown owners for different engine instances, with a repeated process-global release in the fixture. | Ask the library owner to own the full transport teardown, then delete the product and fixture process-global shutdown calls; do not remove either resource release speculatively. |
 | `crates/dokime-runtime/tests/system/client_edits_settings.rs:SettingsPlugin` and `sdk/rust/src/plugin/mod.rs:into_harmos` | The settings story builds its catalog with the SDK but implements the Instance protocol itself, including lifecycle acknowledgements; authored plugins use the SDK's library-owned listener. | Use an unpublished library-owned settings protocol fixture, then delete the story's manual carrier and SDK catalog dependency after the owner agrees. |
 | `mise.toml:lint:rust` and `tools/python/src/dokime_tools/build/rust/tests.py:build` | Rust lint selects all default-feature targets; test archive production additionally selects the GUI testing feature. The latter therefore found a fixture compilation failure after the lint task passed. | Share the required test-feature inventory and delete the independent hard-coded selection after the task owner agrees; retain both lint and archive proof. |
@@ -2760,6 +2760,7 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `tools/python/src/dokime_tools/build/cli_fixtures.py:build` and `sdk/rust/tools/test_created.py:CreatedProjectStory` | Fixture production and the created-project story separately create and compile the same Rust starter into the checkout target. Both own generated-project dependency resolution and compilation setup. | Give generated-project compilation one owner, then delete the duplicated orchestration after the owner selects the required independent fresh-build proof; preserve user-owned locks and each story's build assertions. |
 | `sdk/cpp/tools/sdk.py` and the library `tools/python/src/harmos_tools/build/cpp.py` | Product and library SDK tasks independently bootstrap the pinned vcpkg checkout and orchestrate native compiler, CMake, format, test and install operations. | Give the library a configurable native build owner, then delete the duplicated product bootstrap/build orchestration after the owner agrees; keep product task and artifact policy product-owned. |
 | `sdk/cpp/cmake/Protocol.cmake:dokime_protocol`, `sdk/cpp/tests/CMakeLists.txt` and the library `sdk/cpp/cmake/Protocol.cmake:harmos_protocol` | Product services, the thermal fixture and library services independently configure native protobuf generation and its compiler dependencies. | Share one configurable generation recipe, then delete the product helper and separate fixture recipe after the owner agrees; preserve their distinct protocol inventories and install namespaces. |
+| `tools/python/src/dokime_tools/test/archive.py:install_wheels` and `sdk/python/tools/installed.py:main` | Archived test lanes and bindings install the selected-profile wheel through the former; SDK preparation installs a hard-coded development wheel and its example distributions through the latter. Both select and install the built SDK wheel. | Give wheel installation one profile-aware owner, then delete the hard-coded development-wheel selection and installation block after the owner agrees; retain explicit example installation and the caller's selected artifact. |
 
 The pinned library's `sdk/cpp/CMakeLists.txt` also adds its sample executables to
 consumer builds. Make those examples opt-in or top-level-only upstream; product
@@ -2799,11 +2800,179 @@ When implementation lands, these current statements need reconciliation:
 | `docs/sdk-csharp.md:65`, `:81`, `:115`, `:139` | Author bases/attributes, one shared-library/plugin/client starter and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
 | `docs/sdk-cpp.md:5`, `:13`, `:26`, `:85`, `:90` | The library pin is the common maintenance revision; author classes, protected lifecycle operations and blocking bound handles use one argument-free starter whose build stages Release bundle inputs. |
 | `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
+| `docs/architecture.md:449` | External inverses belong to durable plugin state; the product Effects service and per-call confirmation tickets are removed, with durable state access and bounded recovery now supplied by the library. |
+| `docs/execution-host.md:920` | Effects/Create, Effects/Get and Effects/Set no longer exist in the protocol or SDKs. |
+| `docs/sdk-cpp.md:152` | The product effects surface is removed; the host plugin journal now uses revisioned library-backed plugin persistence. |
+| `docs/rust-sdk.md:100` | `operations::Context::environment()` returns the same backend process ID and in-step flag as the template context. |
+| `docs/gui.md:5` | Reports/Create embeds a protobuf capture into the generated React report template; there is no separate native HTML renderer in `dokime-runtime/src/documents.rs`. |
 
 The root README and SDK package READMEs describe the product imports, bound
 connection/client flow, protected lifecycle operations and single starter roots.
 The documentation changes above remain with the owner; workers do not edit
 `docs/` or unrelated prose.
+
+## Host Telemetry Plugin Restoration (Decided by the Owner, 2026-11-20)
+
+`plugins/sidecars/host` (package `plugin-host`, `publish = false`) restores the host
+telemetry plugin last present at `367aae91d^` on the current SDK, shipped as a default
+plugin beside OBC. The decisions:
+
+- **Full parity.** System, network, CPU, Wi-Fi and Bluetooth telemetry, radio and
+  adapter controls, adapter inventory, power plan operations and CPU load control.
+  Fields, units and calculations of the old rows are preserved in
+  `src/domain/telemetry.rs`; old boundary types (`TelemetryContract`, `TelemetryRow`,
+  `StreamSpec`, `Listenable`, section macros, injected configuration) are replaced by
+  SDK rows, streams, observers, operations and flat setting declarations.
+- **Demand-driven telemetry (supersedes plugin-wide retention).** Host streams are
+  demand-driven by design: nothing is collected, cached or published without a
+  listener, and no native resource is retained outside collection demand. The calibrated CPU
+  scalar may remain cached. The earlier
+  decision to retain plugin-wide telemetry from plugin connect to disconnect is
+  withdrawn.
+- **Stream shape (owner-locked).** A stream's row holds fields that always exist
+  together; when they do not exist, the stream does not publish. No stream row has an
+  optional, repeated or map field, and no column is nullable. Fields are grouped by
+  availability (connected, battery present, calibrated, sensor present). A
+  collection's outcome is its own stream, `<collection>_probe` with `outcome` and
+  `error`, published every tick (`error` is empty on success); the measured value is
+  published only when it was read. A list is one row per element, every row of one
+  collection sharing its timestamp.
+  An echo without a reply publishes `timeout` in `wifi_latency_probe` and 100%
+  loss in `wifi_loss`; it publishes no `wifi_latency` value. A probe that cannot
+  run publishes `error` and its diagnostic instead of measured values.
+- **Collections.** One collection per native measurement (system, network, Wi-Fi
+  link, Wi-Fi scan, latency echo, Bluetooth inventory) feeds several declared streams
+  from one measurement with one timestamp, may publish zero or more rows to each,
+  ticks at an interval setting, and runs only while one of its streams has a
+  listener; its start and stop hooks acquire and release native handles, so no handle
+  or cached reading outlives the last listener. The Rust SDK shape, proposed for the
+  owner's review before the other SDKs copy it:
+
+  ```rust
+  let stream = harmos::plugin::Stream::<WifiAdapter>::new(WifiAdapter::STREAM);
+  let collection = Collection::operation(async |ctx, rows: CollectionOutput| {
+      let reading = read(ctx).await?;
+      rows.publish(&stream, reading.adapter());
+      Ok(())
+  })
+  .stream(harmos::plugin::Stream::<WifiAdapter>::new(WifiAdapter::STREAM))
+  .interval_setting("wifi_link_interval")
+  .on_start(acquire)
+  .on_stop(release);
+  let plugin = plugin.collection(collection);
+  ```
+
+  The library collection now owns demand and granted windows. The product-side
+  `Collection`, feed/listener state and sleep-loop producer are removed. Rust
+  collections use the library `Collection` and `CollectionOutput` directly;
+  `Plugin::collection` registers that value without scheduling it. A collection
+  callback binds its invocation and captured author state through
+  `operations::Context::from_collection`; it never retains a prior invocation.
+  The in-process template harness refuses collection sampling and directs callers
+  to a product host, since it cannot drive library-owned collection windows.
+  System COM and network watching acquire through `on_start`; Wi-Fi link counters
+  acquire there too. Stop hooks discard resources and cached measurements.
+
+- **Effect journal.** Plugin state, persisted by the host through the library's state
+  management; no product effects store and no product `Effects` operations.
+  `plugins/sidecars/host/src/journal.rs` implements `controls::Journal` over one opaque,
+  revisioned plugin state value (`journal::Store`: load, save with expected revision):
+  `record(target, inverse)` before a write (an outstanding target keeps its earlier
+  inverse and returns `false`), `clear(target)` after a restore, `outstanding()` in
+  recording order. The plugin's `initialize` hook runs `controls::State::restore`,
+  newest first, before any control runs; a failed inverse stays outstanding and fails
+  `initialize`, so the host withholds the plugin with that failure on its entry. A host
+  that cannot persist the value fails its state operation before any control writes. Inverses
+  are absolute control states, so a restore repeated after a crash between record,
+  write, restore and clear is idempotent. The `Context` store uses the library
+  StateHandle and propagates persistence failures before a control writes.
+- **Start snapshot.** The old automatic adapter capture at run start becomes an
+  explicit typed snapshot operation that a consuming template calls from its
+  `initialize` and records itself; the host adds no run-start contribution.
+- **Delivery.** Four packages with disjoint ownership (table below). Package 1 lands
+  the contracts, host prerequisites, settings, domain model, module tree and Build
+  integration; packages 2-4 add only inside their own files.
+
+### Host Prerequisite Status
+
+| Prerequisite | Status |
+|---|---|
+| Duration settings | `dokime::operations::Context::duration_setting` and `setting` (`sdk/rust/src/operations.rs`), backed by `crate::context::Context::duration_setting` (`sdk/rust/src/context.rs`); the name is the one `Observer::interval_setting` takes. |
+| Collection host calls | Library `sdk/rust/src/context.rs:230` refuses the old unscoped producer because it has neither a child transport nor an output carrier. Native collection invocations carry host calls; interval settings are resolved by the host. The product no longer calls Settings/List from a producer. |
+| Plugin-wide retention | Withdrawn: host streams are demand-driven; historical facts follow. Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
+| Effect journal | `plugins/sidecars/host/src/journal.rs` persists the Effects value through the library StateHandle. The product composes plugin state with its durable storage/recovery owner. Revision conflicts re-read within the current invocation; no local files or product state manager are added. |
+
+### Effect Journal Library Boundary
+
+The library owns one opaque revisioned state value per plugin entry, accessible
+from initialization and admitted collection/operation invocations. The product
+composes StateGet/StatePut with its storage and recovery backend; plugin inverses
+use this facility rather than application transactions, product Effects calls or
+plugin-local files. Recovery compaction retains the latest published snapshot
+and the uncovered suffix in `crates/dokime-storage/src/backend/recovery.rs`.
+
+A durable record acknowledged before mutation makes a crash before that mutation
+restore the already-current absolute state. A crash after mutation, or after
+restoration but before clear, replays the same absolute inverse idempotently.
+Clear is durable after restoration. Failed restoration retains its entry and
+fails initialization. Fake-store tests prove ordering and conflict preservation;
+actual machine mutations and disk-process crash restoration are not this proof.
+
+The platform implementations set absolute radio, adapter and power-plan states,
+including when restoring an already-current state. There is no separate
+outstanding-effect operator read operation: restoration failure surfaces through
+the plugin entry. An operator read capability remains a separate owner decision.
+
+The owner's plugin-state decision supersedes the product-owned confirmation
+tickets in `operation-grammar/specs/operation-contracts/spec.md:590`. That separate
+change and `docs/architecture.md:449` require owner reconciliation; this delivery
+does not restore the old ticket contract.
+
+### Host Plugin Ownership
+
+Package 1 owns every file not listed below, including `Cargo.toml` of the plugin
+(dependency lines are added by the area that first uses them: `sysinfo` and
+`starship-battery` by package 2, `zbus` by the first of packages 3 and 4; the
+workspace already declares them), `src/lib.rs`, `src/main.rs`, `src/settings.rs`,
+`src/domain/**`, every `mod.rs`, `src/platform/windows/apartment.rs` and
+`tests/integration/{main,settings}.rs`. Packages never edit another package's files.
+
+| Package | Owns | Consumes |
+|---|---|---|
+| 2 System, Network, CPU | `src/streams/{system,network,cpu}.rs`, `src/collectors/{system,network,cpu}.rs` (each may become a directory), `src/platform/windows/{connectivity,power}.rs`, `src/platform/unix/{connectivity,power}.rs`, `tests/integration/{system,network,cpu}.rs`, `benches/**` and the bench target | `domain::telemetry::{System, Network}` and `Column`, `settings::{duration_value, integer, number, text, selected, CpuLoad}`, `Host::{system, network, cpu}`, `platform::windows::apartment::retain`; exposes the power-read interface package 4 uses |
+| 3 Wi-Fi, Bluetooth | `src/streams/{wifi,bluetooth}.rs`, `src/collectors/{wifi,bluetooth}.rs`, `src/platform/windows/{wifi,echo,bluetooth,devices}.rs`, `src/platform/unix/{wifi,echo,bluetooth}.rs`, `tests/integration/{wifi,bluetooth}.rs` | `domain::telemetry::{WifiLink, WifiScan, WifiLatency, Bluetooth}`, settings readers, `Host::{wifi, bluetooth}`, `apartment::retain` |
+| 4 Controls, Adapters, Power | `src/controls/**`, `src/adapters/**`, `src/power/**`, `src/platform/{windows,unix}/{controls,adapters}.rs`, `tests/integration/{controls,adapters,power}.rs` | `domain::controls`, settings readers, `Host::{controls, adapters, power}`, package 2's power reads, and the effect journal once it lands |
+
+Each area registers through its `catalog(plugin: Plugin) -> Result<Plugin>`, which
+`src/lib.rs` already calls, and keeps plugin-wide state in its field of `Host`
+(constructed by `Default`; an area may replace the derive with its own `Default`
+implementation and release resources in `Drop`). Documents for host streams belong
+to the area that declares the stream and need plugin-wide retention first.
+
+### Host Integration Gate
+
+The pinned library supplies durable plugin state. `journal::Store for Context`
+reads one typed Effects value through `ctx.state().get`, retains that handle's
+observed revision, and performs revisioned Put before the native write. Store
+futures follow the library's invocation-local future contract. A
+`state_revision_conflict` re-reads the value and reapplies record or clear inside
+the same operation's policy; other failures propagate. The unavailable-state
+fallback and refusal gate are removed. Fake stores prove concurrency and inverse
+preservation; native controls are not executed by these tests.
+
+System collection start acquires its COM usage lease; stop drops the native
+inventory before releasing the lease. A stopped collection cannot lazily recreate
+its inventory. Standalone radio and connectivity probes own scoped leases. The
+CPU `OnceCell<f64>` retains only the calibrated machine value: calibration's
+scoped threads are all joined before it returns, and no worker or handle is
+stored in the cell. This scalar retention is permitted outside listener demand.
+
+The shipping build already includes `plugin-host` beside OBC. The release plugin
+inventory in `tools/project.toml` declares both native targets; installer manifests
+retain those kit defaults unless explicitly excluded. Distribution export includes
+their bundle bytes in the checked file inventory, so portable archives retain the
+same default plugins as local installer staging. No installer execution or machine
+installation is needed to prove this staging behavior.
 
 ## Registered (Unmanaged) Plugin Lifecycle (Locked by the Owner, 2026-11-20)
 
@@ -2973,3 +3142,45 @@ The launch source inventory comprises the four SDK entry implementations and
 starters, SDK listener configuration and readiness fixtures, the product launcher
 and registration stories, generated bindings after merging dev, and desktop
 plugin-table integration. Required proof stays open until performed.
+
+The host duration-setting path also makes a redundant read:
+`plugins/sidecars/host/src/settings.rs:539` validates through `checked`, then
+`sdk/rust/src/context.rs:390` fetches the same setting again for conversion.
+Host collector and control timing readers call this path. A shared conversion
+of the already-validated value would remove the second request and the change
+between validation and use; its API owner remains an open streamlining decision.
+
+### Host Collection Integration Contract
+
+The host plugin shares one `Arc<Host>` between operation authoring and native
+collection callbacks. Interval resolution and tick timestamps belong to the
+library host. Sparse rows use typed member streams and the library output,
+which retains publication validation until handler completion. Durable control
+inverses use the library state operation family composed by the product host;
+no plugin-local state or journal files exist. The launcher proof observes Ready,
+two network collection rows, and Ready again before joining its owned child.
+
+This requested native collection adoption supersedes the earlier product-only
+collection author surface: callbacks, member streams and outputs use library
+values. The product operation-context adapter binds the shared Host value for
+existing collectors. Other authoring surfaces and other language SDKs retain
+their current owners; this delivery adds no second collection implementation.
+
+Scoped execution ingestion distinguishes native collection members from ordinary
+interval observers: collection rows retain their per-tick source timestamp and
+are persisted individually, while ordinary observer column batches keep their
+existing expansion path in `crates/dokime-runtime/src/streams.rs`.
+
+Collection lifecycle hooks in the pinned library currently clear their child output
+(`sdk/rust/src/server.rs:604`) and cannot call host operations. The host plugin's
+hooks therefore acquire/release native resources only. Network link baselines
+are read during the configured collection invocation and seed only unknown
+links, preserving queued native events. Supporting host calls in library hooks
+would require retaining a Samples child output in `transition` and pumping child
+requests/replies while the hook runs, instead of treating every input as closure.
+The plugin requires no such call, settings cache, fixed interval or alternate
+transport. Other settings remain read on their current collection/operation call.
+
+Network resource acquisition completes synchronously inside the lifecycle hook,
+like the system COM lease and Wi-Fi link counter acquisition. No detached
+blocking job can install native resources after cancelled demand has stopped.

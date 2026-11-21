@@ -63,19 +63,21 @@ class ProductCompilerRecordTests(unittest.TestCase):
             compiled.mkdir()
             extension = ".exe" if os.name == "nt" else ""
             cli = compiled / f"dokime{extension}"
-            plugin = compiled / f"plugin-obc{extension}"
             cli.write_bytes(b"command-line fixture")
-            plugin.write_bytes(b"plugin fixture")
+            plugins = {name: compiled / f"{name}{extension}" for name in ("plugin-host", "plugin-obc")}
+            for name, plugin in plugins.items():
+                plugin.write_bytes(f"{name} fixture".encode())
 
             def compile_product(*args: Any, **kwargs: Any) -> None:
-                # The Plugin Bundle Follows a Successful Compile; It Writes No Compiler Record.
+                # Each Plugin Bundle Follows a Successful Compile; It Writes No Compiler Record.
                 if args[0][1:3] == ["plugin", "bundle"]:
                     project = Path(args[0][3])
+                    plugin = plugins[project.name]
                     self.assertEqual((project / plugin.name).read_bytes(), plugin.read_bytes())
                     self.assertEqual(
-                        (project / "dokime.toml").read_text(encoding="utf-8"), '[plugin]\n[scripts]\nexecutable = "plugin-obc"\n'
+                        (project / "dokime.toml").read_text(encoding="utf-8"), f'[plugin]\n[scripts]\nexecutable = "{project.name}"\n'
                     )
-                    Path(args[0][5]).write_bytes(b"bundled plugin fixture")
+                    Path(args[0][5]).write_bytes(f"bundled {project.name}".encode())
                     return
                 kwargs["stdout"].write("replacement build")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "previous successful build")
@@ -86,7 +88,7 @@ class ProductCompilerRecordTests(unittest.TestCase):
                 patch.object(dokime_tools.build.rust.__main__.paths, "output", return_value=root),
                 patch.object(dokime_tools.build.rust.__main__.configuration, "ROOT", root),
                 patch.object(dokime_tools.build.rust.__main__.subprocess, "run", side_effect=compile_product),
-                patch.object(dokime_tools.build.rust.__main__.outputs, "executables", return_value={"dokime": cli, "plugin-obc": plugin}),
+                patch.object(dokime_tools.build.rust.__main__.outputs, "executables", return_value={"dokime": cli, **plugins}),
                 patch.object(dokime_tools.build.rust.__main__.cargo, "record_target"),
             ):
                 # Retain The Last Successful Record And The Failed Diagnostics
@@ -96,16 +98,16 @@ class ProductCompilerRecordTests(unittest.TestCase):
                 pending = messages.with_name("compiler.pending.json")
                 self.assertEqual(pending.read_text(encoding="utf-8"), "replacement build")
 
-                # Publish The Completed Replacement Only After Cargo Succeeds
+                # Publish The Completed Replacement Only After Cargo Succeeds, With One Bundle per Shipped Plugin
                 fail = False
                 exported = dokime_tools.build.rust.__main__.build("dev")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "replacement build")
                 self.assertFalse(pending.exists())
-                self.assertEqual(
-                    set(exported),
-                    {f"bin/{cli.name}", f"bin/{plugin.name}", "bin/plugin-obc.dokime", "product/compiler.json", "product/target.txt"},
-                )
-                self.assertEqual((root / "bin/plugin-obc.dokime").read_bytes(), b"bundled plugin fixture")
+                bundles = {f"bin/{name}.dokime" for name in plugins}
+                binaries = {f"bin/{plugin.name}" for plugin in plugins.values()}
+                self.assertEqual(set(exported), {f"bin/{cli.name}", *binaries, *bundles, "product/compiler.json", "product/target.txt"})
+                for name in plugins:
+                    self.assertEqual((root / f"bin/{name}.dokime").read_bytes(), f"bundled {name}".encode())
         finally:
             temporary_directory.cleanup()
 

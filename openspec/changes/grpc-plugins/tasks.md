@@ -44,8 +44,25 @@
 - [x] 4.3 Replace PyO3 with the pure Python authoring/client package, explicit close and shipped examples.
 - [x] 4.4 Provide C# authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
 - [x] 4.5 Provide C++ authoring/client APIs, generated roots, examples and scaffold output; retain tracked generated protocol output.
-- [ ] 4.6 Re-author the host telemetry plugin with its collectors and controls; only the OBC plugin is present under `plugins/sidecars/`.
+- [ ] 4.6 Re-author the host telemetry plugin with its collectors and controls; its source is restored under `plugins/sidecars/host`, with collection scheduling and effect-journal integration still open.
 - [x] 4.6.1 Re-author the OBC device operations, suites, documents and independent benchmark workloads on the Rust SDK; remove plugin analysis registration.
+- [x] 4.6.2 Restore `plugins/sidecars/host` (`plugin-host`) with its flat settings, domain rows, area module tree, Build bundle and release plugin declaration (design: Host Telemetry Plugin Restoration).
+- [x] 4.6.3 Expose duration settings on the operation context for observer intervals and other durations.
+- [x] 4.6.4 Withdrawn: host streams are demand-driven collections (design: Host Telemetry Plugin Restoration); no native collection resource is retained outside listener demand; the CPU calibration scalar may remain cached.
+- [ ] 4.6.9 Add the Rust SDK `Collection` (one measurement feeding several streams per tick, demand-bound start and stop hooks) and regroup every host stream row by availability without optional or repeated fields. Row regrouping is implemented; retain the current product producer scheduler unchanged until the library collection capability exists, then adopt it and delete the product scheduler.
+- [ ] 4.6.5 Implement the effect journal as host plugin state on the library's state management: `journal.rs` implementing `controls::Journal`, restore newest first in `initialize`, refusal without durable state (landed); durable plugin state served by the library and bounded recovery storage (open).
+- [x] Align Python SDK Formatting With the Shared Generator's Explicit Package Classification; Regenerate Rather Than Edit Bindings.
+- [x] Stage Both Declared Default Plugins in the Native Kit and Portable Distribution Archive on Windows and Linux; Include Bundle Checksums.
+- [x] Review Every Unix-Gated Host Source and Test Branch Against the Journal and Collection Signatures; No Native Linux Compilation Is Claimed.
+- [x] Release Collection-Owned COM Usage on Stop and Probe-Owned Usage After Read/Write; Keep Only the CPU Calibration Scalar After All Calibration Threads Join.
+- [x] Remove Unused Windows Adapter Helpers From devices.rs; Keep Bluetooth Inventory and the Controls-Owned Adapter Implementation.
+- [x] Gate Mutating Host Controls at the Journal Boundary Before Any Platform Call When Plugin State Is Not Durable; Include CPU Load Holds and Preserve Read-Only Operations.
+- [ ] Connect the Host Journal's Context Store to the Library's Durable, Revision-Checked Plugin State Once That Capability Exists; Prove Crash Recovery and Bounded Recovery Storage.
+- [ ] Complete Hosted Native Linux Compilation and Focused Host Tests; Source Review on Windows Does Not Substitute for This Proof.
+- [x] Complete This Host Integration Unit's Focused Windows Proof: Protocol Drift, Host and SDK Tests, Workspace Test-Target Compilation With Desktop testing, Packaging Tests, Format, Repository, Supply and Strict OpenSpec Validation.
+- [ ] 4.6.6 Package 2: system, network and CPU collectors, streams, CPU load control, network notifications and benches.
+- [ ] 4.6.7 Package 3: Wi-Fi link, scan and latency, and Bluetooth collectors and streams.
+- [ ] 4.6.8 Package 4: radio and adapter controls gated on the effect journal, adapter inventory with its typed start snapshot, and power plan operations.
 - [x] 4.7 Bundle executable plugins and provide shared Rust/Python/C#/C++ thermal host stories and language fixture producers.
 - [x] 4.8 Restore desktop workspace membership, runtime embedding, generated client routing, native preference export and shipping build ownership.
 - [x] 4.8.1 Remove the Capture Folder Allow-List, Its Desktop Settings and Refusal Stories; Keep Path, Size and Deadline Validation.
@@ -63,7 +80,7 @@
 - [x] 5.12.1 Implement saved execution/cycle evidence export through the bounded, verified download path.
 - [x] 5.12.2 Restore current-host GUI execution-matrix fixtures and independent native desktop story drivers.
 - [x] 5.12.3 Add the global --connect-timeout override for direct and paired connections, retaining ordered endpoint fallback and reporting every failed endpoint.
-- [ ] 5.13 Implement retained Effects Create/Get/Set and prove inverse retention, owner-qualified confirmations, reverse restoration and failed-startup restoration; all three handlers currently return Unimplemented.
+- [x] 5.13 Remove the unimplemented Effects Create/Get/Set operations, their proto, generated bindings and every SDK's template-context `prepare_effect` / `confirm_effect`; effects are plugin state (4.6.5).
 - [ ] 5.14 Resolve the supported media API with the owner and implement retained Media.Captures Create/Get/Watch/Stop behavior, currently Unimplemented; keep unavailable host capture controls explicit. Aggregates.Get implementation belongs to operation-boundary 5.1.
 - [ ] 5.15 Complete local capture line matchers/markers and retained FTP/FTPS/SSH sources with feature-gated source operations, secret-backed settings, mirroring, one-shot semantics and bounded pending buffers; current capture engine explicitly defers matchers and FTP/FTPS and has no SFTP implementation.
 - [x] 5.16 Implement document structure, bindings, summaries and layout before StructureComplete, then EvidenceCut and card results in `host/documents/get.rs`.
@@ -206,7 +223,7 @@
   - [x] Complete Registration-Owned Template Bindings, Cleanup, Resource Lists, Mutation Overrides and Frozen Typed Readers; Keep CLI and Product-Test Raw Calls in the Unpublished Workspace Client Crate and Remove Generated Host/Transport Escape Hatches From the SDK.
     - [x] Add Bound Case Lists, Fixed-Cut Cycle/Execution Lists, Refresh Operations and Frozen Typed Record/Sample Readers With Digest Verification and Continuation Validation.
     - [x] Add Operation-Specific Mutation Identity Overrides for Cycle/Execution Creation and Controls, Notes and Artifacts; Derive Replay-Stable Execution UUIDs From Request Identities.
-    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability, Documents and Effect Preparation/Confirmation Without Policy Overrides.
+    - [x] Add Template-Context Request Identity Overrides for Records, Progress, Logs, Traceability and Documents Without Policy Overrides.
   - [x] Run SDK Harness Cleanup After Failed or Cancelled Initialization, Preserving Partial State and Termination; Prove Both Deterministically.
   - [x] Create All Four Languages With `--from` or `DOKIME_NEW_FROM`, Checkout Starter Sources and Native Local SDK Dependencies; Keep Argument Precedence and Actionable Missing-Starter Errors.
   - [x] Migrate Starter-Creation Stories and Fixture Tooling to `--from`; Remove Test-Owned SDK Dependency Overrides and C++ Archive Coordinates.
@@ -250,6 +267,7 @@
 - [x] Stage Release Runtime Inputs From the C++ Starter's Normal Build for Bundling; Keep Debug Outputs in Its Build Tree and Preserve Bundle Bounds and Build Deadlines.
 - [x] Align CLI Fixture Producers With Their Actual Build Outputs and Compiler Profiles; Prove the Rust Fixture and Both C++ Placement Journeys.
 - [ ] Merge Current Dev Before Final Proof; Run Workspace Compilation, Rust Lint, Repository and Generation Checks, All SDK Units/Integrations, Four Created Projects and Capture, CLI Stories and the Requested Release Host/Python Stories; Resolve the Unanswered-Prompt Clock/Stream REWORK Before Closing Final Proof.
+  - [x] Resolve the Current Dev Merge While Preserving Host Telemetry, Environment Context and Effects Removal Alongside Host Build Identity, Logs/List and Desktop Settings Consolidation; Regenerate Protocol, Python and Desktop Bindings From the Merged Sources.
 - [x] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.
 
 - [x] Substitute Python Starter Display Titles With Style-Guide Title Case and Prove Name, Package and Display Substitution.
@@ -336,3 +354,27 @@
   - [x] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
 - [x] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
 - [x] Prove User-Owned Reattachment With the Pinned Library's Remote-Removal Ownership Fix.
+
+## Host Launch Handshake Integration
+
+- [x] Merge the Managed Launch Handshake and Self-Registration Cutover From Dev; Preserve the Host Plugin, Default Shipping, Environment Context and Effects Removal; Regenerate Protocol and Desktop Contracts and Refresh Tracked Cargo Locks.
+- [x] Keep the Host Plugin on the SDK Single Run Entry, With Launch Credentials Selected by the SDK and No Readiness Output or Address Variables.
+- [x] Collapse the SDK Registration Refusal Guard Reported by Rust Lint Without Changing Listener Cleanup or Structured Host Failure Propagation; Import Its Named Types Without Aliases.
+- [x] Obtain a Passing Rust Lint Result for the Corrected Candidate; the Single Allowed Local Invocation Passed Without Findings.
+- [x] Prove a Stable Ready Host Plugin Through the Product Launcher With Library-Owned Collections and Revisioned Durable Plugin State; Observe Ready and Collection Rows Without Sleeps or Native Controls.
+- [x] Complete the Independent Native Windows Generation, Workspace Test Compilation, Desktop Bench Compilation, Host Plugin Tests, Native Packaging Tooling, C++ Test Compilation, Format, Repository, Supply and Strict OpenSpec Proof; Keep Linux, Corrected Rust Lint and Ready Launch Proof Independent.
+
+## Host Collection and Journal Adoption
+
+- [x] Merge Dev's Library Collection and Durable Plugin State Pin, Regenerating Tracked Contracts and Refreshing Cargo Locks.
+- [x] Delete the Product Collection Type, Producer Scheduler and Superseded Harness Scheduler and Tests; Register Native Library Collections.
+- [x] Bind Native Collection Invocations to Shared Author State, Host-Resolved Interval Settings and Demand-Owned Acquisition/Release Hooks.
+- [x] Ingest Native Collection Members as Individual Scoped Rows Instead of Legacy Observer Column Batches.
+- [x] Implement the Context Journal Store on Revisioned Plugin State and Re-Read Conflicts Within the Operation Policy.
+- [x] Prove Fake-Store Conflict Preservation and the Shipped Plugin's Ready State With Consecutive Collection Rows Through the Product Launcher.
+- [ ] Complete the Requested Generation, Compilation, Focused Tests, Native Packaging, Lint, Format, Repository, Supply, Binding and Strict Change Gates.
+  - [x] Pass Generation Drift, Workspace Test-Target Compilation With Desktop Testing, Desktop Bench Compilation and Isolated Rust SDK Consumer Test-Target Compilation.
+  - [x] Pass the Safe Host Integration Tests, Network Baseline Test, Launcher and Collection Storage Tests, Focused Rust SDK Tests and Native Packaging Tooling Tests.
+  - [x] Pass the Single Rust Lint Invocation, Format, Repository, Supply, Unused-Dependency and Strict OpenSpec Checks.
+  - [x] Build and Package the Pure Python SDK in the Release Context and Pass the Binding Gate After Preparing Its Existing Example Distributions.
+  - [ ] Resolve the Required Whole-Package Host Test Versus the No-Native-CPU-Load Rule: `collectors::cpu::workers::tests::active_workers_count_whole_batches` Starts Real Load; Keep This Proof Open Until the Owner Chooses Its Test Scope.

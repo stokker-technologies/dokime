@@ -7,7 +7,6 @@ set(plugin_protocols
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/content/artifacts.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/cycles.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/documents.proto"
-  "${DOKIME_PROTO_ROOT}/dokime/host/v1/effects.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/evidence.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/evidence/logs.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/evidence/records.proto"

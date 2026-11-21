@@ -1,19 +1,21 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
-// Unsupported Host Operation
+// Host Collectors: Native Readings Assembled Into Telemetry Rows
 
 /* === Modules === */
 
-pub mod create;
-pub mod get;
-pub mod set;
+pub mod bluetooth;
+pub mod cpu;
+pub mod network;
+pub mod system;
+pub mod wifi;
 
 /* === Re-Exports === */
 

@@ -307,7 +307,7 @@ impl Harness {
                 false
             }
         };
-        if initialized {
+        if initialized && failure.is_none() {
             for frozen in &case.steps {
                 let Some((_, step)) = steps.iter().find(|(operation, _)| *operation == frozen.operation) else {
                     failure = Some(Error::Invalid(format!("Test Template: Materialize Only Declared Steps, Not {}", frozen.operation)));
@@ -491,15 +491,25 @@ impl Memory {
                 sequence,
             };
             let rows = sampler.sample.rows(&context, &window).await?;
-            let mut state = self.state.lock().map_err(|_| poisoned())?;
-            for (offset, payload) in rows.into_iter().enumerate() {
-                state.samples.push(Sampled {
-                    stream: sampler.stream.clone(),
-                    step: step.clone(),
-                    payload,
-                    at_ns: first.saturating_add((offset as i64).saturating_mul(*period)),
-                });
-            }
+            self.sampled(
+                &step,
+                rows.into_iter().enumerate().map(|(offset, payload)| {
+                    (sampler.stream.clone(), payload, first.saturating_add((offset as i64).saturating_mul(*period)))
+                }),
+            )?;
+        }
+        Ok(())
+    }
+
+    fn sampled(&self, step: &str, rows: impl Iterator<Item = (String, Vec<u8>, i64)>) -> Result<()> {
+        let mut state = self.state.lock().map_err(|_| poisoned())?;
+        for (stream, payload, at_ns) in rows {
+            state.samples.push(Sampled {
+                stream,
+                step: step.to_owned(),
+                payload,
+                at_ns,
+            });
         }
         Ok(())
     }
@@ -698,15 +708,14 @@ impl Memory {
         if field.is_empty() || samples.is_empty() {
             return Ok(statistics);
         }
-        let sampler = &self
+        let (types, name) = self
             .observers
             .iter()
             .find(|(sampler, _)| sampler.stream == stream)
-            .ok_or_else(|| Error::Invalid(format!("Testing Host: Observe Stream {stream} Before Reading Its Statistics")))?
-            .0;
-        let pool = DescriptorPool::from_file_descriptor_set(sampler.types.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
-        let descriptor =
-            pool.get_message_by_name(&sampler.name).ok_or_else(|| Error::Invalid(format!("Missing Descriptor {}", sampler.name)))?;
+            .map(|(sampler, _)| (&sampler.types, &sampler.name))
+            .ok_or_else(|| Error::Invalid(format!("Testing Host: Observe Stream {stream} Before Reading Its Statistics")))?;
+        let pool = DescriptorPool::from_file_descriptor_set(types.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
+        let descriptor = pool.get_message_by_name(name).ok_or_else(|| Error::Invalid(format!("Missing Descriptor {name}")))?;
         let member = descriptor.get_field_by_name(field).ok_or_else(|| Error::Invalid(format!("Statistics: Unknown Field {field}")))?;
         let mut values = Vec::new();
         for sample in samples {

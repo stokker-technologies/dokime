@@ -66,7 +66,7 @@ def export(root: Path, profile: str) -> Path:
     if identity["version"] != config["version"]["value"]:
         raise ValueError("Package Product: Rebuild the CLI for the Configured Product Version")
     plugins = []
-    bundles = []
+    bundles = {}
     for plugin in config.get("release", {}).get("plugins", []):
         if native not in plugin.get("targets", {}).values():
             continue
@@ -83,13 +83,14 @@ def export(root: Path, profile: str) -> Path:
         if name in plugins:
             raise ValueError(f"Package Product: Declare Each Default Plugin Identity Once: {name}")
         plugins.append(name)
-        bundles.append(path)
+        bundles[f"plugins/{path.name}"] = path
     source = {
         "LICENSE": root / "LICENSE",
         "NOTICE": root / "target/notices/NOTICE",
         "THIRD-PARTY-NOTICES": root / "target/notices/THIRD-PARTY-NOTICES",
         f"bin/dokime{suffix}": build / "bin" / f"dokime{suffix}",
         f"bin/dokime-gui{suffix}": build / "bin" / f"dokime-gui{suffix}",
+        **bundles,
     }
     organization = root / "organization"
     for path in organization.rglob("*"):
@@ -113,8 +114,6 @@ def export(root: Path, profile: str) -> Path:
     for name, path in sorted(source.items()):
         stage_file(path, destination / name)
         hashes[name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
-    for path in bundles:
-        stage_file(path, destination / "plugins" / path.name)
     manifest = {
         "schema": 1,
         "version": identity["version"],

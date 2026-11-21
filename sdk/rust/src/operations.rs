@@ -19,7 +19,7 @@ pub use ::harmos::plugin::StateHandle;
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Duration;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 // Third Party Imports
 use ::harmos::plugin;
@@ -27,6 +27,7 @@ use prost_types::Timestamp;
 
 // Local Imports
 use crate::context::{self, Executions};
+use crate::templates::Environment;
 use crate::{Message, Result};
 
 /* === Constants === */
@@ -49,6 +50,12 @@ pub struct Context {
 /* === Implementations === */
 
 impl Context {
+    /// Bind a Library Collection Invocation to the Same Author State as the Plugin.
+    pub fn from_collection<T: Send + Sync + 'static>(transport: &plugin::Context, state: T) -> Result<Self> {
+        let executions = Executions::new(Arc::new(state), HashSet::new());
+        Self::invocation(transport, &executions)
+    }
+
     pub(crate) fn from_inner(inner: context::Context) -> Self {
         Self { inner }
     }
@@ -80,6 +87,15 @@ impl Context {
     }
     pub async fn settings<T: Message>(&self) -> Result<T> {
         self.inner.settings::<T>().await
+    }
+    pub async fn setting(&self, identifier: &str) -> Result<crate::SettingValue> {
+        self.inner.setting(identifier).await
+    }
+    pub async fn duration_setting(&self, identifier: &str) -> Result<Duration> {
+        self.inner.duration_setting(identifier).await
+    }
+    pub async fn environment(&self) -> Result<Environment> {
+        self.inner.environment().await
     }
 }
 

@@ -1060,10 +1060,6 @@ namespace dokime::plugin {
 using ::dokime::detail::payloads::plugin::BackendEnvironmentResponse;
 using ::dokime::detail::payloads::plugin::CapturesStartResponse;
 using ::dokime::detail::payloads::plugin::DocumentsAppendPartsResponse;
-using ::dokime::detail::payloads::plugin::EffectsCreateResponse;
-using ::dokime::detail::payloads::plugin::EffectsGetResponse;
-using ::dokime::detail::payloads::plugin::EffectsSetResponse;
-using ::dokime::detail::payloads::plugin::EffectWritable;
 using ::dokime::detail::payloads::plugin::LogsAppendResponse;
 using ::dokime::detail::payloads::plugin::ProgressSetResponse;
 using ::dokime::detail::payloads::plugin::RecordsAppendResponse;

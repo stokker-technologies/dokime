@@ -5,9 +5,6 @@ enum class HostOperation {
   BackendEnvironment,
   ContentArtifactsCreate,
   DocumentsAppendParts,
-  EffectsCreate,
-  EffectsGet,
-  EffectsSet,
   EvidenceLogsAppend,
   EvidenceRecordsList,
   EvidenceRecordsAppend,
@@ -55,18 +52,6 @@ struct HostContentArtifactsCreateOptions {
 struct HostDocumentsAppendPartsOptions {
   std::optional<::dokime::model::Section> subsection;
   std::optional<::dokime::Card> card;
-  std::optional<std::string> request_id;
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostEffectsCreateOptions {
-  std::optional<std::string> request_id;
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostEffectsGetOptions {
-  std::optional<::harmos::Position> at;
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostEffectsSetOptions {
   std::optional<std::string> request_id;
   std::optional<::harmos::OperationPolicy> policy;
 };
@@ -346,16 +331,6 @@ struct HostEvidenceResource {
                                                   const std::string &field, const std::string &step,
                                                   HostEvidenceStatisticsOptions options = {});
 };
-struct HostEffectsResource {
-  Context context;
-  HostEffectsResource(Context context_value) : context(context_value) {}
-  ::dokime::plugin::EffectsCreateResponse create(const std::string &resource, const std::string &inverse_operation,
-                                                 const std::string &inverse, const std::string &description,
-                                                 HostEffectsCreateOptions options = {});
-  ::dokime::plugin::EffectsGetResponse get(const std::string &name, HostEffectsGetOptions options = {});
-  ::dokime::plugin::EffectsSetResponse set(const std::string &name, const ::dokime::plugin::EffectWritable &value,
-                                           const std::string &expected_revision, HostEffectsSetOptions options = {});
-};
 struct HostDocumentsResource {
   Context context;
   HostDocumentsResource(Context context_value) : context(context_value) {}
@@ -382,7 +357,6 @@ struct HostRoot {
   HostBackendResource backend;
   HostContentResource content;
   HostDocumentsResource documents;
-  HostEffectsResource effects;
   HostEvidenceResource evidence;
   HostExecutionsResource executions;
   HostFilesResource files;

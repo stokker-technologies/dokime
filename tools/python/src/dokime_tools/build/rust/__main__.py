@@ -35,7 +35,8 @@ from ...process import spawn_flags
 # === Constants === #
 
 
-EXECUTABLES = ("dokime", "dokime-host", "dokime-gui", "plugin-obc")
+PLUGINS = ("plugin-host", "plugin-obc")
+EXECUTABLES = ("dokime", "dokime-host", "dokime-gui", *PLUGINS)
 
 # === Types === #
 
@@ -73,30 +74,31 @@ def build(profile: str) -> list[str]:
         stage_file(path, binaries / path.name)
         staged.append(binaries / path.name)
 
-    # Bundle the Shipped Plugin With the Command-Line Tool Built Beside It
+    # Bundle Each Shipped Plugin With the Command-Line Tool Built Beside It
     extension = ".exe" if os.name == "nt" else ""
-    project = output / "product/plugin-obc"
-    project.mkdir(parents=True, exist_ok=True)
-    stage_file(binaries / f"plugin-obc{extension}", project / f"plugin-obc{extension}")
-    (project / "dokime.toml").write_text('[plugin]\n[scripts]\nexecutable = "plugin-obc"\n', encoding="utf-8")
-    bundle = binaries / "plugin-obc.dokime"
-    subprocess.run(
-        [
-            str(binaries / f"dokime{extension}"),
-            "plugin",
-            "bundle",
-            str(project),
-            "--out",
-            str(bundle),
-        ],
-        cwd=configuration.ROOT,
-        check=True,
-        creationflags=spawn_flags(),
-        stdin=sys.stdin,
-        stdout=sys.stderr,
-        stderr=sys.stderr,
-    )
-    staged.append(bundle)
+    for plugin in PLUGINS:
+        project = output / "product" / plugin
+        project.mkdir(parents=True, exist_ok=True)
+        stage_file(binaries / f"{plugin}{extension}", project / f"{plugin}{extension}")
+        (project / "dokime.toml").write_text(f'[plugin]\n[scripts]\nexecutable = "{plugin}"\n', encoding="utf-8")
+        bundle = binaries / f"{plugin}.dokime"
+        subprocess.run(
+            [
+                str(binaries / f"dokime{extension}"),
+                "plugin",
+                "bundle",
+                str(project),
+                "--out",
+                str(bundle),
+            ],
+            cwd=configuration.ROOT,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stderr,
+            stderr=sys.stderr,
+        )
+        staged.append(bundle)
     cargo.record_target(configuration.ROOT, messages, profile)
     return configuration.relative([*staged, messages, output / "product/target.txt"])
 
