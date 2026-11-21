@@ -421,6 +421,7 @@ jobs:
     needs:
     - build_product
     - build_python
+    - build_host_fixtures
   release_dry:
     name: Release / Dry
     uses: ./.github/workflows/validate-release-dry.yml

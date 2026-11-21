@@ -59,7 +59,7 @@ CLASSES = {"docs", "rust", "rust_tests", "fixtures", "python", "csharp", "cpp", 
 PRODUCERS = {
     "test_host_csharp": {"build_tests", "build_host_fixtures_csharp"},
     "check_generated": {"build_python"},
-    "package": {"build_product", "build_python"},
+    "package": {"build_product", "build_python", "build_sdk_cpp"},
     "release_dry": {"package"},
     "release_rehearsal": {"package", "build_docs"},
 }

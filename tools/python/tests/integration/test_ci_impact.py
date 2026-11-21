@@ -57,8 +57,18 @@ class ImpactTests(unittest.TestCase):
             "test_host_csharp",
             "package",
         }
-        python = {"check", "build_product", "build_tests", "build_python", "build_docs", "check_generated", "test", "package"}
-        gui = {"check", "build_product", "build_tests", "build_python", "build_docs", "test", "package"}
+        python = {
+            "check",
+            "build_product",
+            "build_tests",
+            "build_sdk_cpp",
+            "build_python",
+            "build_docs",
+            "check_generated",
+            "test",
+            "package",
+        }
+        gui = {"check", "build_product", "build_tests", "build_sdk_cpp", "build_python", "build_docs", "test", "package"}
         rust_tests = {"check", "build_product", "build_tests", "build_python", "test", "build_host_fixtures_csharp", "test_host_csharp"}
         csharp = {"check", "test", "build_docs", "build_tests", "build_host_fixtures_csharp", "test_host_csharp"}
         cpp = {"check", "test", "build_docs", "build_sdk_cpp"}
@@ -95,7 +105,7 @@ class ImpactTests(unittest.TestCase):
             ([".github/actions/setup/action.yml"], all_review),
             (["new-component/input.dat"], all_review),
             (["docs/product-guide.md", "sdk/cpp/src/client.cpp"], cpp),
-            (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime_sdk/client.py"], all_review - {"build_sdk_cpp"}),
+            (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime_sdk/client.py"], all_review),
         )
         for paths, expected in cases:
             with self.subTest(paths=paths):

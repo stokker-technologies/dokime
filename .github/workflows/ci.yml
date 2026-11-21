@@ -201,6 +201,7 @@ jobs:
     - impact
     - build_product
     - build_python
+    - build_sdk_cpp
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.package == 'true'
   release_dry:
     name: Release / Dry
@@ -247,6 +248,12 @@ jobs:
       with:
         name: build-docs-${{ env.PROFILE }}-any
         path: target/docs
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: package-${{ env.PROFILE }}-cpp-*
+        path: target/ci
+        merge-multiple: true
         github-token: ${{ github.token }}
     - run: mise run release:rehearse -- --profile ${{ env.PROFILE }} --target all
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
