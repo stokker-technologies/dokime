@@ -284,6 +284,10 @@ class Plot:
         self.message.reference_lines.add().CopyFrom(line)
         return self
 
+    def markers(self, *records: str) -> Self:
+        self.message.marker_records.extend(records)
+        return self
+
     def reference_band(self, band: ReferenceBand) -> Self:
         if not isinstance(band, ReferenceBand):
             raise TypeError("Expected a ReferenceBand message")

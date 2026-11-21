@@ -1361,6 +1361,8 @@ def operation[F: Callable[..., object]](
     policy: OperationPolicy | None = None, description: str = "", replay_safe: bool = False,
 ) -> Callable[[F], F]: ...  # Infer one request and result annotation; identity defaults to function code name.
 
+def declaration[Q: Payload, R: Payload](handler: Callable[[Context, Q], Awaitable[R]]) -> Operation[Q, R]: ...  # Read the decorated function's immutable declaration.
+
 def step[F: Callable[..., object]](
     label: str, *, identifier: str | None = None, retries: int = 0,
     repeatable: bool = False, policy: OperationPolicy | None = None,
@@ -1589,6 +1591,47 @@ payloads; no response messages escape. `records.last()` refuses an empty result.
 An effect inverse is durable plugin state, not an SDK finally block that could be
 lost with the plugin process. Capture stop and template cleanup
 still settle on cancellation under their operation policies.
+
+### Python Authoring Capability Dependencies
+
+- Typed stream subscription remains blocked at library revision
+  `324ad01b0892b1ca6a3bce4bb9525b22974f606b`: Python `plugin.Context` exposes operation
+  `watch`, but no admitted stream-sample demand API. Rust `operations::Context`
+  likewise has no subscription surface. The library must provide typed stream
+  demand in inherited scope, bounded/backpressured row delivery with source and
+  receipt timestamps, cancellation and explicit close releasing demand without
+  stopping the provider. Product code must consume that API, not poll stored samples.
+- Optional observer fields remain blocked by library Python `_columns.columns_type`
+  rejecting proto3 optional fields as oneofs and `_columns.append` reading scalar
+  defaults without presence; Rust `crates/harmos-protocol/src/columns.rs::derive`
+  also rejects proto3 optional oneofs. The library must preserve per-row presence through
+  observer/window batching and Rust/Python decoding, distinguishing absent, zero
+  and nonzero values without NaN sentinels. The product interval storage consumer
+  must adopt that library encoding before this capability is closed.
+- Plugin observer record publication is blocked by the library's scoped binding:
+  `Runtime::bind_grpc` and `ScopedBinding::start_samples` cannot accept product
+  call-context resources. `Dispatch::invoke` installs `Resources` for operations,
+  but sample child calls use the binding's original context; host admission then
+  refuses them. The library must accept an inherited call context when creating
+  the scoped binding and carry it through observer child calls. The product can
+  then supply its execution resources once before starting samples and expose
+  record publication on the operation context without a second scope registry.
+- Setting bounds require library `model/v1/setting.proto` `SettingDeclaration`
+  to carry optional typed minimum/maximum values and validate both defaults and
+  settings writes against them in every SDK. That declaration currently contains
+  only name, title, description and default; no product-side bounds mechanism is added.
+- Stop-completes-run has no Rust SDK or product wire counterpart in this candidate.
+  Its declaration, stop outcome and durable sealing behavior need one product
+  contract spanning the runtime and storage owners before implementation.
+- Parameter text/list/choice/required, record field expressions, plot marker records,
+  traceability evidence cards and section repeats already have product wire support.
+  Their Python builders compose those messages. Rust exposes the same message
+  fields, but its current convenience builders do not provide every requested method.
+- Rust `sdk/rust/src/error.rs::Error::failure` preserves library classification and
+  actionable failure fields; Python bound operations already translate them into
+  the product `FailureError`. Rust authors construct `Operation::new` values and
+  select `.policy`; there is no decorated-function lookup to mirror. Python's
+  public `operations.declaration` reads its existing immutable decorator metadata.
 
 ### Python Client and Bound Handles
 
@@ -2800,6 +2843,8 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 
 | Both Locations | Current Callers and Responsibility | Recommendation for the Owner |
 |---|---|---|
+| `sdk/python/src/dokime_sdk/templates/_parameters.py:Parameter.numbers` and `Parameter.list` in the same file | `tests/integration/test_documents_survive_wire_roundtrip.py` uses `numbers` for a defaulted float list; `tests/unit/test_authoring.py` and the SDK README use `list` for an explicitly typed list. Both construct list parameter messages. | Delete `numbers` after migrating its caller to `list(..., float).default(...)`, once the owner approves; retain both until that decision. |
+| `sdk/python/src/dokime_sdk/templates/_documents.py:Document._definition/Section._definition` and `sdk/python/src/dokime_sdk/_authoring.py:_Template.definition` / `templates/_context.py:Context.document` | The private dictionary serializers have no SDK callers. Catalog construction and scoped document publication consume protobuf `.message` values directly. | Delete the unused dictionary serializers after owner approval; keep the canonical protobuf path. |
 | `sdk/csharp/src/Dokime/Client.cs:ArtifactAsync` and `FileTransfers.cs:UploadAsync` | Bound cycle/execution artifacts use the client loop; template evidence and file inputs use the transfer helper. Both create, append, publish, verify and abandon uploads. | Keep the transfer owner and delete the client loop after owner approval; retain child mutation identities and abandon only unpublished uploads. |
 | `sdk/csharp/src/Dokime/Registration.cs:PluginEndpoint` and `sdk/csharp/tests/Stories/Support/PluginServer.cs` | Registration and carrier stories both use the library addressable listener. The product wrapper retains idempotent close, while the test helper owns its channel. | Console-capture ownership was removed with the library listener adoption. |
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |

@@ -25,7 +25,7 @@ from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk import Plugin, Suite
-from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, Visibility, operation
+from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, Visibility, declaration, operation
 from dokime_sdk.templates import TestTemplate, step
 
 # Type Checking Imports
@@ -66,6 +66,26 @@ class CallerPlugin(Plugin):
 
 
 class PeerRequirementsTests(unittest.IsolatedAsyncioTestCase):
+    def test_operation_declaration_retains_payload_types_policy_and_identifier(self) -> None:
+        policy = OperationPolicy(timeout=timedelta(seconds=3))
+
+        @operation("peer.increment", policy=policy)
+        async def increment(ctx: Context, request: int) -> int:
+            return request + 1
+
+        definition = declaration(increment)
+        self.assertEqual(definition.identifier, PEER.identifier)
+        self.assertIs(definition.request, int)
+        self.assertIs(definition.response, int)
+        self.assertIs(definition.policy, policy)
+        self.assertEqual(definition.visibility, Visibility.PUBLIC)
+        self.assertIs(declaration(increment), definition)
+
+        async def undecorated(ctx: Context, request: int) -> int:
+            return request
+
+        self.assertRaises(TypeError, declaration, undecorated)
+
     def test_template_import_freezes_the_exact_contract_once(self) -> None:
         owner = CallerPlugin()
         required = [item for item in owner.declarations().requires if item.id == PEER.identifier]
@@ -160,7 +180,42 @@ class PeerRequirementsTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(FailureError) as raised:
             await context.operation(PEER)(1)
         self.assertEqual(raised.exception.failure.code, failure.code)
-        self.assertEqual(raised.exception.failure.action, failure.action)
+        self.assertEqual(raised.exception.failure.classification, "Timed Out")
+        self.assertTrue(raised.exception.failure.action)
+
+    async def test_bound_call_preserves_failure_kinds_causes_and_identity(self) -> None:
+        transport = AsyncMock(spec=plugin.Context)
+        transport.attempt = 1
+        context = Context(cast(plugin.Context, transport), CallerPlugin())
+        for kind, expected in (
+            (harmos.CLASSIFICATION_TRANSIENT, "Transient"),
+            (harmos.CLASSIFICATION_PERMANENT, "Permanent"),
+            (harmos.CLASSIFICATION_REFUSED, "Refused"),
+            (harmos.CLASSIFICATION_CANCELLED, "Cancelled"),
+        ):
+            failure = Failure(
+                classification=kind,
+                code="peer_failed",
+                message="Peer Request Failed",
+                action="Register the Peer",
+                operation=PEER.identifier,
+                plugin="peer",
+                cause=Failure(classification=harmos.CLASSIFICATION_PERMANENT, code="root"),
+                details={"attempt": "1"},
+            )
+            transport.call.side_effect = harmos.FailureError(failure)
+            with self.assertRaises(FailureError) as raised:
+                await context.operation(PEER)(1)
+            observed = raised.exception.failure
+            self.assertEqual(observed.classification, expected)
+            self.assertEqual(observed.operation, PEER.identifier)
+            self.assertEqual(observed.plugin, "peer")
+            self.assertEqual(observed.details["attempt"], "1")
+            self.assertIsNotNone(observed.cause)
+            assert observed.cause is not None
+            self.assertEqual(observed.cause.code, "root")
+            self.assertTrue(observed.message)
+            self.assertTrue(observed.action)
 
     async def test_runtime_created_reference_requires_reactivation(self) -> None:
         transport = AsyncMock(spec=plugin.Context)

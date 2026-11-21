@@ -99,6 +99,18 @@ class Section:
         self.message.cards.add().CopyFrom(card)
         return self
 
+    def traceability(self, *, label: str = "Traceability") -> Self:
+        self.message.cards.add(metadata=metadata(label), evidence=shared.EVIDENCE_CARD_TRACEABILITY)
+        return self
+
+    def repeat(self, value: Expression, *, label_template: str = "", order_by: Expression | None = None) -> Self:
+        self.message.repeat.value.CopyFrom(_expression(value))
+        self.message.repeat.label_template = label_template
+        self.message.repeat.ClearField("order_by")
+        if order_by is not None:
+            self.message.repeat.order_by.CopyFrom(_expression(order_by))
+        return self
+
     def _definition(self) -> dict[str, list[int]]:
         return {"message": list(self.message.SerializeToString())}
 

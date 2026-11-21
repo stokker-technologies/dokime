@@ -111,7 +111,7 @@ class Plugin:
         for index, function in enumerate(self._operations):
             if not isinstance(function, FunctionType) or not hasattr(function, "__dokime_operation__"):
                 raise TypeError("Build Plugin: List Decorated Plain Functions in operations")
-            definition = cast(dokime_sdk.operations.Operation[Any, Any], vars(function)["__dokime_operation__"])
+            definition = dokime_sdk.operations.declaration(cast(Any, function))
             operation_identities.append(definition.identifier)
             methods[f"external_{index}"] = dokime_sdk.operations._bind_operation(function, self)
         if len(operation_identities) != len(set(operation_identities)):

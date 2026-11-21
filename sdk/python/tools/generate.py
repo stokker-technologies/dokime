@@ -60,6 +60,7 @@ PUBLIC_HOMES = {
             "SettingValue",
             "StreamSubscription",
             "Visibility",
+            "declaration",
             "operation",
         ]
     ),

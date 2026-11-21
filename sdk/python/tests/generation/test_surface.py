@@ -18,7 +18,7 @@ from typing import assert_type
 import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Case, Client, Cycle, Execution, Outcome, Plugin, Progress, Suite
-from dokime_sdk.operations import Visibility, operation
+from dokime_sdk.operations import Operation, Visibility, declaration, operation
 from dokime_sdk.templates import TestTemplate, criterion, record, step
 
 # Type Checking Imports
@@ -65,6 +65,7 @@ async def echo(ctx: dokime_sdk.operations.Context, request: str) -> str:
 
 
 async def client_surface(client: Client) -> None:
+    assert_type(declaration(echo), Operation[str, str])
     await client.plugins.register(ExamplePlugin())
     cycle = await client.cycle(label="Capture")
     assert_type(cycle, Cycle)
