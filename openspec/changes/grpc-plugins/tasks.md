@@ -1,11 +1,13 @@
 ## Nightly Regression Repairs
 
 - [x] Reproduce and Retire the Superseded Load-Deadline Failure Story Against the Locked Offline Contract; Its Timeout-Prose Assertion Failed at Line 67 After Offline Projection Removed the Failure. Four Retained Readiness Tests Pass.
-- [ ] Reproduce and Retire the Superseded Unreachable-Remote Health Story; Identify Its Blocked Watch Await and Prove Retained Offline Registration Tests.
+- [x] Reproduce and Retire the Superseded Unreachable-Remote Health Story; `crates/dokime-runtime/tests/support/mod.rs:132` Waited for Another Watch Event While Expecting Unavailable After Offline Was Reached Without a Failure. Four Retained Registration, Restart, Removal and Durable-State Tests Pass.
 - [x] Keep Embedded Reports Free of Live RPC Dependencies While Preserving Session-Owned Plugin Restart; Complete the Planning Session Mock and Prove Six Focused Desktop Integrations, 41 Neighboring Units and TypeScript Checking.
 - [x] Reproduce the C++ SDK Failure Before Configure and Resolve Its Archive Before Entering the SDK Task Directory; All 17 CI Dispatch Tooling Tests Pass.
 - [ ] Complete Native C++ Package Consumer Proof With a Compatible MSVC Toolset: Configure Passes, but the Hosted Archive Uses MSVC 19.52/14.52 and This Windows Machine Has 19.44/14.44; Linking Fails on New Standard-Library Symbols Before CTest.
-- [ ] Complete Format, Repository, Strict OpenSpec and Workspace Test-Target Compilation Proof; Report Native Linux Proof Separately.
+- [x] Complete Format, Repository and Strict OpenSpec Validation.
+- [x] Compile Every Workspace Test Target With Desktop Testing Through `mise run test -- --changed Cargo.toml --no-run` (Exit 0).
+- [ ] Complete Native Linux Proof for the Nightly Regression Repairs.
 
 ## Library State and Ownership
 
