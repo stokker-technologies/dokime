@@ -92,7 +92,7 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   open-owner admission, atomic events and execution deletion still move together
   with the lifecycle contract before the remaining direct owner queries can be removed.
 
-Touched invariants in `docs/architecture.md` and their purposes:
+Touched invariants in `docs/project/architecture.md` and their purposes:
 
 - Invariant 7 (Library Machinery and Product Policy): "Compose library services directly,
   without redeclaring or forwarding them." Purpose: avoid duplicated generic machinery and
@@ -129,7 +129,7 @@ delivery; it is not permission to begin another open change.
 | 6.1 and Storage Deletions | Storage `administration.rs`, `store.rs` and every superseded module above; runtime `services/{mod,state,root_claim,access_credentials,composition}.rs`; CLI `commands/doctor.rs`; desktop `native_session/storage.rs` and its `connection/{host,registry}.rs` / `app/closing.rs` consumers: storage-only admission/maintenance, no second catalog, journal, cut issuer or notification source. |
 | Later Facade/Wrapper Delivery | Workspace Harmos dependencies; runtime services/state, execution/dispatch and operations/native; `protocol/composition.toml`; SDK C++/C# `tools/generate.py`; tools `build/resource_roots.py` and `build/resources/**`; product host declarations, embedded descriptors and generated consumers under all four SDKs and desktop generated host modules. Client-used library resources are Access Listener/Pairings/Certificates, Status and its Logs/TraceEvents/Diagnostics, Operations, Invocations, Schemas and Streams (D6). Plugin management belongs to `plugin-boundary`. |
 | Proof | `crates/dokime-storage/tests/integration/**` including the native conformance kit; operations unit tests; runtime `tests/{integration,system,support}/**`, especially lifecycle/outcome/isolation/interruption, evidence/notes/traceability/progress, prompts/documents/reports, content, plot/query, retained/restart, health/secrets and root-admission stories; CLI doctor and native storage tests; runtime `benches/storage/**` and existing plot/document benchmarks. Replace superseded fixtures/assertions with their operation-owned equivalents. SDK/protocol/generated tests follow the later wrapper delivery. |
-| Maintained Guides | `docs/architecture.md`, `docs/execution-host.md`, `docs/product-guide.md`, `docs/query-api.md`, `docs/gui.md`, `docs/tooling.md`, SDK guides and package READMEs, root `README.md`; change only affected contracts, layouts, commands and examples. |
+| Maintained Guides | `docs/project/architecture.md`, `docs/guides/execution-host.md`, `docs/index.md`, `docs/guides/query-api.md`, `docs/guides/gui.md`, `docs/project/tooling.md`, SDK guides and package READMEs, root `README.md`; change only affected contracts, layouts, commands and examples. |
 
 No new owner is introduced by this inventory. In particular, native backend
 registration is the only surviving direct backend consumer. Store's SQL tables,

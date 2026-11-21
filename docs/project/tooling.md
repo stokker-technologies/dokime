@@ -1,3 +1,6 @@
+---
+sidebar: { order: 2 }
+---
 # Repository Tooling
 
 Use `mise tasks` to discover entry points, with arguments after `--`. Preparation
@@ -292,7 +295,7 @@ runtime stops, including on failure. WebView lanes are available through
 `mise run test -- --language typescript --layer system --select native-desktop`
 and the same command with `--select two-gui-remote`. Both drivers use the current
 host and SDK thermal fixture; the native-desktop lane also runs the
-[OBC](../plugins/sidecars/obc/) Exact Values template for its exact summary tiles. Frontend unit and integration selection includes all
+[OBC](../../plugins/sidecars/obc/) Exact Values template for its exact summary tiles. Frontend unit and integration selection includes all
 retained suites. PR and Nightly select native acceptance plus both WebView lanes
 on Linux and Windows; Nightly also produces and runs the desktop benchmark archive.
 

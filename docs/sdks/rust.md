@@ -1,3 +1,6 @@
+---
+sidebar: { order: 1 }
+---
 # Rust SDK
 
 The `dokime` package provides typed clients and plugin authoring over the pinned
@@ -36,18 +39,18 @@ independent Protected operation identities and authored policies.
 
 ## Examples and New Projects
 
-The runnable projects are [client](../sdk/rust/examples/client),
-[plugin](../sdk/rust/examples/plugin) and [test](../sdk/rust/examples/test).
+The runnable projects are [client](../../sdk/rust/examples/client),
+[plugin](../../sdk/rust/examples/plugin) and [test](../../sdk/rust/examples/test).
 The scaffold embeds these examples; there is no separate starter source tree.
 The test example defines a suite and template, asks an operator question, records
 its answer and evaluates the retained record.
 
-The [thermal suite](../sdk/rust/examples/thermal.rs) and
-[execution fixture](../sdk/rust/examples/execution.rs) retain the shared host
+The [thermal suite](../../sdk/rust/examples/thermal.rs) and
+[execution fixture](../../sdk/rust/examples/execution.rs) retain the shared host
 journeys. Both use public imports, execution-local resources and host-driven time.
 The thermal suite captures temperature samples and exact integer counters,
 acknowledges door records and evaluates typed statistics for the Hold step.
-Scale and exactness documents live in the [OBC plugin](../plugins/sidecars/obc/) Benchmark suite, with separate stream, plot, observer and exact-value workloads.
+Scale and exactness documents live in the [OBC plugin](../../plugins/sidecars/obc/) Benchmark suite, with separate stream, plot, observer and exact-value workloads.
 
 ## Clients
 
@@ -207,7 +210,7 @@ last of one numeric field), Prompts.Create and executions.Progress. Other host
 operations, peer operations, watches, `publish_on` producers and observers whose
 interval comes from a setting refuse with `testing_host_unsupported` or an
 action to adjust the test; prove those against a real host.
-[`testing.rs`](../sdk/rust/tests/integration/testing.rs) is the author story.
+[`testing.rs`](../../sdk/rust/tests/integration/testing.rs) is the author story.
 
 ## Frozen Evidence and Exact Values
 
@@ -247,5 +250,5 @@ their test owner. They never compile plugins during a story or use fixed waits.
 
 Host-backed execution, durability, secret credential cleanup and cross-language
 journeys belong to the runtime system stories listed in
-[Execution Host](execution-host.md). Native Windows and Linux proof are separate.
+[Execution Host](../guides/execution-host.md). Native Windows and Linux proof are separate.
 This SDK currently declares no WebAssembly feature or product target.

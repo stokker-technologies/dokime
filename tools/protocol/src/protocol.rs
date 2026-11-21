@@ -182,7 +182,7 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
     embedded.push_str("];\n");
     embedded.push_str("pub const EXPORT_FILES: &[(&str, &str)] = &[\n");
     for (relative, path) in [
-        ("README.md", "docs/protocol-export.md"),
+        ("README.md", "docs/project/protocol-export.md"),
         ("licenses/Apache-2.0.txt", "LICENSE"),
         ("licenses/Protobuf.txt", "tools/protocol/protobuf.LICENSE"),
     ] {

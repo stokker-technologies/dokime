@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { unified } from "@astrojs/markdown-remark";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
-import workspace from "../../vite.config.ts";
 import { defineConfig } from "astro/config";
+import workspace from "../../vite.config.ts";
 import { remarkDiagrams } from "./src/diagrams";
 import { remarkGuides } from "./src/guides";
 
@@ -72,14 +72,12 @@ export default defineConfig({
       sidebar: [
         { label: "Start", items: ["index", "deployment", "support"] },
         { label: "Presentation Examples", link: "/examples/" },
-        {
-          label: "Guides",
-          items: ["gui", "execution-host", "plugins", "plugin-security", "query-api", "screenshots/readme"],
-        },
-        { label: "SDKs", items: ["rust-sdk", "sdk-python", "sdk-csharp", "sdk-cpp"] },
-        { label: "Remote Access", items: [{ autogenerate: { directory: "remote" } }] },
-        { label: "Operations Reference", items: [{ autogenerate: { directory: "reference/operations" } }] },
-        { label: "Project", items: ["architecture", "tooling", "compliance", "privacy", "contributing", "security"] },
+        // Autogeneration Matches the Loader's File Paths Relative to This Site.
+        { label: "Guides", items: [{ autogenerate: { directory: "../../docs/guides" } }] },
+        { label: "SDKs", items: [{ autogenerate: { directory: "../../docs/sdks" } }] },
+        { label: "Remote Access", items: [{ autogenerate: { directory: "../../docs/remote" } }] },
+        { label: "Operations Reference", items: [{ autogenerate: { directory: "../../target/docs/generated/reference/operations" } }] },
+        { label: "Project", items: [{ autogenerate: { directory: "../../docs/project" } }, "contributing", "security"] },
       ],
     }),
   ],

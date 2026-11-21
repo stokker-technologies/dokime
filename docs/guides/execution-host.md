@@ -1,3 +1,6 @@
+---
+sidebar: { order: 2 }
+---
 # New Execution Host
 
 The execution host serves the command-line tool and SDK clients.
@@ -354,7 +357,7 @@ pairing when supplied, and removes that entry before closing on stdin EOF or Ctr
 Detecting an unexpected exit and plugin-specific `.proto` source export await the
 host/API requests listed in the parity checklist; embedded product export remains
 `proto export --out proto`. The export includes Google imports, licenses and
-[protoc/Buf instructions](protocol-export.md); the release contracts ZIP contains
+[protoc/Buf instructions](../project/protocol-export.md); the release contracts ZIP contains
 the same self-contained inventory.
 
 ```sh
@@ -1672,7 +1675,7 @@ frames have no replacement wrapper: use the composed library record and Files up
 
 ### Library Composition
 
-The runtime and generators read [protocol/composition.toml](../protocol/composition.toml).
+The runtime and generators read [protocol/composition.toml](../../protocol/composition.toml).
 The descriptor artifact includes the complete vendored library plus product schema;
 package selection composes only the listed library roots and their nested packages.
 The runtime validates linked declarations and never opens generator descriptor paths.
@@ -1703,7 +1706,7 @@ all four SDK surfaces, private Python wire modules and C# wire output. Dokime ow
 `build/protocol_callers.py` and `sdk/python/tools/generate.py`. The tools package
 consumes `harmos-tools` from the same immutable revision pinned by Cargo; its shared
 SDK generator owns descriptor analysis, language renderers and C# wire projection.
-See [Repository Tooling](tooling.md#python-tooling) for the invocation and pin limitations.
+See [Repository Tooling](../project/tooling.md#python-tooling) for the invocation and pin limitations.
 C++ wire messages/stubs are produced by its own CMake generation rule at build time.
 Root model names take precedence; conflicting library value names receive a Harmos
 prefix in the composed barrel (for example HarmosSection).

@@ -40,14 +40,14 @@ adopts the revision that landed each Harmos group in dependency order; developme
 policy allows clean breaks: no migrations, no legacy compatibility, fresh roots when stored
 shapes change, never silent deletion of existing roots.
 
-Supersedes in `docs/architecture.md`: invariant 7's "Compose library services directly,
+Supersedes in `docs/project/architecture.md`: invariant 7's "Compose library services directly,
 without redeclaring or forwarding them", invariant 1's composition reference, invariant 7's
 "Product seals, artifact metadata and transaction ownership remain in the product Store",
 and the Final Library Assembly and Storage Contract's manager construction and composition
 file. It also supersedes the `storage-interface` change's statement that independent
 backend writes are not one cross-method transaction (compound mutation is now an operation),
 and in the `operation-grammar` change the decisions "Managers and direct library composition"
-(docs/architecture.md Decisions table) and the composition-based caller narrowing of
+(docs/project/architecture.md Decisions table) and the composition-based caller narrowing of
 Operations List/Get; its three-level visibility stays.
 
 ## Capabilities
@@ -76,4 +76,4 @@ through Harmos bucket summaries. `telemetry-query` already follows Harmos f64 se
 shapes), `crates/dokime-operations`, `crates/dokime-runtime`, `crates/dokime-protocol`,
 `crates/dokime-gui/src-tauri`, `crates/dokime-cli`, `proto/dokime/host/v1`, the four
 product SDKs and their generators, `tools/python`, `Cargo.toml` Harmos dependencies, stories,
-benchmarks, `docs/architecture.md`, `docs/execution-host.md` and the product guide.
+benchmarks, `docs/project/architecture.md`, `docs/guides/execution-host.md` and the product guide.

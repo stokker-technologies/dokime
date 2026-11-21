@@ -3,7 +3,7 @@
 Start the current host with an explicit storage root and loopback bootstrap
 endpoint. Use the composed library Access services to configure a separate TLS
 listener and create a pairing for each remote client. See
-[Host Serving](../execution-host.md#serve-client-grpc) for the exact contracts.
+[Host Serving](../guides/execution-host.md#serve-client-grpc) for the exact contracts.
 
 ## Pair and Connect
 
@@ -19,7 +19,7 @@ same authorization layer as composed library services.
 
 Use an SDK client to admit a managed executable bundle or remote plugin URL,
 materialize cases, create/start executions, answer prompts and inspect evidence.
-The [CLI Guide](../execution-host.md#command-line-tool) lists currently
+The [CLI Guide](../guides/execution-host.md#command-line-tool) lists currently
 available commands. Pairing-file CLI convenience remains an explicit parity task.
 
 ## Storage and Recovery
@@ -27,4 +27,4 @@ available commands. Pairing-file CLI convenience remains an explicit parity task
 Remote clients never open the host's data directory. An occupied root is refused
 before database access; restart reads retain sealed evidence and frozen schemas.
 Stop and Cancel preserve their distinct scheduling and cleanup behavior.
-Losing observation does not cancel admitted work. See [Privacy](../privacy.md).
+Losing observation does not cancel admitted work. See [Privacy](../project/privacy.md).

@@ -1,3 +1,6 @@
+---
+sidebar: { order: 1 }
+---
 # Architecture
 
 ## How to Use This Document
@@ -14,21 +17,21 @@ contract is not implemented. Partial evidence does not establish the whole invar
 The execution host owns current behavior. Removed implementations do not establish
 proof for this tree; missing journeys remain explicit obligations.
 
-The [Operation Grammar](../openspec/changes/operation-grammar/design.md) owns the
+The [Operation Grammar](../../openspec/changes/operation-grammar/design.md) owns the
 locked mappings and requirement deltas. Its three-level decision supersedes earlier
 two-level Private wording, including the host-requested operations in
-[the gRPC design](../openspec/changes/grpc-plugins/design.md). Main specifications
+[the gRPC design](../../openspec/changes/grpc-plugins/design.md). Main specifications
 that still describe superseded mechanisms are migrated by those changes, not silently
 interpreted as the new implementation. Missing guards are unchecked in
-[Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
+[Operation Grammar Tasks](../../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `c2cfb153ab136159f07741d1061fcb3a1191e86c`, rather than
+[Cargo.toml](../../Cargo.toml), `c2cfb153ab136159f07741d1061fcb3a1191e86c`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
 consumers. Runtime admission and application proof remain open in the
-[gRPC plugins tasks](../openspec/changes/grpc-plugins/tasks.md).
+[gRPC plugins tasks](../../openspec/changes/grpc-plugins/tasks.md).
 
 Composition narrows callers before projecting either SDK surface. Shared payloads
 have one public home; versioned wire packages remain internal and the repository
@@ -41,7 +44,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 
 ## Invariants
 
-The [Plugin Boundary](../openspec/changes/plugin-boundary/design.md) owner decision
+The [Plugin Boundary](../../openspec/changes/plugin-boundary/design.md) owner decision
 of 2026-11-16 amends `operation-boundary` and `plugin-lifecycle` together. Its
 ownership changes below are locked direction, not implemented source.
 
@@ -51,8 +54,8 @@ ownership changes below are locked direction, not implemented source.
    callers option (CLIENTS, PLUGINS or ALL), independently of visibility and grants.
    **Why:** A resource has one declaration even when both clients and plugins use
    it, while plugin callers cannot acquire client administration. **Where:**
-   [protocol](../proto/dokime), [composition](../protocol/composition.toml) and the
-   complete [identity/caller map](execution-host.md#operation-identity-and-caller-mapping).
+   [protocol](../../proto/dokime), [composition](../../protocol/composition.toml) and the
+   complete [identity/caller map](../guides/execution-host.md#operation-identity-and-caller-mapping).
    **Status:** definitions and generator projections are landed in this candidate;
    runtime admission, consumer adoption and wrong-caller proof remain open. Plugin
    executor methods have no callers option; their Protected bindings are host-only and generate no application client/context resource.
@@ -68,9 +71,9 @@ ownership changes below are locked direction, not implemented source.
    **Why:** The owner: "a private operation never appears on the wire, is consumed only
    internally by the plugin and does not allow association to a grpc endpoint";
    "a plugin should be able to call another operation in another plugin if exposed".
-   **Where:** [visibility, enum, built-in mapping and SDK audit](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
-   [requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-catalog-visibility-and-admission),
-   [current host admission](../crates/dokime-runtime/src/plugin.rs).
+   **Where:** [visibility, enum, built-in mapping and SDK audit](../../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
+   [requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-catalog-visibility-and-admission),
+   [current host admission](../../crates/dokime-runtime/src/plugin.rs).
    **Today:** The pinned library implements all three levels with explicit SDK
    visibility and local Private dispatch. Product template lifecycle declarations
    and host admission now use Protected in all four languages. The additive host
@@ -85,9 +88,9 @@ ownership changes below are locked direction, not implemented source.
    visibility and admitted provider; inherit scope unchanged and propagate results,
    structured failures and caller-to-child cancellation. A requirement grants no access.
    **Why:** Exposure exists to permit plugin composition while preserving host policy.
-   **Where:** [routing requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-visibility-and-host-mediated-plugin-invocation),
-   [current dispatcher](../crates/dokime-runtime/src/dispatch.rs),
-   [native host registration and admission](../crates/dokime-operations/src/native.rs).
+   **Where:** [routing requirement](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-visibility-and-host-mediated-plugin-invocation),
+   [current dispatcher](../../crates/dokime-runtime/src/dispatch.rs),
+   [native host registration and admission](../../crates/dokime-operations/src/native.rs).
    **Proof:** No proof yet in this repository for Public peer success plus Private
    refusal; A1 is the first task. Harmos's
    `child_calls_reach_host_and_public_peer_without_start_order` in `Harmos:crates/harmos-runtime/tests/plugin_grpc/child_calls.rs`
@@ -101,8 +104,8 @@ ownership changes below are locked direction, not implemented source.
    never generate an automatic streaming twin. Only a promised cooperative final
    result after cancellation justifies a managed replacement method.
    **Why:** Observation, sample delivery and durable work have different lifetimes.
-   **Where:** [streaming requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-streaming-contracts),
-   [current client protos](../proto/dokime/host/v1), [SDK operation](../sdk/rust/src/operation.rs).
+   **Where:** [streaming requirement](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-streaming-contracts),
+   [current client protos](../../proto/dokime/host/v1), [SDK operation](../../sdk/rust/src/operation.rs).
    **Proof:** No proof yet for the complete contract; A3 must guard generation and
    settlement. Current client Run twins remain. Unary file transfers replace
    streaming transfers, with 4 MiB default chunks and an 8 MiB default message
@@ -112,11 +115,11 @@ ownership changes below are locked direction, not implemented source.
    never interprets it, treats it as an authorization token or infers it from payload.
    Product handlers decide its meaning and whether it is required.
    **Why:** Generic routing must not acquire execution semantics or let a child widen authority.
-   **Where:** [scope vocabulary](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
-   [product scope validation](../crates/dokime-operations/src/resources.rs),
-   [SDK binding](../sdk/rust/src/context.rs).
+   **Where:** [scope vocabulary](../../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
+   [product scope validation](../../crates/dokime-operations/src/resources.rs),
+   [SDK binding](../../sdk/rust/src/context.rs).
    **Proof:** No proof yet for the full cross-provider contract; A4. Product
-   `execution_isolation` in [execution_isolation.rs](../crates/dokime-runtime/tests/system/execution_isolation.rs)
+   `execution_isolation` in [execution_isolation.rs](../../crates/dokime-runtime/tests/system/execution_isolation.rs)
    proves execution separation, not library opacity or peer inheritance.
    **Status:** locked direction (`operation-grammar`).
 
@@ -139,16 +142,16 @@ ownership changes below are locked direction, not implemented source.
    reading is cut by the detach after the host's close timeout (the client mutation
    timeout). Cycles group execution-manager tasks and
    do not own an independent scheduler.
-   **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
-   [current Host](../crates/dokime-runtime/src/host.rs),
-   [composition State](../crates/dokime-runtime/src/services/state.rs),
-   [execution manager](../crates/dokime-runtime/src/execution_manager.rs),
-   [prompt manager](../crates/dokime-runtime/src/prompts.rs) and
-   [report manager](../crates/dokime-runtime/src/reports.rs).
+   **Where:** [manager ownership table](../../openspec/changes/operation-grammar/design.md#ownership-and-managers),
+   [current Host](../../crates/dokime-runtime/src/host.rs),
+   [composition State](../../crates/dokime-runtime/src/services/state.rs),
+   [execution manager](../../crates/dokime-runtime/src/execution_manager.rs),
+   [prompt manager](../../crates/dokime-runtime/src/prompts.rs) and
+   [report manager](../../crates/dokime-runtime/src/reports.rs).
    **Proof:** A5: `execution_shutdown_joins_runs_after_observer_loss`,
    `prompts_settle_answers_and_shutdown_waiters` and
    `reports_publish_atomically_and_close_admission` in
-   [manager_lifecycles.rs](../crates/dokime-runtime/tests/system/manager_lifecycles.rs)
+   [manager_lifecycles.rs](../../crates/dokime-runtime/tests/system/manager_lifecycles.rs)
    exercise observer loss, joined cleanup, queued Cancel refusal, Stop boundaries,
    answers, shutdown and publication across restart. **Status:** landed for the
    additive host's product managers; generic library service composition remains
@@ -174,9 +177,9 @@ ownership changes below are locked direction, not implemented source.
    kernel; sealing clears the envelope and every preview in the seal mutation.
    Product wrappers declare the remotely callable surface over in-process library operations;
    archive stream members preserve the original Arrow bytes.
-   **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-   [current composition](../crates/dokime-runtime/Cargo.toml),
-   [product settings](../crates/dokime-operations/src/host/settings/get.rs).
+   **Where:** [boundary and settings requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
+   [current composition](../../crates/dokime-runtime/Cargo.toml),
+   [product settings](../../crates/dokime-operations/src/host/settings/get.rs).
    Build-time preference export composes declared product settings and the listener
    declaration used by Access configuration, without opening a host, storage or
    credentials. Runtime startup failures retain underlying operation causes;
@@ -268,8 +271,8 @@ ownership changes below are locked direction, not implemented source.
    whole-value Set carries expected revision, Append preserves ordered immutable data,
    and wrappers are `<Service><Method>Request` and `<Service><Method>Response`.
    **Why:** One predictable contract avoids aliases, field-mask machinery and lost updates.
-   **Where:** [grammar and mapping](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
-   [grammar requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md).
+   **Where:** [grammar and mapping](../../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
+   [grammar requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md).
    **Proof:** Bounded product declaration/plan/pending lists return whole sets;
    `client_browses_catalog` checks schemas and whole catalog reads across restart.
    `client_observes_revisioned_progress` proves separate context Get/Set and client
@@ -291,8 +294,8 @@ ownership changes below are locked direction, not implemented source.
    **Why:** Consistency and read-your-write cannot depend on a read-triggered flush,
    wall time or unstable pages. Running execution reads resolve durable frontiers;
    sealed reads resolve their seal. Arbitrary historical positions are not offered.
-   **Where:** [read/watch/paging requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-   [query delta](../openspec/changes/operation-grammar/specs/query-snapshots/spec.md).
+   **Where:** [read/watch/paging requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
+   [query delta](../../openspec/changes/operation-grammar/specs/query-snapshots/spec.md).
    Progress retains issued durable positions across restart until execution
    deletion and refuses foreign/unissued positions; the revisioned-progress
    story guards that resource. Traceability retains scoped compound cuts and
@@ -309,8 +312,8 @@ ownership changes below are locked direction, not implemented source.
     Generated host clients create an omitted mutation request ID once before
     policy dispatch, including C#; explicit IDs are preserved for caller resends.
     **Why:** A failed transport does not prove that an external effect was not applied.
-    **Where:** [receipt and retry requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
-    [existing planning receipts](../crates/dokime-operations/src/host/cases/storage.rs).
+    **Where:** [receipt and retry requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
+    [existing planning receipts](../../crates/dokime-operations/src/host/cases/storage.rs).
     **Proof:** No proof yet across the final mutation API; A9.
     **Status:** locked direction (`operation-grammar`).
 
@@ -319,8 +322,8 @@ ownership changes below are locked direction, not implemented source.
     Bulk ingestion cannot substitute for atomic conditional update, and acceptance,
     flush cadence and configured durability/synchronization are never interchangeable.
     **Why:** Merging similar APIs can silently remove consistency, bounded work or crash guarantees.
-    **Where:** [storage requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-distinct-storage-guarantees),
-    [current storage](../crates/dokime-storage/src/store.rs).
+    **Where:** [storage requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-distinct-storage-guarantees),
+    [current storage](../../crates/dokime-storage/src/store.rs).
     **Proof:** No proof yet for the combined storage contract; A10.
     **Status:** locked direction (`operation-grammar`); storage-interface retains its
     own implementation work and is not activated by this document.
@@ -333,14 +336,14 @@ ownership changes below are locked direction, not implemented source.
     Shutdown releases the lease once owned work has settled; a host dropped without
     shutdown releases it with its last handle and its execution workers.
     **Why:** A development schema break is allowed; destroying existing evidence is not.
-    **Where:** [Store::open](../crates/dokime-storage/src/store.rs),
-    [Incompatible error](../crates/dokime-storage/src/error.rs),
-    [current compatibility requirement](../openspec/specs/data-shape-identity/spec.md).
+    **Where:** [Store::open](../../crates/dokime-storage/src/store.rs),
+    [Incompatible error](../../crates/dokime-storage/src/error.rs),
+    [current compatibility requirement](../../openspec/specs/data-shape-identity/spec.md).
     **Proof:** `client_collects_backend_diagnostics` in
-    [client_collects_backend_diagnostics.rs](../crates/dokime-runtime/tests/system/client_collects_backend_diagnostics.rs)
+    [client_collects_backend_diagnostics.rs](../../crates/dokime-runtime/tests/system/client_collects_backend_diagnostics.rs)
     refuses a populated foreign root and preserves its bytes.
     `hosts_refuse_occupied_roots_before_opening_evidence` in
-    [storage_root_admission.rs](../crates/dokime-runtime/tests/system/storage_root_admission.rs)
+    [storage_root_admission.rs](../../crates/dokime-runtime/tests/system/storage_root_admission.rs)
     proves external-lock refusal before database creation, cloned ownership and reopening. **Status:** landed.
 
 13. **Callee-Owned Policies and Configured Limits.** Deadlines, delays and retries
@@ -349,11 +352,11 @@ ownership changes below are locked direction, not implemented source.
     **Why:** Callers must not silently weaken failure, cancellation or resource guarantees.
     The locked unset policy means no deadline, zero cancellation grace and no retries.
     Time reads/waits use the authoritative host clock, including SDK child waits.
-    **Where:** [policy requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
-    [configured reads](../openspec/specs/query-operations/spec.md),
-    [current dispatch policy](../crates/dokime-runtime/src/dispatch.rs).
+    **Where:** [policy requirement](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
+    [configured reads](../../openspec/specs/query-operations/spec.md),
+    [current dispatch policy](../../crates/dokime-runtime/src/dispatch.rs).
     **Proof:** No proof yet for all policy/override paths; A11. `step_failure_and_retries`
-    in [step_failure_and_retries.rs](../crates/dokime-runtime/tests/system/step_failure_and_retries.rs)
+    in [step_failure_and_retries.rs](../../crates/dokime-runtime/tests/system/step_failure_and_retries.rs)
     proves actual attempt evidence, not complete policy parity. The execution fixture also reads invocation-scoped Environment and Time.Get from its initialize call.
     **Status:** locked direction (`operation-grammar`).
 
@@ -364,9 +367,9 @@ ownership changes below are locked direction, not implemented source.
     Keep each declaration, policy, mapping and handler together behind narrow
     resources, never callbacks into the whole runtime.
     **Why:** Host-free authoring, independent storage and thin shells must remain buildable.
-    **Where:** [layer requirement](../openspec/changes/grpc-plugins/specs/crate-structure/spec.md),
-    [workspace](../Cargo.toml), [SDK manifest](../sdk/rust/Cargo.toml),
-    [runtime manifest](../crates/dokime-runtime/Cargo.toml).
+    **Where:** [layer requirement](../../openspec/changes/grpc-plugins/specs/crate-structure/spec.md),
+    [workspace](../../Cargo.toml), [SDK manifest](../../sdk/rust/Cargo.toml),
+    [runtime manifest](../../crates/dokime-runtime/Cargo.toml).
     **Proof:** No proof yet for the complete migrated tree; A12. New crate manifests
     follow the direction; the native desktop is restored to workspace membership
     and uses the embedded execution host through its native SDK connection owner.
@@ -382,8 +385,8 @@ ownership changes below are locked direction, not implemented source.
     four languages; product registration accumulates typed declarations without
     plugin-type growth. No copied carrier engines or re-exported library registrar.
     **Why:** Several products reuse runtime machinery while owning their author APIs.
-    **Where:** [Plugin Boundary](../openspec/changes/plugin-boundary/design.md),
-    `operation-boundary` D7, `plugin-lifecycle` and [SDKs](../sdk).
+    **Where:** [Plugin Boundary](../../openspec/changes/plugin-boundary/design.md),
+    `operation-boundary` D7, `plugin-lifecycle` and [SDKs](../../sdk).
     **Proof:** No proof yet; installed author consumers and generic/product
     conformance remain implementation tasks.
     **Status:** locked owner amendment, 2026-11-16; replaces "language SDKs stay
@@ -394,9 +397,9 @@ ownership changes below are locked direction, not implemented source.
     authored prose or one repository constant. Performance and resource measurements
     belong to benchmarks; a hang guard is not a performance assertion.
     **Why:** Correctness must not depend on workstation conditions or freeze editorial text.
-    **Where:** [agreed test redesign](../openspec/changes/test-stories/design.md),
-    [guard requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-deterministic-behavioral-proof),
-    [existing stories](../crates/dokime-runtime/tests/system).
+    **Where:** [agreed test redesign](../../openspec/changes/test-stories/design.md),
+    [guard requirement](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-deterministic-behavioral-proof),
+    [existing stories](../../crates/dokime-runtime/tests/system).
     **Proof:** No proof yet for the complete test migration; A14. Retained stories
     still need the agreed invariant coverage. Do not add tests that quote this document.
     **Status:** locked direction (`test-stories`, `operation-grammar`).
@@ -406,24 +409,24 @@ ownership changes below are locked direction, not implemented source.
     persisted Run object. PluginRun freezes the case/catalog/process identity;
     Import carries its own manifest and never invents a plugin or runnable case.
     **Why:** Durable evidence and recovery must survive the process that produced them.
-    **Where:** [execution model](../crates/dokime-storage/src/execution.rs),
-    [host creation](../crates/dokime-runtime/src/host.rs),
-    [requirements](../openspec/changes/grpc-plugins/specs/host-executions/spec.md).
+    **Where:** [execution model](../../crates/dokime-storage/src/execution.rs),
+    [host creation](../../crates/dokime-runtime/src/host.rs),
+    [requirements](../../openspec/changes/grpc-plugins/specs/host-executions/spec.md).
     **Proof:** `thermal_suite_survives_host_restart` in
-    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
+    [thermal_suite_survives_host_restart.rs](../../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
     and `execution_capabilities` in
-    [execution_capabilities.rs](../crates/dokime-runtime/tests/system/execution_capabilities.rs).
+    [execution_capabilities.rs](../../crates/dokime-runtime/tests/system/execution_capabilities.rs).
     **Status:** landed in the additive host; full import admission remains separate work.
 
 18. **Attributed Outcomes.** Evaluated, declared and not-evaluated outcomes remain
     distinct; only evaluated results determine the cycle verdict. A declared Passed
     import cannot make an unevaluated cycle Passed.
     **Why:** The host must not claim it evaluated externally asserted results.
-    **Where:** [outcome folding](../crates/dokime-storage/src/outcome.rs),
-    [requirements](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-attributed-outcomes-and-cycle-verdicts).
+    **Where:** [outcome folding](../../crates/dokime-storage/src/outcome.rs),
+    [requirements](../../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-attributed-outcomes-and-cycle-verdicts).
     **Proof:** `cycle_outcomes_keep_declared_and_unevaluated_separate` in that source
     and `execution_outcomes` in
-    [execution_outcomes.rs](../crates/dokime-runtime/tests/system/execution_outcomes.rs).
+    [execution_outcomes.rs](../../crates/dokime-runtime/tests/system/execution_outcomes.rs).
     **Status:** landed in the additive host.
 
     Statistics replies include their resolved read position. Compare complete replies
@@ -438,11 +441,11 @@ ownership changes below are locked direction, not implemented source.
     output without mutating evidence or publishing; explicit publication freezes the
     document/HTML durably and never changes the execution verdict or seal.
     **Why:** Preview, download and render failures must not become lifecycle mutations.
-    **Where:** [document rendering](../crates/dokime-runtime/src/documents.rs),
-    [report storage](../crates/dokime-storage/src/report.rs),
-    [requirement](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-report-rendering-and-publication).
+    **Where:** [document rendering](../../crates/dokime-runtime/src/documents.rs),
+    [report storage](../../crates/dokime-storage/src/report.rs),
+    [requirement](../../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-report-rendering-and-publication).
     **Proof:** `documents_and_reports` in
-    [documents_and_reports.rs](../crates/dokime-runtime/tests/system/documents_and_reports.rs)
+    [documents_and_reports.rs](../../crates/dokime-runtime/tests/system/documents_and_reports.rs)
     checks page-size equivalence, failed-render nonpublication, explicit publish and restart.
     **Status:** landed in the additive host, including report-manager ownership (6), guarded by A5.
 
@@ -453,7 +456,7 @@ ownership changes below are locked direction, not implemented source.
     recovered runs/plugins become available; a failed inverse refuses startup and stays pending.
     **Why:** Repeated writes must restore the original physical state, not an intermediate one;
     confirmation ownership and evidence still describe every call.
-    **Where:** [effect restoration requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration).
+    **Where:** [effect restoration requirement](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration).
     **Proof:** No proof yet in the current host; completing Effects must preserve
     earliest-inverse retention, confirmation ownership, reverse restoration order
     and startup refusal on failed inverses. See the replacement-journey task.
@@ -464,8 +467,8 @@ ownership changes below are locked direction, not implemented source.
     definitions needed to decode it after plugin evolution or removal. Plugin shape
     changes do not invalidate the product root.
     **Why:** Updating acquisition code must not erase or reinterpret historical evidence.
-    **Where:** [shape requirements](../openspec/specs/data-shape-identity/spec.md),
-    [frozen schemas](../crates/dokime-storage/src/execution.rs).
+    **Where:** [shape requirements](../../openspec/specs/data-shape-identity/spec.md),
+    [frozen schemas](../../crates/dokime-storage/src/execution.rs).
     **Proof:** No complete proof yet for stream/record evolution and removal
     across the current host; A15 retains that obligation. **Status:** locked direction.
 
@@ -473,8 +476,8 @@ ownership changes below are locked direction, not implemented source.
     unavailable cuts, missing evidence and watch gaps are explicit failures or resync,
     never empty success. Transport loss leaves mutation outcome uncertain.
     **Why:** An operator must distinguish no data from data that could not be obtained.
-    **Where:** [failure/watch requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-    [current failure translation](../crates/dokime-runtime/src/dispatch.rs).
+    **Where:** [failure/watch requirements](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
+    [current failure translation](../../crates/dokime-runtime/src/dispatch.rs).
     **Proof:** No proof yet across final interfaces; A16. The current dispatcher
     collapses host child errors to a permanent host_operation_failed failure.
     **Status:** locked direction (`operation-grammar`).
@@ -486,21 +489,21 @@ ownership changes below are locked direction, not implemented source.
      the installation files and restoring a previous entry. The install operation
      waits for rollback before reporting its deadline failure.
     **Why:** Hosting convenience must not fork plugin semantics.
-    **Where:** [plugin entry](../crates/dokime-runtime/src/plugin.rs),
-    [process owner](../crates/dokime-runtime/src/process/mod.rs),
-    [requirement](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-managed-and-remote-plugins).
+    **Where:** [plugin entry](../../crates/dokime-runtime/src/plugin.rs),
+    [process owner](../../crates/dokime-runtime/src/process/mod.rs),
+    [requirement](../../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-managed-and-remote-plugins).
     **Proof:** `thermal_suite_survives_host_restart` in
-    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
+    [thermal_suite_survives_host_restart.rs](../../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
     runs the same suite through both placements. **Status:** landed in the additive host.
 
 24. **Cancellation Preserves Cleanup and Evidence.** Interrupt the active invocation
     while still running required cleanup, closing sample streams and sealing attributed
     evidence; do not confuse cancelling observation with cancelling admitted work.
     **Why:** Operator cancellation must not leave physical resources or evidence unfinished.
-    **Where:** [execution sequencing](../crates/dokime-runtime/src/execution.rs),
-    [cancellation requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-execution-stop-and-cancel).
+    **Where:** [execution sequencing](../../crates/dokime-runtime/src/execution.rs),
+    [cancellation requirement](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-execution-stop-and-cancel).
     **Proof:** `cancelling_a_thermal_step_runs_cleanup` in
-    [cancelling_a_thermal_step_runs_cleanup.rs](../crates/dokime-runtime/tests/system/cancelling_a_thermal_step_runs_cleanup.rs)
+    [cancelling_a_thermal_step_runs_cleanup.rs](../../crates/dokime-runtime/tests/system/cancelling_a_thermal_step_runs_cleanup.rs)
     guards active cancellation/cleanup. Full observer-abandonment semantics have
     **No proof yet**; A17. **Status:** locked direction (`operation-grammar`) for
     the complete invariant; active cleanup is landed in the additive host.
@@ -528,16 +531,16 @@ ownership changes below are locked direction, not implemented source.
 
 | Decision | Reason | Recorded Contract |
 | --- | --- | --- |
-| Three visibility levels; explicit SDK choice (2026-11-12) | Preserve truly local work, host-only requests and exposed composition separately. | [operation-grammar](../openspec/changes/operation-grammar/design.md#built-in-visibility-mapping) |
-| Three audience faces (2026-11-12) | Keep instance protocol, invocation context and client authority independent. | [operation-grammar](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility) |
-| Storage through operations and product wrappers (2026-11-16) | One physical backend and one library implementation of generic storage/query machinery; product operations retain policy and exposure. | [operation-boundary](../openspec/changes/operation-boundary/design.md) |
-| Nested resources, whole-value Set and Append (2026-11-12) | Predictable verbs and revision safety without field-mask machinery. | [operation-grammar](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary) |
-| Latest durable/no wait; measured lag accepted (amended by the owner on 2026-11-13) | Consistent reads without making readers drive flushing. | [operation-grammar](../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
-| Client resends; original receipt (2026-11-12) | Recover lost replies without applying an effect twice. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy) |
-| Independent execution host, then one cutover (2026-11-12; model locked 2026-11-10) | Prove execution before replacing desktop/CLI consumers; retain complete behavior. | [grpc-plugins](../openspec/changes/grpc-plugins/design.md) |
-| Captured shapes, product-owned root compatibility (2026-11-08) | Preserve old evidence across plugin changes; refuse only unreadable product state. | [derive-data-shape-versions](../openspec/changes/archive/2026-11-08-derive-data-shape-versions/design.md) |
-| Retain the earliest durable inverse (recorded 2026-11-12) | Restore original state after cancellation, repetition or crash. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration) |
-| Deterministic story redesign (2026-11-10) | Correctness must be independent of workstation timing and load. | [test-stories](../openspec/changes/test-stories/design.md) |
+| Three visibility levels; explicit SDK choice (2026-11-12) | Preserve truly local work, host-only requests and exposed composition separately. | [operation-grammar](../../openspec/changes/operation-grammar/design.md#built-in-visibility-mapping) |
+| Three audience faces (2026-11-12) | Keep instance protocol, invocation context and client authority independent. | [operation-grammar](../../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility) |
+| Storage through operations and product wrappers (2026-11-16) | One physical backend and one library implementation of generic storage/query machinery; product operations retain policy and exposure. | [operation-boundary](../../openspec/changes/operation-boundary/design.md) |
+| Nested resources, whole-value Set and Append (2026-11-12) | Predictable verbs and revision safety without field-mask machinery. | [operation-grammar](../../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary) |
+| Latest durable/no wait; measured lag accepted (amended by the owner on 2026-11-13) | Consistent reads without making readers drive flushing. | [operation-grammar](../../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
+| Client resends; original receipt (2026-11-12) | Recover lost replies without applying an effect twice. | [operation-grammar](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy) |
+| Independent execution host, then one cutover (2026-11-12; model locked 2026-11-10) | Prove execution before replacing desktop/CLI consumers; retain complete behavior. | [grpc-plugins](../../openspec/changes/grpc-plugins/design.md) |
+| Captured shapes, product-owned root compatibility (2026-11-08) | Preserve old evidence across plugin changes; refuse only unreadable product state. | [derive-data-shape-versions](../../openspec/changes/archive/2026-11-08-derive-data-shape-versions/design.md) |
+| Retain the earliest durable inverse (recorded 2026-11-12) | Restore original state after cancellation, repetition or crash. | [operation-grammar](../../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration) |
+| Deterministic story redesign (2026-11-10) | Correctness must be independent of workstation timing and load. | [test-stories](../../openspec/changes/test-stories/design.md) |
 | Windowed interval batches stored expanded (2026-11-16) | Plugins answer host windows with columns; storage expands each part column-wise at admission, so Arrow readers and roots need no change. | [Arrow File Storage](#arrow-file-storage) |
 
 ## Product File Ownership
@@ -764,10 +767,10 @@ existing root is migrated, reset or deleted. Diagnostics copy stream files too.
 
 ## Agreed Storage Mapping
 
-**Locked direction, not implemented:** [Operation Boundary D8](../openspec/changes/operation-boundary/design.md#d8-storage-mapping-contract-agreed-not-implemented)
+**Locked direction, not implemented:** [Operation Boundary D8](../../openspec/changes/operation-boundary/design.md#d8-storage-mapping-contract-agreed-not-implemented)
 owns the entity table and detailed storage policy. One authoritative Harmos history
 replaces the execution ledger together with its writers, readers and cut issuance.
-The six ordered [implementation slices](../openspec/changes/operation-boundary/tasks.md)
+The six ordered [implementation slices](../../openspec/changes/operation-boundary/tasks.md)
 keep slices 2–5 in one combined cutover, without a dual writer or mirror.
 
 Root, case, cycle and execution scopes are exact opaque IDs:
@@ -964,7 +967,7 @@ The scoped native object layout also refuses the previous unscoped object format
 Read-only native format admission precedes opening the execution catalog, so
 refusal does not initialize or repair either catalog. Format baselines remain v1.
 
-The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
+The exact [operation/message/caller map](../guides/execution-host.md#operation-identity-and-caller-mapping)
 is canonical.
 The definition replaces these ownership paths:
 
@@ -1218,7 +1221,7 @@ then resolves the matching native dependencies through vcpkg.
 
 `plugins/sidecars/obc/src/lib.rs` composes global `catalog()` entry points. Its
 canonical Rust layout is maintained in the
-[authoring skill](../.claude/skills/dokime-authoring/SKILL.md): root entry points and
+[authoring skill](../../.claude/skills/dokime-authoring/SKILL.md): root entry points and
 settings, private device state/clock/locks behind `device::Bench`, plugin-lived
 manual operations, genuinely shared measurement/charger-event/inspection catalogs,
 and one complete file per template beneath each suite. A device folder does not

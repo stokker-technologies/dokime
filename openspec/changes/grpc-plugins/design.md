@@ -532,7 +532,7 @@ let template = template.document(document);
 Protocol files are executor-owned under `proto/dokime/{model,host,plugin}/v1/`.
 Host callers are explicit and independent of visibility. The former single-package
 and client/context face plans are superseded; the current mapping is maintained
-in `docs/execution-host.md`. Generated output remains tracked.
+in `docs/guides/execution-host.md`. Generated output remains tracked.
 
 ## SDKs
 
@@ -2747,7 +2747,7 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `crates/dokime-client-internal/src/bin/content_fixture.rs:Wire` and `sdk/rust/src/message.rs:Wire` | The unpublished protocol fixture and SDK independently adapt reflected prost messages to the carrier Message trait. The orphan rule prevents direct implementations for protocol types. | Prefer a library-owned prost adapter, then delete the fixture adapter and SDK adapter. Never restore a fixture dependency on the SDK to share this code. |
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
-| `crates/dokime-gui/src/report/`, `crates/dokime-operations/src/host/reports/create.rs:193` and `crates/dokime-runtime/src/services/state.rs:151` | Current Reports/Create collects a protobuf capture, inserts its Base64 bytes into the generated React template and retains that HTML. Runtime supplies the template; `src/documents.rs` resolves documents and stored report metadata, with no separate HTML renderer. The previous overlap claim and `docs/gui.md:5` are stale. | Keep this single pipeline; the owner must reconcile the stale documentation and review any proposed renderer change against the current retained-report contract before deleting code. |
+| `crates/dokime-gui/src/report/`, `crates/dokime-operations/src/host/reports/create.rs:193` and `crates/dokime-runtime/src/services/state.rs:151` | Current Reports/Create collects a protobuf capture, inserts its Base64 bytes into the generated React template and retains that HTML. Runtime supplies the template; `src/documents.rs` resolves documents and stored report metadata, with no separate HTML renderer. The previous overlap claim and `docs/guides/gui.md:5` are stale. | Keep this single pipeline; the owner must reconcile the stale documentation and review any proposed renderer change against the current retained-report contract before deleting code. |
 | `crates/dokime-gui/benches/system/fixture.rs:Fixture::start` and `crates/dokime-gui/src-tauri/src/connection/host.rs:Session::install_plugin` | The benchmark admits a remote fixture and desktop installation admits a managed plugin; both independently issue Create, Watch and Get until Ready. Their callers are benchmark fixture startup and desktop installation respectively. | Keep readiness admission in Session and delete the benchmark loop once that owner supports remote placements; the owner must choose before either mechanism is removed. |
 | `crates/dokime-runtime/src/plugin.rs:PluginProcess` and the library `crates/harmos-runtime/src/plugin/grpc/mod.rs` | Development CLI, host fixtures and product stories use the product launcher for project scripts and externally owned children; registry-managed placements use the library launcher. Both implement native child startup, Stop and bounded exit handling, with distinct process owners. | Consider a library-owned reusable spawned-process lifecycle and delete the product mechanics after it supports project launch inputs; retain the external launcher's ownership and never transfer it through launch credentials. No consolidation is authorized here. |
 | `crates/dokime-runtime/src/host.rs:remove_plugin` and `detach_plugin` | Host facade consumers can invoke either method; detach forwards directly to remove with identical durable deletion behavior. | Prefer remove and delete the redundant detach entry point after the owner confirms its public API contract; this adoption does not change it. |
@@ -2793,18 +2793,18 @@ When implementation lands, these current statements need reconciliation:
 
 | File / Line | What Becomes True |
 |---|---|
-| `docs/architecture.md:15`, `:37`, `:1133`, `:1217` | Product-only contexts/handles and class composition replace exposed carrier types and old entry/lifecycle descriptions; retained evidence follows seal-finality. |
-| `docs/product-guide.md:144` | SDK/CLI workflows use bound cycle/case/execution handles, product plugin operations and explicit seal finality. |
-| `docs/plugins.md:21` | Python execution state belongs to the TestTemplate instance, with plugin state separately reachable through ctx.plugin. |
-| `docs/rust-sdk.md:7`, `:37`, `:52`, `:96` | Separate operation/template contexts, one starter with two binaries, operation-encoded lifecycle hooks and bound client flow replace the old snippets. |
-| `docs/sdk-csharp.md:65`, `:81`, `:115`, `:139` | Author bases/attributes, one shared-library/plugin/client starter and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
-| `docs/sdk-cpp.md:5`, `:13`, `:26`, `:85`, `:90` | The library pin is the common maintenance revision; author classes, protected lifecycle operations and blocking bound handles use one argument-free starter whose build stages Release bundle inputs. |
-| `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
-| `docs/architecture.md:449` | External inverses belong to durable plugin state; the product Effects service and per-call confirmation tickets are removed, with durable state access and bounded recovery now supplied by the library. |
-| `docs/execution-host.md:920` | Effects/Create, Effects/Get and Effects/Set no longer exist in the protocol or SDKs. |
-| `docs/sdk-cpp.md:152` | The product effects surface is removed; the host plugin journal now uses revisioned library-backed plugin persistence. |
-| `docs/rust-sdk.md:100` | `operations::Context::environment()` returns the same backend process ID and in-step flag as the template context. |
-| `docs/gui.md:5` | Reports/Create embeds a protobuf capture into the generated React report template; there is no separate native HTML renderer in `dokime-runtime/src/documents.rs`. |
+| `docs/project/architecture.md:15`, `:37`, `:1133`, `:1217` | Product-only contexts/handles and class composition replace exposed carrier types and old entry/lifecycle descriptions; retained evidence follows seal-finality. |
+| `docs/index.md:144` | SDK/CLI workflows use bound cycle/case/execution handles, product plugin operations and explicit seal finality. |
+| `docs/guides/plugins.md:21` | Python execution state belongs to the TestTemplate instance, with plugin state separately reachable through ctx.plugin. |
+| `docs/sdks/rust.md:7`, `:37`, `:52`, `:96` | Separate operation/template contexts, one starter with two binaries, operation-encoded lifecycle hooks and bound client flow replace the old snippets. |
+| `docs/sdks/csharp.md:65`, `:81`, `:115`, `:139` | Author bases/attributes, one shared-library/plugin/client starter and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
+| `docs/sdks/cpp.md:5`, `:13`, `:26`, `:85`, `:90` | The library pin is the common maintenance revision; author classes, protected lifecycle operations and blocking bound handles use one argument-free starter whose build stages Release bundle inputs. |
+| `docs/guides/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
+| `docs/project/architecture.md:449` | External inverses belong to durable plugin state; the product Effects service and per-call confirmation tickets are removed, with durable state access and bounded recovery now supplied by the library. |
+| `docs/guides/execution-host.md:920` | Effects/Create, Effects/Get and Effects/Set no longer exist in the protocol or SDKs. |
+| `docs/sdks/cpp.md:152` | The product effects surface is removed; the host plugin journal now uses revisioned library-backed plugin persistence. |
+| `docs/sdks/rust.md:100` | `operations::Context::environment()` returns the same backend process ID and in-step flag as the template context. |
+| `docs/guides/gui.md:5` | Reports/Create embeds a protobuf capture into the generated React report template; there is no separate native HTML renderer in `dokime-runtime/src/documents.rs`. |
 
 The root README and SDK package READMEs describe the product imports, bound
 connection/client flow, protected lifecycle operations and single starter roots.
@@ -2925,7 +2925,7 @@ the plugin entry. An operator read capability remains a separate owner decision.
 
 The owner's plugin-state decision supersedes the product-owned confirmation
 tickets in `operation-grammar/specs/operation-contracts/spec.md:590`. That separate
-change and `docs/architecture.md:449` require owner reconciliation; this delivery
+change and `docs/project/architecture.md:449` require owner reconciliation; this delivery
 does not restore the old ticket contract.
 
 ### Host Plugin Ownership

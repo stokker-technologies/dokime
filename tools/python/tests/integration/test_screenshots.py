@@ -47,7 +47,7 @@ class ScreenshotSet(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            folder = root / "docs/screenshots"
+            folder = root / "docs/guides/screenshots"
             folder.mkdir(parents=True)
             entries = []
             for scene in run.SCENES:

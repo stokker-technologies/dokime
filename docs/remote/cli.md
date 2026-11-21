@@ -2,8 +2,8 @@
 
 Use `dokime` from the same candidate as the host. The command-line tool
 uses the Rust SDK and the host's final client protocol. See the
-[Product Guide](../product-guide.md#interfaces) for output shapes and current
-integration limitations, and [Tooling](../tooling.md) for focused builds.
+[Product Guide](../index.md#interfaces) for output shapes and current
+integration limitations, and [Tooling](../project/tooling.md) for focused builds.
 
 ## Export Access
 

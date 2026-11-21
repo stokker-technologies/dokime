@@ -1,3 +1,6 @@
+---
+sidebar: { order: 1 }
+---
 # Desktop GUI
 
 `crates/dokime-gui/` is a Tauri 2 desktop shell with a Vite, React 19 and
@@ -17,7 +20,7 @@ owner remains necessary before removing either implementation and its contracts.
 ## Development
 
 `mise run dev` starts the desktop with Tauri dev and Vite live reload. It
-generates the desktop messages, builds the [OBC](../plugins/sidecars/obc/) plugin, and
+generates the desktop messages, builds the [OBC](../../plugins/sidecars/obc/) plugin, and
 creates a disposable application root under the system temporary directory with
 a unique credential namespace. The OBC bundle is installed into that root before
 the window opens. The tool sets `DOKIME_APPLICATION_ROOT` and
@@ -60,7 +63,7 @@ Execution progress uses `executions.Progress.Watch` with its named
 resource, opaque revision, pinned position and terminal flag. Its adapter projects
 the served label and counts; elapsed time, ETA and a step identifier stay absent
 because this contract does not supply them. The operation grammar table in
-`docs/execution-host.md` records the package and resource boundaries.
+`docs/guides/execution-host.md` records the package and resource boundaries.
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
 use the composed client surface. A plugin entry's library name is the only identity
@@ -88,7 +91,7 @@ enums and fully qualified library service paths. System drivers now use the SDK
 thermal fixture, registered cases, execution state/outcome, Access resources and
 verified native delivery. Connections exercises two native owners; Execution
 visits the library, live execution, reports/history, settings and appearance, and
-reads exact summary tiles from the [OBC](../plugins/sidecars/obc/) Exact Values template admitted
+reads exact summary tiles from the [OBC](../../plugins/sidecars/obc/) Exact Values template admitted
 beside the thermal fixture. The native host story opens the Plot Families document's
 plot families and one hundred time series from two clients while its confirmation prompt is pending.
 The thermal fixture does not publish a report automatically. Stories explicitly
@@ -322,7 +325,7 @@ running capture keeps the roots it opened with. An attached host keeps its own
 
 **Settings → Interval Sampling** edits the built-in host's **Interval Window [ms]**
 and **Interval Lag [windows]**, the desktop's `interval_window_ms` and
-`interval_lag_windows` (see `docs/execution-host.md`). The desktop saves them in
+`interval_lag_windows` (see `docs/guides/execution-host.md`). The desktop saves them in
 `interval-settings.json` under its application root (`src-tauri/src/interval_settings.rs`);
 an absent file means the runtime defaults `INTERVAL_WINDOW` and `INTERVAL_LAG`.
 Both take whole numbers of at least 1, checked in the section before saving and again

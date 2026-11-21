@@ -7,7 +7,7 @@
 - [x] 1.7 Generate nested client roots from descriptor tables rather than hand-written per-operation client facades.
 - [ ] 1.9 Preserve accepted/durable lag measurements and add complete native Nightly lag/large-file upload/range throughput evidence without correctness timing thresholds; use the final operation-boundary consumers rather than retired streaming transfers.
 - [x] 2.3 Declare revisioned execution Progress Get/Set/Watch with caller admission; carry current progress in execution detail.
-- [ ] 2.1 Reconcile the final executor/caller service, operation, method and wrapper inventory after operation-boundary and both plugin changes land; remove historical face counts and verify descriptor-derived discovery/requirements against `docs/execution-host.md`.
+- [ ] 2.1 Reconcile the final executor/caller service, operation, method and wrapper inventory after operation-boundary and both plugin changes land; remove historical face counts and verify descriptor-derived discovery/requirements against `docs/guides/execution-host.md`.
 - [x] 4.4 Implement validate-only planning, atomic case registration, cycle/execution commands, active-only Cancel, safe-boundary Stop and one-execution metadata changes.
 - [x] 4.8 Separate document reads/rendering, report preparation, published report reads and explicit publication under the report manager.
 - [x] 5.1 Migrate Rust authoring/clients, frozen descriptors, fixtures and current-host consumers to generated hierarchical resources.

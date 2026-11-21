@@ -16,8 +16,8 @@ See proposal.md for the decision register and motivation.
 
 ## Contract and Ownership
 
-The maintained architecture is `docs/architecture.md`; current operation identities,
-caller mapping and writable values are in `docs/execution-host.md`. Those source
+The maintained architecture is `docs/project/architecture.md`; current operation identities,
+caller mapping and writable values are in `docs/guides/execution-host.md`. Those source
 inventories replace the historical face tables and fixed method counts here.
 The protocol roots in this tree are `proto/dokime/{model,host,plugin}/v1/`.
 Model holds values; the executor owns each operation declaration. Host callers are
@@ -491,7 +491,7 @@ report's description of an encrypted transfer is corrected below.
 ## Current Operation Inventory
 
 The historical face counts and source-to-target tables are superseded by the
-executor/caller map in `docs/execution-host.md` and generated protocol descriptors.
+executor/caller map in `docs/guides/execution-host.md` and generated protocol descriptors.
 Recount service/operation/method/wrapper coverage after the three owning cutovers;
 never claim the old table's totals as current implementation evidence.
 

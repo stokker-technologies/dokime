@@ -101,7 +101,7 @@ unit, value, the baseline value and the revision. No history is kept in the repo
 
 ## Screenshots
 
-The committed product screenshots move to `docs/screenshots/` (change `screenshots-task`). They
+The committed product screenshots move to `docs/guides/screenshots/` (change `screenshots-task`). They
 are not release assets.
 
 ## What Stays

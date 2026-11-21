@@ -70,6 +70,6 @@ initialize.
 `crates/dokime-runtime` (execution sequencing, host verbs, Harmos lifecycle adoption),
 `crates/dokime-cli`, `crates/dokime-gui/src-tauri`, the four product SDKs and their
 generators, `tools/python`, the sample plugins under `plugins/`, stories, the authoring
-skill (`.claude/skills`, `.agents/skills`, `.github/skills`), `docs/architecture.md`,
-`docs/execution-host.md` and the SDK guides. Depends on the Harmos `plugin-lifecycle`
+skill (`.claude/skills`, `.agents/skills`, `.github/skills`), `docs/project/architecture.md`,
+`docs/guides/execution-host.md` and the SDK guides. Depends on the Harmos `plugin-lifecycle`
 revision.

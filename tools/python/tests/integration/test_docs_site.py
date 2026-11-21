@@ -69,6 +69,12 @@ class DocumentationSiteTests(unittest.TestCase):
             output = Path(directory)
             (output / "guide").mkdir()
             (output / "guide/index.html").write_text('<h2 id="setup">Setup</h2>', encoding="utf-8")
+            (output / "guides/plugins").mkdir(parents=True)
+            (output / "sdks/rust").mkdir(parents=True)
+            (output / "sdks/rust/index.html").write_text('<h2 id="setup">Setup</h2>', encoding="utf-8")
+            (output / "guides/plugins/index.html").write_text(
+                '<a href="../../sdks/rust/#setup"></a><a href="/dev/sdks/rust/#setup"></a>', encoding="utf-8"
+            )
             (output / "index.html").write_text(
                 '<a href="/dev/guide/#setup"></a><a href="guide/"></a><a href="https://example.test/x"></a>'
                 '<a href="/dev/guide/#missing"></a><a href="/dev/absent/"></a><a href="/0.1/guide/"></a>',

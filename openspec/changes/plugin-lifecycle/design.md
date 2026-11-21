@@ -47,7 +47,7 @@ Current state (landed, verified 2026-11-16):
   `lib.rs` constructs `operations::Manual::new()` while collecting declarations and calls
   `Manual::power_down` from `on_stop`; suites expose `suite()` plus `contracts()`.
 
-Touched invariants in docs/architecture.md:
+Touched invariants in docs/project/architecture.md:
 
 - Invariant 24, **Cancellation Preserves Cleanup and Evidence**: "Interrupt the active
   invocation while still running required cleanup". Purpose: cancellation never skips the
@@ -188,7 +188,7 @@ Dokime imports the names it uses and qualifies clashes by module path;
 no Rust `use x as y`, Python `import x as y`/`from x import y as z`, C# `using X = Y;`, C++
 renaming `namespace`/`using` aliases, `#[path]` or `sys.path` edits. Defining a new name for a
 composed type is not a rename. Generators stop emitting aliases. Each unavoidable exception is
-named with its reason in the authoring skill and `docs/architecture.md`.
+named with its reason in the authoring skill and `docs/project/architecture.md`.
 
 ## Risks / Trade-Offs
 

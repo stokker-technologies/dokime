@@ -10,7 +10,7 @@ is established. Retain the CI graph and job names; change packaging steps only.
 The installer is never executed during this delivery.
 
 Architecture invariant 14 states that "shells never redeclare contracts"
-(`docs/architecture.md:363`). The packaging library owns assembly and its narrow
+(`docs/project/architecture.md:363`). The packaging library owns assembly and its narrow
 step events; the CLI owns rendering and does not introduce a second event model
 or callback into the whole runtime.
 

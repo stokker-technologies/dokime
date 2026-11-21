@@ -1,8 +1,8 @@
 # Product Guide
 
 Dokime's host executes plugin-defined test cases and retains their evidence.
-The [Execution Host Guide](execution-host.md) describes the current executable,
-client operations, configuration and supported variants. [Architecture](architecture.md)
+The [Execution Host Guide](guides/execution-host.md) describes the current executable,
+client operations, configuration and supported variants. [Architecture](project/architecture.md)
 distinguishes implemented contracts from locked work still being completed.
 
 ## Execution Model
@@ -29,7 +29,7 @@ It never silently resets data. Database and evidence baselines remain v1.
 Managed entries install verified executable `.dokime` bundles and own their child
 processes. Remote entries connect to a user-owned URL and do not stop that process
 when removed. Both placements use the same materialization and execution contracts.
-The [Plugin Guide](plugins.md) links the supported SDKs and packaging commands.
+The [Plugin Guide](guides/plugins.md) links the supported SDKs and packaging commands.
 
 Settings are saved product values read on demand; secrets use protected operating
 system credential slots. Secret export/import retains the bounded Base64 JSON
@@ -57,7 +57,7 @@ A step brings device output files into its execution with `Files.Capture` (one
 copy) or `files.Captures.Start` and `Stop` (bytes written in between). The host
 reads only directories listed in its `capture_roots` configuration
 (`capture_roots = ["D:/bench/device"]`, or `--capture-root` on `dokime-host`).
-See [File Capture](execution-host.md#handler-interfaces).
+See [File Capture](guides/execution-host.md#handler-interfaces).
 
 ## Evidence and Reports
 
@@ -72,7 +72,7 @@ Documents evaluate against fixed evidence selections. HTML rendering creates
 temporary output; downloads do not publish it. Explicit report publication freezes
 the selected document and evidence seal. Unsupported plot/document variants fail
 with an action rather than returning incomplete results. See
-[Read and Plot Contracts](query-api.md) and [Supported Host Variants](execution-host.md).
+[Read and Plot Contracts](guides/query-api.md) and [Supported Host Variants](guides/execution-host.md).
 
 ## Storage Roots and Archives
 
@@ -146,7 +146,7 @@ storage root; the old folder is preserved. There is no reset or migration.
 `dokime` is the current command-line binary from `crates/dokime-cli`.
 It hosts Dokime in process, creates projects in all four SDK languages, produces
 and inspects bundles, admits plugins and controls execution/cycle workflows.
-Exact subcommands are in the [CLI section](execution-host.md#command-line-tool).
+Exact subcommands are in the [CLI section](guides/execution-host.md#command-line-tool).
 The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
 Suites resource; `operation list/show/call` discovers contracts through the library's
 Operations.List. Product and library operations use their respective host executor packages. Product operation declarations retain their gRPC bindings for host discovery.
@@ -195,7 +195,7 @@ the product serves those resources over its current content store.
 The desktop embeds the same host and also attaches to a pinned remote host.
 Product packaging includes the portable desktop distribution and native Windows
 NSIS or Linux DEB/RPM installers. The remaining document-capture limitation and
-unavailable host controls are listed in [GUI Guidance](gui.md#host-connection).
+unavailable host controls are listed in [GUI Guidance](guides/gui.md#host-connection).
 
 The host composes the library Access and Status services directly. Access manages
 the authenticated TLS listener, pairings, revocation and certificate rotation;
@@ -204,12 +204,12 @@ Other operation grammar and library composition slices remain locked work.
 
 ## Examples
 
-- [Rust Thermal Suite](../sdk/rust/examples/thermal.rs) and [Rust SDK Guide](rust-sdk.md).
+- [Rust Thermal Suite](../sdk/rust/examples/thermal.rs) and [Rust SDK Guide](sdks/rust.md).
 - [OBC Reference Plugin](../plugins/sidecars/obc/): steady-state, transient and independent benchmark templates; [authoring guidance](../.claude/skills/dokime-authoring/SKILL.md).
 - [Python Test Example](../sdk/python/examples/test/) and [Python SDK](../sdk/python/README.md).
-- [C# Test Example](../sdk/csharp/examples/Test/) and [C# SDK Guide](sdk-csharp.md).
-- [C++ Test Example](../sdk/cpp/examples/test/) and [C++ SDK Guide](sdk-cpp.md).
-- [Remote Access](remote/overview.md), [Tooling](tooling.md) and [Plugin Security](plugin-security.md).
+- [C# Test Example](../sdk/csharp/examples/Test/) and [C# SDK Guide](sdks/csharp.md).
+- [C++ Test Example](../sdk/cpp/examples/test/) and [C++ SDK Guide](sdks/cpp.md).
+- [Remote Access](remote/overview.md), [Tooling](project/tooling.md) and [Plugin Security](guides/plugin-security.md).
 
 All SDKs provide plugin authoring and backend clients. SDK product dependencies
 stop at protocol; embedding the host uses `dokime-runtime`.

@@ -19,7 +19,7 @@ These are target requirements, not implemented behavior.
 
 Caller admission SHALL NOT replace visibility. Every SDK and host built-in SHALL explicitly
 choose Private, Protected or Public with no default, following the decided mapping
-in docs/architecture.md. Private SHALL be local-only, Protected SHALL admit only its plugin
+in docs/project/architecture.md. Private SHALL be local-only, Protected SHALL admit only its plugin
 and host over their carrier, and Public SHALL admit declared peers and clients
 through the host. Admission SHALL retain digest, fingerprint, requirement and
 provider checks in one registry.
@@ -184,7 +184,7 @@ The per-plugin settings/secrets ownership question SHALL be treated as closed.
 
 The product SHALL split Host/shared State into execution, prompt and report
 managers, with capture only if recordings remain, under the single manager rule
-in docs/architecture.md. Each service method SHALL map to one operation file which calls a
+in docs/project/architecture.md. Each service method SHALL map to one operation file which calls a
 manager or storage. Rendering SHALL remain pure. Evidence, catalog, notes,
 aggregates, plots and documents SHALL remain storage operations without managers.
 

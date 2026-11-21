@@ -82,7 +82,7 @@ def dimensions(data: bytes) -> tuple[int, int]:
 
 def check(directory: Path, _: str = "check") -> None:
     """Check the Complete Published Set Without Starting Any Processes."""
-    folder = directory / "docs/screenshots"
+    folder = directory / "docs/guides/screenshots"
     try:
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         if not isinstance(manifest, list):

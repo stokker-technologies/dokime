@@ -84,5 +84,5 @@ unless `overwrite=True`; a failed download leaves no partial file. Execution
 archives hold `manifest.json`, `evidence.pb` and the unchanged telemetry files;
 cycle archives hold each execution's archive and a manifest.
 
-The [host query contract](../query-api.md) describes finite reads and
+The [host query contract](../guides/query-api.md) describes finite reads and
 continuations.
