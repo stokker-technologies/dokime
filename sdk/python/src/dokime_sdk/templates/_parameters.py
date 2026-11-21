@@ -51,6 +51,37 @@ class Parameter:
         return cls(identifier, label, "VALUE_TYPE_BOOLEAN")
 
     @classmethod
+    def text(cls, identifier: str, label: str) -> "Parameter":
+        return cls(identifier, label, "VALUE_TYPE_TEXT")
+
+    @classmethod
+    def list(cls, identifier: str, label: str, element: type[bool] | type[int] | type[float] | type[str]) -> "Parameter":
+        kinds: dict[type, shared.ValueType] = {
+            bool: shared.VALUE_TYPE_BOOLEAN,
+            int: shared.VALUE_TYPE_INTEGER,
+            float: shared.VALUE_TYPE_NUMBER,
+            str: shared.VALUE_TYPE_TEXT,
+        }
+        if element not in kinds:
+            raise TypeError("Declare List Parameter: Supply bool, int, float or str as the Element Type")
+        result = cls(identifier, label, "VALUE_TYPE_LIST")
+        result.message.element_type = kinds[element]
+        return result
+
+    @classmethod
+    def choice(cls, identifier: str, label: str, values: Iterable[bool | int | float | str]) -> "Parameter":
+        choices = tuple(values)
+        if not choices or any(type(value) is not type(choices[0]) for value in choices):
+            raise ValueError("Declare Choice Parameter: Supply Nonempty Choices of One Scalar Type")
+        kinds = {bool: "VALUE_TYPE_BOOLEAN", int: "VALUE_TYPE_INTEGER", float: "VALUE_TYPE_NUMBER", str: "VALUE_TYPE_TEXT"}
+        kind = kinds.get(type(choices[0]))
+        if kind is None:
+            raise TypeError("Declare Choice Parameter: Supply bool, int, float or str Choices")
+        result = cls(identifier, label, kind)
+        result.message.choices.extend(encode(value) for value in choices)
+        return result
+
+    @classmethod
     def sweep(cls, identifier: str, label: str, values: Iterable[float]) -> "Parameter":
         result = cls.number(identifier, label)
         result.message.expression.array.SetInParent()
@@ -67,6 +98,10 @@ class Parameter:
 
     def unit(self, unit: str) -> Self:
         self.message.unit = unit
+        return self
+
+    def required(self, required: bool = True) -> Self:
+        self.message.required = required
         return self
 
     def default(self, value: Scalar) -> Self:
@@ -124,6 +159,12 @@ class Parameter:
             }
             if value.expression.literal.WhichOneof("kind") != expected.get(value.type):
                 raise ValueError("Build Parameter: Supply a Default Matching the Parameter Kind")
+            if value.choices and value.expression.literal not in value.choices:
+                raise ValueError("Build Parameter: Choose a Default From the Declared Choices")
+            if value.type == shared.VALUE_TYPE_LIST:
+                for item in value.expression.literal.list.values:
+                    if item.WhichOneof("kind") != expected.get(value.element_type):
+                        raise ValueError("Build Parameter: Supply List Values Matching the Element Type")
         result = shared.Parameter()
         result.CopyFrom(self.message)
         return result

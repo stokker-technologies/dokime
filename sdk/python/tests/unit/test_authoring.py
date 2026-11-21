@@ -62,6 +62,52 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_declaration_builders_preserve_parameters_and_document_queries(self) -> None:
+        templates = dokime_sdk.templates
+        parameter = templates.Parameter.text("serial", "Serial").required().build()
+        self.assertTrue(parameter.required)
+        self.assertFalse(parameter.HasField("expression"))
+        values = templates.Parameter.list("channels", "Channels", int).default([1, 2]).items(1, 4).build()
+        self.assertEqual([value.integer for value in values.expression.literal.list.values], [1, 2])
+        choices = templates.Parameter.choice("mode", "Mode", ["fast", "slow"]).default("fast").build()
+        self.assertIn(choices.expression.literal, choices.choices)
+        self.assertRaises(ValueError, templates.Parameter.choice("mode", "Mode", ["fast"]).default("other").build)
+        self.assertRaises(ValueError, templates.Parameter.list("channels", "Channels", int).default(["wrong"]).build)
+        self.assertRaises(ValueError, templates.Parameter.choice, "mode", "Mode", [])
+        self.assertRaises(ValueError, templates.Parameter.choice, "mode", "Mode", [True, 1])
+
+        declaration = record(int, identifier="reading")
+        reading = declaration.field()
+        section = Section("Readings").repeat(reading, order_by=reading.max()).traceability()
+        plot = templates.time_series(templates.field("samples", "value")).markers("reading")
+        document = Document("Report").section(section.plot(plot))
+        reopened = type(document.message).FromString(document.message.SerializeToString())
+        repeated = reopened.sections[0]
+        self.assertEqual(repeated.repeat.value.record.identifier, "reading")
+        self.assertEqual(repeated.repeat.order_by.aggregate.input, reading.message)
+        self.assertEqual(repeated.cards[0].evidence, dokime_sdk.templates._documents.shared.EVIDENCE_CARD_TRACEABILITY)
+        self.assertEqual(list(repeated.cards[1].plot.marker_records), ["reading"])
+        section.repeat(reading)
+        self.assertFalse(section.message.repeat.HasField("order_by"))
+        self.assertRaises(ValueError, record(int).field)
+
+        class ReadingsTestTemplate(TestTemplate):
+            reading = declaration
+            documents = (document,)
+
+        class ReadingsSuite(Suite):
+            templates = (ReadingsTestTemplate,)
+
+        class ReadingsPlugin(Plugin):
+            version = "1.0.0"
+            suites = (ReadingsSuite,)
+
+        bound = ReadingsPlugin()._suites[0].templates[0]
+        cards = bound.documents[0].message.sections[0].cards
+        self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.readings.reading")
+        self.assertEqual(list(cards[1].plot.marker_records), ["readings.readings.reading"])
+        self.assertEqual(reading.message.record.identifier, "reading")
+
     def test_lanes_preserve_declarations_and_operation_assignments(self) -> None:
         instrument = Lane("instrument", serial=True)
 

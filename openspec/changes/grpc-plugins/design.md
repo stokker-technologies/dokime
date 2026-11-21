@@ -1590,8 +1590,6 @@ An effect inverse is durable plugin state, not an SDK finally block that could b
 lost with the plugin process. Capture stop and template cleanup
 still settle on cancellation under their operation policies.
 
-### Python Client and Bound Handles
-
 ### Python Authoring Capability Dependencies
 
 - Typed stream subscription remains blocked at library revision
@@ -1610,6 +1608,19 @@ still settle on cancellation under their operation policies.
 - This task extends the operation context with record publication in its inherited
   execution scope, overriding the earlier execution-only method inventory. It
   does not permit choosing an execution or publishing outside an active run.
+- Setting bounds require library `model/v1/setting.proto` `SettingDeclaration`
+  to carry optional typed minimum/maximum values and validate both defaults and
+  settings writes against them in every SDK. That declaration currently contains
+  only name, title, description and default; no product-side bounds mechanism is added.
+- Stop-completes-run has no Rust SDK or product wire counterpart in this candidate.
+  Its declaration, stop outcome and durable sealing behavior need one product
+  contract spanning the runtime and storage owners before implementation.
+- Parameter text/list/choice/required, record field expressions, plot marker records,
+  traceability evidence cards and section repeats already have product wire support.
+  Their Python builders compose those messages. Rust exposes the same message
+  fields, but its current convenience builders do not provide every requested method.
+
+### Python Client and Bound Handles
 
 ```python
 async def connect(

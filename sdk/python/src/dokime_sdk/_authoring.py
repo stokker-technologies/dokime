@@ -97,6 +97,13 @@ class Record[T: Payload]:
     label: str = ""
     identifier: str | None = None
 
+    def field(self, name: str = "value") -> "Expression":
+        from .templates._plots import Expression
+
+        if not self.identifier:
+            raise ValueError("Select Record Field: Declare an Explicit Record Identifier for Document Expressions")
+        return Expression(DataExpression(record={"identifier": self.identifier, "field": name}))
+
 
 @dataclass(frozen=True)
 class PromptDeclaration:
@@ -181,6 +188,25 @@ class _Template:
             document_ids.add(qualified)
             bound._identifiers[id(declaration)] = qualified
             document.message.metadata.identifier = qualified
+            record_ids = {
+                member.identifier or name: bound.resolve(member) for name, member in self._methods.items() if isinstance(member, Record)
+            }
+            pending: list[Message] = [document.message]
+            while pending:
+                value = pending.pop()
+                if isinstance(value, DataExpression) and value.WhichOneof("kind") == "record":
+                    value.record.identifier = record_ids.get(value.record.identifier, value.record.identifier)
+                if isinstance(value, shared.Plot):
+                    markers = [record_ids.get(identifier, identifier) for identifier in value.marker_records]
+                    del value.marker_records[:]
+                    value.marker_records.extend(markers)
+                for descriptor, child in value.ListFields():
+                    if descriptor.message_type is None:
+                        continue
+                    if descriptor.is_repeated:
+                        pending.extend(child.values() if descriptor.message_type.GetOptions().map_entry else child)
+                    else:
+                        pending.append(child)
         for prompt in self.prompts:
             value = shared.Prompt()
             value.CopyFrom(prompt.value)

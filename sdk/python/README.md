@@ -57,6 +57,23 @@ Read a decorated function's public contract with `declaration(increment)` from
 request and response Python types, visibility and policy. Publish that value for
 peer consumers to pass to `ctx.operation(...)`.
 
+## Declaration Builders
+
+```python
+Parameter.text("serial", "Serial").required().build()
+Parameter.list("channels", "Channels", int).default([1, 2]).items(1, 8).build()
+Parameter.choice("mode", "Mode", ["fast", "slow"]).default("fast").build()
+reading = record(int, identifier="reading")
+Section("Readings").repeat(reading.field(), order_by=reading.field().max()).traceability()
+time_series(field("measurement.samples", "value")).markers("reading")
+```
+
+Import these authoring values from `dokime_sdk.templates`. Document record fields
+require an explicit record identifier; template binding qualifies local record
+references and markers. Setting bounds and optional observer fields
+need upstream library contracts; typed stream subscription remains unavailable at
+the current library pin. Stop-completes-run has no current product declaration.
+
 ## Starter
 
 [The starter](examples/starter/) contains one uv project with an installed
