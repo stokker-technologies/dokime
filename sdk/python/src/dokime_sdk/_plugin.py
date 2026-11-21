@@ -95,7 +95,6 @@ class Plugin:
         self._operations = tuple(self.operations)
         self._secrets = tuple(self.secrets)
         self._settings = tuple(self.settings)
-        self._requires = tuple(host_requirement(item) for item in HostOperation)
         self._sessions: dict[tuple[str, str], _Session] = {}
         self._ready: dict[tuple[str, str], asyncio.Event] = {}
         templates = [template for suite in self._suites for template in suite.templates]
@@ -135,6 +134,16 @@ class Plugin:
         plugin_methods: dict[str, object] = {}
         for cls in reversed(type(self).__mro__):
             plugin_methods.update(vars(cls))
+        handlers = [*self._operations, *plugin_methods.values()]
+        for template in templates:
+            handlers.extend(template._methods.values())
+            handlers.extend(item.handler for item in template.steps)
+            handlers.extend(item.handler for item in template.criteria)
+        owners = [type(self), *(template.instance for template in templates)]
+        requires = (
+            *(host_requirement(item) for item in HostOperation),
+            *dokime_sdk.operations._requirements(handlers, owners),
+        )
         for index, (name, method) in enumerate(plugin_methods.items()):
             declaration = getattr(method, "__dokime_stream__", None)
             if not isinstance(declaration, Stream):
@@ -170,7 +179,7 @@ class Plugin:
             contributions.append(SecretsDeclarations(secrets=[item._definition() for item in self._secrets]))
         catalog = Catalog(
             adapter,
-            requires=self._requires,
+            requires=requires,
             sections=contributions,
             settings=[item._definition() for item in self._settings],
             messages=[message_type(record.row) for _, record in self._records],

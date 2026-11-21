@@ -54,6 +54,30 @@ guidance's older integration branch name.
 
 ## Resuming
 
+### Python Peer Operation References
+
+Python callers import a typed `dokime_sdk.operations.Operation` value published
+by the callee package, carrying its identifier and request/response types
+(including generated protobuf messages). The existing call shape is
+`await ctx.operation(reference)(request, policy=optional_override)`. There is no
+author requirements list or second peer dispatcher. Before library activation,
+the SDK freezes typed references reachable through handler globals, closures,
+helper functions, referenced module/class members and reference collections,
+including plugin hooks, operations, template hooks and stream handlers. Private
+local calls stay local. Conflicting fingerprints fail construction. References
+created or injected only after activation fail with a re-registration action;
+runtime mutation cannot extend the frozen activation requirements.
+
+The workspace pin `324ad01b0892b1ca6a3bce4bb9525b22974f606b` already supplies
+Python Catalog requirements, child carriers and host-registry Public peer routing
+with fingerprint admission, inherited scope, callee lanes/policies/deadlines and
+cancellation. No library change is required for imported typed references.
+The read-only library checkout's HEAD differs; these findings use the pinned
+Git objects, not that checkout's current source. Runtime-created references must
+match a frozen contract or rebuild and register the plugin again. The library
+alone validates child requirements; the product projects its contract errors
+into actionable SDK failures without a second admission check.
+
 The execution host, typed catalog/origins, four SDKs, CLI and desktop runtime
 embedding are present; tasks.md records remaining behavior and final proof.
 The workspace no longer contains the old domain/client/server/loop crates.
