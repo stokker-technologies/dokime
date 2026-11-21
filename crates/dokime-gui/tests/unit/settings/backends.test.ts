@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, test, vi } from "vitest";
+
 // Local Imports
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
@@ -42,6 +43,8 @@ const fixture = vi.hoisted(() => ({
   cycles: vi.fn(),
   cancel: vi.fn(),
   clear: vi.fn(),
+  invalidate: vi.fn(),
+  restart: vi.fn(),
   select: vi.fn(),
   states: [] as unknown[],
   phase: "disconnected",
@@ -120,7 +123,10 @@ vi.mock("@/app/native-session/ConnectionScreen", () => ({ ConnectionScreen: "fix
 vi.mock("@/app/native-session/NativeSessionProvider", () => ({ NativeSessionProvider: "fixture-session" }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: fixture.invoke }));
 vi.mock("@/lib/host/client", () => ({ statusGet: fixture.identity, backendOverviewGet: fixture.cycles }));
-vi.mock("@/app/query-client", () => ({ createDokimeQueryClient: () => ({ cancelQueries: fixture.cancel, clear: fixture.clear }) }));
+vi.mock("@/lib/api/native-plugins", () => ({ restartNativePlugin: fixture.restart }));
+vi.mock("@/app/query-client", () => ({
+  createDokimeQueryClient: () => ({ cancelQueries: fixture.cancel, clear: fixture.clear, invalidateQueries: fixture.invalidate }),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -167,6 +173,24 @@ test("Failed Selection Stays Failed Until an Explicit New Selection", async () =
   assert.equal(fixture.identity.mock.calls.length, 0);
   await owner.select({ kind: "profile", identifier: "lab" });
   assert.equal(owner.snapshot().phase, "connected");
+});
+
+test("Plugin Recovery Uses Its Connected Session and Refreshes Settings After Success", async () => {
+  const owner = new NativeSession();
+  await owner.select({ kind: "profile", identifier: "lab" });
+  const state = owner.snapshot();
+  assert.equal(state.phase, "connected");
+  if (state.phase !== "connected") throw new Error("Expected Connected Session");
+
+  await state.session.restartPlugin("bench");
+  assert.deepEqual(fixture.restart.mock.calls, [[state.session.identity, "bench"]]);
+  assert.deepEqual(fixture.invalidate.mock.calls, [[{ queryKey: ["settings"] }]]);
+
+  const failure = new Error("fixture-restart");
+  fixture.restart.mockRejectedValueOnce(failure);
+  await assert.rejects(state.session.restartPlugin("bench"), (error) => error === failure);
+  assert.equal(fixture.invalidate.mock.calls.length, 1);
+  await owner.disconnect();
 });
 
 test("Unavailable Host Recovery Preserves the Failure Without Announcing Success", async () => {
