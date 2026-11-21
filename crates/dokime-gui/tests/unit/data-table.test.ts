@@ -24,10 +24,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
-import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { DataTableColumnHeader } from "@dokime/plots/components/data-table/DataTableColumnHeader";
+import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@dokime/plots/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 
 /* === Re-Exports === */
 
@@ -144,6 +144,52 @@ test("Empty Tables Keep Column Headers and an in Table Empty Row", () => {
   assert.equal((html.match(/<tbody/g) ?? []).length, 1);
   assert.match(html, /<td[^>]*colSpan="2"/i);
   assert.match(html, /fixture-empty/);
+});
+
+test("Loading and Failure Take the Body Slot While Rows Read Keep Their Place", () => {
+  const props = { columns, getRowId: (row: { id: string; value: string }) => row.id, emptyText: "fixture-empty" };
+  const loading = renderToStaticMarkup(createElement(DataTable<{ id: string; value: string }>, { ...props, data: [], loading: true }));
+  assert.match(loading, /<td[^>]*colSpan="2"[^>]*><span role="status">/i);
+  assert.doesNotMatch(loading, /fixture-empty/);
+  const failure = createElement("p", { "data-fixture": "failure" });
+  const failed = renderToStaticMarkup(
+    createElement(DataTable<{ id: string; value: string }>, { ...props, data: [{ id: "row", value: "kept" }], failure }),
+  );
+  assert.match(failed, /<tbody[^>]*><tr[^>]*><td[^>]*colSpan="2"[^>]*><p data-fixture="failure">/i);
+  assert.match(failed, /data-row-id="row"/);
+  assert.doesNotMatch(failed, /fixture-empty/);
+  // One Page Keeps the Footer, With Both Paging Buttons Disabled Rather Than Hidden.
+  const html = renderToStaticMarkup(createElement(DataTable<{ id: string; value: string }>, { ...props, data: [] }));
+  const footer = html.match(/<footer[\s\S]*<\/footer>/)?.[0] ?? "";
+  assert.equal((footer.match(/<button[^>]*disabled=""/g) ?? []).length, 2);
+});
+
+test("Only Declared Filters Are Offered and Actions Stay Last", () => {
+  const helper = dataTableColumns<{ id: string; count: number }>();
+  const html = renderToStaticMarkup(
+    createElement(DataTable<{ id: string; count: number }>, {
+      title: "fixture-title",
+      columns: helper.columns([
+        helper.display({
+          id: "actions",
+          header: "fixture-actions",
+          cell: () => createElement("button", { type: "button", "data-fixture": "action" }),
+        }),
+        helper.accessor("count", { header: "fixture-count", meta: { align: "end" } }),
+        helper.accessor("id", { header: "fixture-id", meta: { filter: "text" } }),
+      ]),
+      data: [{ id: "row", count: 1200 }],
+      getRowId: (row) => row.id,
+      emptyText: "fixture-empty",
+    }),
+  );
+  const headings = html.match(/<thead[\s\S]*?<\/thead>/)?.[0] ?? "";
+  assert.ok(headings.indexOf("fixture-count") < headings.indexOf("fixture-id"));
+  assert.ok(headings.indexOf("fixture-id") < headings.indexOf("fixture-actions"));
+  assert.equal((headings.match(/aria-haspopup="dialog"/g) ?? []).length, 1);
+  assert.match(headings, /aria-label="Filter fixture-id"/);
+  assert.match(html, /text-right[^>]*>1200<\/td>/);
+  assert.match(html, /<table[^>]*aria-label="fixture-title"/);
 });
 
 test("Row Actions Are Named Icon Buttons with a Menu Only for the Rest", () => {

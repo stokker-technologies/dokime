@@ -14,6 +14,7 @@
 #include <set>
 
 // Third Party Imports
+#include <grpc/event_engine/event_engine.h>
 #include <openssl/evp.h>
 
 // Local Imports
@@ -22,19 +23,24 @@
 #include "dokime/detail/transfers.hpp"
 
 using dokime::client::host::PLUGIN_STATE_CONNECTING;
+using dokime::client::host::PLUGIN_STATE_OFFLINE;
 using dokime::client::host::PLUGIN_STATE_READY;
 using dokime::client::host::PLUGIN_STATE_STOPPED;
 using dokime::client::host::PLUGIN_STATE_STOPPING;
 using dokime::client::host::PLUGIN_STATE_UNAVAILABLE;
 using dokime::client::host::PluginPlacement;
 using dokime::client::host::PluginValue;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::invalid_argument;
+using std::lock_guard;
 using std::make_shared;
 using std::move;
 using std::optional;
 using std::runtime_error;
 using std::shared_ptr;
 using std::string;
+using std::uint64_t;
+using std::uint8_t;
 using std::vector;
 using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
@@ -95,7 +101,7 @@ Note create_note(const shared_ptr<ClientState> &client, const string &cycle, con
   return note;
 }
 shared_ptr<grpc::ClientContext> ClientState::context() const {
-  std::lock_guard lock(contexts_mutex);
+  lock_guard lock(contexts_mutex);
   if (closed) {
     Failure failure;
     failure.classification = "Cancelled";
@@ -113,10 +119,66 @@ shared_ptr<grpc::ClientContext> ClientState::context() const {
   contexts.push_back(context);
   return context;
 }
-string mutation_identity(optional<string> request_id) {
-  if (request_id && request_id->empty())
-    throw invalid_argument("Mutate Resource: Supply a Nonempty Request Identity");
-  return request_id ? *request_id : harmos::detail::request_id();
+UploadOperations uploads(const shared_ptr<ClientState> &client) {
+  return {[client](const harmos::FileMetadata &metadata, const string &identity) {
+            client::FilesUploadsCreateOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            return client->transport->files.uploads.create(metadata, options);
+          },
+          [client](const harmos::Upload &upload, uint64_t offset, const string &data, const string &identity) {
+            client::FilesUploadsAppendOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            return client->transport->files.uploads.append(upload, offset, data, options);
+          },
+          [client](const harmos::Upload &upload, uint64_t length, const string &digest, const string &identity) {
+            client::FilesUploadsPublishOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            return client->transport->files.uploads.publish(upload, length, digest, options);
+          },
+          [client](const harmos::Upload &upload, const string &identity) {
+            client::FilesUploadsDeleteOptions options;
+            options.request_id = identity;
+            options.context = client->context();
+            client->transport->files.uploads.delete_(upload, options);
+          }};
+}
+vector<uint8_t> download(const shared_ptr<ClientState> &client, const harmos::FileReference &file) {
+  client::FilesGetOptions options;
+  options.context = client->context();
+  const auto limits = client->transport->files.get(file, options);
+  if (!limits.chunk_bytes() || file.sha256().size() != 32)
+    throw runtime_error("Download Evidence: Read Valid Transfer Bounds and a SHA-256 Digest");
+  vector<uint8_t> data;
+  while (data.size() < file.length()) {
+    client::FilesReadOptions reading;
+    reading.context = client->context();
+    const auto page = client->transport->files.read(file, data.size(), limits.chunk_bytes(), reading);
+    if (page.total_length() != file.length() || page.sha256() != file.sha256() || page.data().empty() ||
+        page.data().size() > limits.chunk_bytes() || page.data().size() > file.length() - data.size())
+      throw runtime_error("Download Evidence: Read the Retained File Identity and Requested Range");
+    data.insert(data.end(), page.data().begin(), page.data().end());
+  }
+  if (harmos::plugin::detail::sha256(string(data.begin(), data.end())) != file.sha256())
+    throw runtime_error("Download Evidence: Obtain Content Matching the Retained SHA-256 Digest");
+  return data;
+}
+Artifact publish_artifact(const shared_ptr<ClientState> &client, const ArtifactScope &scope, const string &name,
+                          const vector<uint8_t> &data, const string &mime, optional<string> request_id) {
+  const auto identity = mutation_identity(move(request_id));
+  harmos::FileMetadata metadata;
+  metadata.set_scope(scope.execution_id().empty() ? "cycle/" + scope.cycle_id() : "execution/" + scope.execution_id());
+  metadata.set_media_type(mime);
+  metadata.set_expected_length(data.size());
+  const auto file = upload_bytes(uploads(client), data, metadata, identity);
+  client::ContentArtifactsCreateOptions options;
+  options.scope = scope;
+  options.request_id = identity + "/attach";
+  options.context = client->context();
+  const auto result = client->transport->content.artifacts.create(file, name, mime, options);
+  return artifact_value(result.artifact());
 }
 std::chrono::sys_time<nanoseconds> instant(const google::protobuf::Timestamp &value) {
   return std::chrono::sys_time<nanoseconds>(seconds(value.seconds()) + nanoseconds(value.nanos()));
@@ -245,14 +307,18 @@ Client::~Client() {
 void Client::close() {
   if (!state_)
     return;
-  std::lock_guard registration_lock(state_->registrations_mutex);
+  lock_guard registration_lock(state_->registrations_mutex);
   if (state_->closed)
     return;
   std::exception_ptr cleanup_failure;
   const auto registrations = state_->registrations;
   for (const auto &[identifier, registration] : registrations) {
     try {
-      RegisteredPlugin(registration).unregister();
+      if (registration->listener) {
+        registration->listener->close();
+        registration->listener.reset();
+      }
+      registration->plugin.reset();
     } catch (...) {
       if (!cleanup_failure)
         cleanup_failure = std::current_exception();
@@ -269,7 +335,7 @@ void Client::close() {
   state_->closed = true;
   state_->prompt_worker.request_stop();
   {
-    std::lock_guard lock(state_->contexts_mutex);
+    lock_guard lock(state_->contexts_mutex);
     for (const auto &context : state_->contexts)
       if (const auto active = context.lock())
         active->TryCancel();
@@ -278,7 +344,7 @@ void Client::close() {
   if (state_->prompt_worker.joinable())
     state_->prompt_worker.join();
   {
-    std::lock_guard lock(state_->prompt_mutex);
+    lock_guard lock(state_->prompt_mutex);
     state_->prompt_handler = {};
     state_->prompt_context.reset();
   }
@@ -295,7 +361,7 @@ void Client::on_prompt(std::function<PromptAnswer(const PromptQuestion &)> handl
   const auto state = state_;
   state->context();
   {
-    std::lock_guard lock(state->prompt_mutex);
+    lock_guard lock(state->prompt_mutex);
     state->prompt_handler = move(handler);
     if (state->prompt_worker.joinable() || !state->prompt_handler)
       return;
@@ -314,7 +380,7 @@ void Client::on_prompt(std::function<PromptAnswer(const PromptQuestion &)> handl
           const auto &prompt = view.prompt();
           std::function<PromptAnswer(const PromptQuestion &)> handler;
           {
-            std::lock_guard lock(state->prompt_mutex);
+            lock_guard lock(state->prompt_mutex);
             handler = state->prompt_handler;
           }
           if (!handler || view.has_response() || answered.contains(prompt.prompt_id()))
@@ -775,13 +841,12 @@ optional<Progress> ProgressStream::next() try {
 }
 Plugins::Plugins(shared_ptr<detail::ClientState> client) : client_(move(client)) {}
 RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<string> address, optional<string> request_id) {
-  std::lock_guard lock(client_->registrations_mutex);
+  lock_guard lock(client_->registrations_mutex);
   client_->context();
   const auto identifier = plugin->identifier();
   if (client_->registrations.contains(identifier))
     throw invalid_argument("Register Plugin: Unregister This Client's Existing Plugin First");
-  const auto values = detail::configuration::load();
-  const auto selected = detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
+  const auto selected = address.value_or("127.0.0.1:0");
   auto registration = make_shared<detail::RegistrationState>();
   registration->client = client_;
   registration->plugin = move(plugin);
@@ -795,6 +860,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
     client::PluginsCreateOptions options;
     options.context = client_->context();
     options.request_id = detail::mutation_identity(move(request_id));
+    options.sdk_version = DOKIME_SDK_VERSION;
     const auto created = client_->transport->plugins.create(identifier, placement, value, options);
     registration->entry = created.entry();
     if (registration->entry.name() != identifier)
@@ -837,27 +903,10 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
   } catch (...) {
     const auto failure = std::current_exception();
     std::exception_ptr cleanup_failure;
-    client::PluginsGetOptions lookup;
-    lookup.context = client_->context();
-    try {
-      const auto observed = client_->transport->plugins.get(identifier, lookup);
-      if (observed.entry().placement().remote().url() == endpoint) {
-        client::PluginsDeleteOptions deleting;
-        deleting.context = client_->context();
-        client_->transport->plugins.delete_(identifier, observed.entry().revision(), deleting);
-      }
-    } catch (const Error &error) {
-      const auto status = error.failure.details.find("grpc_status");
-      if (status == error.failure.details.end() || status->second != "5")
-        cleanup_failure = std::current_exception();
-    } catch (...) {
-      cleanup_failure = std::current_exception();
-    }
     try {
       registration->listener->close();
     } catch (...) {
-      if (!cleanup_failure)
-        cleanup_failure = std::current_exception();
+      cleanup_failure = std::current_exception();
     }
     registration->listener.reset();
     registration->plugin.reset();
@@ -868,7 +917,7 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
   }
 }
 RegisteredPlugin Plugins::get(const string &identifier) {
-  std::lock_guard lock(client_->registrations_mutex);
+  lock_guard lock(client_->registrations_mutex);
   if (const auto found = client_->registrations.find(identifier); found != client_->registrations.end()) {
     RegisteredPlugin registered(found->second);
     registered.refresh();
@@ -903,6 +952,8 @@ string RegisteredPlugin::state() const {
     return "Stopped";
   case PLUGIN_STATE_UNAVAILABLE:
     return "Unavailable";
+  case PLUGIN_STATE_OFFLINE:
+    return "Offline";
   default:
     return "Unspecified";
   }
@@ -917,7 +968,7 @@ RegisteredPlugin &RegisteredPlugin::refresh() {
   return *this;
 }
 void RegisteredPlugin::unregister() {
-  std::lock_guard lock(state_->client->registrations_mutex);
+  lock_guard lock(state_->client->registrations_mutex);
   if (state_->detached)
     return;
   try {
@@ -948,6 +999,37 @@ void RegisteredPlugin::unregister() {
   state_->client->registrations.erase(identifier());
   state_->plugin.reset();
   state_->detached = true;
+}
+void RegisteredPlugin::wait() {
+  if (!state_->listener)
+    throw runtime_error("Wait for Plugin: Keep Its Registered Listener Open");
+  state_->listener->wait();
+}
+void Plugin::serve() {
+  if (detail::configuration::environment("HARMOS_HOST_ENDPOINT") || detail::configuration::environment("HARMOS_LAUNCH_TOKEN")) {
+    compose().run();
+    ShutdownDefaultEventEngine();
+    return;
+  }
+  const auto values = detail::configuration::load();
+  const auto remote =
+      detail::configuration::environment("DOKIME_REMOTE").value_or(values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
+  if (remote.empty()) {
+    compose().run("127.0.0.1:0");
+    ShutdownDefaultEventEngine();
+    return;
+  }
+  ConnectionSettings settings;
+  settings.remote = remote;
+  auto client = connect(settings);
+  // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
+  auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this,
+                                                                       [](Plugin *) {
+                                                                       }),
+                                                    {}, {});
+  registered.wait();
+  client.close();
+  ShutdownDefaultEventEngine();
 }
 } // namespace dokime
 

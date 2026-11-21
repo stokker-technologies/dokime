@@ -23,15 +23,15 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
-import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import { Button } from "@/components/ui/button";
+import { DataTable } from "@dokime/plots/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Button } from "@dokime/plots/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
 /* === Types === */
 
 export type PluginTableRow = {
-  /** Rendered under the name when the plugin reports a problem. */
+  /** Rendered full width below the row when the plugin reports a problem. */
   alert?: ReactNode;
   /** Status in its own aligned column. */
   badge?: ReactNode;
@@ -41,8 +41,12 @@ export type PluginTableRow = {
   name: string;
   /** Opens the plugin's own settings page; absent when it contributes none. */
   onOpenSettings?: () => void;
+  /** Who starts the plugin: the host (Managed) or its author (Unmanaged). */
+  placement?: "Managed" | "Unmanaged";
   /** Where the plugin came from, with its version. One muted line. */
   source: string;
+  /** The badge's label, which the status filter matches. */
+  status?: string;
   /** The row's own actions, on the shared trailing column. */
   trailing?: ReactNode;
 };
@@ -60,17 +64,22 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
             {row.original.name}
           </span>
         </div>
-        {row.original.alert}
       </div>
     ),
     header: "Plugin",
     meta: { filter: "text", label: "Plugin" },
   }),
-  column.display({
+  column.accessor((row) => row.status ?? "", {
     id: "status",
     header: "Status",
     cell: ({ row }) => row.original.badge,
-    meta: { label: "Status", width: "w-48" },
+    meta: { filter: "facet", label: "Status", width: "w-48" },
+  }),
+  column.accessor((row) => row.placement ?? "", {
+    id: "placement",
+    header: "Placement",
+    cell: ({ getValue }) => <span className="text-xs">{getValue()}</span>,
+    meta: { filter: "facet", label: "Placement", width: "w-28" },
   }),
   column.accessor("source", {
     cell: ({ getValue }) => <span className="text-xs text-muted-foreground">{getValue()}</span>,
@@ -97,7 +106,7 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     id: "actions",
     header: "Actions",
     cell: ({ row }) => (
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-center justify-end gap-1">
         <Button
           aria-label="Settings"
           title="Settings"
@@ -116,15 +125,32 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
 
 /* === Components === */
 
-export function PluginTable({ label, rows, actions }: { label: string; rows: PluginTableRow[]; actions?: ReactNode }) {
+export function PluginTable({
+  actions,
+  failure,
+  label,
+  loading,
+  rows,
+}: {
+  actions?: ReactNode;
+  failure?: ReactNode;
+  label: string;
+  loading?: boolean;
+  rows: PluginTableRow[];
+}) {
   return (
     <DataTable
       actions={actions}
       aria-label={label}
+      title={label}
+      description="Installed plugins and their current activation state."
       columns={COLUMNS}
       data={rows}
       emptyText="No Plugins"
+      failure={failure}
       getRowId={rowKey}
+      loading={loading}
+      rowDetail={(row) => row.alert}
       onRowClick={(row) => row.onOpenSettings?.()}
     />
   );

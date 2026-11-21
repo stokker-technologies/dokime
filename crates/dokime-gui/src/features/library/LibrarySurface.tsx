@@ -9,28 +9,28 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
+import { DataTable } from "@dokime/plots/components/data-table/DataTable";
+import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Input } from "@dokime/plots/components/ui/input";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
-import { useBrand } from "@/lib/brand";
-import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
-import { PageShell } from "@/shell/PageShell";
+import { useBrand } from "@dokime/document/lib/brand";
+import type { SuiteTemplateEntry, TestSuiteEntry } from "@dokime/plots/lib/types";
+import { PageShell } from "@dokime/document/shell/PageShell";
 
 /* === Constants === */
 
@@ -72,6 +72,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   }, [appendTo, choose, openCycles]);
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
+  const waitingPlugins = (pluginsQuery.data ?? []).filter((plugin) => ["failed", "connecting", "unavailable"].includes(plugin.status));
+  const suiteFailure = suitesQuery.isError ? failureOf(suitesQuery.error, "Could Not Load Suites") : null;
+  const waitingForSource = Boolean(suiteFailure?.plugin && waitingPlugins.some((plugin) => plugin.plugin_id === suiteFailure.plugin));
   const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
   const [suiteSearch, setSuiteSearch] = useState("");
@@ -136,11 +139,22 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     }),
   ]);
 
+  const catalogFeedback =
+    waitingPlugins.length || (suiteFailure && !waitingForSource) ? (
+      <div className="grid gap-3">
+        {waitingPlugins.map((plugin) => (
+          <p key={plugin.plugin_id} role="status" className="text-sm text-muted-foreground">
+            Waiting for Plugin {plugin.label}
+          </p>
+        ))}
+        {suiteFailure && !waitingForSource ? <ErrorCard failure={suiteFailure} onRetry={() => void suitesQuery.refetch()} /> : null}
+      </div>
+    ) : undefined;
+
   return (
     <PageShell actions={actions} trail={["Library"]}>
       {active.failed ? <ErrorCard failure={failureOf(active.error, "Open Cycles Unavailable")} /> : null}
 
-      {suitesQuery.isError ? <ErrorCard failure={failureOf(suitesQuery.error, "Could Not Load Suites")} /> : null}
       <Input
         aria-label="Filter Templates"
         placeholder="Filter Templates"
@@ -148,18 +162,24 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         onChange={(event) => setSuiteSearch(event.target.value)}
       />
       <section className="grid gap-3" aria-label="Library">
-        {suiteRows.map(({ suite, members }) => (
-          <details key={suite.suite_id} className="rounded-lg border bg-card p-4" open={Boolean(suiteSearch) || undefined}>
+        {suiteRows.map(({ suite, members }, index) => (
+          <details
+            key={suite.suite_id}
+            className="rounded-lg border bg-card p-4"
+            open={Boolean(suiteSearch) || (index === 0 && Boolean(catalogFeedback)) || undefined}
+          >
             <summary className="cursor-pointer text-sm font-semibold">
               {suite.name} <span className="ml-2 font-normal text-muted-foreground">{members.length} Templates</span>
             </summary>
             <div className="mt-3 grid gap-3">
-              {suite.description ? <p className="text-sm text-muted-foreground">{suite.description}</p> : null}
               <DataTable
                 aria-label={suite.name}
                 columns={columns}
                 data={members.map((template) => ({ suite, template }))}
+                title={suite.name}
+                description={suite.description || "Templates available in this suite."}
                 emptyText="No Templates Match"
+                failure={index === 0 ? catalogFeedback : undefined}
                 getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
                 onRowClick={setOpenTemplate}
               />
@@ -167,9 +187,16 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           </details>
         ))}
         {!suiteRows.length ? (
-          <p className="text-sm text-muted-foreground">
-            {suitesQuery.isPending ? "Loading Suites…" : suitesQuery.isError ? "Suites Unavailable" : "No Templates Match"}
-          </p>
+          <DataTable
+            title="Templates"
+            description="Templates available in the connected host's suites."
+            columns={columns}
+            data={[]}
+            getRowId={(row) => selectionDraftKey(row.suite.suite_id, templateSelectionId(row.template))}
+            emptyText="No Templates Match"
+            loading={suitesQuery.isPending}
+            failure={catalogFeedback}
+          />
         ) : null}
       </section>
 

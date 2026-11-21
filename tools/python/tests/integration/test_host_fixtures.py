@@ -47,6 +47,42 @@ from dokime_tools.prepare import generated
 
 
 class HostFixtureTests(unittest.TestCase):
+    def test_cpp_cli_fixture_runs_and_stages_the_release_plugin(self) -> None:
+        for platform, extension in (("posix", ""), ("nt", ".exe")):
+            temporary_directory = tempfile.TemporaryDirectory()
+            root = Path(temporary_directory.name)
+            try:
+                bundle = root / "target/cp/release/dokime-cpp-fixture.tar.gz"
+                bundle.parent.mkdir(parents=True)
+                bundle.write_bytes(b"archive")
+                bundle.with_name(f"{bundle.name}.sha256").write_text("a" * 64, encoding="utf-8")
+                output = root / "target/build/dev/native"
+                placements = []
+
+                def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+                    if command[1] == "new":
+                        plugin = Path(command[2]) / "assets/plugin" / f"dokime-plugin{extension}"
+                        plugin.parent.mkdir(parents=True)
+                        plugin.write_bytes(b"prepared plugin")
+                    if Path(command[1]).name == "run_plugin.py":
+                        self.assertEqual(Path(command[2]).read_bytes(), b"prepared plugin")
+                        placements.append(command[-1])
+                    return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+                with (
+                    self.subTest(platform=platform),
+                    patch.object(cli_fixtures.configuration, "ROOT", root),
+                    patch.object(cli_fixtures.paths, "output", return_value=output),
+                    patch.object(cli_fixtures, "os", SimpleNamespace(name=platform)),
+                    patch.object(cli_fixtures.subprocess, "run", side_effect=run),
+                    patch.object(cli_fixtures.archive, "stamp"),
+                ):
+                    cli_fixtures.build("dev", "cpp")
+                self.assertEqual(placements, ["managed", "remote"])
+                self.assertEqual((output / "fixtures/cli/cpp" / f"dokime-plugin{extension}").read_bytes(), b"prepared plugin")
+            finally:
+                temporary_directory.cleanup()
+
     def test_rust_cli_fixture_keeps_extensionless_executable_separate_from_source(self) -> None:
         for platform, extension in (("posix", ""), ("nt", ".exe")):
             temporary_directory = tempfile.TemporaryDirectory()
@@ -208,8 +244,10 @@ class HostFixtureTests(unittest.TestCase):
                     )
                     stamp.assert_not_called()
                     if language == "cpp":
-                        self.assertEqual(commands[0][-1], "prepare")
-                        self.assertIn("dokime-system-suite", commands[1])
+                        self.assertEqual(commands[0][4:], ["build", "--", "--preset", "release", "--target", "dokime_client"])
+                        self.assertEqual(commands[1][4:], ["package", "--", "--preset", "release"])
+                        self.assertEqual(commands[2][4:8], ["consumer", "--", "--preset", "release"])
+                        self.assertEqual(Path(commands[2][-1]), root / "sdk/tests/fixtures/cpp/thermal")
                     if language == "csharp":
                         self.assertEqual([command[4] for command in commands], ["build", "package", "publish:system"])
                     if language == "rust":

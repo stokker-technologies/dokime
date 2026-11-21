@@ -13,11 +13,11 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
-import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { DataTable } from "@dokime/plots/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
 import { type ExploreEntry, exploreEntryKey } from "@/features/explore/explore-contracts";
-import { formatDuration } from "@/lib/format";
-import { PageNotice } from "@/shell/PageShell";
+import { formatDuration } from "@dokime/plots/lib/format";
+import { PageNotice } from "@dokime/document/shell/PageShell";
 
 /* === Types === */
 
@@ -77,12 +77,16 @@ export function HistoryComparisonView({ cycles }: HistoryComparisonViewProps) {
       {cycles.length < 2 ? (
         <PageNotice>Select at least two entries in the library to compare them.</PageNotice>
       ) : (
-        <>
-          <div className="min-w-0">
-            <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing to Compare" getRowId={rowLabel} />
-          </div>
-          <p className="text-xs text-muted-foreground">Comparison covers the summary metrics above.</p>
-        </>
+        <div className="min-w-0">
+          <DataTable
+            title="Comparison"
+            columns={columns}
+            data={COMPARISON_ROWS}
+            description="Comparison covers the summary metrics above."
+            emptyText="Nothing to Compare"
+            getRowId={rowLabel}
+          />
+        </div>
       )}
     </>
   );

@@ -17,7 +17,6 @@
 #include <cctype>
 #include <google/protobuf/empty.pb.h>
 #include <google/protobuf/util/message_differencer.h>
-#include <grpc/event_engine/event_engine.h>
 #include <limits>
 #include <regex>
 #include <set>
@@ -34,7 +33,6 @@ using dokime::plugin::v1::StepsExecuteResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
 using google::protobuf::Empty;
-using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using std::all_of;
 using std::find_if;
 using std::function;
@@ -451,9 +449,6 @@ Plugin &Plugin::context_operations() {
   registrar.add(HostOperation::EvidenceTraceabilityGet);
   registrar.add(HostOperation::EvidenceTraceabilitySet);
   registrar.add(HostOperation::DocumentsAppendParts);
-  registrar.add(HostOperation::EffectsCreate);
-  registrar.add(HostOperation::EffectsGet);
-  registrar.add(HostOperation::EffectsSet);
   registrar.add(HostOperation::TimeGet);
   registrar.add(HostOperation::TimeSleep);
   return *this;
@@ -529,17 +524,6 @@ Plugin::Plugin(Plugin &&other) noexcept
       native_(move(other.native_)), suites_(move(other.suites_)), prompts_(move(other.prompts_)), records_(move(other.records_)),
       secrets_(move(other.secrets_)), executions_(move(other.executions_)) {
   plugin_->plugin = this;
-}
-void Plugin::serve(optional<string> address) const {
-  if (!address && dokime::detail::configuration::environment("HARMOS_ADDRESS")) {
-    compose().run();
-    ShutdownDefaultEventEngine();
-    return;
-  }
-  const auto values = dokime::detail::configuration::load();
-  const auto selected = dokime::detail::configuration::resolve("DOKIME_PLUGIN_ADDRESS", address, values);
-  compose().run(selected);
-  ShutdownDefaultEventEngine();
 }
 } // namespace dokime
 

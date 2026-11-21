@@ -10,17 +10,17 @@
 /* === External Imports === */
 
 import { ArrowRight, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Constants === */
 
@@ -69,6 +69,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
 /* === Types === */
 
 type HistoryLibraryProps = {
+  failure?: ReactNode;
   /** The Archived view: archived rows only, each with Unarchive. */
   archived: boolean;
   cycles: ExploreEntry[];
@@ -89,6 +90,7 @@ type HistoryLibraryProps = {
 export function HistoryLibrary({
   archived,
   cycles,
+  failure,
   loading,
   onCompare,
   onToggleArchived,
@@ -162,16 +164,20 @@ export function HistoryLibrary({
 
   return (
     <DataTable
+      title={archived ? "Archived History" : "History"}
+      description="Browse saved entries or select entries to compare."
       actions={
         <>
-          {toggle}
           {compare}
+          {toggle}
         </>
       }
       columns={columns}
       data={cycles}
-      emptyText={loading ? "Loading History…" : archived ? "No Archived History" : "No History Matches"}
+      failure={failure}
+      emptyText={archived ? "No Archived History" : "No History Matches"}
       getRowId={entryKey}
+      loading={loading}
       onRowClick={(entry) => onOpenEntry(entry.target)}
       search={search}
       selection={selection}

@@ -9,19 +9,19 @@
  * ***
  */
 
-import { Separator as SeparatorPrimitive } from "radix-ui";
+import * as radix from "radix-ui";
 import type * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
 function Separator({
   className,
   orientation = "horizontal",
   decorative = true,
   ...props
-}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
+}: React.ComponentProps<typeof radix.Separator.Root>) {
   return (
-    <SeparatorPrimitive.Root
+    <radix.Separator.Root
       data-slot="separator"
       decorative={decorative}
       orientation={orientation}

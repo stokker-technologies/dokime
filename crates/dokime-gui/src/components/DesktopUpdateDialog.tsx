@@ -9,18 +9,21 @@
 
 /* === Imports === */
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { failureOf } from "@/lib/notification-details";
-import { useEffect, useId, useState } from "react";
 // Standard Library Imports
+
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
+import { useEffect, useId, useRef, useState } from "react";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
+import { buildLabel } from "@/features/settings/sections/build-version";
 import { commands } from "@/lib/desktop/commands";
+import type { BuildIdentity } from "@dokime/document/lib/contracts/connection";
 import type { UpdateCheck, UpdateMode, UpdateStatus } from "@/lib/desktop/updates";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -28,11 +31,12 @@ import type { UpdateCheck, UpdateMode, UpdateStatus } from "@/lib/desktop/update
 
 /* === Types === */
 
-type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) => void };
+type DesktopUpdateDialogProps = { open: boolean; onOpenChange: (open: boolean) => void; build: BuildIdentity };
 
 /* === Components === */
 
-export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogProps) {
+export function DesktopUpdateDialog({ open, onOpenChange, build }: DesktopUpdateDialogProps) {
+  const actionFailure = useRef(false);
   const modeId = useId();
   const sourceId = useId();
   const [status, setStatus] = useState<UpdateStatus | null>(null);
@@ -42,6 +46,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
 
   useEffect(() => {
     if (!open) return;
+    actionFailure.current = false;
     let active = true;
     void commands
       .desktopUpdatesStatus()
@@ -60,6 +65,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
   }, [open]);
 
   async function perform(operation: () => Promise<void>) {
+    actionFailure.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -137,12 +143,14 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
                       ? "Updates Disabled"
                       : "Up to Date"}
                 </div>
-                <p className="text-muted-foreground">{update.body ?? `Current Version ${update.currentVersion}`}</p>
+                <p className="text-muted-foreground">{update.body ?? `Current Version ${buildLabel(build).text}`}</p>
               </div>
             ) : null}
           </div>
         ) : null}
-        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+        {error ? (
+          <ErrorCard notificationContext={actionFailure.current ? "action" : undefined} failure={failureOf(error, "Operation Failed")} />
+        ) : null}
         <DialogFooter>
           <Button
             data-testid="desktop-updates-check"

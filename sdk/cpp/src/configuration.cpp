@@ -164,8 +164,6 @@ string resolve(const string &key, const optional<string> &explicit_value, const 
     value = *configured;
   else if (const auto found = values.find(key); found != values.end())
     value = found->second;
-  else if (key == "DOKIME_PLUGIN_ADDRESS")
-    value = "127.0.0.1:0";
   if (value.empty())
     throw invalid_argument("Configure Connection: Set " + key + " to a Nonempty Address");
   return value;

@@ -76,7 +76,6 @@ pub(crate) struct Settings {
     pub stream_buffer: NonZeroUsize,
     pub max_cases: NonZeroUsize,
     pub page_items: NonZeroUsize,
-    pub capture_roots: Vec<PathBuf>,
     pub capture_files: NonZeroUsize,
     pub capture_bytes: NonZeroU64,
     pub captures: NonZeroUsize,
@@ -113,7 +112,6 @@ impl Default for Settings {
             stream_buffer: NonZeroUsize::new(8).unwrap(),
             max_cases: NonZeroUsize::new(1000).unwrap(),
             page_items: NonZeroUsize::new(1000).unwrap(),
-            capture_roots: Vec::new(),
             capture_files: NonZeroUsize::new(CaptureSettings::default().maximum_files).unwrap(),
             capture_bytes: NonZeroU64::new(CaptureSettings::default().maximum_bytes).unwrap(),
             captures: NonZeroUsize::new(CaptureSettings::default().maximum_captures).unwrap(),
@@ -175,7 +173,6 @@ impl Settings {
                 previews: storage_defaults().previews,
             },
             capture: CaptureSettings {
-                roots: self.capture_roots.clone(),
                 maximum_files: self.capture_files.get(),
                 maximum_bytes: self.capture_bytes.get(),
                 maximum_captures: self.captures.get(),

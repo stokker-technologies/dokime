@@ -27,14 +27,14 @@ from harmos._wire.host.v1.access.pairings_pb2 import (
 from harmos._wire.host.v1.invocations_pb2 import InvocationsCreateRequest, InvocationsCreateResponse
 from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
 from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetRequest, DiagnosticsGetResponse
-from harmos._wire.host.v1.status.logs_pb2 import LogsWatchRequest, LogsWatchResponse
+from harmos._wire.host.v1.status.logs_pb2 import LogsListRequest, LogsListResponse, LogsWatchRequest, LogsWatchResponse
 from harmos._wire.host.v1.status.trace_events_pb2 import (
     TraceEventsListRequest,
     TraceEventsListResponse,
     TraceEventsWatchRequest,
     TraceEventsWatchResponse,
 )
-from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse, StatusWatchRequest, StatusWatchResponse
+from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusWatchRequest
 from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
 from harmos._wire.model.v1.operation_pb2 import DiscoveredOperation
 from harmos._wire.model.v1.page_pb2 import PageRequest
@@ -324,6 +324,7 @@ from dokime_sdk._wire.host.v1.secrets_pb2 import (
     SecretWritable,
 )
 from dokime_sdk._wire.host.v1.settings_pb2 import ApplicationSettings, SettingsSchemaRequest, SettingsSchemaResponse
+from dokime_sdk._wire.host.v1.status_pb2 import StatusGetResponse, StatusWatchResponse
 from dokime_sdk._wire.host.v1.storage.sources_pb2 import (
     SourcesGetRequest,
     SourcesGetResponse,
@@ -1780,6 +1781,28 @@ class StatusLogsResource:
     def __init__(self, channel: Channel) -> None:
         self._channel = channel
 
+    async def list(
+        self,
+        *,
+        at: Position | None = None,
+        page: PageRequest | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> LogsListResponse:
+        request = LogsListRequest(at=at, page=page)
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.status.Logs/List",
+            request,
+            LogsListResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="status.logs.list",
+        )
+        return response
+
     async def watch(
         self,
         max_bytes: int,
@@ -3099,12 +3122,18 @@ class PluginsResource:
         *,
         request_id: str | None = None,
         origin: str | None = None,
+        sdk_version: str | None = None,
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsCreateResponse:
         request = PluginsCreateRequest(
-            request_id=request_id if request_id is not None else str(uuid4()), name=name, placement=placement, value=value, origin=origin
+            request_id=request_id if request_id is not None else str(uuid4()),
+            name=name,
+            placement=placement,
+            value=value,
+            origin=origin,
+            sdk_version=sdk_version,
         )
         response = await unary(
             self._channel,

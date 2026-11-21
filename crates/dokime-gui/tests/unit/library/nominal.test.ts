@@ -24,16 +24,16 @@ import { ValueType } from "@host/model";
 // Local Imports
 import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";
 import { titleCaseIdentifier } from "@/components/start-cycle-form-model";
-import { artifactLabel } from "@/lib/dashboard";
-import type { FileDefinition, ParameterDefinition } from "@/lib/types";
+import { artifactLabel } from "@dokime/document/lib/dashboard";
+import type { FileDefinition, ParameterDefinition } from "@dokime/plots/lib/types";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
 import { ActiveCycleInline, ActiveCyclePickerList, ActiveCycleSummary } from "@/features/library/ActiveCycle";
 import { openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
-import type { TestCycleSelection } from "@/lib/types";
-import type { SuiteTemplateEntry } from "@/lib/types";
+import type { TestCycleSelection } from "@dokime/plots/lib/types";
+import type { SuiteTemplateEntry } from "@dokime/plots/lib/types";
 import { TemplateProcedure } from "@/features/library/TemplateDialog";
-import { mapSuite as mapHostSuite } from "@/lib/host/suites";
+import { mapSuite as mapHostSuite } from "@dokime/document/lib/host/suites";
 
 /* === Re-Exports === */
 

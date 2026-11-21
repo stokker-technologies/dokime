@@ -23,8 +23,9 @@ import { type FormEvent, useId, useState } from "react";
 
 /* === Local Imports === */
 
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { Button } from "@/components/ui/button";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
+import { Button } from "@dokime/plots/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -34,16 +35,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@dokime/plots/components/ui/dialog";
+import { Input } from "@dokime/plots/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
-import { formatDecimal } from "@/lib/format";
-import { failureOf } from "@/lib/notification-details";
-import type { DocumentDownsampleTechnique } from "@/lib/types";
-import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import type { PlotSettingsButtonProps } from "./plot-settings";
+import { formatDecimal } from "@dokime/plots/lib/format";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import type { DocumentDownsampleTechnique } from "@dokime/plots/lib/types";
+import { NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
+import type { PlotSettingsButtonProps } from "@dokime/plots/plot-settings";
 
 /* === Constants === */
 
@@ -162,7 +163,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             ? `Enter between 1 and ${formatDecimal(NATIVE_PLOT_MAX_POINTS)} points, use 0 for every sample, or leave empty for the default.`
             : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${formatDecimal(NATIVE_PLOT_MAX_POINTS)} samples per trace.`}
         </p>
-        {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+        {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
 
         <DialogFooter>
           <DialogClose asChild>

@@ -15,7 +15,9 @@
 
 pub use crate::client::Client;
 pub use crate::operations::Operation;
-pub use crate::plugin::{Criterion, Observer, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template, Window};
+pub use crate::plugin::{
+    Collection, CollectionOutput, Criterion, Observer, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template, Window,
+};
 pub use crate::{Error, Lane, Message, OperationPolicy, Parameters, Result, Row, Settings, Visibility};
 
 /* === Imports === */

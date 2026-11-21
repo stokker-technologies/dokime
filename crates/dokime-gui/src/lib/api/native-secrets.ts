@@ -20,8 +20,8 @@
 import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { commands } from "@/lib/desktop/commands";
 // Local Imports
-import { required } from "@/lib/rpc/canonical";
-import type { Wire } from "@/lib/rpc/canonical";
+import { required } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import { SecretImportAction } from "@host/model";
 import type { Metadata } from "@host/model";

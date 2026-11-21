@@ -245,7 +245,8 @@ impl SampleScope {
             let descriptor = pool
                 .get_message_by_name(&declaration.row)
                 .ok_or_else(|| Error::Invalid(format!("Open Sample Scope: Declare Row {}", declaration.row)))?;
-            let interval = declaration.interval.is_some() || !declaration.interval_setting.is_empty();
+            let interval =
+                declaration.collection.is_empty() && (declaration.interval.is_some() || !declaration.interval_setting.is_empty());
             selected.insert(
                 stream.clone(),
                 SampleRow {
@@ -417,19 +418,33 @@ fn scalar(kind: &Kind, value: &Value) -> crate::Result<prost_reflect::Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ExecutionTime, Timing};
+    use super::{Declarations, Definition, ExecutionTime, Intake, JsonCodec, PublicationRow, SampleScope, Store, Timing};
     use crate::ControlledClock;
+    use dokime_protocol::model::{Import, Origin, origin};
+    use dokime_storage::Execution;
+    use harmos_domain::schema::Cardinality;
+    use harmos_domain::schema::graph::{Field, Kind, Schema};
     use harmos_operations::facilities::{TimeGet, TimeSleep};
     use harmos_protocol::host::{TimeGetRequest, TimeSleepRequest};
+    use harmos_protocol::model::StreamDeclaration;
     use harmos_runtime::operations::{self, CallContext};
     use harmos_runtime::state::Never;
     use harmos_runtime::{Application, Lifecycle, Runtime, Setup, Startup};
+    use prost::Message;
+    use std::collections::HashMap;
     use std::convert::Infallible;
     use std::error::Error;
     use std::num::NonZeroUsize;
     use std::sync::Arc;
+    use std::sync::Mutex;
     use std::time::Duration;
     use tokio::sync::watch::error::RecvError;
+
+    #[derive(dokime::Row)]
+    #[dokime(package = "fixture")]
+    struct Collected {
+        value: u64,
+    }
 
     struct Model;
 
@@ -447,6 +462,75 @@ mod tests {
         type State = ();
         type Transaction = Never;
         type Record = ();
+    }
+
+    #[test]
+    fn collection_rows_retain_values_and_tick_times_in_execution_storage() -> Result<(), Box<dyn Error>> {
+        // Open a Real Execution With an Interval Collection's Individual Row Contract.
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let catalog = Declarations {
+            types: Some(<Collected as dokime::encoding::contract::Message>::types()),
+            streams: vec![StreamDeclaration {
+                id: "readings".into(),
+                row: <Collected as dokime::encoding::contract::Message>::name(),
+                interval: Some(prost_types::Duration { seconds: 1, nanos: 0 }),
+                collection: "readings".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let execution = Execution {
+            identifier: "execution".into(),
+            cycle: "cycle".into(),
+            origin: Some(Origin {
+                kind: Some(origin::Kind::Import(Import::default())),
+            }),
+            catalog: catalog.encode_to_vec(),
+            ..Default::default()
+        };
+        store.create(&execution)?;
+        store.open_stream("execution", "readings")?;
+        let scope = SampleScope::new(&catalog, &["readings".into()])?;
+        let intake = Intake {
+            store: store.clone(),
+            scopes: Arc::new(Mutex::new(HashMap::from([("execution".into(), scope)]))),
+            failures: Arc::new(Mutex::new(HashMap::new())),
+        };
+
+        // Deliver Native Rows From Two Ticks, With Deterministic Source and Receipt Times.
+        let schema = Schema {
+            root: 0,
+            definitions: vec![vec![Field {
+                name: "value".into(),
+                tag: 1,
+                kind: Kind::U64,
+                cardinality: Cardinality::Required,
+            }]],
+            representations: Default::default(),
+        };
+        let definition = Definition::declared::<PublicationRow>("readings", schema, 8)?.publication("fixture");
+        let schema = definition.schema();
+        let codec = JsonCodec::new(schema.view(schema.root)?, &Default::default())?;
+        for (index, value) in [13_u64, 21].into_iter().enumerate() {
+            let publication = PublicationRow {
+                payload: codec.encode(&serde_json::json!({"value": value}))?,
+                published_unix_micros: Some(10 + index as i64 * 1_000_000),
+                context: Some(serde_json::json!({"scope": "execution", "source_time": {"seconds": index, "nanos": 100}}).to_string()),
+            };
+            intake.ingest(&definition, &publication)?;
+        }
+
+        // Read the Stored Protobuf Rows and Their Exact Tick Times, Without Batch Expansion.
+        store.flush_samples()?;
+        let through = store.cut("execution")?.frontier;
+        let saved = store.sample_page("execution", "readings", 0, through, NonZeroUsize::new(4).unwrap())?;
+        let mut observed = Vec::new();
+        for row in saved {
+            observed.push((row.sequence, row.source_ns, row.receipt_ns, Collected::decode(row.row.as_slice())?.value));
+        }
+        assert_eq!(observed, [(1, 100, 10_000, 13), (2, 1_000_000_100, 1_000_010_000, 21)]);
+        Ok(())
     }
 
     #[tokio::test]

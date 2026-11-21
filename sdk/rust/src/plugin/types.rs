@@ -1,10 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 pub use crate::wire::host::BackendEnvironmentResponse;
 pub use crate::wire::host::DocumentsAppendPartsResponse;
-pub use crate::wire::host::EffectWritable;
-pub use crate::wire::host::EffectsCreateResponse;
-pub use crate::wire::host::EffectsGetResponse;
-pub use crate::wire::host::EffectsSetResponse;
 pub use crate::wire::host::FilesCaptureResponse;
 pub use crate::wire::host::PromptsCreateResponse;
 pub use crate::wire::host::evidence::LogsAppendResponse;
@@ -29,6 +25,8 @@ pub use harmos_protocol::host::InvocationsGetResponse;
 pub use harmos_protocol::host::InvocationsWatchResponse;
 pub use harmos_protocol::host::TimeGetResponse;
 pub use harmos_protocol::host::TimeSleepResponse;
+pub use harmos_protocol::host::plugins::StateGetResponse;
+pub use harmos_protocol::host::plugins::StatePutResponse;
 pub mod dokime {
     pub mod host {
         pub mod files {

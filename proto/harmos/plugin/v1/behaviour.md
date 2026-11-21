@@ -81,8 +81,22 @@ Operations served by a plugin over `harmos.plugin.v1` are unary (one request and
    protobuf or attempt zero MUST return INVALID_ARGUMENT. No terminal application
    result follows a transport error. Retry policy remains owned by the operation;
    the conformance host does not retry a failed case.
-10. **Windows and Batches.** Instance.Samples MUST open with SamplesSelection for one stream.
-    For an interval stream the host resolves the interval and grants Window frames;
+10. **Windows and Batches.** Instance.Samples MUST open with SamplesSelection for one stream,
+    or the lexicographically first member of a declared collection. Collection members
+    share one resolved positive interval and the shortest resolved member window per
+    activation, scope and clock. A collection uses the existing window scheduler.
+    Before windows, CollectionDemand selects its listened members; an empty selection
+    ends resource demand. The SDK acknowledges each transition only after first-start
+    or last-stop hooks finish. Overlapping demands share those hooks across scopes.
+    A collection answers each tick with one consecutive CollectionBatch, including
+    empty ticks, and marks only the final tick last. Each member group contains zero
+    or more serialized rows in publication order. The host stamps them at the tick
+    time and retains only listened members. A handler failure discards the unanswered
+    window; staging and publication retain the existing pool limits. Last-demand loss
+    cancels and settles an in-flight handler before cleanup. Only an empty demand
+    transition may interrupt a window; late cancelled-window frames are discarded
+    until its acknowledgement. Transport end releases its demand share exactly once.
+    For an ordinary interval stream the host resolves the interval and grants Window frames;
     the plugin MUST answer each window once, in order, with SampleBatch parts whose
     offsets are contiguous from 0, whose counts are at least one and sum to
     Window.count, and whose final part alone sets last. Child-only frames do not
@@ -102,7 +116,7 @@ Operations served by a plugin over `harmos.plugin.v1` are unary (one request and
     a supplied device timestamp is source time and MUST NOT replace host evidence
     time. conformance.device emits one Value containing UTF-8 device, sequence 1,
     with at absent immediately after open, then awaits demand closure.
-13. **Demand and Reopen.** Opening Instance.Samples is demand; closing/cancelling it ends
+13. **Demand and Reopen.** For ordinary streams, opening Instance.Samples is demand; closing/cancelling it ends
     demand and releases its work. The fixture MUST also close output after input
     EOF. Reopening is a fresh call with sequence 1, independent of previous calls.
     Closing one demand MUST leave the connection usable. Disconnected samples
@@ -117,12 +131,18 @@ Operations served by a plugin over `harmos.plugin.v1` are unary (one request and
     during an active invocation MUST return INVALID_ARGUMENT. IDs MAY be reused
     on another Invoke. The case sends both invalid-ID and duplicate-ID replies
     on separate conformance.children calls.
-16. **Stop and Cleanup.** The host MUST call Stop before removing a plugin or
-    shutting down, then close after replies or its grace period. The plugin MUST
-    complete stop/cleanup hooks before replying. A managed plugin MUST exit
-    successfully after the reply; a remote plugin MUST keep serving. The case
-    checks the reply; managed mode also checks successful process exit. Remote
-    mode calls Instance.Get again after Stop. No active demand remains at this stage.
+16. **Stop and Cleanup.** The host MUST call Stop only for a process it spawned
+    and still owns, before removal or shutdown, then close after replies or its
+    grace period and reap its child. For an externally spawned process the host
+    MUST settle work, finalize its activation and close only its connection,
+    without Stop. Launch credentials MUST NOT establish process ownership.
+    Disconnected RPCs end or are cancelled; the plugin's listener and run entry
+    MUST remain serving so the endpoint can register again.
+    The plugin MUST complete process cleanup before replying to an explicit Stop.
+    The conformance executable mode owns its child and checks successful exit
+    after the reply. Endpoint mode directly probes the remote SDK's explicit Stop
+    support and calls Instance.Get again afterwards; registry detach remains
+    connection-only. No active demand remains at this stage.
 
 17. **Schema Fingerprints.** The additional schema fixture below MUST use the
     general Schema Fingerprints rule. The case verifies both advertised hashes
@@ -477,16 +497,19 @@ target/debug/harmos-conformance --address 127.0.0.1:53124
 mise run test -- --package harmos-conformance --target integration
 ```
 
-Managed mode starts the executable, drains stdout until the line
-harmos listening 127.0.0.1:PORT (a bound loopback socket), then dials it.
-HARMOS_ADDRESS overrides the dial address after readiness. Plugins MUST honor
-HARMOS_ADDRESS as their bind address when set. Other stdout lines are ignored;
-SDK logs should use stderr. The host drains remaining stdout and owns process
-cleanup on failures. Executable arguments follow --. Remote mode accepts a socket
-address or http:// URL, owns no process, and never kills the endpoint.
+Managed mode starts the executable with HARMOS_HOST_ENDPOINT (a bare 127.0.0.1:PORT
+socket address) and HARMOS_LAUNCH_TOKEN (64 hexadecimal characters, valid once). The
+plugin binds a loopback listener, starts serving, then calls
+harmos.plugin.v1.Launches/Announce with the token and its bound address; the host
+dials only that address. A wrong, spent or revoked token is refused with
+UNAUTHENTICATED; an address that is not a bound loopback socket is refused with
+INVALID_ARGUMENT and fails the launch. Standard output carries no protocol. The host
+owns process cleanup on failures. Executable arguments follow --. Remote mode accepts a
+socket address or http:// URL, owns no process, and never kills the endpoint.
 
-The Rust fixture defaults to managed lifecycle; pass --remote to keep it running
-after Stop. HARMOS_ADDRESS selects its listener in either mode. The host prints
+The Rust fixture defaults to managed lifecycle; pass --remote [address] to keep it
+running after Stop. With launch variables it announces in either lifecycle; without them
+it serves silently on the given or an ephemeral loopback address. The host prints
 one pass/fail table row per rule and exits 0 only if every case passes; exit 1 is
 case failure and exit 2 is setup/CLI failure. Each case and managed startup/shutdown
 has a 30-second transport hang guard. These guards do not advance scenario time.

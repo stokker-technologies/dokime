@@ -13,18 +13,19 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
 // Standard Library Imports
 
 // Local Imports
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { MoreHorizontal } from "lucide-react";
 import { useId, useState } from "react";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@dokime/plots/components/ui/checkbox";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@dokime/plots/components/ui/dropdown-menu";
 import {
   exportSecrets,
   importSecrets,
@@ -132,9 +133,9 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
         </DropdownMenuContent>
       </DropdownMenu>
       {notice ? (
-        <NotificationMessage source="Secrets" title="Secret Transfer Updated" tone="info">
+        <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
           {notice}
-        </NotificationMessage>
+        </p>
       ) : null}
       <Dialog
         open={mode !== null}
@@ -146,7 +147,7 @@ export function SecretTransfer({ session, catalog, onImported }: Props) {
           <DialogHeader>
             <DialogTitle>{mode === "export" ? "Export Secrets" : "Import Secrets"}</DialogTitle>
           </DialogHeader>
-          {Boolean(error) && <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage>}
+          {Boolean(error) && <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} />}
 
           {mode === "export" && (
             <form

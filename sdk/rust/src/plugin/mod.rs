@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+
 #[rustfmt::skip]
 #[allow(dead_code, reason = "The Shared Generator Emits the Complete Internal Host Transport")]
 mod host;
@@ -24,8 +25,7 @@ pub use crate::record::Record;
 pub use crate::stream::{Observer, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
-pub use ::harmos::plugin::Publisher;
-pub use ::harmos::plugin::Window;
+pub use ::harmos::plugin::{Collection, CollectionOutput, Publisher, Window};
 pub use types::*;
 include!("host_exports.rs");
 
@@ -42,6 +42,7 @@ use std::{
 
 // Third Party Imports
 use ::harmos::{Visibility, plugin};
+use tokio::{runtime::Builder, signal};
 
 // Local Imports
 use crate::SecretDeclaration;
@@ -59,6 +60,7 @@ use crate::template::validate_names;
 use crate::testing::Selected;
 use crate::{Declarations, Error, Lane, Message, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
+use crate::{authoring, client, configuration};
 
 /* === Constants === */
 
@@ -84,6 +86,7 @@ struct Assembly {
     state: Arc<dyn Any + Send + Sync>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
+    collections: bool,
     dependencies: Vec<DependencyRegistration>,
     suites: Vec<Suite>,
     settings: Vec<SettingDeclaration>,
@@ -164,16 +167,17 @@ impl Plugin {
     }
 
     pub fn of<T>(version: impl Into<String>) -> Self {
-        let identifier = crate::authoring::code_name::<T>(true);
+        let identifier = authoring::code_name::<T>(true);
         let version = version.into();
         Self {
             assembly: Assembly {
                 identifier,
-                label: crate::authoring::type_label::<T>(),
+                label: authoring::type_label::<T>(),
                 version,
                 state: Arc::new(()),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
+                collections: false,
                 dependencies: Vec::new(),
                 suites: Vec::new(),
                 settings: Vec::new(),
@@ -268,6 +272,14 @@ impl Plugin {
         self.assembly.registrations.push(stream.registration());
         self
     }
+    /// Feed Several Streams From One Measurement per Tick, Only While One of Them Has a Listener.
+    pub fn collection(mut self, collection: Collection) -> Self {
+        self.assembly.collections = true;
+        self.assembly
+            .registrations
+            .push(Box::new(move |plugin, _, _| plugin.register(|registrar| registrar.register(collection)).map_err(Error::from)));
+        self
+    }
     pub fn observer(mut self, observer: Observer) -> Self {
         if observer.execution {
             self.assembly
@@ -297,9 +309,20 @@ impl Plugin {
         }
         let template = selected.remove(0);
         let prompts = template.prompts.clone();
+        let template = template.parts()?;
+        let needs_collection = template
+            .case
+            .streams
+            .iter()
+            .any(|stream| !template.samplers.iter().chain(&self.assembly.samplers).any(|sampler| &sampler.stream == stream));
+        if self.assembly.collections && needs_collection {
+            return Err(Error::Invalid(
+                "Test Collection Streams: Register the Plugin With a Product Host to Use Library-Owned Windows".into(),
+            ));
+        }
         Ok(Selected {
             plugin: self.assembly.identifier,
-            template: template.parts()?,
+            template,
             prompts,
             requirements: self.assembly.requirements,
             state: self.assembly.state,
@@ -320,6 +343,7 @@ impl Plugin {
             state,
             requirements: _,
             samplers: _,
+            collections: _,
             dependencies,
             suites,
             settings,
@@ -416,25 +440,49 @@ impl Plugin {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn run(self) -> Result<()> {
-        // The Host Supplies Managed Listener Coordinates Through Its Private Launch Protocol.
-        let managed = env::var_os("HARMOS_ADDRESS").is_some();
-        if managed {
+        if env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some() {
             return self.into_harmos()?.run().map_err(Error::from);
         }
-        let values = crate::configuration::load()?;
-        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", None, &values)?;
-        self.run_with(address)
-    }
-
-    pub fn run_with(self, address: impl Into<String>) -> Result<()> {
-        // The Listener Owns Its Runtime; This Thread Only Waits for Shutdown.
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        let values = configuration::load()?;
+        let configured = env::var_os("DOKIME_REMOTE")
+            .map(|value| !value.is_empty())
+            .unwrap_or_else(|| values.get("DOKIME_REMOTE").is_some_and(|value| !value.is_empty()));
+        let address = "127.0.0.1:0";
+        // The Listener Owns Its Runtime; This Thread Only Connects and Waits for Shutdown.
+        let runtime = Builder::new_current_thread().enable_all().build()?;
+        if !configured {
+            return runtime.block_on(async move {
+                let mut listener = self.into_harmos()?.remote().start(address).await?;
+                signal::ctrl_c().await?;
+                listener.close().await?;
+                Ok(())
+            });
+        }
+        let remote = configuration::resolve("DOKIME_REMOTE", None, &values)?;
         runtime.block_on(async move {
-            let mut listener = self.into_harmos()?.remote().start(address).await?;
-            println!("harmos listening {}", listener.address());
-            tokio::signal::ctrl_c().await?;
-            listener.close().await?;
-            Ok(())
+            let client = client::connect_with(client::ConnectionSettings {
+                target: Some(remote),
+                ..Default::default()
+            })
+            .await?;
+            let options = client::PluginRegisterOptions {
+                address: Some(address.into()),
+                ..Default::default()
+            };
+            let result = async {
+                client.plugins().register_with(self, options).await?;
+                signal::ctrl_c().await?;
+                Ok(())
+            }
+            .await;
+            let closed = client.close().await;
+            match (result, closed) {
+                (Err(error), Err(cleanup)) => {
+                    Err(Error::Invalid(format!("Run Plugin: Resolve the Run and Cleanup Failures: {error:?}; {cleanup:?}")))
+                }
+                (result, Ok(())) => result,
+                (Ok(()), closed) => closed,
+            }
         })
     }
 }
@@ -470,6 +518,32 @@ mod tests {
         model::{Protobuf, lane_declaration},
         schema,
     };
+
+    #[derive(crate::Row)]
+    struct CollectionReading {
+        value: f64,
+    }
+
+    #[derive(crate::Row)]
+    struct CollectionLink {
+        value: u64,
+    }
+
+    #[test]
+    fn native_collections_register_grouped_members_without_product_producers() -> Result<()> {
+        let first = ::harmos::plugin::Stream::<CollectionReading>::new("first");
+        let second = ::harmos::plugin::Stream::<CollectionLink>::new("second");
+        let collection = ::harmos::plugin::Collection::operation(async |_, _| Ok(()))
+            .stream(first)
+            .stream(second)
+            .every(prost_types::Duration { seconds: 0, nanos: 25_000_000 });
+        let declarations = Plugin::of::<()>("1.0.0").identifier("native").collection(collection).declarations()?;
+        assert_eq!(declarations.streams.len(), 2);
+        let group = &declarations.streams[0].collection;
+        assert!(!group.is_empty());
+        assert!(declarations.streams.iter().all(|member| &member.collection == group));
+        Ok(())
+    }
 
     #[test]
     fn lanes_preserve_declarations_and_operation_assignments() -> Result<()> {

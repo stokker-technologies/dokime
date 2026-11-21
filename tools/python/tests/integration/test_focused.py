@@ -80,12 +80,12 @@ class ChangedPathsTests(unittest.TestCase):
 
             # A Story Changes Only Its Harness; Shared Fixtures Select All Owning Harnesses.
             commands = focused.selections(root, metadata, ["engine/tests/integration/save.rs"], None)
-            self.assertEqual(commands, [["--locked", "--package", "engine", "--features", "engine/testing", "--test", "integration"]])
+            self.assertEqual(commands, [["--locked", "--package", "engine", "--test", "integration"]])
             commands = focused.selections(root, metadata, ["engine/tests/support/fixture.rs"], None)
             self.assertEqual([command[2] for command in commands], ["engine"])
             self.assertIn("system", commands[0])
 
-            # A Source Edit Reaches Renamed And Transitive Consumers, Excluding Unrelated Packages.
+            # A Source Edit Reaches Renamed and Transitive Consumers, Excluding Unrelated Packages.
             commands = focused.selections(root, metadata, ["messages/src/lib.rs"], "integration")
             self.assertEqual(len(commands), 1)
             self.assertEqual(
@@ -93,26 +93,21 @@ class ChangedPathsTests(unittest.TestCase):
                 ["client", "engine", "messages"],
             )
             self.assertTrue(all(command[-2:] == ["--test", "integration"] for command in commands))
-            self.assertIn("client/testing,engine/testing,messages/testing", commands[0])
             self.assertEqual(focused.selections(root, metadata, ["messages"], "integration"), commands)
 
-            # A Concurrent Source Edit Broadens An Already Selected Story Back To All Its Tests.
+            # A Concurrent Source Edit Broadens an Already Selected Story Back to All Its Tests.
             commands = focused.selections(root, metadata, ["engine/tests/integration/save.rs", "messages/src/lib.rs"], None)
             self.assertEqual(len(commands), 1)
             self.assertEqual(commands[0][-1], "--tests")
             self.assertEqual(focused.selections(root, metadata, ["engine/tests/integration/deleted.rs"], None)[0][-1], "integration")
 
-            # Workspace Changes Cover Every Package; Unknown Languages And Empty Selections Fail Explicitly.
+            # Workspace Changes Cover Every Package; Unknown Languages and Empty Selections Fail Explicitly.
             commands = focused.selections(root, metadata, ["Cargo.lock"], "unit")
             self.assertEqual(len(commands), 1)
             self.assertEqual(
                 {commands[0][index + 1] for index, value in enumerate(commands[0][:-1]) if value == "--package"},
                 {"messages", "engine", "client", "independent"},
             )
-            commands = focused.selections(
-                root, metadata, ["engine/tests/integration/save.rs"], None, ["engine/runtime", "independent/unused"]
-            )
-            self.assertIn("engine/runtime,engine/testing", commands[0])
             for paths, layer in (
                 (["docs/guide.md"], None),
                 (["../outside.rs"], None),
@@ -121,6 +116,87 @@ class ChangedPathsTests(unittest.TestCase):
             ):
                 with self.subTest(paths=paths), self.assertRaises(ValueError):
                     focused.selections(root, metadata, paths, layer)
+        finally:
+            temporary_directory.cleanup()
+
+    def test_changed_paths_and_direct_targets_share_feature_inference(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name).resolve()
+            (root / "tools").mkdir()
+            (root / "tools/project.toml").write_text("", encoding="utf-8")
+            targets = [
+                {"name": "engine", "kind": ["lib"], "test": True, "src_path": str(root / "engine/src/lib.rs")},
+                {
+                    "name": "integration",
+                    "kind": ["test"],
+                    "test": True,
+                    "src_path": str(root / "engine/tests/integration/main.rs"),
+                    "required-features": ["testing"],
+                },
+                {
+                    "name": "system",
+                    "kind": ["test"],
+                    "test": True,
+                    "src_path": str(root / "engine/tests/system/main.rs"),
+                    "required-features": ["system-testing"],
+                },
+                {"name": "engine-tool", "kind": ["bin"], "test": True, "required-features": ["command"]},
+                {"name": "engine-example", "kind": ["example"], "test": True, "required-features": ["examples"]},
+            ]
+            metadata = {
+                "packages": [
+                    {"name": "engine", "manifest_path": str(root / "engine/Cargo.toml"), "dependencies": [], "targets": targets},
+                    {
+                        "name": "independent",
+                        "manifest_path": str(root / "independent/Cargo.toml"),
+                        "dependencies": [],
+                        "targets": [{"name": "integration", "kind": ["test"], "test": True, "required-features": ["unused"]}],
+                    },
+                ]
+            }
+            cases = [
+                (["--test", "integration"], "engine/testing"),
+                (["--tests"], "engine/command,engine/system-testing,engine/testing"),
+                (["--lib"], None),
+                (["--bin", "engine-tool"], "engine/command"),
+                (["--bin", "engine-tool", "--test", "integration"], "engine/command,engine/testing"),
+            ]
+            for selectors, features in cases:
+                output = io.StringIO()
+                with (
+                    self.subTest(selectors=selectors),
+                    patch.object(focused.subprocess, "run", return_value=SimpleNamespace(stdout=json.dumps(metadata))) as execute,
+                    redirect_stdout(output),
+                ):
+                    status = focused.run(root, ["--locked", "--package", "engine", *selectors, "--no-run"], plan=True)
+                self.assertEqual(status, 0)
+                command = output.getvalue().split()
+                self.assertEqual(command.count("--features"), int(features is not None))
+                if features is not None:
+                    self.assertEqual(command[command.index("--features") + 1], features)
+                self.assertTrue(all(call.args[0][1] == "metadata" for call in execute.call_args_list))
+
+            for path, layer, features in (
+                ("engine/tests/integration/main.rs", None, "engine/testing"),
+                ("engine/src/lib.rs", "integration", "engine/testing"),
+                ("engine/src/lib.rs", None, "engine/command,engine/system-testing,engine/testing"),
+            ):
+                output = io.StringIO()
+                with (
+                    self.subTest(path=path, layer=layer),
+                    patch.object(focused.subprocess, "run", return_value=SimpleNamespace(stdout=json.dumps(metadata))) as execute,
+                    patch.object(focused.cargo, "focused") as compile,
+                    redirect_stdout(output),
+                ):
+                    status = focused.changed(root, [path], layer, plan=True, no_run=True, timings=False)
+                self.assertEqual(status, 0)
+                compile.assert_not_called()
+                command = output.getvalue().split()
+                self.assertIn("--no-run", command)
+                self.assertEqual(command.count("--features"), 1)
+                self.assertEqual(command[command.index("--features") + 1], features)
+                self.assertTrue(all(call.args[0][1] == "metadata" for call in execute.call_args_list))
         finally:
             temporary_directory.cleanup()
 
@@ -178,7 +254,23 @@ class ChangedPathsTests(unittest.TestCase):
             def execute(command: list[str], **kwargs: Any) -> SimpleNamespace:
                 if command[1] == "metadata":
                     return SimpleNamespace(
-                        stdout=json.dumps({"packages": [{"name": "example", "targets": [{"kind": ["test"], "name": "integration"}]}]})
+                        stdout=json.dumps(
+                            {
+                                "packages": [
+                                    {
+                                        "name": "example",
+                                        "targets": [
+                                            {
+                                                "kind": ["test"],
+                                                "test": True,
+                                                "name": "integration",
+                                                "required-features": ["testing"],
+                                            }
+                                        ],
+                                    }
+                                ]
+                            }
+                        )
                     )
                 configuration = Path(command[command.index("--config-file") + 1])
                 profile = tomllib.loads(configuration.read_text())["profile"]["project"]
@@ -202,7 +294,11 @@ class ChangedPathsTests(unittest.TestCase):
             self.assertEqual(store_factory.call_count, 2)
             self.assertEqual(compiler.call_count, 2)
             compiler.assert_called_with("test")
+            for command, _, _ in observed:
+                self.assertEqual(command.count("--features"), 1)
+                self.assertEqual(command[command.index("--features") + 1], "example/testing")
             command, options, profile = observed[0]
+            self.assertLess(command.index("--features"), command.index("--"))
             self.assertEqual(command[-3:], ["--", "--exact", "save"])
             self.assertEqual(command[command.index("--no-tests") + 1], "fail")
             self.assertEqual(options["env"]["CARGO_BUILD_WARNINGS"], "deny")
@@ -229,6 +325,8 @@ class ChangedPathsTests(unittest.TestCase):
             native = '<testsuite><testcase name="save"><failure/></testcase></testsuite>'
 
             def execute(command: list[str], **options: Any) -> SimpleNamespace:
+                if command[1] == "metadata":
+                    return SimpleNamespace(stdout=json.dumps({"packages": []}))
                 configuration = Path(command[command.index("--config-file") + 1])
                 junit = configuration.parent / "store/project/junit.xml"
                 junit.parent.mkdir(parents=True)

@@ -7,7 +7,7 @@
  * ***
  */
 
-/* The installed plugin bundles, one aligned row each.
+/* The plugin entries, managed bundles and unmanaged registered plugins, one aligned row each.
  *
  * Name, source, enabled, settings, actions: the same columns the host and launch
  * programs use, so the whole page is one list. The bundle's identity digest
@@ -19,16 +19,16 @@
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
 import { RotateCw, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@dokime/plots/components/ui/badge";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { PluginState } from "@host/model";
@@ -40,6 +40,9 @@ type PluginListProps = {
   actions?: ReactNode;
   entries: ManagedPlugin[];
   builtInRows?: PluginTableRow[];
+  /** Shown in place in the table body while the list cannot be read. */
+  failure?: ReactNode;
+  loading?: boolean;
   onRemove: (entry: ManagedPlugin) => void;
   /** Opens the plugin's own settings page; null when it contributes none. */
   onOpenSettings: (entry: ManagedPlugin) => void;
@@ -62,6 +65,8 @@ export function PluginList({
   actions,
   entries,
   builtInRows = [],
+  failure,
+  loading,
   onRemove,
   onOpenSettings,
   removingId,
@@ -79,7 +84,14 @@ export function PluginList({
     const switchable = entry.value !== undefined;
 
     return {
-      alert: status.reason ? <ErrorCard failure={pluginStartFailure(entry, generation)} /> : null,
+      alert: entry.failure ? (
+        <ErrorCard
+          failure={pluginStartFailure(entry, generation)}
+          onRetry={entry.value?.enabled ? () => reload.mutate(entry.name) : undefined}
+          retryLabel="Restart Plugin"
+          retryDisabled={reload.isPending}
+        />
+      ) : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
         ? {
@@ -90,6 +102,8 @@ export function PluginList({
         : undefined,
       key: entry.name,
       name,
+      placement: entryPlacement(entry),
+      status: status.label,
       onOpenSettings: configurable ? () => onOpenSettings(entry) : undefined,
       source: entrySource(entry),
       trailing: (
@@ -119,7 +133,7 @@ export function PluginList({
     };
   });
 
-  return <PluginTable actions={actions} label="Plugins" rows={[...builtInRows, ...rows]} />;
+  return <PluginTable actions={actions} failure={failure} label="Plugins" loading={loading} rows={[...builtInRows, ...rows]} />;
 }
 
 /* === Public Functions === */
@@ -129,27 +143,34 @@ export function PluginList({
  * is doing now, and a refused change names what keeps running.
  */
 export function statusPresentation(entry: ManagedPlugin): StatusPresentation {
-  if (entry.failure) return { label: "Unavailable", reason: entry.failure.message, variant: "destructive" };
+  if (entry.failure) return { label: "Failed", reason: entry.failure.message, variant: "destructive" };
   if (!entry.value?.enabled) return { label: "Disabled", reason: null, variant: "outline" };
   switch (entry.state) {
     case PluginState.READY:
-      return { label: "Active", reason: null, variant: "success" };
+      return { label: "Ready", reason: null, variant: "success" };
     case PluginState.CONNECTING:
-      return { label: "Connecting…", reason: null, variant: "outline" };
+      return { label: "Starting", reason: null, variant: "outline" };
+    case PluginState.OFFLINE:
+      return { label: "Offline", reason: null, variant: "warning" };
     case PluginState.STOPPING:
-      return { label: "Stopping…", reason: null, variant: "outline" };
+      return { label: "Stopping", reason: null, variant: "outline" };
     case PluginState.STOPPED:
       return { label: "Stopped", reason: null, variant: "outline" };
     default:
-      return { label: "Unavailable", reason: null, variant: "warning" };
+      return { label: "Failed", reason: null, variant: "destructive" };
   }
+}
+
+/** Managed entries are started by the host; unmanaged ones by their author. */
+export function entryPlacement(entry: ManagedPlugin): "Managed" | "Unmanaged" {
+  return entry.placement?.kind.case === "remote" ? "Unmanaged" : "Managed";
 }
 
 /* === Private Functions === */
 
 function entrySource(entry: ManagedPlugin): string {
   const placement = entry.placement?.kind;
-  const source = placement?.case === "remote" ? placement.value.url : placement?.case === "managed" ? "Managed Bundle" : "Host Guest";
+  const source = placement?.case === "remote" ? placement.value.url : placement?.case === "managed" ? "Bundle" : "Host Guest";
   const version = entry.description?.version;
   return version ? `${source} · v${version}` : source;
 }

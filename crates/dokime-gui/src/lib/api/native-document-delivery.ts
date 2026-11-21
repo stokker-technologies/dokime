@@ -19,10 +19,10 @@
 
 // Local Imports
 import { commands } from "@/lib/desktop/commands";
-import type { DesktopSaveDocument, DesktopSaveKind } from "@/lib/desktop/delivery";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import type { DesktopSaveDocument, DesktopSaveKind } from "@dokime/document/lib/contracts/delivery";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import { NativeApiUnsupportedError } from "./native-values";
+import { NativeApiUnsupportedError } from "@dokime/plots/lib/api/native-values";
 
 /* === Re-Exports === */
 

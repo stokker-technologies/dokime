@@ -9,7 +9,9 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { cutKey } from "@dokime/plots/lib/rpc/canonical";
+import { nativeFailure } from "@/lib/rpc/failure-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -26,7 +28,7 @@ import {
   setNativePluginEnabled,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
-import { clearPluginNotifications, toast } from "@/lib/notifications";
+import { clearPluginNotifications, toast } from "@dokime/plots/lib/notifications";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Query Keys === */
@@ -49,10 +51,11 @@ export function PluginStartNotifications() {
     for (const entry of query.data) {
       const title = startNotification(entry);
       if (!title || !entry.failure) continue;
-      const key = `${session.identity.generation}:${entry.name}:${entry.activation}:${entry.failure.message}`;
+      const failure = pluginStartFailure(entry, session.identity.generation);
+      const key = failure.id;
       if (seen.current.has(key)) continue;
       seen.current.add(key);
-      toast.error(pluginStartFailure(entry, session.identity.generation), {
+      toast.error(failure, {
         context: "background",
         description: entry.failure.message,
         source: entry.description?.id || entry.name,
@@ -73,7 +76,12 @@ export function PluginStartNotifications() {
 
 export function pluginStartFailure(entry: ManagedPlugin, generation: string) {
   if (!entry.failure) throw new Error("Read Plugin Failure: Plugin Has No Reported Failure");
-  return failureOf(entry.failure, "Plugin Unavailable", [generation, entry.name, entry.activation, entry.failure.message].join(":"));
+  const detail = { ...nativeFailure(entry.failure, entry.failure.code), plugin: entry.name };
+  const identity = cutKey({
+    ...detail,
+    identifiers: Object.entries(detail.identifiers ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+  });
+  return failureOf({ notificationFailure: detail }, "Plugin Unavailable", [generation, entry.name, entry.activation, identity].join(":"));
 }
 
 export function startNotification(entry: ManagedPlugin): string | null {

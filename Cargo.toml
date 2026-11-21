@@ -19,6 +19,7 @@ members = [
   "crates/dokime-operations",
   "crates/dokime-runtime",
   "crates/dokime-packaging",
+  "plugins/sidecars/host",
   "plugins/sidecars/obc",
   "sdk/rust",
   "tools/protocol",
@@ -32,6 +33,7 @@ default-members = [
   "sdk/rust",
   "crates/dokime-protocol",
   "crates/dokime-packaging",
+  "plugins/sidecars/host",
   "plugins/sidecars/obc",
 ]
 resolver = "2"
@@ -52,23 +54,23 @@ repository = "https://github.com/stokker-technologies/dokime"
 [workspace.dependencies]
 # Local
 dokime-client-internal = { path = "crates/dokime-client-internal" }
-dokime-test-support = { path = "crates/dokime-test-support" }
 dokime-operations = { version = "0.1.5", path = "crates/dokime-operations" }
 dokime-packaging = { version = "0.1.5", path = "crates/dokime-packaging" }
 dokime-protocol = { version = "0.1.5", path = "crates/dokime-protocol" }
 dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
+dokime-test-support = { path = "crates/dokime-test-support" }
 
 # Git
 # Edit This Pin, Then Run mise run generate -- --protocol and mise run prepare:locks.
-harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
-harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3" }
+harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
+harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -84,11 +86,16 @@ num-bigint = { version = "0.5.1", features = ["serde"] }
 num-traits = { version = "0.2.19" }
 regex = { version = "1.13.1" }
 semver = { version = "1.0.28" }
-spdx = { version = "0.13.5" }
 sha2 = { version = "0.11.1" }
+spdx = { version = "0.13.5" }
+starship-battery = { version = "0.12.0" }
+sysinfo = { version = "0.40.0" }
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
+windows = { version = "0.62.2" }
 windows-sys = { version = "0.61.2" }
+# Excludes the default Tokio integration; host D-Bus calls use the blocking API on async-io.
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 zeroize = { version = "=1.9.1" }
 
 # Serialization
@@ -155,6 +162,7 @@ rusqlite = { version = "0.41.1", features = ["bundled", "limits"] }
 image = { version = "0.25.10", default-features = false }
 tauri-bundler = { version = "2.10.4" }
 tauri-utils = { version = "2.10.2" }
+tauri-winres = { version = "0.3.6" }
 
 # Testing
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }

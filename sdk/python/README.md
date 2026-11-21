@@ -37,8 +37,14 @@ uv run python -m starter_project.plugin
 uv run python -m starter_project
 ```
 
-The plugin module prints `harmos listening <host>:<port>` as the first stdout
-line, flushes it, and serves until interrupted. The plugin version comes from its
+The starter calls `await plugin.serve()`. Launch credentials
+(`HARMOS_HOST_ENDPOINT` and `HARMOS_LAUNCH_TOKEN`) select the library's authenticated
+announcement; otherwise `DOKIME_REMOTE` selects self-registration, and an absent
+remote selects standalone serving. These paths do not print readiness output.
+Programmatic `client.plugins.register(plugin, address=...)` owns the listener.
+Closing that client stops its listener and retains the host entry. Use
+`unregister()` explicitly to remove an entry.
+The plugin version comes from its
 owning installed distribution, including editable installs; a class `version`
 overrides that metadata. Source-only plugins must declare a class version.
 The package module connects to the host,
@@ -53,9 +59,9 @@ until answered or the execution is stopped. Answer them in the desktop or with
 and operations without starting a product host.
 
 Set `DOKIME_REMOTE` to an HTTP origin or `.pair` file in the process environment
-or working-directory `.env`. Set `DOKIME_PLUGIN_ADDRESS` to override the plugin
-listener's default `127.0.0.1:0`. Explicit arguments take precedence, then the
-process environment, then `.env`, then defaults. Keep secrets in Secret Storage.
+or working-directory `.env`. Explicit connection arguments take precedence, then
+the process environment, then `.env`. Listeners bind `127.0.0.1:0` unless a
+programmatic registration call supplies an address. Keep secrets in Secret Storage.
 
 ## Bound Client Flow
 
@@ -78,7 +84,7 @@ finally:
 ```
 
 `execution.start()` and `execution.watch()` also remain available separately.
-Closing a client unregisters its own registrations and closes its connection.
+Closing a client stops its listeners, retains their host entries and closes its connection.
 Execution sealing and sealed progress require the corresponding host contract;
 the SDK reports unsupported contracts explicitly.
 

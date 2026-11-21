@@ -12,20 +12,20 @@
 
 /* === External Imports === */
 
-import type { NotificationFailure } from "@/lib/notification-details";
-import { failureOf } from "@/lib/notification-details";
+import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
 import { commands } from "@/lib/desktop/commands";
 import type { ParameterOverrides } from "@/lib/desktop/settings";
-import { isTauriDesktop } from "@/lib/desktop-open";
-import type { ParameterDefinition } from "@/lib/types";
-import { isReportBuild } from "@/lib/ui-mode";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import type { ParameterDefinition } from "@dokime/plots/lib/types";
+import { isReportBuild } from "@dokime/document/lib/ui-mode";
 
 /* === Constants === */
 
@@ -161,7 +161,7 @@ function writeDesktop(values: ParameterOverrides): Promise<void> {
         const next = pending;
         pending = null;
         try {
-          await commands.desktopParametersWrite(next);
+          await commands.desktopSavedSettingsUpdate({ parameters: next });
         } catch (error) {
           toast.error(failureOf(error, "Could Not Save Remembered Parameters"));
         }
@@ -197,12 +197,9 @@ function parameterStorage(): StateStorage {
   }
   return {
     getItem: async () => {
-      // Distinguish An Absent Native File From An Intentionally Empty Map.
-      const values = await commands.desktopParametersRead();
-      if (values === null) {
-        if (window.localStorage.getItem(PARAMETER_OVERRIDES_STORAGE_KEY) !== null) {
-          throw new Error("Unsupported browser-owned remembered parameters. Select fresh storage before editing.");
-        }
+      // Distinguish Parameters Never Saved From An Intentionally Empty Map.
+      const values = (await commands.desktopSavedSettingsRead()).parameters;
+      if (values === undefined) {
         return null;
       }
       return JSON.stringify({ state: { overrides: values }, version: 1 });

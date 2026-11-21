@@ -21,7 +21,6 @@ import tempfile
 import unittest
 from collections.abc import Iterator
 from pathlib import Path
-from queue import Queue
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
@@ -76,7 +75,10 @@ class WorkflowTests(unittest.TestCase):
             ("csharp", "sdk-test", ["install", "build", "test"]),
             ("cpp", "sdk-test", ["install", "build", "test"]),
         ):
-            with patch.object(workflow.subprocess, "run", return_value=Mock(returncode=0)) as command:
+            with (
+                patch.object(workflow.subprocess, "run", return_value=Mock(returncode=0)) as command,
+                patch.object(Path, "glob", side_effect=lambda _: iter([Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz")])),
+            ):
                 self.assertEqual(workflow.main([operation, "--language", language]), 0)
             observed = [call.args[0][3] if call.args[0][3] == "install" else call.args[0][6] for call in command.call_args_list]
             self.assertEqual(observed, expected)
@@ -92,12 +94,13 @@ class WorkflowTests(unittest.TestCase):
                 with (
                     patch.object(workflow.subprocess, "run", side_effect=results) as command,
                     patch.object(workflow.sys, "stderr", new_callable=io.StringIO) as stderr,
+                    patch.object(Path, "glob", side_effect=lambda _: iter([Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz")])),
                 ):
                     self.assertEqual(workflow.main(["sdk-test", "--language", "cpp", "--profile", profile]), 7)
                 self.assertEqual(command.call_count, failure_at + 1)
                 if failure_at:
                     arguments = command.call_args.args[0]
-                    expected = ["--", "--preset", preset]
+                    expected = ["--", "--preset", preset, "--sdk-package", str(Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz").resolve())]
                     if failure_at == 2:
                         expected.append("--verbose")
                     self.assertEqual(arguments[7:], expected)
@@ -192,20 +195,6 @@ class WorkflowTests(unittest.TestCase):
             run.assert_not_called()
         finally:
             temporary.cleanup()
-
-    def test_cpp_plugin_output_is_drained_after_readiness_and_on_startup_failure(self) -> None:
-        support = runpy.run_path(str(Path(__file__).resolve().parents[4] / "sdk/cpp/tests/support/run_plugin.py"))
-        for lines, address in (
-            ("plugin startup\nharmos listening http://127.0.0.1:7000\nplugin progress\n", "http://127.0.0.1:7000"),
-            ("plugin startup failed\n", None),
-        ):
-            ready: Queue[str | None] = Queue()
-            process = Mock(stdout=io.StringIO(lines))
-            with patch("sys.stdout", new_callable=io.StringIO) as console:
-                support["read_output"](process, ready)
-            self.assertEqual(ready.get_nowait(), address)
-            self.assertTrue(ready.empty())
-            self.assertEqual(console.getvalue(), lines)
 
     def test_bootstrap_commands_run_in_order_and_stop_on_failure(self) -> None:
         commands = ["mise run ci:prerequisites -- --gui-runtime", "mise run ci:prerequisites -- --desktop"]
@@ -325,9 +314,9 @@ class WorkflowTests(unittest.TestCase):
             ("schedule", None, 1, "HTTP/2 404", [], True),
             ("schedule", None, 1, "HTTP/2 403", [], None),
             ("schedule", None, 1, "HTTP/2 503", [], None),
-            ("workflow_dispatch", sha, 0, "", [], True),
-            ("workflow_dispatch", sha, 0, "", [{"id": 6}], False),
-            ("workflow_dispatch", sha, 0, "", [{"id": 7}, {"id": 8}], True),
+            ("workflow_dispatch", sha, 0, "", [], False),
+            ("workflow_dispatch", "b" * 40, 0, "", [{"id": 6}], False),
+            ("workflow_dispatch", "b" * 40, 0, "", [{"id": 7}, {"id": 8}], True),
         )
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
@@ -356,9 +345,9 @@ class WorkflowTests(unittest.TestCase):
                         self.assertEqual(output.read_text(), "")
                         continue
                     self.assertEqual(workflow.main(["nightly-freshness"]), 0)
-                    self.assertEqual(output.read_text(), f"build={str(expected).lower()}\n")
-                    if event == "workflow_dispatch":
-                        request.assert_not_called()
+                    self.assertEqual(output.read_text(), f"build={str(expected).lower()}\nbase={published or ''}\n")
+                    if not code:
+                        request.assert_called_once_with("git/ref/tags/nightly")
             with patch.dict(os.environ, {"GITHUB_REF": "refs/heads/topic"}, clear=True), self.assertRaises(ValueError):
                 workflow.main(["nightly-freshness"])
         finally:
@@ -422,7 +411,7 @@ class WorkflowTests(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"):
+            for name in ("mise.lock", "Cargo.lock", "uv.lock", "pnpm-lock.yaml"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("original", encoding="utf-8")

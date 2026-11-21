@@ -11,5 +11,4 @@
 
 /* === Modules === */
 
-mod capture_folders;
 mod host;

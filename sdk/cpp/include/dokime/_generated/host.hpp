@@ -5,9 +5,6 @@ enum class HostOperation {
   BackendEnvironment,
   ContentArtifactsCreate,
   DocumentsAppendParts,
-  EffectsCreate,
-  EffectsGet,
-  EffectsSet,
   EvidenceLogsAppend,
   EvidenceRecordsList,
   EvidenceRecordsAppend,
@@ -37,6 +34,8 @@ enum class HostOperation {
   OperationsList,
   OperationsGet,
   PluginsSettingsList,
+  PluginsStateGet,
+  PluginsStatePut,
   TimeGet,
   TimeSleep,
 };
@@ -53,18 +52,6 @@ struct HostContentArtifactsCreateOptions {
 struct HostDocumentsAppendPartsOptions {
   std::optional<::dokime::model::Section> subsection;
   std::optional<::dokime::Card> card;
-  std::optional<std::string> request_id;
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostEffectsCreateOptions {
-  std::optional<std::string> request_id;
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostEffectsGetOptions {
-  std::optional<::harmos::Position> at;
-  std::optional<::harmos::OperationPolicy> policy;
-};
-struct HostEffectsSetOptions {
   std::optional<std::string> request_id;
   std::optional<::harmos::OperationPolicy> policy;
 };
@@ -205,6 +192,12 @@ struct HostPluginsSettingsListOptions {
   std::optional<::harmos::ReadCut> at;
   std::optional<::harmos::OperationPolicy> policy;
 };
+struct HostPluginsStateGetOptions {
+  std::optional<::harmos::OperationPolicy> policy;
+};
+struct HostPluginsStatePutOptions {
+  std::optional<::harmos::OperationPolicy> policy;
+};
 struct HostTimeGetOptions {
   std::optional<::harmos::OperationPolicy> policy;
 };
@@ -229,6 +222,12 @@ struct HostPromptsResource {
                                                  const std::map<std::string, ::dokime::Value> &values,
                                                  HostPromptsCreateOptions options = {});
 };
+struct HostPluginsStateResource {
+  Context context;
+  HostPluginsStateResource(Context context_value) : context(context_value) {}
+  ::harmos::host::v1::plugins::StateGetResponse get(HostPluginsStateGetOptions options = {});
+  std::uint64_t put(const std::uint64_t &expected_revision, const std::string &value, HostPluginsStatePutOptions options = {});
+};
 struct HostPluginsSettingsResource {
   Context context;
   HostPluginsSettingsResource(Context context_value) : context(context_value) {}
@@ -237,7 +236,8 @@ struct HostPluginsSettingsResource {
 struct HostPluginsResource {
   Context context;
   HostPluginsSettingsResource settings;
-  HostPluginsResource(Context context_value) : context(context_value), settings(context_value) {}
+  HostPluginsStateResource state;
+  HostPluginsResource(Context context_value) : context(context_value), settings(context_value), state(context_value) {}
 };
 struct HostOperationsResource {
   Context context;
@@ -331,16 +331,6 @@ struct HostEvidenceResource {
                                                   const std::string &field, const std::string &step,
                                                   HostEvidenceStatisticsOptions options = {});
 };
-struct HostEffectsResource {
-  Context context;
-  HostEffectsResource(Context context_value) : context(context_value) {}
-  ::dokime::plugin::EffectsCreateResponse create(const std::string &resource, const std::string &inverse_operation,
-                                                 const std::string &inverse, const std::string &description,
-                                                 HostEffectsCreateOptions options = {});
-  ::dokime::plugin::EffectsGetResponse get(const std::string &name, HostEffectsGetOptions options = {});
-  ::dokime::plugin::EffectsSetResponse set(const std::string &name, const ::dokime::plugin::EffectWritable &value,
-                                           const std::string &expected_revision, HostEffectsSetOptions options = {});
-};
 struct HostDocumentsResource {
   Context context;
   HostDocumentsResource(Context context_value) : context(context_value) {}
@@ -367,7 +357,6 @@ struct HostRoot {
   HostBackendResource backend;
   HostContentResource content;
   HostDocumentsResource documents;
-  HostEffectsResource effects;
   HostEvidenceResource evidence;
   HostExecutionsResource executions;
   HostFilesResource files;

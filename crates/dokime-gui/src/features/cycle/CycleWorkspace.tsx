@@ -37,14 +37,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 /* === Local Imports === */
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { ErrorCard } from "@/components/ErrorCard";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { failureOf } from "@/lib/notification-details";
-import { toast } from "@/lib/notifications";
-import type { TestExecution } from "@/lib/types";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { toast } from "@dokime/plots/lib/notifications";
+import type { TestExecution } from "@dokime/plots/lib/types";
 import { useRerunNoticeStore } from "@/stores/rerun-notice-store";
-import { useSelectionStore } from "@/stores/selection-store";
+import { useSelectionStore } from "@dokime/document/stores/selection-store";
 import { ControlCard } from "./ControlCard";
 import { CycleEvidencePane } from "./CycleEvidencePane";
 import { cycleControlState, inputNeededLabel, rerunNoticeLines } from "./control-model";
@@ -70,13 +70,13 @@ import {
   isCycleArchivable,
   isTerminalExecutionStatus,
   selectedCycleRow,
-} from "./cycle-workspace-model";
+} from "@dokime/document/features/cycle/cycle-workspace-model";
 import { ExecutionSections } from "./ExecutionSections";
-import { executionPagePrompts } from "./execution-sections-model";
+import { executionPagePrompts } from "@dokime/document/features/cycle/execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
-import { NodeSummary } from "./NodeSummary";
-import { answerablePrompts } from "./prompt-banner-model";
+import { NodeSummary } from "@dokime/document/features/cycle/NodeSummary";
+import { answerablePrompts } from "@dokime/document/features/cycle/prompt-banner-model";
 import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
 
 /* === Types === */

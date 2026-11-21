@@ -33,10 +33,10 @@
 /* === External Imports === */
 
 import { useMemo } from "react";
-import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
+import { CycleSidebarCasesView } from "@dokime/document/features/cycle/CycleSidebarCasesView";
 import { useCycleDetailQuery, useCyclePendingPromptsQuery, useRerunCase } from "./cycle-queries";
 /* === Local Imports === */
-import type { CycleSelection } from "./cycle-workspace-model";
+import type { CycleSelection } from "@dokime/document/features/cycle/cycle-workspace-model";
 
 /* === Types === */
 export type CycleSidebarCasesProps = {

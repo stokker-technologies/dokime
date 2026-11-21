@@ -18,6 +18,7 @@ from harmos._wire.host.v1.invocations_pb2 import (
 )
 from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
 from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
+from harmos._wire.host.v1.plugins.state_pb2 import StateGetRequest, StateGetResponse, StatePutRequest, StatePutResponse
 from harmos._wire.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
 from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
 from harmos._wire.model.v1.invocation_pb2 import InstanceState
@@ -31,15 +32,6 @@ import dokime_sdk._wire.model.v1.metadata_pb2
 from dokime_sdk._wire.host.v1.backend_pb2 import BackendEnvironmentRequest, BackendEnvironmentResponse
 from dokime_sdk._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest, ArtifactsCreateResponse
 from dokime_sdk._wire.host.v1.documents_pb2 import DocumentsAppendPartsRequest, DocumentsAppendPartsResponse
-from dokime_sdk._wire.host.v1.effects_pb2 import (
-    EffectsCreateRequest,
-    EffectsCreateResponse,
-    EffectsGetRequest,
-    EffectsGetResponse,
-    EffectsSetRequest,
-    EffectsSetResponse,
-    EffectWritable,
-)
 from dokime_sdk._wire.host.v1.evidence.logs_pb2 import LogsAppendRequest, LogsAppendResponse
 from dokime_sdk._wire.host.v1.evidence.records_pb2 import (
     CapturedRecordSelection,
@@ -113,9 +105,6 @@ class HostOperation(Enum):
     BACKEND_ENVIRONMENT = "dokime.host.v1.Backend/Environment"
     CONTENT_ARTIFACTS_CREATE = "dokime.host.v1.content.Artifacts/Create"
     DOCUMENTS_APPEND_PARTS = "dokime.host.v1.Documents/AppendParts"
-    EFFECTS_CREATE = "dokime.host.v1.Effects/Create"
-    EFFECTS_GET = "dokime.host.v1.Effects/Get"
-    EFFECTS_SET = "dokime.host.v1.Effects/Set"
     EVIDENCE_LOGS_APPEND = "dokime.host.v1.evidence.Logs/Append"
     EVIDENCE_RECORDS_LIST = "dokime.host.v1.evidence.Records/List"
     EVIDENCE_RECORDS_APPEND = "dokime.host.v1.evidence.Records/Append"
@@ -145,6 +134,8 @@ class HostOperation(Enum):
     OPERATIONS_LIST = "harmos.plugin.v1.Operations/List"
     OPERATIONS_GET = "harmos.plugin.v1.Operations/Get"
     PLUGINS_SETTINGS_LIST = "harmos.plugin.v1.plugins.Settings/List"
+    PLUGINS_STATE_GET = "harmos.plugin.v1.plugins.State/Get"
+    PLUGINS_STATE_PUT = "harmos.plugin.v1.plugins.State/Put"
     TIME_GET = "harmos.plugin.v1.Time/Get"
     TIME_SLEEP = "harmos.plugin.v1.Time/Sleep"
 
@@ -166,11 +157,6 @@ _DOCUMENTS_APPEND_PARTS = Operation(
     visibility=VISIBILITY_PUBLIC,
     watch=False,
 )
-_EFFECTS_CREATE = Operation(
-    HostOperation.EFFECTS_CREATE.value, EffectsCreateRequest, EffectsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
-)
-_EFFECTS_GET = Operation(HostOperation.EFFECTS_GET.value, EffectsGetRequest, EffectsGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
-_EFFECTS_SET = Operation(HostOperation.EFFECTS_SET.value, EffectsSetRequest, EffectsSetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 _EVIDENCE_LOGS_APPEND = Operation(
     HostOperation.EVIDENCE_LOGS_APPEND.value, LogsAppendRequest, LogsAppendResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
@@ -262,6 +248,12 @@ _OPERATIONS_GET = Operation(
 _PLUGINS_SETTINGS_LIST = Operation(
     HostOperation.PLUGINS_SETTINGS_LIST.value, SettingsListRequest, SettingsListResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
+_PLUGINS_STATE_GET = Operation(
+    HostOperation.PLUGINS_STATE_GET.value, StateGetRequest, StateGetResponse, visibility=VISIBILITY_PUBLIC, watch=False
+)
+_PLUGINS_STATE_PUT = Operation(
+    HostOperation.PLUGINS_STATE_PUT.value, StatePutRequest, StatePutResponse, visibility=VISIBILITY_PUBLIC, watch=False
+)
 _TIME_GET = Operation(HostOperation.TIME_GET.value, TimeGetRequest, TimeGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 _TIME_SLEEP = Operation(HostOperation.TIME_SLEEP.value, TimeSleepRequest, TimeSleepResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 
@@ -274,12 +266,6 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
             return cast(Operation[Message, Message], _CONTENT_ARTIFACTS_CREATE)
         case HostOperation.DOCUMENTS_APPEND_PARTS:
             return cast(Operation[Message, Message], _DOCUMENTS_APPEND_PARTS)
-        case HostOperation.EFFECTS_CREATE:
-            return cast(Operation[Message, Message], _EFFECTS_CREATE)
-        case HostOperation.EFFECTS_GET:
-            return cast(Operation[Message, Message], _EFFECTS_GET)
-        case HostOperation.EFFECTS_SET:
-            return cast(Operation[Message, Message], _EFFECTS_SET)
         case HostOperation.EVIDENCE_LOGS_APPEND:
             return cast(Operation[Message, Message], _EVIDENCE_LOGS_APPEND)
         case HostOperation.EVIDENCE_RECORDS_LIST:
@@ -338,6 +324,10 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
             return cast(Operation[Message, Message], _OPERATIONS_GET)
         case HostOperation.PLUGINS_SETTINGS_LIST:
             return cast(Operation[Message, Message], _PLUGINS_SETTINGS_LIST)
+        case HostOperation.PLUGINS_STATE_GET:
+            return cast(Operation[Message, Message], _PLUGINS_STATE_GET)
+        case HostOperation.PLUGINS_STATE_PUT:
+            return cast(Operation[Message, Message], _PLUGINS_STATE_PUT)
         case HostOperation.TIME_GET:
             return cast(Operation[Message, Message], _TIME_GET)
         case HostOperation.TIME_SLEEP:
@@ -350,7 +340,6 @@ class HostRoot:
         self.backend = HostBackendResource(context)
         self.content = HostContentResource(context)
         self.documents = HostDocumentsResource(context)
-        self.effects = HostEffectsResource(context)
         self.evidence = HostEvidenceResource(context)
         self.executions = HostExecutionsResource(context)
         self.files = HostFilesResource(context)
@@ -432,51 +421,6 @@ class HostDocumentsResource:
         if not response.HasField("receipt"):
             raise ValueError("Read DOCUMENTS_APPEND_PARTS: Missing Payload")
         return response.receipt
-
-
-class HostEffectsResource:
-    def __init__(self, context: "Context") -> None:
-        self._context = context
-
-    async def create(
-        self,
-        resource: str,
-        inverse_operation: str,
-        inverse: bytes,
-        description: str,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> EffectsCreateResponse:
-        request = EffectsCreateRequest(
-            resource=resource,
-            inverse_operation=inverse_operation,
-            inverse=inverse,
-            description=description,
-            request_id=request_id if request_id is not None else str(uuid4()),
-        )
-        response = await self._context.call(_EFFECTS_CREATE, request, policy=policy)
-        return response
-
-    async def get(self, name: str, *, at: Position | None = None, policy: OperationPolicy | None = None) -> EffectsGetResponse:
-        request = EffectsGetRequest(name=name, at=at)
-        response = await self._context.call(_EFFECTS_GET, request, policy=policy)
-        return response
-
-    async def set(
-        self,
-        name: str,
-        value: EffectWritable,
-        expected_revision: bytes,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> EffectsSetResponse:
-        request = EffectsSetRequest(
-            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
-        )
-        response = await self._context.call(_EFFECTS_SET, request, policy=policy)
-        return response
 
 
 class HostEvidenceResource:
@@ -811,6 +755,7 @@ class HostPluginsResource:
     def __init__(self, context: "Context") -> None:
         self._context = context
         self.settings = HostPluginsSettingsResource(context)
+        self.state = HostPluginsStateResource(context)
 
 
 class HostPluginsSettingsResource:
@@ -823,6 +768,21 @@ class HostPluginsSettingsResource:
         request = SettingsListRequest(name=name, at=at)
         response = await self._context.call(_PLUGINS_SETTINGS_LIST, request, policy=policy)
         return response
+
+
+class HostPluginsStateResource:
+    def __init__(self, context: "Context") -> None:
+        self._context = context
+
+    async def get(self, *, policy: OperationPolicy | None = None) -> StateGetResponse:
+        request = StateGetRequest()
+        response = await self._context.call(_PLUGINS_STATE_GET, request, policy=policy)
+        return response
+
+    async def put(self, expected_revision: int, value: bytes, *, policy: OperationPolicy | None = None) -> int:
+        request = StatePutRequest(expected_revision=expected_revision, value=value)
+        response = await self._context.call(_PLUGINS_STATE_PUT, request, policy=policy)
+        return response.revision
 
 
 class HostPromptsResource:

@@ -96,16 +96,6 @@ pub struct DocumentAppendOptions {
     pub request_id: Option<String>,
 }
 
-#[derive(Default)]
-pub struct EffectCreateOptions {
-    pub request_id: Option<String>,
-}
-
-#[derive(Default)]
-pub struct EffectConfirmOptions {
-    pub request_id: Option<String>,
-}
-
 /* === Enums === */
 
 pub enum DocumentPart {

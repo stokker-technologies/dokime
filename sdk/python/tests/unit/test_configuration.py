@@ -68,10 +68,9 @@ class ConfigurationStory(TestCase):
             self.assertRegex(str(failed.exception), r"settings\.env:[23]:")
 
     def test_precedence_empty_values_and_no_environment_mutation(self) -> None:
-        values = {"DOKIME_REMOTE": "http://file:1", "DOKIME_PLUGIN_ADDRESS": "file:2"}
+        values = {"DOKIME_REMOTE": "http://file:1"}
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(resolve("DOKIME_REMOTE", None, values), "http://file:1")
-            self.assertEqual(resolve("DOKIME_PLUGIN_ADDRESS", None, {}), "127.0.0.1:0")
             os.environ["DOKIME_REMOTE"] = "http://process:3"
             self.assertEqual(resolve("DOKIME_REMOTE", None, values), "http://process:3")
             self.assertEqual(resolve("DOKIME_REMOTE", "http://explicit:4", values), "http://explicit:4")
@@ -80,8 +79,6 @@ class ConfigurationStory(TestCase):
                 resolve("DOKIME_REMOTE", None, values)
             with self.assertRaises(ValueError):
                 resolve("DOKIME_REMOTE", "", values)
-            with self.assertRaises(ValueError):
-                resolve("DOKIME_PLUGIN_ADDRESS", "", values)
         self.assertEqual(values["DOKIME_REMOTE"], "http://file:1")
 
     def test_load_reads_only_the_working_directory_and_refuses_invalid_utf8(self) -> None:

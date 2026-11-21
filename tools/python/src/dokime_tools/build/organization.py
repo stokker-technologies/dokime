@@ -43,7 +43,7 @@ from . import configuration
 
 
 BRAND = configuration.ROOT / "organization"
-GENERATED = configuration.ROOT / "crates/dokime-gui/src/generated/organization"
+GENERATED = configuration.ROOT / "packages/document/src/generated/organization"
 
 # === Types === #
 

@@ -19,7 +19,7 @@ license = "Apache-2.0"
 dependencies = [
   "grpcio>=1.85.1,<2",
   "protobuf>=7.35.1,<8",
-  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@504877e36bf490db39efbd5c7ee5ed8f09e2b5a3#subdirectory=sdk/python",
+  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@324ad01b0892b1ca6a3bce4bb9525b22974f606b#subdirectory=sdk/python",
 ]
 
 [project.optional-dependencies]
@@ -72,4 +72,8 @@ dokime_sdk = ["src/dokime_sdk", "*/site-packages/dokime_sdk"]
 
 [tool.ruff.lint]
 # Every SDK and Tooling Function Has an Explicit Typed Signature.
-extend-select = ["ANN"]
+select = ["E4", "E7", "E9", "F", "ANN"]
+
+[tool.ruff.lint.isort]
+# Match the Shared Generator's Explicit Package Classification in Every Working Directory.
+known-first-party = ["dokime_sdk"]

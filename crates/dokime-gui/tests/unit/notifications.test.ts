@@ -17,13 +17,13 @@
 import assert from "node:assert/strict";
 import { forceCloseDatabase, IDBFactory, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
 // Third Party Imports
-import { createElement, isValidElement, type ReactNode, type ReactElement } from "react";
+import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { failureOf } from "@/lib/notification-details";
+import { Button } from "@dokime/plots/components/ui/button";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -44,7 +44,7 @@ vi.mock("react", async (original) => ({
   useEffect: (effect: () => void) => effect(),
   useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
 }));
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@dokime/plots/components/ui/dialog", () => ({
   Dialog: ({ open, onOpenChange, children }: { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) => {
     controls.close = () => onOpenChange(false);
     return open ? children : null;
@@ -55,7 +55,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogDescription: ({ children }: { children: ReactNode }) => createElement("p", null, children),
   DialogFooter: ({ children }: { children: ReactNode }) => createElement("footer", null, children),
 }));
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@dokime/plots/components/ui/button", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => {
     if (onClick) controls.buttons.push(onClick);
     if (children === "Copy" && onClick) controls.copy = onClick;
@@ -107,11 +107,11 @@ function buttonIn(node: ReactNode): ReactElement<{ onClick: () => void; type: st
 /* === Entry Point === */
 
 test("History Paging", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   assert.deepEqual((await history.notificationPage()).records, []);
   for (let index = 0; index < 53; index++) await history.recordNotification(record(index));
   vi.resetModules();
-  const reopened = await import("@/lib/notifications");
+  const reopened = await import("@dokime/plots/lib/notifications");
   const first = await reopened.notificationPage();
   assert.deepEqual(
     first.records.map((value) => value.id),
@@ -136,7 +136,7 @@ test("History Paging", async () => {
 });
 
 test("Unread and Clear", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   await history.recordNotification(record(0));
   await history.recordNotification(record(1));
   await history.markNotificationsRead();
@@ -157,7 +157,7 @@ test("Unread and Clear", async () => {
 });
 
 test("Discarded Plugin Notifications Clear After Reopening", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   const failed = { ...record(0), id: "1:failed:boot", pluginSettings: "failed", tone: "error" as const };
   const kept = { ...record(1), id: "1:kept:boot", pluginSettings: "kept", tone: "error" as const };
   const otherSession = { ...record(2), id: "2:remote:boot", pluginSettings: "remote", tone: "error" as const };
@@ -166,7 +166,7 @@ test("Discarded Plugin Notifications Clear After Reopening", async () => {
   await history.recordNotification(otherSession);
   await history.recordNotification(record(3));
   vi.resetModules();
-  const reopened = await import("@/lib/notifications");
+  const reopened = await import("@dokime/plots/lib/notifications");
   reopened.openNotificationDetails(failed);
   await reopened.clearPluginNotifications("1", new Set(["kept"]));
   const remaining = (await reopened.notificationPage()).records;
@@ -176,7 +176,7 @@ test("Discarded Plugin Notifications Clear After Reopening", async () => {
 });
 
 test("Failed Open Retries", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   const factory = indexedDB;
   vi.stubGlobal("indexedDB", {
     open: () => {
@@ -190,7 +190,7 @@ test("Failed Open Retries", async () => {
 });
 
 test("Sticky Error Delivery", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   vi.spyOn(Date, "now").mockReturnValue(7);
   history.toast.error(failureOf("fixture-detail", "fixture"), { id: "fixture", source: "fixture-source", duration: 1 });
   assert.equal(shown.error.mock.calls.at(-1)?.[1]?.duration, Infinity);
@@ -203,7 +203,7 @@ test("Sticky Error Delivery", async () => {
 });
 
 test("Updated Toasts Stay Recorded", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   history.toast.info("fixture-one", { id: "fixture" });
   history.toast.success("fixture-two", { id: "fixture" });
   const page = await history.notificationPage();
@@ -211,7 +211,7 @@ test("Updated Toasts Stay Recorded", async () => {
 });
 
 test("Plugin Settings Action Survives History", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   history.toast.error(failureOf("fixture", "fixture"), {
     pluginSettings: "example",
     missingSecret: "api_token",
@@ -224,7 +224,7 @@ test("Plugin Settings Action Survives History", async () => {
 });
 
 test("Notification Sources Never Use Empty or Root Route Labels", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   vi.stubGlobal("location", { pathname: "/" });
   for (const source of [undefined, "", " ", "/", " / "]) {
     history.toast.info("fixture", { source });
@@ -234,22 +234,9 @@ test("Notification Sources Never Use Empty or Root Route Labels", async () => {
   assert.ok(page.records.every((value) => value.source.trim().length > 0 && value.source !== "/"));
 });
 
-test("Feedback Is Recorded", async () => {
-  const { NotificationMessage } = await import("@/components/NotificationMessage");
-  const history = await import("@/lib/notifications");
-  assert.equal(
-    NotificationMessage({ children: ["fixture-one", createElement("strong", null, "fixture-two")], source: "fixture-source" }),
-    null,
-  );
-  const page = await history.notificationPage();
-  assert.equal(page.records.length, 1);
-  assert.equal(page.records[0].description, "fixture-one fixture-two");
-  assert.equal(page.records[0].source, "fixture-source");
-});
-
 test("Quiet Page Notices Do Not Publish Feedback", async () => {
-  const { PageNotice } = await import("@/shell/PageShell");
-  const history = await import("@/lib/notifications");
+  const { PageNotice } = await import("@dokime/document/shell/PageShell");
+  const history = await import("@dokime/plots/lib/notifications");
   const status = PageNotice({ children: "fixture" });
   assert.equal(status.type, "p");
   assert.equal(status.props.role, "status");
@@ -259,7 +246,7 @@ test("Quiet Page Notices Do Not Publish Feedback", async () => {
 
 test("Closed Connections Recover", async () => {
   const opened = vi.spyOn(indexedDB, "open");
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   await history.recordNotification(record(0));
   const connection = opened.mock.results[0].value.result as IDBDatabase;
   const closed = new Promise<void>((resolve) => connection.addEventListener("close", () => resolve(), { once: true }));
@@ -272,7 +259,7 @@ test("Closed Connections Recover", async () => {
 });
 
 test("Every Toast and History Entry Opens the Retained Details", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   const { NotificationHistoryEntry } = await import("@/features/notifications/NotificationsSurface");
   for (const tone of ["error", "warning", "info", "success"] as const) {
     if (tone === "error") history.toast.error(failureOf("complete message", "fixture"), { source: "fixture-source" });
@@ -295,182 +282,12 @@ test("Every Toast and History Entry Opens the Retained Details", async () => {
   assert.deepEqual(history.getNotificationDetails(), retained);
 });
 
-test("Details Show Problems and Copy Collapsed Diagnostics Without Debug Formatting", async () => {
-  const history = await import("@/lib/notifications");
-  const { failureOf } = await import("@/lib/notification-details");
-  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
-  const copy = vi.fn(async (_text: string) => {});
-  vi.stubGlobal("navigator", { clipboard: { writeText: copy } });
-  const failure = {
-    reason: "validation",
-    operation: "Cases.Create",
-    operationId: "dokime.planning.preview_selection",
-    requestId: "request-7",
-    invocationId: "invocation-8",
-    causes: ["fixture-root", "fixture-wrapper"],
-    problems: [
-      { label: "Input Voltage", message: "fixture-invalid-number", causes: ["fixture-parser"] },
-      { label: "Input File", message: "fixture-file-required" },
-    ],
-    diagnostics: "fixture-backtrace\nframe-1\nframe-2",
-  };
-  const error = Object.assign(new Error("fixture-summary"), { notificationFailure: failure });
-  error.stack = "RuntimeError { debug_dump: fixture-private-stack }";
-  history.toast.error(failureOf(error, "fixture-title"), { consequences: ["fixture-dependent"] });
-  const retained = (await history.notificationPage()).records[0];
-  assert.deepEqual(retained.failure, failureOf(error, "fixture-title"));
-  history.openNotificationDetails(retained);
-  const markup = renderToStaticMarkup(createElement(NotificationDetailsDialog));
-  for (const text of [
-    "fixture-summary",
-    "fixture-root",
-    "fixture-wrapper",
-    "Input Voltage",
-    "fixture-invalid-number",
-    "Input File",
-    "request-7",
-    "invocation-8",
-    "fixture-backtrace",
-  ])
-    assert.ok(markup.includes(text));
-  assert.ok(markup.indexOf("fixture-root") < markup.indexOf("fixture-wrapper"));
-  assert.ok(!/<details[^>]*\bopen\b/.test(markup));
-  assert.ok(!markup.includes("[object Object]"));
-  assert.ok(markup.includes("fixture-private-stack"));
-  controls.copy();
-  await vi.waitFor(() => assert.equal(copy.mock.calls.length, 1));
-  const copied = copy.mock.calls[0][0];
-  for (const text of [
-    "fixture-backtrace\nframe-1\nframe-2",
-    "fixture-dependent",
-    "fixture-parser",
-    new Date(retained.at).toISOString(),
-    "Severity: error",
-    retained.title,
-    "fixture-summary",
-    retained.source,
-    failure.reason,
-    failure.operation,
-    failure.operationId,
-    failure.requestId,
-    failure.invocationId,
-    "fixture-root",
-    "fixture-wrapper",
-    "fixture-invalid-number",
-    "fixture-file-required",
-  ])
-    assert.ok(copied.includes(text));
-  controls.close();
-  assert.equal(history.getNotificationDetails(), null);
-  const nested = new Error("outer", { cause: new Error("inner", { cause: new Error("root") }) });
-  assert.deepEqual(failureOf(nested, "fixture-title").causes, ["root", "inner"]);
-});
-
-test("Native Rejections and Captured Diagnostics Reach Notification History", async () => {
-  const { create, toBinary } = await import("@bufbuild/protobuf");
-  const { StatusSchema, FailureSchema, CapturedRecordErrorSchema } = await import("@/lib/rpc/generated/errors");
-  const { normalizeRpcError } = await import("@/lib/rpc/errors");
-  const history = await import("@/lib/notifications");
-  const { notificationDetailsText } = await import("@/lib/notification-details");
-  const rejected = create(FailureSchema, {
-    code: "fixture-invalid",
-    message: "fixture-request-refused",
-    operation: "fixture.operation",
-    diagnostics: "fixture-diagnostic",
-  });
-  const direct = normalizeRpcError({
-    kind: "grpc",
-    detail: { code: 13, message: "fixture-outer", details: Array.from(toBinary(FailureSchema, rejected)) },
-  });
-  const decoded = failureOf(direct, "fixture-failure");
-  assert.equal(decoded.message, rejected.message);
-  assert.equal(decoded.reason, rejected.code);
-  assert.equal(decoded.operationId, rejected.operation);
-  assert.equal(decoded.diagnostics, rejected.diagnostics);
-  const captured = create(CapturedRecordErrorSchema, {
-    message: "fixture-summary",
-    causeChain: [{ message: "fixture-wrapper" }, { message: "fixture-root", code: "fixture-root-code", source: "fixture-root.rs" }],
-    source: "fixture.rs:42",
-    diagnostics: "fixture-backtrace\nfixture-frame",
-  });
-  for (const [typeUrl, value] of [
-    ["type.googleapis.com/harmos.model.v1.Failure", toBinary(FailureSchema, rejected)],
-    ["type.googleapis.com/dokime.host.v1.evidence.CapturedRecordError", toBinary(CapturedRecordErrorSchema, captured)],
-  ] as const) {
-    const envelope = create(StatusSchema, { code: 3, message: "fixture-request-refused", details: [{ typeUrl, value }] });
-    const error = normalizeRpcError({
-      kind: "grpc",
-      detail: { code: 3, message: "fixture-request-refused", details: Array.from(toBinary(StatusSchema, envelope)) },
-    });
-    assert.ok(error instanceof Error);
-    history.toast.error(failureOf(error, "fixture-failure"));
-  }
-  const records = (await history.notificationPage()).records;
-  const rejection = records.find((record) => record.failure?.reason === "fixture-invalid");
-  assert.equal(rejection?.failure?.operationId, "fixture.operation");
-  assert.equal(rejection?.failure?.diagnostics, "fixture-diagnostic");
-  const diagnostic = records.find((record) => record.failure?.causes?.length);
-  assert.ok(diagnostic);
-  assert.deepEqual(diagnostic.failure?.causes, ["fixture-root-code: fixture-root", "fixture-wrapper"]);
-  assert.ok(diagnostic.failure?.diagnostics?.includes("fixture-root.rs"));
-  assert.ok(notificationDetailsText(diagnostic, "just now").includes(captured.diagnostics ?? "missing"));
-
-  const ipc = await import("@/lib/rpc/ipc");
-  const transport = await import("@/lib/rpc/transport");
-  const refusal = normalizeRpcError({ kind: "busy" });
-  vi.spyOn(ipc, "unary").mockRejectedValueOnce(refusal);
-  const request = Object.assign(create(StatusSchema), {
-    operationId: "fixture-operation-id",
-    requestId: "fixture-request-id",
-    invocationId: "fixture-invocation-id",
-  });
-  await assert.rejects(
-    transport.unary("/dokime.host.v1.Executions/Start", StatusSchema, StatusSchema, { generation: "1", isCurrent: () => true }, request),
-    (error: unknown) => {
-      assert.equal(error, refusal);
-      history.toast.error(failureOf(error, "fixture-admission"));
-      return true;
-    },
-  );
-  const admission = (await history.notificationPage()).records.find((record) => record.title === "fixture-admission");
-  assert.equal(admission?.failure?.operationId, request.operationId);
-  assert.equal(admission?.failure?.requestId, request.requestId);
-  assert.equal(admission?.failure?.invocationId, request.invocationId);
-});
-
-test("Failure Stem Retains Identity and All Context", async () => {
-  const { failureOf } = await import("@/lib/notification-details");
-  assert.ok(failureOf(new Error(" "), "fixture-title").message.trim());
-  const root = new Error("fixture-root");
-  const wrapper = new Error("fixture-wrapper", { cause: root });
-  const error = Object.assign(new Error("fixture-message", { cause: wrapper }), {
-    operation: "fixture-operation",
-    operationId: "fixture-op-id",
-    requestId: "fixture-request",
-    invocationId: "fixture-invocation",
-    diagnostics: "fixture-redacted-span",
-    backtrace: "fixture-backtrace",
-    problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-root"] }],
-  });
-  error.stack = "fixture-client-stack";
-  const failure = failureOf(error, "fixture-title");
-  assert.equal(failureOf(error, "fixture-other"), failure);
-  assert.equal(failureOf(failure, "fixture-other"), failure);
-  assert.deepEqual(failure.causes, [root.message, wrapper.message]);
-  for (const key of ["operation", "operationId", "requestId", "invocationId", "problems"] as const)
-    assert.deepEqual(failure[key], error[key]);
-  assert.equal(failure.stack, error.stack);
-  assert.equal(failure.diagnostics, [error.diagnostics, error.backtrace].join("\n\n"));
-  assert.notEqual(failureOf(new Error(error.message), failure.title).id, failure.id);
-  assert.equal(failureOf("fixture", "fixture", "fixture-event"), failureOf("fixture", "fixture", "fixture-event"));
-});
-
 test("Failure Routes and Console Report Once per Occurrence", async () => {
-  const { failureOf, failureText } = await import("@/lib/notification-details");
-  const { routeFailure, failureDestinations, reportFailure } = await import("@/lib/failure-routing");
+  const { failureOf, failureText } = await import("@dokime/plots/lib/notification-details");
+  const { routeFailure, failureDestinations, reportFailure } = await import("@dokime/plots/lib/failure-routing");
   assert.deepEqual(failureDestinations("view"), { inline: true, toast: false, history: false, console: true });
-  for (const context of ["action", "background"] as const)
-    assert.deepEqual(failureDestinations(context), { inline: false, toast: true, history: true, console: true });
+  assert.deepEqual(failureDestinations("action"), { inline: false, toast: true, history: true, console: true });
+  assert.deepEqual(failureDestinations("background"), { inline: false, toast: false, history: true, console: true });
   const group = vi.spyOn(console, "groupCollapsed").mockImplementation(() => {});
   const output = vi.spyOn(console, "error").mockImplementation(() => {});
   const end = vi.spyOn(console, "groupEnd").mockImplementation(() => {});
@@ -489,8 +306,8 @@ test("Failure Routes and Console Report Once per Occurrence", async () => {
 });
 
 test("ErrorCard Renders Full Record Retry and Copy Without Toast", async () => {
-  const { failureOf, failureText } = await import("@/lib/notification-details");
-  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { failureOf, failureText } = await import("@dokime/plots/lib/notification-details");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
   const failure = failureOf(
     Object.assign(new Error("fixture-message"), { diagnostics: "fixture-span", requestId: "fixture-request" }),
     "fixture-title",
@@ -509,12 +326,254 @@ test("ErrorCard Renders Full Record Retry and Copy Without Toast", async () => {
   assert.equal(shown.error.mock.calls.length, 0);
 });
 
+test("Backend Recovery Actions Take Precedence Over Generic Retries", async () => {
+  const { ErrorCard, ErrorRecoveryContext } = await import("@dokime/plots/components/ErrorCard");
+  const { failureRecovery } = await import("@/lib/failure-recovery");
+  const assign = vi.fn();
+  const retry = vi.fn();
+  vi.stubGlobal("window", { location: { assign } });
+  for (const [plugin, destination] of [
+    ["bench", "/settings/plugins/bench"],
+    ["", "/settings"],
+  ]) {
+    controls.buttons.length = 0;
+    assign.mockClear();
+    const failure = failureOf({ notificationFailure: { action: "Open Settings", plugin, message: "bench_source" } }, "bench_title");
+    renderToStaticMarkup(
+      createElement(
+        ErrorRecoveryContext.Provider,
+        { value: (failure) => failureRecovery(null, failure) },
+        createElement(ErrorCard, { failure, onRetry: retry }),
+      ),
+    );
+    controls.buttons[0]();
+    assert.deepEqual(assign.mock.calls, [[destination]]);
+    assert.equal(retry.mock.calls.length, 0);
+  }
+});
+
 test("Shared Failure Delivers Unchanged Once to Toast and History", async () => {
-  const { failureOf } = await import("@/lib/notification-details");
-  const history = await import("@/lib/notifications");
+  const { failureOf } = await import("@dokime/plots/lib/notification-details");
+  const history = await import("@dokime/plots/lib/notifications");
   const failure = failureOf(new Error("fixture-message"), "fixture-title");
   history.toast.error(failure, { context: "background" });
   history.toast.error(failure, { context: "action" });
   assert.equal(shown.error.mock.calls.length, 1);
   assert.deepEqual((await history.notificationPage()).records[0].failure, failure);
+});
+
+test("Captured Canonical Library Failure Preserves Every Actionable Field", async () => {
+  const { normalizeRpcError } = await import("@/lib/rpc/errors");
+  const error = normalizeRpcError({
+    kind: "grpc",
+    detail: {
+      code: 9,
+      message: "operation request failed",
+      details: Array.from(
+        Buffer.from(
+          "CAESEnNldHRpbmdzX25vdF9yZWFkeRoUTGlzdCBQbHVnaW4gU2V0dGluZ3MiLVdhaXQgZm9yIHRoZSBwbHVnaW4gdG8gcmVwb3J0IGl0cyBkZXNjcmlwdGlvbioUTGlzdCBQbHVnaW4gU2V0dGluZ3MyBWJlbmNoOj0SE2Rlc2NyaXB0aW9uX3BlbmRpbmcaJmJlbmNoIGhhcyBub3QgcmVwb3J0ZWQgaXRzIGRlc2NyaXB0aW9u",
+          "base64",
+        ),
+      ),
+    },
+  });
+  const failure = failureOf(error, "bench_title");
+  assert.equal(failure.reason, "settings_not_ready");
+  const { fromBinary } = await import("@bufbuild/protobuf");
+  const { FailureSchema } = await import("@/lib/rpc/generated/errors");
+  const expected = fromBinary(FailureSchema, Uint8Array.from((error as { detail: { details: number[] } }).detail.details));
+  assert.equal(failure.action, expected.action);
+  assert.equal(failure.failureOperation, expected.operation);
+  assert.equal(failure.message, expected.message);
+  assert.equal(failure.plugin, "bench");
+  assert.deepEqual(failure.causes, [expected.cause?.message]);
+});
+
+test("Product Plain and Undecodable Statuses Keep Code and Message", async () => {
+  const { normalizeRpcError } = await import("@/lib/rpc/errors");
+  const { create, toBinary } = await import("@bufbuild/protobuf");
+  const { FailureSchema } = await import("@/lib/rpc/generated/errors");
+  const product = create(FailureSchema, { code: "bench_refused", message: "bench_source", action: "bench_action", plugin: "bench" });
+  const failure = failureOf(
+    normalizeRpcError({
+      kind: "grpc",
+      detail: { code: 7, message: "bench_status", details: Array.from(toBinary(FailureSchema, product)) },
+    }),
+    "bench_title",
+  );
+  assert.equal(failure.message, product.message);
+  assert.equal(failure.action, product.action);
+  for (const details of [[], [255]]) {
+    const plain = failureOf(normalizeRpcError({ kind: "grpc", detail: { code: 14, message: "bench_transport", details } }), "bench_title");
+    assert.equal(plain.reason, "UNAVAILABLE");
+    if (details.length) {
+      assert.ok(plain.message.includes("bench_transport"));
+      assert.ok(plain.message.includes(plain.reason));
+    } else assert.equal(plain.message, "bench_transport");
+  }
+});
+
+test("Failure Presentation Copies Decoded Fields and Omits Client Stack", async () => {
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const { failureText } = await import("@dokime/plots/lib/notification-details");
+  const error = Object.assign(new Error("bench_source"), {
+    notificationFailure: { action: "bench_action", plugin: "bench", causes: ["bench_cause"] },
+  });
+  const failure = failureOf(error, "bench_title");
+  const html = renderToStaticMarkup(createElement(ErrorCard, { failure }));
+  for (const field of [failure.message, failure.action, failure.plugin, ...(failure.causes ?? [])])
+    assert.ok(field && html.includes(field));
+  assert.ok(!html.includes(error.stack ?? "missing_stack"));
+  assert.ok(!failureText(failure).includes(error.stack ?? "missing_stack"));
+  assert.ok(!/<details[^>]*\bopen\b/.test(html));
+  assert.equal(controls.buttons.length, 1);
+});
+
+test("Quiet Autosave States Never Render a Failure", async () => {
+  const { SettingsFieldStatus } = await import("@/features/settings/SettingsFieldStatus");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const retry = vi.fn();
+  for (const kind of ["idle", "saving", "saved"] as const) {
+    const content = SettingsFieldStatus({ state: { kind }, onRetry: retry });
+    assert.notEqual(content.type, ErrorCard);
+  }
+  const error = new Error("bench_write");
+  const content = SettingsFieldStatus({ state: { kind: "error", message: error.message, failure: error }, onRetry: retry });
+  assert.equal(content.type, ErrorCard);
+  assert.equal(content.props.failure.message, error.message);
+  content.props.onRetry();
+  assert.equal(retry.mock.calls.length, 1);
+});
+
+test("Description Readiness Remains a Quiet Waiting State", async () => {
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const history = await import("@dokime/plots/lib/notifications");
+  const failure = failureOf(
+    { notificationFailure: { reason: "settings_not_ready", message: "bench_wait", plugin: "bench" } },
+    "bench_section",
+  );
+  const html = renderToStaticMarkup(createElement(ErrorCard, { failure }));
+  assert.ok(html.includes('role="status"'));
+  assert.ok(!html.includes('role="alert"'));
+  assert.ok(html.includes(failure.plugin ?? "missing_plugin"));
+  history.toast.error(failure, { context: "action" });
+  assert.equal(shown.error.mock.calls.length, 0);
+  assert.equal((await history.notificationPage()).records.length, 0);
+});
+
+test("Feedback Is Recorded", async () => {
+  const history = await import("@dokime/plots/lib/notifications");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const { NotificationDetailsDialog } = await import("@dokime/document/features/notifications/NotificationDetailsDialog");
+  const failure = failureOf(new Error("fixture-action"), "fixture-title");
+  const write = vi.spyOn(IDBObjectStore.prototype, "put");
+  for (let render = 0; render < 2; render++) renderToStaticMarkup(createElement(ErrorCard, { failure, notificationContext: "action" }));
+  await vi.waitFor(() => assert.equal(write.mock.calls.length, 1));
+  const page = await history.notificationPage();
+  assert.deepEqual(
+    page.records.map((entry) => entry.failure),
+    [failure],
+  );
+  assert.equal(shown.error.mock.calls.length, 1);
+  history.openNotificationDetails(page.records[0]);
+  renderToStaticMarkup(createElement(NotificationDetailsDialog));
+  renderToStaticMarkup(createElement(ErrorCard, { failure: failureOf(new Error("fixture-load"), "fixture-load-title") }));
+  assert.equal(write.mock.calls.length, 1);
+  assert.equal(shown.error.mock.calls.length, 1);
+});
+
+test("Failure Stem Retains Identity and All Context", async () => {
+  const { failureOf } = await import("@dokime/plots/lib/notification-details");
+  assert.ok(failureOf(new Error(" "), "fixture-title").message.trim());
+  const root = new Error("fixture-root");
+  const wrapper = new Error("fixture-wrapper", { cause: root });
+  const error = Object.assign(new Error("fixture-message", { cause: wrapper }), {
+    operation: "fixture-operation",
+    operationId: "fixture-op-id",
+    requestId: "fixture-request",
+    invocationId: "fixture-invocation",
+    diagnostics: "fixture-redacted-span",
+    backtrace: "fixture-backtrace",
+    problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-root"] }],
+  });
+  const failure = failureOf(error, "fixture-title");
+  assert.equal(failureOf(error, "fixture-other"), failure);
+  assert.equal(failureOf(failure, "fixture-other"), failure);
+  assert.deepEqual(failure.causes, [root.message, wrapper.message]);
+  for (const key of ["operation", "operationId", "requestId", "invocationId", "problems"] as const)
+    assert.deepEqual(failure[key], error[key]);
+  assert.equal(failure.diagnostics, [error.diagnostics, error.backtrace].join("\n\n"));
+  assert.notEqual(failureOf(new Error(error.message), failure.title).id, failure.id);
+  assert.equal(failureOf("fixture", "fixture", "fixture-event"), failureOf("fixture", "fixture", "fixture-event"));
+});
+
+test("Failure Copy Retains Notification Metadata and Field Problems", async () => {
+  const { failureText, notificationDetailsText } = await import("@dokime/plots/lib/notification-details");
+  const { NotificationDetailsDialog } = await import("@dokime/document/features/notifications/NotificationDetailsDialog");
+  const history = await import("@dokime/plots/lib/notifications");
+  const failure = failureOf(
+    Object.assign(new Error("fixture-failure"), {
+      problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-cause"] }],
+      requestId: "fixture-request",
+      operationId: "fixture-operation",
+      invocationId: "fixture-invocation",
+    }),
+    "fixture-title",
+  );
+  const entry = { ...record(2), failure, consequences: ["fixture-consequence"] };
+  const copied = notificationDetailsText(entry, "fixture-relative");
+  assert.ok(copied.includes(failureText(failure)));
+  for (const value of [
+    entry.source,
+    entry.tone,
+    new Date(entry.at).toISOString(),
+    "fixture-relative",
+    ...entry.consequences,
+    "fixture-field",
+    "fixture-problem",
+    "fixture-field-cause",
+    "fixture-request",
+    "fixture-operation",
+    "fixture-invocation",
+  ])
+    assert.ok(copied.includes(value));
+  const copy = vi.fn(async (_text: string) => {});
+  vi.stubGlobal("navigator", { clipboard: { writeText: copy } });
+  history.openNotificationDetails(entry);
+  const html = renderToStaticMarkup(createElement(NotificationDetailsDialog));
+  assert.ok(!/<details[^>]*\bopen\b/.test(html));
+  await controls.copy();
+  assert.equal(copy.mock.calls.length, 1);
+  assert.ok(copy.mock.calls[0][0].includes(failureText(failure)));
+  assert.ok(copy.mock.calls[0][0].includes(new Date(entry.at).toISOString()));
+});
+
+test("Transport Admission Failures Retain All Request Identifiers", async () => {
+  const rejection = new Error("fixture-admission");
+  vi.doMock("@/lib/rpc/ipc", () => ({ unary: vi.fn().mockRejectedValue(rejection) }));
+  try {
+    const { unary } = await import("@/lib/rpc/transport");
+    const { FailureSchema } = await import("@/lib/rpc/generated/errors");
+    const identifiers = { operationId: "fixture-operation", requestId: "fixture-request", invocationId: "fixture-invocation" };
+    const request = { ...identifiers, message: "fixture-request-body" };
+    await assert.rejects(
+      unary("fixture/admit", FailureSchema, FailureSchema, { generation: "1", isCurrent: () => true }, request),
+      (error) => error === rejection,
+    );
+    const failure = failureOf(rejection, "fixture-title");
+    assert.equal(failure.operation, "fixture/admit");
+    for (const key of ["operationId", "requestId", "invocationId"] as const) assert.equal(failure[key], identifiers[key]);
+  } finally {
+    vi.doUnmock("@/lib/rpc/ipc");
+  }
+});
+
+test("Plugin Settings Can Restart While Retaining the Settings Recovery Record", async () => {
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const retry = vi.fn();
+  const failure = failureOf({ notificationFailure: { action: "Open Settings", plugin: "bench", message: "fixture-start" } }, "fixture");
+  renderToStaticMarkup(createElement(ErrorCard, { failure, onRetry: retry, retryLabel: "Restart Plugin", retryFirst: true }));
+  controls.buttons[0]();
+  assert.equal(retry.mock.calls.length, 1);
+  assert.equal(failure.action, "Open Settings");
 });

@@ -26,9 +26,11 @@ use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime_client_internal::Client;
+use dokime_client_internal::StatusLogsListOptions;
 use dokime_client_internal::StatusTraceEventsListOptions;
 use dokime_client_internal::StatusWatchOptions;
 use dokime_operations::host;
+use dokime_protocol::host::StatusGetResponse;
 
 /* === Constants === */
 
@@ -91,9 +93,6 @@ fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<()
             OperationFactory::protobuf::<host::files::capture::Operation>()?,
             OperationFactory::protobuf::<host::files::captures::start::Operation>()?,
             OperationFactory::protobuf::<host::files::captures::stop::Operation>()?,
-            OperationFactory::protobuf::<host::effects::create::Operation>()?,
-            OperationFactory::protobuf::<host::effects::get::Operation>()?,
-            OperationFactory::protobuf::<host::effects::set::Operation>()?,
         ] {
             let contract = factory.contract()?;
             let id = contract.operation().id.as_str();
@@ -171,10 +170,13 @@ fn client_reads_runtime() -> Result<(), Box<dyn Error>> {
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let status = client.status.get().await?;
             let identity = status.status.as_ref().unwrap().identity.as_ref().unwrap();
+            let build = status.build.as_ref().unwrap();
+            assert_eq!(build.source_revision, env!("DOKIME_SOURCE_REVISION"));
+            assert_eq!(build.channel, env!("DOKIME_BUILD_CHANNEL"));
             assert!(status.status.as_ref().unwrap().available);
             assert!(status.status.as_ref().unwrap().components.iter().all(|component| component.state == ComponentState::Healthy as i32));
 
-            // Watch the Same Status Snapshot Through the Library Root
+            // Watch the Same Product Status and Build Snapshot
             let mut watch = client
                 .status
                 .watch_with(StatusWatchOptions {
@@ -184,6 +186,7 @@ fn client_reads_runtime() -> Result<(), Box<dyn Error>> {
                 .await?;
             let opening = watch.next().await?.ok_or("Watch Status: Missing Opening Snapshot")?;
             assert_eq!(opening.status, status.status);
+            assert_eq!(opening.build, status.build);
             drop(watch);
             process.close().await?;
 
@@ -194,6 +197,7 @@ fn client_reads_runtime() -> Result<(), Box<dyn Error>> {
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let reopened = client.status.get().await?;
+            assert_eq!(reopened.build, status.build);
             assert_eq!(reopened.status.unwrap().identity.unwrap().host_id, identity.host_id);
             assert_ne!(reopened.resolved_at.unwrap().history.unwrap().epoch, status.resolved_at.unwrap().history.unwrap().epoch);
             process.close().await?;
@@ -235,6 +239,18 @@ fn clients_reach_every_wrapper_service() -> Result<(), Box<dyn Error>> {
         let mut status = client.status.watch().await?;
         assert!(status.next().await?.is_some());
         drop(status);
+        client
+            .status
+            .logs
+            .list_with(StatusLogsListOptions {
+                page: Some(PageRequest {
+                    page_size: 1,
+                    max_bytes: 4096,
+                    page_token: String::new(),
+                }),
+                ..Default::default()
+            })
+            .await?;
         let mut logs = client.status.logs.watch(4096, 16).await?;
         assert!(logs.next().await?.is_some());
         drop(logs);
@@ -267,7 +283,7 @@ fn clients_reach_every_wrapper_service() -> Result<(), Box<dyn Error>> {
         let id = "dokime.host.v1.Status/Get";
         let contract = client.operations.get(id).await?.contract.unwrap();
         let payload = client.invocations.create(id, contract.fingerprint, Vec::new()).await?;
-        let status = <harmos_protocol::host::StatusGetResponse as prost::Message>::decode(payload.as_slice())?;
+        let status = <StatusGetResponse as prost::Message>::decode(payload.as_slice())?;
         assert!(status.status.is_some());
         server.close().await?;
         Ok(())

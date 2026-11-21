@@ -29,28 +29,29 @@ namespace Dokime;
             "b2RlbC92MS9leGVjdXRpb24ucHJvdG8aHmRva2ltZS9tb2RlbC92MS9tZXRh",
             "ZGF0YS5wcm90bxogZG9raW1lL21vZGVsL3YxL3BhcmFtZXRlcnMucHJvdG8i",
             "OAoGU3VpdGVzEi4KBnN1aXRlcxgBIAMoCzIWLmRva2ltZS5tb2RlbC52MS5T",
-            "dWl0ZVIGc3VpdGVzItkBCgVTdWl0ZRI1CghtZXRhZGF0YRgBIAEoCzIZLmRv",
+            "dWl0ZVIGc3VpdGVzIvsBCgVTdWl0ZRI1CghtZXRhZGF0YRgBIAEoCzIZLmRv",
             "a2ltZS5tb2RlbC52MS5NZXRhZGF0YVIIbWV0YWRhdGESPwoJdGVtcGxhdGVz",
             "GAIgAygLMiEuZG9raW1lLm1vZGVsLnYxLlRlc3RDYXNlVGVtcGxhdGVSCXRl",
             "bXBsYXRlcxISCgR0YWdzGAMgAygJUgR0YWdzEkQKEHBhcmFtZXRlcl9ncm91",
             "cHMYBCADKAsyGS5kb2tpbWUubW9kZWwudjEuTWV0YWRhdGFSD3BhcmFtZXRl",
-            "ckdyb3VwcyL8AwoQVGVzdENhc2VUZW1wbGF0ZRI1CghtZXRhZGF0YRgBIAEo",
-            "CzIZLmRva2ltZS5tb2RlbC52MS5NZXRhZGF0YVIIbWV0YWRhdGESOgoKcGFy",
-            "YW1ldGVycxgCIAMoCzIaLmRva2ltZS5tb2RlbC52MS5QYXJhbWV0ZXJSCnBh",
-            "cmFtZXRlcnMSNAoFZmlsZXMYAyADKAsyHi5kb2tpbWUubW9kZWwudjEuRmls",
-            "ZVBhcmFtZXRlclIFZmlsZXMSNwoJZG9jdW1lbnRzGAQgAygLMhkuZG9raW1l",
-            "Lm1vZGVsLnYxLkRvY3VtZW50Uglkb2N1bWVudHMSEgoEdGFncxgFIAMoCVIE",
-            "dGFncxIgCgttYXRlcmlhbGl6ZRgGIAEoCVILbWF0ZXJpYWxpemUSIwoKaW5p",
-            "dGlhbGl6ZRgHIAEoCUgAUgppbml0aWFsaXpliAEBEh0KB2NsZWFudXAYCCAB",
-            "KAlIAVIHY2xlYW51cIgBARJEChBwYXJhbWV0ZXJfZ3JvdXBzGAkgAygLMhku",
-            "ZG9raW1lLm1vZGVsLnYxLk1ldGFkYXRhUg9wYXJhbWV0ZXJHcm91cHMSKwoF",
-            "c3RlcHMYCiADKAsyFS5kb2tpbWUubW9kZWwudjEuU3RlcFIFc3RlcHNCDQoL",
-            "X2luaXRpYWxpemVCCgoIX2NsZWFudXBCCaoCBkRva2ltZWIGcHJvdG8z"));
+            "ckdyb3VwcxIgCgt1bmF2YWlsYWJsZRgFIAEoCFILdW5hdmFpbGFibGUi/AMK",
+            "EFRlc3RDYXNlVGVtcGxhdGUSNQoIbWV0YWRhdGEYASABKAsyGS5kb2tpbWUu",
+            "bW9kZWwudjEuTWV0YWRhdGFSCG1ldGFkYXRhEjoKCnBhcmFtZXRlcnMYAiAD",
+            "KAsyGi5kb2tpbWUubW9kZWwudjEuUGFyYW1ldGVyUgpwYXJhbWV0ZXJzEjQK",
+            "BWZpbGVzGAMgAygLMh4uZG9raW1lLm1vZGVsLnYxLkZpbGVQYXJhbWV0ZXJS",
+            "BWZpbGVzEjcKCWRvY3VtZW50cxgEIAMoCzIZLmRva2ltZS5tb2RlbC52MS5E",
+            "b2N1bWVudFIJZG9jdW1lbnRzEhIKBHRhZ3MYBSADKAlSBHRhZ3MSIAoLbWF0",
+            "ZXJpYWxpemUYBiABKAlSC21hdGVyaWFsaXplEiMKCmluaXRpYWxpemUYByAB",
+            "KAlIAFIKaW5pdGlhbGl6ZYgBARIdCgdjbGVhbnVwGAggASgJSAFSB2NsZWFu",
+            "dXCIAQESRAoQcGFyYW1ldGVyX2dyb3VwcxgJIAMoCzIZLmRva2ltZS5tb2Rl",
+            "bC52MS5NZXRhZGF0YVIPcGFyYW1ldGVyR3JvdXBzEisKBXN0ZXBzGAogAygL",
+            "MhUuZG9raW1lLm1vZGVsLnYxLlN0ZXBSBXN0ZXBzQg0KC19pbml0aWFsaXpl",
+            "QgoKCF9jbGVhbnVwQgmqAgZEb2tpbWViBnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.DocumentsReflection.Descriptor, global::Dokime.ExecutionReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Dokime.ParametersReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Suites), global::Dokime.Suites.Parser, new[]{ "Suites_" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.SuiteDefinition), global::Dokime.SuiteDefinition.Parser, new[]{ "Metadata", "Templates", "Tags", "ParameterGroups" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.SuiteDefinition), global::Dokime.SuiteDefinition.Parser, new[]{ "Metadata", "Templates", "Tags", "ParameterGroups", "Unavailable" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.TestCaseTemplate), global::Dokime.TestCaseTemplate.Parser, new[]{ "Metadata", "Parameters", "Files", "Documents", "Tags", "Materialize", "Initialize", "Cleanup", "ParameterGroups", "Steps" }, new[]{ "Initialize", "Cleanup" }, null, null, null)
           }));
     }
@@ -284,6 +285,7 @@ namespace Dokime;
       templates_ = other.templates_.Clone();
       tags_ = other.tags_.Clone();
       parameterGroups_ = other.parameterGroups_.Clone();
+      unavailable_ = other.unavailable_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -338,6 +340,18 @@ namespace Dokime;
       get { return parameterGroups_; }
     }
 
+    /// <summary>Field number for the "unavailable" field.</summary>
+    public const int UnavailableFieldNumber = 5;
+    private bool unavailable_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Unavailable {
+      get { return unavailable_; }
+      set {
+        unavailable_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -357,6 +371,7 @@ namespace Dokime;
       if(!templates_.Equals(other.templates_)) return false;
       if(!tags_.Equals(other.tags_)) return false;
       if(!parameterGroups_.Equals(other.parameterGroups_)) return false;
+      if (Unavailable != other.Unavailable) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -368,6 +383,7 @@ namespace Dokime;
       hash ^= templates_.GetHashCode();
       hash ^= tags_.GetHashCode();
       hash ^= parameterGroups_.GetHashCode();
+      if (Unavailable != false) hash ^= Unavailable.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -393,6 +409,10 @@ namespace Dokime;
       templates_.WriteTo(output, _repeated_templates_codec);
       tags_.WriteTo(output, _repeated_tags_codec);
       parameterGroups_.WriteTo(output, _repeated_parameterGroups_codec);
+      if (Unavailable != false) {
+        output.WriteRawTag(40);
+        output.WriteBool(Unavailable);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -410,6 +430,10 @@ namespace Dokime;
       templates_.WriteTo(ref output, _repeated_templates_codec);
       tags_.WriteTo(ref output, _repeated_tags_codec);
       parameterGroups_.WriteTo(ref output, _repeated_parameterGroups_codec);
+      if (Unavailable != false) {
+        output.WriteRawTag(40);
+        output.WriteBool(Unavailable);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -426,6 +450,9 @@ namespace Dokime;
       size += templates_.CalculateSize(_repeated_templates_codec);
       size += tags_.CalculateSize(_repeated_tags_codec);
       size += parameterGroups_.CalculateSize(_repeated_parameterGroups_codec);
+      if (Unavailable != false) {
+        size += 1 + 1;
+      }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -447,6 +474,9 @@ namespace Dokime;
       templates_.Add(other.templates_);
       tags_.Add(other.tags_);
       parameterGroups_.Add(other.parameterGroups_);
+      if (other.Unavailable != false) {
+        Unavailable = other.Unavailable;
+      }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -485,6 +515,10 @@ namespace Dokime;
             parameterGroups_.AddEntriesFrom(input, _repeated_parameterGroups_codec);
             break;
           }
+          case 40: {
+            Unavailable = input.ReadBool();
+            break;
+          }
         }
       }
     #endif
@@ -521,6 +555,10 @@ namespace Dokime;
           }
           case 34: {
             parameterGroups_.AddEntriesFrom(ref input, _repeated_parameterGroups_codec);
+            break;
+          }
+          case 40: {
+            Unavailable = input.ReadBool();
             break;
           }
         }

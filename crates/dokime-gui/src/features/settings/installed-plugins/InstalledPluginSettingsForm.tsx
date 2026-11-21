@@ -7,11 +7,11 @@
  * ***
  */
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
+import { Input } from "@dokime/plots/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@dokime/document/components/ui/textarea";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useAutosave } from "@/features/settings/settings-autosave";

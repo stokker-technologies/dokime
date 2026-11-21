@@ -11,7 +11,6 @@
 #include "dokime/host/v1/content/execution_files.pb.h"
 #include "dokime/host/v1/cycles.pb.h"
 #include "dokime/host/v1/documents.pb.h"
-#include "dokime/host/v1/effects.pb.h"
 #include "dokime/host/v1/evidence.pb.h"
 #include "dokime/host/v1/evidence/health_events.pb.h"
 #include "dokime/host/v1/evidence/logs.pb.h"
@@ -997,6 +996,9 @@ inline constexpr auto PLUGIN_STATE_STOPPED = static_cast<::dokime::host::v1::Plu
 namespace host {
 inline constexpr auto PLUGIN_STATE_STOPPING = static_cast<::dokime::host::v1::PluginState>(5);
 }
+namespace host {
+inline constexpr auto PLUGIN_STATE_OFFLINE = static_cast<::dokime::host::v1::PluginState>(6);
+}
 using ::dokime::host::v1::PromptDefinitionsGetResponse;
 using ::dokime::host::v1::PromptDefinitionsListResponse;
 using ::dokime::host::v1::PromptInstance;
@@ -1102,6 +1104,13 @@ inline constexpr auto THEME_MODE_UNSPECIFIED = static_cast<::dokime::host::v1::T
 inline constexpr auto THEME_MODE_SYSTEM = static_cast<::dokime::host::v1::ThemeMode>(1);
 inline constexpr auto THEME_MODE_LIGHT = static_cast<::dokime::host::v1::ThemeMode>(2);
 inline constexpr auto THEME_MODE_DARK = static_cast<::dokime::host::v1::ThemeMode>(3);
+namespace host {
+using ::dokime::host::v1::StatusGetResponse;
+}
+namespace host {
+using ::dokime::host::v1::StatusWatchResponse;
+}
+using ::dokime::host::v1::HostBuild;
 using ::dokime::host::v1::StreamSchemasGetResponse;
 using ::dokime::host::v1::StreamSchemasListResponse;
 using ::dokime::host::v1::storage::SourcesGetResponse;
@@ -1112,10 +1121,6 @@ using ::dokime::host::v1::storage::StorageSources;
 namespace plugin {
 using ::dokime::host::v1::BackendEnvironmentResponse;
 using ::dokime::host::v1::DocumentsAppendPartsResponse;
-using ::dokime::host::v1::EffectsCreateResponse;
-using ::dokime::host::v1::EffectsGetResponse;
-using ::dokime::host::v1::EffectsSetResponse;
-using ::dokime::host::v1::EffectWritable;
 using ::dokime::host::v1::evidence::LogsAppendResponse;
 using ::dokime::host::v1::evidence::RecordsAppendResponse;
 using ::dokime::host::v1::evidence::TraceabilitySetResponse;

@@ -17,18 +17,23 @@
 
 // Standard Library Imports
 use std::error::Error;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use tokio::sync::mpsc;
+use tokio::time::timeout;
 use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
+use dokime::client;
+use dokime::{ConnectionSettings, Plugin};
 use dokime_client_internal::Client;
-use dokime_client_internal::PluginsListOptions;
-use dokime_protocol::host::plugin_placement;
+use dokime_client_internal::{PluginsCreateOptions, PluginsListOptions, PluginsSettingsListOptions, PluginsWatchOptions};
 use dokime_protocol::host::{PluginPlacement, PluginRemote, PluginState, PluginValue};
-use dokime_runtime::PluginProcess;
+use dokime_protocol::host::{plugin_placement, plugins_watch_response};
+use dokime_runtime::{PluginProcess, describe_plugin, services};
 
 /* === Constants === */
 
@@ -48,13 +53,22 @@ use dokime_runtime::PluginProcess;
 
 /* === Private Functions === */
 
+/// A Registration Built Against This Host's Own SDK Version.
+fn registration() -> PluginsCreateOptions {
+    PluginsCreateOptions {
+        sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
+        ..Default::default()
+    }
+}
+
 /* === Tests === */
 
 #[test]
 fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        timeout(support::SYSTEM_HANG_GUARD, async {
             // Create a Remote Entry Through Product Policy
+            eprintln!("Plugin Registration: Create a Remote Entry Through Product Policy");
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
             let credentials = support::CredentialStore::start(credential_root.path()).await?;
@@ -65,8 +79,9 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             let placement = PluginPlacement {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
-            let entry = client.plugins.create("thermal", placement.clone(), PluginValue { enabled: true }).await?.entry.unwrap();
-            let entry = super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
+            let enabled = PluginValue { enabled: true };
+            let entry = client.plugins.create_with("thermal", placement.clone(), enabled, registration()).await?.entry.unwrap();
+            let entry = support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
             assert_eq!(entry.name, "thermal");
             assert_eq!(entry.state, PluginState::Ready as i32);
             assert_eq!(entry.placement, Some(placement.clone()));
@@ -75,10 +90,21 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             let invalid = PluginPlacement {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: "not a URL".into() })),
             };
-            assert!(client.plugins.create("invalid", invalid, PluginValue { enabled: true }).await.is_err());
+            assert!(client.plugins.create_with("invalid", invalid, enabled, registration()).await.is_err());
+
+            // Refuse a Registration Built Against an SDK This Host Cannot Serve
+            eprintln!("Plugin Registration: Refuse a Registration Built Against an SDK This Host Cannot Serve");
+            let newer = PluginsCreateOptions {
+                sdk_version: Some("999.0.0".into()),
+                ..Default::default()
+            };
+            assert!(client.plugins.create_with("newer", placement.clone(), enabled, newer).await.is_err());
+            assert_eq!(client.plugins.list().await?.entries, vec![entry.clone()]);
+            eprintln!("Plugin Registration: Close Host");
             process.close().await?;
 
             // Retain the Same Entry Across Restart and Fence Old Read Cuts
+            eprintln!("Plugin Registration: Retain the Same Entry Across Restart and Fence Old Read Cuts");
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
@@ -86,6 +112,7 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert_eq!(saved.name, entry.name);
             assert_eq!(saved.placement, entry.placement);
             let restarted = client.plugins.restart(saved.name.clone(), saved.revision.clone()).await?;
+            eprintln!("Plugin Registration: Await Restarted Entry Ready");
             let restarted = support::plugin_state(&client.plugins, restarted, PluginState::Ready).await?;
             assert_eq!(restarted.state, PluginState::Ready as i32);
             let options = PluginsListOptions {
@@ -95,17 +122,58 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             assert!(client.plugins.list_with(options).await.is_err());
 
             // Deletion Leaves the User-Owned Remote Process Available for Reattachment
+            eprintln!("Plugin Registration: Deletion Leaves the User-Owned Remote Process Available for Reattachment");
             client.plugins.delete(restarted.name, restarted.revision).await?;
             assert!(client.plugins.list().await?.entries.is_empty());
-            let readded = client.plugins.create("thermal", placement, PluginValue { enabled: true }).await?.entry.unwrap();
-            let readded = super::support::plugin_state(&client.plugins, readded, dokime_protocol::host::PluginState::Ready).await?;
+            let readded = client.plugins.create_with("thermal", placement, enabled, registration()).await?.entry.unwrap();
+            let readded = support::plugin_state(&client.plugins, readded, PluginState::Ready).await?;
             assert_eq!(readded.name, entry.name);
             assert_eq!(readded.state, PluginState::Ready as i32);
+            let suites = client.suites.list(String::new()).await?.values;
+            assert!(!suites.is_empty() && suites.iter().all(|suite| !suite.unavailable));
+
+            // A Stopped Plugin Stays Listed as Offline With Its Last Description and Unavailable Suites
+            eprintln!("Plugin Registration: A Stopped Plugin Stays Listed as Offline With Its Last Description and Unavailable Suites");
             plugin.close().await?;
-            let unavailable = client.plugins.get("thermal").await?.entry.unwrap();
-            assert_eq!(unavailable.state, PluginState::Unavailable as i32);
-            assert_eq!(unavailable.description, readded.description);
-            client.plugins.delete(unavailable.name, unavailable.revision).await?;
+            let offline = client.plugins.get("thermal").await?.entry.unwrap();
+            let offline = support::plugin_state(&client.plugins, offline, PluginState::Offline).await?;
+            assert_eq!(offline.failure, None);
+            assert_eq!(offline.description, readded.description);
+            let retained = client.suites.list(String::new()).await?.values;
+            assert_eq!(
+                retained.iter().map(|suite| &suite.metadata).collect::<Vec<_>>(),
+                suites.iter().map(|suite| &suite.metadata).collect::<Vec<_>>()
+            );
+            assert!(retained.iter().all(|suite| suite.unavailable));
+            eprintln!("Plugin Registration: Close Host");
+            process.close().await?;
+
+            // The Offline Entry Survives a Host Restart
+            eprintln!("Plugin Registration: The Offline Entry Survives a Host Restart");
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let saved = client.plugins.get("thermal").await?.entry.unwrap();
+            eprintln!("Plugin Registration: Await Retained Entry Offline");
+            let saved = support::plugin_state(&client.plugins, saved, PluginState::Offline).await?;
+            assert_eq!(saved.description, readded.description);
+
+            // Starting the Plugin Again Reuses Its Entry at Its New Address and Brings It Back Online
+            eprintln!("Plugin Registration: Starting the Plugin Again Reuses Its Entry at Its New Address and Brings It Back Online");
+            let mut plugin = PluginProcess::start(&support::thermal_fixture()?, true, &support::settings().placement).await?;
+            let moved = PluginPlacement {
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+            };
+            let again = client.plugins.create_with("thermal", moved.clone(), enabled, registration()).await?.entry.unwrap();
+            let again = support::plugin_state(&client.plugins, again, PluginState::Ready).await?;
+            assert_eq!(again.placement, Some(moved));
+            let listed = client.plugins.list().await?.entries;
+            assert_eq!(listed.iter().map(|entry| entry.name.as_str()).collect::<Vec<_>>(), ["thermal"]);
+            assert!(client.suites.list(String::new()).await?.values.iter().all(|suite| !suite.unavailable));
+            plugin.close().await?;
+            let offline = support::plugin_state(&client.plugins, again, PluginState::Offline).await?;
+            client.plugins.delete(offline.name, offline.revision).await?;
+            eprintln!("Plugin Registration: Close Host");
             process.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })
@@ -118,17 +186,16 @@ fn product_plugin_policy_preserves_origin_cuts_and_replay() -> Result<(), Box<dy
     support::run(Box::pin(async {
         // Create a Disabled Entry Without Owning a Remote Process.
         let root = support::tempdir()?;
-        let server =
-            dokime_runtime::services::serve("127.0.0.1:0".parse()?, root.path(), support::settings(), support::service_settings()).await?;
+        let server = services::serve("127.0.0.1:0".parse()?, root.path(), support::settings(), support::service_settings()).await?;
         let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
         let client = Client::from_channel(channel, support::client_settings())?;
         let placement = PluginPlacement {
             kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: "http://127.0.0.1:1".into() })),
         };
-        let options = dokime_client_internal::PluginsCreateOptions {
+        let options = PluginsCreateOptions {
             origin: Some("fixture".into()),
             request_id: Some("origin-round-trip".into()),
-            ..Default::default()
+            ..registration()
         };
         let created = client.plugins.create_with("fixture", placement.clone(), PluginValue { enabled: false }, options.clone()).await?;
         let entry = created.entry.as_ref().unwrap();
@@ -139,7 +206,7 @@ fn product_plugin_policy_preserves_origin_cuts_and_replay() -> Result<(), Box<dy
         assert_eq!(listed.entries, vec![entry.clone()]);
         let replayed = client.plugins.create_with("fixture", placement.clone(), PluginValue { enabled: false }, options.clone()).await?;
         assert_eq!(replayed, created);
-        let conflict = dokime_client_internal::PluginsCreateOptions {
+        let conflict = PluginsCreateOptions {
             origin: Some("changed".into()),
             ..options
         };
@@ -148,14 +215,14 @@ fn product_plugin_policy_preserves_origin_cuts_and_replay() -> Result<(), Box<dy
         // The Product Watch Returns the Same Entry and Retained Read Boundary.
         let mut watch = client
             .plugins
-            .watch_with(dokime_client_internal::PluginsWatchOptions {
+            .watch_with(PluginsWatchOptions {
                 name: Some("fixture".into()),
                 at: listed.resolved_at.clone(),
                 ..Default::default()
             })
             .await?;
         let opening = watch.next().await?.ok_or("Watch Plugin: Return Its Opening Snapshot")?;
-        let Some(dokime_protocol::host::plugins_watch_response::Event::Snapshot(snapshot)) = opening.event else {
+        let Some(plugins_watch_response::Event::Snapshot(snapshot)) = opening.event else {
             return Err("Watch Plugin: Return Its Opening Snapshot".into());
         };
         assert_eq!(snapshot.entries, vec![entry.clone()]);
@@ -167,7 +234,7 @@ fn product_plugin_policy_preserves_origin_cuts_and_replay() -> Result<(), Box<dy
             client
                 .plugins
                 .settings
-                .list_with(dokime_client_internal::PluginsSettingsListOptions {
+                .list_with(PluginsSettingsListOptions {
                     name: Some("fixture".into()),
                     ..Default::default()
                 })
@@ -181,5 +248,93 @@ fn product_plugin_policy_preserves_origin_cuts_and_replay() -> Result<(), Box<dy
         assert!(client.plugins.list().await?.entries.is_empty());
         server.close().await?;
         Ok(())
+    }))
+}
+
+#[test]
+fn externally_owned_listener_survives_disable_and_remove() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        timeout(support::SYSTEM_HANG_GUARD, async {
+            // The SDK Client Owns This Listener Independently of Registry Attachment.
+            let root = support::tempdir()?;
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), support::settings(), support::service_settings()).await?;
+            let address = format!("http://{}", server.endpoint());
+            let owner = client::connect_with(ConnectionSettings {
+                target: Some(address.clone()),
+                ..Default::default()
+            })
+            .await?;
+            let registered = owner.plugins().register(Plugin::of::<()>("1.0.0").identifier("fixture")).await?;
+            let client = Client::from_channel(Endpoint::from_shared(address)?.connect().await?, support::client_settings())?;
+            let entry = client.plugins.get(registered.identifier()).await?.entry.unwrap();
+            let placement = entry.placement.clone().unwrap();
+            let Some(plugin_placement::Kind::Remote(remote)) = placement.kind.as_ref() else {
+                return Err("Read Plugin Placement: Register a Remote Listener".into());
+            };
+
+            // Disabling Detaches the Registry and Leaves the Externally Owned Listener Serving.
+            let disabled = client.plugins.set("fixture", PluginValue { enabled: false }, entry.revision).await?.entry.unwrap();
+            assert_eq!(disabled.state, PluginState::Stopped as i32);
+            describe_plugin(&remote.url, &support::settings().placement).await?;
+            let enabled = client.plugins.set("fixture", PluginValue { enabled: true }, disabled.revision).await?.entry.unwrap();
+            let ready = support::plugin_state(&client.plugins, enabled, PluginState::Ready).await?;
+
+            // Removing Also Leaves That Same Listener Available for Reattachment.
+            client.plugins.delete("fixture", ready.revision).await?;
+            describe_plugin(&remote.url, &support::settings().placement).await?;
+            let created =
+                client.plugins.create_with("fixture", placement, PluginValue { enabled: true }, registration()).await?.entry.unwrap();
+            support::plugin_state(&client.plugins, created, PluginState::Ready).await?;
+            server.close().await?;
+            owner.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
+fn plugin_state_survives_product_host_restart_and_refuses_stale_revisions() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        timeout(support::SYSTEM_HANG_GUARD, async {
+            let root = support::tempdir()?;
+            let mut settings = support::settings();
+            settings.storage.flush_rows = NonZeroUsize::new(1).unwrap();
+            // Start the Existing In-Process Product Host and One Externally Owned Listener.
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings.clone(), support::service_settings()).await?;
+            let client = client::connect_with(ConnectionSettings {
+                target: Some(format!("http://{}", server.endpoint())),
+                ..Default::default()
+            })
+            .await?;
+            let (observations, mut observed) = mpsc::unbounded_channel();
+            let plugin = Plugin::of::<()>("1.0.0").identifier("fixture").initialize(async move |context| {
+                // Read Through the Library Handle and Persist Before Initialization Completes.
+                let state = context.state()?;
+                let value = state.get::<String>().await?;
+                if value.is_empty() {
+                    let stale = context.state()?;
+                    assert_eq!(state.put(&String::from("durable value")).await?, 1);
+                    let error = stale.put(&String::from("stale value")).await.unwrap_err();
+                    assert!(format!("{error:?}").contains("state_revision_conflict"), "{error:?}");
+                }
+                observations
+                    .send(value)
+                    .map_err(|_| dokime::Error::Invalid("Observe Plugin State: Keep the Story Receiver Open".into()))?;
+                Ok(())
+            });
+            let registered = client.plugins().register(plugin).await?;
+            assert_eq!(registered.identifier(), "fixture");
+            assert_eq!(observed.recv().await.ok_or("Observe Plugin State: Return the Initialization Value")?, "");
+
+            // Restart the Host on the Same Root While the Listener Keeps Its Address and Owner.
+            server.close().await?;
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings, support::service_settings()).await?;
+            assert_eq!(observed.recv().await.ok_or("Observe Plugin State: Return the Reopened Value")?, "durable value");
+            server.close().await?;
+            client.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
     }))
 }

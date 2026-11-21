@@ -15,14 +15,15 @@ import { type ReactNode, useEffect, useState } from "react";
 
 /* === Local Imports === */
 
-import { DokimeToaster } from "@/components/DokimeToaster";
-import { type ThemeModePolicy, useAppearance } from "@/lib/appearance";
+import { DokimeToaster } from "@dokime/document/components/DokimeToaster";
+import { type ThemeModePolicy, useAppearance } from "@dokime/document/lib/appearance";
 import { AppearanceProvider } from "@/lib/NativeAppearanceProvider";
-import { useApplicationTheme } from "@/lib/application-theme";
+import { useApplicationTheme } from "@dokime/document/lib/application-theme";
 import { DesktopThemeProvider } from "@/lib/DesktopThemeProvider";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
 import { useNativeSessionOptional } from "./native-session/context";
 import { createDokimeQueryClient } from "./query-client";
+import { DesktopPresentation } from "./DesktopPresentation";
 
 /* === Types === */
 
@@ -47,9 +48,11 @@ export function AppProviders({ children }: AppProvidersProps) {
   const content = (
     <AppearanceProvider>
       <ThemeProviderFromAppearance>
-        <ThemeModePolicyController />
-        {children}
-        <DokimeToaster />
+        <DesktopPresentation>
+          <ThemeModePolicyController />
+          {children}
+          <DokimeToaster />
+        </DesktopPresentation>
       </ThemeProviderFromAppearance>
     </AppearanceProvider>
   );

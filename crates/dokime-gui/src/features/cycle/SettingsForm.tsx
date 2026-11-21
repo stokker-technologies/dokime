@@ -20,21 +20,22 @@
 
 /* === Imports === */
 
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
 // Standard Library Imports
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { type FormEvent, useEffect, useId, useState } from "react";
 // Third Party Imports
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { Input } from "@dokime/plots/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import type { TestCycle } from "@/lib/types";
+import { Textarea } from "@dokime/document/components/ui/textarea";
+import type { TestCycle } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 
@@ -180,7 +181,7 @@ export function SettingsDialog({
             titleInvalid={error === EMPTY_SETTINGS_TITLE_ERROR}
             values={draft}
           />
-          {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+          {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button disabled={saving} onClick={() => onOpenChange(false)} type="button" variant="outline">
               {editable ? "Cancel" : "Close"}

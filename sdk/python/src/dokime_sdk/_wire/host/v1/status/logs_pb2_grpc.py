@@ -37,6 +37,11 @@ class LogsStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.List = channel.unary_unary(
+                '/dokime.host.v1.status.Logs/List',
+                request_serializer=harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsListRequest.SerializeToString,
+                response_deserializer=harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsListResponse.FromString,
+                _registered_method=True)
         self.Watch = channel.unary_stream(
                 '/dokime.host.v1.status.Logs/Watch',
                 request_serializer=harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsWatchRequest.SerializeToString,
@@ -50,6 +55,13 @@ class LogsServicer:
     Exposes Logs to product clients with library-owned payloads and execution policy.
     """
 
+    def List(self, request, context):
+        """Read bounded retained redacted log events at an issued boundary; expired tokens/positions and responses too small for one event refuse.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Watch(self, request, context):
         """Emit an opening boundary then bounded log batches after it; positive bounds are required and a history gap refuses with resynchronization guidance.
         """
@@ -60,6 +72,11 @@ class LogsServicer:
 
 def add_LogsServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'List': grpc.unary_unary_rpc_method_handler(
+                    servicer.List,
+                    request_deserializer=harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsListRequest.FromString,
+                    response_serializer=harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsListResponse.SerializeToString,
+            ),
             'Watch': grpc.unary_stream_rpc_method_handler(
                     servicer.Watch,
                     request_deserializer=harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsWatchRequest.FromString,
@@ -78,6 +95,33 @@ class Logs:
 
     Exposes Logs to product clients with library-owned payloads and execution policy.
     """
+
+    @staticmethod
+    def List(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dokime.host.v1.status.Logs/List',
+            harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsListRequest.SerializeToString,
+            harmos_dot_host_dot_v1_dot_status_dot_logs__pb2.LogsListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Watch(request,

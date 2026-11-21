@@ -50,6 +50,7 @@ jobs:
       check: ${{ steps.impact.outputs.check }}
       build_product: ${{ steps.impact.outputs.build_product }}
       build_tests: ${{ steps.impact.outputs.build_tests }}
+      build_sdk_cpp: ${{ steps.impact.outputs.build_sdk_cpp }}
       build_host_fixtures_csharp: ${{ steps.impact.outputs.build_host_fixtures_csharp }}
       build_python: ${{ steps.impact.outputs.build_python }}
       build_docs: ${{ steps.impact.outputs.build_docs }}
@@ -92,6 +93,16 @@ jobs:
     needs:
     - impact
     - build_product
+  build_sdk_cpp:
+    name: Build / SDK / C++
+    uses: ./.github/workflows/validate-build-tests.yml
+    with:
+      channel: ci
+      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
+      fixture-language: cpp
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_sdk_cpp == 'true'
+    needs:
+    - impact
   build_host_fixtures_csharp:
     name: Build / SDK / C# / Fixtures
     uses: ./.github/workflows/validate-build-tests.yml
@@ -149,6 +160,7 @@ jobs:
     - build_product
     - build_tests
     - build_python
+    - build_sdk_cpp
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.test == 'true'
     strategy:
       fail-fast: false
@@ -190,6 +202,7 @@ jobs:
     - impact
     - build_product
     - build_python
+    - build_sdk_cpp
     if: always() && needs.impact.result == 'success' && needs.impact.outputs.package == 'true'
   release_dry:
     name: Release / Dry
@@ -236,6 +249,12 @@ jobs:
       with:
         name: build-docs-${{ env.PROFILE }}-any
         path: target/docs
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: package-${{ env.PROFILE }}-cpp-*
+        path: target/ci
+        merge-multiple: true
         github-token: ${{ github.token }}
     - run: mise run release:rehearse -- --profile ${{ env.PROFILE }} --target all
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -286,6 +305,7 @@ jobs:
     - build_docs
     - check_generated
     - test
+    - build_sdk_cpp
     - build_host_fixtures_csharp
     - test_host_csharp
     - package

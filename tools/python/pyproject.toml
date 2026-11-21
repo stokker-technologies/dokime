@@ -30,12 +30,12 @@ force-exclude = true
 
 [tool.ruff.lint]
 # Every Authored Function Declares Its Typed Contract.
-extend-select = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206"]
+select = ["E4", "E7", "E9", "F", "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206"]
 
 [tool.uv]
 # Use the Workstation Certificate Store for Dependency Downloads.
 system-certs = true
 
 [tool.uv.sources]
-# Generator Repairs Are Pinned Independently of the Carrier Dependencies.
-harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "504877e36bf490db39efbd5c7ee5ed8f09e2b5a3", subdirectory = "tools/python" }
+# Generated From the Workspace Library Pin by mise run generate -- --protocol.
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "324ad01b0892b1ca6a3bce4bb9525b22974f606b", subdirectory = "tools/python" }

@@ -13,14 +13,14 @@
 
 /* === Local Imports === */
 
-import type { ArtifactSource } from "@/lib/desktop/delivery";
+import type { ArtifactSource } from "@dokime/document/lib/contracts/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import * as rpc from "@/lib/host/client";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
-import type { Wire } from "@/lib/rpc/canonical";
-import { cutKey, required } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { ArtifactRecord, ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileReadWindow } from "@/lib/types";
+import type { ArtifactRecord, ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileReadWindow } from "@dokime/plots/lib/types";
 import * as desktopProtocol from "@generated/desktop-protocol";
 import * as hostModel from "@host/model";
 import {
@@ -30,9 +30,9 @@ import {
   mapArtifactMetadata,
   mapExecutionFile,
   mapFileState,
-} from "./native-content-projection";
+} from "@dokime/document/lib/api/native-content-projection";
 import { deliverNativeArtifact } from "./native-delivery";
-import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber, sha256Hex } from "./native-values";
+import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber, sha256Hex } from "@dokime/plots/lib/api/native-values";
 
 const GUI_CONTENT_BYTES = 2_147_483_648;
 const GUI_SMALL_PAGE_ITEMS = 100;

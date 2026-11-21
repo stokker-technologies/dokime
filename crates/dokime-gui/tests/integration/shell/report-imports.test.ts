@@ -36,11 +36,12 @@ const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").r
 /* === Tests === */
 
 test("the embedded report permits generated messages and cannot reach RPC clients or transports", () => {
-  const vite = readFileSync(resolve(root, "vite.config.ts"), "utf8");
+  const reportRoot = resolve(root, "../../packages/report");
+  const vite = readFileSync(resolve(reportRoot, "vite.config.ts"), "utf8");
   const input = vite.match(/input:[^\n]*?fileURLToPath\(new URL\("(.+?)", import.meta.url\)\)/)?.[1];
   assert.ok(input, "resolve the report HTML from the Vite entry configuration");
-  const html = readFileSync(resolve(root, input), "utf8");
-  const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(root, match[1].replace(/^\//, "")));
+  const html = readFileSync(resolve(reportRoot, input), "utf8");
+  const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(reportRoot, match[1].replace(/^\//, "")));
   assert.ok(entries.length, "the report must have a module entry");
 
   const messages = resolveLocal("@host/model", entries[0]);
@@ -112,6 +113,14 @@ function runtimeImports(source: string): string[] {
 
 function resolveLocal(specifier: string, importer: string): string | null {
   let base: string | undefined;
+  if (specifier.startsWith("@dokime/")) {
+    const [, name, ...subpath] = specifier.split("/");
+    const packageRoot = resolve(root, "../../packages", name);
+    const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8")) as { exports: Record<string, string> };
+    const entry = manifest.exports[`./${subpath.join("/")}`];
+    assert.ok(entry, `resolve the shared package export ${specifier}`);
+    base = resolve(packageRoot, entry);
+  }
   for (const [alias, paths] of Object.entries(config.compilerOptions.paths)) {
     if (!alias.endsWith("/*") || !specifier.startsWith(alias.slice(0, -1))) continue;
     base = resolve(root, paths[0].replace("*", specifier.slice(alias.length - 1)));

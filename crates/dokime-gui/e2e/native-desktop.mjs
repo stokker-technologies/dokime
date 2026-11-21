@@ -380,10 +380,24 @@ async function settings() {
     ["diagnostics", "Diagnostics"],
     ["about", "Dokime"],
     ["backends", "Backends"],
+    ["engine", "Streams"],
   ]) {
     await desktop.goto(`/settings/${section}`);
     await until(`Settings ${section}`, async () => (await desktop.text()).includes(label));
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
+    if (["plugins", "secrets", "backends"].includes(section)) {
+      const table = await desktop.execute(`const frame = document.querySelector('[data-slot="data-table"]');
+        if (!frame) return null;
+        return {
+          heading: Boolean(frame.querySelector('h2')),
+          filter: Boolean(frame.querySelector('input')),
+          footer: Boolean(frame.querySelector('footer [data-testid="table-page-size"]')),
+          columns: frame.querySelectorAll('thead th').length,
+          failureWidth: [...frame.querySelectorAll('tbody td[colspan]')].every(cell => cell.colSpan === frame.querySelectorAll('thead th').length),
+        };`);
+      assert.ok(table);
+      assert.ok(table.heading && table.filter && table.footer && table.columns > 0 && table.failureWidth);
+    }
   }
   await desktop.goto("/settings/plugins");
   const inventory = await call(desktop, "dokime.host.v1.Plugins", "List");

@@ -23,6 +23,7 @@ use std::process::Stdio;
 
 // Third Party Imports
 use harmos_runtime::bundle::{Bundle, Facility, Limits};
+use harmos_runtime::plugin::grpc::Launches;
 use prost_reflect::{DynamicMessage, SerializeOptions};
 use serde_json::{Deserializer, Serializer, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -50,40 +51,58 @@ use dokime_runtime::process;
 
 /* === Private Functions === */
 
+/// Serve the Native Starter Fixture at an Ephemeral Address and Return Its URL.
+async fn serve_fixture() -> Result<(tokio::process::Child, String), Box<dyn Error>> {
+    let executable = super::fixtures().join(format!("rust{EXE_SUFFIX}"));
+    let launches = Launches::new();
+    let mut launch = launches.reserve("rust starter fixture").await?;
+    let plugin = Command::from(process::command(executable))
+        .envs(launch.environment())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .kill_on_drop(true)
+        .spawn()?;
+    let address = launch.announced().await?;
+    launches.shutdown().await;
+    let url = format!("http://{address}");
+    Ok((plugin, url))
+}
+
 /* === Tests === */
 
 #[test]
-fn remote_registration_releases_the_entry_without_stopping_the_plugin() -> Result<(), Box<dyn Error>> {
+fn unmanaged_plugin_keeps_one_entry_across_restarts_until_removed() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
         time::timeout(super::HANG_GUARD, async {
             // Start the Candidate Plugin at an Ephemeral Address.
-            let executable = super::fixtures().join(format!("rust{EXE_SUFFIX}"));
-            let mut plugin = Command::from(process::command(executable))
-                .env_remove("HARMOS_ADDRESS")
-                .env("DOKIME_PLUGIN_ADDRESS", "127.0.0.1:0")
-                .stdout(Stdio::piped())
-                .stderr(Stdio::inherit())
-                .kill_on_drop(true)
-                .spawn()?;
-            let mut lines = BufReader::new(plugin.stdout.take().unwrap()).lines();
-            let announcement = lines.next_line().await?.ok_or("Register Plugin: Read Its Bound Endpoint")?;
-            let address = announcement.strip_prefix("harmos listening ").ok_or("Register Plugin: Read Its Listener Announcement")?;
-            let url = format!("http://{address}");
+            let (mut plugin, url) = serve_fixture().await?;
 
-            // Register the Remote Address and Observe the Ready Entry.
+            // Register the Remote Address and List It as an Unmanaged Ready Entry.
             let host = super::HostProcess::start().await?;
             let result: Result<(), Box<dyn Error>> = async {
                 let registered: Value =
                     serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "plugin", "register", &url, "--json"]).await?)?;
                 assert_eq!(registered["entry"]["placement"]["remote"]["url"], url);
                 assert_eq!(registered["entry"]["state"], "PLUGIN_STATE_READY");
-                let name = registered["entry"]["name"].as_str().ok_or("Register Plugin: Return Its Entry Name")?;
+                let name = registered["entry"]["name"].as_str().ok_or("Register Plugin: Return Its Entry Name")?.to_owned();
 
-                // Remove the Host Entry While the User-Owned Process Keeps Serving.
-                super::run(&["--endpoint", &host.endpoint, "plugin", "remove", name]).await?;
+                // Restarting the Plugin at a New Address Reuses Its One Entry.
+                plugin.kill().await?;
+                let (restarted, moved) = serve_fixture().await?;
+                plugin = restarted;
+                let again: Value =
+                    serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "plugin", "register", &moved, "--json"]).await?)?;
+                assert_eq!(again["entry"]["name"], name.as_str());
+                assert_eq!(again["entry"]["placement"]["remote"]["url"], moved);
+                assert_eq!(again["entry"]["state"], "PLUGIN_STATE_READY");
+                let listed: Value = serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "plugin", "list", "--json"]).await?)?;
+                assert_eq!(listed["entries"].as_array().map(Vec::len), Some(1));
+
+                // Only an Explicit Remove Deletes the Entry, and the User-Owned Process Keeps Serving.
+                super::run(&["--endpoint", &host.endpoint, "plugin", "remove", &name]).await?;
                 let listed: Value = serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "plugin", "list", "--json"]).await?)?;
                 assert!(listed.get("entries").is_none_or(|entries| entries.as_array().unwrap().is_empty()));
-                super::run(&["plugin", "inspect", "--url", &url, "--json"]).await?;
+                super::run(&["plugin", "inspect", "--url", &moved, "--json"]).await?;
                 Ok(())
             }
             .await;

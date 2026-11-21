@@ -53,7 +53,7 @@ mod native {
 
     async fn install_file(
         app: &tauri::App<tauri::test::MockRuntime>, window: &bridge::Window, drop: bool,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<Option<String>, dokime_gui::Error> {
         let session = app.state::<dokime_gui::connection::ConnectionSession>();
         let generation = session.status().generation;
         desktop_plugin_install_file(
@@ -80,7 +80,7 @@ mod native {
             let path = root.path().join("plugin.dokime");
             std::fs::write(&path, b"not a plugin bundle").unwrap();
             app.state::<DroppedFiles>().record("main", std::slice::from_ref(&path));
-            assert!(!install_file(&app, &window, true).await.unwrap_err().is_empty());
+            assert!(!install_file(&app, &window, true).await.unwrap_err().to_string().is_empty());
             std::fs::write(&path, bundle(1024, native_target())).unwrap();
             app.state::<DroppedFiles>().record("main", &[path]);
             assert!(install_file(&app, &window, true).await.unwrap().is_some());
@@ -132,7 +132,7 @@ use dokime_client_internal::StatusGetOptions;
 use dokime_client_internal::host::PluginEntry;
 use dokime_client_internal::host::plugin_placement;
 use dokime_gui::rpc::{Bridge, FRAME_ERROR};
-use harmos_protocol::host;
+use dokime_protocol::host::StatusGetResponse;
 
 /* === Constants === */
 
@@ -156,10 +156,10 @@ fn invoke(window: &bridge::Window, command: &str, bytes: Vec<u8>) -> Result<taur
     bridge::invoke(window, command, bytes, &serde_json::Value::Null)
 }
 
-async fn install(fixture: &Fixture, bytes: Vec<u8>) -> Result<PluginEntry, String> {
+async fn install(fixture: &Fixture, bytes: Vec<u8>) -> Result<PluginEntry, dokime_gui::Error> {
     let lease = fixture.session.lease(&fixture.generation().to_string()).unwrap();
     let progress = tauri::ipc::Channel::new(|_| Ok(()));
-    dokime_gui::testing::install_plugin_bundle(&lease, bytes, progress, None).await
+    dokime_gui::testing::install(&lease, bytes, progress, None).await
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -253,7 +253,7 @@ fn unary_call_bridges() {
             panic!("Status Replies with Canonical Bytes");
         };
         assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-        let identity = host::StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
+        let identity = StatusGetResponse::decode(&reply[8..]).unwrap().status.unwrap().identity.unwrap();
         assert_eq!(identity.host_id, fixture.session.status().backend.unwrap().backend_id);
         let error =
             bridge::invoke(&harness.window, "rpc", fenced(generation, &[]), &json!({"dokime-rpc-path":"/dokime.host.v1.Missing/Call"}))
@@ -279,8 +279,10 @@ fn owner_cancellation_health() {
         );
         assert_eq!(harness.settle(channel).last().unwrap()[8], FRAME_ERROR);
         let client = fixture.client().await;
-        let response =
-            client.execute(client.client().status.get_with(StatusGetOptions { context: client.call_options().unwrap() })).await.unwrap();
+        let response = client
+            .execute("Status.Get", client.client().status.get_with(StatusGetOptions { context: client.call_options().unwrap() }))
+            .await
+            .unwrap();
         assert!(response.status.unwrap().available);
         fixture.close().await;
     })
@@ -331,10 +333,13 @@ fn refuses_foreign_bundle() {
         assert!(install(&fixture, bundle(1024, target)).await.is_err());
         let client = fixture.client().await;
         let page = client
-            .execute(client.client().plugins.list_with(PluginsListOptions {
-                context: client.call_options().unwrap(),
-                ..Default::default()
-            }))
+            .execute(
+                "Plugins.List",
+                client.client().plugins.list_with(PluginsListOptions {
+                    context: client.call_options().unwrap(),
+                    ..Default::default()
+                }),
+            )
             .await
             .unwrap();
         assert!(page.entries.is_empty());

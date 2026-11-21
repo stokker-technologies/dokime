@@ -3,9 +3,9 @@
 using Dokime;
 using Dokime.Clients;
 using Dokime.Clients.ExecutionsResources;
+using Dokime.Clients.PluginsResources;
 using Google.Protobuf;
 using Grpc.Core;
-using Dokime.Clients.PluginsResources;
 using Harmos;
 
 namespace Stories.Support;
@@ -31,6 +31,10 @@ internal sealed class FakeBackend : CallInvoker
     get; set;
   }
   internal int RegisteredCount => plugins.Count;
+  internal string? RegistrationRefusal
+  {
+    get; set;
+  }
   internal bool ConnectOnWatch
   {
     get; set;
@@ -43,7 +47,7 @@ internal sealed class FakeBackend : CallInvoker
     if (options.Headers?.GetValue("authorization") != "Bearer test-token")
       throw new RpcException(new Grpc.Core.Status(StatusCode.Unauthenticated, "Call Fixture: Supply Credentials"));
     if (method == "/dokime.host.v1.Status/Get" && request is Harmos.Clients.StatusGetRequest)
-      return new Harmos.Clients.StatusGetResponse();
+      return new StatusGetResponse();
     if (method == "/dokime.host.v1.Operations/Get" && request is Harmos.Clients.OperationsGetRequest operation)
     {
       if (Operation is null || Operation.Id != operation.Id)
@@ -84,6 +88,8 @@ internal sealed class FakeBackend : CallInvoker
       return new ExecutionsSealResponse { Outcome = new ExecutionOutcome { Evaluated = new EvaluatedOutcome { Status = ResultStatus.Passed } } };
     if (method == "/dokime.host.v1.Plugins/Create" && request is PluginsCreateRequest registration)
     {
+      if (RegistrationRefusal is not null)
+        throw new RpcException(new Grpc.Core.Status(StatusCode.FailedPrecondition, RegistrationRefusal));
       var entry = new PluginEntry
       {
         Name = registration.Name,
@@ -93,7 +99,8 @@ internal sealed class FakeBackend : CallInvoker
         State = ConnectOnWatch ? PluginState.Connecting : PluginState.Ready,
         Revision = ByteString.CopyFromUtf8("revision")
       };
-      plugins.Add(entry.Name, entry);
+      // Like the Product Host, an Existing Name Reuses Its Entry.
+      plugins[entry.Name] = entry;
       return new PluginsCreateResponse { Entry = entry.Clone() };
     }
     if (method == "/dokime.host.v1.Plugins/Get" && request is PluginsGetRequest selectedPlugin)

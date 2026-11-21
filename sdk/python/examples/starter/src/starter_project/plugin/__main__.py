@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Serve the Plugin; Dokime Starts This Module or Connects to It."""
+"""Serve the Plugin; Dokime Starts This Module, or It Registers With DOKIME_REMOTE."""
 
 # === Imports === #
 

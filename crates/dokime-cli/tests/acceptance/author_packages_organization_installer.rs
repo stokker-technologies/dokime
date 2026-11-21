@@ -72,7 +72,7 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
         // Refuse an Incomplete Kit Before Native Tool Invocation or Output Publication.
         fs::write(
             kit.join("distribution.json"),
-            serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":bundle::native_target(),"files":{}}))?,
+            serde_json::to_vec(&json!({"schema":1,"version":"1.2.3","target":bundle::native_target(),"source_revision":"f7c50e68","channel":"nightly","plugins":[],"files":{}}))?,
         )?;
         let refused = Command::from(process::command(&binary))
             .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
@@ -86,9 +86,10 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
             .output()
             .await?;
         assert_eq!(refused.status.code(), Some(2));
+        assert!(refused.stdout.is_empty());
+        assert!(!refused.stderr.contains(&0x1b));
         assert!(!output.exists());
-        let error = String::from_utf8(refused.stderr)?;
-        assert!(error.contains("distribution"), "{error}");
+        assert!(!refused.stderr.is_empty());
         // Refuse Implicit Signing Before Attempting a Download.
         let refused = Command::from(process::command(&binary))
             .env("DOKIME_AUTHENTICODE_PROVIDER", "none")
@@ -96,12 +97,14 @@ async fn author_packages_organization_installer() -> Result<(), Box<dyn Error>> 
             .args(["installer", "package", "--manifest"])
             .arg(&manifest)
             .arg("--sign")
+            .arg("--json")
             .arg("--output")
             .arg(&output)
             .output()
             .await?;
         assert_eq!(refused.status.code(), Some(2));
-        assert!(String::from_utf8(refused.stderr)?.contains("--sign"));
+        assert!(refused.stdout.is_empty());
+        assert!(!refused.stderr.is_empty());
         assert!(!output.exists());
         Ok(())
     })

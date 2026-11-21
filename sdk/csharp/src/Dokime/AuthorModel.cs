@@ -98,14 +98,32 @@ public abstract class Plugin
         lane.CapacityCase == Harmos.LaneDeclaration.CapacityOneofCase.Concurrent ? lane.Concurrent : null, lane.Unbounded)).ToArray());
   }
 
-  public Task RunAsync(ConnectionSettings? settings = null, CancellationToken cancellationToken = default)
+  // A Managed Launch Serves the Host; Otherwise DOKIME_REMOTE Selects Self-Registration, and Without It the Plugin Serves.
+  public async Task RunAsync(CancellationToken cancellationToken = default)
   {
-    if (System.Environment.GetEnvironmentVariable("HARMOS_ADDRESS") is not null)
-      return Adapter.RunAsync(cancellationToken: cancellationToken);
+    if (System.Environment.GetEnvironmentVariable("HARMOS_HOST_ENDPOINT") is not null || System.Environment.GetEnvironmentVariable("HARMOS_LAUNCH_TOKEN") is not null)
+    {
+      await Adapter.Build().RunAsync(cancellationToken: cancellationToken);
+      return;
+    }
     var values = Configuration.Load();
-    var address = Configuration.Resolve("DOKIME_PLUGIN_ADDRESS", settings?.PluginAddress, values);
-    return Adapter.RunAsync(address, remote: true, cancellationToken: cancellationToken);
+    var remote = System.Environment.GetEnvironmentVariable("DOKIME_REMOTE") ?? values.GetValueOrDefault("DOKIME_REMOTE", "");
+    if (remote.Length == 0)
+    {
+      await Adapter.Build().RunAsync(remote: true, cancellationToken: cancellationToken);
+      return;
+    }
+    await using var client = await Client.ConnectAsync(new ConnectionSettings { Remote = remote }, cancellationToken);
+    var registered = await client.Plugins.RegisterAsync(this, cancellationToken: cancellationToken);
+    try
+    {
+      await registered.WaitAsync(cancellationToken);
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+    }
   }
+
 }
 
 public abstract class Suite

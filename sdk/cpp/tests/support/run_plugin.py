@@ -14,8 +14,8 @@
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-from threading import Thread
 
 # isort: split
 
@@ -24,7 +24,12 @@ from threading import Thread
 # isort: split
 
 # Local Imports
+from dokime_sdk._wire.host.v1.plugins_pb2 import PLUGIN_STATE_READY, PluginEntry, PluginsCreateRequest, PluginsCreateResponse
+from dokime_sdk._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
 from dokime_tools.process import spawn_flags
+from grpc import ServicerContext, server
+from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
+from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
 
 # Type Checking Imports
 
@@ -39,49 +44,51 @@ from dokime_tools.process import spawn_flags
 # === Public Functions === #
 
 
-def read_output(process: subprocess.Popen[str], ready: Queue[str | None]) -> None:
-    address = None
-    try:
-        if process.stdout is None:
-            return
-        for line in process.stdout:
-            print(line, end="", flush=True)
-            if address is None and line.startswith("harmos listening "):
-                address = line.removeprefix("harmos listening ").strip()
-                ready.put(address)
-    finally:
-        if address is None:
-            ready.put(None)
-
-
 def main() -> None:
     plugin, story, placement = sys.argv[1:]
     environment = dict(os.environ)
-    environment.pop("HARMOS_ADDRESS", None)
-    arguments = [plugin]
+    ready: Queue[str] = Queue()
+
+    class Host(LaunchesServicer, PluginsServicer):
+        def Announce(self, request: LaunchesAnnounceRequest, context: ServicerContext) -> LaunchesAnnounceResponse:
+            ready.put(request.address)
+            return LaunchesAnnounceResponse()
+
+        def Create(self, request: PluginsCreateRequest, context: ServicerContext) -> PluginsCreateResponse:
+            entry = PluginEntry(
+                name=request.name, placement=request.placement, value=request.value, revision=b"fixture", state=PLUGIN_STATE_READY
+            )
+            ready.put(entry.placement.remote.url.removeprefix("http://"))
+            return PluginsCreateResponse(entry=entry)
+
+    launches = server(ThreadPoolExecutor(max_workers=1))
+    host = Host()
+    add_LaunchesServicer_to_server(host, launches)
+    add_PluginsServicer_to_server(host, launches)
+    port = launches.add_insecure_port("127.0.0.1:0")
+    launches.start()
+    environment.pop("HARMOS_HOST_ENDPOINT", None)
+    environment.pop("HARMOS_LAUNCH_TOKEN", None)
+    environment.pop("DOKIME_REMOTE", None)
     if placement == "remote":
-        environment["DOKIME_PLUGIN_ADDRESS"] = "127.0.0.1:0"
+        environment["DOKIME_REMOTE"] = f"http://127.0.0.1:{port}"
     else:
-        environment["HARMOS_ADDRESS"] = "127.0.0.1:0"
+        environment.update(HARMOS_HOST_ENDPOINT=f"127.0.0.1:{port}", HARMOS_LAUNCH_TOKEN="fixture-launch")
+    arguments = [plugin]
     creationflags = spawn_flags()
     process = subprocess.Popen(
         arguments,
         env=environment,
         stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
+        stdout=sys.stdout,
         stderr=sys.stderr,
         text=True,
         encoding="utf-8",
         errors="replace",
         creationflags=creationflags,
     )
-    ready: Queue[str | None] = Queue()
-    output = Thread(target=read_output, args=(process, ready))
-    output.start()
     try:
-        address = ready.get()
-        if address is None:
-            raise RuntimeError(f"Start Plugin: Inspect the Plugin Output Above and Correct Its Startup Failure (Exit {process.wait()})")
+        address = ready.get(timeout=240)
         subprocess.run(
             [story, address, placement],
             check=True,
@@ -101,11 +108,9 @@ def main() -> None:
         if process.poll() is None:
             process.terminate()
             process.wait()
-        output.join()
+        launches.stop(None).wait()
         if process.stdin is not None:
             process.stdin.close()
-        if process.stdout is not None:
-            process.stdout.close()
 
 
 # === Private Functions === #

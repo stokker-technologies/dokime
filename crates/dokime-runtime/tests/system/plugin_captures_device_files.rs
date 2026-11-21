@@ -63,15 +63,6 @@ struct Captured {
     gaps: u32,
 }
 
-#[derive(PartialEq, Message)]
-struct Refused {
-    #[prost(bool, tag = "1")]
-    refused: bool,
-
-    #[prost(string, tag = "2")]
-    classification: String,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -82,13 +73,13 @@ struct Refused {
 
 /* === Private Functions === */
 
-async fn admit(client: &Client, template: &str, device: &Path, outside: &Path) -> Result<String, Box<dyn error::Error>> {
+async fn admit(client: &Client, template: &str, device: &Path) -> Result<String, Box<dyn error::Error>> {
     let text = |path: &Path| {
         vec![Value {
             kind: Some(value::Kind::Text(path.display().to_string())),
         }]
     };
-    let parameters = HashMap::from([("root".into(), text(device)), ("outside".into(), text(outside))]);
+    let parameters = HashMap::from([("root".into(), text(device))]);
     let cases = super::support::materialize(client, "capture", template, parameters).await?;
     Ok(super::support::admit(client, cases).await?.remove(0))
 }
@@ -159,16 +150,13 @@ fn expected(entries: &[(&str, &[u8])]) -> BTreeMap<String, Vec<u8>> {
 fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
     super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-            // Allow One Device Directory and One Running Capture
+            // Allow One Running Capture
             let root = super::support::tempdir()?;
             let device = super::support::tempdir()?;
-            let outside = super::support::tempdir()?;
             std::fs::create_dir(device.path().join("nested"))?;
             std::fs::write(device.path().join("device.log"), b"boot\n")?;
             std::fs::write(device.path().join("nested/trace.bin"), [0_u8, 1, 2])?;
-            std::fs::write(outside.path().join("private.txt"), b"private\n")?;
             let mut settings = super::support::settings();
-            settings.capture.roots = vec![device.path().to_path_buf()];
             settings.capture.maximum_captures = 1;
             let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings.clone(), super::support::service_settings()).await?;
             let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
@@ -181,7 +169,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
             super::support::plugin_state(&client.plugins, created.entry.unwrap(), dokime_protocol::host::PluginState::Ready).await?;
 
             // Copy the Device Tree Once, Preserving Relative Paths
-            let copied = admit(&client, "capture.copy", device.path(), outside.path()).await?;
+            let copied = admit(&client, "capture.copy", device.path()).await?;
             assert_eq!(settle(&client, &copied).await?, Termination::Completed as i32);
             assert_eq!(record::<Captured>(&client, &copied).await?, Captured { files: 2, bytes: 8, gaps: 0 });
             assert_eq!(
@@ -190,23 +178,14 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
             );
 
             // Capture Only What the Device Wrote Between Start and Stop
-            let window = admit(&client, "capture.window", device.path(), outside.path()).await?;
+            let window = admit(&client, "capture.window", device.path()).await?;
             assert_eq!(settle(&client, &window).await?, Termination::Completed as i32);
             assert_eq!(record::<Captured>(&client, &window).await?, Captured { files: 2, bytes: 11, gaps: 0 });
             assert_eq!(artifacts(&client, &window).await?, expected(&[("window/device.log", b"late\n"), ("window/fresh.log", b"fresh\n")]));
 
-            // Refuse a Source Outside the Allowed Roots Before Reading It
-            let escaped = admit(&client, "capture.refused", device.path(), outside.path()).await?;
-            assert_eq!(settle(&client, &escaped).await?, Termination::Completed as i32);
-            let refused = record::<Refused>(&client, &escaped).await?;
-            assert!(refused.refused);
-            // The Library Carries Host Child Failures as One Permanent Refusal (Invariant 22).
-            assert!(refused.classification.contains("code: \"refused\""), "{}", refused.classification);
-            assert!(artifacts(&client, &escaped).await?.is_empty());
-
             // A Cancelled Execution Still Seals Its Running Capture
             std::fs::remove_file(device.path().join("fresh.log"))?;
-            let cancelled = admit(&client, "capture.cancelled", device.path(), outside.path()).await?;
+            let cancelled = admit(&client, "capture.cancelled", device.path()).await?;
             let mut progress = client
                 .executions
                 .progress
@@ -230,7 +209,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
 
             // The Sealed Capture Released Its Only Slot for the Next Execution
             std::fs::remove_file(device.path().join("fresh.log"))?;
-            let again = admit(&client, "capture.window", device.path(), outside.path()).await?;
+            let again = admit(&client, "capture.window", device.path()).await?;
             assert_eq!(settle(&client, &again).await?, Termination::Completed as i32);
             assert_eq!(record::<Captured>(&client, &again).await?, Captured { files: 2, bytes: 11, gaps: 0 });
 

@@ -20,9 +20,10 @@ import { fromBinary } from "@bufbuild/protobuf";
 
 // Local Imports
 import type { Failure } from "@host/model";
-import type { RpcError } from "@/lib/desktop/rpc";
-import type { NotificationFailure } from "@/lib/notification-details";
-import { CapturedRecordErrorSchema, FailureSchema, StatusSchema } from "./generated/errors";
+import type { RpcError } from "@dokime/document/lib/contracts/rpc";
+import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { FailureSchema } from "./generated/errors";
 
 /* === Re-Exports === */
 
@@ -49,55 +50,45 @@ export function rpcFailureDetails(error: RpcError, reason: string): Partial<Noti
           : undefined,
     };
   }
-  const failure: Partial<NotificationFailure> = { reason };
-  if (error.kind !== "grpc" || !error.detail.details.length) return failure;
+  if (error.kind !== "grpc") return { reason };
+  const failure: Partial<NotificationFailure> = { reason, status: reason, message: error.detail.message };
+  if (!error.detail.details.length) return failure;
   try {
-    const status = fromBinary(StatusSchema, Uint8Array.from(error.detail.details));
-    for (const detail of status.details) {
-      if (detail.typeUrl === "type.googleapis.com/harmos.model.v1.Failure") {
-        const rejection = fromBinary(FailureSchema, detail.value);
-        Object.assign(failure, nativeFailure(rejection, reason));
-      } else if (detail.typeUrl === "type.googleapis.com/dokime.host.v1.evidence.CapturedRecordError") {
-        const captured = fromBinary(CapturedRecordErrorSchema, detail.value);
-        failure.message = captured.message;
-        failure.reason = captured.code || failure.reason;
-        failure.causes = captured.causeChain.map((cause) => (cause.code ? `${cause.code}: ${cause.message}` : cause.message)).reverse();
-        const diagnostics = [
-          captured.source && `Source: ${captured.source}`,
-          ...captured.causeChain.filter((cause) => cause.source).map((cause) => `Cause Source: ${cause.source}`),
-          captured.stacktraceAttachment && `Stacktrace Attachment: ${captured.stacktraceAttachment}`,
-          captured.traceId && `Trace ID: ${captured.traceId}`,
-          captured.correlationId && `Correlation ID: ${captured.correlationId}`,
-          captured.diagnostics,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        if (diagnostics) failure.diagnostics = [failure.diagnostics, diagnostics].filter(Boolean).join("\n\n");
-      } else {
-        failure.diagnostics = [failure.diagnostics, `${detail.typeUrl}\n${toBase64(detail.value)}`].filter(Boolean).join("\n\n");
-      }
-    }
+    return { ...failure, ...nativeFailure(fromBinary(FailureSchema, Uint8Array.from(error.detail.details)), reason) };
   } catch {
-    try {
-      const rejection = fromBinary(FailureSchema, Uint8Array.from(error.detail.details));
-      Object.assign(failure, nativeFailure(rejection, reason));
-    } catch {
-      failure.diagnostics = `Unrecognized Backend Details (Base64):\n${toBase64(Uint8Array.from(error.detail.details))}`;
-    }
+    return {
+      ...failure,
+      message: `${reason}: ${error.detail.message}`,
+      diagnostics: `Undecodable Desktop Details (Base64):\n${toBase64(Uint8Array.from(error.detail.details))}`,
+    };
   }
-  return failure;
+}
+
+/** Project the same generated failure used in statuses and plugin entries. */
+export function nativeFailure(rejection: Wire<Failure>, reason: string): Partial<NotificationFailure> {
+  const chain: Wire<Failure>[] = [];
+  for (let current: Wire<Failure> | undefined = rejection; current; current = current.cause) chain.push(current);
+  return {
+    message: rejection.message || undefined,
+    reason: rejection.code || reason,
+    action: chain.find((failure) => failure.action)?.action || undefined,
+    plugin: chain.find((failure) => failure.plugin)?.plugin || undefined,
+    failureOperation: rejection.operation || undefined,
+    causes: [
+      ...new Set(
+        chain
+          .slice(1)
+          .map((failure) => failure.message)
+          .filter((message) => message && message !== rejection.message),
+      ),
+    ],
+    causeDetails: chain.slice(1).map(({ code, message, operation, plugin, action }) => ({ code, message, operation, plugin, action })),
+    identifiers: Object.assign({}, ...chain.map((failure) => failure.details)),
+    diagnostics: [...new Set(chain.map((failure) => failure.diagnostics).filter(Boolean))].join("\n\n") || undefined,
+  };
 }
 
 /* === Private Functions === */
-
-function nativeFailure(rejection: Failure, reason: string): Partial<NotificationFailure> {
-  return {
-    message: rejection.message,
-    reason: rejection.code || reason,
-    operationId: rejection.operation || undefined,
-    diagnostics: rejection.diagnostics || undefined,
-  };
-}
 
 function toBase64(bytes: Uint8Array): string {
   return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));

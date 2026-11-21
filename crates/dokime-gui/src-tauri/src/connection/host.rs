@@ -25,19 +25,22 @@ pub use pairing::Pairing;
 
 // Standard Library Imports
 use std::{
+    collections::{BTreeSet, HashMap},
     future::Future,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
     time::Duration,
 };
 
 // Third Party Imports
+use harmos_protocol::model;
 use prost::Message;
 use prost_reflect::ReflectMessage;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::{Mutex, mpsc::Receiver};
+use tokio::task::JoinSet;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tonic::{Request, Status, transport::Endpoint};
+use tonic::{Code, Request, Status, transport::Endpoint};
 
 // Local Imports
 
@@ -62,7 +65,7 @@ use dokime_runtime::ControlledClock;
 #[cfg(not(feature = "testing"))]
 use dokime_runtime::services::WallClock;
 
-use dokime_client_internal::StatusGetResponse;
+use dokime_client_internal::host::StatusGetResponse;
 use dokime_client_internal::{Client, ClientSettings};
 
 /* === Constants === */
@@ -92,7 +95,7 @@ pub struct Session {
     product_epoch: String,
     methods: Vec<String>,
     cancellation: CancellationToken,
-    watches: Arc<tokio::sync::Mutex<tokio::task::JoinSet<()>>>,
+    watches: Arc<Mutex<JoinSet<()>>>,
     stream_buffer: usize,
     read_timeout: Duration,
     watch_timeout: Duration,
@@ -192,32 +195,42 @@ impl Session {
         let options = PluginsCreateOptions {
             origin: None,
             request_id: Some(format!("desktop-install-{name}")),
+            sdk_version: None,
             context: self.call_options()?,
         };
-        let reply = self.execute(self.client.plugins.create_with(name, placement, PluginValue { enabled: true }, options)).await?;
+        let reply = self
+            .execute("Plugins.Create", self.client.plugins.create_with(name, placement, PluginValue { enabled: true }, options))
+            .await?;
         let mut entry = reply.entry.ok_or_else(|| Status::data_loss("Install Plugin: Host Omitted Its Entry"))?;
         let options = PluginsWatchOptions {
             name: Some(entry.name.clone()),
             context: self.call_options()?,
             ..Default::default()
         };
-        let mut watch = self.execute(self.client.plugins.watch_with(options)).await?;
+        let mut watch = self.execute("Plugins.Watch", self.client.plugins.watch_with(options)).await?;
         while entry.state != PluginState::Ready as i32 {
             if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable | PluginState::Stopped)) {
-                return Err(Status::failed_precondition(format!(
-                    "Install Plugin {}: {}",
-                    entry.name,
-                    entry.failure.map_or_else(|| "Activation Stopped".into(), |failure| failure.message)
-                ))
-                .into());
+                let mut failure = entry.failure.unwrap_or_else(|| model::Failure {
+                    code: "plugin_stopped".into(),
+                    message: "The plugin stopped before reporting readiness.".into(),
+                    action: "Restart Plugin".into(),
+                    plugin: entry.name.clone(),
+                    ..Default::default()
+                });
+                failure.plugin = entry.name.clone();
+                let status = Status::with_details(Code::FailedPrecondition, &failure.message, failure.encode_to_vec().into());
+                log_failure("Plugins.Create", status.code(), &failure, &entry.name);
+                return Err(status.into());
             }
-            self.execute(watch.next()).await?.ok_or_else(|| Status::unavailable("Install Plugin: Plugin Watch Closed Before Readiness"))?;
+            self.execute("Plugins.Watch", watch.next())
+                .await?
+                .ok_or_else(|| Status::unavailable("Install Plugin: Plugin Watch Closed Before Readiness"))?;
             let options = PluginsGetOptions {
                 context: self.call_options()?,
                 ..Default::default()
             };
             entry = self
-                .execute(self.client.plugins.get_with(entry.name, options))
+                .execute("Plugins.Get", self.client.plugins.get_with(entry.name, options))
                 .await?
                 .entry
                 .ok_or_else(|| Status::not_found("Install Plugin: Plugin Entry Was Removed"))?;
@@ -291,7 +304,7 @@ impl Session {
         Ok(request)
     }
 
-    pub async fn execute<T>(&self, action: impl Future<Output = Result<T, Status>>) -> Result<T, Error> {
+    pub async fn execute<T>(&self, operation: &str, action: impl Future<Output = Result<T, Status>>) -> Result<T, Error> {
         let result = tokio::select! {
             biased;
             _ = self.cancellation.cancelled() => Err(Error::Superseded),
@@ -299,6 +312,9 @@ impl Session {
         };
         if self.cancellation.is_cancelled() {
             return Err(Error::Superseded);
+        }
+        if let Err(Error::Rpc(status)) = &result {
+            log_failure(operation, status.code(), &status_failure(status), "");
         }
         result
     }
@@ -311,6 +327,71 @@ impl Session {
         Box::pin(operations::watch(self, path, payload)).await
     }
 
+    pub(crate) async fn observe_plugins(&self) -> Result<(), Error> {
+        use dokime_client_internal::host::{plugin_change, plugins_watch_response};
+        let observer = self.clone();
+        let options = PluginsWatchOptions {
+            context: self.call_options()?,
+            ..Default::default()
+        };
+        let mut tasks = self.watches.lock().await;
+        if self.cancellation.is_cancelled() {
+            return Err(Error::Superseded);
+        }
+        while tasks.try_join_next().is_some() {}
+        tasks.spawn(async move {
+            let mut watch = match observer.execute("Plugins.Watch", observer.client.plugins.watch_with(options)).await {
+                Ok(watch) => watch,
+                Err(_) => return,
+            };
+            let mut failures = HashMap::new();
+            loop {
+                let event = tokio::select! {
+                    biased;
+                    _ = observer.cancellation.cancelled() => break,
+                    event = observer.execute("Plugins.Watch", watch.next()) => event,
+                };
+                let event = match event {
+                    Ok(Some(event)) => event.event,
+                    Ok(None) | Err(_) => break,
+                };
+                let entries = match event {
+                    Some(plugins_watch_response::Event::Snapshot(snapshot)) => {
+                        failures.retain(|name, _| snapshot.entries.iter().any(|entry| entry.name == *name));
+                        snapshot.entries
+                    }
+                    Some(plugins_watch_response::Event::Change(change)) => match change.kind {
+                        Some(plugin_change::Kind::Entry(entry)) => vec![entry],
+                        Some(plugin_change::Kind::Deleted(name)) => {
+                            failures.remove(&name);
+                            continue;
+                        }
+                        None => continue,
+                    },
+                    Some(plugins_watch_response::Event::ResyncRequired(_)) => {
+                        let options = PluginsWatchOptions {
+                            context: match observer.call_options() {
+                                Ok(options) => options,
+                                Err(_) => break,
+                            },
+                            ..Default::default()
+                        };
+                        watch = match observer.execute("Plugins.Watch", observer.client.plugins.watch_with(options)).await {
+                            Ok(watch) => watch,
+                            Err(_) => break,
+                        };
+                        continue;
+                    }
+                    None => continue,
+                };
+                for entry in entries {
+                    log_plugin_failure(&entry, &mut failures);
+                }
+            }
+        });
+        Ok(())
+    }
+
     async fn call<Q, R>(&self, path: &'static str, payload: &[u8]) -> Result<Vec<u8>, Error>
     where
         Q: Message + Default + Send + 'static,
@@ -320,7 +401,7 @@ impl Session {
         let request = self.request(value)?;
         let transport = self.client.transport().transport_handle();
         let response = self
-            .execute(transport.unary::<Q, R>(path.parse().expect("generated operation path"), request, R::default().descriptor()))
+            .execute(path, transport.unary::<Q, R>(path.parse().expect("generated operation path"), request, R::default().descriptor()))
             .await?;
         Ok(response.into_inner().encode_to_vec())
     }
@@ -335,7 +416,10 @@ impl Session {
         request.set_timeout(self.watch_timeout);
         let transport = self.client.transport().transport_handle();
         let mut watch = self
-            .execute(transport.watch_known::<Q, O>(path.parse().expect("generated operation path"), request, O::default().descriptor()))
+            .execute(
+                path,
+                transport.watch_known::<Q, O>(path.parse().expect("generated operation path"), request, O::default().descriptor()),
+            )
             .await?;
         let (sender, receiver) = tokio::sync::mpsc::channel(self.stream_buffer);
         let cancellation = self.cancellation.clone();
@@ -355,7 +439,10 @@ impl Session {
                 let message = match result {
                     Ok(Some(message)) => Ok(message.encode_to_vec()),
                     Ok(None) => break,
-                    Err(error) => Err(Error::Rpc(error)),
+                    Err(error) => {
+                        log_failure(path, error.code(), &status_failure(&error), "");
+                        Err(Error::Rpc(error))
+                    }
                 };
                 let terminal = message.is_err();
                 tokio::select! {
@@ -389,13 +476,13 @@ impl Session {
             product_epoch: String::new(),
             methods: Vec::new(),
             cancellation: CancellationToken::new(),
-            watches: Arc::new(tokio::sync::Mutex::new(tokio::task::JoinSet::new())),
+            watches: Arc::new(Mutex::new(JoinSet::new())),
             stream_buffer: settings.client.input_items.get(),
             read_timeout: settings.services.read_timeout,
             watch_timeout: settings.services.watch_timeout,
         };
         let options = StatusGetOptions { context: session.call_options()? };
-        let reply = session.client.status.get_with(options).await?;
+        let reply = session.execute("Status.Get", session.client.status.get_with(options)).await?;
         let identity = reply.status.as_ref().and_then(|status| status.identity.as_ref()).ok_or(Error::IncompleteIdentity)?;
         let history = reply.resolved_at.as_ref().and_then(|position| position.history.as_ref()).ok_or(Error::IncompleteIdentity)?;
         if identity.host_id.is_empty() || history.store.is_empty() || history.epoch.is_empty() {
@@ -411,11 +498,11 @@ impl Session {
             context: session.call_options()?,
             ..Default::default()
         };
-        let overview = session.client.backend.overview.get_with(options).await?;
+        let overview = session.execute("Backend.Overview.Get", session.client.backend.overview.get_with(options)).await?;
         session.product_epoch = overview.overview.filter(|value| !value.session_id.is_empty()).ok_or(Error::IncompleteIdentity)?.session_id;
-        let mut methods = std::collections::BTreeSet::new();
+        let mut methods = BTreeSet::new();
         let options = OperationsListOptions { context: session.call_options()? };
-        let catalog = session.client.operations.list_with(options).await?;
+        let catalog = session.execute("Operations.List", session.client.operations.list_with(options)).await?;
         let mut retained_bytes = 0usize;
         for operation in catalog.into_iter().filter(|operation| operation.grpc_available) {
             if let Some(grpc) = operation.contract.and_then(|contract| contract.grpc) {
@@ -446,13 +533,6 @@ impl Connection {
         self.server.is_some()
     }
 
-    /// Replaces the embedded host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        if let Some(server) = &self.server {
-            server.set_capture_roots(roots);
-        }
-    }
-
     pub async fn start(&mut self, root: &Path) -> Result<Session, Error> {
         self.close().await?;
         let server =
@@ -463,6 +543,8 @@ impl Connection {
             Ok(session) => {
                 self.server = Some(server);
                 self.session = Some(session.clone());
+                // Request failures are recorded by execute; observation is background work.
+                let _ = session.observe_plugins().await;
                 Ok(session)
             }
             Err(error) => {
@@ -583,6 +665,77 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
 
 /* === Private Functions === */
 
+/// The WebView always receives one generated `harmos.model.v1.Failure` protobuf in
+/// `error.detail.details`, including plain statuses. Postcard is a host carrier
+/// encoding, never a desktop wire contract. Unknown bytes remain support diagnostics.
+pub(crate) fn status_failure(status: &Status) -> model::Failure {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+
+    let bytes = status.details();
+    let decoded = if bytes.first() == Some(&1) {
+        harmos_runtime::Failure::decode(bytes).ok().map(|failure| model::Failure::from(&failure))
+    } else if bytes.is_empty() {
+        None
+    } else {
+        model::Failure::decode(bytes).ok()
+    };
+    decoded.unwrap_or_else(|| model::Failure {
+        code: status.code().to_string(),
+        message: if bytes.is_empty() { status.message().into() } else { format!("gRPC {}: {}", status.code() as i32, status.message()) },
+        diagnostics: if bytes.is_empty() {
+            String::new()
+        } else {
+            format!("Undecodable Host Details (Base64): {}", STANDARD.encode(bytes))
+        },
+        ..Default::default()
+    })
+}
+
+fn log_plugin_failure(entry: &PluginEntry, seen: &mut HashMap<String, (u64, model::Failure)>) -> bool {
+    let Some(failure) = &entry.failure else {
+        seen.remove(&entry.name);
+        return false;
+    };
+    let identity = (entry.activation, failure.clone());
+    if seen.get(&entry.name) == Some(&identity) {
+        return false;
+    }
+    seen.insert(entry.name.clone(), identity);
+    let code = match failure.classification() {
+        model::Classification::Refused => Code::FailedPrecondition,
+        model::Classification::Cancelled => Code::Cancelled,
+        model::Classification::TimedOut => Code::DeadlineExceeded,
+        _ => Code::Internal,
+    };
+    log_failure("Plugins.Watch", code, failure, &entry.name);
+    true
+}
+
+fn log_failure(operation: &str, code: Code, failure: &model::Failure, plugin: &str) {
+    let mut current = Some(failure);
+    let mut plugin = plugin;
+    let mut action = "";
+    while let Some(cause) = current {
+        if plugin.is_empty() {
+            plugin = &cause.plugin;
+        }
+        if action.is_empty() {
+            action = &cause.action;
+        }
+        current = cause.cause.as_deref();
+    }
+    let expected = failure.code == "settings_not_ready"
+        || matches!(
+            failure.classification(),
+            model::Classification::Refused | model::Classification::Cancelled | model::Classification::TimedOut
+        );
+    if !expected && matches!(code, Code::Internal | Code::Unknown | Code::DataLoss) {
+        tracing::error!(operation, failure_operation = %failure.operation, code = code as i32, failure_code = %failure.code, message = %failure.message, action, plugin);
+    } else {
+        tracing::warn!(operation, failure_operation = %failure.operation, code = code as i32, failure_code = %failure.code, message = %failure.message, action, plugin);
+    }
+}
+
 pub(super) fn validate_local(endpoint: &str) -> Result<(), Error> {
     let url = url::Url::parse(endpoint).map_err(|error| Error::Target(error.to_string()))?;
     let loopback = match url.host() {
@@ -606,3 +759,115 @@ pub(super) fn validate_local(endpoint: &str) -> Result<(), Error> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{log_failure, log_plugin_failure};
+    use dokime_client_internal::host::PluginEntry;
+    use harmos_protocol::model::Failure;
+    use std::collections::HashMap;
+    use std::{
+        io,
+        sync::{Arc, Mutex},
+    };
+    use tonic::Code;
+    use tracing::Level;
+
+    #[derive(Clone)]
+    struct Buffer(Arc<Mutex<Vec<u8>>>);
+    impl io::Write for Buffer {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn plugin_failures_log_once_until_recovery_or_replacement() {
+        let mut seen = HashMap::new();
+        let failure = Failure {
+            message: "bench_source".into(),
+            ..Default::default()
+        };
+        let mut entry = PluginEntry {
+            name: "bench".into(),
+            activation: 1,
+            failure: Some(failure.clone()),
+            ..Default::default()
+        };
+        assert!(log_plugin_failure(&entry, &mut seen));
+        assert!(!log_plugin_failure(&entry, &mut seen));
+        entry.revision = vec![1];
+        assert!(!log_plugin_failure(&entry, &mut seen));
+        entry.failure = None;
+        assert!(!log_plugin_failure(&entry, &mut seen));
+        entry.failure = Some(failure);
+        assert!(log_plugin_failure(&entry, &mut seen));
+        entry.activation += 1;
+        assert!(log_plugin_failure(&entry, &mut seen));
+    }
+
+    #[cfg(feature = "testing")]
+    #[test]
+    fn owned_host_keeps_one_observer_across_selection_and_clients() {
+        crate::test_support::run(async {
+            let root = crate::test_support::tempdir().unwrap();
+            let connection = crate::connection::ConnectionSession::default();
+            let owner = crate::native_session::DesktopSession::with_local_backend(
+                connection.clone(),
+                crate::native_session::backend::Backend::new(root.path().to_owned()),
+            );
+            let snapshot = owner.select(crate::native_session::BackendSelection::OwnedLocal).await.unwrap();
+            let local = owner.local_client().await.unwrap();
+            let selected = connection.lease(&snapshot.connection.generation).unwrap().client();
+            assert_eq!(local.product_epoch(), selected.product_epoch());
+            assert_eq!(local.watches.lock().await.len(), 1);
+            assert!(selected.watches.lock().await.is_empty());
+            owner.disconnect().await.unwrap();
+            assert!(!local.cancellation().is_cancelled());
+            assert!(selected.cancellation().is_cancelled());
+            assert_eq!(local.watches.lock().await.len(), 1);
+            owner.shutdown().await.unwrap();
+            assert!(local.cancellation().is_cancelled());
+            assert!(local.watches.lock().await.is_empty());
+        });
+    }
+
+    #[test]
+    fn failures_log_structured_fields_without_payloads_at_default_levels() {
+        let bytes = Arc::new(Mutex::new(Vec::new()));
+        let output = Buffer(Arc::clone(&bytes));
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_max_level(Level::WARN)
+            .with_writer(move || output.clone())
+            .finish();
+        let failure = Failure {
+            code: "bench_code".into(),
+            message: "bench_message".into(),
+            action: "bench_action".into(),
+            plugin: "bench".into(),
+            diagnostics: "private_payload".into(),
+            ..Default::default()
+        };
+        tracing::subscriber::with_default(subscriber, || {
+            log_failure("bench.operation", Code::FailedPrecondition, &failure, "");
+            log_failure("bench.operation", Code::Internal, &failure, "");
+        });
+        let text = String::from_utf8(bytes.lock().unwrap().clone()).unwrap();
+        assert_eq!(text.lines().count(), 2);
+        assert!(text.contains("WARN"));
+        assert!(text.contains("ERROR"));
+        for value in [&failure.code, &failure.message, &failure.action, &failure.plugin] {
+            assert!(text.contains(value));
+        }
+        for field in ["operation=", "code=", "action=", "plugin="] {
+            assert!(text.contains(field));
+        }
+        assert!(!text.contains(&failure.diagnostics));
+    }
+}

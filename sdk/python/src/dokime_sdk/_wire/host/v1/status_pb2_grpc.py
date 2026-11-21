@@ -3,6 +3,7 @@
 import grpc
 import warnings
 
+from dokime_sdk._wire.host.v1 import status_pb2 as dokime_dot_host_dot_v1_dot_status__pb2
 from harmos._wire.host.v1 import status_pb2 as harmos_dot_host_dot_v1_dot_status__pb2
 
 GRPC_GENERATED_VERSION = '1.85.1'
@@ -28,7 +29,7 @@ if _version_not_supported:
 class StatusStub:
     """=== Services === //
 
-    Exposes Status to product clients with library-owned payloads and execution policy.
+    Exposes Status to product clients with library-owned requests, health and execution policy, adding the host build.
     """
 
     def __init__(self, channel):
@@ -40,19 +41,19 @@ class StatusStub:
         self.Get = channel.unary_unary(
                 '/dokime.host.v1.Status/Get',
                 request_serializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusGetRequest.SerializeToString,
-                response_deserializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusGetResponse.FromString,
+                response_deserializer=dokime_dot_host_dot_v1_dot_status__pb2.StatusGetResponse.FromString,
                 _registered_method=True)
         self.Watch = channel.unary_stream(
                 '/dokime.host.v1.Status/Watch',
                 request_serializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusWatchRequest.SerializeToString,
-                response_deserializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusWatchResponse.FromString,
+                response_deserializer=dokime_dot_host_dot_v1_dot_status__pb2.StatusWatchResponse.FromString,
                 _registered_method=True)
 
 
 class StatusServicer:
     """=== Services === //
 
-    Exposes Status to product clients with library-owned payloads and execution policy.
+    Exposes Status to product clients with library-owned requests, health and execution policy, adding the host build.
     """
 
     def Get(self, request, context):
@@ -75,12 +76,12 @@ def add_StatusServicer_to_server(servicer, server):
             'Get': grpc.unary_unary_rpc_method_handler(
                     servicer.Get,
                     request_deserializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusGetRequest.FromString,
-                    response_serializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusGetResponse.SerializeToString,
+                    response_serializer=dokime_dot_host_dot_v1_dot_status__pb2.StatusGetResponse.SerializeToString,
             ),
             'Watch': grpc.unary_stream_rpc_method_handler(
                     servicer.Watch,
                     request_deserializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusWatchRequest.FromString,
-                    response_serializer=harmos_dot_host_dot_v1_dot_status__pb2.StatusWatchResponse.SerializeToString,
+                    response_serializer=dokime_dot_host_dot_v1_dot_status__pb2.StatusWatchResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -93,7 +94,7 @@ def add_StatusServicer_to_server(servicer, server):
 class Status:
     """=== Services === //
 
-    Exposes Status to product clients with library-owned payloads and execution policy.
+    Exposes Status to product clients with library-owned requests, health and execution policy, adding the host build.
     """
 
     @staticmethod
@@ -112,7 +113,7 @@ class Status:
             target,
             '/dokime.host.v1.Status/Get',
             harmos_dot_host_dot_v1_dot_status__pb2.StatusGetRequest.SerializeToString,
-            harmos_dot_host_dot_v1_dot_status__pb2.StatusGetResponse.FromString,
+            dokime_dot_host_dot_v1_dot_status__pb2.StatusGetResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -139,7 +140,7 @@ class Status:
             target,
             '/dokime.host.v1.Status/Watch',
             harmos_dot_host_dot_v1_dot_status__pb2.StatusWatchRequest.SerializeToString,
-            harmos_dot_host_dot_v1_dot_status__pb2.StatusWatchResponse.FromString,
+            dokime_dot_host_dot_v1_dot_status__pb2.StatusWatchResponse.FromString,
             options,
             channel_credentials,
             insecure,

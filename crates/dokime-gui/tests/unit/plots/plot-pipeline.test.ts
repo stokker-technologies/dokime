@@ -24,8 +24,8 @@ import { create } from "@bufbuild/protobuf";
 import { SnapshotsWatchResponseSchema } from "@host/model";
 import { Downsample, PlotStreamKind } from "@host/model";
 import { mapNativePlotWatchPage, toNativePlotRequest } from "@/lib/api/native-plots";
-import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
-import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
+import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
+import { applyPlotMessages, emptyLivePlotState } from "@dokime/plots/live-frames";
 
 import { plotRequestForDocumentPlot } from "@/plots/live-data";
 

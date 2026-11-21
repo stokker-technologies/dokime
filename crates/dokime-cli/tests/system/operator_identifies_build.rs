@@ -16,8 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{env::consts, error::Error};
 
 // Third Party Imports
+use serde_json::Value;
+use tokio::{process::Command, time};
 
 // Local Imports
 
@@ -42,29 +45,44 @@
 /* === Tests === */
 
 #[test]
-fn operator_identifies_build() -> Result<(), Box<dyn std::error::Error>> {
+fn operator_identifies_build() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
-        tokio::time::timeout(super::HANG_GUARD, async {
+        time::timeout(super::HANG_GUARD, async {
             // Identify the Client Before Connecting to the Host It Will Control
-            let version: serde_json::Value = serde_json::from_str(&super::run(&["version", "--json"]).await?)?;
+            let version: Value = serde_json::from_str(&super::run(&["--version", "--json"]).await?)?;
             let brief = super::run(&["--version"]).await?;
-            assert!(brief.contains(version["version"].as_str().unwrap()));
+            let short_flag = super::run(&["-V"]).await?;
+            assert_eq!(short_flag, brief);
             let revision = version["revision"].as_str().ok_or("Build Did Not Retain Its Source Revision")?;
             let commit = revision.strip_suffix("-dirty").unwrap_or(revision);
+            let short = &commit[..commit.len().min(8)];
+            let dirty = if revision.ends_with("-dirty") { "-dirty" } else { "" };
+            let channel = version["channel"].as_str().unwrap_or("local");
+            let package = version["version"].as_str().unwrap();
+            assert_eq!(brief.trim(), format!("{package} ({short}{dirty}, {channel})"));
             let object = format!("{commit}^{{commit}}");
-            let status = tokio::process::Command::from(dokime_runtime::process::command("git"))
+            let status = Command::from(dokime_runtime::process::command("git"))
                 .current_dir(super::root())
                 .args(["cat-file", "-e", &object])
                 .status()
                 .await?;
             assert!(status.success());
-            assert_eq!(version["target_os"], std::env::consts::OS);
-            assert_eq!(version["target_arch"], std::env::consts::ARCH);
+            assert_eq!(version["target_os"], consts::OS);
+            assert_eq!(version["target_arch"], consts::ARCH);
 
             // Read the Running Host's Identity Alongside the Local Build
             let host = super::HostProcess::start().await?;
-            let status: serde_json::Value = serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "status", "--json"]).await?)?;
+            let status: Value = serde_json::from_str(&super::run(&["--endpoint", &host.endpoint, "status", "--json"]).await?)?;
             assert!(status["status"]["identity"].is_object());
+            let host_revision = status["build"]["source_revision"].as_str().ok_or("Host Did Not Report Its Source Revision")?;
+            let host_commit = host_revision.strip_suffix("-dirty").unwrap_or(host_revision);
+            assert_eq!(host_commit, commit);
+            let host_short = &host_commit[..host_commit.len().min(8)];
+            let host_dirty = if host_revision.ends_with("-dirty") { "-dirty" } else { "" };
+            let host_channel = status["build"]["channel"].as_str().filter(|channel| !channel.is_empty()).unwrap_or("local");
+            let host_version = status["status"]["identity"]["application_version"].as_str().unwrap();
+            let text = super::run(&["--endpoint", &host.endpoint, "status"]).await?;
+            assert_eq!(text.lines().next(), Some(format!("{host_version} ({host_short}{host_dirty}, {host_channel})").as_str()));
             host.close().await?;
             Ok(())
         })

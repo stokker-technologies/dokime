@@ -17,18 +17,20 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { PathPill } from "@/components/PathPill";
-import { Button } from "@/components/ui/button";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
+import { PathPill } from "@dokime/document/components/PathPill";
+import { Button } from "@dokime/plots/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
-import { defaultBrand } from "@/lib/brand";
+import { defaultBrand } from "@dokime/document/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
-import { formatDecimal } from "@/lib/format";
-import { BrandMark } from "@/shell/BrandMark";
+import { formatDecimal } from "@dokime/plots/lib/format";
+import { BrandMark } from "@dokime/document/shell/BrandMark";
 import { useNativeSessionController } from "./context";
-import { connectionError, startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
+import { startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
 
 /* === Constants === */
 
@@ -56,24 +58,6 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const diagnostics = startupDiagnostics(error);
   const recoverable = storageRecoveryAvailable(error, localAttempt.current, launch?.localBackendAvailable ?? false);
   const archive = storageRecoveryArchive(error);
-
-  useEffect(() => {
-    if (!error) {
-      return;
-    }
-    let active = true;
-    void commands
-      .desktopSessionStatus()
-      .then((status) => {
-        if (active) {
-          setFailedEndpoint(status.connection.endpoint);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [error]);
 
   useEffect(() => {
     if (!busy) {
@@ -110,6 +94,20 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
       unlisten?.();
     };
   }, [busy]);
+
+  useEffect(() => {
+    if (!error || diagnostics) return;
+    let active = true;
+    void commands
+      .desktopSessionStatus()
+      .then((status) => {
+        if (active) setFailedEndpoint(status.connection.endpoint);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [error, diagnostics]);
 
   if (settings) {
     return <DisconnectedSettings close={() => setSettings(false)} />;
@@ -164,12 +162,12 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
 
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
-                <span>Or Connect To A Saved Backend</span>
+                <span>Or Connect to a Saved Backend</span>
                 <span className="h-px flex-1 bg-border" />
               </div>
               <BackendsTable
-                failure={error && !diagnostics ? <p>{connectionError(error)}</p> : undefined}
-                endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : launch?.target?.pairingFile)}
+                failure={error && !diagnostics ? error : undefined}
+                endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : null)}
                 onConnect={() => {
                   localAttempt.current = false;
                 }}
@@ -198,13 +196,12 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
         </div>
         {!busy && diagnostics && (
           <div className="grid gap-3 text-left text-sm">
-            <NotificationMessage context="background" source="Startup" title="Backend Could Not Start" error={error}>
-              {diagnostics.cause || connectionError(error)}
-            </NotificationMessage>
+            <ErrorCard
+              notificationContext="background"
+              failure={failureOf(error, "Backend Could Not Start")}
+              onRetry={() => void owner.select({ kind: "owned_local" })}
+            />
             {diagnostics.log && <PathPill value={diagnostics.log} />}
-            <Button variant="outline" onClick={() => void owner.select({ kind: "owned_local" })}>
-              Retry
-            </Button>
           </div>
         )}
         {!busy && archive && <PathPill value={archive} />}

@@ -26,8 +26,11 @@ use std::{
 };
 
 // Third Party Imports
+use harmos::plugin::Listener;
+use harmos_protocol::model::Failure;
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
+use tonic::Code;
 
 // Local Imports
 use super::host::{PluginEntry, PluginPlacement, PluginRemote, PluginState, PluginValue, plugin_placement};
@@ -51,7 +54,9 @@ use super::{
 };
 use super::{PluginsDeleteOptions, PluginsGetOptions, PluginsListOptions};
 use super::{Watching, queries::Paging};
-use crate::{ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Result, Termination, Value};
+use crate::{
+    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Plugin, Result, Termination, Value,
+};
 
 /* === Constants === */
 
@@ -69,8 +74,7 @@ pub(super) struct Lifetime {
 
 struct OwnedRegistration {
     identifier: String,
-    listener: ::harmos::plugin::Listener,
-    detached: Arc<AtomicBool>,
+    listener: Listener,
     bindings: Vec<(TypeId, String, String)>,
 }
 
@@ -227,40 +231,8 @@ impl Client {
     pub async fn close(&self) -> Result<()> {
         let mut owned = self.lifetime.owned.lock().await;
         let mut failures = Vec::new();
+        // Registered Entries Outlive Their Process: the Host Shows Them Offline Until the Plugin Registers Again.
         for registration in owned.iter_mut() {
-            if !registration.detached.load(Ordering::Acquire) {
-                let removed = async {
-                    let reply = self
-                        .resources
-                        .plugins
-                        .get_with(
-                            &registration.identifier,
-                            PluginsGetOptions {
-                                context: self.context.clone(),
-                                ..Default::default()
-                            },
-                        )
-                        .await;
-                    let entry = match reply {
-                        Ok(reply) => reply.entry.ok_or_else(|| invalid("Close Client", "Read the Owned Plugin Entry"))?,
-                        Err(status) if status.code() == tonic::Code::NotFound => {
-                            registration.detached.store(true, Ordering::Release);
-                            return Ok(());
-                        }
-                        Err(status) => return Err(status.into()),
-                    };
-                    self.resources
-                        .plugins
-                        .delete_with(&registration.identifier, entry.revision, PluginsDeleteOptions { context: self.context.clone() })
-                        .await?;
-                    registration.detached.store(true, Ordering::Release);
-                    Result::Ok(())
-                }
-                .await;
-                if let Err(error) = removed {
-                    failures.push(error.to_string());
-                }
-            }
             if let Err(error) = registration.listener.close().await {
                 failures.push(error.to_string());
             }
@@ -275,24 +247,23 @@ impl Client {
 }
 
 impl Plugins {
-    pub async fn register(&self, plugin: crate::Plugin) -> Result<RegisteredPlugin> {
+    pub async fn register(&self, plugin: Plugin) -> Result<RegisteredPlugin> {
         self.register_with(plugin, PluginRegisterOptions::default()).await
     }
 
-    pub async fn register_with(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
+    pub async fn register_with(&self, plugin: Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
         let plugins = Plugins { client: self.client.clone() };
-        // A Cancelled Caller Leaves Admission Owned Until Close Can Unregister It.
+        // A Cancelled Caller Leaves Admission Owned Until Close Stops Its Listener.
         tokio::spawn(async move { plugins.register_owned(plugin, options).await })
             .await
             .map_err(|error| invalid("Register Plugin", &format!("Inspect the Interrupted Registration Task: {error}")))?
     }
 
-    async fn register_owned(&self, plugin: crate::Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
+    async fn register_owned(&self, plugin: Plugin, options: PluginRegisterOptions) -> Result<RegisteredPlugin> {
         let mut owned = self.client.lifetime.owned.lock().await;
         self.client.ensure_open()?;
         let request_id = mutations::request_id(options.request_id)?;
-        let values = crate::configuration::load()?;
-        let address = crate::configuration::resolve("DOKIME_PLUGIN_ADDRESS", options.address.as_deref(), &values)?;
+        let address = options.address.as_deref().unwrap_or("127.0.0.1:0");
         let identifier = plugin.registration_identifier().to_owned();
         let bindings = plugin.template_bindings();
         let plugin = plugin.into_harmos()?.remote();
@@ -313,6 +284,7 @@ impl Plugins {
                 super::PluginsCreateOptions {
                     origin: None,
                     request_id: Some(request_id),
+                    sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
                     context: self.client.context.clone(),
                 },
             )
@@ -321,24 +293,30 @@ impl Plugins {
             Ok(reply) => reply,
             Err(error) => {
                 listener.close().await?;
+                if let Ok(failure) = <Failure as prost::Message>::decode(error.details())
+                    && !failure.message.is_empty()
+                {
+                    return Err(failure.into());
+                }
                 return Err(error.into());
             }
         };
         let entry = reply.entry.ok_or_else(|| invalid("Register Plugin", "Return Its Registry Entry"))?;
-        let detached = Arc::new(AtomicBool::new(false));
         owned.push(OwnedRegistration {
             identifier: entry.name.clone(),
             listener,
-            detached: detached.clone(),
             bindings,
         });
         let mut registered = RegisteredPlugin {
             client: self.client.clone(),
             entry,
-            detached,
+            detached: Arc::new(AtomicBool::new(false)),
         };
         drop(owned);
         let readiness = async {
+            if let Some(failure) = registered.entry.failure.clone() {
+                return Err(failure.into());
+            }
             if !matches!(registered.state()?, PluginState::Ready | PluginState::Connecting) {
                 return Err(invalid("Register Plugin", "Resolve the Plugin Activation Failure and Register Again"));
             }
@@ -357,6 +335,9 @@ impl Plugins {
                 .await?;
             while let Some(_frame) = watch.next().await? {
                 registered.refresh().await?;
+                if let Some(failure) = registered.entry.failure.clone() {
+                    return Err(failure.into());
+                }
                 match registered.state()? {
                     PluginState::Ready => return Ok(()),
                     PluginState::Connecting => {}
@@ -366,8 +347,9 @@ impl Plugins {
             Err(invalid("Register Plugin", "Keep the Host Connected Until the Plugin Is Ready"))
         }
         .await;
+        // A Failed Registration Stops Only Its Listener; an Existing Entry Stays for the Next Start.
         if let Err(error) = readiness {
-            registered.unregister().await?;
+            registered.release().await?;
             return Err(error);
         }
         Ok(registered)
@@ -450,14 +432,9 @@ impl RegisteredPlugin {
         self.client.ensure_open()?;
         let value = match self.client.plugins().get(self.identifier()).await {
             Ok(value) => value,
-            Err(Error::Harmos(::harmos::Error::Transport(status))) if status.code() == tonic::Code::NotFound => {
+            Err(Error::Harmos(::harmos::Error::Transport(status))) if status.code() == Code::NotFound => {
                 self.detached.store(true, Ordering::Release);
-                let mut owned = self.client.lifetime.owned.lock().await;
-                if let Some(registration) = owned.iter_mut().find(|registration| registration.identifier == self.identifier()) {
-                    registration.detached.store(true, Ordering::Release);
-                    registration.listener.close().await?;
-                }
-                return Ok(());
+                return self.release().await;
             }
             Err(error) => return Err(error),
         };
@@ -467,10 +444,12 @@ impl RegisteredPlugin {
             .delete_with(self.identifier(), value.entry.revision, PluginsDeleteOptions { context: self.client.context.clone() })
             .await?;
         self.detached.store(true, Ordering::Release);
+        self.release().await
+    }
+    async fn release(&self) -> Result<()> {
         let mut owned = self.client.lifetime.owned.lock().await;
-        if let Some(registration) = owned.iter_mut().find(|registration| registration.identifier == self.identifier()) {
-            registration.detached.store(true, Ordering::Release);
-            registration.listener.close().await?;
+        if let Some(index) = owned.iter().position(|registration| registration.identifier == self.identifier()) {
+            owned.remove(index).listener.close().await?;
         }
         Ok(())
     }
@@ -500,7 +479,7 @@ impl Cases {
         self.client.ensure_open()?;
         let mut matches = Vec::new();
         let owned = self.client.lifetime.owned.lock().await;
-        for registration in owned.iter().filter(|entry| !entry.detached.load(Ordering::Acquire)) {
+        for registration in owned.iter() {
             for (marker, suite, template) in &registration.bindings {
                 if *marker == TypeId::of::<T>() {
                     matches.push((suite.clone(), template.clone()));

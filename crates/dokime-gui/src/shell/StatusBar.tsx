@@ -16,9 +16,12 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+
 import { useNativeSession } from "@/app/native-session/context";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,19 +29,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Progress } from "@/components/ui/progress";
+} from "@dokime/plots/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@dokime/plots/components/ui/popover";
+import { Progress } from "@dokime/document/components/ui/progress";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/ActiveCycle";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
-import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
-import { useRouteCycleId } from "@/shell/route-scope";
+import { consoleAttentionCount } from "@dokime/document/shell/ConsoleDrawerView";
+import { useRouteCycleId } from "@dokime/document/shell/route-scope";
 import {
   type BackendOperation,
   operationPercent,
@@ -47,7 +50,7 @@ import {
   summarizeOperations,
 } from "@/shell/status-bar-operations";
 import { useHubStore } from "@/stores/hub-store";
-import { useUiStore } from "@/stores/ui-store";
+import { useUiStore } from "@dokime/document/stores/ui-store";
 import { RunIndicator } from "./RunIndicator";
 import { StatusBarFrame } from "./StatusBarFrame";
 
@@ -171,18 +174,20 @@ export function OperationsItem() {
       <PopoverContent align="end" className="grid w-80 gap-3 text-xs" side="top">
         <span className="font-medium">Backend Operations</span>
         {listed.map((operation) => (
-          <span className="grid gap-1" key={operation.id}>
+          <div className="grid min-w-0 gap-1" key={operation.id}>
             <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <span className="truncate font-medium">{operation.label}</span>
               <span className="text-muted-foreground tabular-nums">
                 {operationPercent(operation) === null ? "" : `${operationPercent(operation)}%`}
               </span>
             </span>
-            <span className={cn("truncate", operation.status === "failed" ? "text-destructive" : "text-muted-foreground")}>
-              {operation.failure ?? operationPhaseLabel(operation)}
-            </span>
+            {operation.failure ? (
+              <ErrorCard failure={failureOf(operation.failure, "Operation Failed", `operation:${operation.id}:${operation.failure}`)} />
+            ) : (
+              <span className="text-muted-foreground">{operationPhaseLabel(operation)}</span>
+            )}
             <OperationBar operation={operation} />
-          </span>
+          </div>
         ))}
       </PopoverContent>
     </Popover>
@@ -265,11 +270,11 @@ function AttentionItem() {
     ...(artifacts.data ?? [])
       .filter((artifact) => artifact.status === "failed" || artifact.error)
       .map((artifact) => ({
-        detail: artifact.error ?? "The installed plugin failed to start.",
+        detail: "Open Plugin Settings",
         id: `plugin:${artifact.plugin_id}`,
         label: artifact.label,
         open: () => {
-          void navigate({ params: { section: "plugins" }, to: "/settings/$section" });
+          void navigate({ params: { pluginId: artifact.plugin_id }, to: "/settings/plugins/$pluginId" });
         },
       })),
   ];

@@ -7,25 +7,24 @@
  * ***
  */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, FileText, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { checkpointStepStatus } from "@/lib/api/native-checkpoints";
 import { openNativeReport } from "@/lib/api/native-reports";
-import { timestampIso } from "@/lib/api/native-values";
-import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
-import { usePageChrome } from "@/shell/page-chrome";
+import { timestampIso } from "@dokime/plots/lib/api/native-values";
+import type { ExecutionBrowseEntry } from "@dokime/plots/lib/types/browse";
+import { usePageChrome } from "@dokime/document/shell/page-chrome";
 import { CheckpointEvidence } from "./CheckpointEvidence";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey, unrunCaption } from "./explore-contracts";
 import { fetchCheckpoint } from "./explore-data-source";
@@ -114,15 +113,21 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
     });
   }
 
+  const emptyCycle = entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0;
+
   return (
     <div aria-busy={query.isPending} className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
-        {query.isPending ? <p>Loading Executions…</p> : null}
-        {query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
         {query.coverage && !query.coverage.discovery_complete ? (
-          <NotificationMessage tone="info">History is incomplete. Some executions may be unavailable.</NotificationMessage>
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+            History is incomplete. Some executions may be unavailable.
+          </p>
         ) : null}
-        {deleteNotice ? <NotificationMessage tone="info">{deleteNotice}</NotificationMessage> : null}
+        {deleteNotice ? (
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {deleteNotice}
+          </p>
+        ) : null}
         {unrun ? (
           <section aria-label="Case Never Run" className="grid gap-2 rounded-lg border p-3">
             <h2 className="font-medium">This Case Was Never Run</h2>
@@ -138,6 +143,10 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         ) : null}
         <DataTable
           aria-label="History Executions"
+          title="Executions"
+          description={emptyCycle ? "This sealed cycle contains no executions." : "Executions retained in this history entry."}
+          loading={query.isPending}
+          failure={query.isError ? <ErrorCard failure={failureOf(query.error, "Data Unavailable")} /> : null}
           data={entry?.executions ?? []}
           getRowId={(execution) => execution.metadata.execution_id}
           emptyText="No Executions in the Loaded History"
@@ -178,11 +187,11 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
         />
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
-        {!unrun && entry?.unrun_count ? <NotificationMessage tone="info">{unrunCaption(entry.unrun_count)}</NotificationMessage> : null}
-        {entry?.target.kind === "cycle" && entry.execution_count === 0 && entry.unrun_count === 0 ? (
-          <p>This sealed cycle contains no executions.</p>
+        {!unrun && entry?.unrun_count ? (
+          <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+            {unrunCaption(entry.unrun_count)}
+          </p>
         ) : null}
-        {!query.isPending && !query.isError && !entry && !unrun ? <p>No executions found in the loaded history.</p> : null}
         {query.hasNextPage ? (
           <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
             {query.isFetchingNextPage ? "Loading…" : "Load More History"}
@@ -210,11 +219,7 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
           {deleteTarget?.checkpoint && deleteRetries[retryKey(deleteTarget)] ? (
             <p className="text-sm text-muted-foreground">Retry this deletion to confirm its result.</p>
           ) : null}
-          {deleteError ? (
-            <NotificationMessage error={deleteError}>
-              {failureOf(deleteError, "Execution Could Not Be Deleted").message}
-            </NotificationMessage>
-          ) : null}
+          {deleteError ? <ErrorCard notificationContext="action" failure={failureOf(deleteError, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button
               variant="outline"
@@ -350,7 +355,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
         {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
-      {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+      {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
     </div>
   );
 }

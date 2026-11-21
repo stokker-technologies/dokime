@@ -12,7 +12,7 @@
 
 /* === Local Imports === */
 
-import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "./connection";
+import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "@dokime/document/lib/contracts/connection";
 
 /* === Constants === */
 

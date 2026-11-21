@@ -85,12 +85,17 @@ export async function invoke(desktop, command, args = {}) {
   return result.value;
 }
 
-export async function call(desktop, service, method, request = {}) {
+export async function contract(service, method) {
   const path = `/${service.includes(".") ? service : `dokime.host.v1.${service}`}/${method}`;
   const declaration = inventory.match(new RegExp(`unary\\("${path}", (\\w+), (\\w+),`));
   assert.ok(declaration, `Canonical unary contract exists for ${path}`);
   const input = await schema(declaration[1]);
   const output = await schema(declaration[2]);
+  return { path, input, output };
+}
+
+export async function call(desktop, service, method, request = {}) {
+  const { path, input, output } = await contract(service, method);
   const status = await invoke(desktop, "desktop_session_status");
   const payload = toBinary(input, fromJson(input, request));
   const bytes = Buffer.alloc(40 + payload.length);

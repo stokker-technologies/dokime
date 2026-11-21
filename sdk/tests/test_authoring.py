@@ -23,7 +23,9 @@ from zipfile import ZipFile
 # isort: split
 
 # Third Party Imports
-from grpc.aio import insecure_channel
+from grpc.aio import insecure_channel, server
+from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
+from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
 from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetResponse
 
 # isort: split
@@ -98,27 +100,30 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         }
         timeout = policy.load(root).deadline("integration")
         environment = dict(os.environ)
-        environment.pop("HARMOS_ADDRESS", None)
+        ready: asyncio.Queue[str] = asyncio.Queue()
+
+        class Launches(LaunchesServicer):
+            async def Announce(self, request: LaunchesAnnounceRequest, context: object) -> LaunchesAnnounceResponse:
+                await ready.put(request.address)
+                return LaunchesAnnounceResponse()
+
+        launches = server()
+        add_LaunchesServicer_to_server(Launches(), launches)
+        port = launches.add_insecure_port("127.0.0.1:0")
+        await launches.start()
+        self.addAsyncCleanup(launches.stop, None)
+        environment.update(HARMOS_HOST_ENDPOINT=f"127.0.0.1:{port}", HARMOS_LAUNCH_TOKEN="fixture-launch")
         for language, command in commands.items():
             # Launch the Prepared Fixture and Observe Its Bound Listener.
             process = await asyncio.create_subprocess_exec(
                 *command,
                 stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
                 env=environment,
                 creationflags=spawn_flags(),
             )
             try:
-                assert process.stdout is not None
-                line = (
-                    (await asyncio.wait_for(process.stdout.readline(), timeout))
-                    .decode()
-                    .strip()
-                )
-                address = line.removeprefix("harmos listening ").removeprefix("http://")
-                self.assertTrue(
-                    address, f"Describe {language}: Announce the Bound Listener"
-                )
+                address = await asyncio.wait_for(ready.get(), timeout)
                 channel = insecure_channel(address)
                 try:
                     get = channel.unary_unary(

@@ -21,17 +21,16 @@
 
 import { AlertTriangle, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
-import { PathPill } from "@/components/PathPill";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { PathPill } from "@dokime/document/components/PathPill";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Checkbox } from "@dokime/plots/components/ui/checkbox";
+import { Input } from "@dokime/plots/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatNumber } from "@/lib/format";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
+import { formatNumber } from "@dokime/plots/lib/format";
 import {
   isWithdrawingAction,
   type PromptValue,
@@ -40,8 +39,8 @@ import {
   promptFieldDefault,
   promptFieldError,
 } from "@/lib/prompts";
-import type { PromptField, PromptRequest } from "@/lib/types";
-import { occurrenceKeys } from "@/lib/utils";
+import type { PromptField, PromptRequest } from "@dokime/plots/lib/types";
+import { occurrenceKeys } from "@dokime/plots/lib/utils";
 
 /* === Types === */
 
@@ -82,7 +81,7 @@ export function PromptPanel({ prompt, submittingAction = null, values, emergency
 
 function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: ReactNode; prompt: PromptRequest }) {
   return (
-    <NotificationMessage tone="info">
+    <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
       <div className="flex min-w-0 gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <LoaderCircle className="animate-spin" size={18} />
@@ -98,7 +97,7 @@ function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: Rea
         </div>
       </div>
       {emergencyAction ? <div className="flex justify-end border-t pt-3">{emergencyAction}</div> : null}
-    </NotificationMessage>
+    </p>
   );
 }
 
@@ -110,7 +109,7 @@ function VerificationPromptDialog({ emergencyAction, prompt }: { emergencyAction
           <LoaderCircle className="animate-spin" size={18} />
         </div>
         <div className="grid min-w-0 gap-1">
-          <p className="text-xs font-bold uppercase text-destructive">Waiting For Verification</p>
+          <p className="text-xs font-bold uppercase text-destructive">Waiting for Verification</p>
           <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
             {prompt.title}
           </strong>
@@ -235,7 +234,9 @@ function PromptDialog({
                 }}
               />
               {fieldErrors[field.name] && (attempted || touched.has(field.name)) ? (
-                <NotificationMessage tone="info">{fieldErrors[field.name]}</NotificationMessage>
+                <p role="status" className="whitespace-pre-wrap text-sm text-muted-foreground">
+                  {fieldErrors[field.name]}
+                </p>
               ) : null}
             </div>
           ))}

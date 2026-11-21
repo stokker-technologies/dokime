@@ -99,17 +99,19 @@ class AuthoringStory(unittest.TestCase):
         unrelated.read_text.return_value = json.dumps(
             {"url": (Path(__file__).resolve().parent / "unrelated").as_uri(), "dir_info": {"editable": True}}
         )
-        with (
-            patch("dokime_sdk._plugin.packages_distributions", return_value={}),
-            patch("dokime_sdk._plugin.distributions", return_value=[unrelated, owning]) as installed,
-        ):
-            self.assertEqual(InstalledPlugin()._version, "2.3.4")
-            installed.return_value = [unrelated]
-            self.assertRaises(ValueError, InstalledPlugin)
-            installed.return_value = [owning, owning]
-            self.assertRaises(ValueError, InstalledPlugin)
-            InstalledPlugin.version = "5.6.7"
-            self.assertEqual(InstalledPlugin()._version, "5.6.7")
+        packages = patch("dokime_sdk._plugin.packages_distributions", return_value={})
+        packages.start()
+        self.addCleanup(packages.stop)
+        distributions = patch("dokime_sdk._plugin.distributions", return_value=[unrelated, owning])
+        installed = distributions.start()
+        self.addCleanup(distributions.stop)
+        self.assertEqual(InstalledPlugin()._version, "2.3.4")
+        installed.return_value = [unrelated]
+        self.assertRaises(ValueError, InstalledPlugin)
+        installed.return_value = [owning, owning]
+        self.assertRaises(ValueError, InstalledPlugin)
+        InstalledPlugin.version = "5.6.7"
+        self.assertEqual(InstalledPlugin()._version, "5.6.7")
 
     def test_classes_bind_members_without_mutating_declarations(self) -> None:
         plugin = ExamplePlugin()
@@ -269,8 +271,6 @@ class AuthoringStory(unittest.TestCase):
             "start_capture",
             "stop_capture",
             "environment",
-            "prepare_effect",
-            "confirm_effect",
         ):
             self.assertFalse(hasattr(operations, name))
             self.assertTrue(callable(getattr(templates, name)))

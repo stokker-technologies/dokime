@@ -95,6 +95,9 @@ pub(crate) async fn resolve(context: &Context, plan: &SelectionPlan) -> Result<C
             return Err(Error::Invalid("Plan Selection: Choose One Unambiguous Connected Suite".into()));
         }
         let (plugin, suite) = matches[0];
+        if suite.unavailable {
+            return Err(Error::Precondition(format!("Plan Selection: Start Plugin {plugin} So Its Suite Becomes Available")));
+        }
         let template = suite
             .templates
             .iter()

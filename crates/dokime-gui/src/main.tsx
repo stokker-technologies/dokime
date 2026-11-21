@@ -1,11 +1,10 @@
-import { failureOf } from "@/lib/notification-details";
 // Dokime — SPDX-License-Identifier: Apache-2.0
-
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { createRoot, type Root } from "react-dom/client";
-import { DokimeToaster } from "@/components/DokimeToaster";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { defaultBrand } from "@/lib/brand";
-import "@/styles.css";
+import { DokimeToaster } from "@dokime/document/components/DokimeToaster";
+import { defaultBrand } from "@dokime/document/lib/brand";
+import "./desktop.css";
 
 declare global {
   interface Window {
@@ -23,9 +22,7 @@ void (async () => {
   root.render(
     <>
       <DokimeToaster />
-      <NotificationMessage context="background" source="Startup" title="Application Could Not Start" error={error}>
-        {failureOf(error, "Operation Failed").message}
-      </NotificationMessage>
+      <ErrorCard notificationContext="background" failure={failureOf(error, "Application Could Not Start")} />
     </>,
   );
 });

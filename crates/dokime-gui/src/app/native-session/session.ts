@@ -1,33 +1,33 @@
-// Dokime — SPDX-License-Identifier: Apache-2.0
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
 import type { QueryClient } from "@tanstack/react-query";
+
+// Local Imports
 import { createDokimeQueryClient } from "@/app/query-client";
+import { restartNativePlugin } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { toast } from "@/lib/notifications";
-import * as rpc from "@/lib/host/client";
+import { backendOverviewGet, statusGet } from "@/lib/host/client";
+import { toast } from "@dokime/plots/lib/notifications";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
-export interface SessionControls {
-  select(selection: BackendSelection): Promise<DesktopSessionSnapshot>;
-  disconnect(): Promise<DesktopSessionSnapshot>;
-  /** Development only: delete the owned backend's storage and restart it. */
-  resetLocalStorage(directory: string): Promise<DesktopSessionSnapshot>;
-  backupResetLocalStorage(directory: string, archive: string): Promise<DesktopSessionSnapshot>;
-}
-export interface ConnectedSession {
-  snapshot: DesktopSessionSnapshot;
-  identity: SessionIdentity;
-  queryClient: QueryClient;
-  /** Register a stream/resource disposer with this generation's owner. */
-  own(dispose: () => void): () => void;
-}
-export type SessionState =
-  | { phase: "disconnected" }
-  /** Explicit resets distinguish backed-up recovery from the development reset. */
-  | { phase: "connecting"; reset: false | "reset" | "backup" }
-  | { phase: "connected"; session: ConnectedSession }
-  | { phase: "failed"; error: unknown };
+/* === Re-Exports === */
+
+/* === Constants === */
+
 const nativeControls: SessionControls = {
   select: async (selection) => {
     if (selection.kind !== "profile") return commands.desktopSessionSelect(selection);
@@ -38,6 +38,36 @@ const nativeControls: SessionControls = {
   resetLocalStorage: (directory) => commands.desktopResetLocalStorage(directory),
   backupResetLocalStorage: (directory, archive) => commands.desktopBackupResetLocalStorage(directory, archive),
 };
+
+/* === Types === */
+
+export interface SessionControls {
+  select(selection: BackendSelection): Promise<DesktopSessionSnapshot>;
+  disconnect(): Promise<DesktopSessionSnapshot>;
+
+  /** Development only: delete the owned backend's storage and restart it. */
+  resetLocalStorage(directory: string): Promise<DesktopSessionSnapshot>;
+
+  backupResetLocalStorage(directory: string, archive: string): Promise<DesktopSessionSnapshot>;
+}
+export interface ConnectedSession {
+  snapshot: DesktopSessionSnapshot;
+  identity: SessionIdentity;
+  queryClient: QueryClient;
+  restartPlugin(name: string): Promise<void>;
+
+  /** Register a stream/resource disposer with this generation's owner. */
+  own(dispose: () => void): () => void;
+}
+export type SessionState =
+  | { phase: "disconnected" }
+
+  /** Explicit resets distinguish backed-up recovery from the development reset. */
+  | { phase: "connecting"; reset: false | "reset" | "backup" }
+  | { phase: "connected"; session: ConnectedSession }
+  | { phase: "failed"; error: unknown };
+
+/* === Classes === */
 
 /** One owner per desktop window. Inputs containing secrets are never retained. */
 export class NativeSession {
@@ -94,6 +124,10 @@ export class NativeSession {
           generation: snapshot.connection.generation,
           isCurrent: () => revision === this.revision,
         },
+        restartPlugin: async (name) => {
+          await restartNativePlugin(session.identity, name);
+          await queryClient.invalidateQueries({ queryKey: ["settings"] });
+        },
         own: (dispose) => {
           if (revision !== this.revision) {
             dispose();
@@ -111,7 +145,7 @@ export class NativeSession {
         for (const dispose of disposers) dispose();
         disposers.clear();
       };
-      const [ready, cycles] = await Promise.all([rpc.statusGet(session.identity, {}), rpc.backendOverviewGet(session.identity, {})]);
+      const [ready, cycles] = await Promise.all([statusGet(session.identity, {}), backendOverviewGet(session.identity, {})]);
       if (ready.status?.identity?.hostId !== backend.backendId || cycles.overview?.sessionId !== backend.epoch) {
         throw new Error("The bridge reached a different backend identity or epoch.");
       }
@@ -138,3 +172,9 @@ export class NativeSession {
     }
   }
 }
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Entry Point === */

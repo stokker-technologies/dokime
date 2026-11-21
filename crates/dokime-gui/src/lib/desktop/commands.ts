@@ -14,16 +14,18 @@
 
 /* === External Imports === */
 
-import { type Channel, invoke as invokeCommand } from "@tauri-apps/api/core";
+import type { Channel } from "@tauri-apps/api/core";
+import * as core from "@tauri-apps/api/core";
+import { normalizeRpcError } from "@/lib/rpc/errors";
 
 /* === Local Imports === */
 
 import type { InstallPluginProgress } from "@/lib/api/native-plugins";
-import { isReportBuild } from "@/lib/ui-mode";
-import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "./delivery";
-import type { BuildIdentity } from "./connection";
+import { isReportBuild } from "@dokime/document/lib/ui-mode";
+import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "@dokime/document/lib/contracts/delivery";
+import type { BuildIdentity } from "@dokime/document/lib/contracts/connection";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot, StorageBackupDestination } from "./session";
-import type { IntervalSettings, ParameterOverrides } from "./settings";
+import type { SavedSettings, SavedSettingsChange } from "./settings";
 import { settleUnlessStopping } from "./stopping";
 import type { PluginRelease, UpdateCheck, UpdateSelection, UpdateStatus } from "./updates";
 
@@ -42,7 +44,12 @@ export function invoke<T>(command: string, args?: Record<string, unknown>): Prom
     return Promise.reject(new Error(`A frozen report cannot call the desktop command "${command}".`));
   }
   // Once the desktop stops, a refused or interrupted command belongs to the stop.
-  return invokeCommand<T>(command, args).catch(settleUnlessStopping<T>);
+  return core
+    .invoke<T>(command, args)
+    .catch((error: unknown) => {
+      throw normalizeRpcError(error, command);
+    })
+    .catch(settleUnlessStopping<T>);
 }
 
 /* === Public Constants === */
@@ -93,14 +100,9 @@ export const commands = {
   desktopSetTitle: (title: string) => invoke<null>("desktop_set_title", { title }),
   /** Drain all runtime resources before requesting Tauri's non-cancellable restart. */
   desktopRestart: () => invoke<null>("desktop_restart"),
-  desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
-  desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
-  desktopCaptureFoldersRead: () => invoke<string[]>("desktop_capture_folders_read"),
-  /** Save the folders plugins may capture from and apply them to the owned local host. */
-  desktopCaptureFoldersWrite: (folders: string[]) => invoke<string[]>("desktop_capture_folders_write", { folders }),
-  desktopIntervalSettingsRead: () => invoke<IntervalSettings>("desktop_interval_settings_read"),
-  /** Save the interval window and lag bound the owned local host starts with. */
-  desktopIntervalSettingsWrite: (settings: IntervalSettings) => invoke<IntervalSettings>("desktop_interval_settings_write", { settings }),
+  desktopSavedSettingsRead: () => invoke<SavedSettings>("desktop_saved_settings_read"),
+  /** Save the keys present in the desktop's one settings file. */
+  desktopSavedSettingsUpdate: (change: SavedSettingsChange) => invoke<SavedSettings>("desktop_saved_settings_update", { change }),
   desktopUpdatesStatus: () => invoke<UpdateStatus>("desktop_updates_status"),
   desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
   desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),

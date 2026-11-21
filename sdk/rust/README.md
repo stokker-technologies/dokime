@@ -14,6 +14,12 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
 
+`Plugin::run()` and `Plugin::run_with(address)` register with the host selected by `DOKIME_REMOTE` in the process
+environment or working-directory `.env`. Managed launches take precedence.
+Registration sends the SDK version and uses the plugin identifier as its stable
+entry name. Closing the client stops its listener and retains the entry;
+`RegisteredPlugin::unregister()` removes it explicitly.
+
 ## Operation Lanes
 
 `dokime::Lane` re-exports the library declaration. Create `let instrument = Lane::serial("instrument");`, assign it with `operation.lane(&instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Declaration validation rejects undeclared lane references.
@@ -66,6 +72,20 @@ context. Plugin-wide observers use `Observer::operation` or
 `Observer::operation_window` with the operation context; they read plugin-owned
 state and have no execution-only methods.
 
+## Collections and Durable Plugin State
+
+`Plugin::collection` registers the library `Collection` directly. Declare native
+member streams, publish through `CollectionOutput`, select an `interval_setting`,
+and acquire/release resources through `on_start`/`on_stop`. The host owns demand,
+windows and timestamps. Bind a collection invocation to shared author state with
+`operations::Context::from_collection`; never retain an earlier invocation.
+Collection sampling requires a product host; the in-process template harness
+refuses it rather than running another scheduler.
+
+Operation contexts expose `state()?`: call `get::<T>().await?` before
+`put(&value).await?` on the same handle. Put compares the observed revision;
+conflicts require a fresh read and reapplication within the operation's policy.
+
 ## Values and Operations
 
 Records and simple operations accept `bool`, `String`, `i64` and `f64`; the SDK
@@ -111,11 +131,12 @@ mise run run
 `--from` (or `DOKIME_NEW_FROM`) selects the checkout's starter and writes a Cargo
 path dependency on its Rust SDK. The explicit argument wins over the environment.
 Without either, the command uses its embedded starter and published dependency.
-The plugin binary calls `plugin()?.run()` without parsing arguments.
+The plugin binary calls `plugin()?.run()` without parsing arguments. Launch credentials
+select library announcement; otherwise `DOKIME_REMOTE` selects self-registration,
+and no remote selects standalone serving.
 `register_with` accepts a `PluginRegisterOptions` address override; otherwise
-`DOKIME_PLUGIN_ADDRESS` in the process environment, then `.env`, then
-`127.0.0.1:0` selects its owned listener. `client.close()` unregisters owned
-plugins and joins their listeners; repeated close is safe.
+`127.0.0.1:0` selects its owned listener. `client.close()` retains the host entries
+and joins their listeners; repeated close is safe.
 
 `dokime::testing::Harness` runs a template against an in-memory host
 with a controlled clock, without hardware.
@@ -144,5 +165,5 @@ Reuse a request identity with identical inputs when replaying a mutation.
 Execution creation derives the same execution UUID from that identity.
 Template contexts also support `artifact()` and `artifact_with()`; they share the
 client's fenced upload implementation and attach only to the calling execution.
-Context records, progress, logs, traceability, documents and effect mutations
-also accept operation-specific request identity options through `_with` methods.
+Context records, progress, logs, traceability and document mutations also
+accept operation-specific request identity options through `_with` methods.

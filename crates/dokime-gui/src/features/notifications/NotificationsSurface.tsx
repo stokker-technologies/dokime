@@ -16,15 +16,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { relativeTime } from "@/components/document/document-overview-model";
-import { FailureConsequences } from "@/components/FailureConsequences";
+import { relativeTime } from "@dokime/document/components/document/document-overview-model";
+import { FailureConsequences } from "@dokime/document/components/FailureConsequences";
 // Local Imports
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import {
   clearNotifications,
   markNotificationsRead,
@@ -35,8 +35,8 @@ import {
   openNotificationDetails,
   useNotificationSummary,
   toast,
-} from "@/lib/notifications";
-import { PageShell } from "@/shell/PageShell";
+} from "@dokime/plots/lib/notifications";
+import { PageShell } from "@dokime/document/shell/PageShell";
 
 /* === Re-Exports === */
 

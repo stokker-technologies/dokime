@@ -1,0 +1,9 @@
+{
+  "extends": ["../../biome.json"],
+  "vcs": {
+    "root": "../.."
+  },
+  "files": {
+    "includes": ["**/*.mjs", "**/*.css", "**/*.json", "**/*.ts", "**/*.tsx", "!src/generated"]
+  }
+}

@@ -61,21 +61,21 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
         if values[split + 1 :] == ["--exact"]:
             name = values.pop(split - 1)
             values.append(name)
+    compiler_arguments = values[: values.index("--")] if "--" in values else values
     names = []
-    for names_index, names_value in enumerate(values[:-1]):
-        if names_value != "--test":
-            continue
-        names.append(values[names_index + 1])
-
+    binary_names = []
     packages = set()
-    for packages_index, packages_value in enumerate(values[:-1]):
-        if packages_value not in ("--package", "-p"):
-            continue
-        packages.add(values[packages_index + 1])
+    for argument, value in zip(compiler_arguments, compiler_arguments[1:]):
+        if argument == "--test":
+            names.append(value)
+        elif argument == "--bin":
+            binary_names.append(value)
+        elif argument in ("--package", "-p"):
+            packages.add(value)
 
     canonical: set[str] = set()
-    if "--tests" in values:
-        # Names Drive Deadline Overrides Only, Never Widen The Cargo Selection.
+    if names or binary_names or "--tests" in compiler_arguments or "--lib" in compiler_arguments:
+        # Names Drive Deadline Overrides Only, Never Widen the Cargo Selection.
         metadata = subprocess.run(
             ["cargo", "metadata", "--no-deps", "--locked", "--format-version", "1"],
             cwd=directory,
@@ -87,14 +87,23 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
         )
         targets = []
         for targets_package in json.loads(metadata.stdout)["packages"]:
-            if not (not packages or targets_package["name"] in packages):
+            if packages and targets_package["name"] not in packages:
                 continue
             for targets_target in targets_package["targets"]:
-                if "test" not in targets_target["kind"]:
+                if not targets_target["test"] or "example" in targets_target["kind"]:
+                    continue
+                integration = "test" in targets_target["kind"]
+                binary = "bin" in targets_target["kind"]
+                all_tests = "--tests" in compiler_arguments
+                selected_test = integration and targets_target["name"] in names
+                selected_binary = binary and targets_target["name"] in binary_names
+                selected_library = "--lib" in compiler_arguments and not integration and not binary
+                selected = all_tests or selected_test or selected_binary or selected_library
+                if not selected:
                     continue
                 targets.append((targets_package["name"], targets_target))
 
-        names = [target["name"] for _, target in targets]
+        names = [target["name"] for _, target in targets if "test" in target["kind"]]
         canonical.update(f"{name}/{feature}" for name, target in targets for feature in target.get("required-features", []))
     if canonical:
         split = values.index("--") if "--" in values else len(values)
@@ -164,9 +173,7 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
         scratch_directory.close()
 
 
-def selections(
-    directory: Path, metadata: dict, paths: Sequence[str], layer: str | None, canonical_features: Sequence[str] = ()
-) -> list[list[str]]:
+def selections(directory: Path, metadata: dict, paths: Sequence[str], layer: str | None) -> list[list[str]]:
     """Test Edits Select Their Harness; Source Edits Include Transitive Consumers."""
     directory = directory.resolve()
     packages = {package["name"]: package for package in metadata["packages"]}
@@ -183,7 +190,7 @@ def selections(
             continue
         owners = []
         for owners_name, owners_root in roots.items():
-            if not (path.is_relative_to(owners_root)):
+            if not path.is_relative_to(owners_root):
                 continue
             owners.append(owners_name)
 
@@ -223,17 +230,15 @@ def selections(
             selected[owner] = None
             changed_source.add(owner)
 
-    # Follow Path Dependencies, Including Renamed And Development Dependencies.
+    # Follow Path Dependencies, Including Renamed and Development Dependencies.
     affected_roots = {roots[name] for name in changed_source}
     while True:
         consumers = set()
         for consumers_name, consumers_package in packages.items():
-            if not (
-                any(
-                    Path(dependency["path"]).resolve() in affected_roots
-                    for dependency in consumers_package["dependencies"]
-                    if dependency.get("path")
-                )
+            if not any(
+                Path(dependency["path"]).resolve() in affected_roots
+                for dependency in consumers_package["dependencies"]
+                if dependency.get("path")
             ):
                 continue
             consumers.add(consumers_name)
@@ -244,7 +249,7 @@ def selections(
         affected_roots = updated
         selected.update(dict.fromkeys(consumers))
 
-    groups: dict[tuple[str, ...], tuple[list[str], set[str]]] = {}
+    groups: dict[tuple[str, ...], list[str]] = {}
     for name, names in sorted(selected.items()):
         package = packages[name]
         targets = []
@@ -264,12 +269,6 @@ def selections(
             targets.append(target)
         if not targets:
             continue
-        features = set()
-        for features_target in targets:
-            for features_feature in features_target.get("required-features", []):
-                features.add(f"{name}/{features_feature}")
-
-        features.update(feature for feature in canonical_features if feature.split("/", 1)[0] == name)
         selectors = []
         for target in targets:
             if "test" in target["kind"]:
@@ -280,22 +279,18 @@ def selections(
                 selectors += ["--lib"]
         if names is None and layer is None:
             selectors = ["--tests"]
-        owners, shared_features = groups.setdefault(tuple(selectors), ([], set()))
+        owners = groups.setdefault(tuple(selectors), [])
         owners += ["--package", name]
-        shared_features.update(features)
     commands = []
-    for selectors, (owners, features) in groups.items():
-        command = ["--locked", *owners]
-        if features:
-            command += ["--features", ",".join(sorted(features))]
-        commands.append([*command, *selectors])
+    for selectors, owners in groups.items():
+        commands.append(["--locked", *owners, *selectors])
     if not commands:
         raise ValueError("Run Focused Tests: no test targets match the changed paths and layer")
     return commands
 
 
 def changed(directory: Path, paths: Sequence[str], layer: str | None, *, plan: bool, no_run: bool, timings: bool) -> int:
-    # Read Cargo's Declared Ownership Without Resolving Or Compiling Dependencies.
+    # Read Cargo's Declared Ownership Without Resolving or Compiling Dependencies.
     result = subprocess.run(
         ["cargo", "metadata", "--no-deps", "--locked", "--format-version", "1"],
         cwd=directory,
@@ -305,18 +300,18 @@ def changed(directory: Path, paths: Sequence[str], layer: str | None, *, plan: b
         check=True,
         creationflags=spawn_flags(),
     )
-    commands = selections(directory, json.loads(result.stdout), paths, layer, [])
+    commands = selections(directory, json.loads(result.stdout), paths, layer)
 
-    # Run Only The Selected Targets, Preserving Cargo's Compiler Parallelism.
+    # Run Only the Selected Targets, Preserving Cargo's Compiler Parallelism.
     for command in commands:
         if timings:
             command += ["--timings"]
         if no_run:
             command += ["--no-run"]
-        print(display("test", command), flush=True)
         if plan:
-            continue
-        status = cargo.focused(directory, "test", command)
+            status = run(directory, command, plan=True)
+        else:
+            status = cargo.focused(directory, "test", command)
         if status:
             return status
     return 0

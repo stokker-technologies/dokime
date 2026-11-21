@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Grpc.Net.Client;
+using Harmos.Plugins;
 
 namespace Stories.Support;
 
 internal sealed class PluginServer : IAsyncDisposable
 {
-  private readonly Task serving;
-  private readonly CancellationTokenSource stop;
+  private readonly Listener listener;
   private readonly GrpcChannel channel;
   internal string Address
   {
@@ -17,58 +17,21 @@ internal sealed class PluginServer : IAsyncDisposable
   {
     get;
   }
-
-  private PluginServer(Task serving, CancellationTokenSource stop, GrpcChannel channel, string address)
+  private PluginServer(Listener listener)
   {
-    this.serving = serving;
-    this.stop = stop;
-    this.channel = channel;
-    Address = address;
+    this.listener = listener;
+    Address = "http://" + listener.Address;
+    channel = GrpcChannel.ForAddress(Address);
     Wire = new Wire(channel.CreateCallInvoker());
   }
-
   internal static async Task<PluginServer> StartAsync(Dokime.Plugin plugin)
   {
-    // Capture the SDK's Readiness Signal, Without Polling or Scenario Delays.
-    var original = Console.Out;
-    var ready = new ReadinessWriter(original);
-    Console.SetOut(ready);
-    var stop = new CancellationTokenSource();
-    var serving = plugin.Adapter.RunAsync(remote: true, cancellationToken: stop.Token);
-    try
-    {
-      var winner = await Task.WhenAny(ready.Address.Task, serving);
-      if (winner == serving)
-        await serving;
-      var address = "http://" + await ready.Address.Task;
-      return new PluginServer(serving, stop, GrpcChannel.ForAddress(address), address);
-    }
-    finally
-    {
-      Console.SetOut(original);
-    }
+    var listener = await plugin.Adapter.Build().StartAsync("127.0.0.1:0");
+    return new PluginServer(listener);
   }
-
   public async ValueTask DisposeAsync()
   {
     channel.Dispose();
-    await stop.CancelAsync();
-    await serving;
-    stop.Dispose();
-  }
-
-  private sealed class ReadinessWriter(TextWriter original) : TextWriter
-  {
-    public override System.Text.Encoding Encoding => original.Encoding;
-    internal TaskCompletionSource<string> Address
-    {
-      get;
-    } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public override void WriteLine(string? value)
-    {
-      if (value?.StartsWith("harmos listening ", StringComparison.Ordinal) == true)
-        Address.TrySetResult(value["harmos listening ".Length..]);
-      original.WriteLine(value);
-    }
+    await listener.DisposeAsync();
   }
 }

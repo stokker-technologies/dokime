@@ -208,8 +208,12 @@ pub async fn desktop_pairing_create(
     let status = state.status();
     let lease = state.lease(&status.generation)?;
     let client = lease.client();
-    let listener =
-        client.execute(client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? })).await?;
+    let listener = client
+        .execute(
+            "Access.Listener.Get",
+            client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? }),
+        )
+        .await?;
     let settings = listener.value.ok_or_else(|| local("Listener settings unavailable".into()))?;
     let enable = listener.bound_endpoint.is_empty();
     let confirm_app = app.clone();
@@ -329,23 +333,31 @@ pub async fn create_remote_access(
 ) -> Result<crate::connection::host::Pairing, crate::Error> {
     use dokime_client_internal::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions};
     if enable {
-        let current =
-            client.execute(client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? })).await?;
+        let current = client
+            .execute(
+                "Access.Listener.Get",
+                client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? }),
+            )
+            .await?;
         let mut value = current.value.ok_or_else(|| crate::connection::ConnectionError::Registry {
             message: "Listener settings unavailable".into(),
             cause: None,
         })?;
         value.enabled = true;
         client
-            .execute(client.client().access.listener.set_with(
-                value,
-                current.revision,
-                AccessListenerSetOptions { context: client.call_options()? },
-            ))
+            .execute(
+                "Access.Listener.Set",
+                client.client().access.listener.set_with(
+                    value,
+                    current.revision,
+                    AccessListenerSetOptions { context: client.call_options()? },
+                ),
+            )
             .await?;
     }
     let created = client
         .execute(
+            "Access.Pairings.Create",
             client.client().access.pairings.create_with(label.clone(), AccessPairingsCreateOptions { context: client.call_options()? }),
         )
         .await?;

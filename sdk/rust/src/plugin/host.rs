@@ -5,13 +5,6 @@ use dokime_protocol::host::BackendEnvironmentRequest;
 use dokime_protocol::host::BackendEnvironmentResponse;
 use dokime_protocol::host::DocumentsAppendPartsRequest;
 use dokime_protocol::host::DocumentsAppendPartsResponse;
-use dokime_protocol::host::EffectWritable;
-use dokime_protocol::host::EffectsCreateRequest;
-use dokime_protocol::host::EffectsCreateResponse;
-use dokime_protocol::host::EffectsGetRequest;
-use dokime_protocol::host::EffectsGetResponse;
-use dokime_protocol::host::EffectsSetRequest;
-use dokime_protocol::host::EffectsSetResponse;
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
 use dokime_protocol::host::FilesCaptureRequest;
@@ -92,6 +85,10 @@ use harmos_protocol::host::TimeSleepRequest;
 use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::host::plugins::SettingsListRequest;
 use harmos_protocol::host::plugins::SettingsListResponse;
+use harmos_protocol::host::plugins::StateGetRequest;
+use harmos_protocol::host::plugins::StateGetResponse;
+use harmos_protocol::host::plugins::StatePutRequest;
+use harmos_protocol::host::plugins::StatePutResponse;
 use harmos_protocol::model::DiscoveredOperation;
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
@@ -108,9 +105,6 @@ pub enum HostOperation {
     BackendEnvironment,
     ContentArtifactsCreate,
     DocumentsAppendParts,
-    EffectsCreate,
-    EffectsGet,
-    EffectsSet,
     EvidenceLogsAppend,
     EvidenceRecordsList,
     EvidenceRecordsAppend,
@@ -140,17 +134,16 @@ pub enum HostOperation {
     OperationsList,
     OperationsGet,
     PluginsSettingsList,
+    PluginsStateGet,
+    PluginsStatePut,
     TimeGet,
     TimeSleep,
 }
 impl HostOperation {
-    pub const ALL: [Self; 37] = [
+    pub const ALL: [Self; 36] = [
         Self::BackendEnvironment,
         Self::ContentArtifactsCreate,
         Self::DocumentsAppendParts,
-        Self::EffectsCreate,
-        Self::EffectsGet,
-        Self::EffectsSet,
         Self::EvidenceLogsAppend,
         Self::EvidenceRecordsList,
         Self::EvidenceRecordsAppend,
@@ -180,6 +173,8 @@ impl HostOperation {
         Self::OperationsList,
         Self::OperationsGet,
         Self::PluginsSettingsList,
+        Self::PluginsStateGet,
+        Self::PluginsStatePut,
         Self::TimeGet,
         Self::TimeSleep,
     ];
@@ -190,9 +185,6 @@ impl Registration for HostOperation {
             HostOperation::BackendEnvironment => ctx.register(Dependency::<BackendEnvironmentRequest>::new()),
             HostOperation::ContentArtifactsCreate => ctx.register(Dependency::<ArtifactsCreateRequest>::new()),
             HostOperation::DocumentsAppendParts => ctx.register(Dependency::<DocumentsAppendPartsRequest>::new()),
-            HostOperation::EffectsCreate => ctx.register(Dependency::<EffectsCreateRequest>::new()),
-            HostOperation::EffectsGet => ctx.register(Dependency::<EffectsGetRequest>::new()),
-            HostOperation::EffectsSet => ctx.register(Dependency::<EffectsSetRequest>::new()),
             HostOperation::EvidenceLogsAppend => ctx.register(Dependency::<LogsAppendRequest>::new()),
             HostOperation::EvidenceRecordsList => ctx.register(Dependency::<RecordsListRequest>::new()),
             HostOperation::EvidenceRecordsAppend => ctx.register(Dependency::<RecordsAppendRequest>::new()),
@@ -222,6 +214,8 @@ impl Registration for HostOperation {
             HostOperation::OperationsList => ctx.register(Dependency::<OperationsListRequest>::new()),
             HostOperation::OperationsGet => ctx.register(Dependency::<OperationsGetRequest>::new()),
             HostOperation::PluginsSettingsList => ctx.register(Dependency::<SettingsListRequest>::new()),
+            HostOperation::PluginsStateGet => ctx.register(Dependency::<StateGetRequest>::new()),
+            HostOperation::PluginsStatePut => ctx.register(Dependency::<StatePutRequest>::new()),
             HostOperation::TimeGet => ctx.register(Dependency::<TimeGetRequest>::new()),
             HostOperation::TimeSleep => ctx.register(Dependency::<TimeSleepRequest>::new()),
         }
@@ -237,7 +231,6 @@ pub struct HostRoot {
     pub backend: HostBackendResource,
     pub content: HostContentResource,
     pub documents: HostDocumentsResource,
-    pub effects: HostEffectsResource,
     pub evidence: HostEvidenceResource,
     pub executions: HostExecutionsResource,
     pub files: HostFilesResource,
@@ -254,7 +247,6 @@ impl HostRoot {
             backend: HostBackendResource::new(context.clone()),
             content: HostContentResource::new(context.clone()),
             documents: HostDocumentsResource::new(context.clone()),
-            effects: HostEffectsResource::new(context.clone()),
             evidence: HostEvidenceResource::new(context.clone()),
             executions: HostExecutionsResource::new(context.clone()),
             files: HostFilesResource::new(context.clone()),
@@ -283,21 +275,6 @@ pub struct HostContentArtifactsCreateOptions {
 pub struct HostDocumentsAppendPartsOptions {
     pub subsection: Option<Section>,
     pub card: Option<Card>,
-    pub request_id: Option<String>,
-    pub policy: Option<OperationPolicy>,
-}
-#[derive(Default)]
-pub struct HostEffectsCreateOptions {
-    pub request_id: Option<String>,
-    pub policy: Option<OperationPolicy>,
-}
-#[derive(Default)]
-pub struct HostEffectsGetOptions {
-    pub at: Option<Position>,
-    pub policy: Option<OperationPolicy>,
-}
-#[derive(Default)]
-pub struct HostEffectsSetOptions {
     pub request_id: Option<String>,
     pub policy: Option<OperationPolicy>,
 }
@@ -478,6 +455,14 @@ pub struct HostPluginsSettingsListOptions {
     pub policy: Option<OperationPolicy>,
 }
 #[derive(Default)]
+pub struct HostPluginsStateGetOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostPluginsStatePutOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
 pub struct HostTimeGetOptions {
     pub policy: Option<OperationPolicy>,
 }
@@ -572,62 +557,6 @@ impl HostDocumentsResource {
         };
         let response: DocumentsAppendPartsResponse = self.context.call_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read DocumentsAppendParts: Missing Payload".into()))
-    }
-}
-#[derive(Clone)]
-pub struct HostEffectsResource {
-    context: Context,
-}
-impl HostEffectsResource {
-    fn new(context: Context) -> Self {
-        Self { context }
-    }
-    pub async fn create(
-        &self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String,
-    ) -> Result<EffectsCreateResponse> {
-        self.create_with(resource, inverse_operation, inverse, description, HostEffectsCreateOptions::default()).await
-    }
-    pub async fn create_with(
-        &self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String, options: HostEffectsCreateOptions,
-    ) -> Result<EffectsCreateResponse> {
-        let request = EffectsCreateRequest {
-            resource,
-            inverse_operation,
-            inverse,
-            description,
-            request_id: match options.request_id {
-                Some(value) => value,
-                None => harmos::client::request_id()?,
-            },
-        };
-        let response: EffectsCreateResponse = self.context.call_with(request, options.policy).await?;
-        Ok(response)
-    }
-    pub async fn get(&self, name: String) -> Result<EffectsGetResponse> {
-        self.get_with(name, HostEffectsGetOptions::default()).await
-    }
-    pub async fn get_with(&self, name: String, options: HostEffectsGetOptions) -> Result<EffectsGetResponse> {
-        let request = EffectsGetRequest { name, at: options.at };
-        let response: EffectsGetResponse = self.context.call_with(request, options.policy).await?;
-        Ok(response)
-    }
-    pub async fn set(&self, name: String, value: EffectWritable, expected_revision: Vec<u8>) -> Result<EffectsSetResponse> {
-        self.set_with(name, value, expected_revision, HostEffectsSetOptions::default()).await
-    }
-    pub async fn set_with(
-        &self, name: String, value: EffectWritable, expected_revision: Vec<u8>, options: HostEffectsSetOptions,
-    ) -> Result<EffectsSetResponse> {
-        let request = EffectsSetRequest {
-            name,
-            value: Some(value),
-            expected_revision,
-            request_id: match options.request_id {
-                Some(value) => value,
-                None => harmos::client::request_id()?,
-            },
-        };
-        let response: EffectsSetResponse = self.context.call_with(request, options.policy).await?;
-        Ok(response)
     }
 }
 #[derive(Clone)]
@@ -1094,11 +1023,13 @@ impl HostOperationsResource {
 #[derive(Clone)]
 pub struct HostPluginsResource {
     pub settings: HostPluginsSettingsResource,
+    pub state: HostPluginsStateResource,
 }
 impl HostPluginsResource {
     fn new(context: Context) -> Self {
         Self {
             settings: HostPluginsSettingsResource::new(context.clone()),
+            state: HostPluginsStateResource::new(context.clone()),
         }
     }
 }
@@ -1117,6 +1048,31 @@ impl HostPluginsSettingsResource {
         let request = SettingsListRequest { name: options.name, at: options.at };
         let response: SettingsListResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostPluginsStateResource {
+    context: Context,
+}
+impl HostPluginsStateResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self) -> Result<StateGetResponse> {
+        self.get_with(HostPluginsStateGetOptions::default()).await
+    }
+    pub async fn get_with(&self, options: HostPluginsStateGetOptions) -> Result<StateGetResponse> {
+        let request = StateGetRequest {};
+        let response: StateGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn put(&self, expected_revision: u64, value: Vec<u8>) -> Result<u64> {
+        self.put_with(expected_revision, value, HostPluginsStatePutOptions::default()).await
+    }
+    pub async fn put_with(&self, expected_revision: u64, value: Vec<u8>, options: HostPluginsStatePutOptions) -> Result<u64> {
+        let request = StatePutRequest { expected_revision, value };
+        let response: StatePutResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response.revision)
     }
 }
 #[derive(Clone)]

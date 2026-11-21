@@ -14,14 +14,15 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { type FormEvent, useEffect, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
 import { SettingsFields } from "@/features/cycle/SettingsForm";
 import { useCreateCycleMutation } from "@/features/cycles-home/cycles-queries";
 import { initialNewCycleForm, type NewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
@@ -84,7 +85,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             titleInvalid={error !== null && !form.title.trim()}
             values={{ continueAutomatically: form.continueAutomatically, description: form.description, title: form.title }}
           />
-          {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
+          {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
           <DialogFooter>
             <Button disabled={create.isPending} onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel

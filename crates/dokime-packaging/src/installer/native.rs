@@ -37,6 +37,8 @@ use super::{
     distribution::{self, Distribution},
     license,
     manifest::{Format, InstallerSigning, Manifest, UpdaterSigning},
+    pack::ResolvedPack,
+    plugins::Staged,
 };
 use crate::installation;
 
@@ -87,12 +89,12 @@ impl Staging {
 /* === Public Functions === */
 
 pub(super) fn prepare(
-    manifest: &Manifest, distribution: &Distribution, source: &Path, plugins: &BTreeMap<String, PathBuf>, scratch: &Path,
-    options: &PackageOptions, authenticode: bool,
+    manifest: &Manifest, distribution: &Distribution, plugins: &BTreeMap<String, Staged>, scratch: &Path, options: &PackageOptions,
+    authenticode: bool, mut pack: ResolvedPack,
 ) -> Result<Settings, Error> {
     let sign = options.sign;
+    let source = &distribution.source;
     let identity = manifest.identity(&distribution.identity)?;
-    let mut pack = resolve_organization(manifest, source)?;
     // Verified Plugin Bundles Have One Installed Location Outside The Organization Pack.
     pack.files.retain(|name, _| !name.starts_with("plugins/"));
     let Some((_, application_bytes)) = pack.asset("application") else {
@@ -114,7 +116,8 @@ pub(super) fn prepare(
         let file = format!("{name}{suffix}");
         let bytes = fs::read(source.join("bin").join(&file))?;
         let destination = if windows { bin_dir.join(&file) } else { bin_dir.join("distribution").join(&file) };
-        super::stage_executable(&destination, &bytes, (name == "dokime-gui").then_some(&application_image))?;
+        let replace_icon = name == "dokime-gui" && manifest.installer.organization.is_some();
+        super::stage_executable(&destination, &bytes, replace_icon.then_some(&application_image))?;
         if windows {
             if sign {
                 sign_installer(manifest, &destination, options.command)?;
@@ -138,7 +141,8 @@ pub(super) fn prepare(
         files.insert(installed, digest);
     }
     let mut resources = HashMap::new();
-    for (name, staged) in plugins {
+    for (name, plugin) in plugins {
+        let staged = &plugin.path;
         let relative = format!("{}/{name}", installation::PLUGINS);
         resources.insert(staged.to_string_lossy().into_owned(), relative.clone());
         let linux_path = PathBuf::from(format!("/{installed_resource_prefix}{relative}"));
@@ -293,7 +297,8 @@ pub(super) fn prepare(
             Format::Rpm => PackageType::Rpm,
         })
         .collect();
-    let package = package_settings(manifest, &identity, &label, pack.organization_name().unwrap_or(&label), windows);
+    let package =
+        package_settings(manifest, &identity, &label, pack.organization_name().unwrap_or(&label), windows, &distribution.identity);
     let application_name = "dokime-gui".into();
     let command_name = "dokime".into();
     let application = BundleBinary::new(application_name, true);
@@ -317,9 +322,7 @@ pub(super) fn prepare(
     Ok(settings)
 }
 
-pub fn assemble(
-    manifest: &Manifest, distribution: &Distribution, settings: &Settings, output: &Path, options: &PackageOptions,
-) -> Result<Vec<PathBuf>, Error> {
+pub fn assemble(manifest: &Manifest, distribution: &Distribution, settings: &Settings, output: &Path) -> Result<Vec<PathBuf>, Error> {
     let bundles = tauri_bundler::bundle_project(settings).map_err(|error| {
         let message = error.to_string();
         Error::Invalid(message)
@@ -330,8 +333,11 @@ pub fn assemble(
     });
     let mut outputs = Vec::new();
     for (kind, source) in paths {
-        let destination = finish_package(manifest, distribution, kind, &source, output, options)?;
+        let destination = finish_package(manifest, distribution, kind, &source, output)?;
         outputs.push(destination);
+    }
+    if outputs.is_empty() {
+        return Err(Error::Invalid("Install the Native Packaging Tools and Run Packaging Again: No Installer Was Produced".into()));
     }
     Ok(outputs)
 }
@@ -441,7 +447,7 @@ pub(crate) fn stage_licenses(
 //
 // Tauri Names The Linux Package After The Product Name, Which Is The Distribution Slug.
 pub(crate) fn stage_copyright(
-    manifest: &Manifest, pack: &super::pack::ResolvedPack, source: &Path, scratch: &Path, package: &str, staging: &mut Staging,
+    manifest: &Manifest, pack: &ResolvedPack, source: &Path, scratch: &Path, package: &str, staging: &mut Staging,
 ) -> Result<(), Error> {
     let apache = fs::read_to_string(source.join("LICENSE"))?;
     let terms = match &manifest.license {
@@ -479,12 +485,18 @@ fn terms_text(terms: &super::manifest::License) -> Result<(&str, String), Error>
 }
 
 fn package_settings(
-    manifest: &Manifest, identity: &distribution::Identity, label: &str, publisher: &str, windows: bool,
+    manifest: &Manifest, identity: &distribution::Identity, label: &str, publisher: &str, windows: bool, compiled: &distribution::Identity,
 ) -> PackageSettings {
     // Tauri Uses The Linux Product Name As The Native Package Name.
     // The Description Supplies DEB's Display Description And RPM's Summary.
     PackageSettings {
-        product_name: if windows { label.to_owned() } else { identity.slug.clone() },
+        product_name: if windows {
+            label.to_owned()
+        } else if identity.identifier == compiled.identifier {
+            "dokime".into()
+        } else {
+            identity.slug.clone()
+        },
         version: manifest.installer.version.clone(),
         description: label.to_owned(),
         homepage: None,
@@ -500,7 +512,7 @@ fn desktop_entry(identity: &distribution::Identity, label: &str) -> String {
     )
 }
 
-fn resolve_organization(manifest: &Manifest, source: &Path) -> Result<super::pack::ResolvedPack, Error> {
+pub(super) fn resolve_organization(manifest: &Manifest, source: &Path) -> Result<ResolvedPack, Error> {
     let base = source.join("organization");
     let overrides = manifest.installer.organization.as_deref();
     let mut pack = super::pack::read(overrides.unwrap_or(&base))?;
@@ -552,31 +564,37 @@ fn explicit_update_mode(folder: &Path) -> Result<bool, Error> {
 }
 
 fn finish_package(
-    manifest: &Manifest, distribution: &Distribution, kind: PackageType, source: &Path, output: &Path, options: &PackageOptions,
+    manifest: &Manifest, distribution: &Distribution, kind: PackageType, source: &Path, output: &Path,
 ) -> Result<PathBuf, Error> {
     let identity = manifest.identity(&distribution.identity)?;
-    let slug = &identity.slug;
+    let slug = if identity.identifier == distribution.identity.identifier { "dokime" } else { &identity.slug };
     let name = match kind {
         PackageType::Nsis => format!("{slug}-{}-{}-setup.exe", manifest.installer.version, manifest.dokime.target),
-        PackageType::Deb => format!("{slug}_{}_amd64.deb", manifest.installer.version),
-        PackageType::Rpm => format!("{slug}-{}-1.x86_64.rpm", manifest.installer.version),
+        PackageType::Deb => format!("{slug}-{}-{}.deb", manifest.installer.version, manifest.dokime.target),
+        PackageType::Rpm => format!("{slug}-{}-{}.rpm", manifest.installer.version, manifest.dokime.target),
         _ => {
             let error = Error::Invalid("unexpected native package type".into());
             return Err(error);
         }
     };
-    if options.sign {
-        sign_installer(manifest, source, options.command)?;
-    }
-    if kind == PackageType::Nsis {
-        super::signing::authenticode(source, options.command)?;
-    }
     let destination = output.join(name);
     fs::copy(source, &destination)?;
-    if options.sign {
-        super::signing::updater(manifest, distribution, &destination, output, options.command)?;
-    }
     Ok(destination)
+}
+
+pub(super) fn sign(
+    manifest: &Manifest, distribution: &Distribution, destination: &Path, output: &Path, options: &PackageOptions,
+) -> Result<(), Error> {
+    if options.sign {
+        sign_installer(manifest, destination, options.command)?;
+    }
+    if destination.extension().is_some_and(|extension| extension == "exe") {
+        super::signing::authenticode(destination, options.command)?;
+    }
+    if options.sign {
+        super::signing::updater(manifest, distribution, destination, output, options.command)?;
+    }
+    Ok(())
 }
 
 fn validate_installer_signing(settings: &InstallerSigning) -> Result<(), Error> {
@@ -631,14 +649,14 @@ fn validate_updater_signing(manifest: &Manifest, settings: &UpdaterSigning) -> R
         return Err(error);
     }
 
-    let unavailable =
-        !cfg!(target_os = "windows") || env::var(&settings.password_env).is_err() || !settings.artifact_base_url.starts_with("https://");
+    let unavailable = !cfg!(target_os = "windows") || env::var(&settings.password_env).is_err();
     if unavailable {
         let error = Error::Invalid(
             "updater signing requires native Windows, a key file, external password environment and HTTPS artifact URL".into(),
         );
         return Err(error);
     }
+    settings.base_url()?;
     Ok(())
 }
 
@@ -742,7 +760,15 @@ mod tests {
         let original = fs::read(source.path().join(format!("bin/dokime-gui{}", EXE_SUFFIX)))?;
         // Prepare the Built-In Appearance Through the Native Tool Boundary.
         let staging = scratch()?;
-        let settings = prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), &fixtures::options(), false)?;
+        let settings = prepare(
+            &manifest,
+            &kit,
+            &BTreeMap::new(),
+            staging.path(),
+            &fixtures::options(),
+            false,
+            resolve_organization(&manifest, source.path())?,
+        )?;
         assert_eq!(settings.bundle_identifier(), "com.example.testhub");
         assert_eq!(settings.windows().nsis.as_ref().unwrap().install_mode, NSISInstallerMode::CurrentUser);
         assert!(staging.path().join("organization/default-only.css").is_file());
@@ -765,7 +791,15 @@ mod tests {
             file: Some(terms),
         });
         let staging = scratch()?;
-        prepare(&manifest, &kit, source.path(), &BTreeMap::new(), staging.path(), &fixtures::options(), false)?;
+        prepare(
+            &manifest,
+            &kit,
+            &BTreeMap::new(),
+            staging.path(),
+            &fixtures::options(),
+            false,
+            resolve_organization(&manifest, source.path())?,
+        )?;
         assert!(!staging.path().join("organization/default-only.css").exists());
         assert_eq!(fs::read(staging.path().join("terms/EULA.txt"))?, b"example terms");
         let appearance: toml::Value = toml::from_str(&fs::read_to_string(staging.path().join("organization/organization.toml"))?).unwrap();
@@ -805,16 +839,40 @@ mod tests {
     }
 
     #[test]
-    fn native_distribution_names_preserve_toolchain_executables() {
-        let manifest = fixtures::manifest();
+    fn native_distribution_names_preserve_toolchain_executables() -> Result<(), Error> {
+        let mut manifest = fixtures::manifest();
         for identifier in ["com.example.testhub", "com.example.otherhub"] {
             let identity = distribution::Identity::new(identifier.into()).unwrap();
-            let package = package_settings(&manifest, &identity, "Example Test Hub", "Example Test Hub", false);
+            let compiled = distribution::Identity::compiled().unwrap();
+            let package = package_settings(&manifest, &identity, "Example Test Hub", "Example Test Hub", false, &compiled);
             assert_eq!(package.product_name, identifier.replace('.', "-"));
             assert_eq!(package.default_run.as_deref(), Some("dokime-gui"));
             let desktop = desktop_entry(&identity, "Example Test Hub");
             assert!(desktop.contains(&format!("Exec=/usr/lib/{}/dokime-gui\n", identifier.replace('.', "-"))));
         }
+        let source = tempfile::tempdir()?;
+        fixtures::kit(source.path())?;
+        let kit = distribution::validate(source.path(), &manifest.dokime)?;
+        let input = source.path().join("payload");
+        fs::write(&input, b"installer fixture")?;
+        let output = tempfile::tempdir()?;
+        for (identifier, prefix) in [
+            (None, "dokime"),
+            (Some(kit.identity.identifier.clone()), "dokime"),
+            (Some("com.example.testhub".into()), "com-example-testhub"),
+        ] {
+            manifest.installer.identifier = identifier;
+            let identity = manifest.identity(&kit.identity)?;
+            let package = package_settings(&manifest, &identity, "Example Test Hub", "Example Test Hub", false, &kit.identity);
+            assert_eq!(package.product_name, prefix);
+            for (kind, ending) in [(PackageType::Nsis, "-setup.exe"), (PackageType::Deb, ".deb"), (PackageType::Rpm, ".rpm")] {
+                let path = finish_package(&manifest, &kit, kind, &input, output.path())?;
+                let expected = format!("{prefix}-1.2.3-{}{ending}", manifest.dokime.target);
+                assert_eq!(path.file_name().unwrap().to_str(), Some(expected.as_str()));
+                assert_eq!(fs::read(path)?, b"installer fixture");
+            }
+        }
+        Ok(())
     }
 
     #[test]

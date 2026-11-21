@@ -32,7 +32,6 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{RwLock, Weak};
 use std::time::Duration;
@@ -61,6 +60,7 @@ use composition::Application;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
 use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_protocol::host::HostBuild;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -144,10 +144,6 @@ impl Server {
     }
     pub fn status(&self) -> &Arc<Status> {
         &self.status
-    }
-    /// Replaces the served host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
-        self.host.set_capture_roots(roots);
     }
     pub async fn close(mut self) -> Result<()> {
         self.plugin_observation.cancel();
@@ -298,7 +294,10 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     let identity = HostIdentity {
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
-        product_version: env!("CARGO_PKG_VERSION").into(),
+        build: HostBuild {
+            source_revision: env!("DOKIME_SOURCE_REVISION").into(),
+            channel: env!("DOKIME_BUILD_CHANNEL").into(),
+        },
         target: dokime_packaging::bundle::native_target().into(),
         started_at: Some(Timestamp {
             seconds: host.now_ns().div_euclid(1_000_000_000),
@@ -446,6 +445,85 @@ mod tests {
     use crate::{CaptureSettings, HostSettings, PlacementSettings};
     use dokime_client_internal::Client;
     use dokime_test_support::credentials;
+
+    #[test]
+    fn host_plugin_launcher_stays_ready_while_collections_publish() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            tokio::time::timeout(crate::PLUGINS_TIMEOUT, async {
+                // Start the Shipped Plugin With the Product Launcher on Fresh Storage.
+                let root = credentials::tempdir()?;
+                let installation = credentials::tempdir()?;
+                let executable = std::env::current_exe()?
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join(format!("plugin-host{}", std::env::consts::EXE_SUFFIX));
+                if !executable.is_file() {
+                    return Err("Build the Shipped Plugin With mise run build -- --package plugin-host".into());
+                }
+                let message_bytes = NonZeroUsize::new(4 * 1024 * 1024).unwrap();
+                let stream_window = NonZeroUsize::new(8).unwrap();
+                let settings = HostSettings {
+                    installation: Some(installation.path().to_path_buf()),
+                    placement: PlacementSettings {
+                        reconnect_delay: Duration::from_secs(1),
+                        stream_window,
+                        interval_window: crate::INTERVAL_WINDOW,
+                        interval_lag: crate::INTERVAL_LAG,
+                        message_bytes,
+                    },
+                    storage: dokime_storage::storage_defaults(),
+                    clock: Arc::new(WallClock),
+                    capture: CaptureSettings::default(),
+                    credentials: credentials::namespace(),
+                };
+                let mut plugin = crate::PluginProcess::start(&executable, true, &settings.placement).await?;
+                let host = crate::Host::open(
+                    root.path(),
+                    settings,
+                    ClientSettings {
+                        read_timeout: crate::PLUGINS_TIMEOUT,
+                        mutation_timeout: crate::PLUGINS_TIMEOUT,
+                        watch_timeout: harmos_protocol::policy::UNBOUNDED,
+                        max_cases: 1000,
+                        page_items: 500,
+                        message_bytes: message_bytes.get(),
+                        stream_buffer: stream_window.get(),
+                    },
+                )
+                .await?;
+                let admitted = host.add_remote("host", plugin.endpoint()).await?;
+                host.await_plugin_ready(&admitted).await?;
+
+                // Observe Two Consecutive Collection Ticks, Without Running a Control.
+                let runtime = &host.assembly.as_ref().unwrap().runtime;
+                let stream = runtime
+                    .streams
+                    .current_publication("network_probe")
+                    .ok_or("Observe Host Network Probe: Admit the Collection Stream")?;
+                let mut rows = stream.watch();
+                for _ in 0..2 {
+                    let row = tokio_stream::StreamExt::next(&mut rows)
+                        .await
+                        .ok_or("Observe Host Network Probe: Keep the Collection Publication Open")?;
+                    let harmos_runtime::streams::Item::Row(row) = row else {
+                        return Err("Observe Host Network Probe: Resolve the Stream Gap".into());
+                    };
+                    assert!(!row.value.payload.is_empty());
+                    assert!(row.value.published_unix_micros.is_some());
+                    assert_eq!(host.entry_state(&admitted)?, harmos_protocol::host::PluginState::Ready);
+                }
+
+                // Release Demand and Join Only the Host and Child This Story Started.
+                drop(rows);
+                host.shutdown().await?;
+                plugin.close().await?;
+                Ok::<(), Box<dyn Error>>(())
+            })
+            .await?
+        }))
+    }
 
     #[test]
     fn client_wrapper_watches_settle_on_disconnect_and_host_stop() -> Result<(), Box<dyn Error>> {

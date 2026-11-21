@@ -34,14 +34,14 @@ const fixture = vi.hoisted(() => {
       removeItem: (key: string) => values.delete(key),
     },
   });
-  return { values, read: vi.fn(async () => null), write: vi.fn() };
+  return { values, read: vi.fn(async () => ({ interval_window_ms: 100, interval_lag_windows: 10 })), write: vi.fn() };
 });
 
 /* === Entry Point === */
 
-vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
+vi.mock("@dokime/document/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 vi.mock("@/lib/desktop/commands", () => ({
-  commands: { desktopParametersRead: fixture.read, desktopParametersWrite: fixture.write },
+  commands: { desktopSavedSettingsRead: fixture.read, desktopSavedSettingsUpdate: fixture.write },
 }));
 
 /* === Tests === */
@@ -55,14 +55,15 @@ test("Typed Remembered Parameters", () => {
   assert.deepEqual(unsupported, { overrides: { template: { voltage: "115" } } });
 });
 
-test("Unsupported Browser Storage", async () => {
-  const saved = JSON.stringify({ version: 1, state: { overrides: { template: { voltage: "115" } } } });
-  fixture.values.set(PARAMETER_OVERRIDES_STORAGE_KEY, saved);
+test("Unified Desktop Settings Supply Remembered Parameters", async () => {
+  const parameters = { template: { voltage: { raw: "115", valueType: "int", unit: "V" } } };
+  const saved = { interval_window_ms: 100, interval_lag_windows: 10, parameters };
+  fixture.read.mockResolvedValue(saved);
+  fixture.values.set(PARAMETER_OVERRIDES_STORAGE_KEY, "retired-browser-value");
   fixture.write.mockClear();
   await useParameterOverridesStore.persist.rehydrate();
-  assert.equal(useParameterOverridesStatus.getState().ready, false);
-  assert.ok(useParameterOverridesStatus.getState().error?.id);
-  assert.ok(useParameterOverridesStatus.getState().error?.stack);
-  assert.equal(fixture.values.get(PARAMETER_OVERRIDES_STORAGE_KEY), saved);
+  assert.equal(useParameterOverridesStatus.getState().ready, true);
+  assert.deepEqual(useParameterOverridesStore.getState().overrides, parameters);
+  assert.equal(fixture.values.get(PARAMETER_OVERRIDES_STORAGE_KEY), "retired-browser-value");
   assert.equal(fixture.write.mock.calls.length, 0);
 });

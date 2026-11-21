@@ -36,8 +36,8 @@ use std::process::Stdio;
 // Third Party Imports
 use dokime_protocol::host::{PluginEntry, PluginState};
 use harmos_protocol::model::{ReadCut, StorageTransferSettings};
+use harmos_runtime::plugin::grpc::Launches;
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::process::Command;
 
@@ -91,16 +91,18 @@ pub struct PythonPlugin {
 impl PythonPlugin {
     pub async fn start() -> Result<Self, Box<dyn Error>> {
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/tests/fixtures/python/thermal/plugin.py");
-        let mut child = Command::from(process::command(python()))
+        let launches = Launches::new();
+        let mut launch = launches.reserve("python thermal fixture").await?;
+        let child = Command::from(process::command(python()))
             .arg(script)
+            .envs(launch.environment())
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
+            .stdout(Stdio::null())
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
             .spawn()?;
-        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        let ready = lines.next_line().await?.ok_or("Start Python Thermal Plugin: Read Its Listener Announcement")?;
-        let address = ready.strip_prefix("harmos listening ").ok_or("Start Python Thermal Plugin: Announce Its Bound Listener")?;
+        let address = launch.announced().await?;
+        launches.shutdown().await;
         let url = format!("http://{address}");
         Ok(Self { child, url })
     }

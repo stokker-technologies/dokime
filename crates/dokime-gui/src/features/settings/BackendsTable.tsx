@@ -13,21 +13,21 @@
 
 /* === Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
+import { toast } from "@dokime/plots/lib/notifications";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController } from "@/app/native-session/context";
-import { connectionError } from "@/app/native-session/errors";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { SettingsCard } from "./SettingsCard";
 
 // Standard Library Imports
 
@@ -49,9 +49,9 @@ export function BackendsTable({
   endpoint,
   onConnect,
 }: {
-  failure?: ReactNode;
-  retry?: (profile: string | null) => void;
+  failure?: unknown;
   endpoint?: string | null;
+  retry?: (profile: string | null) => void;
   onConnect?: () => void;
 } = {}) {
   const owner = useNativeSessionController();
@@ -65,8 +65,9 @@ export function BackendsTable({
   const [mutating, setBusy] = useState(false);
   const deletingProfile = document?.profiles.find((profile) => profile.identifier === deleting);
   const busy = mutating || state.phase === "connecting";
-  const connectionFailure = failure ?? (state.phase === "failed" ? connectionError(state.error) : null);
+  const connectionFailure = failure ?? (state.phase === "failed" ? state.error : null);
   const failedProfile = document?.profiles.find((profile) => profile.identifier === lastSelected.current);
+  const failedEndpoint = endpoint || failedProfile?.endpoint;
   useEffect(() => {
     let active = true;
     void preferencesCommands
@@ -91,6 +92,7 @@ export function BackendsTable({
       const status = await commands.desktopSessionStatus();
       if (status.connection.phase === "disconnected") await owner.disconnect();
     } catch (failure) {
+      toast.error(failureOf(failure, "Backend Could Not Be Deleted"));
       setError(failure);
     } finally {
       setBusy(false);
@@ -132,48 +134,37 @@ export function BackendsTable({
     [busy, connect],
   );
   return (
-    <SettingsCard className="w-full text-left">
-      {(connectionFailure || Boolean(error)) && (
-        <div className="grid gap-3 bg-destructive/5 p-4 text-sm">
-          <NotificationMessage
-            source="Backends"
-            title={connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed"}
-            error={state.phase === "failed" ? state.error : error}
-          >
-            {connectionFailure || failureOf(error, "Backend Operation Failed").message}
-            {connectionFailure && (endpoint || failedProfile) && (
-              <p className="mt-2 break-all font-mono text-xs">{endpoint || failedProfile?.endpoint}</p>
-            )}
-          </NotificationMessage>
-          <Button
-            className="justify-self-start"
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              if (connectionFailure) {
-                if (retry) retry(lastSelected.current);
-                else if (lastSelected.current) connect(lastSelected.current);
-                return;
-              }
-              setError(undefined);
-              void preferencesCommands.desktopBackendsList().then(setDocument).catch(setError);
-            }}
-          >
-            Retry
-          </Button>
-        </div>
-      )}
-      {!document && !error && !connectionFailure && (
-        <p role="status" className="p-4 text-sm text-muted-foreground">
-          Loading backends…
-        </p>
-      )}
+    <>
       <DataTable
         aria-label="Saved Backends"
+        title="Saved Backends"
+        description="Import a pairing file or connect to a saved host."
+        className="w-full text-left"
         data={document?.profiles ?? []}
         getRowId={(profile) => profile.identifier}
         emptyText="No Saved Backends"
+        failure={
+          connectionFailure || (error && !deleting) ? (
+            <div className="grid gap-3 text-sm">
+              <ErrorCard
+                notificationContext={connectionFailure && lastSelected.current ? "action" : undefined}
+                failure={failureOf(connectionFailure ?? error, connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed")}
+                onRetry={() => {
+                  if (connectionFailure) {
+                    if (retry) retry(lastSelected.current);
+                    else if (lastSelected.current) connect(lastSelected.current);
+                    return;
+                  }
+                  setError(undefined);
+                  void preferencesCommands.desktopBackendsList().then(setDocument).catch(setError);
+                }}
+                retryDisabled={busy}
+              />
+              {connectionFailure && failedEndpoint ? <p className="break-all font-mono text-xs">{failedEndpoint}</p> : null}
+            </div>
+          ) : undefined
+        }
+        loading={!document && !error && !connectionFailure}
         columns={columns}
         onRowClick={(profile) => connect(profile.identifier)}
         actions={
@@ -191,6 +182,7 @@ export function BackendsTable({
                   onConnect?.();
                 }
               } catch (failure) {
+                toast.error(failureOf(failure, "Backend Could Not Be Imported"));
                 setError(failure);
               } finally {
                 setBusy(false);
@@ -232,14 +224,10 @@ export function BackendsTable({
               Confirm Delete
             </Button>
           </div>
-          {Boolean(error) && (
-            <NotificationMessage source="Backends" title="Backend Could Not Be Deleted" error={error}>
-              {failureOf(error, "Backend Operation Failed").message}
-            </NotificationMessage>
-          )}
+          {Boolean(error) && <ErrorCard failure={failureOf(error, "Backend Could Not Be Deleted")} />}
         </DialogContent>
       </Dialog>
-    </SettingsCard>
+    </>
   );
 }
 

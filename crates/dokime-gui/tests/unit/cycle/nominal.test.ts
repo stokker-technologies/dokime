@@ -36,14 +36,14 @@ import {
   selectedCycleRow,
   type CycleCase,
   type CycleSelection,
-} from "@/features/cycle/cycle-workspace-model";
+} from "@dokime/document/features/cycle/cycle-workspace-model";
 import {
   RECONNECT_MAX_MS,
   documentRetry,
   documentRetryDelay,
   evidencePaneState,
   isBusyRefusal,
-} from "@/features/cycle/document-query-model";
+} from "@dokime/document/features/cycle/document-query-model";
 import {
   CLOSED_LABEL_DRAFT,
   EMPTY_LABEL_ERROR,
@@ -51,17 +51,17 @@ import {
   openLabelEdit,
   refuseLabel,
   updateLabelText,
-} from "@/features/cycle/label-editor-model";
+} from "@dokime/document/features/cycle/label-editor-model";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { archivedCycleGroups, groupCycleRows, type CycleRow } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
-import { sameFrontiers } from "@/lib/api/native-documents";
+import { sameFrontiers } from "@dokime/document/lib/api/native-documents";
 import { RECORD_TAIL, appendRecordTail } from "@/lib/api/native-evidence";
-import { failureOf } from "@/lib/notification-details";
-import { defaultCycleLabel } from "@/lib/time-format";
-import type { HubRecord } from "@/lib/types";
-import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
-import { focusPresentation } from "@/shell/focus-mode";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { defaultCycleLabel } from "@dokime/document/lib/time-format";
+import type { HubRecord } from "@dokime/plots/lib/types";
+import { ROW_WINDOW_THRESHOLD, rowWindow } from "@dokime/document/lib/use-row-window";
+import { focusPresentation } from "@dokime/document/shell/focus-mode";
 
 /* === Re-Exports === */
 

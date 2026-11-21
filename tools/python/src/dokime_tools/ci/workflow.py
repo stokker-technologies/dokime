@@ -116,6 +116,11 @@ def main(arguments: list[str] | None = None) -> int:
             if options.language == "cpp":
                 preset = "release" if options.profile == "release" else "tests"
                 invocation += ["--", "--preset", preset]
+                if operation == "sdk-test":
+                    packages = sorted(Path("target/sdk-cpp").glob("dokime-cpp-*.tar.gz"))
+                    if len(packages) != 1:
+                        raise RuntimeError("Test C++ SDK: Download the Matching Build SDK C++ Artifact Into target/sdk-cpp")
+                    invocation += ["--sdk-package", str(packages[0].resolve())]
                 if command == "test":
                     invocation.append("--verbose")
             print(f"{command.title()} {language} SDK", flush=True)

@@ -41,6 +41,7 @@ JOBS = (
     "check",
     "build_product",
     "build_tests",
+    "build_sdk_cpp",
     "build_python",
     "build_docs",
     "check_generated",
@@ -59,7 +60,7 @@ PRODUCERS = {
     "build_tests": {"build_product"},
     "test_host_csharp": {"build_tests", "build_host_fixtures_csharp"},
     "check_generated": {"build_python"},
-    "package": {"build_product", "build_python"},
+    "package": {"build_product", "build_python", "build_sdk_cpp"},
     "release_dry": {"package"},
     "release_rehearsal": {"package", "build_docs"},
 }
@@ -80,7 +81,28 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         parts = PurePosixPath(path).parts
         if not path or path.startswith("/") or "\\" in path or any(part in {".", ".."} for part in parts):
             return frozenset({"all"})
-        if path.startswith(("docs/", "openspec/", "site/")) or path.endswith(".md"):
+        if path.startswith("packages/") or path in {
+            "package.json",
+            "pnpm-workspace.yaml",
+            "pnpm-lock.yaml",
+            "biome.json",
+            "tsconfig.json",
+            "vite.config.ts",
+            "vitest.config.ts",
+        }:
+            classes.update({"gui", "docs"})
+        elif (
+            path.startswith(("docs/", "openspec/", "sites/", "tools/python/src/dokime_tools/docs/"))
+            or path.lower().endswith((".md", ".mdx"))
+            or path
+            in {
+                "tools/python/src/dokime_tools/ci/impact.py",
+                "tools/python/tests/integration/test_ci_impact.py",
+                "tools/python/tests/integration/test_docs_site.py",
+                "tools/python/tests/integration/test_docs_operations.py",
+                ".github/workflows/validate-build-docs.yml",
+            }
+        ):
             classes.add("docs")
         elif (
             path.startswith((".github/", "proto/", "protocol/", "tools/"))
@@ -130,7 +152,10 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     """Union Consumers, Close Artifact Dependencies, Then Apply Event Policy."""
     if event not in {"review", "push", "release", "nightly", "full", "draft", "closed"}:
         raise ValueError("Plan CI Impact: Choose a Supported Event")
-    full = event in {"release", "nightly", "full"} or "all" in classes or not classes or not classes <= CLASSES
+    documentation_only = classes == frozenset({"docs"})
+    complete_event = event in {"release", "nightly", "full"}
+    unknown = "all" in classes or not classes or not classes <= CLASSES
+    full = unknown or complete_event and (event == "full" or not documentation_only)
     languages = {"rust", "python", "typescript", "csharp", "cpp"} if full else set()
     selected: set[str] = set(JOBS) if full else set()
     if "docs" in classes:
@@ -164,6 +189,8 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
     # Matrix Archives Are The Consumer's Artifact Contract.
     if "test" in selected:
         for row in tests:
+            if row["language"] == "cpp":
+                selected.add("build_sdk_cpp")
             for archive in json.loads(row["archives"]):
                 if "build-tests-" in archive:
                     selected.add("build_tests")
@@ -184,6 +211,7 @@ def plan(classes: frozenset[str], event: str) -> dict[str, Any]:
         selected.clear()
     return {
         **{job: job in selected for job in JOBS},
+        "product": bool(selected - {"build_docs"}),
         "selected": sorted(selected),
         "skipped": sorted(set(JOBS) - selected),
         "check_matrix": {"include": checks},
@@ -237,6 +265,7 @@ def changed_paths(event: Mapping[str, Any], name: str, directory: Path) -> list[
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--event", choices=("review", "push", "release", "nightly", "full", "draft", "closed"))
+    parser.add_argument("--base", help="Compare Nightly Against the Published Product Tag Revision")
     options = parser.parse_args(arguments)
     event = {}
     if event_path := os.environ.get("GITHUB_EVENT_PATH"):
@@ -248,7 +277,9 @@ def main(arguments: list[str] | None = None) -> int:
             pass
     name = os.environ.get("GITHUB_EVENT_NAME", "")
     selected_event = options.event or _event(name, event)
-    paths = changed_paths(event, name, Path.cwd()) if selected_event in {"review", "push"} else None
+    paths = changed_paths(event, name, Path.cwd()) if selected_event in {"review", "push", "release"} else None
+    if selected_event == "nightly" and options.base:
+        paths = changed_paths({"before": options.base, "after": os.environ.get("GITHUB_SHA")}, "push", Path.cwd())
     result = plan(classify(paths), selected_event)
     print(json.dumps({key: result[key] for key in ("selected", "skipped")}, sort_keys=True))
     if destination := os.environ.get("GITHUB_OUTPUT"):

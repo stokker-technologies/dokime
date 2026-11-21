@@ -24,7 +24,7 @@ import { create } from "@bufbuild/protobuf";
 import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/model";
 import { PlotStreamKind, PlotCartesianMode } from "@host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
-import { jsonToNativeValue } from "@/lib/host/values";
+import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
 
 /* === Re-Exports === */
 

@@ -33,11 +33,11 @@ using std::string;
 
 TEST_CASE("Dotenv Preserves Literal Values and Decodes Only Supported Escapes") {
   const auto values = parse("\xef\xbb\xbf# Addresses\r\nDOKIME_REMOTE = 'host#tag.pair' # Kept\r\n"
-                            "DOKIME_PLUGIN_ADDRESS=127.0.0.1:0 # Comment\n"
+                            "OTHER_ADDRESS=127.0.0.1:0 # Comment\n"
                             "UNKNOWN=\"one\\ntwo\\r\\t\\\"\\\\\"\nEMPTY=\nLITERAL=$HOME`command`\n",
                             ".env");
   REQUIRE(values.at("DOKIME_REMOTE") == "host#tag.pair");
-  REQUIRE(values.at("DOKIME_PLUGIN_ADDRESS") == "127.0.0.1:0");
+  REQUIRE(values.at("OTHER_ADDRESS") == "127.0.0.1:0");
   REQUIRE(values.at("UNKNOWN") == "one\ntwo\r\t\"\\");
   REQUIRE(values.at("EMPTY").empty());
   REQUIRE(values.at("LITERAL") == "$HOME`command`");
@@ -57,22 +57,22 @@ TEST_CASE("Dotenv Refuses Duplicate Malformed and Non UTF-8 Assignments") {
 
 TEST_CASE("Address Resolution Honors Explicit Environment and File Values Without Mutation") {
 #ifdef _WIN32
-  REQUIRE(_putenv_s("DOKIME_PLUGIN_ADDRESS", "environment") == 0);
+  REQUIRE(_putenv_s("DOKIME_REMOTE", "environment") == 0);
 #else
-  REQUIRE(setenv("DOKIME_PLUGIN_ADDRESS", "environment", 1) == 0);
+  REQUIRE(setenv("DOKIME_REMOTE", "environment", 1) == 0);
 #endif
-  const map<string, string> values{{"DOKIME_PLUGIN_ADDRESS", "file"}};
-  REQUIRE(resolve("DOKIME_PLUGIN_ADDRESS", "explicit", values) == "explicit");
-  REQUIRE(resolve("DOKIME_PLUGIN_ADDRESS", {}, values) == "environment");
-  REQUIRE_THROWS_AS(resolve("DOKIME_PLUGIN_ADDRESS", "", values), invalid_argument);
-  REQUIRE(dokime::detail::configuration::environment("DOKIME_PLUGIN_ADDRESS") == "environment");
+  const map<string, string> values{{"DOKIME_REMOTE", "file"}};
+  REQUIRE(resolve("DOKIME_REMOTE", "explicit", values) == "explicit");
+  REQUIRE(resolve("DOKIME_REMOTE", {}, values) == "environment");
+  REQUIRE_THROWS_AS(resolve("DOKIME_REMOTE", "", values), invalid_argument);
+  REQUIRE(dokime::detail::configuration::environment("DOKIME_REMOTE") == "environment");
 #ifdef _WIN32
-  REQUIRE(_putenv_s("DOKIME_PLUGIN_ADDRESS", "") == 0);
+  REQUIRE(_putenv_s("DOKIME_REMOTE", "") == 0);
 #else
-  REQUIRE(unsetenv("DOKIME_PLUGIN_ADDRESS") == 0);
+  REQUIRE(unsetenv("DOKIME_REMOTE") == 0);
 #endif
-  REQUIRE(resolve("DOKIME_PLUGIN_ADDRESS", {}, values) == "file");
-  REQUIRE_THROWS_AS(resolve("DOKIME_PLUGIN_ADDRESS", {}, {{"DOKIME_PLUGIN_ADDRESS", ""}}), invalid_argument);
+  REQUIRE(resolve("DOKIME_REMOTE", {}, values) == "file");
+  REQUIRE_THROWS_AS(resolve("DOKIME_REMOTE", {}, {{"DOKIME_REMOTE", ""}}), invalid_argument);
 }
 
 /* === Private Functions === */

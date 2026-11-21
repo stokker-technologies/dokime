@@ -11,6 +11,10 @@
 
 /* === Modules === */
 
+mod build_identity {
+    include!("../../build_identity.rs");
+}
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -48,6 +52,12 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let channel = settings.channel(endpoint).await?;
     let client = dokime_client_internal::Client::from_channel(channel, settings.client())?;
     let value = client.status.get_with(StatusGetOptions { context: settings.context()? }).await?;
+    if !args.json {
+        let identity = value.status.as_ref().and_then(|status| status.identity.as_ref());
+        let version = identity.map(|identity| identity.application_version.as_str()).unwrap_or_default();
+        let build = value.build.clone().unwrap_or_default();
+        println!("{}", build_identity::version(version, &build.source_revision, &build.channel));
+    }
     crate::output::print(&value, args.json)
 }
 

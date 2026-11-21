@@ -1,8 +1,8 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
-import type { ConnectionError } from "../desktop/connection";
-import type { ArtifactDeliveryError, DeliveryStage } from "../desktop/delivery";
-import type { RpcError } from "../desktop/rpc";
+import type { ConnectionError } from "@dokime/document/lib/contracts/connection";
+import type { ArtifactDeliveryError, DeliveryStage } from "@dokime/document/lib/contracts/delivery";
+import type { RpcError } from "@dokime/document/lib/contracts/rpc";
 import { rpcFailureDetails } from "./failure-details";
 
 const connectionErrorMessages: Record<Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">, string> = {
@@ -60,6 +60,8 @@ function rpcMessage(error: RpcError): string {
       return connectionMessage(error.detail);
     case "grpc":
       return error.detail.message.trim() || `The native backend returned gRPC status ${error.detail.code}.`;
+    case "local":
+      return error.detail.message;
     case "invalid_request":
       return "The native RPC request was invalid.";
     case "incompatible_descriptor":
@@ -122,6 +124,10 @@ function isRpcError(error: unknown): error is RpcError {
   switch (kind) {
     case "session":
       return isConnectionError((error as { detail?: unknown }).detail);
+    case "local": {
+      const detail = (error as { detail?: unknown }).detail;
+      return !!detail && typeof detail === "object" && "message" in detail && typeof detail.message === "string";
+    }
     case "grpc": {
       const detail = (error as { detail?: unknown }).detail;
       return (
@@ -180,16 +186,16 @@ export function normalizeDeliveryError(error: unknown): unknown {
 }
 
 /** Keep native RPC failures usable by UI code that displays Error.message. */
-export function normalizeRpcError(error: unknown): unknown {
+export function normalizeRpcError(error: unknown, operation?: string): unknown {
   if (error instanceof Error || !isRpcError(error)) return error;
   const normalized = new Error(rpcMessage(error));
   normalized.name = "NativeRpcError";
   Object.assign(normalized, {
     kind: error.kind,
-    notificationFailure: rpcFailureDetails(
-      error,
-      error.kind === "grpc" ? (grpcCodeNames[error.detail.code] ?? `Status ${error.detail.code}`) : error.kind,
-    ),
+    notificationFailure: {
+      ...rpcFailureDetails(error, error.kind === "grpc" ? (grpcCodeNames[error.detail.code] ?? `Status ${error.detail.code}`) : error.kind),
+      operation,
+    },
     ...("detail" in error ? { detail: error.detail } : {}),
   });
   return normalized;

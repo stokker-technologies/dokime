@@ -11,9 +11,9 @@
 
 /* === Local Imports === */
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@dokime/plots/components/ui/badge";
 import { type InstalledPluginRuntimeKind, RUNTIME_LABELS } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Constants === */
 

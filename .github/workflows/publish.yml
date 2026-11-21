@@ -63,7 +63,7 @@ jobs:
       CI_PROFILE: ${{ inputs.profile }}
       CI_OUTPUTS: '[{"archive":"target/ci/package-{profile}-rust-windows.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
       DOKIME_RELEASE_CONTEXT: 'true'
-      MISE_ENABLE_TOOLS: aqua:ip7z/7zip,github:EmbarkStudios/cargo-about,node,pnpm,powershell,python,rust,uv
+      MISE_ENABLE_TOOLS: github:EmbarkStudios/cargo-about,minisign,node,pnpm,powershell,python,rust,uv
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -139,6 +139,13 @@ jobs:
         name: ${{ inputs.channel == 'stable' && !inputs.report && format('package-signed-{0}-rust-windows', env.PROFILE) || format('package-{0}-rust-windows', env.PROFILE) }}
         path: target/ci
         run-id: ${{ inputs.channel == 'stable' && !inputs.report && github.run_id || inputs.build-run || github.run_id }}
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: package-${{ env.PROFILE }}-cpp-*
+        path: target/ci
+        merge-multiple: true
+        run-id: ${{ inputs.build-run || github.run_id }}
         github-token: ${{ github.token }}
     # Stable Publication Requires the Review's Documentation Archive; the Nightly Report Attaches It When Built.
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -223,7 +230,7 @@ jobs:
       RELEASE_TARGET_SHA: ${{ inputs.channel == 'stable' && github.sha || '' }}
       GH_TOKEN: ${{ github.token }}
       CI_READ_TOKEN: ${{ github.token }}
-      CI_INPUT_ARCHIVES: '["target/ci/package-{profile}-python-any.tar.zst","target/ci/package-{profile}-rust-unix.tar.zst","target/ci/package-{profile}-rust-windows.tar.zst"]'
+      CI_INPUT_ARCHIVES: '["target/ci/package-{profile}-python-any.tar.zst","target/ci/package-{profile}-rust-unix.tar.zst","target/ci/package-{profile}-rust-windows.tar.zst","target/ci/package-{profile}-cpp-unix.tar.zst","target/ci/package-{profile}-cpp-windows.tar.zst"]'
     environment: ${{ inputs.channel == 'stable' && 'release' || 'nightly' }}
     permissions:
       checks: read

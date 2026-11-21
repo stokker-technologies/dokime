@@ -16,7 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{marker::PhantomData, sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::{marker::PhantomData, time::Duration};
 
 // Third Party Imports
 use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
@@ -420,6 +421,46 @@ mod tests {
             assert_eq!(samples.iter().map(|sample| sample.value.value).collect::<Vec<_>>(), [23, 23, 23]);
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_unused_native_collection_does_not_block_ordinary_harness_observers() -> Result<()> {
+        let observed = Stream::<Reading>::new("observed", "Observed");
+        let observer =
+            Observer::operation(&observed, async |_: &operations::Context| Ok(Reading { value: 7 })).every(Duration::from_millis(1));
+        let unused = ::harmos::plugin::Collection::operation(async |_, _| panic!("An Unobserved Collection Must Stay Idle"))
+            .stream(::harmos::plugin::Stream::<Reading>::new("unused"))
+            .every(prost_types::Duration { seconds: 0, nanos: 1_000_000 });
+        let template = Template::of::<()>()
+            .identifier("sample")
+            .uses_stream("observed")
+            .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(1)).await).identifier("sample"));
+        let plugin = Plugin::of::<()>("1.0.0")
+            .identifier("observer")
+            .stream(observed)
+            .observer(observer)
+            .collection(unused)
+            .suite(Suite::of::<()>().identifier("capture").template(template));
+        let report = Harness::new(plugin, "capture.sample").run().await?;
+        assert!(report.failure().is_none(), "{report:?}");
+        assert_eq!(report.samples::<Reading>("observed")?.iter().map(|row| row.value.value).collect::<Vec<_>>(), [7]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn the_harness_refuses_native_collection_sampling_without_a_product_host() {
+        let collection = ::harmos::plugin::Collection::operation(async |_, _| Ok(()))
+            .stream(::harmos::plugin::Stream::<Reading>::new("native"))
+            .every(prost_types::Duration { seconds: 0, nanos: 1_000_000 });
+        let template = Template::of::<()>()
+            .identifier("sample")
+            .uses_stream("native")
+            .step(Step::new("Sample", async |context: &Context| context.sleep(Duration::from_millis(1)).await).identifier("sample"));
+        let plugin = Plugin::of::<()>("1.0.0")
+            .identifier("collector")
+            .collection(collection)
+            .suite(Suite::of::<()>().identifier("capture").template(template));
+        assert!(Harness::new(plugin, "capture.sample").run().await.is_err());
     }
 
     #[test]

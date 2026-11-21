@@ -26,19 +26,6 @@ if (output === root || output === gui) throw new Error("Generate Messages: Outpu
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 
-// The Standard gRPC Error Envelope Is a Frontend Input Alongside Product Messages.
-const statusDescriptor = resolve(output, "status.bin");
-const status = spawnSync("protoc", [
-  `--proto_path=${resolve(gui, "tools/proto")}`,
-  `--descriptor_set_out=${statusDescriptor}`,
-  "--include_imports",
-  "google/rpc/status.proto",
-], { encoding: "utf8" });
-if (status.status !== 0) throw new Error(status.stderr || "Generate Messages: Status Descriptor Export Failed");
-for (const file of fromBinary(FileDescriptorSetSchema, readFileSync(statusDescriptor)).file) {
-  if (!set.file.some((existing) => existing.name === file.name)) set.file.push(file);
-}
-rmSync(statusDescriptor);
 
 const request = create(CodeGeneratorRequestSchema, {
   protoFile: set.file,
@@ -84,7 +71,7 @@ const nativeType = (rust) => {
 const nativeLines = [
   "// Generated From The Native Command Inventory. Do Not Edit.",
   'import type { Document, SettingsScope } from "./application-settings";',
-  'import type { ConnectionSnapshot } from "@/lib/desktop/connection";',
+  'import type { ConnectionSnapshot } from "@dokime/document/lib/contracts/connection";',
   "export function createPreferencesCommands(invoke: <T>(command: string, args?: Record<string, unknown>) => Promise<T>) {",
   "  return {",
 ];

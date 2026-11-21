@@ -13,13 +13,15 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { PluginState } from "@host/model";
+import { FailureSchema, PluginState } from "@host/model";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { type InstallPluginProgress, getNativePlugin, installNativePlugin } from "@/lib/api/native-plugins";
-import { commands } from "@/lib/desktop/commands";
+import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
 
@@ -171,6 +173,30 @@ test("Dropped Bundle Installs from the Shell's Recorded Drop", async () => {
   assert.equal(command, "desktop_plugin_install_file");
   assert.equal(args.drop, true);
   assert.equal(options, undefined, "no bundle bytes or path cross the bridge");
+});
+
+test("Installation Preserves the Native Structured Failure Across IPC", async () => {
+  const refusal = create(FailureSchema, {
+    code: "bench_activation_failed",
+    message: "bench_process_exited",
+    action: "Restart Plugin",
+    plugin: "bench",
+    cause: { message: "bench_startup_cause" },
+  });
+  fixture.invoke.mockRejectedValueOnce({
+    kind: "grpc",
+    detail: { code: 9, message: "operation request failed", details: Array.from(toBinary(FailureSchema, refusal)) },
+  });
+  await assert.rejects(installNativePlugin(session, "pick"), (error) => {
+    const failure = failureOf(error, "bench_install");
+    assert.equal(failure.reason, refusal.code);
+    assert.equal(failure.message, refusal.message);
+    assert.equal(failure.action, refusal.action);
+    assert.equal(failure.plugin, refusal.plugin);
+    assert.equal(failure.operation, "desktop_plugin_install_file");
+    assert.deepEqual(failure.causes, [refusal.cause?.message]);
+    return true;
+  });
 });
 
 test("Failed Entry Retains Its Identity and Secret Availability", async () => {

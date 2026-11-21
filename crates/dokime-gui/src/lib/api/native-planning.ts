@@ -25,14 +25,26 @@ import {
   executionsList,
   type executionsStart,
 } from "@/lib/host/client";
-import { jsonToNativeValue, metadataJson, nativeValuesToJson } from "@/lib/host/values";
-import type { Wire } from "@/lib/rpc/canonical";
-import { cutKey, required } from "@/lib/rpc/canonical";
+import { jsonToNativeValue, metadataJson, nativeValuesToJson } from "@dokime/plots/lib/host/values";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { PreviewTestCycleRequest, PreviewTestCycleResponse, TestCyclePlan, TestCycleSelection } from "@/lib/types";
+import type { PreviewTestCycleRequest, PreviewTestCycleResponse, TestCyclePlan, TestCycleSelection } from "@dokime/plots/lib/types";
 import { fetchNativeSuite } from "../host/suite-session";
-import { type CaseSummary, type CycleSummary, type ExecutionSummary, mapNativeCyclePlan } from "./native-planning-projection";
-import { mapBounded, NATIVE_CASE_LIMIT, NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber } from "./native-values";
+import {
+  type CaseSummary,
+  type CycleSummary,
+  type ExecutionSummary,
+  mapNativeCyclePlan,
+} from "@dokime/document/lib/api/native-planning-projection";
+import {
+  mapBounded,
+  NATIVE_CASE_LIMIT,
+  NATIVE_MAX_PAGES,
+  NATIVE_PAGE_SIZE,
+  NativeApiLimitError,
+  safeNumber,
+} from "@dokime/plots/lib/api/native-values";
 
 type Cursor = Wire<ReadCut>;
 

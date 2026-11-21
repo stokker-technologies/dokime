@@ -15,21 +15,23 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { Clipboard, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
+import { notificationText } from "@dokime/plots/lib/notifications";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+
 import type { FileRowState } from "@/components/start-cycle-form-model";
 import { parameterInputId } from "@/components/start-cycle-form-model";
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { FileDefinition } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
+import type { FileDefinition } from "@dokime/plots/lib/types";
+import { cn } from "@dokime/plots/lib/utils";
 import {
   acceptsExpressions,
   type EditorParameterRow,
@@ -161,7 +163,7 @@ export function ParameterEditor({
                       </div>
                       <span className="size-6" />
                     </div>
-                    {row.error ? <NotificationMessage failure={row.failure}>{row.error}</NotificationMessage> : null}
+                    {row.error ? <ErrorCard notificationContext="action" failure={failureOf(row.failure, "Operation Failed")} /> : null}
                   </div>
                   <div className="justify-self-center">
                     {row.path !== (definition.default ?? "") || row.error ? (
@@ -254,7 +256,7 @@ function ParameterEditorRow({
           {acceptsExpressions(row) ? <ExpressionReferencePopover /> : <span className="size-6 [[data-density=touch]_&]:size-11" />}
         </div>
         {error ? (
-          <NotificationMessage>{error}</NotificationMessage>
+          <ErrorCard failure={failureOf(notificationText(error), "Operation Failed")} />
         ) : expansion ? (
           <p className="flex flex-wrap items-center gap-2 text-xs leading-snug text-muted-foreground">
             {expansion.badge ? (

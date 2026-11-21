@@ -247,6 +247,28 @@ def shell_notices(document: dict) -> tuple[str, int]:
     return "\n\n".join(sections), len(inventory)
 
 
+def native_notices(sources: dict[str, Path]) -> str:
+    """Collect Installed Native Dependency License Texts for an SDK Bundle."""
+    sections = ["Native SDK Dependency Notices"]
+    for name, source in sorted(sources.items()):
+        sections.append(name)
+        if source.is_file():
+            sections.append(source.read_text(encoding="utf-8"))
+            continue
+        if not source.is_dir():
+            raise policy.ToolError(f"Collect Native Notices: Restore License Texts for {name} at {source} and Rebuild the SDK Package")
+        texts = [
+            path
+            for path in sorted(source.iterdir())
+            if path.is_file() and path.name.lower().startswith(("license", "licence", "copying", "notice"))
+        ]
+        if not texts:
+            raise policy.ToolError(f"Collect Native Notices: Restore License Texts for {name} in {source} and Rebuild the SDK Package")
+        for path in texts:
+            sections.append(path.read_text(encoding="utf-8"))
+    return "\n\n".join(sections) + "\n"
+
+
 def packaged(sources: list[Path]) -> dict[str, bytes]:
     """Read Matching Product Notices From Every Packaged Distribution."""
     result = {}

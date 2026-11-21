@@ -9,18 +9,18 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
@@ -38,8 +38,8 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import type { PluginSource } from "@/lib/api/native-plugins";
-import { useBrand } from "@/lib/brand";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import { useBrand } from "@dokime/document/lib/brand";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Components === */
@@ -153,53 +153,52 @@ export function PluginsSection() {
           </SettingsRow>
         ))}
         <div className="px-4 py-3">
-          {pluginsQuery.isPending || programsQuery.isPending ? (
-            <div className="grid min-h-44 place-items-center text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" />
-                Loading Plugins…
-              </span>
-            </div>
-          ) : pluginsQuery.isError || programsQuery.isError ? (
-            <div className="grid min-h-44 place-items-center gap-3 p-6 text-center">
-              <ErrorCard failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")} />
-              <Button
-                onClick={() => {
-                  void pluginsQuery.refetch();
-                  void programsQuery.refetch();
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Try Again
-              </Button>
-            </div>
-          ) : null}
-
           <PluginList
             actions={
               <>
                 <Button disabled={!desktop || installMutation.isPending} onClick={() => setInstallOpen(true)}>
                   Install Plugin
                 </Button>
-                <Button
-                  variant="outline"
-                  disabled={
-                    !desktop || releaseMutation.isPending || installMutation.isPending || Boolean(releaseMutation.unavailableReason)
-                  }
-                  onClick={() => releaseMutation.mutate()}
-                >
-                  Check for Updates
-                </Button>
                 {releaseMutation.unavailableReason ? (
-                  <span className="text-muted-foreground text-sm" role="status">
-                    {releaseMutation.unavailableReason}
-                  </span>
-                ) : null}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        aria-disabled="true"
+                        className="opacity-50"
+                        aria-description={releaseMutation.unavailableReason}
+                        type="button"
+                        variant="outline"
+                      >
+                        Check for Updates
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{releaseMutation.unavailableReason}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={!desktop || releaseMutation.isPending || installMutation.isPending}
+                    onClick={() => releaseMutation.mutate()}
+                  >
+                    Check for Updates
+                  </Button>
+                )}
               </>
             }
             entries={entries}
             builtInRows={builtInRows}
+            failure={
+              pluginsQuery.isError || programsQuery.isError ? (
+                <ErrorCard
+                  failure={failureOf(pluginsQuery.error ?? programsQuery.error, "Plugins Unavailable")}
+                  onRetry={() => {
+                    void pluginsQuery.refetch();
+                    void programsQuery.refetch();
+                  }}
+                />
+              ) : undefined
+            }
+            loading={pluginsQuery.isPending || programsQuery.isPending}
             changingEnabled={enabledMutation.isPending}
             onSetEnabled={(entry, enabled) =>
               enabledMutation.mutate(
@@ -252,9 +251,7 @@ export function PluginsSection() {
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
-            <NotificationMessage error={removeMutation.error}>
-              {removeMutation.error ? failureOf(removeMutation.error, "Plugin Operation Failed").message : null}
-            </NotificationMessage>
+            <ErrorCard notificationContext="action" failure={failureOf(removeMutation.error, "Operation Failed")} />
           ) : null}
           <DialogFooter>
             <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">

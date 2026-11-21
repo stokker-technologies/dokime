@@ -60,10 +60,16 @@ test("Live Document Responsiveness", async () => {
   let socket: WebSocket | undefined;
   try {
     await build({
-      configFile: resolve("vite.config.ts"),
+      configFile: resolve("../../packages/report/vite.config.ts"),
+      root: resolve("../../packages/report"),
       mode: "report",
       logLevel: "error",
-      resolve: { alias: [{ find: "react-dom/client", replacement: "react-dom/profiling" }] },
+      resolve: {
+        alias: [
+          { find: "react-dom/client", replacement: "react-dom/profiling" },
+          { find: "@", replacement: resolve("src") },
+        ],
+      },
       plugins: [
         {
           name: "fixture-record-transport",
@@ -90,11 +96,11 @@ test("Live Document Responsiveness", async () => {
           transformIndexHtml: {
             order: "pre",
             handler: () =>
-              '<!doctype html><html><body><div id="root" style="width:1200px"></div><script type="module" src="/tests/integration/execution/responsiveness-fixture.tsx"></script></body></html>',
+              '<!doctype html><html><body><div id="root" style="width:1200px"></div><script type="module" src="/../../crates/dokime-gui/tests/integration/execution/responsiveness-fixture.tsx"></script></body></html>',
           },
         },
       ],
-      build: { outDir: join(scratch, "frozen"), rolldownOptions: { input: resolve("report.html") } },
+      build: { outDir: join(scratch, "frozen"), rolldownOptions: { input: resolve("../../packages/report/report.html") } },
     });
     child = spawn(
       browserPath,

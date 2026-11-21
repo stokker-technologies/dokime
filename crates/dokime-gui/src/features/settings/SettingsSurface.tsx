@@ -11,32 +11,31 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
-import { useNavigationMode } from "@/shell/use-sidebar-state";
-import { useUiStore } from "@/stores/ui-store";
+import { useNavigationMode } from "@dokime/document/shell/use-sidebar-state";
+import { useUiStore } from "@dokime/document/stores/ui-store";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
 import { AboutSection } from "@/features/settings/sections/AboutSection";
 import { BootstrapPaths } from "@/features/settings/sections/BootstrapPaths";
-import { CaptureFoldersSection } from "@/features/settings/sections/CaptureFoldersSection";
 import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
-import { IntervalSettingsSection } from "@/features/settings/sections/IntervalSettingsSection";
+import { EngineSection } from "@/features/settings/sections/EngineSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
-import { PanelHeader } from "@/shell/PageShell";
-import { usePageChrome } from "@/shell/page-chrome";
+import { PanelHeader } from "@dokime/document/shell/PageShell";
+import { usePageChrome } from "@dokime/document/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
 
@@ -122,8 +121,7 @@ function SectionContent({
   if (section === "remote") return <RemoteSection advanced={advanced} />;
   if (section === "plugins") return <PluginsSection />;
   if (section === "secrets") return <SecretsSection />;
-  if (section === "capture-folders") return <CaptureFoldersSection />;
-  if (section === "sampling") return <IntervalSettingsSection />;
+  if (section === "engine") return <EngineSection />;
   if (section === "diagnostics")
     return (
       <>
@@ -145,7 +143,7 @@ function SectionContent({
   if (loadError) {
     return (
       <SettingsCard title="Settings">
-        <div className="grid justify-items-start gap-3 px-4 py-3">
+        <div className="grid justify-items-stretch gap-3 px-4 py-3">
           <ErrorCard failure={failureOf(loadFailure, "Settings Unavailable")} onRetry={retry} />
         </div>
       </SettingsCard>

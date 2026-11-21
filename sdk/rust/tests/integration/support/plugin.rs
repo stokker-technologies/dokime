@@ -20,9 +20,9 @@ use std::{env, path::PathBuf, process::Stdio};
 
 // Third Party Imports
 use harmos_protocol::plugin::instance_client::InstanceClient;
+use harmos_runtime::plugin::grpc::Launches;
 use prost::Message;
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
     sync::mpsc,
 };
@@ -64,7 +64,6 @@ pub struct Process {
     pub client: InstanceClient<Channel>,
     pub address: String,
     child: Child,
-    drain: tokio::task::JoinHandle<()>,
     placement: Placement,
 }
 
@@ -87,28 +86,16 @@ pub enum Placement {
 
 impl Process {
     pub async fn start(name: &str, placement: Placement) -> TestResult<Self> {
-        let binary = env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
-            .or_else(|| env::var_os(format!("NEXTEST_BIN_EXE_{}", name.replace('-', "_"))))
-            .or_else(|| env::var_os(format!("CARGO_BIN_EXE_{name}")))
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                let sdk = if manifest.ends_with("tests/consumer") { manifest.join("../..") } else { manifest };
-                sdk.join("../../target/debug").join(format!("{name}{}", env::consts::EXE_SUFFIX))
-            });
-        let mut command = Command::from(crate::process::command(binary));
-        command.env_remove("HARMOS_ADDRESS");
-        if matches!(placement, Placement::Managed) {
-            command.env("HARMOS_ADDRESS", "127.0.0.1:0");
-        }
-        let mut child = command.stdout(Stdio::piped()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
-        let mut lines = BufReader::new(child.stdout.take().ok_or("Missing Plugin Output")?).lines();
-        let line = lines.next_line().await?.ok_or("Missing Plugin Readiness")?;
-        let endpoint = line.strip_prefix("harmos listening ").ok_or("Invalid Plugin Readiness")?;
-        let address = format!("http://{endpoint}");
+        let mut command = Command::from(crate::process::command(binary(name)));
+        let launches = Launches::new();
+        let mut launch = launches.reserve(name).await?;
+        command.envs(launch.environment());
+        command.env_remove("DOKIME_REMOTE");
+        let child = command.stdout(Stdio::null()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
+        let address = format!("http://{}", launch.announced().await?);
+        launches.shutdown().await;
         let client = InstanceClient::connect(address.clone()).await?;
-        let drain = tokio::spawn(async move { while lines.next_line().await.ok().flatten().is_some() {} });
-        Ok(Self { client, address, child, drain, placement })
+        Ok(Self { client, address, child, placement })
     }
     pub async fn describe(&mut self) -> TestResult<InstanceGetResponse> {
         Ok(self
@@ -176,7 +163,6 @@ impl Process {
         if matches!(self.placement, Placement::Managed) && !status.success() {
             return Err(format!("Plugin Exited: {status}").into());
         }
-        self.drain.await?;
         Ok(())
     }
 }
@@ -229,6 +215,18 @@ impl Invocation {
 }
 
 /* === Public Functions === */
+
+pub fn binary(name: &str) -> PathBuf {
+    env::var_os(format!("NEXTEST_BIN_EXE_{name}"))
+        .or_else(|| env::var_os(format!("NEXTEST_BIN_EXE_{}", name.replace('-', "_"))))
+        .or_else(|| env::var_os(format!("CARGO_BIN_EXE_{name}")))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            let sdk = if manifest.ends_with("tests/consumer") { manifest.join("../..") } else { manifest };
+            sdk.join("../../target/debug").join(format!("{name}{}", env::consts::EXE_SUFFIX))
+        })
+}
 
 /* === Private Functions === */
 

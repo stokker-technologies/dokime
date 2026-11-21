@@ -22,9 +22,9 @@
 /* === External Imports === */
 
 /* === Local Imports === */
-import type { HubRecord } from "@/lib/types";
-import { useUiStore } from "@/stores/ui-store";
-import { FrozenConsole, LiveConsoleView, resolvedConsoleScope } from "./ConsoleDrawerView";
+import type { HubRecord } from "@dokime/plots/lib/types";
+import { useUiStore } from "@dokime/document/stores/ui-store";
+import { FrozenConsole, LiveConsoleView, resolvedConsoleScope } from "@dokime/document/shell/ConsoleDrawerView";
 import { useConsoleRecords } from "./console-records";
 
 /* === Types === */

@@ -17,8 +17,8 @@ import { test } from "vitest";
 
 // Local Imports
 import { groupExecutions } from "@/features/explore/explore-data-source";
-import { parseTimestampMs } from "@/lib/time-format";
-import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, SavedCycleSummary } from "@/lib/types/view-contracts";
+import { parseTimestampMs } from "@dokime/document/lib/time-format";
+import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, SavedCycleSummary } from "@dokime/plots/lib/types/browse";
 
 /* === Re-Exports === */
 
