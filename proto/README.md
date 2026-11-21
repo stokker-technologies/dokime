@@ -34,9 +34,9 @@ leave committed output unchanged. `mise run check:generated` compiles each SDK
 surface independently; its Python story consumes the current wheel built by
 `mise run build:python` and installed by `mise -C sdk/python run install`.
 
-[Execution Host](../docs/execution-host.md#final-library-definition-contract)
+[Execution Host](../docs/guides/execution-host.md#final-library-definition-contract)
 contains the complete identity/caller/type mapping and consumer work lists.
-[Architecture](../docs/architecture.md#final-library-assembly-and-storage-contract)
+[Architecture](../docs/project/architecture.md#final-library-assembly-and-storage-contract)
 owns assembly, admission, backend methods and the query merge. Definition proof
 does not establish consumer compilation or runtime behavior. Development schemas
 remain at baseline v1; incompatible storage is refused, never reset implicitly.

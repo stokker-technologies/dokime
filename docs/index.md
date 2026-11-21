@@ -1,0 +1,215 @@
+# Product Guide
+
+Dokime's host executes plugin-defined test cases and retains their evidence.
+The [Execution Host Guide](guides/execution-host.md) describes the current executable,
+client operations, configuration and supported variants. [Architecture](project/architecture.md)
+distinguishes implemented contracts from locked work still being completed.
+
+## Execution Model
+
+A plugin catalog declares suites and templates. Materialization resolves input
+parameters into a case without touching instruments. The host creates execution
+evidence, initializes execution-local resources, runs steps and criteria, performs
+required cleanup, closes streams and publishes reports explicitly.
+
+Executions are open, closed or sealed evidence containers. Live run state belongs
+to the execution manager. Frozen origins and schemas keep sealed evidence readable
+when a plugin is removed or the host restarts. Cycles group executions; only
+evaluated outcomes determine their headline verdict. Declared or unevaluated
+results cannot become an evaluated pass.
+
+Stop completes at a scheduling boundary. Cancel interrupts active work and retains
+required cleanup; cancelling queued work is refused. Losing a client observer does
+not cancel admitted work. The host refuses an occupied storage root before opening
+SQLite, and refuses incompatible development roots with backup/fresh-root guidance.
+It never silently resets data. Database and evidence baselines remain v1.
+
+## Plugins
+
+Managed entries install verified executable `.dokime` bundles and own their child
+processes. Remote entries connect to a user-owned URL and do not stop that process
+when removed. Both placements use the same materialization and execution contracts.
+The [Plugin Guide](guides/plugins.md) links the supported SDKs and packaging commands.
+
+Settings are saved product values read on demand; secrets use protected operating
+system credential slots. Secret export/import retains the bounded Base64 JSON
+format with explicit conflict choices; it is not encryption. Linux requires an
+available credential store for secret writes and TLS private-key persistence.
+
+## Operation Calls
+
+The execution-host contract separates model values, operations run by the host,
+and operations implemented by plugins. Each host operation declares client,
+plugin or shared callers independently of its visibility and grants.
+A shared operation has one request and response. Plugins inherit their trusted
+execution identity; a supplied selector cannot authorize another execution.
+
+The final library composition owns Plugins, plugin settings, Time and Invocations.
+Dokime adds `plugins.Secrets`, a read-only view of each plugin's declared secret
+identifiers and whether Secret Storage holds them. A plugin reads the secret stored
+under exactly its declared identifier; undeclared names are refused.
+`Secrets.Get` returns protected bytes; administrative metadata belongs only to
+clients. Integer extrema, first/last, sums and means retain typed numeric values
+independently of floating plotting coordinates. RMS, standard deviation, median
+and percentiles use library floating-point results.
+
+A step brings device output files into its execution with `Files.Capture` (one
+copy) or `files.Captures.Start` and `Stop` (bytes written in between). The host
+reads only directories listed in its `capture_roots` configuration
+(`capture_roots = ["D:/bench/device"]`, or `--capture-root` on `dokime-host`).
+See [File Capture](guides/execution-host.md#handler-interfaces).
+
+## Evidence and Reports
+
+Records are acknowledged scoped host operations. Samples retain their declared
+source time, host receipt time, schema and durable position. Samples have one durable representation: typed, ZSTD-compressed Arrow IPC
+files. SQLite catalogs their schema, batch offsets, digests, time/position ranges,
+incremental summaries and previews; records and other product objects remain in
+SQLite. Read pages
+apply configured row/byte limits and reject invalid or changed continuations.
+
+Documents evaluate against fixed evidence selections. HTML rendering creates
+temporary output; downloads do not publish it. Explicit report publication freezes
+the selected document and evidence seal. Unsupported plot/document variants fail
+with an action rather than returning incomplete results. See
+[Read and Plot Contracts](guides/query-api.md) and [Supported Host Variants](guides/execution-host.md).
+
+## Storage Roots and Archives
+
+The evidence portion of a root has this layout:
+
+```text
+backend-id
+local.lock
+execution.sqlite3
+execution.sqlite3-wal
+execution.sqlite3-shm
+telemetry/<owner-stream-schema-sha256>.arrow
+```
+
+Each file belongs to one execution, stream and frozen protobuf schema. Contract
+fields become typed Arrow columns under `values`; `_storage` retains position,
+source/receipt nanoseconds and stream sequence. Finalization appends only the Arrow
+footer. Restart truncates an interrupted append to the saved checkpoint before
+continuing; it does not rewrite saved batches. The diagnostics copy includes these
+files and the SQLite files.
+
+Interval streams reach the host in windows: the host grants each stream `count`
+samples at a time and the plugin answers with columns. Storage writes each answered
+part straight into these Arrow columns, one row per sample at the time
+`start + i * period`, so queries, documents, reports and exports read interval and
+device samples alike. The window length is the host setting `interval_window_ms`
+(100 ms by default): longer windows store more samples per message, shorter ones
+show live samples sooner. A plugin can give one stream its own window through a
+duration setting named by the observer's window setting. A stream that falls more
+than `interval_lag_windows` window lengths (10 by default) behind ends its execution
+Interrupted, naming the stream and what to change: its rate, the number of streams,
+its window or the lag limit.
+
+Rows are accepted into a bounded live tail. The default flush policy saves at
+65,536 rows or five seconds, under pressure at 64 MiB, and at evidence barriers and
+shutdown. Saved positions advance only after file synchronization and the catalog
+commit. Following reads merge the accepted tail with saved batches; finite reads
+retain their selected saved position. Queries default to a 64 MiB working bound.
+
+The CLI configuration file accepts these storage settings:
+
+```toml
+telemetry_rows = 65536
+telemetry_interval_ms = 5000
+telemetry_pending_bytes = 67108864
+telemetry_query_bytes = 67108864
+```
+
+Embedding hosts receive the same policy through `HostSettings.storage`, including
+adaptive preview bucket settings. Changing settings cannot reconstruct evidence
+that a previous preview discarded; raw files remain available for exact queries.
+
+An execution ZIP contains `evidence.pb`, the original finalized stream files as
+`telemetry/<stream>.arrow`, and `manifest.json` with each stream member's path,
+size and SHA-256. Stream members are copied byte for byte. Evidence seals and
+content hashes are checked during export. A cycle ZIP contains the execution ZIPs
+under `executions/<execution>.zip` and its own size/digest manifest. Deleting sealed
+evidence commits file retirement in SQLite before removing its stream files;
+startup completes interrupted retirement.
+
+Repeated exports with unchanged source and content inventories produce identical ZIP bytes. Members
+and embedded content metadata have stable ordering, and ZIP timestamps, platform and permissions
+are fixed. Retained query views and previous export files are derived outputs and
+are excluded from the source-file inventory.
+
+Roots from the rebuilt sample-table layout are incompatible. Select a fresh
+storage root; the old folder is preserved. There is no reset or migration.
+
+## Interfaces
+
+`dokime` is the current command-line binary from `crates/dokime-cli`.
+It hosts Dokime in process, creates projects in all four SDK languages, produces
+and inspects bundles, admits plugins and controls execution/cycle workflows.
+Exact subcommands are in the [CLI section](guides/execution-host.md#command-line-tool).
+The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
+Suites resource; `operation list/show/call` discovers contracts through the library's
+Operations.List. Product and library operations use their respective host executor packages. Product operation declarations retain their gRPC bindings for host discovery.
+Typed commands and raw calls use these forms:
+
+```sh
+dokime --endpoint http://127.0.0.1:7000 operation call harmos.host.v1.Status/Get --json '{}'
+dokime --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
+dokime --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
+```
+
+Structured output follows the final response wrappers: suites are in `values`,
+cycle creation returns `cycle`, and execution reads return `execution`. Execution
+list prints one response per page and continues with that page's retained cut;
+`--page-size` bounds each response.
+`execution show` accepts several execution IDs and `--schemas` fetches frozen
+descriptors through Executions.Schemas.Get once per digest within the command.
+Frozen record/stream metadata and every descriptor page carry each identity's fully qualified `message_name` binding for payload decoding.
+
+`plan preview/register --input-file` accepts canonical CasesCreateRequest JSON:
+`{"plan":{"selections":[{"suite_id":"SUITE","template_id":"TEMPLATE"}]},"request_id":"selection-1"}`.
+Preview forces `validate_only`; registration preserves the caller's request identity.
+`cycle append --request` reads the `Executions.Create` content arguments
+with `parent`, `executions` and `request_id`. Lifecycle commands and prompt answers
+accept `--request-id`; retain it to retry an unchanged mutation. Omitted identities
+are generated for a single command invocation. Whole-value metadata changes use
+the final Set request with Get's complete writable value, `expected_revision`
+and a retained `request_id`.
+
+Report commands prepare with Reports.Create, read bounded product Files.Read
+ranges at the returned cut, verify length and SHA-256, and save without replacing an
+existing file. Rendering and downloading do not publish a report. `execution export`
+and `cycle export` download the self-contained evidence ZIP from Evidence.Archive,
+the operation behind the desktop's Export Evidence, with the same verified,
+refuse-existing download. Scripts read confirmed UUIDs from `--id-file PATH` on
+`cycle create`, `cycle rerun`, `cycle append` and `execution prompt next`; see
+[Remote CLI Workflows](remote/cli.md#read-reports-and-recover).
+`server --env-file PATH` selects an explicit environment file; nothing searches
+for `.env`. Logical execution-file paths retain the original native file references in the
+execution transaction. Replacing a logical path preserves immutable prior bytes
+and returned read cuts. File uploads acknowledge accepted bytes; graceful host
+settlement persists the resumable prefix before restart. Product content
+byte delivery verifies the file length, SHA-256 and retained read cut;
+the product serves those resources over its current content store.
+
+The desktop embeds the same host and also attaches to a pinned remote host.
+Product packaging includes the portable desktop distribution and native Windows
+NSIS or Linux DEB/RPM installers. The remaining document-capture limitation and
+unavailable host controls are listed in [GUI Guidance](guides/gui.md#host-connection).
+
+The host composes the library Access and Status services directly. Access manages
+the authenticated TLS listener, pairings, revocation and certificate rotation;
+Status serves identity, health, logs, trace events and bounded diagnostics.
+Other operation grammar and library composition slices remain locked work.
+
+## Examples
+
+- [Rust Thermal Suite](../sdk/rust/examples/thermal.rs) and [Rust SDK Guide](sdks/rust.md).
+- [OBC Reference Plugin](../plugins/sidecars/obc/): steady-state, transient and independent benchmark templates; [authoring guidance](../.claude/skills/dokime-authoring/SKILL.md).
+- [Python Test Example](../sdk/python/examples/test/) and [Python SDK](../sdk/python/README.md).
+- [C# Test Example](../sdk/csharp/examples/Test/) and [C# SDK Guide](sdks/csharp.md).
+- [C++ Test Example](../sdk/cpp/examples/test/) and [C++ SDK Guide](sdks/cpp.md).
+- [Remote Access](remote/overview.md), [Tooling](project/tooling.md) and [Plugin Security](guides/plugin-security.md).
+
+All SDKs provide plugin authoring and backend clients. SDK product dependencies
+stop at protocol; embedding the host uses `dokime-runtime`.

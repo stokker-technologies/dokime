@@ -19,7 +19,7 @@
 
 // Third Party Imports
 use prost::Message;
-use sha2::Digest;
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::host::Context;
@@ -56,14 +56,13 @@ pub async fn handle(context: &Context, request: NotesCreateRequest) -> Result<No
             return Err(Error::Invalid("Create Note: Supply a Request ID".into()));
         }
         let _guard = context.administration.lock().await;
-        let note_id =
-            crate::host::views::hex(&sha2::Sha256::digest(format!("{}/{}", context.host.identity().backend_id, request.request_id)));
+        let note_id = crate::host::views::hex(&Sha256::digest(format!("{}/{}", context.host.identity().backend_id, request.request_id)));
         let key = format!("note:{note_id}");
         let existing = administration::read(context, &key, &[], None).await?;
         let saved = (!existing.payload.is_empty()).then(|| OperatorNote::decode(existing.payload.as_slice())).transpose()?;
-        let scope = context.host.store().note_owner(owner)?;
+        let scope = super::owner(context, owner)?;
         if saved.is_none() {
-            super::require_open(context, &scope)?;
+            crate::host::evidence::require_open(context, scope.cycle_id.as_deref(), scope.execution_id.as_deref(), "Write Note")?;
         }
         let storage_scope = super::storage_scope(&scope)?;
         let note = OperatorNote {

@@ -104,7 +104,7 @@ class ImpactTests(unittest.TestCase):
             ([".github/workflows/validate-test.yml"], all_review),
             ([".github/actions/setup/action.yml"], all_review),
             (["new-component/input.dat"], all_review),
-            (["docs/product-guide.md", "sdk/cpp/src/client.cpp"], cpp),
+            (["docs/index.md", "sdk/cpp/src/client.cpp"], cpp),
             (["sdk/csharp/src/Dokime/Client.cs", "sdk/python/src/dokime_sdk/client.py"], all_review),
         )
         for paths, expected in cases:
@@ -179,7 +179,7 @@ class ImpactTests(unittest.TestCase):
             "sites/docs/package.json",
             "sites/docs/pnpm-lock.yaml",
             "sites/other/index.html",
-            "docs/screenshots/desktop.png",
+            "docs/guides/screenshots/desktop.png",
             "tools/python/src/dokime_tools/docs/image.py",
             "tools/python/src/dokime_tools/ci/impact.py",
         )

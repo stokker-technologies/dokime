@@ -103,20 +103,30 @@ class TraceSummaryTests(unittest.TestCase):
                 (trace_directory / "child-123.pftrace").write_text('{"traceEvents":[]}', encoding="utf-8")
                 raise RuntimeError("fixture runner failure")
 
-            with patch.object(execution, "execute", side_effect=execute), self.assertRaisesRegex(RuntimeError, "fixture runner failure"):
-                lanes.run(root, "integration", "typescript", ".", "dev", ["node", "fixture", "{junit}"])
+            with patch.object(execution, "execute", side_effect=execute):
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "fixture runner failure",
+                    lanes.run,
+                    root,
+                    "integration",
+                    "typescript",
+                    ".",
+                    "dev",
+                    ["node", "fixture", "{junit}"],
+                )
             summary = destinations[0] / "time-summary.json"
             self.assertEqual(json.loads(summary.read_text(encoding="utf-8"))["trace_files"], 1)
         finally:
             temporary_directory.cleanup()
 
     def test_desktop_export(self) -> None:
-        module = Path(__file__).resolve().parents[4] / "crates/dokime-gui/e2e/test-trace.mjs"
+        module = Path(__file__).resolve().parents[4] / "crates/dokime-gui/e2e/test-trace.ts"
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            script = root / "fixture.mjs"
+            script = root / "fixture.ts"
             script.write_text(
                 f"import {{ traceSpan }} from {json.dumps(module.as_uri())};\n"
                 'await traceSpan("scene", "scene", async () => {\n'

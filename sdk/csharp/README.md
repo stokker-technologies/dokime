@@ -109,5 +109,5 @@ and develops it, answers its operator prompt through the CLI and checks sealed e
 
 Generated carriers remain tracked and are projected through the SDK generation
 task. They are implementation details; authored examples use product values and
-handles. See the [Architecture](../../docs/architecture.md) and
-[C# SDK Guide](../../docs/sdk-csharp.md) for the owning contracts.
+handles. See the [Architecture](../../docs/project/architecture.md) and
+[C# SDK Guide](../../docs/sdks/csharp.md) for the owning contracts.

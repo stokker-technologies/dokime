@@ -82,7 +82,7 @@ def dimensions(data: bytes) -> tuple[int, int]:
 
 def check(directory: Path, _: str = "check") -> None:
     """Check the Complete Published Set Without Starting Any Processes."""
-    folder = directory / "docs/screenshots"
+    folder = directory / "docs/guides/screenshots"
     try:
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         if not isinstance(manifest, list):
@@ -116,7 +116,7 @@ def check(directory: Path, _: str = "check") -> None:
             entries[image] = entry
         if set(entries) != expected:
             raise policy.ToolError(f"Capture Screenshots: missing screenshots in manifest: {sorted(expected - entries.keys())}")
-        unexpected = {path.name for path in folder.iterdir()} - expected - {"README.md", "manifest.json"}
+        unexpected = {path.name for path in folder.iterdir()} - expected - {"manifest.json"}
         if unexpected:
             raise policy.ToolError(f"Capture Screenshots: unexpected screenshot files: {sorted(unexpected)}")
     except (OSError, ValueError, KeyError, TypeError) as error:
@@ -125,7 +125,7 @@ def check(directory: Path, _: str = "check") -> None:
 
 
 def capture(directory: Path, scene: str | None = None) -> None:
-    arguments = ["node", "crates/dokime-gui/e2e/screenshots.mjs"]
+    arguments = ["node", "crates/dokime-gui/e2e/screenshots.ts"]
     if scene:
         arguments += ["--scene", scene]
     policy.execute(directory, arguments)

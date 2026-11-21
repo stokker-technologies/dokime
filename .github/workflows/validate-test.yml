@@ -112,6 +112,12 @@ jobs:
         name: build-sdk-cpp-${{ env.PROFILE }}-${{ inputs.platform }}
         path: target/sdk-cpp
     - run: mise run ${{ inputs.command }} --profile ${{ env.PROFILE }}
+    - name: Save Benchmark Baselines
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.bench_baselines-path != ''
+      with:
+        path: ${{ steps.setup.outputs.bench_baselines-path }}
+        key: ${{ steps.setup.outputs.bench_baselines-cache-primary-key }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:
@@ -157,6 +163,8 @@ jobs:
         path: ${{ steps.setup.outputs.uv-path }}
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
     env:
+      CI_BENCH: ${{ startsWith(inputs.command, 'bench ') && 'true' || 'false' }}
+      CI_BENCH_LAYER: ${{ inputs.suite }}
       CI_TRANSPORT: 'true'
       MISE_ENABLE_TOOLS: cmake,dotnet,ninja,pipx:clang-format,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,uv
       CI_PROFILE: ${{ inputs.profile }}

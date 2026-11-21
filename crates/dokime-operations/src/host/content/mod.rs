@@ -43,6 +43,7 @@ use harmos_runtime::storage::{
 };
 use prost::Message;
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 // Local Imports
 use crate::{
@@ -287,7 +288,7 @@ pub async fn attach_artifact(context: &Context, mut request: ArtifactsCreateRequ
     let key = format!("content/artifact/{identifier}");
     let (mut saved, revision) = administration::message::<ArtifactCommit>(context, &key).await?;
     if revision.is_empty() {
-        context.host.store().require_evidence_owner(selected.cycle_id.as_deref(), selected.execution_id.as_deref(), "Create Artifact")?;
+        crate::host::evidence::require_open(context, selected.cycle_id.as_deref(), selected.execution_id.as_deref(), "Create Artifact")?;
         let mutation = files::transfer::mutation(context, &key, &request.request_id).await?;
         let artifact = ArtifactMetadata {
             artifact_id: identifier,
@@ -368,7 +369,7 @@ pub async fn attach_execution_file(
     }
     crate::host::files::get::handle(context, FilesGetRequest { file: Some(file.clone()), at: None }).await?;
     let _guard = context.administration.lock().await;
-    context.host.store().require_evidence_owner(None, Some(execution), "Attach Execution File")?;
+    crate::host::evidence::require_open(context, None, Some(execution), "Attach Execution File")?;
     metadata.size_bytes = file.length;
     metadata.state = ExecutionFileState::Finalized as i32;
     let key = format!("content/execution-file/{execution}/{}", metadata.relative_path);
@@ -377,7 +378,7 @@ pub async fn attach_execution_file(
         metadata: Some(metadata),
         file: Some(file),
     };
-    let request_id = uuid::Uuid::now_v7().to_string();
+    let request_id = Uuid::now_v7().to_string();
     let value = Administration {
         key: key.clone(),
         scope: Scope::Execution(execution).identifier()?,

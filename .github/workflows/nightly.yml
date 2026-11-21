@@ -165,6 +165,63 @@ jobs:
       archives: '["target/ci/build-bench-{platform}.tar.zst"]'
       minutes: 120
       suite: ${{ matrix.variant.suite }}
+  bench_sdk:
+    name: Bench / SDK / ${{ matrix.language.name }} (${{ matrix.platform }})
+    uses: ./.github/workflows/validate-test.yml
+    needs:
+    - build_bench
+    - build_python
+    - build_host_fixtures
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [unix, windows]
+        language:
+        - {name: Rust, id: rust}
+        - {name: Python, id: python}
+        - {name: 'C#', id: csharp}
+        - {name: 'C++', id: cpp}
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+        - platform: windows
+          runner: windows-latest
+    with:
+      channel: nightly
+      profile: release
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --credential-store"]' || '[]' }}
+      work: SDK / ${{ matrix.language.name }}
+      command: bench -- --language rust --layer system --binary system-sdk --refresh-baseline --select "^sdk/${{ matrix.language.id }}/"
+      archives: '["target/ci/build-bench-{platform}.tar.zst","target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-host-csharp-{profile}-{platform}.tar.zst","target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
+      minutes: 120
+      suite: sdk-bench-${{ matrix.language.id }}
+  bench_protocol:
+    name: Bench / Protocol (${{ matrix.platform }})
+    uses: ./.github/workflows/validate-test.yml
+    needs:
+    - build_bench
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [unix, windows]
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+        - platform: windows
+          runner: windows-latest
+    with:
+      channel: nightly
+      profile: release
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      bootstrap: '[]'
+      work: Protocol
+      command: bench -- --language rust --layer system --binary protocol --refresh-baseline
+      archives: '["target/ci/build-bench-{platform}.tar.zst"]'
+      minutes: 120
+      suite: protocol-bench
   build_python:
     if: needs.plan.outputs.product == 'true'
     name: Build / SDK / Python
@@ -460,6 +517,8 @@ jobs:
     - build_tests
     - build_bench
     - bench
+    - bench_sdk
+    - bench_protocol
     - build_host_fixtures
     - build_python
     - build_docs

@@ -71,8 +71,7 @@ async fn read(context: &Context, request: &NotesListRequest) -> Result<(Vec<Oper
     let selection = request.selection.as_ref().cloned().unwrap_or_default();
     let revision = paging::bytes(&selection);
     let at = request.at.clone().map(|cut| source_cut(cut, &revision)).transpose()?;
-    let store = context.host.store();
-    let scope = selection.owner.as_ref().map(|owner| store.note_owner(owner)).transpose()?;
+    let scope = selection.owner.as_ref().map(|owner| super::owner(context, owner)).transpose()?;
     let (entries, at) = administration::scan(context, "note:", at).await?;
     let at = at.ok_or_else(|| Error::Precondition("List Notes: Return the Issued Storage Cut".into()))?;
     let cut = selection_cut(at, revision);

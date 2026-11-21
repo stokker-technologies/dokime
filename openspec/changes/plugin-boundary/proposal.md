@@ -59,5 +59,5 @@ in-flight lifecycle and operation changes are amended with this boundary.
 `crates/dokime-operations`, `crates/dokime-storage`, `crates/dokime-packaging`,
 `crates/dokime-protocol`, CLI and desktop consumers, all four SDKs and starters,
 `tools/python/src/dokime_tools/build/` and release tooling, protocol export,
-packaging tasks, conformance, README, `docs/architecture.md`, SDK/plugin guides
+packaging tasks, conformance, README, `docs/project/architecture.md`, SDK/plugin guides
 and tracked authoring guidance. Harmos owns the upstream runtime/tooling half.

@@ -2,16 +2,16 @@
   "extends": ["../../biome.json"],
   "files": {
     "includes": [
-      "**/*.mjs",
       "**/*.css",
       "**/*.json",
       "**/*.ts",
       "**/*.tsx",
       "!src/routeTree.gen.ts",
       "!src/lib/rpc/generated",
-      "!src-tauri",
+      "!src/generated/organization",
       "!!**/.stkr/templates",
-      "!!**/.*"
+      "!!**/.*",
+      "!src-tauri/**/*.json"
     ]
   },
   "vcs": {

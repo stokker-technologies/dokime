@@ -17,18 +17,19 @@ function PresentationExamples() {
         <CartesianPlot
           title="Throughput"
           unit="Mbps"
+          cartesian={{
+            mode: "aligned",
+            signature: "throughput",
+            point_count: 4,
+            series: [{ x: [0, 1, 2, 3], y: [10, 12, 11, 15] }],
+          }}
           series={[
             {
               key: "throughput",
               label: "Mean",
               raw_points: 4,
               downsampled: false,
-              points: [
-                { x: 0, y: 10 },
-                { x: 1, y: 12 },
-                { x: 2, y: 11 },
-                { x: 3, y: 15 },
-              ],
+              points: [],
             },
           ]}
         />
@@ -38,5 +39,7 @@ function PresentationExamples() {
 }
 
 export function mountPresentationExamples(element: HTMLElement) {
-  createRoot(element).render(createElement(PresentationExamples));
+  const root = createRoot(element);
+  root.render(createElement(PresentationExamples));
+  return root;
 }

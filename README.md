@@ -16,7 +16,7 @@
   </picture>
 </p>
 
-[Website](https://stokkertechnologies.ch/en/open-source/dokime) · [Getting Started](#quick-start) · [Tutorials](docs/remote/overview.md) · [Examples](docs/product-guide.md#examples) · [Documentation](docs/product-guide.md)
+[Website](https://stokkertechnologies.ch/en/open-source/dokime) · [Getting Started](#quick-start) · [Tutorials](docs/remote/overview.md) · [Examples](docs/index.md#examples) · [Documentation](docs/index.md)
 
 **Run repeatable engineering tests. Keep the evidence.**
 
@@ -39,17 +39,17 @@ operator questions, retries, cancellation, cleanup and report publication.
 
 The native desktop is back in the Cargo workspace and uses the execution host.
 Its product includes native installers and self-contained HTML reports.
-See [GUI Guidance](docs/gui.md) for host connections and controls.
+See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples
 
-The existing [screenshots](docs/screenshots/) document desktop workflows.
+The existing [screenshots](docs/guides/screenshots/) document desktop workflows.
 
 ### CLI
 
 `dokime` creates SDK projects, packages executable plugins and organization installers, hosts Dokime and
 controls a running host. Each language embeds one starter project containing
-its plugin and client programs. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
+its plugin and client programs. See [Command-Line Usage](docs/guides/execution-host.md#command-line-tool).
 
 #### Examples
 
@@ -96,7 +96,7 @@ mise -C sdk/python run test
 ### Rust
 
 The [`dokime` crate](sdk/rust/) contains plugin authoring and a backend client;
-its product dependencies stop at protocol. See the [Rust SDK](docs/rust-sdk.md).
+its product dependencies stop at protocol. See the [Rust SDK](docs/sdks/rust.md).
 
 #### Examples
 
@@ -108,11 +108,11 @@ mise -C sdk/rust run sdk:test
 The [starter](sdk/rust/examples/starter/) uses the public `dokime` and
 `dokime::plugin` barrels. `dokime::testing::Harness` runs a template under
 `cargo test` with no host and no hardware; see
-[Test Templates Without a Host](docs/rust-sdk.md#test-templates-without-a-host).
+[Test Templates Without a Host](docs/sdks/rust.md#test-templates-without-a-host).
 
 ### C#
 
-The [C# SDK](docs/sdk-csharp.md) provides managed/remote plugins and clients on .NET 10.
+The [C# SDK](docs/sdks/csharp.md) provides managed/remote plugins and clients on .NET 10.
 
 #### Examples
 
@@ -123,7 +123,7 @@ mise -C sdk/csharp run test
 
 ### C++
 
-The [C++20 SDK](docs/sdk-cpp.md) uses CMake-generated protobuf/gRPC code and
+The [C++20 SDK](docs/sdks/cpp.md) uses CMake-generated protobuf/gRPC code and
 composes ordinary values for plugins, documents and clients.
 
 #### Examples
@@ -193,7 +193,7 @@ with `dokime plugin bundle . --out ../my-project.dokime`.
 
 ### From Source
 
-Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
+Build `dokime-cli`, create a project from the [SDK examples](docs/index.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
 managed `.dokime` bundle with `plugin install` or register a remote plugin URL with
 `plugin register`, materialize a case and run it.
@@ -206,8 +206,8 @@ on exit.
 Pass `--no-desktop` to start only the host and plugin without looking for a
 desktop; automated callers always pass this flag. Python projects require `uv` on
 PATH and `pyproject.toml`; the configured `uv sync` build creates `uv.lock` before launch or bundling.
-The [Execution Host Guide](docs/execution-host.md) lists the exact commands and
-configuration; the [Product Guide](docs/product-guide.md) explains the model.
+The [Execution Host Guide](docs/guides/execution-host.md) lists the exact commands and
+configuration; the [Product Guide](docs/index.md) explains the model.
 
 Keep existing data when a development schema is incompatible: back it up, then
 explicitly select a fresh root. An occupied root is refused before SQLite opens.
@@ -215,10 +215,10 @@ Database and evidence formats remain at baseline v1.
 
 ## Contributing
 
-See [Contributing](docs/CONTRIBUTING.md), [Repository Tooling](docs/tooling.md),
-[Architecture](docs/architecture.md) and [Security](docs/SECURITY.md).
+See [Contributing](docs/CONTRIBUTING.md), [Repository Tooling](docs/project/tooling.md),
+[Architecture](docs/project/architecture.md) and [Security](docs/SECURITY.md).
 `mise run docs:serve` previews the guides as the documentation website; see
-[Documentation Site](docs/tooling.md#documentation-site).
+[Documentation Site](docs/project/tooling.md#documentation-site).
 
 ## About
 

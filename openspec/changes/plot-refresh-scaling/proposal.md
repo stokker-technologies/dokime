@@ -14,7 +14,7 @@ The following order is locked; step 1 precedes every optimization, and steps
 
 1. Add a desktop-owned full round-trip benchmark at
    `crates/dokime-gui/benches/system/`, reusing
-   `crates/dokime-gui/e2e/native-desktop.mjs` and the repository bench pipeline.
+   `crates/dokime-gui/e2e/native-desktop.ts` and the repository bench pipeline.
    Measure backend query, encoding/transport including the native bridge,
    protobuf decode, retained-frame update, canvas draw and presentation. Use
    30 and 100 mixed plots over millions of sample rows, cold/warm, live ingest,

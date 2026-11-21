@@ -21,6 +21,7 @@ members = [
   "crates/dokime-packaging",
   "plugins/sidecars/host",
   "plugins/sidecars/obc",
+  "sdk/benches",
   "sdk/rust",
   "tools/protocol",
 ]

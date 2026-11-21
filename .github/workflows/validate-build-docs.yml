@@ -44,8 +44,6 @@ jobs:
       name: Test Documentation Selection
     - run: mise run docs:lint
     - run: mise run docs:test
-    - run: mise -C crates/dokime-gui run generate:host-frontend
-      name: Generate Canonical Host Messages
     - run: mise run typecheck:typescript -- --project sites/docs
       name: Type Check Documentation Examples
     - run: mise run docs:build -- --prepared --archive ${{ inputs.profile == 'release' && inputs.channel != 'nightly' && '--release' || '' }}

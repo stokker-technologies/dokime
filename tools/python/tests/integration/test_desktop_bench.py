@@ -115,12 +115,12 @@ class DesktopBench(unittest.TestCase):
                 if command[:3] == ["mise", "run", "build:typescript"]:
                     self.assertEqual(command, ["mise", "run", "build:typescript", "--profile", "dev"])
                     return subprocess.CompletedProcess(command, 0)
-                self.assertEqual(command[:2], ["node", "benches/system/build.mjs"])
+                self.assertEqual(command[:2], ["node", "benches/system/build.ts"])
                 self.assertEqual(Path(command[2]), web)
                 web.mkdir(parents=True)
                 (web / "index.html").write_bytes(b"benchmark")
 
-            def compile(root: Path, extra: list[str], selection: str, **options: Any) -> Path:
+            def compile(root: Path, extra: list[str], selection: tuple[str, ...], **options: Any) -> Path:
                 self.assertTrue((web / "index.html").is_file())
                 config = json.loads(options["environment"]["TAURI_CONFIG"])
                 frontend = Path(config["build"]["frontendDist"])
@@ -128,6 +128,10 @@ class DesktopBench(unittest.TestCase):
                 self.assertEqual((directory / "crates/dokime-gui/src-tauri" / frontend).resolve(), web)
                 self.assertEqual(config["bundle"], {"active": False})
                 self.assertIn("system-desktop", selection)
+                self.assertIn("system-sdk", selection)
+                self.assertIn("protocol", selection)
+                (output / "bin").mkdir()
+                (output / "bin" / ("thermal" + (".exe" if os.name == "nt" else ""))).write_bytes(b"fixture")
                 (output / "fixtures").mkdir()
                 (output / "fixtures/stamp.json").write_text('{"files":{},"metadata":{}}')
                 return output / "bench/compiler.json"

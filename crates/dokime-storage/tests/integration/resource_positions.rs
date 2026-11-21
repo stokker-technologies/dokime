@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_protocol::model::Section;
@@ -25,12 +26,11 @@ use rusqlite::{Connection, params};
 // Local Imports
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::ExecutionsDeleteResponse;
-use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Import;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::origin;
-use dokime_storage::{Error, Result, Store};
+use dokime_storage::{Error, Evidence, Execution, Result, Store};
 
 /* === Constants === */
 
@@ -75,26 +75,28 @@ fn superseded_journals_refuse_admission_without_deleting_their_values() -> Resul
 }
 
 #[test]
-fn superseded_command_journal_refuses_admission_without_deleting_receipts() -> Result<()> {
-    // Retain a Command From the Superseded SQL Journal
-    let root = tempfile::tempdir()?;
-    let store = Store::open(root.path())?;
-    let command = ExecutionCommandReceipt {
-        execution_id: "execution".into(),
-        command_id: "command".into(),
-        ..Default::default()
-    };
-    drop(store);
-    let connection = Connection::open(root.path().join("execution.sqlite3"))?;
-    connection
-        .execute("INSERT INTO commands VALUES (?1,?2,?3)", params![command.execution_id, command.command_id, command.encode_to_vec()])?;
-    drop(connection);
+fn retired_journals_refuse_occupied_state_and_preserve_empty_roots() -> Result<()> {
+    for table in ["commands", "notes"] {
+        // Empty Retired Tables Carry No Runtime State and Need No Migration.
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        drop(store);
+        let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+        connection.execute_batch(&format!("CREATE TABLE {table}(payload BLOB NOT NULL)"))?;
+        drop(connection);
+        let store = Store::open(root.path())?;
+        drop(store);
 
-    // Refuse Admission and Preserve the Original Receipt
-    assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
-    let connection = Connection::open(root.path().join("execution.sqlite3"))?;
-    let payload: Vec<u8> = connection.query_row("SELECT payload FROM commands", [], |row| row.get(0))?;
-    assert_eq!(payload, command.encode_to_vec());
+        // Undecodable Retired State Is Refused Without Altering Its Bytes.
+        let payload = vec![0_u8, 128, 255];
+        let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+        connection.execute(&format!("INSERT INTO {table} VALUES (?1)"), params![payload])?;
+        drop(connection);
+        assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
+        let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+        let saved: Vec<u8> = connection.query_row(&format!("SELECT payload FROM {table}"), [], |row| row.get(0))?;
+        assert_eq!(saved, payload);
+    }
     Ok(())
 }
 
@@ -104,7 +106,7 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     for id in ["first", "second"] {
-        store.create(&dokime_storage::Execution {
+        store.create(&Execution {
             identifier: id.into(),
             cycle: "cycle".into(),
             origin: Some(Origin {
@@ -113,7 +115,7 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
             ..Default::default()
         })?;
     }
-    let evidence = dokime_storage::Evidence {
+    let evidence = Evidence {
         kind: "log".into(),
         payload: vec![7],
         ..Default::default()
@@ -132,7 +134,7 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
     assert_eq!(store.evidence_position(Some(&cut))?, cut);
     store.append(
         "second",
-        dokime_storage::Evidence {
+        Evidence {
             kind: "log".into(),
             payload: vec![9],
             ..Default::default()
@@ -140,7 +142,7 @@ fn issued_positions_and_original_append_receipts_survive_restart() -> Result<()>
     )?;
     let current = store.evidence_position(None)?;
     assert!(current.sequence > cut.sequence);
-    assert_eq!(store.evidence_entries(0, cut.sequence, std::num::NonZeroUsize::new(10).unwrap(), false)?.len(), 1);
+    assert_eq!(store.evidence_entries(0, cut.sequence, NonZeroUsize::new(10).unwrap(), false)?.len(), 1);
 
     // Deleting Sealed Evidence Explicitly Invalidates a Returned Global Cut.
     store.close("first", Termination::Completed, ExecutionOutcome::default())?;

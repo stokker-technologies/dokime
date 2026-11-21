@@ -22,6 +22,8 @@
     "@tailwindcss/vite": "^4.3.3"
   },
   "devDependencies": {
+    "happy-dom": "21.0.4",
+    "vite": "^8.3.4",
     "@biomejs/biome": "2.6.8",
     "@types/mdast": "4.0.4",
     "typescript": "^7.0.2",

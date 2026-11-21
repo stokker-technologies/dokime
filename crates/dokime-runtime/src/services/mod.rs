@@ -57,11 +57,17 @@ use tokio_util::sync::CancellationToken;
 // Local Imports
 use crate::{Error, Host, HostSettings, Result};
 use composition::Application;
+use dokime_operations::host;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
+use dokime_operations::host::content;
 use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_operations::host::cycles::seal;
+use dokime_operations::host::executions::commands;
+use dokime_operations::host::files::captures::Captures;
+use dokime_operations::native::Binding;
 use dokime_protocol::host::HostBuild;
-use dokime_storage::Store;
+use dokime_storage::{BackendLease, Store};
 
 /* === Constants === */
 
@@ -202,7 +208,7 @@ pub fn remove_credentials(root: &Path, namespace: &CredentialNamespace) -> Resul
     let storage = Store::open(root)?;
     // A Copied Folder Carries the Identity and Catalogs, Never the Native Owner Claim.
     root_claim::require_owner(root, &storage, namespace)?;
-    dokime_operations::host::remove_root_secrets(&storage, namespace)?;
+    host::remove_root_secrets(&storage, namespace)?;
     access_credentials::Store::new(storage, host_id.clone(), namespace).remove()?;
     root_claim::release(root, &host_id, namespace)?;
     // Unlock Before Closing, So the Root Is Free When This Call Returns.
@@ -284,7 +290,7 @@ pub(crate) struct Assembly {
     pub status: Arc<Status>,
     pub registration: Arc<Registration>,
     pub close_timeout: Duration,
-    pub backend_lease: dokime_storage::BackendLease,
+    pub backend_lease: BackendLease,
     pub client_watches: Arc<ClientWatches>,
 }
 
@@ -305,7 +311,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         }),
         display_name: "Dokime Execution Host".into(),
     };
-    let binding = Arc::new(dokime_operations::native::Binding::default());
+    let binding = Arc::new(Binding::default());
     let client_watches = Arc::new(ClientWatches::default());
     let (runtime, backend_lease, plugins) = Box::pin(composition::launch(host, root, settings, binding.clone())).await?;
     let status = runtime.services().configure_status(status::settings(settings, backend_id.clone()))?;
@@ -325,7 +331,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         settings: settings.clone(),
         operations: runtime.operations.clone(),
         caller: None,
-        captures: Arc::new(dokime_operations::host::files::captures::Captures::new(host.settings.capture.clone())),
+        captures: Arc::new(Captures::new(host.settings.capture.clone())),
     });
     host.executions.bind_context(&context)?;
     host.executions
@@ -335,9 +341,9 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         .map_err(|_| Error::Invalid("Bind Execution Runtime: Assemble Once".into()))?;
     host.executions.inner.library_plugins.set(plugins).map_err(|_| Error::Invalid("Bind Execution Plugins: Assemble Once".into()))?;
     // Retire Dead Attempts Before Recovery Reads Can Retain Their Native Bytes.
-    dokime_operations::host::cycles::seal::recover(&context).await?;
+    seal::recover(&context).await?;
     let now = host.now_ns();
-    dokime_operations::host::executions::commands::recover(
+    commands::recover(
         &context,
         Timestamp {
             seconds: now.div_euclid(1_000_000_000),
@@ -346,9 +352,9 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     )
     .await?;
     binding.bind(&context)?;
-    dokime_operations::host::content::validate_root(&context).await?;
+    content::validate_root(&context).await?;
     context.host.refresh_plugin_states().await?;
-    dokime_operations::host::register_redactions(&context)?;
+    host::register_redactions(&context)?;
     let registration = Arc::new(
         status
             .contribute(Arc::new(status::Facts {
@@ -436,15 +442,126 @@ async fn observe_plugins(
 
 #[cfg(test)]
 mod tests {
-    use std::{error::Error, num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::{env, env::consts::EXE_SUFFIX, error::Error, num::NonZeroUsize, sync::Arc, time::Duration};
 
+    use harmos_protocol::host::PluginState;
     use harmos_protocol::model::StorageTransferSettings;
+    use harmos_protocol::policy::UNBOUNDED;
+    use harmos_runtime::streams::Item;
+    use prost_types::Timestamp;
+    use tokio_stream::StreamExt;
     use tonic::transport::Endpoint;
 
     use super::{ClientSettings, WallClock, serve};
-    use crate::{CaptureSettings, HostSettings, PlacementSettings};
+    use crate::{CaptureSettings, ControlledClock, Host, HostSettings, PlacementSettings, PluginProcess};
     use dokime_client_internal::Client;
+    use dokime_operations::host::executions::commands;
+    use dokime_operations::host::storage::administration;
+    use dokime_protocol::host::executions::{ExecutionCommandAction, ExecutionCommandPhase, ExecutionCommandReceipt};
+    use dokime_storage::persisted::Scope;
+    use dokime_storage::storage_defaults;
     use dokime_test_support::credentials;
+
+    #[test]
+    fn scoped_commands_recover_in_bounded_pages_and_replay_admission() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            // Open a Native Command Owner With One-Row Pages.
+            let root = credentials::tempdir()?;
+            let installation = credentials::tempdir()?;
+            let settings = HostSettings {
+                installation: Some(installation.path().to_path_buf()),
+                placement: PlacementSettings {
+                    reconnect_delay: Duration::from_secs(1),
+                    stream_window: NonZeroUsize::new(8).unwrap(),
+                    interval_window: crate::INTERVAL_WINDOW,
+                    interval_lag: crate::INTERVAL_LAG,
+                    message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                },
+                storage: storage_defaults(),
+                clock: Arc::new(ControlledClock::new(1_000_000_000)),
+                capture: CaptureSettings::default(),
+                credentials: credentials::namespace(),
+            };
+            let operations = ClientSettings {
+                read_timeout: crate::PLUGINS_TIMEOUT,
+                mutation_timeout: crate::PLUGINS_TIMEOUT,
+                watch_timeout: UNBOUNDED,
+                max_cases: 2,
+                page_items: 1,
+                message_bytes: settings.placement.message_bytes.get(),
+                stream_buffer: settings.placement.stream_window.get(),
+            };
+            let host = Host::open(root.path(), settings.clone(), operations.clone()).await?;
+            let context = &host.assembly.as_ref().unwrap().context;
+
+            // Preserve Admission Bytes and Cuts While Advancing Every Command.
+            let phases = [
+                ExecutionCommandPhase::Accepted,
+                ExecutionCommandPhase::Dispatching,
+                ExecutionCommandPhase::Running,
+                ExecutionCommandPhase::Completed,
+                ExecutionCommandPhase::Interrupted,
+            ];
+            let mut admissions = Vec::new();
+            for (index, phase) in phases.into_iter().enumerate() {
+                let command = ExecutionCommandReceipt {
+                    request_id: format!("request-{index}"),
+                    execution_id: format!("execution-{index}"),
+                    command_id: "command".into(),
+                    action: ExecutionCommandAction::Next as i32,
+                    phase: ExecutionCommandPhase::Accepted as i32,
+                    accepted_at: Some(Timestamp { seconds: 1, nanos: 0 }),
+                    ..Default::default()
+                };
+                let receipt = commands::save(context, &command).await?;
+                let (held, at) = commands::read(context, &command.execution_id, &command.command_id, None).await?;
+                assert_eq!(held, Some(command.clone()));
+                let mut advanced = command.clone();
+                advanced.phase = phase as i32;
+                commands::save(context, &advanced).await?;
+                let (held, _) = commands::read(context, &command.execution_id, &command.command_id, Some(at)).await?;
+                assert_eq!(held, Some(command.clone()));
+                assert_eq!(commands::receipt(context, &command.execution_id, &command.command_id).await?.durable_at, receipt.durable_at);
+                admissions.push((command, phase, receipt));
+            }
+
+            // Restart and Recover All Pages Without Replacing Completed Commands.
+            host.shutdown().await?;
+            drop(host);
+            let host = Host::open(root.path(), settings.clone(), operations.clone()).await?;
+            let context = &host.assembly.as_ref().unwrap().context;
+            for (command, phase, admission) in &admissions {
+                let (recovered, _) = commands::read(context, &command.execution_id, &command.command_id, None).await?;
+                let recovered = recovered.unwrap();
+                let expected = match phase {
+                    ExecutionCommandPhase::Accepted | ExecutionCommandPhase::Dispatching | ExecutionCommandPhase::Running => {
+                        ExecutionCommandPhase::Interrupted
+                    }
+                    phase => *phase,
+                };
+                assert_eq!(recovered.phase, expected as i32);
+                assert_eq!(recovered.accepted_at, command.accepted_at);
+                let replay = commands::receipt(context, &command.execution_id, &command.command_id).await?;
+                assert_eq!(replay.durable_at, admission.durable_at);
+                assert_eq!(replay.accepted_at, admission.accepted_at);
+                assert!(replay.completed);
+                assert_eq!(replay.request_id, command.request_id);
+            }
+
+            // Refuse the Superseded Envelope Without Removing Its Root or Bytes.
+            let legacy = vec![8, 1, 18, 2, 255, 0];
+            let key = "execution-command/legacy";
+            administration::replace(context, key, Scope::Execution("legacy").identifier()?, Vec::new(), "legacy", legacy.clone()).await?;
+            let refused = commands::recover(context, Timestamp { seconds: 2, nanos: 0 }).await;
+            assert!(matches!(refused, Err(dokime_operations::Error::Precondition(_))));
+            assert_eq!(administration::read(context, key, &[], None).await?.payload, legacy);
+            host.shutdown().await?;
+            drop(host);
+            assert!(Host::open(root.path(), settings, operations).await.is_err());
+            assert!(root.path().join("storage.sqlite3").is_file());
+            Ok(())
+        }))
+    }
 
     #[test]
     fn host_plugin_launcher_stays_ready_while_collections_publish() -> Result<(), Box<dyn Error>> {
@@ -453,12 +570,7 @@ mod tests {
                 // Start the Shipped Plugin With the Product Launcher on Fresh Storage.
                 let root = credentials::tempdir()?;
                 let installation = credentials::tempdir()?;
-                let executable = std::env::current_exe()?
-                    .parent()
-                    .unwrap()
-                    .parent()
-                    .unwrap()
-                    .join(format!("plugin-host{}", std::env::consts::EXE_SUFFIX));
+                let executable = env::current_exe()?.parent().unwrap().parent().unwrap().join(format!("plugin-host{EXE_SUFFIX}"));
                 if !executable.is_file() {
                     return Err("Build the Shipped Plugin With mise run build -- --package plugin-host".into());
                 }
@@ -473,19 +585,19 @@ mod tests {
                         interval_lag: crate::INTERVAL_LAG,
                         message_bytes,
                     },
-                    storage: dokime_storage::storage_defaults(),
+                    storage: storage_defaults(),
                     clock: Arc::new(WallClock),
                     capture: CaptureSettings::default(),
                     credentials: credentials::namespace(),
                 };
-                let mut plugin = crate::PluginProcess::start(&executable, true, &settings.placement).await?;
-                let host = crate::Host::open(
+                let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
+                let host = Host::open(
                     root.path(),
                     settings,
                     ClientSettings {
                         read_timeout: crate::PLUGINS_TIMEOUT,
                         mutation_timeout: crate::PLUGINS_TIMEOUT,
-                        watch_timeout: harmos_protocol::policy::UNBOUNDED,
+                        watch_timeout: UNBOUNDED,
                         max_cases: 1000,
                         page_items: 500,
                         message_bytes: message_bytes.get(),
@@ -504,15 +616,13 @@ mod tests {
                     .ok_or("Observe Host Network Probe: Admit the Collection Stream")?;
                 let mut rows = stream.watch();
                 for _ in 0..2 {
-                    let row = tokio_stream::StreamExt::next(&mut rows)
-                        .await
-                        .ok_or("Observe Host Network Probe: Keep the Collection Publication Open")?;
-                    let harmos_runtime::streams::Item::Row(row) = row else {
+                    let row = rows.next().await.ok_or("Observe Host Network Probe: Keep the Collection Publication Open")?;
+                    let Item::Row(row) = row else {
                         return Err("Observe Host Network Probe: Resolve the Stream Gap".into());
                     };
                     assert!(!row.value.payload.is_empty());
                     assert!(row.value.published_unix_micros.is_some());
-                    assert_eq!(host.entry_state(&admitted)?, harmos_protocol::host::PluginState::Ready);
+                    assert_eq!(host.entry_state(&admitted)?, PluginState::Ready);
                 }
 
                 // Release Demand and Join Only the Host and Child This Story Started.
@@ -544,7 +654,7 @@ mod tests {
                         interval_lag: crate::INTERVAL_LAG,
                         message_bytes,
                     },
-                    storage: dokime_storage::storage_defaults(),
+                    storage: storage_defaults(),
                     clock: Arc::new(WallClock),
                     capture: CaptureSettings::default(),
                     credentials: credentials::namespace(),
@@ -552,7 +662,7 @@ mod tests {
                 ClientSettings {
                     read_timeout: crate::PLUGINS_TIMEOUT,
                     mutation_timeout: crate::PLUGINS_TIMEOUT,
-                    watch_timeout: harmos_protocol::policy::UNBOUNDED,
+                    watch_timeout: UNBOUNDED,
                     max_cases: 1000,
                     page_items: 500,
                     message_bytes: message_bytes.get(),
