@@ -44,7 +44,11 @@ jobs:
       name: Test Documentation Selection
     - run: mise run docs:lint
     - run: mise run docs:test
-    - run: mise run docs:build -- --archive ${{ inputs.profile == 'release' && inputs.channel != 'nightly' && '--release' || '' }}
+    - run: mise -C crates/dokime-gui run generate:host-frontend
+      name: Generate Canonical Host Messages
+    - run: mise run typecheck:typescript -- --project sites/docs
+      name: Type Check Documentation Examples
+    - run: mise run docs:build -- --prepared --archive ${{ inputs.profile == 'release' && inputs.channel != 'nightly' && '--release' || '' }}
       name: Build Documentation and Check Local Links
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
@@ -73,4 +77,4 @@ jobs:
         key: ${{ steps.setup.outputs.uv-cache-primary-key }}
         path: ${{ steps.setup.outputs.uv-path }}
     env:
-      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:d2lang/d2,node,pnpm,python,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:d2lang/d2,node,pnpm,python,uv,rust

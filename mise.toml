@@ -124,7 +124,11 @@ run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
 [tasks."docs:build"]
 description = "Build the Documentation Site Entry"
-run = ["mise -C crates/dokime-gui run generate:host-frontend", "{{vars.tools}} dokime_tools.docs.site build"]
+usage = 'flag "--prepared" help="Use Canonical Host Messages Already Generated in This Job"; flag "--archive"; flag "--release"'
+run = [
+  "{% if not usage.prepared %}mise -C crates/dokime-gui run generate:host-frontend{% endif %}",
+  "{{vars.tools}} dokime_tools.docs.site build{% if usage.archive %} --archive{% endif %}{% if usage.release %} --release{% endif %}",
+]
 
 [tasks."docs:serve"]
 description = "Preview the Documentation Site"

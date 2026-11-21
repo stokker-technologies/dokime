@@ -117,6 +117,44 @@ class ImpactTests(unittest.TestCase):
                 reversed_result = impact.plan(impact.classify([*reversed(paths), *paths]), "review")
                 self.assertEqual(result, reversed_result)
 
+    def test_shared_frontend_inputs_select_gui_and_docs_without_other_languages(self) -> None:
+        paths = (
+            "packages/plots/src/CartesianPlot.tsx",
+            "packages/document/package.json",
+            "packages/report/report.html",
+            "package.json",
+            "pnpm-workspace.yaml",
+            "pnpm-lock.yaml",
+            "biome.json",
+            "tsconfig.json",
+            "vite.config.ts",
+            "vitest.config.ts",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertEqual(impact.classify([path]), frozenset({"gui", "docs"}))
+                result = impact.plan(impact.classify([path]), "review")
+                self.assertTrue(result["build_docs"])
+                self.assertEqual({row["language"] for row in result["test_matrix"]["include"]}, {"rust", "typescript"})
+                pushed = impact.plan(impact.classify([path]), "push")
+                self.assertFalse(pushed["test"])
+
+    def test_package_jobs_keep_each_platform_profile_and_artifact_contract(self) -> None:
+        for event in ("review", "nightly"):
+            rows = impact.plan(impact.classify(["packages/plots/src/axis.ts"]), event)["test_matrix"]["include"]
+            packages = [row for row in rows if row["work"].startswith("Packages / ")]
+            self.assertEqual(len(packages), 6)
+            self.assertEqual(len({(row["work"], row["platform"]) for row in packages}), 6)
+            for name in ("plots", "document", "report"):
+                selected = [row for row in packages if row["work"] == f"Packages / {name.title()}"]
+                self.assertEqual({row["platform"] for row in selected}, {"unix", "windows"})
+                for row in selected:
+                    self.assertEqual(row["command"], f"test:typescript:integration -- --project packages/{name} --select tests")
+                    self.assertEqual(json.loads(row["bootstrap"]), [])
+                    for profile in ("dev", "release"):
+                        archives = json.loads(row["archives"].replace("{profile}", profile).replace("{platform}", row["platform"]))
+                        self.assertEqual(archives, [f"target/ci/build-clients-{profile}-{row['platform']}.tar.zst"])
+
     def test_event_eligibility_and_complete_validation(self) -> None:
         for classes in (impact.classify(["README.md"]), impact.classify(["unknown"])):
             for event in ("full",) if classes == frozenset({"docs"}) else ("release", "nightly", "full"):

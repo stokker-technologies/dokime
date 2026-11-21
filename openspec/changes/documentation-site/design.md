@@ -71,47 +71,34 @@ Generated host messages remain canonical; local presentation state must not dupl
 wire fields. Changes under docs/ and provider workflows remain owner-owned and
 are reported with exact follow-up locations.
 
-## Owner Integration Requirements
+## Frontend Integration
 
-The benchmark consumer is explicitly outside this worker's ownership. Its clean
-migration requires these import replacements in
-`crates/dokime-gui/benches/system/surface.tsx`: line 9 to
-`@dokime/document/lib/api/native-documents`, line 11 to
-`@dokime/plots/components/document/PlotGroupGrid`, line 12 to
-`@dokime/plots/lib/types`, line 14 to `@dokime/plots/lib/rpc/canonical`, line 16 to
-`@dokime/plots/stores/summary-window-store`, and the stylesheet at line 17 to
-`@dokime/document/styles.css`. The owner must update the benchmark's tsconfig
-and Vite aliases if its standalone builder duplicates the old generated paths.
-No compatibility module or compiler alias retains the old locations.
+The benchmark consumer imports document assembly and styles from document, and grid,
+plot contracts, canonical values and summary state from plots. Its tsconfig extends the
+desktop configuration and its Vite builder inherits the desktop's canonical generated
+paths. Instrumentation follows the extracted live-frame owner.
 
-### Provider Workflow Edits Required
+### Provider Workflow
 
-The owner must update `tools/python/src/dokime_tools/ci/matrices.py` with one
-package-test row per package and configured platform, using the existing frontend
-artifact/bootstrap contract and unique suite names. The command for each row is
-`test:typescript:integration -- --project packages/<name> --select tests`, where
-`<name>` is `plots`, `document` or `report`; retain the default dev/release profile
-selected by the workflow and the matching `build-clients-{profile}-{platform}`
-archive. The frontend task restores the generated messages before package tests.
-`validate-test.yml` already accepts these commands and publishes each job's reports;
-`ci.yml` and `nightly.yml` must retain those package rows when selecting TypeScript
-validation. Package tests are separate jobs so their report directories cannot
-overwrite the desktop's evidence. Keep tests off ordinary dev pushes.
+`tools/python/src/dokime_tools/ci/matrices.py` owns six package-test rows: plots,
+document and report on Unix and Windows. Each uses
+`test:typescript:integration -- --project packages/<name> --select tests`, inherits
+its workflow's dev/release profile, and consumes the matching
+`build-clients-{profile}-{platform}` archive. The frontend task restores canonical
+messages before running the package tests. Unique work/platform pairs retain separate
+job evidence. CI and Nightly consume these matrix rows without filtering them out;
+ordinary dev pushes still run no tests.
 
-In `.github/workflows/validate-build-docs.yml`, append `rust` to the
-`MISE_ENABLE_TOOLS` allowlist and add
-`mise run typecheck:typescript -- --project sites/docs` after the canonical host
-message generation and before building the site. The shared examples consume
-canonical generated messages, so docs build/serve now use the existing
-`generate:host-frontend` task; its Cargo metadata query locates the exact pinned
-library descriptor but compiles no Rust. This existing generator requirement is
-an additional tool cost for documentation-only jobs, requiring owner review.
-Do not introduce a second descriptor lookup or generated message family.
+`tools/python/src/dokime_tools/ci/impact.py` classifies `packages/` and the root
+frontend manifests, lockfile and shared tool configurations as both gui and docs.
+The existing `sites/` rule remains documentation-only.
 
-`tools/python/src/dokime_tools/ci/impact.py` should classify `packages/` and the
-root frontend configuration/lock inputs as both `gui` and `docs`, rather than
-falling back to every language. Its existing `sites/` rule continues to select
-documentation. Workspace install caches already use the root pnpm lockfile.
+The documentation workflow has no existing host-message artifact producer or download.
+It enables Rust for the Cargo metadata query, generates canonical host messages once,
+then type checks the site before building it. `docs:build --prepared` consumes those
+messages without repeating generation. Local docs build/serve retain generation.
+This chooses the existing generation step over adding a product-artifact dependency
+to documentation-only jobs; the metadata query compiles no Rust.
 
 ### Owner Documentation Edits Required
 
@@ -130,16 +117,13 @@ documentation. Workspace install caches already use the root pnpm lockfile.
 
 ### Remaining Overlap Requiring Owner Decision
 
-`crates/dokime-gui/tools/host-bindings.mjs:61` (`generate`) and line 139
-(`generateFrontend`) both run Cargo metadata and read the exact pinned library's
-protocol descriptor. The generator entry invokes `generate()` unconditionally and
-then `generateFrontend()` for `--frontend`, so the frontend generation task performs
-both lookups. The first supplies native dispatch/digest generation; the second
-supplies the TypeScript message/client generation. Keep both output owners, but
-prefer deleting the second lookup and passing one immutable descriptor input from
-the entrypoint. Neither lookup has been removed without the owner's decision.
+The owner resolved the descriptor lookup overlap on 2026-11-21:
+`crates/dokime-gui/tools/host-bindings.mjs` resolves Cargo metadata and reads the
+pinned library descriptor once at entry. It validates and combines the descriptors
+once and passes the same descriptor set and digest to native and frontend generators.
+There is no second lookup.
 
-A second retained parallel view family is `ExecutionMetadata` in
+The retained parallel view family is `ExecutionMetadata` in
 `packages/plots/src/lib/types/browse.ts:98` and `TestExecution` in
 `packages/plots/src/lib/types/test.ts:296`. The former is populated by
 `crates/dokime-gui/src/lib/api/native-checkpoints.ts:174` for Explore; the latter
@@ -153,7 +137,8 @@ owner deciding the shared view shape; serialized plot duplicates are retired.
 ### Recovery and Test Fixture Boundaries
 
 The migration preserves recovery and fixture behavior with the assertions intact.
-The desktop's `failureRecovery` owns settings navigation and plugin restart;
+The desktop's `failureRecovery` owns settings navigation and delegates plugin restart
+to `ConnectedSession.restartPlugin`, the sole restart/invalidation owner;
 ErrorCard receives the capability through its presentation provider. Thus
 `Backend Recovery Actions Take Precedence Over Generic Retries` must supply the
 real desktop recovery factory, while report rendering supplies no native recovery.
@@ -166,9 +151,17 @@ exercises the desktop's appearance selection; shared plots receive that palette.
 report template builder. These were real migration defects in test wiring, not
 superseded behaviors; none of these tests or their bounds is removed.
 
-The mandatory bindings gate currently reports missing library/starter imports and
-SDK type diagnostics outside this worker's ownership. It remains a repair obligation
-for the SDK owner; this extraction does not replace that missing capability.
+The bindings gate is `mise run ci:bindings -- --profile release`, which dispatches
+`check:python:bindings` and `ty check --project sdk/python --exit-zero-on-warning`.
+It reports 102 diagnostics across 28 files, all byte-identical to the extraction's
+merge base `c4be99f3dba2db47abdde55d0decff334a69dbe1`. The checker configuration,
+SDK sources, Python dependency manifests and lock are also unchanged. The first three
+are unresolved `starter_project.plugin` at
+`sdk/python/examples/starter/tests/test_plugin.py:22`, `harmos` at
+`sdk/python/src/dokime_sdk/_client.py:22` and `harmos.plugin` at that file's line 25.
+The checker includes starter tests without their source package and its selected
+environment lacks the pinned library package. These independent SDK/environment
+capability failures remain with the SDK owner; frontend generation cannot repair them.
 
 ## Archives
 
