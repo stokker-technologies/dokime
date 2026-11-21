@@ -1601,7 +1601,8 @@ still settle on cancellation under their operation policies.
   stopping the provider. Product code must consume that API, not poll stored samples.
 - Optional observer fields remain blocked by library Python `_columns.columns_type`
   rejecting proto3 optional fields as oneofs and `_columns.append` reading scalar
-  defaults without presence. The library must preserve per-row presence through
+  defaults without presence; Rust `crates/harmos-protocol/src/columns.rs::derive`
+  also rejects proto3 optional oneofs. The library must preserve per-row presence through
   observer/window batching and Rust/Python decoding, distinguishing absent, zero
   and nonzero values without NaN sentinels. The product interval storage consumer
   must adopt that library encoding before this capability is closed.
