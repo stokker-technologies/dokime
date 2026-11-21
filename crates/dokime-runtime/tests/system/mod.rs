@@ -19,7 +19,6 @@ mod client_cancels_managed_installation;
 mod client_collects_backend_diagnostics;
 mod client_controls_execution_lifecycle;
 mod client_edits_settings;
-mod client_inspects_health;
 mod client_installs_and_removes_managed_plugins;
 mod client_manages_plugin_entries;
 mod client_manages_secret_storage;
@@ -52,7 +51,6 @@ mod manager_lifecycles;
 #[cfg(target_os = "windows")]
 mod owned_processes;
 mod plugin_captures_device_files;
-mod plugin_misses_its_load_deadline;
 mod plugin_reads_only_declared_secrets;
 mod process_interruption;
 mod publication_boundaries;

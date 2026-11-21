@@ -1,7 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { ConnectedSession } from "@/app/native-session/session";
 import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
-import { restartNativePlugin } from "./api/native-plugins";
 
 /** Native Actions Are Supplied To Host-Free Failure Presentation. */
 export function failureRecovery(session: ConnectedSession | null, failure: NotificationFailure): (() => Promise<void>) | undefined {
@@ -12,8 +11,5 @@ export function failureRecovery(session: ConnectedSession | null, failure: Notif
   }
   if (!session || !failure.plugin || failure.action !== "Restart Plugin") return undefined;
   const plugin = failure.plugin;
-  return async () => {
-    await restartNativePlugin(session.identity, plugin);
-    await session.queryClient.invalidateQueries({ queryKey: ["settings"] });
-  };
+  return () => session.restartPlugin(plugin);
 }

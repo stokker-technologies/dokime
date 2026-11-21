@@ -100,7 +100,7 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(command.call_count, failure_at + 1)
                 if failure_at:
                     arguments = command.call_args.args[0]
-                    expected = ["--", "--preset", preset, "--sdk-package", str(Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz"))]
+                    expected = ["--", "--preset", preset, "--sdk-package", str(Path("target/sdk-cpp/dokime-cpp-fixture.tar.gz").resolve())]
                     if failure_at == 2:
                         expected.append("--verbose")
                     self.assertEqual(arguments[7:], expected)

@@ -51,6 +51,7 @@ vi.mock("@/lib/rpc/transport", () => ({ unary: boundary.unary }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("@/app/native-session/context", () => ({
   useNativeSession: () => ({ identity: { generation: "planning", isCurrent: () => true } }),
+  useNativeSessionOptional: () => null,
 }));
 vi.mock("@/components/suite-picker/server-state", () => ({
   usePreviewTestCycleMutation: () => ({ mutateAsync: boundary.preview }),
