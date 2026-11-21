@@ -47,6 +47,11 @@ The callee must expose the operation as Public. The host preserves execution
 scope and applies the callee's lane, policy, deadline and cancellation. A bound
 call accepts the existing optional `policy=` override for that call alone.
 
+Catch `dokime_sdk.operations.FailureError` around a bound call and inspect
+`error.failure.classification`, `code`, `message`, `action`, `operation`, `plugin`
+and `cause`. These are product failure values, including cancellation and timeout
+classifications; the library's exception does not escape a bound peer call.
+
 ## Starter
 
 [The starter](examples/starter/) contains one uv project with an installed
