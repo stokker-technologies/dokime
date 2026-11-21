@@ -289,18 +289,34 @@ async fn write(context: &Context, saved: &Command, expected: Vec<u8>, mutation: 
     let graph = ObjectDefinition::of::<Command>()
         .graph(&Default::default())
         .map_err(|source| Error::Invalid(format!("Save Execution Command: {source}")))?;
-    let response = context
-        .storage::<SetObject>(SetObjectRequest {
-            mutation: Some(mutation),
-            create_if_absent: expected.is_empty(),
-            expected_revision: expected,
-            schema: Some(SchemaInput {
-                key: Some(value.schema.clone()),
-                graph: Some(graph),
-            }),
-            value: Some(value),
-        })
-        .await?;
+    let mut request = SetObjectRequest {
+        mutation: Some(mutation),
+        create_if_absent: expected.is_empty(),
+        expected_revision: expected,
+        schema: Some(SchemaInput {
+            key: Some(value.schema.clone()),
+            graph: Some(graph),
+        }),
+        value: Some(value),
+    };
+    let response = match context.storage::<SetObject>(request.clone()).await {
+        Err(source) if transfer::expired(&source) => {
+            let mutation = transfer::mutation(context, &saved.key, &Uuid::now_v7().to_string()).await?;
+            if request.create_if_absent {
+                let mut saved = saved.clone();
+                saved.window = mutation.window.clone();
+                saved.mutation = mutation.key.clone();
+                request.value = Some(
+                    persisted::catalog()
+                        .encode(&saved, limits(context)?.bytes)
+                        .map_err(|source| Error::Invalid(format!("Save Execution Command: {source}")))?,
+                );
+            }
+            request.mutation = Some(mutation);
+            context.storage::<SetObject>(request).await?
+        }
+        response => response?,
+    };
     match response.outcome {
         Some(Outcome::Applied(applied)) => {
             applied.receipt.ok_or_else(|| Error::Precondition("Save Execution Command: Return Its Durable Receipt".into()))

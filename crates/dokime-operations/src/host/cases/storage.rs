@@ -204,12 +204,17 @@ pub(crate) async fn delete(context: &Context, cycle: &str, identifier: &str, req
         }
     }
     let mutation = transfer::mutation(context, &format!("case/{identifier}/delete"), request_id).await?;
-    let response = context
-        .storage::<DeleteScope>(DeleteScopeRequest {
-            mutation: Some(mutation),
-            scope: Scope::Case(identifier).identifier()?,
-        })
-        .await?;
+    let mut request = DeleteScopeRequest {
+        mutation: Some(mutation),
+        scope: Scope::Case(identifier).identifier()?,
+    };
+    let response = match context.storage::<DeleteScope>(request.clone()).await {
+        Err(source) if transfer::expired(&source) => {
+            request.mutation = Some(transfer::mutation(context, &format!("case/{identifier}/delete"), request_id).await?);
+            context.storage::<DeleteScope>(request).await?
+        }
+        response => response?,
+    };
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict("Delete Case: Refresh the Case Before Deleting It".into()));
     }
@@ -251,7 +256,7 @@ fn value<T: StoredObject>(context: &Context, value: &T) -> Result<ObjectValue> {
     persisted::catalog().encode(value, bound).map_err(|source| Error::Invalid(format!("Register Selection: {source}")))
 }
 
-async fn commit(context: &Context, request_id: &str, saved: Plan) -> Result<CasesCreateResponse> {
+async fn commit(context: &Context, request_id: &str, mut saved: Plan) -> Result<CasesCreateResponse> {
     let cases = saved.cases.iter().map(|case| PlannedCase::decode(case.payload.as_slice())).collect::<result::Result<Vec<_>, _>>()?;
     let mut reply = CasesCreateResponse { cases, ..Default::default() };
     let mut items = vec![MutationItem::Create(value(context, &saved)?)];
@@ -260,8 +265,8 @@ async fn commit(context: &Context, request_id: &str, saved: Plan) -> Result<Case
         items.push(MutationItem::Create(value(context, case)?));
     }
     let mutation = MutationId {
-        window: saved.window,
-        key: saved.mutation,
+        window: saved.window.clone(),
+        key: saved.mutation.clone(),
     };
     let info = context.storage::<Info>(InfoRequest {}).await?;
     let mut position =
@@ -276,7 +281,18 @@ async fn commit(context: &Context, request_id: &str, saved: Plan) -> Result<Case
     if reply.encoded_len() > context.settings.message_bytes {
         return Err(Error::Bound("Register Selection: Reduce the Plan to Fit the Configured Reply Bound".into()));
     }
-    let response = context.storage::<Mutate>(MutateRequest { mutation: Some(mutation), items }).await?;
+    let mut request = MutateRequest { mutation: Some(mutation), items };
+    let response = match context.storage::<Mutate>(request.clone()).await {
+        Err(source) if transfer::expired(&source) => {
+            let mutation = transfer::mutation(context, "Register Selection", request_id).await?;
+            saved.window = mutation.window.clone();
+            saved.mutation = mutation.key.clone();
+            request.items[0] = MutationItem::Create(value(context, &saved)?);
+            request.mutation = Some(mutation);
+            context.storage::<Mutate>(request).await?
+        }
+        response => response?,
+    };
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict("Register Selection: Refresh the Cases Before Registering Them".into()));
     }
