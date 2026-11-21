@@ -12,7 +12,6 @@
 # Standard Library Imports
 import asyncio
 import os
-import platform
 import sys
 import uuid
 from asyncio.subprocess import Process
@@ -20,10 +19,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import IsolatedAsyncioTestCase
 
+# isort: split
+
 # Third Party Imports
 from dokime_sdk import Client, connect
 
+# isort: split
+
 # Local Imports
+from dokime_tools.build import paths
 
 # Type Checking Imports
 
@@ -155,11 +159,8 @@ class Host:
             repository = next(parent for parent in Path(__file__).resolve().parents if (parent / "Cargo.toml").is_file())
             filename = f"{name}{'.exe' if os.name == 'nt' else ''}"
             if "TEST_PROFILE" in os.environ:
-                system = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}[platform.system()]
-                machine = platform.machine().lower()
-                architecture = {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
                 home = "bin" if name == "dokime" else "fixtures/cli" if name == "rust" else "fixtures/host"
-                binary = repository / "target/build" / os.environ["TEST_PROFILE"] / f"{system}-{architecture}" / home / filename
+                binary = paths.output(repository, "build", os.environ["TEST_PROFILE"]) / home / filename
             else:
                 binary = repository / "target/debug" / filename
         if not binary.is_file():

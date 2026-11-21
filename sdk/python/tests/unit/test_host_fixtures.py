@@ -42,15 +42,23 @@ class HostFixtureStory(TestCase):
         self.enterContext(patch("platform.machine", return_value="x86_64"))
         extension = ".exe" if os.name == "nt" else ""
         original = Path.is_file
-        for profile in ("dev", "release"):
+        for profile in (None, "dev", "release"):
             for name, home in (("dokime-host", "fixtures/host"), ("dokime", "bin")):
                 native = "windows-x86_64" if os.name == "nt" else "linux-x86_64"
-                expected = root / "target/build" / profile / native / home / f"{name}{extension}"
+                expected = (
+                    root / "target/build" / profile / native / home / f"{name}{extension}"
+                    if profile
+                    else root / "target/debug" / f"{name}{extension}"
+                )
 
                 def present(path: Path, expected: Path = expected) -> bool:
                     return path == expected or original(path)
 
-                self.enterContext(patch.dict(os.environ, {"TEST_PROFILE": profile}))
+                self.enterContext(patch.dict(os.environ))
+                if profile is None:
+                    os.environ.pop("TEST_PROFILE", None)
+                else:
+                    os.environ["TEST_PROFILE"] = profile
                 self.enterContext(patch.object(Path, "is_file", present))
                 os.environ.pop("DOKIME_TEST_HOST", None)
                 os.environ.pop("DOKIME_TEST_CLI", None)
