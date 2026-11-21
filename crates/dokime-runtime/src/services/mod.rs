@@ -444,9 +444,15 @@ async fn observe_plugins(
 mod tests {
     use std::{env, env::consts::EXE_SUFFIX, error::Error, num::NonZeroUsize, sync::Arc, time::Duration};
 
+    use harmos_operations::storage::{
+        AppendFileBytes, AppendFileBytesRequest, CompoundOutcome, CreateFileProduction, CreateFileProductionRequest, CreateFileWriter,
+        CreateFileWriterRequest, DeleteScope, DeleteScopeRequest, Info, InfoRequest, ListFileProductions, ListFileProductionsRequest,
+    };
     use harmos_protocol::host::PluginState;
-    use harmos_protocol::model::StorageTransferSettings;
+    use harmos_protocol::model::{PageRequest, StorageTransferSettings};
     use harmos_protocol::policy::UNBOUNDED;
+    use harmos_runtime::Identifier;
+    use harmos_runtime::storage::{FileMetadata, MutationId};
     use harmos_runtime::streams::Item;
     use prost_types::Timestamp;
     use tokio_stream::StreamExt;
@@ -457,10 +463,190 @@ mod tests {
     use dokime_client_internal::Client;
     use dokime_operations::host::executions::commands;
     use dokime_operations::host::storage::administration;
+    use dokime_protocol::host::CycleSummary;
     use dokime_protocol::host::executions::{ExecutionCommandAction, ExecutionCommandPhase, ExecutionCommandReceipt};
     use dokime_storage::persisted::Scope;
     use dokime_storage::storage_defaults;
     use dokime_test_support::credentials;
+
+    #[test]
+    fn seal_upload_recovery_discovers_lost_responses_and_settles_exact_scope_pages() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            // Open a Host With One-Production Recovery Pages.
+            let root = credentials::tempdir()?;
+            let installation = credentials::tempdir()?;
+            let settings = HostSettings {
+                installation: Some(installation.path().to_path_buf()),
+                placement: PlacementSettings {
+                    reconnect_delay: Duration::from_secs(1),
+                    stream_window: NonZeroUsize::new(8).unwrap(),
+                    interval_window: crate::INTERVAL_WINDOW,
+                    interval_lag: crate::INTERVAL_LAG,
+                    message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                },
+                storage: storage_defaults(),
+                clock: Arc::new(ControlledClock::new(1_000_000_000)),
+                capture: CaptureSettings::default(),
+                credentials: credentials::namespace(),
+            };
+            let operations = ClientSettings {
+                read_timeout: crate::PLUGINS_TIMEOUT,
+                mutation_timeout: crate::PLUGINS_TIMEOUT,
+                watch_timeout: UNBOUNDED,
+                max_cases: 1000,
+                page_items: 1,
+                message_bytes: settings.placement.message_bytes.get(),
+                stream_buffer: settings.placement.stream_window.get(),
+            };
+            let host = Host::open(root.path(), settings.clone(), operations.clone()).await?;
+            let context = &host.assembly.as_ref().unwrap().context;
+            let window = context.storage::<Info>(InfoRequest {}).await?.mutations.unwrap().id;
+            let mutation = |key: &str| -> Result<MutationId, Box<dyn Error>> {
+                Ok(MutationId {
+                    window: window.clone(),
+                    key: Identifier::new(key)?,
+                })
+            };
+            let scope = Scope::CycleSeal("cycle").identifier()?;
+
+            // Lose Every Create Response, Leaving Only Native Production Ownership.
+            for id in ["upload-a", "upload-b", "upload-c"] {
+                context
+                    .storage::<CreateFileProduction>(CreateFileProductionRequest {
+                        metadata: Some(FileMetadata {
+                            id: Identifier::new(id)?,
+                            scope: Some(scope.clone()),
+                            media_type: "application/octet-stream".into(),
+                            expected_length: None,
+                            expected_sha256: None,
+                        }),
+                        mutation: Some(mutation(id)?),
+                    })
+                    .await?;
+            }
+
+            // Rediscover One Writer, Fence Its Generation and Save Accepted Bytes.
+            let first = context
+                .storage::<ListFileProductions>(ListFileProductionsRequest {
+                    scope: scope.clone(),
+                    page: Some(PageRequest { page_size: 1, ..Default::default() }),
+                    at: None,
+                })
+                .await?;
+            assert_eq!(first.productions.len(), 1);
+            assert!(!first.next_page_token.is_empty());
+            let original = first.productions[0].session.clone();
+            let resumed = context
+                .storage::<CreateFileWriter>(CreateFileWriterRequest {
+                    session: Some(original.clone()),
+                    mutation: Some(mutation("resume")?),
+                })
+                .await?
+                .production
+                .unwrap();
+            assert!(resumed.session.generation > original.generation);
+            context
+                .storage::<AppendFileBytes>(AppendFileBytesRequest {
+                    session: Some(resumed.session),
+                    offset: 0,
+                    data: b"accepted".to_vec(),
+                    mutation: Some(mutation("append")?),
+                })
+                .await?;
+
+            // Keep a Prefix-Related Scope and a Completed Cycle Independent.
+            let retained_bytes = b"retained";
+            let mut retained = None;
+            for (id, owner) in [("foreign", "cycle/other"), ("completed", "completed")] {
+                let created = context
+                    .storage::<CreateFileProduction>(CreateFileProductionRequest {
+                        metadata: Some(FileMetadata {
+                            id: Identifier::new(id)?,
+                            scope: Some(Scope::CycleSeal(owner).identifier()?),
+                            media_type: "application/octet-stream".into(),
+                            expected_length: None,
+                            expected_sha256: None,
+                        }),
+                        mutation: Some(mutation(id)?),
+                    })
+                    .await?
+                    .production
+                    .unwrap();
+                if id == "foreign" {
+                    context
+                        .storage::<AppendFileBytes>(AppendFileBytesRequest {
+                            session: Some(created.session.clone()),
+                            offset: 0,
+                            data: retained_bytes.to_vec(),
+                            mutation: Some(mutation("retain-bytes")?),
+                        })
+                        .await?;
+                    retained = context
+                        .storage::<CreateFileWriter>(CreateFileWriterRequest {
+                            session: Some(created.session),
+                            mutation: Some(mutation("retain-writer")?),
+                        })
+                        .await?
+                        .production
+                        .map(|production| production.session);
+                }
+            }
+            let retained = retained.unwrap();
+            host.store.save_cycle(&CycleSummary {
+                cycle_id: "cycle".into(),
+                ..Default::default()
+            })?;
+            host.store.save_cycle(&CycleSummary {
+                cycle_id: "completed".into(),
+                sealed: true,
+                ..Default::default()
+            })?;
+            host.shutdown().await?;
+            drop(host);
+
+            // Startup Settles Every Discovered Page Before Exact-Scope Deletion.
+            let host = Host::open(root.path(), settings, operations).await?;
+            let context = &host.assembly.as_ref().unwrap().context;
+            let page = context
+                .storage::<ListFileProductions>(ListFileProductionsRequest {
+                    scope: scope.clone(),
+                    page: None,
+                    at: None,
+                })
+                .await?;
+            assert!(page.productions.is_empty());
+            assert!(page.next_page_token.is_empty());
+            let window = context.storage::<Info>(InfoRequest {}).await?.mutations.unwrap().id;
+            let deleted = context
+                .storage::<DeleteScope>(DeleteScopeRequest {
+                    scope,
+                    mutation: Some(MutationId {
+                        window,
+                        key: Identifier::new("delete-settled")?,
+                    }),
+                })
+                .await?;
+            assert!(matches!(deleted.outcome, CompoundOutcome::Applied { .. }));
+            for owner in ["cycle/other", "completed"] {
+                let page = context
+                    .storage::<ListFileProductions>(ListFileProductionsRequest {
+                        scope: Scope::CycleSeal(owner).identifier()?,
+                        page: None,
+                        at: None,
+                    })
+                    .await?;
+                assert_eq!(page.productions.len(), 1);
+                if owner == "cycle/other" {
+                    let production = &page.productions[0];
+                    assert_eq!(production.session, retained);
+                    assert_eq!(production.accepted_length, retained_bytes.len() as u64);
+                    assert_eq!(production.durable_length, retained_bytes.len() as u64);
+                }
+            }
+            host.shutdown().await?;
+            Ok(())
+        }))
+    }
 
     #[test]
     fn scoped_commands_recover_in_bounded_pages_and_replay_admission() -> Result<(), Box<dyn Error>> {

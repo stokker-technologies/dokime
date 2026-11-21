@@ -19,8 +19,6 @@
 use std::{collections::BTreeSet, result, slice};
 
 // Third Party Imports
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
-
 use harmos_query::{
     columnar::{ColumnKind, ColumnSource},
     source,
@@ -29,6 +27,7 @@ use harmos_storage::{
     CompoundOutcome, CompoundReceipt, CompoundWrite, Identifier, MutationHeader, MutationReceipt, MutationValue, ObjectEntry, ObjectKey,
     ObjectVersionToken, Result, StorageCursor,
 };
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 // Local Imports
 use super::{
@@ -333,3 +332,72 @@ fn delete_scope(connection: &Connection, position: &StorageCursor, scope: &Ident
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroUsize;
+
+    use harmos_storage::{FileMetadata, StorageBackend, StoreHistory, execution::Execution};
+
+    use super::*;
+    use crate::backend::{Backend, BackendSettings};
+    use crate::persisted::Scope;
+
+    #[tokio::test]
+    async fn scope_deletion_requires_settled_productions_without_touching_other_scopes() {
+        // Open the Native Backend and Create an Unfinished Scoped Production.
+        let history = StoreHistory {
+            store: Identifier::new("store").unwrap(),
+            epoch: Identifier::new("epoch").unwrap(),
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let backend = Backend::new(
+            directory.path().join("storage.sqlite3"),
+            history.clone(),
+            BackendSettings {
+                chunk_rows: NonZeroUsize::new(4).unwrap(),
+                chunk_bytes: NonZeroUsize::new(4096).unwrap(),
+            },
+            Execution::default(),
+        )
+        .unwrap();
+        backend.create_session().await.unwrap();
+        let scope = Scope::CycleSeal("cycle").identifier().unwrap();
+        let metadata = FileMetadata {
+            id: Identifier::new("upload").unwrap(),
+            scope: Some(scope.clone()),
+            media_type: "application/octet-stream".into(),
+            expected_length: None,
+            expected_sha256: None,
+        };
+        let file = backend.create_file_production(&metadata).await.unwrap();
+        let other = backend
+            .create_file_production(&FileMetadata {
+                id: Identifier::new("other-upload").unwrap(),
+                scope: Some(Scope::CycleSeal("cycle/other").identifier().unwrap()),
+                ..metadata
+            })
+            .await
+            .unwrap();
+        let at = StorageCursor { history, sequence: 1 };
+
+        // Refuse the Exact Scope Before Writing Any Deletion State.
+        {
+            let state = backend.state.lock().await;
+            assert!(matches!(delete_scope(&state.connection, &at, &scope), Err(harmos_storage::Error::InvalidInput { .. })));
+            let deleted: i64 = state.connection.query_row("SELECT count(*) FROM deleted_files", [], |row| row.get(0)).unwrap();
+            assert_eq!(deleted, 0);
+        }
+
+        // Settlement Unblocks Deletion Without Settling a Prefix-Related Scope.
+        backend.delete_file_production(&file).await.unwrap();
+        {
+            let state = backend.state.lock().await;
+            delete_scope(&state.connection, &at, &scope).unwrap();
+            let deleted: String = state.connection.query_row("SELECT id FROM deleted_files", [], |row| row.get(0)).unwrap();
+            assert_eq!(deleted, file.id.as_str());
+        }
+        assert_eq!(backend.get_file_production(&other).await.unwrap().phase, harmos_storage::FilePhase::Producing);
+        backend.delete_session().await.unwrap();
+    }
+}

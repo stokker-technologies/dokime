@@ -18,8 +18,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_operations::storage::{CompoundOutcome, DeleteScope, DeleteScopeRequest};
-use harmos_protocol::model::FileReference;
+use harmos_operations::storage::{
+    CompoundOutcome, CreateFileWriter, CreateFileWriterRequest, DeleteFileProduction, DeleteFileProductionRequest, DeleteScope,
+    DeleteScopeRequest, ListFileProductions, ListFileProductionsRequest,
+};
+use harmos_protocol::model::{FileReference, PageRequest};
 
 // Local Imports
 use crate::{Error, Result, host::Context};
@@ -132,14 +135,58 @@ pub async fn recover(context: &Context) -> Result<()> {
 /* === Private Functions === */
 
 async fn cleanup(context: &Context, name: &str) -> Result<()> {
+    // Admission Is Fenced by Startup or the Cycle Administration Guard.
+    let scope = Scope::CycleSeal(name).identifier()?;
+    let mut at = None;
+    let mut token = String::new();
+    loop {
+        // Discover One Page at the Issued Cut.
+        let request = ListFileProductionsRequest {
+            scope: scope.clone(),
+            at,
+            page: Some(PageRequest {
+                page_size: context.settings.page_items as u32,
+                max_bytes: context.settings.message_bytes as u64,
+                page_token: token,
+            }),
+        };
+        let response = context.storage::<ListFileProductions>(request).await?;
+        at =
+            Some(response.resolved_at.ok_or_else(|| {
+                Error::Precondition(format!("Retire Cycle {name} Seal Attempt: Restore Its File Production Discovery Cut"))
+            })?);
+        for production in response.productions {
+            // Claim the Recovered Writer Before Abandonment.
+            let request_id = uuid::Uuid::now_v7().to_string();
+            let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
+            let request = CreateFileWriterRequest {
+                session: Some(production.session),
+                mutation: Some(mutation),
+            };
+            let response = context.storage::<CreateFileWriter>(request).await?;
+            let production = response
+                .production
+                .ok_or_else(|| Error::Precondition(format!("Retire Cycle {name} Seal Attempt: Claim Its Recovered File Writer")))?;
+
+            // Abandon the Current Writer Through Its Production Owner.
+            let request_id = uuid::Uuid::now_v7().to_string();
+            let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
+            let request = DeleteFileProductionRequest {
+                session: Some(production.session),
+                mutation: Some(mutation),
+            };
+            context.storage::<DeleteFileProduction>(request).await?;
+        }
+        token = response.next_page_token;
+        if token.is_empty() {
+            break;
+        }
+    }
+    // Delete Only the Settled Attempt Scope.
     let request_id = uuid::Uuid::now_v7().to_string();
     let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
-    let response = context
-        .storage::<DeleteScope>(DeleteScopeRequest {
-            mutation: Some(mutation),
-            scope: Scope::CycleSeal(name).identifier()?,
-        })
-        .await?;
+    let request = DeleteScopeRequest { mutation: Some(mutation), scope };
+    let response = context.storage::<DeleteScope>(request).await?;
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict(format!("Retire Cycle {name} Seal Attempt: Reopen the Host Before Retrying Seal")));
     }

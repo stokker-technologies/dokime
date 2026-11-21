@@ -31,7 +31,6 @@ use std::{
     io,
     num::NonZeroUsize,
     path::Path,
-    result,
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -73,7 +72,6 @@ use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync, task};
 
 // Local Imports
-use crate::persisted::Scope;
 
 /* === Constants === */
 
@@ -168,30 +166,6 @@ impl Backend {
             let mut state =
                 primary.state.try_lock().map_err(|source| Error::backend("Register Object Catalog", BackendFailure::Conflict, source))?;
             state.catalog = catalog;
-            // Host Open / Abandon Uncommitted Seal Uploads Before Native Upload Recovery.
-            // The Cycle Owner Deletes These Exact Scopes After Operations Are Bound.
-            for cycle in store.client_cycles()? {
-                if cycle.sealed {
-                    continue;
-                }
-                let scope = Scope::CycleSeal(&cycle.cycle_id).identifier()?;
-                let files = {
-                    let mut query =
-                        state.connection.prepare("SELECT id FROM storage_files WHERE scope=?1 AND finished IS NULL").map_err(db)?;
-                    query
-                        .query_map([scope.as_str()], |row| row.get::<_, String>(0))
-                        .map_err(db)?
-                        .collect::<result::Result<Vec<_>, _>>()
-                        .map_err(db)?
-                };
-                for id in files {
-                    let id = Identifier::new(id).map_err(|source| {
-                        Error::backend("Recover Cycle Seal Upload: Restore Its File Identity", BackendFailure::Corrupt, source)
-                    })?;
-                    let file = StagedFile { history: primary.history.clone(), id };
-                    files::abandon(&state, &file)?;
-                }
-            }
         }
         let state = recovery::RecoveryBackend(primary.clone());
         let lease = BackendLease(
@@ -916,55 +890,3 @@ fn exhausted() -> Error {
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{Store, persisted};
-    use dokime_protocol::host::CycleSummary;
-
-    #[tokio::test]
-    async fn reopening_abandons_only_uncommitted_cycle_seal_productions() -> crate::Result<()> {
-        let root = tempfile::tempdir()?;
-        let store = Store::open(root.path())?;
-        for (cycle, sealed) in [("open", false), ("sealed", true)] {
-            store.save_cycle(&CycleSummary {
-                cycle_id: cycle.into(),
-                sealed,
-                ..Default::default()
-            })?;
-        }
-        let (backends, lease) = Backend::open_with_execution(&store, persisted::catalog(), Execution::default())?;
-        backends.primary.create_session().await?;
-        let mut files = Vec::new();
-        for (id, scope) in
-            [("attempt", Scope::CycleSeal("open")), ("committed", Scope::CycleSeal("sealed")), ("on-demand", Scope::Cycle("open"))]
-        {
-            let file = backends
-                .primary
-                .create_file_production(&FileMetadata {
-                    id: Identifier::new(id).unwrap(),
-                    scope: Some(scope.identifier()?),
-                    media_type: "text/html".into(),
-                    expected_length: None,
-                    expected_sha256: None,
-                })
-                .await?;
-            backends.primary.append_file_bytes(&file, 0, FileChunk::new(b"retained".to_vec())).await?;
-            files.push(file);
-        }
-        backends.primary.delete_session().await?;
-        lease.close()?;
-        drop(backends);
-
-        let (backends, lease) = Backend::open_with_execution(&store, persisted::catalog(), Execution::default())?;
-        backends.primary.create_session().await?;
-        for (index, file) in files.iter().enumerate() {
-            let phase = backends.primary.get_file_production(file).await?.phase;
-            assert_eq!(phase, if index == 0 { FilePhase::Abandoned } else { FilePhase::Producing });
-        }
-        backends.primary.delete_session().await?;
-        lease.close()?;
-        Ok(())
-    }
-}
