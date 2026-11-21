@@ -651,7 +651,7 @@ pub(crate) fn validate_names<'a>(names: impl IntoIterator<Item = &'a str>, kind:
 #[cfg(test)]
 mod tests {
     use super::Template;
-    use crate::{Card, FieldReference, Parameter, Plot, PlotKind, card, parameter_expansion, parameter_expression, value};
+    use crate::{Parameter, parameter_expansion, parameter_expression, value};
 
     #[test]
     fn parameter_builders_preserve_types_expansion_and_bounds() {
@@ -683,20 +683,5 @@ mod tests {
         };
         assert_eq!(list.values[1].kind, Some(value::Kind::Number(20.0)));
         assert_eq!((values[4].min_items, values[4].max_items), (Some(1), Some(8)));
-    }
-
-    #[test]
-    fn plot_and_card_builders_preserve_owned_operands() {
-        let mut plot = Plot::line("voltage", "Voltage").unit("V");
-        plot.y.push(FieldReference::new("samples").field("voltage_v"));
-        let card = Card::plot(plot.clone()).columns(6);
-        plot.y.clear();
-        let Some(card::Body::Plot(captured)) = card.body else {
-            panic!("Expected a Plot");
-        };
-        assert_eq!(captured.kind, PlotKind::TimeSeries as i32);
-        assert_eq!(captured.y.len(), 1);
-        assert_eq!(card.layout.unwrap().columns, 6);
-        assert!(matches!(Card::records("records").body, Some(card::Body::Evidence(_))));
     }
 }

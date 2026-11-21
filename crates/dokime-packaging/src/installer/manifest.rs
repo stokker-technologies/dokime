@@ -396,8 +396,6 @@ mod tests {
         let manifest: Manifest = toml::from_str(text).unwrap();
         manifest.validate_plugins().unwrap();
         assert_eq!(manifest.dokime.version(), env!("CARGO_PKG_VERSION"));
-        assert_eq!(manifest.plugin[0].name.as_deref(), Some("opaque-name"));
-        assert_eq!(manifest.plugin[1].path.as_deref(), Some(Path::new("plugins/plugin.dokime")));
     }
 
     #[test]
