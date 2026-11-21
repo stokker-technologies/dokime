@@ -97,7 +97,7 @@ impl Plugin {
     async fn start(channel: Channel, language: &str) -> BenchResult<Self> {
         let executable = env::var_os(if language == "rust" { "DOKIME_BENCH_REFERENCE" } else { "DOKIME_BENCH_EXECUTABLE" })
             .ok_or("Start SDK Bench: Supply the Built Reference Plugin Executable")?;
-        let mut command = Command::new(executable);
+        let mut command = Command::from(dokime_runtime::process::command(executable));
         if language == "python" {
             command.args(["-m", "thermal_example.plugin"]);
         }
