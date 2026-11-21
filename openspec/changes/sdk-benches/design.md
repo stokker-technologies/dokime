@@ -7,7 +7,7 @@ change them without changing the specs.
 
 ## Context
 
-### Bench Surface Today
+### Bench Surface Before This Change
 
 | Surface | Target | Local Task | Hosted |
 | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ that the `operation-boundary` cutover deletes; any wall-clock assertion in a tes
 
 ## Decisions
 
-### Reference Plugin: Thermal Extended in Place (Proposed)
+### Reference Plugin: Thermal Extended in Place
 
 Each language's thermal plugin becomes its reference plugin. It gains one
 plugin-level `echo` operation and a second template, `thermal.load`, that holds
@@ -90,7 +90,7 @@ so the equivalence stories keep their assertions. One plugin per language then
 backs both the equivalence stories and the benches, and the existing fixture jobs
 build it.
 
-Alternative: a separate `reference` plugin per language. Rejected as proposed: it
+Alternative: a separate `reference` plugin per language. Rejected: it
 duplicates four plugins, their build entries and their declarations, and the
 equivalence and bench catalogs could drift apart.
 
@@ -107,8 +107,8 @@ template   thermal.load
   stream   thermal.load.channel_000 .. thermal.load.channel_127
            row: Counter, window observer every 1 ms
   stream   thermal.load.burst
-           row: Counter, window observer every 1 ms, rows per window from the
-           template parameter rows_per_window
+           row: Counter, window observer default 1 ms, interval from the
+           plugin duration setting thermal.load.interval
   step     hold                         holds until the host stops the execution
 ```
 
@@ -116,10 +116,10 @@ Illustrative Rust declaration (final names follow the SDK at implementation time
 
 ```rust
 let plugin = Plugin::of::<ThermalPlugin>("1.0.0")
-    .operation(Operation::new("thermal.echo", echo))
+    .operation(Operation::new("thermal.echo", Visibility::Public, echo))
     .suite(Suite::of::<ThermalSuite>().template(cycle).template(load));
 
-async fn echo(_: &Context, request: Echo) -> Result<Echo> {
+async fn echo(_: &operations::Context, request: Echo) -> Result<Echo> {
     Ok(request)
 }
 ```
@@ -127,7 +127,7 @@ async fn echo(_: &Context, request: Echo) -> Result<Echo> {
 Illustrative Python declaration:
 
 ```python
-async def echo(ctx: Context, request: Echo) -> Echo:
+async def echo(ctx: operations.Context, request: BytesValue) -> BytesValue:
     return request
 
 
@@ -139,7 +139,7 @@ class ThermalPlugin(Plugin):
 ### One Driver With a Catalog Guard (Proposed Location)
 
 The driver is one Rust bench target, `system-sdk`, at
-`crates/dokime-runtime/benches/sdk/`. It starts a host the way the equivalence
+`sdk/benches/system-sdk/` in the private `dokime-sdk-benches` package. It starts a host the way the equivalence
 stories do, launches one language's reference plugin as a managed sidecar and
 runs the scenario. The language under measurement is a variant selected with
 `--select`; the bench itself is written in Rust, so `test/benchmark.py` and
@@ -164,15 +164,22 @@ The scenario is fixed and identical for every language:
 1. Start to ready: spawn the plugin process, stop the clock when the host admits it.
    Repeat with fresh processes.
 2. Idle memory: read the plugin process's resident memory after admission, with no
-   execution running.
+   execution running. On Windows include its interpreter descendants, so the
+   virtual-environment launcher alone is never reported as Python's footprint.
 3. Round trip: call `thermal.echo` with a fixed small payload, one call at a time,
    for the latency distribution; then with a fixed number of concurrent callers
    for calls per second.
 4. Throughput at target: start `thermal.load` with all 128 channels at 1 kHz and
-   count the samples the host accepts per second in steady state.
+   count retained samples whose host `received_at` falls inside the steady-state
+   measurement window, divided by elapsed time. Source timestamps and rows
+   delivered after that window do not inflate the accepted rate.
 5. Loaded memory: read the plugin process's peak resident memory during step 4.
-6. Ceiling: run `thermal.load.burst` with increasing `rows_per_window` until the
-   accepted rate stops rising; record the highest accepted rate.
+6. Ceiling: run `thermal.load.burst` with decreasing values of the existing
+   observer interval setting `thermal.load.interval` until the accepted rate stops
+   rising; record the highest accepted rate. Every response contains exactly the
+   host-granted row count; the observer contract is unchanged. Settings are
+   activation inputs: after each settings mutation, use `Plugins.Restart`, await
+   the new activation's readiness and check its catalog before measuring.
 
 Rows follow the existing report shape. Case names (proposed):
 
@@ -227,7 +234,7 @@ platform and job variant, so a run is compared with the previous `dev` run.
 `proto/dokime/model/v1/evidence.proto` and `proto/dokime/host/v1/{evidence,plots,reports}`:
 encode and decode time per message and the encoded size in bytes for evidence,
 sample batches, plot frames and report responses at fixed sizes. Proposed
-location: `crates/dokime-protocol/benches/protocol/`.
+location: `sdk/benches/protocol/` in the private bench package.
 
 `Bench / Storage` measures this product's objects through the library's storage
 operations: write an execution with its evidence, seal it, and query one million
@@ -240,16 +247,61 @@ Whether the cutover retires it, migrates it into `Bench / Storage`, or keeps it
 as a local measurement is an owner decision; `test-stories` also names the
 storage bench as a measurement owner.
 
+### Materialized Load Selection
+
+`thermal.load` has a Boolean `burst` parameter, default false. Its pure
+materializer retains the 128 channel streams when false and only the burst
+stream when true. Both placements use the same hold operation and granted-window
+counter sampler. The duration setting changes only the burst observer's interval.
+The echo payload is one bytes field named `value`; Python uses protobuf's typed
+`BytesValue`, and the Rust declaration has the same structural schema.
+
+The private `sdk/benches/` workspace package owns both native bench targets, so
+the driver, protocol bench, desktop bench and thermal example share the product
+dependency graph without adding host dependencies to the author SDK.
+The bench producer stages the thermal example as `dokime-rust-thermal`; the
+standalone SDK consumer continues to own external-consumer proof.
+
+### SDK Capability Prerequisites
+
+The current C# author API (`sdk/csharp/src/Dokime/Templates.cs` and `Plugin.cs`)
+has no pure materialization hook for selecting the declared load streams. The
+current C++ `Plugin` (`sdk/cpp/include/dokime/plugin.hpp`) has no settings
+declaration entry, although its observers accept interval setting names. Those
+SDK owners must expose the existing concepts before their reference plugins can
+run this same scenario; the bench does not invent a second sampling mechanism.
+
+The Rust high-level `Cases::get` in `sdk/rust/src/client/handles.rs` sends an
+empty parent, whereas `crates/dokime-operations/src/host/cases/get.rs` reads a
+cycle-scoped case. The earlier driver call was refused for a missing cycle. The
+SDK owner must align that getter with the existing scoped contract; the driver
+uses the existing frozen-origin admission through `Cycles.Create` instead.
+
+### High-Rate Counting Prerequisite
+
+The corrected interval sweep reached the 100 ns setting, but reading its retained
+rows through `Samples.List` exceeded the existing operation deadline. The query
+owner must supply bounded high-rate iteration or receipt-time counting at a fixed
+cut. The driver reports the ceiling as `not_measured` and leaves task 3.2 open;
+the other eight measures remain available. The sweep is not retained as a path
+that would publish a false ceiling or repeatedly exhaust the query deadline.
+
 ## Risks / Trade-Offs
 
+- [High-rate result reads are expensive] →
+  `crates/dokime-storage/src/telemetry/reader.rs::sample_window` decodes each
+  selected batch in full even after its result limit is filled. Repeated small
+  pages therefore repeat decoding within a large interval batch. This remains
+  with the storage owner; the driver keeps the product's existing query path and
+  receipt-time counting boundary.
 - [Shared hosted runners are noisy] → Baselines are kept per platform and per
   variant, the report shows the change against the previous `dev` run, and no
   threshold gates anything.
 - [Extending thermal changes a plugin the equivalence stories use] → The new
   operation and template sit beside `thermal.cycle`; the equivalence stories keep
   materializing `thermal.cycle` only.
-- [Start-up changes with the launch handshake] → Implementation waits for that
-  change, so no baseline is recorded and then discarded.
+- [Start-up changes with the launch handshake] → The driver uses the landed
+  announce handshake and the SDK run entries confirmed by prerequisite 1.1.
 - [Python at 128 × 1 kHz may not keep up] → The accepted rate is recorded as it is;
   the gap is the finding.
 
@@ -258,12 +310,30 @@ storage bench as a measurement owner.
 No data migration. Baselines start fresh on the first hosted `dev` run of each new
 job. Removing a job removes its rows from the report and nothing else.
 
+### Owner Decisions (2026-11-21)
+
+- Single-stream ceiling varies the existing observer interval setting, never rows
+  per window. Fixed-interval observers enforce the host-granted row count.
+- Baseline compatibility hashing has one owner,
+  `tools/python/src/dokime_tools/test/benchmark.py::baseline_identity`; both native
+  and Python producers use it. The second implementation is removed.
+
 ## Open Questions
 
-- The plugin launch handshake change and the plugin contract freeze have no
-  change in `openspec/changes/` yet; this change names them in words until they do.
-- Thermal extended in place versus a separate reference plugin per language;
-  proposed: extend in place.
+- `Echo` in `sdk/benches/system-sdk/main.rs` mirrors the bytes message in
+  `sdk/rust/examples/thermal.rs`: the driver uses one for invocation encoding and
+  decoding, and the reference operation uses the other as its SDK payload.
+  Proposed: delete the driver's static mirror and use its already-admitted
+  descriptor through the existing reflection dependency. Both remain pending the
+  owner's overlap decision.
+- Common report-row construction overlaps between
+  `tools/python/src/dokime_tools/release/reports.py::measurements` (called by the
+  Criterion/Python producer in `test/benchmark.py`) and
+  `test/{sdk_bench,protocol_bench}.py::collect` (called by the SDK and protocol
+  producers). The latter support mixed units and unavailable stages; the former
+  assumes nanoseconds. Proposed: extend the shared report owner, then delete the
+  private row-envelope construction while retaining each collector's parsing.
+  Both remain pending the owner's overlap decision.
 - The fate of `crates/dokime-runtime/benches/storage/` after the cutover;
   proposed: migrate its cases into `Bench / Storage` through the library's
   storage operations and delete the direct-store target.

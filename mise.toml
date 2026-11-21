@@ -362,9 +362,9 @@ run = "{{vars.tools}} dokime_tools.build.typescript --profile {{usage.profile}}"
 
 [tasks."build:rust:bench"]
 hide = true
-description = "Build Native Desktop Benchmarks and Matching Hosts"
-usage = 'flag "--binary <binary>"'
-run = "{{vars.tools}} dokime_tools.build.bench{% if usage.binary %} --binary {{usage.binary}}{% endif %}"
+description = "Build Native Benchmarks and Matching Hosts"
+usage = 'flag "--binary <binary>"; flag "--compiler-profile <profile>" { choices "dev" "bench" }'
+run = "{{vars.tools}} dokime_tools.build.bench{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.compiler_profile %} --compiler-profile {{usage.compiler_profile}}{% endif %}"
 
 [tasks."test:python"]
 hide = true
@@ -518,7 +518,7 @@ run = '''{{vars.tools}} dokime_tools.test.storage_bench{% if usage.select %} --s
 
 [tasks."bench:rust:system"]
 hide = true
-description = "Measure Prepared Native Desktop Benchmarks"
+description = "Measure Prepared Native Benchmarks"
 usage = '''
 flag "--profile <profile>" default="dev"
 flag "--binary <binary>"
@@ -527,7 +527,7 @@ flag "--refresh-baseline"
 flag "--once"
 '''
 run = [
-  "{{vars.tools}} dokime_tools.prepare.generated --profile bench",
+  "{% if not usage.binary or usage.binary == 'system-desktop' %}{{vars.tools}} dokime_tools.prepare.generated --profile bench{% endif %}",
   '''{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select or usage.once %} --{% endif %}{% if usage.once %} --test{% endif %}{% if usage.select %} "{{usage.select}}"{% endif %}''',
 ]
 

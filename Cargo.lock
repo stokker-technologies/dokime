@@ -2215,6 +2215,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-sdk-benches"
+version = "0.1.5"
+dependencies = [
+ "criterion",
+ "dokime",
+ "dokime-protocol",
+ "dokime-runtime",
+ "harmos-protocol",
+ "harmos-runtime",
+ "prost",
+ "prost-reflect",
+ "prost-types",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "dokime-storage"
 version = "0.1.5"
 dependencies = [

@@ -47,6 +47,36 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 class RunTests(unittest.TestCase):
+    def test_python_baseline_survives_runner_replacement_but_not_platform_changes(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            directory = Path(temporary.name).resolve()
+            identity = {"platform": ["linux", "x86_64", "image-one", "processor-one"], "runner": "one", "python": "fixture"}
+
+            def measure(command: list[str], cwd: Path, environment: dict[str, str]) -> tuple[int, None]:
+                output = Path(command[0])
+                output.write_text(json.dumps({"benchmarks": [{"name": "echo", "stats": {"median": 0.000001}}]}), encoding="utf-8")
+                return 0, None
+
+            with (
+                patch.object(benchmark.pytest, "environment", return_value={}),
+                patch.object(benchmark.pytest, "bench", side_effect=lambda cwd, category, output, extra: [str(output)]),
+                patch.object(execution, "measure", side_effect=measure),
+            ):
+                initial, status = benchmark.python(directory, "system", ".", True, True, [], identity)
+                self.assertEqual(status, 0)
+                self.assertIsNone(initial[0][2])
+                identity |= {"platform": ["linux", "x86_64", "image-two", "processor-two"], "runner": "two"}
+                following, status = benchmark.python(directory, "system", ".", False, True, [], identity)
+                self.assertEqual(status, 0)
+                self.assertEqual(following[0][2], initial[0][1])
+                for platform in (["win32", "x86_64"], ["linux", "aarch64"]):
+                    other, status = benchmark.python(directory, "system", ".", False, True, [], identity | {"platform": platform})
+                    self.assertEqual(status, 0)
+                    self.assertIsNone(other[0][2])
+        finally:
+            temporary.cleanup()
+
     def test_unit_lane_owns_credentials_through_success_and_failure(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         try:
@@ -116,7 +146,7 @@ class RunTests(unittest.TestCase):
                 return 0, None
 
             with (
-                patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}),
+                patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "RUNNER_NAME": "runner-one"}),
                 patch.object(lanes, "preflight"),
                 patch.object(archive, "_toolchain", return_value="fixture"),
                 patch.object(archive, "fixtures"),
@@ -142,9 +172,15 @@ class RunTests(unittest.TestCase):
                 self.assertEqual(json.loads(stored.read_text())["median"]["point_estimate"], 100.0)
 
                 median = 1000.0
+                # A Fresh Hosted Runner Must Read the Restored Baseline.
+                os.environ["RUNNER_NAME"] = "runner-two"
                 for refresh in (False, True):
                     output = io.StringIO()
-                    with redirect_stdout(output):
+                    with (
+                        redirect_stdout(output),
+                        patch.object(benchmark.platform, "platform", return_value="another-image-patch"),
+                        patch.object(benchmark.platform, "processor", return_value="another-hosted-processor"),
+                    ):
                         status = benchmark.run(directory, "system", "rust", ".", refresh, [])
                     self.assertEqual(status, 0)
                     self.assertIn("benchmark regression: crates/example/system/sidecar_ingest/scalar/0: 900.0%", output.getvalue())

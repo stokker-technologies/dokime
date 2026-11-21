@@ -31,7 +31,7 @@ from .. import temporary
 from ..prepare import generated
 from ..process import spawn_flags
 from ..test import archive
-from . import paths
+from . import cargo, paths
 
 # Type Checking Imports
 
@@ -53,6 +53,7 @@ def build(
     *,
     require_benchmark: bool = True,
     environment: dict[str, str] | None = None,
+    compiler_profile: str = "bench",
 ) -> Path:
     output = paths.output(directory, "build", "bench")
     messages = output / "bench/compiler.json"
@@ -65,7 +66,7 @@ def build(
         "--locked",
         *selection,
         "--profile",
-        "bench",
+        compiler_profile,
         "--message-format=json-render-diagnostics",
         *extra,
     ]
@@ -97,7 +98,13 @@ def build(
             event = json.loads(line)
             executable = event.get("executable")
             kinds = event.get("target", {}).get("kind", [])
-            kind = "bench" if "bench" in kinds else "bin" if kinds == ["bin"] and not event.get("profile", {}).get("test") else None
+            kind = (
+                "bench"
+                if "bench" in kinds
+                else "bin"
+                if kinds in (["bin"], ["example"]) and not event.get("profile", {}).get("test")
+                else None
+            )
             if executable and kind:
                 benchmarks = benchmarks or kind == "bench"
                 source = Path(executable)
@@ -123,9 +130,45 @@ def build(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build Benchmarks and Matching Hosts in the Bench Profile")
     parser.add_argument("--binary")
+    parser.add_argument("--compiler-profile", choices=("dev", "bench"), default="bench")
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     options = parser.parse_args()
     extra = options.extra[1:] if options.extra[:1] == ["--"] else options.extra
+    if options.compiler_profile != "bench" and options.binary not in {"system-sdk", "protocol"}:
+        parser.error("--compiler-profile dev is supported for system-sdk and protocol")
+    if options.binary == "protocol":
+        generated.prepare()
+        directory = Path.cwd()
+        print(
+            build(
+                directory,
+                extra,
+                ("--package", "dokime-sdk-benches", "--bench", "protocol"),
+                compiler_profile=options.compiler_profile,
+                environment=cargo.compiler_environment(options.compiler_profile),
+            )
+        )
+        return
+    if options.binary == "system-sdk":
+        generated.prepare()
+        directory = Path.cwd()
+        messages = build(
+            directory,
+            extra,
+            ("--package", "dokime-sdk-benches", "--package", "dokime", "--bench", "system-sdk", "--example", "thermal"),
+            compiler_profile=options.compiler_profile,
+            environment=dict(cargo.compiler_environment(options.compiler_profile), CARGO_TARGET_DIR=str(directory / "target")),
+        )
+        output = paths.output(directory, "build", "bench")
+        fixtures = output / "fixtures/host"
+        fixtures.mkdir(parents=True, exist_ok=True)
+        extension = ".exe" if os.name == "nt" else ""
+        fixture = f"dokime-rust-thermal{extension}"
+        shutil.copy2(output / "bin" / ("thermal" + extension), fixtures / fixture)
+        stamp = json.loads((output / "fixtures/stamp.json").read_text(encoding="utf-8"))
+        archive.stamp(directory, "bench", [*stamp["files"], (fixtures / fixture).relative_to(directory).as_posix()], stamp["metadata"])
+        print(messages)
+        return
     if options.binary == "storage":
         generated.prepare()
         print(build(Path.cwd(), extra, ("--package", "dokime-runtime", "--bench", "storage")))
@@ -137,15 +180,25 @@ def main() -> None:
             "dokime-gui",
             "--package",
             "dokime-runtime",
+            "--package",
+            "dokime",
+            "--package",
+            "dokime-sdk-benches",
             "--bin",
             "dokime-gui",
             "--bin",
             "dokime-host",
             "--bench",
             options.binary,
+            "--bench",
+            "protocol",
+            "--bench",
+            "system-sdk",
+            "--example",
+            "thermal",
         )
         if options.binary
-        else ("--workspace", "--bins", "--benches")
+        else ("--workspace", "--bins", "--benches", "--example", "thermal")
     )
     directory = Path.cwd()
     output = paths.output(directory, "build", "bench")
@@ -174,7 +227,14 @@ def main() -> None:
             continue
         modules.append(modules_path.relative_to(directory).as_posix())
 
-    archive.stamp(directory, "bench", [*stamp["files"], *modules], stamp["metadata"])
+    fixtures = output / "fixtures/host"
+    fixtures.mkdir(parents=True, exist_ok=True)
+    extension = ".exe" if os.name == "nt" else ""
+    fixture = "dokime-rust-thermal" + extension
+    shutil.copy2(output / "bin" / ("thermal" + extension), fixtures / fixture)
+    archive.stamp(
+        directory, "bench", [*stamp["files"], *modules, (fixtures / fixture).relative_to(directory).as_posix()], stamp["metadata"]
+    )
     print(messages)
 
 
