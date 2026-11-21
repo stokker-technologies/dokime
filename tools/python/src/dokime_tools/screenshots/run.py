@@ -116,7 +116,7 @@ def check(directory: Path, _: str = "check") -> None:
             entries[image] = entry
         if set(entries) != expected:
             raise policy.ToolError(f"Capture Screenshots: missing screenshots in manifest: {sorted(expected - entries.keys())}")
-        unexpected = {path.name for path in folder.iterdir()} - expected - {"README.md", "manifest.json"}
+        unexpected = {path.name for path in folder.iterdir()} - expected - {"manifest.json"}
         if unexpected:
             raise policy.ToolError(f"Capture Screenshots: unexpected screenshot files: {sorted(unexpected)}")
     except (OSError, ValueError, KeyError, TypeError) as error:
