@@ -46,11 +46,11 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Append";
 
 pub async fn handle(context: &Context, request: UploadsAppendRequest) -> Result<UploadsAppendResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        if request.data.len() > transfer::chunk_bytes(context).await? {
+        let (maximum, mutation) = transfer::admission(context, ID, &request.request_id).await?;
+        if request.data.len() > maximum {
             return Err(Error::Bound(format!("{ID}: Respect the Returned Chunk Bound")));
         }
         let session = transfer::session(request.upload)?;
-        let mutation = transfer::mutation(context, ID, &request.request_id).await?;
         let mut native = AppendFileBytesRequest {
             session: Some(session),
             offset: request.offset,

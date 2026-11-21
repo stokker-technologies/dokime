@@ -80,7 +80,7 @@ pub(crate) async fn derived(context: &Context, request: UploadsCreateRequest) ->
             None => Scope::Root(&context.host.identity().backend_id).identifier()?,
         };
         metadata.scope = Some(owner.to_string());
-        let mutation = transfer::mutation(context, ID, &request.request_id).await?;
+        let (maximum, mutation) = transfer::admission(context, ID, &request.request_id).await?;
         if metadata.id.is_empty() {
             metadata.id = mutation.key.to_string();
         }
@@ -100,7 +100,7 @@ pub(crate) async fn derived(context: &Context, request: UploadsCreateRequest) ->
         Ok(UploadsCreateResponse {
             upload,
             receipt: response.receipt,
-            chunk_bytes: transfer::chunk_bytes(context).await? as u64,
+            chunk_bytes: maximum as u64,
             message_bytes: context.settings.message_bytes as u64,
         })
     })
@@ -141,7 +141,7 @@ mod tests {
     use crate::Error;
 
     #[test]
-    fn file_owners_use_exact_scopes_and_inherit_the_admitted_execution() {
+    fn file_scope_admission() {
         assert_eq!(scope("backend", None, None).unwrap(), "root/backend");
         assert_eq!(scope("backend", Some("same"), None).unwrap(), "execution/same");
         assert_eq!(scope("backend", Some("same"), Some("execution/same")).unwrap(), "execution/same");

@@ -241,8 +241,7 @@ async fn retain_owned(
     // Produce the Complete View in Bounded Native Chunks Before Publishing Its Index.
     let digest: [u8; 32] = Sha256::digest(payload).into();
     let request_id = Uuid::now_v7().to_string();
-    let maximum = transfer::chunk_bytes(context).await?;
-    let mutation = transfer::mutation(context, "Retain View", &request_id).await?;
+    let (maximum, mutation) = transfer::admission(context, "Retain View", &request_id).await?;
     let created = context
         .storage::<CreateFileProduction>(CreateFileProductionRequest {
             metadata: Some(storage::FileMetadata {

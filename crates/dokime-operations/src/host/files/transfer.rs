@@ -49,12 +49,16 @@ use dokime_storage::persisted::Scope;
 
 pub(crate) async fn chunk_bytes(context: &Context) -> Result<usize> {
     let info = context.storage::<Info>(InfoRequest {}).await?;
-    let available = context.settings.message_bytes.saturating_sub(1024);
-    let maximum = usize::try_from(info.file_batch_bytes).unwrap_or(usize::MAX).min(available);
-    if maximum == 0 {
-        return Err(Error::Bound("Transfer File: Configure a Message Bound That Can Carry File Bytes".into()));
-    }
-    Ok(maximum)
+    chunk_limit(context, info.file_batch_bytes)
+}
+pub(crate) async fn admission(context: &Context, action: &str, request_id: &str) -> Result<(usize, MutationId)> {
+    let key = mutation_key(context, action, request_id)?;
+    let info = context.storage::<Info>(InfoRequest {}).await?;
+    let maximum = chunk_limit(context, info.file_batch_bytes)?;
+    let window = info.mutations.ok_or_else(|| Error::Unavailable(format!("{action}: Open a Storage Mutation Window")))?;
+    let mutation = MutationId { window: window.id, key };
+    tracing::debug!(action, request_id, window = %mutation.window, mutation = %mutation.key, "Admit Storage Mutation");
+    Ok((maximum, mutation))
 }
 pub(crate) fn authorize(context: &Context, file: &FileReference) -> Result<()> {
     if let Some(caller) = &context.caller {
@@ -67,16 +71,12 @@ pub(crate) fn authorize(context: &Context, file: &FileReference) -> Result<()> {
     Ok(())
 }
 pub(crate) async fn mutation(context: &Context, action: &str, request_id: &str) -> Result<MutationId> {
-    if request_id.is_empty() {
-        return Err(Error::Invalid(format!("{action}: Supply a Request ID")));
-    }
+    let key = mutation_key(context, action, request_id)?;
     let info = context.storage::<Info>(InfoRequest {}).await?;
     let window = info.mutations.ok_or_else(|| Error::Unavailable(format!("{action}: Open a Storage Mutation Window")))?;
-    let scope = context.caller.as_ref().map_or("", |caller| caller.execution.as_str());
-    let digest = Sha256::digest(format!("{scope}/{action}/{request_id}"));
-    let key = Identifier::new(crate::host::views::hex(&digest)).map_err(|cause| Error::Invalid(format!("{action}: {cause}")))?;
-    tracing::debug!(action, request_id, window = %window.id, mutation = %key, "Admit Storage Mutation");
-    Ok(MutationId { window: window.id, key })
+    let mutation = MutationId { window: window.id, key };
+    tracing::debug!(action, request_id, window = %mutation.window, mutation = %mutation.key, "Admit Storage Mutation");
+    Ok(mutation)
 }
 
 pub(crate) fn expired(source: &Error) -> bool {
@@ -146,6 +146,25 @@ pub(crate) fn progress(file: StagedFile, progress: FileProgress, generation: u64
 
 /* === Private Functions === */
 
+fn chunk_limit(context: &Context, file_batch_bytes: u64) -> Result<usize> {
+    let available = context.settings.message_bytes.saturating_sub(1024);
+    let maximum = usize::try_from(file_batch_bytes).unwrap_or(usize::MAX).min(available);
+    if maximum == 0 {
+        return Err(Error::Bound("Transfer File: Configure a Message Bound That Can Carry File Bytes".into()));
+    }
+    Ok(maximum)
+}
+
+fn mutation_key(context: &Context, action: &str, request_id: &str) -> Result<Identifier> {
+    if request_id.is_empty() {
+        return Err(Error::Invalid(format!("{action}: Supply a Request ID")));
+    }
+    let scope = context.caller.as_ref().map_or("", |caller| caller.execution.as_str());
+    let digest = Sha256::digest(format!("{scope}/{action}/{request_id}"));
+    let key = Identifier::new(crate::host::views::hex(&digest)).map_err(|cause| Error::Invalid(format!("{action}: {cause}")))?;
+    Ok(key)
+}
+
 /* === Tests === */
 
 #[cfg(test)]
@@ -193,7 +212,7 @@ mod tests {
         }
     }
     #[test]
-    fn upload_wire_mapping_preserves_the_writer_fence_and_store_history() {
+    fn writer_fencing() {
         let producer = producer();
         let wire = upload(producer.clone());
         assert_eq!(session(Some(wire.clone())).unwrap(), producer.session);
@@ -204,7 +223,7 @@ mod tests {
         assert!(session(Some(terminal)).is_err());
     }
     #[test]
-    fn progress_keeps_accepted_and_durable_prefixes_distinct_and_fences_terminal_writers() {
+    fn durable_progress() {
         let file = staged(&upload(producer())).unwrap();
         let open = progress(file.clone(), FileProgress { length: 123, phase: FilePhase::Producing }, 7, 123, 80);
         assert_eq!(open.accepted_length, 123);
@@ -215,7 +234,7 @@ mod tests {
         assert_eq!(closed.writer_generation, 0);
     }
     #[test]
-    fn uploads_refuse_missing_or_malformed_histories_before_storage_admission() {
+    fn malformed_uploads() {
         assert!(staged(&Upload::default()).is_err());
         let wire = Upload {
             id: "payload".into(),

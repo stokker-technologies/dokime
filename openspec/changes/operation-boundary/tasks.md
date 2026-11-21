@@ -258,6 +258,14 @@ with `plugin-boundary` and `plugin-lifecycle`.
 
 - [x] 6.5j Share execution Start eligibility between capabilities and admission in one predicate, reading active controls from one lock snapshot and rechecking evidence after plugin lookup. Remove the independent state/frontier and active-run admission conditions; prove the open/used/closed/sealed/imported/missing-origin/active matrix and add real admission refusals to the execution-capability story. The deterministic runtime test and fixture-backed execution-capability story pass on Windows.
 
+- [x] 6.5k Complete document read cleanup and result-only card reads. Source inventory: operations `host/views.rs`, `host/documents/get.rs`, `host/files/transfer.rs`, `host/files/uploads/{append,create,resume}.rs`; desktop `src/features/cycle/server-state.ts` and `src/lib/api/native-document-session.ts`; generated native host dispatch through the host generation task; this change's design and tasks. Desktop test files remain with their assigned owner; no `docs/` edits.
+  - [x] Keep admitted view file work and cleanup alive after the caller's read deadline.
+  - [x] Delete a newly published file when index retention fails; preserve race winners.
+  - [x] Retain root declaration inputs once; serve selected card results at the root cut without expansion or another retained view, preserving independent card refresh and selection-bound continuations.
+  - [x] Read native Info once per Upload Append, Create, Resume and retained-view file creation operation.
+  - [x] Regenerate the native host dispatch's stale descriptor checksum against the unchanged pinned library; preserve tracked generated output and the generation owner.
+  - [x] Pass focused operations/card-query proof, touched-package test compilation, workspace test-target compilation with desktop testing, frontend type/build and generation checks, release-context bindings verification, formatting, repository checks and strict OpenSpec validation. Record documentation impact for the owner; native latency measurement is optional and must use an owned instance.
+
 ## Workflow Follow-Up
 
 - Migrate the native GUI SQL fixture consumers with the coupled 2.3/2.2 replacement: `crates/dokime-gui/src-tauri/tests/support/server.rs::Fixture::new` creates an imported execution directly through Store; `tests/system/host.rs::large_document_and_long_history_frequency_use_bounded_native_reads` creates, samples, closes and seals through Store. The storage worker now owns the necessary native fixture caller migration, including the integration host/storage fixtures and support; TypeScript remains outside its ownership. Replace these fixtures through the canonical native execution/evidence owner without SQL fixture APIs or compatibility shims. The separate SQL access-journal fixture in `tests/integration/host.rs` follows its administration owner's cutover.
