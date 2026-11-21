@@ -13,6 +13,7 @@
 # Standard Library Imports
 import argparse
 import ctypes
+import json
 import os
 import shutil
 import signal
@@ -325,8 +326,11 @@ def main(arguments: list[str] | None = None) -> int:
         owner.processes.remove(server)
 
         # Start Tauri Dev With Vite Live Reload; Closing the Window Ends It
+        command = ["node", "node_modules/@tauri-apps/cli/tauri.js", "dev", "--features", "console"]
+        if port := environment.get("DOKIME_DEV_PORT"):
+            command.extend(["--config", json.dumps({"build": {"devUrl": f"http://127.0.0.1:{int(port)}"}})])
         desktop = owner.start(
-            ["node", "node_modules/@tauri-apps/cli/tauri.js", "dev", "--features", "console"],
+            command,
             cwd=GUI,
             env=cargo.compiler_environment("dev", source=environment),
             stdin=sys.stdin,
