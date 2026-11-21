@@ -1,3 +1,11 @@
+## Nightly Regression Repairs
+
+- [ ] Reproduce and Retire the Superseded Load-Deadline Failure Story Against the Locked Offline Contract; Prove Retained Readiness Tests.
+- [ ] Reproduce and Retire the Superseded Unreachable-Remote Health Story; Identify Its Blocked Watch Await and Prove Retained Offline Registration Tests.
+- [x] Keep Embedded Reports Free of Live RPC Dependencies While Preserving Session-Owned Plugin Restart; Complete the Planning Session Mock and Prove Six Focused Desktop Integrations, 41 Neighboring Units and TypeScript Checking.
+- [ ] Resolve the Packaged C++ SDK Archive Before Entering the SDK Task Directory; Prove the CI Dispatch Regression and Native Package Consumers.
+- [ ] Complete Format, Repository, Strict OpenSpec and Workspace Test-Target Compilation Proof; Report Native Linux Proof Separately.
+
 ## Library State and Ownership
 
 - [x] Refresh Every Library Pin, Native Lock, Vendored Protocol and Tracked Binding to `324ad01b0892b1ca6a3bce4bb9525b22974f606b`.

@@ -21,7 +21,6 @@ import { useEffect, useState } from "react";
 
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { restartNativePlugin } from "@/lib/api/native-plugins";
 import { FailureDetails } from "@/components/FailureDetails";
 import { Button } from "@/components/ui/button";
 import { routeFailure } from "@/lib/failure-routing";
@@ -65,8 +64,7 @@ export function ErrorCard({
     if (restart && session && failure.plugin) {
       setRecovering(true);
       try {
-        await restartNativePlugin(session.identity, failure.plugin);
-        await session.queryClient.invalidateQueries({ queryKey: ["settings"] });
+        await session.restartPlugin(failure.plugin);
       } catch (error: unknown) {
         toast.error(failureOf(error, "Plugin Restart Failed"));
       } finally {
