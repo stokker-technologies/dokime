@@ -15,11 +15,11 @@
 import inspect
 import math
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import IntEnum
-from types import FunctionType
+from types import CodeType, FunctionType, ModuleType
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast, get_type_hints
 
 # Third Party Imports
@@ -262,6 +262,70 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable
 
 
 # === Private Functions === #
+
+
+def _requirements(handlers: Sequence[object], owners: Sequence[type]) -> tuple[plugin.Operation[Message, Message], ...]:
+    """Freeze Typed References Reachable From Author Handlers Before Activation."""
+    pending = [(item, frozenset[str]()) for item in handlers]
+    visited: set[tuple[int, frozenset[str]]] = set()
+    required: dict[str, plugin.Operation[Message, Message]] = {}
+    while pending:
+        value, attributes = pending.pop()
+        identity = (id(value), attributes)
+        if identity in visited:
+            continue
+        visited.add(identity)
+        if isinstance(value, Operation):
+            if value.visibility == Visibility.PRIVATE:
+                continue
+            definition = value._definition()
+            previous = required.get(definition.id)
+            if previous is not None and previous.fingerprint != definition.fingerprint:
+                raise ValueError(f"Build Plugin: Import One Matching Contract for {definition.id}")
+            required[definition.id] = definition
+            continue
+        if isinstance(value, (ModuleType, type)):
+            pending.extend(
+                (inspect.getattr_static(value, name), attributes)
+                for name in attributes
+                if inspect.getattr_static(value, name, None) is not None
+            )
+            continue
+        if isinstance(value, (tuple, list, dict)):
+            members = value.values() if isinstance(value, dict) else value
+            pending.extend((item, attributes) for item in members)
+            continue
+        if isinstance(value, (staticmethod, classmethod)):
+            pending.append((value.__func__, attributes))
+            continue
+        if not isinstance(value, FunctionType):
+            continue
+        declaration = vars(value).get("__dokime_operation__")
+        if declaration is not None:
+            pending.append((declaration, frozenset()))
+        if value.__module__.startswith(("dokime_sdk.", "harmos.")):
+            continue
+        names: set[str] = set()
+        code = [value.__code__]
+        while code:
+            current = code.pop()
+            names.update(current.co_names)
+            code.extend(item for item in current.co_consts if isinstance(item, CodeType))
+        references = [value.__globals__[name] for name in names if name in value.__globals__]
+        for cell in value.__closure__ or ():
+            try:
+                references.append(cell.cell_contents)
+            except ValueError:
+                # A Handler May Capture Its Plugin Before Construction Completes.
+                continue
+        references.extend(value.__defaults__ or ())
+        references.extend((value.__kwdefaults__ or {}).values())
+        for owner in owners:
+            references.extend(
+                inspect.getattr_static(owner, name) for name in names if inspect.getattr_static(owner, name, None) is not None
+            )
+        pending.extend((reference, frozenset(names)) for reference in references)
+    return tuple(required[name] for name in sorted(required))
 
 
 # === Entry Point === #

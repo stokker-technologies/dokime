@@ -22,6 +22,31 @@ reach shared plugin state through `ctx.plugin`.
 `ExamplePlugin().identifier` is `example` before and after registration. A class
 `identifier` overrides the class-derived identity.
 
+## Public Peer Operations
+
+Create `Operation(identifier, Request, Response, Visibility.PUBLIC)` at module
+scope from the callee's generated message types, or import a typed reference
+published by its package. Make the reference available before constructing the
+plugin. Own and peer operations use the same bound call:
+
+```python
+from peer_package.operations import increment
+
+
+@step("Increment")
+async def increment_peer(self, ctx):
+    result = await ctx.operation(increment)(41)
+```
+
+The SDK freezes requirements automatically from handler references, including
+helpers, closures, referenced module/class members and reference collections.
+Authors declare no requirements. Conflicting contracts fail at construction.
+An operation constructed or supplied only after activation requires rebuilding
+and registering the plugin with its typed reference available beforehand.
+The callee must expose the operation as Public. The host preserves execution
+scope and applies the callee's lane, policy, deadline and cancellation. A bound
+call accepts the existing optional `policy=` override for that call alone.
+
 ## Starter
 
 [The starter](examples/starter/) contains one uv project with an installed

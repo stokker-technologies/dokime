@@ -360,7 +360,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ]
-        requirements = {item.id: item for item in plugin._requires}
+        requirements = {item.id: item for item in plugin._plugin.requires}
         records: dict[str, bytes] = {}
         for operation_id, request in requests:
             call = invoke()

@@ -50,7 +50,7 @@ class Host:
         self.flags = 0x08000000 if os.name == "nt" else 0
 
     @classmethod
-    async def start(cls, story: IsolatedAsyncioTestCase) -> "Host":
+    async def start(cls, story: IsolatedAsyncioTestCase, *, manual_clock: bool = False) -> "Host":
         host = cls()
         story.addAsyncCleanup(host.close)
         if sys.platform == "linux":
@@ -128,7 +128,7 @@ class Host:
             "127.0.0.1:0",
             "--storage",
             str(Path(host.root.name) / "evidence"),
-            "--controlled-clock",
+            "--manual-clock" if manual_clock else "--controlled-clock",
             env=host.environment,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
@@ -171,6 +171,12 @@ class Host:
         if self._client is None:
             raise RuntimeError("Use SDK Host: Start the Host Before Calling Its Client")
         return self._client
+
+    async def advance(self, at_ns: int) -> None:
+        if self.process is None or self.process.stdin is None:
+            raise RuntimeError("Advance SDK Host Clock: Start a Host With manual_clock=True")
+        self.process.stdin.write(f"advance {at_ns}\n".encode())
+        await self.process.stdin.drain()
 
     async def close(self) -> None:
         try:

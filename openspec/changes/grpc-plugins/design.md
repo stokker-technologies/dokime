@@ -54,6 +54,64 @@ guidance's older integration branch name.
 
 ## Resuming
 
+### Python Peer Operation References
+
+Python callers construct a module-level typed `dokime_sdk.operations.Operation`
+from the callee's identifier and generated request/response message types, or
+import that value published by the callee package. The existing call shape is
+`await ctx.operation(reference)(request, policy=optional_override)`. There is no
+author requirements list or second peer dispatcher. Before library activation,
+the SDK freezes typed references reachable through handler globals, closures,
+helper functions, referenced module/class members and reference collections,
+including plugin hooks, operations, template hooks and stream handlers. Private
+local calls stay local. Conflicting fingerprints fail construction. References
+created or injected only after activation fail with a re-registration action;
+runtime mutation cannot extend the frozen activation requirements.
+
+The workspace pin `324ad01b0892b1ca6a3bce4bb9525b22974f606b` already supplies
+Python Catalog requirements, child carriers and host-registry Public peer routing
+with fingerprint admission, inherited scope, callee lanes/policies/deadlines and
+cancellation. No library change is required for imported typed references.
+The read-only library checkout's HEAD differs; these findings use the pinned
+Git objects, not that checkout's current source. Runtime-created references must
+match a frozen contract or rebuild and register the plugin again. The library
+alone validates child requirements; the product projects its contract errors
+into actionable SDK failures without a second admission check.
+
+Runtime clocks own policy deadlines; scoped execution clocks own Time calls and
+samples. A virtual execution sleep does not expire a real runtime policy. The
+peer fixture uses an explicitly manual scheduler for both domains, advancing it
+only after the callee enters. The existing scheduler-to-library Source adapter
+moves to `clock.rs` and serves both runtime composition and manual fixtures; no
+second timer or peer deadline engine is introduced. Existing automatic execution
+clocks retain their runtime clock behavior.
+
+The owner retains two existing clock overlaps for a decision. In
+`crates/dokime-runtime/src/clock.rs`, `SchedulerSource::read` (runtime composition
+and manual fixture clocks) and `date` (execution clock construction) both convert
+nanoseconds to SystemTime; prefer deleting the inline conversion and calling
+`date`. The shared `SchedulerSource` and `PromptTime` in
+`crates/dokime-runtime/tests/system/python_client_runs_thermal_suite_over_grpc.rs`
+both bridge a scheduler into a library Source. The former serves composition
+and manual fixtures; the latter serves the prompt deadline story. Prefer migrating
+that story to the manual controlled clock and deleting its custom bridge. This
+delivery moves the existing composition adapter without deleting either overlap.
+
+Documentation impact remains with the owner: `docs/project/architecture.md:94`
+can cite the Python peer story for Public success, scope and callee deadline
+proof; Private refusal and other SDK languages remain separate proof.
+`docs/guides/execution-host.md:87` needs the explicit manual runtime/execution
+clock fixture mode and its `advance NANOSECONDS` input beside automatic mode.
+The example links at `docs/sdks/python.md:35` still name retired example paths;
+the current client, starter and thermal packages are linked by the SDK README.
+
+Tooling follow-up outside this worker's ownership: the prepared
+`test:python:system` branch in `mise.toml` drops `--select`; selected prepared
+reruns therefore use the existing `dokime_tools.test.run` CLI with the same
+deadline policy. Forward the selector through the prepared task instead of
+starting the whole lane. The root formatter also reports a Biome 2.6.8 CLI
+against the 2.5.15 schema in `biome.json:2`; align the owning tool/config inputs.
+
 The execution host, typed catalog/origins, four SDKs, CLI and desktop runtime
 embedding are present; tasks.md records remaining behavior and final proof.
 The workspace no longer contains the old domain/client/server/loop crates.

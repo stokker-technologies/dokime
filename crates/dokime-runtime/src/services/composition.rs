@@ -21,7 +21,6 @@ use std::{
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     result,
     sync::Arc,
-    time::{Duration, SystemTime},
 };
 
 // Third Party Imports
@@ -29,7 +28,6 @@ use harmos_protocol::host::access::ListenerValue;
 use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
 use harmos_runtime::Lifecycle;
 use harmos_runtime::clock;
-use harmos_runtime::clock::Source;
 use harmos_runtime::config::ManagedStorageSettings;
 use harmos_runtime::operations;
 use harmos_runtime::operations::Lane;
@@ -43,15 +41,14 @@ use harmos_runtime::storage::{
 };
 use harmos_runtime::{
     Runtime, Setup, Startup,
-    clock::{Reading, Sleep},
     grpc::{self, access::AccessSettings},
 };
-use tokio::time::Instant;
 
 // Local Imports
 use super::ClientSettings;
+use crate::clock::SchedulerSource;
 use crate::streams::{Samples, Timing};
-use crate::{Error, Host, Result, STOP_GRACE, SchedulerClock, plugin_settings};
+use crate::{Error, Host, Result, STOP_GRACE, plugin_settings};
 use dokime_operations::host::settings::get;
 use dokime_operations::native::Binding;
 use dokime_storage::{Backend, BackendLease, persisted};
@@ -67,11 +64,6 @@ const PAIRING_LABEL_BYTES: NonZeroUsize = NonZeroUsize::new(256).unwrap();
 /* === Structs === */
 
 pub(crate) struct Application;
-struct Clock {
-    source: Arc<dyn SchedulerClock>,
-    origin: Instant,
-    origin_ns: i64,
-}
 
 /* === Enums === */
 
@@ -94,25 +86,6 @@ impl harmos_runtime::Application for Application {
     type State = ();
     type Transaction = Never;
     type Record = ();
-}
-impl Source for Clock {
-    fn read(&self) -> Reading {
-        let now_ns = self.source.now_ns();
-        Reading {
-            instant: self.origin + Duration::from_nanos(now_ns.saturating_sub(self.origin_ns).max(0) as u64),
-            date: if now_ns < 0 {
-                SystemTime::UNIX_EPOCH - Duration::from_nanos(now_ns.unsigned_abs())
-            } else {
-                SystemTime::UNIX_EPOCH + Duration::from_nanos(now_ns as u64)
-            },
-        }
-    }
-    fn sleep_until(&self, deadline: Instant) -> Sleep {
-        let source = self.source.clone();
-        let deadline_ns =
-            self.origin_ns.saturating_add(deadline.saturating_duration_since(self.origin).as_nanos().min(i64::MAX as u128) as i64);
-        Box::pin(async move { source.reached(deadline_ns).await })
-    }
 }
 
 /* === Public Functions === */
@@ -139,15 +112,8 @@ pub(super) async fn launch(
         .and_then(NonZeroUsize::new)
         .ok_or_else(|| Error::Invalid("Start Storage Transfers: Allow Transfer Framing Within the Message Capacity".into()))?;
     let (clock, controller) = source.execution_clock();
-    let clock = if controller.is_some() {
-        clock::Clock::real_at(clock.date())
-    } else {
-        clock::Clock::with_clock(Clock {
-            origin_ns: source.now_ns(),
-            source,
-            origin: Instant::now(),
-        })
-    };
+    let clock =
+        if controller.is_some() { clock::Clock::real_at(clock.date()) } else { clock::Clock::with_clock(SchedulerSource::new(source)) };
     let catalog = manager::catalog().extend(persisted::catalog());
     let (backends, lease) = Backend::open_with_execution(store, catalog.clone(), clock.clone())?;
     let storage = StorageManager::with_catalog(

@@ -28,7 +28,7 @@ use std::{
 
 // Third Party Imports
 use prost::Message;
-use tokio::io::{AsyncReadExt, stdin};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader, stdin};
 use tracing::{instrument::WithSubscriber, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, prelude::*};
 
@@ -68,6 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut root = None;
     let mut plugin = None;
     let mut controlled = false;
+    let mut manual = false;
     let mut remove_credentials = false;
     let mut execution_files = Vec::new();
     let mut environment = None;
@@ -78,6 +79,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "--storage" => root = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --storage PATH")?)),
             "--launch-plugin" => plugin = Some(PathBuf::from(arguments.next().ok_or("Start Plugin: Supply --launch-plugin PATH")?)),
             "--controlled-clock" => controlled = true,
+            "--manual-clock" => manual = true,
             "--remove-credentials" => remove_credentials = true,
             "--attach-execution-file" => {
                 execution_files.push(PathBuf::from(arguments.next().ok_or("Register Execution File: Supply Its Encoded Metadata Path")?))
@@ -98,7 +100,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         services::remove_credentials(&root, &credentials)?;
         return Ok(());
     }
-    let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
+    if controlled && manual {
+        return Err("Start Host: Choose --controlled-clock or --manual-clock".into());
+    }
+    let manual_clock = manual.then(|| Arc::new(ControlledClock::manual(0)));
+    let clock: Arc<dyn SchedulerClock> = match &manual_clock {
+        Some(clock) => clock.clone(),
+        None if controlled => Arc::new(ControlledClock::new(0)),
+        None => Arc::new(WallClock),
+    };
     let host_settings = HostSettings {
         installation: None,
         credentials,
@@ -160,8 +170,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing::info!("Execution Host Is Ready");
     println!("http://{}", server.endpoint());
     io::stdout().flush()?;
-    let mut input = [0u8; 1];
-    while stdin().read(&mut input).await? != 0 {}
+    if let Some(clock) = manual_clock {
+        let mut input = BufReader::new(stdin()).lines();
+        while let Some(line) = input.next_line().await? {
+            let at_ns = line
+                .strip_prefix("advance ")
+                .ok_or("Advance Clock: Send advance NANOSECONDS")?
+                .parse::<i64>()
+                .map_err(|_| "Advance Clock: Supply Signed 64-Bit Nanoseconds")?;
+            clock.wait_until(at_ns).await?;
+        }
+    } else {
+        let mut input = [0u8; 1];
+        while stdin().read(&mut input).await? != 0 {}
+    }
     server.close().await?;
     Ok(())
 }

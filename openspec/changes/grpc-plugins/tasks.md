@@ -182,6 +182,12 @@
 
 ## Locked Python Shape
 
+- [x] Python Peer Calls: Derive Frozen Requirements From Typed Handler References and Preserve the Existing Bound Call and One-Call Policy Override, Without Author Requirements.
+- [x] Python Peer Calls: Prove Derivation, Conflicting Contracts, Structured Failures and Undeclared References With SDK Unit Tests.
+- [x] Python Peer Calls: Prove Two Fixture Plugins Through the Host, Including Success, Scope, Callee Deadline/Cancellation, Lane Release and Actionable Unavailable/Undeclared Failures.
+- [x] Python Peer Calls: Share the Scheduler Clock Adapter in `crates/dokime-runtime/src/clock.rs`, Add Manual Clock Control to the Native Fixture Host and Its Python Test Support, and Prove Runtime Policy Deadlines Without Advancing Only Execution Time.
+- [x] Python Peer Calls: Complete SDK Checks, Python Build/Package, Workspace Test-Target Compilation, Format, Repository and Strict OpenSpec Proof; Report Native Linux and Other SDK Languages as Unproven.
+
 - [x] (a) Rename the Python Package Alone per the SDK Surface Specification Ownership Inventory; Regenerate Imports, Wheel Paths and Guards Without Keeping `dokime` Aliases.
 - [ ] (b) Implement the SDK Surface Specification's Python Authoring Classes, Separate Contexts, `ctx.plugin` and `plugin.serve()`; Resolve Its Named Capability Decisions Before Their Dependent Work.
   - [x] Bind Explicit Plugin, Suite and TestTemplate Classes, Derived Identities and Labels, Annotated Plain Operations and Separate Contexts; Move Documents, Plots and Parameters to Templates and Delete Replaced Authoring Entry Points.

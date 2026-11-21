@@ -16,13 +16,14 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar
 
 # Third Party Imports
+import harmos
 from google.protobuf.duration_pb2 import Duration
 from harmos import VISIBILITY_PUBLIC, plugin
 
 import dokime_sdk._generated.client
 
 # Local Imports
-from ._errors import call, invalid, refused
+from ._errors import Failure, FailureError, call, invalid, project_failure, refused
 from ._generated.host import HostRoot
 from ._payloads import Payload, message_type, pack, unpack
 from ._values import SampleRow
@@ -135,7 +136,20 @@ class BoundOperation[RequestT: Payload, ResponseT: Payload]:
             )
             response = message_type(self._operation.response).FromString(payload)
         else:
-            response = await self._transport.call(wire, encoded, policy=policy._definition() if policy is not None else None)
+            try:
+                response = await self._transport.call(wire, encoded, policy=policy._definition() if policy is not None else None)
+            except harmos.FailureError as error:
+                raise FailureError(project_failure(error.value)) from error
+            except ValueError as error:
+                raise FailureError(
+                    Failure(
+                        "Refused",
+                        "invalid_operation_contract",
+                        str(error),
+                        "Import the Matching Typed Operation Reference Before Constructing the Plugin, Then Register It Again",
+                        wire.id,
+                    )
+                ) from error
         return unpack(self._operation.response, response)
 
 
