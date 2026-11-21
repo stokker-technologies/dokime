@@ -345,4 +345,5 @@
 - [x] Keep the Host Plugin on the SDK Single Run Entry, With Launch Credentials Selected by the SDK and No Readiness Output or Address Variables.
 - [x] Collapse the SDK Registration Refusal Guard Reported by Rust Lint Without Changing Listener Cleanup or Structured Host Failure Propagation; Import Its Named Types Without Aliases.
 - [ ] Obtain a Passing Rust Lint Result for the Corrected Candidate; the Single Allowed Local Invocation Reported the Now-Corrected Registration Guard.
-- [ ] Complete the Requested Native Windows Generation, Workspace Test Compilation, Desktop Bench Compilation, Rust Lint, Host Plugin Tests, Ready Launch, Native Packaging Tooling, C++ Test Compilation, Format, Repository, Supply and Strict OpenSpec Proof; Keep Linux Proof Independent.
+- [ ] Prove a Stable Ready Host Plugin Through the Product Launcher After the Library Supplies Host Calls From Unscoped Producer Contexts; Settings/List Currently Refuses With Child Carrier Required and Ends Publication. Keep the Locked Scheduler Unchanged.
+- [x] Complete the Independent Native Windows Generation, Workspace Test Compilation, Desktop Bench Compilation, Host Plugin Tests, Native Packaging Tooling, C++ Test Compilation, Format, Repository, Supply and Strict OpenSpec Proof; Keep Linux, Corrected Rust Lint and Ready Launch Proof Independent.

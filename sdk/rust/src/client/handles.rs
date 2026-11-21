@@ -54,7 +54,9 @@ use super::{
 };
 use super::{PluginsDeleteOptions, PluginsGetOptions, PluginsListOptions};
 use super::{Watching, queries::Paging};
-use crate::{ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Plugin, Result, Termination, Value};
+use crate::{
+    ArtifactMetadata, ArtifactScope, Client, Error, FileReference, Message, Metadata, PageRequest, Plugin, Result, Termination, Value,
+};
 
 /* === Constants === */
 
