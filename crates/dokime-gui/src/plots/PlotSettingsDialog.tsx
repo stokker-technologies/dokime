@@ -23,9 +23,9 @@ import { type FormEvent, useId, useState } from "react";
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -35,16 +35,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@dokime/plots/components/ui/dialog";
+import { Input } from "@dokime/plots/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
-import { formatDecimal } from "@/lib/format";
-import { failureOf } from "@/lib/notification-details";
-import type { DocumentDownsampleTechnique } from "@/lib/types";
-import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import type { PlotSettingsButtonProps } from "./plot-settings";
+import { formatDecimal } from "@dokime/plots/lib/format";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import type { DocumentDownsampleTechnique } from "@dokime/plots/lib/types";
+import { NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
+import type { PlotSettingsButtonProps } from "@dokime/plots/plot-settings";
 
 /* === Constants === */
 

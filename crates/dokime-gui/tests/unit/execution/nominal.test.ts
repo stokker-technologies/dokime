@@ -20,21 +20,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { Metric } from "@/components/Metric";
-import { EditableOperatorNotes } from "@/components/document/OperatorNotesView";
-import { ArtifactTreeView } from "@/components/ArtifactTreeView";
-import { MediaGalleryView } from "@/components/MediaGalleryView";
-import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
+import { Metric } from "@dokime/document/components/Metric";
+import { EditableOperatorNotes } from "@dokime/document/components/document/OperatorNotesView";
+import { ArtifactTreeView } from "@dokime/document/components/ArtifactTreeView";
+import { MediaGalleryView } from "@dokime/document/components/MediaGalleryView";
+import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@dokime/document/components/media-gallery-model";
 import { PromptPanel } from "@/components/PromptPanel";
 import { formatPreview } from "@/components/start-cycle-form-model";
-import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
+import { ExecutionParameters } from "@dokime/document/features/cycle/ExecutionParameters";
 import {
   executionDocumentSections,
   executionPagePrompts,
   executionParameterColumns,
   executionParameterRows,
   executionSectionOf,
-} from "@/features/cycle/execution-sections-model";
+} from "@dokime/document/features/cycle/execution-sections-model";
 import {
   CLOSED_NOTE_DRAFT,
   noteSubmission,
@@ -43,7 +43,7 @@ import {
   openNoteEdit,
   selectNoteTab,
   updateNoteMarkdown,
-} from "@/features/cycle/operator-notes-model";
+} from "@dokime/document/features/cycle/operator-notes-model";
 import {
   answerablePrompts,
   answeredPrompts,
@@ -53,18 +53,18 @@ import {
   queuePrompts,
   type RankedPrompt,
   type ScopedPrompt,
-} from "@/features/cycle/prompt-banner-model";
-import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
-import { formatValue } from "@/lib/dashboard";
-import { documentSummaryTile, documentTableRows } from "@/lib/document-presentation";
-import { formatRecordValue } from "@/lib/record-display";
-import { durationText } from "@/features/cycle/use-elapsed";
-import { buildArtifactTree, type ArtifactTreeInput } from "@/lib/artifact-tree";
-import { shouldFollowArtifact } from "@/lib/execution-file-text";
+} from "@dokime/document/features/cycle/prompt-banner-model";
+import { NativeIntegerValue, NativeNumberValue } from "@dokime/plots/lib/api/native-values";
+import { formatValue } from "@dokime/document/lib/dashboard";
+import { documentSummaryTile, documentTableRows } from "@dokime/document/lib/document-presentation";
+import { formatRecordValue } from "@dokime/plots/lib/record-display";
+import { durationText } from "@dokime/document/features/cycle/use-elapsed";
+import { buildArtifactTree, type ArtifactTreeInput } from "@dokime/document/lib/artifact-tree";
+import { shouldFollowArtifact } from "@dokime/document/lib/execution-file-text";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
-import { defaultPlotNumber, durationParts, formatDecimal, formatDuration, formatNumber, formatUnitLabel } from "@/lib/format";
+import { defaultPlotNumber, durationParts, formatDecimal, formatDuration, formatNumber, formatUnitLabel } from "@dokime/plots/lib/format";
 import { promptDecision } from "@/lib/prompts";
-import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptField, PromptRequest } from "@/lib/types";
+import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptField, PromptRequest } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 

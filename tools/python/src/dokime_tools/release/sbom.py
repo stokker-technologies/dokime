@@ -245,8 +245,8 @@ def shell(directory: Path, output: Path) -> Path:
     temporary = temporary_directory.name
     try:
         snapshot = Path(temporary)
-        for name in ("package.json", "pnpm-lock.yaml"):
-            shutil.copyfile(directory / "crates/dokime-gui" / name, snapshot / name)
+        shutil.copyfile(directory / "crates/dokime-gui/package.json", snapshot / "package.json")
+        shutil.copyfile(directory / "pnpm-lock.yaml", snapshot / "pnpm-lock.yaml")
         document = json.loads(policy.execute(directory, ["syft", "scan", f"dir:{snapshot}", "-o", "cyclonedx-json"], capture=True))
     finally:
         temporary_directory.cleanup()

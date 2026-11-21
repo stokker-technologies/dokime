@@ -4,13 +4,13 @@
  * ***
  */
 import { useMemo } from "react";
-import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
-import { orderedDocumentSections } from "@/lib/document-layout";
-import { scopeVisibleIn } from "@/lib/scope";
-import type { HubRecord } from "@/lib/types";
-import { type DocumentViewOptions, documentView } from "./document-view-model";
+import { isDocumentSurfaceCard } from "@dokime/document/components/document/document-surface-policy";
+import { orderedDocumentSections } from "@dokime/document/lib/document-layout";
+import { scopeVisibleIn } from "@dokime/document/lib/scope";
+import type { HubRecord } from "@dokime/plots/lib/types";
+import { type DocumentViewOptions, documentView } from "@dokime/document/features/cycle/document-view-model";
 import { useExecutionFilesQuery, useHealthQuery, useNotesQuery, useRecordsQuery, useTraceabilityQuery } from "./server-state";
-import { useFrozenPlotPayloads } from "./snapshot-source";
+import { useFrozenPlotPayloads } from "@dokime/document/features/cycle/snapshot-source";
 
 const EMPTY_RECORDS: HubRecord[] = [];
 

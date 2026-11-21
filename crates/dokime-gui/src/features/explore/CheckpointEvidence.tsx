@@ -7,16 +7,16 @@
  * ***
  */
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { ArtifactState } from "@host/model";
 import { Severity } from "@host/model";
-import { nativeValuesToJson } from "@/lib/host/values";
+import { nativeValuesToJson } from "@dokime/plots/lib/host/values";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import {
   artifactStateLabel,
   checkpointFileKind,
@@ -28,8 +28,8 @@ import {
   nativeRecordText,
 } from "@/lib/api/native-checkpoints";
 import { saveNativeDocument } from "@/lib/api/native-document-delivery";
-import { timestampIso } from "@/lib/api/native-values";
-import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";
+import { timestampIso } from "@dokime/plots/lib/api/native-values";
+import type { ExecutionCheckpoint } from "@dokime/plots/lib/types/browse";
 import {
   fetchCheckpointContext,
   fetchCheckpointEvidence,

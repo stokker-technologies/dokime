@@ -31,6 +31,138 @@ from the body; relative links between guides become site routes and links to oth
 files point to the repository browser at the built revision. The build fails on a broken page link
 or heading anchor. The organization logo and typefaces are referenced from `organization/`.
 
+## Shared Frontend Packages
+
+The owner locked the extraction on 2026-11-21: pnpm workspace packages own the
+existing components, with no compatibility paths or duplicate renderers.
+`packages/plots` owns display-only plot components and data shaping, retaining
+uPlot and the existing d3 modules. `packages/document` owns document rendering
+and consumes plots. `packages/report` owns the standalone template, embeds host
+protobuf responses and reuses the live decoder without importing RPC clients or
+transports. Desktop consumes the packages; the documentation site consumes plots
+and document rendering where shown. Nothing shared imports the desktop.
+Formatting stays fixed without digit grouping, with a decimal point, and labels
+carry units as `Mean [Mbps]`.
+
+The owner resolved the remaining extraction decisions on 2026-11-21. There is
+no packages/dokime and no fourth foundation package. Shared TypeScript, Biome and
+Vitest settings live once at the workspace root and package configurations extend
+them. Foundational UI primitives, formatting, presentation types and plot state
+needed below the document boundary belong to plots; document-specific composition,
+response decoding and shared report shell presentation belong to document.
+
+The extraction inventory includes all plot components and their shaping, group
+grid, histogram/statistics views, shared UI dependencies and deterministic tests;
+the document renderers, native document assembler and host-free response projections;
+the report entry, HTML, Vite build and captured-response materialization; desktop
+imports and native recovery/save/palette providers; site demonstration components;
+workspace manifests/lock, common tool configuration and frontend build/test tasks.
+The native plot reads and settings dialog remain desktop-owned. No shared module
+may import the desktop, including erased type imports.
+
+ErrorCard presentation is host-free and accepts recovery behavior through a
+presentation provider populated by the desktop. Traceability JSON saving has the
+same boundary: desktop supplies its native save callback, while the frozen report
+uses the browser download. This second import leak was discovered while tracing
+the report graph; both are real boundary defects. Palette selection remains a
+desktop concern and the shared plot provider receives its resolved colors.
+The document-plots forwarder is deleted and consumers import grouping directly.
+Generated host messages remain canonical; local presentation state must not duplicate
+wire fields. Changes under docs/ and provider workflows remain owner-owned and
+are reported with exact follow-up locations.
+
+## Frontend Integration
+
+The benchmark consumer imports document assembly and styles from document, and grid,
+plot contracts, canonical values and summary state from plots. Its tsconfig extends the
+desktop configuration and its Vite builder inherits the desktop's canonical generated
+paths. Instrumentation follows the extracted live-frame owner.
+
+### Provider Workflow
+
+`tools/python/src/dokime_tools/ci/matrices.py` owns six package-test rows: plots,
+document and report on Unix and Windows. Each uses
+`test:typescript:integration -- --project packages/<name> --select tests`, inherits
+its workflow's dev/release profile, and consumes the matching
+`build-clients-{profile}-{platform}` archive. The frontend task restores canonical
+messages before running the package tests. Unique work/platform pairs retain separate
+job evidence. CI and Nightly consume these matrix rows without filtering them out;
+ordinary dev pushes still run no tests.
+
+`tools/python/src/dokime_tools/ci/impact.py` classifies `packages/` and the root
+frontend manifests, lockfile and shared tool configurations as both gui and docs.
+The existing `sites/` rule remains documentation-only.
+
+The documentation workflow has no existing host-message artifact producer or download.
+It enables Rust for the Cargo metadata query, generates canonical host messages once,
+then type checks the site before building it. `docs:build --prepared` consumes those
+messages without repeating generation. Local docs build/serve retain generation.
+This chooses the existing generation step over adding a product-artifact dependency
+to documentation-only jobs; the metadata query compiles no Rust.
+
+### Owner Documentation Edits Required
+
+- `docs/gui.md:4`: presentation now lives in the three workspace packages; the
+  desktop retains native reads, recovery, plot editing and application composition.
+- `docs/gui.md:10`: organization presentation assets are generated in
+  `packages/document/src/generated/organization`; the report template is built at
+  `target/generated/report/report.html` from `packages/report/report.html`.
+- `docs/architecture.md:647`: report capture embeds canonical host protobuf
+  responses and uses the same host-free decoder as live document rendering;
+  report -> document -> plots is the dependency direction.
+- `docs/tooling.md:279`: report building belongs to the report package; the GUI
+  retains the generate:report orchestration task, not a build:report npm script.
+- `docs/tooling.md:308`: generate:report writes target/generated/report and the
+  package tests run with the --project selector; docs build/serve prepare messages.
+
+### Remaining Overlap Requiring Owner Decision
+
+The owner resolved the descriptor lookup overlap on 2026-11-21:
+`crates/dokime-gui/tools/host-bindings.mjs` resolves Cargo metadata and reads the
+pinned library descriptor once at entry. It validates and combines the descriptors
+once and passes the same descriptor set and digest to native and frontend generators.
+There is no second lookup.
+
+The retained parallel view family is `ExecutionMetadata` in
+`packages/plots/src/lib/types/browse.ts:98` and `TestExecution` in
+`packages/plots/src/lib/types/test.ts:296`. The former is populated by
+`crates/dokime-gui/src/lib/api/native-checkpoints.ts:174` for Explore; the latter
+is populated by `packages/document/src/lib/api/native-execution-projection.ts`
+for the live workspace and frozen report. Both repeat identity, lifecycle and
+timestamp presentation, with different names and state vocabularies. Prefer
+retiring the browse metadata family after composing its browse-only state with
+the generated execution detail. Neither parallel family is deleted without the
+owner deciding the shared view shape; serialized plot duplicates are retired.
+
+### Recovery and Test Fixture Boundaries
+
+The migration preserves recovery and fixture behavior with the assertions intact.
+The desktop's `failureRecovery` owns settings navigation and delegates plugin restart
+to `ConnectedSession.restartPlugin`, the sole restart/invalidation owner;
+ErrorCard receives the capability through its presentation provider. Thus
+`Backend Recovery Actions Take Precedence Over Generic Retries` must supply the
+real desktop recovery factory, while report rendering supplies no native recovery.
+`Repeated Remote Settings Loads and Failures Stay Inline`, `Export Endpoint Preview`
+and `Unified Desktop Settings Supply Remembered Parameters` mock the environment
+predicate at its new shared owner, not the native open-path adapter.
+`Application Theme Selects the Plot Palette Without a Browser Theme Provider`
+exercises the desktop's appearance selection; shared plots receive that palette.
+`Live Document Responsiveness` retains its native fixture resolver alongside the
+report template builder. These were real migration defects in test wiring, not
+superseded behaviors; none of these tests or their bounds is removed.
+
+The bindings gate is `mise run ci:bindings -- --profile release`, which dispatches
+`check:python:bindings` and `ty check --project sdk/python --exit-zero-on-warning`.
+It reports 102 diagnostics across 28 files, all byte-identical to the extraction's
+merge base `c4be99f3dba2db47abdde55d0decff334a69dbe1`. The checker configuration,
+SDK sources, Python dependency manifests and lock are also unchanged. The first three
+are unresolved `starter_project.plugin` at
+`sdk/python/examples/starter/tests/test_plugin.py:22`, `harmos` at
+`sdk/python/src/dokime_sdk/_client.py:22` and `harmos.plugin` at that file's line 25.
+The checker includes starter tests without their source package and its selected
+environment lacks the pinned library package. These independent SDK/environment
+capability failures remain with the SDK owner; frontend generation cannot repair them.
+
 ## Archives
 
 | Channel | Asset | Source | Site Entry |

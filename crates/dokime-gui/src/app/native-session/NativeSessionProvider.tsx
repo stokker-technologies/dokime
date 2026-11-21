@@ -1,14 +1,14 @@
-import { failureOf } from "@/lib/notification-details";
-import { ErrorCard } from "@/components/ErrorCard";
 // Dokime — SPDX-License-Identifier: Apache-2.0
-
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { releaseNativeMedia } from "@/lib/api/native-delivery";
 import { watchRemoteImports } from "@/lib/desktop/remote-import";
 import { watchStopping } from "@/lib/desktop/stopping";
-import { type AppearanceResource, loadAppearance } from "@/lib/rpc/appearance";
+import type { AppearanceResource } from "@dokime/document/lib/native-appearance";
+import { loadAppearance } from "@/lib/rpc/appearance";
 import { Appearance, Connection, Controller, useNativeSessionController } from "./context";
 import { type ConnectedSession, NativeSession } from "./session";
 

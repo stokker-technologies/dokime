@@ -26,10 +26,15 @@ hide = true
 description = "Generate Canonical Desktop Host Messages"
 run = "node tools/host-bindings.mjs --frontend"
 
+[tasks."generate:messages"]
+hide = true
+description = "Generate Frontend Protobuf Modules from Prepared Descriptors"
+run = "node ../../tools/typescript/generate.mjs"
+
 [tasks."generate:report"]
 hide = true
 description = "Generate the Embedded Report"
-run = "pnpm run build:report"
+run = "uv run --no-sync python -m dokime_tools.build.frontend report"
 
 # === Build === #
 

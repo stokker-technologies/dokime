@@ -85,8 +85,8 @@ function snapshot(): PreferencesSnapshot {
 
 /* === Entry Point === */
 
-vi.mock("@/lib/notifications", async (original) => ({
-  ...(await original<typeof import("@/lib/notifications")>()),
+vi.mock("@dokime/plots/lib/notifications", async (original) => ({
+  ...(await original<typeof import("@dokime/plots/lib/notifications")>()),
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -97,7 +97,7 @@ vi.mock("@/lib/desktop/settings", () => ({
     desktopSettingsUpdate: fixture.update,
   },
 }));
-vi.mock("@/stores/ui-store", () => ({ useUiStore: { getState: () => ({ setUiState: fixture.appearance }) } }));
+vi.mock("@dokime/document/stores/ui-store", () => ({ useUiStore: { getState: () => ({ setUiState: fixture.appearance }) } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: (typeof fixture.queries)[number]) => {
     fixture.queries.push(options);
@@ -308,7 +308,7 @@ test("Advanced View Persists per Viewer in Desktop and Browser Storage", async (
           removeItem: (key: string) => storage.delete(key),
         },
       });
-      const { useUiStore } = await vi.importActual<typeof import("@/stores/ui-store")>("@/stores/ui-store");
+      const { useUiStore } = await vi.importActual<typeof import("@dokime/document/stores/ui-store")>("@dokime/document/stores/ui-store");
       useUiStore.getState().setUiState({ showAdvancedSettings: true });
       const key = desktop ? "dokime-test-hub.ui.sidebar" : "dokime-test-hub.ui";
       const saved = storage.get(key);

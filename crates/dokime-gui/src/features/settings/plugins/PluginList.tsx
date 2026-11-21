@@ -19,16 +19,16 @@
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
 import { RotateCw, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@dokime/plots/components/ui/badge";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { PluginState } from "@host/model";

@@ -14,12 +14,12 @@
 /* === Local Imports === */
 
 import * as rpc from "@/lib/host/client";
-import { required } from "@/lib/rpc/canonical";
+import { required } from "@dokime/plots/lib/rpc/canonical";
 import { ArchiveScope, CyclePhase, ExecutionMode, ExecutionParameterSet } from "@host/model";
-import { type NativeExecution, mapNativeExecution } from "./native-execution-projection";
+import { type NativeExecution, mapNativeExecution } from "@dokime/document/lib/api/native-execution-projection";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { StartTestCycleResponse, TestCyclePlan, TestExecution } from "@/lib/types";
+import type { StartTestCycleResponse, TestCyclePlan, TestExecution } from "@dokime/plots/lib/types";
 import type { RerunNotices } from "@/stores/rerun-notice-store";
 import {
   ensureNativeStartAccepted,
@@ -28,8 +28,8 @@ import {
   listNativeExecutions,
   type NativeStartAdmission,
 } from "./native-planning";
-import { mapNativeExecutionSummary } from "./native-planning-projection";
-import { mapBounded } from "./native-values";
+import { mapNativeExecutionSummary } from "@dokime/document/lib/api/native-planning-projection";
+import { mapBounded } from "@dokime/plots/lib/api/native-values";
 
 /* === Types === */
 

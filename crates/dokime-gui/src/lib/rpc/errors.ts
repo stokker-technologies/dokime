@@ -1,8 +1,8 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
-import type { ConnectionError } from "../desktop/connection";
-import type { ArtifactDeliveryError, DeliveryStage } from "../desktop/delivery";
-import type { RpcError } from "../desktop/rpc";
+import type { ConnectionError } from "@dokime/document/lib/contracts/connection";
+import type { ArtifactDeliveryError, DeliveryStage } from "@dokime/document/lib/contracts/delivery";
+import type { RpcError } from "@dokime/document/lib/contracts/rpc";
 import { rpcFailureDetails } from "./failure-details";
 
 const connectionErrorMessages: Record<Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">, string> = {

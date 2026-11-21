@@ -77,7 +77,9 @@ test("identical sources share rendering across titles and files", (context) => {
   };
   transform(edited, { path: "first.md" });
   assert.equal(runner.mock.callCount(), 4);
-  assert.equal(runner.mock.calls[2].arguments[2].input, "source -> updated");
+  const options = runner.mock.calls[2].arguments[2];
+  assert.ok(options);
+  assert.equal(options.input, "source -> updated");
 });
 
 test("fixture build inlines both themes with selectable text and unique references", () => {

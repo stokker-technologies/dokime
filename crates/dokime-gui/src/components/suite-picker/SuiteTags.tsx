@@ -16,9 +16,9 @@
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
+import { cn } from "@dokime/plots/lib/utils";
 import { formatTagLabel } from "./model";
 
 /* === Constants === */

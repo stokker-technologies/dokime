@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import type { HubRecord } from "@/lib/types";
+import type { HubRecord } from "@dokime/plots/lib/types";
 import type { TracePage } from "@/lib/api/native-logs";
 import {
   type ConsoleBuffer,
@@ -27,8 +27,14 @@ import {
   mergeConsoleRecords,
   RETAINED_BUFFERS,
   RETAINED_RECORDS,
-} from "@/shell/console-buffer";
-import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, consoleWindow, FOLLOW_SLACK_PX } from "@/shell/console-follow";
+} from "@dokime/document/shell/console-buffer";
+import {
+  CONSOLE_LIST_PADDING_PX,
+  consoleFollowsTail,
+  consoleTailPinned,
+  consoleWindow,
+  FOLLOW_SLACK_PX,
+} from "@dokime/document/shell/console-follow";
 import { useConsoleRecords } from "@/shell/console-records";
 
 /* === Re-Exports === */
@@ -150,7 +156,7 @@ vi.mock("@/lib/api/native-logs", async (original) => ({
   ...(await original<typeof import("@/lib/api/native-logs")>()),
   openTraceStream: fixture.open,
 }));
-vi.mock("@/lib/notifications", () => ({ toast: { error: fixture.notifyError } }));
+vi.mock("@dokime/plots/lib/notifications", () => ({ toast: { error: fixture.notifyError } }));
 
 beforeEach(() => {
   vi.useFakeTimers();

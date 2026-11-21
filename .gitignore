@@ -27,11 +27,9 @@ __pycache__/
 
 # Documentation build outputs
 /sites/docs/.astro/
-/sites/docs/node_modules/
 
 # Web and Tauri
-/node_modules/
-/crates/dokime-gui/node_modules/
+**/node_modules/
 /crates/dokime-gui/dist/
 /crates/dokime-gui/dist-report/
 /crates/dokime-gui/.run/

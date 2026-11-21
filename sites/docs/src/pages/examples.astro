@@ -1,0 +1,12 @@
+---
+import "../presentation.css";
+---
+<html lang="en">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>Presentation Examples</title></head>
+  <body><main class="mx-auto max-w-5xl p-6"><h1>Presentation Examples</h1><div id="presentation-examples"></div></main></body>
+</html>
+<script>
+  import { mountPresentationExamples } from "../components/PresentationExamples";
+  const element = document.getElementById("presentation-examples");
+  if (element) mountPresentationExamples(element);
+</script>

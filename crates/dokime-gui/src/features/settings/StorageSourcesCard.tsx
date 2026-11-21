@@ -17,8 +17,8 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
@@ -27,9 +27,9 @@ import { useMemo } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { fetchStorageSources, reorderStorageSources, setStorageSourceEnabled } from "@/lib/api/native-storage-settings";
 

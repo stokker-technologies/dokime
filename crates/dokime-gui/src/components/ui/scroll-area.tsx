@@ -7,33 +7,29 @@
  * ***
  */
 
-import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
+import * as radix from "radix-ui";
 import type * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
-function ScrollArea({ className, children, ...props }: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+function ScrollArea({ className, children, ...props }: React.ComponentProps<typeof radix.ScrollArea.Root>) {
   return (
-    <ScrollAreaPrimitive.Root data-slot="scroll-area" className={cn("relative", className)} {...props}>
-      <ScrollAreaPrimitive.Viewport
+    <radix.ScrollArea.Root data-slot="scroll-area" className={cn("relative", className)} {...props}>
+      <radix.ScrollArea.Viewport
         data-slot="scroll-area-viewport"
         className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
       >
         {children}
-      </ScrollAreaPrimitive.Viewport>
+      </radix.ScrollArea.Viewport>
       <ScrollBar />
-      <ScrollAreaPrimitive.Corner />
-    </ScrollAreaPrimitive.Root>
+      <radix.ScrollArea.Corner />
+    </radix.ScrollArea.Root>
   );
 }
 
-function ScrollBar({
-  className,
-  orientation = "vertical",
-  ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>) {
+function ScrollBar({ className, orientation = "vertical", ...props }: React.ComponentProps<typeof radix.ScrollArea.ScrollAreaScrollbar>) {
   return (
-    <ScrollAreaPrimitive.ScrollAreaScrollbar
+    <radix.ScrollArea.ScrollAreaScrollbar
       data-slot="scroll-area-scrollbar"
       data-orientation={orientation}
       orientation={orientation}
@@ -43,8 +39,8 @@ function ScrollBar({
       )}
       {...props}
     >
-      <ScrollAreaPrimitive.ScrollAreaThumb data-slot="scroll-area-thumb" className="relative flex-1 rounded-full bg-border" />
-    </ScrollAreaPrimitive.ScrollAreaScrollbar>
+      <radix.ScrollArea.ScrollAreaThumb data-slot="scroll-area-thumb" className="relative flex-1 rounded-full bg-border" />
+    </radix.ScrollArea.ScrollAreaScrollbar>
   );
 }
 

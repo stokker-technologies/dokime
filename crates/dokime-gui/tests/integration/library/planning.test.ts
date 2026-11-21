@@ -36,11 +36,11 @@ import { createRoot } from "react-dom/client";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@dokime/plots/components/ui/tooltip";
 import type { OpenCycle } from "@/features/library/active-cycle-model";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { previewNativeTestCycle } from "@/lib/api/native-planning";
-import { mapSuite } from "@/lib/host/suites";
+import { mapSuite } from "@dokime/document/lib/host/suites";
 
 /* === Re-Exports === */
 
@@ -58,8 +58,8 @@ vi.mock("@/components/suite-picker/server-state", () => ({
   useAppendTestCycleMutation: () => ({ mutateAsync: boundary.append }),
 }));
 vi.mock("@/components/artifact-upload-mutation", () => ({ useOperatorArtifactUploadMutation: () => ({ mutateAsync: vi.fn() }) }));
-vi.mock("@/lib/notifications", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/notifications")>();
+vi.mock("@dokime/plots/lib/notifications", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@dokime/plots/lib/notifications")>();
   return { ...actual, toast: { ...actual.toast, success: vi.fn() } };
 });
 vi.mock("@/stores/parameter-overrides-store", () => ({

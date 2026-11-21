@@ -9,22 +9,23 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { Download, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { storageResetAvailable } from "@/features/settings/storage-reset-model";
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-document-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
-import { isTauriDesktop, openLocalPath } from "@/lib/desktop-open";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import { openLocalPath } from "@/lib/desktop-open";
 import { useSettingsFrameQuery } from "../settings-queries";
 
 /* === Re-Exports === */

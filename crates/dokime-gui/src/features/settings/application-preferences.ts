@@ -18,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { withNativeListener, saveNativeListenerPreferences, type ScopedPreferencesSnapshot } from "@/lib/api/native-remote";
-import { useUiStore } from "@/stores/ui-store";
+import { useUiStore } from "@dokime/document/stores/ui-store";
 
 // Standard Library Imports
 

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
+import type { LoaderContext } from "astro/loaders";
 import { guides } from "../src/guides.ts";
 
 test("native loader watches the guides root and handles edits, additions and D2 changes", async () => {
@@ -51,7 +52,7 @@ test("native loader watches the guides root and handles edits, additions and D2 
       parseData: async ({ data }: { data: object }) => data,
       generateDigest: (body: string) => body,
       entryTypes: new Map([[".md", { getEntryInfo: ({ contents }: { contents: string }) => ({ body: contents, data: {} }) }]]),
-    });
+    } as unknown as LoaderContext);
     assert.deepEqual(watched, [docs, generated]);
     assert.deepEqual([...handlers.keys()].sort(), ["add", "change", "unlink"]);
     assert.equal(entries.get("index").data.title, "Start");

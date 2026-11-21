@@ -16,8 +16,8 @@ import { z } from "zod";
 /* === Local Imports === */
 
 import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
-import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
-import { focusSearchSchema } from "@/shell/focus-mode";
+import type { CycleSelection } from "@dokime/document/features/cycle/cycle-workspace-model";
+import { focusSearchSchema } from "@dokime/document/shell/focus-mode";
 
 /* === Constants === */
 

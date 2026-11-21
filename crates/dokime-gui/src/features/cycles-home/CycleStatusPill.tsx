@@ -18,8 +18,8 @@
 // Third Party Imports
 
 // Local Imports
-import { Badge } from "@/components/ui/badge";
-import { CYCLE_STATE_LABELS, STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { CYCLE_STATE_LABELS, STATUS_PILL_CLASS } from "@dokime/document/features/cycle/cycle-workspace-model";
 import type { CycleRow } from "@/features/cycles-home/cycles-model";
 
 /* === Re-Exports === */

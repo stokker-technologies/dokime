@@ -16,27 +16,28 @@
 // Third Party Imports
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bell, History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
+import * as lucideReact from "lucide-react";
+import { Bell, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 // Local Imports
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
-import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
-import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
+import { STATUS_PILL_CLASS } from "@dokime/document/features/cycle/cycle-workspace-model";
+import { highestPromptLevel, pendingPromptCountLabel } from "@dokime/document/features/cycle/prompt-banner-model";
 import { cycleRows } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
-import { useNotificationSummary } from "@/lib/notifications";
-import { recordLevelVariant } from "@/lib/record-display";
-import { cycleIdOfPathname } from "@/shell/route-scope";
+import { useNotificationSummary } from "@dokime/plots/lib/notifications";
+import { recordLevelVariant } from "@dokime/plots/lib/record-display";
+import { cycleIdOfPathname } from "@dokime/document/shell/route-scope";
 import { sidebarCycles } from "@/shell/sidebar-cycles";
 import { SidebarRow } from "@/shell/sidebar-row";
-import { useSidebarState } from "@/shell/use-sidebar-state";
-import { SidebarFrame } from "./SidebarFrame";
+import { useSidebarState } from "@dokime/document/shell/use-sidebar-state";
+import { SidebarFrame } from "@dokime/document/shell/SidebarFrame";
 
 /* === Re-Exports === */
 
@@ -45,7 +46,7 @@ import { SidebarFrame } from "./SidebarFrame";
 const DESTINATIONS: Destination[] = [
   { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
   { icon: Library, label: "Library", prefix: "/library", to: "/library" },
-  { icon: HistoryIcon, label: "History", prefix: "/history", to: "/history" },
+  { icon: lucideReact.History, label: "History", prefix: "/history", to: "/history" },
   { icon: Bell, label: "Notifications", prefix: "/notifications", to: "/notifications" },
   { icon: Settings, label: "Settings", prefix: "/settings", to: "/settings" },
 ];

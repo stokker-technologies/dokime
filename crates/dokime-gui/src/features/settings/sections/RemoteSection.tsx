@@ -22,8 +22,8 @@ import { useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { ErrorCard } from "@/components/ErrorCard";
-import { Button } from "@/components/ui/button";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { Button } from "@dokime/plots/components/ui/button";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
@@ -31,9 +31,9 @@ import { FirewallNotice } from "@/features/settings/sections/FirewallNotice";
 import { commitListener, type ListenerChange, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
 import { readNativeListener, updateNativeListener, regenerateNativeCertificate } from "@/lib/api/native-remote";
 import { commands } from "@/lib/desktop/commands";
-import { isTauriDesktop } from "@/lib/desktop-open";
-import { failureOf } from "@/lib/notification-details";
-import { toast } from "@/lib/notifications";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Re-Exports === */
 

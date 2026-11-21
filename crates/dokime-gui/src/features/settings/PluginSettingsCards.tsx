@@ -13,11 +13,11 @@
 
 /* === Local Imports === */
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@dokime/plots/components/ui/badge";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import * as model from "@host/model";
-import type { Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 /* === Types === */
 

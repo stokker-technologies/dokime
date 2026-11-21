@@ -9,21 +9,21 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { Clipboard, Download, FileText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { fetchNativeArtifactText, followNativeExecutionFile, readNativeExecutionFileWindow } from "@/lib/api/native-content";
-import { formatArtifactSize } from "@/lib/artifact-tree";
-import { artifactLabel } from "@/lib/dashboard";
+import { formatArtifactSize } from "@dokime/document/lib/artifact-tree";
+import { artifactLabel } from "@dokime/document/lib/dashboard";
 import {
   advanceFollowCursor,
   connectingFollowCursor,
@@ -43,10 +43,10 @@ import {
   type TextArtifactLanguage,
   type TextHighlightKind,
   type TextHighlightToken,
-} from "@/lib/execution-file-text";
+} from "@dokime/document/lib/execution-file-text";
 import type { NativeStream } from "@/lib/rpc/transport";
-import type { ArtifactRecord, ExecutionFileFollowEvent } from "@/lib/types";
-import { occurrenceKeys } from "@/lib/utils";
+import type { ArtifactRecord, ExecutionFileFollowEvent } from "@dokime/plots/lib/types";
+import { occurrenceKeys } from "@dokime/plots/lib/utils";
 
 /* === Constants === */
 

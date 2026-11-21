@@ -38,22 +38,22 @@ export type RuntimeInstalledPluginRecord = {
   error: string | null;
 };
 
-import type { RuntimePluginSettings as PluginRuntimeSettings } from "@/lib/types/view-contracts";
+import type { RuntimePluginSettings } from "@dokime/plots/lib/types/settings";
 
 export type {
-  RuntimePluginSettings as PluginRuntimeSettings,
+  RuntimePluginSettings,
   Settings,
   SettingsEntry,
-} from "@/lib/types/view-contracts";
+} from "@dokime/plots/lib/types/settings";
 
 export type InstalledPluginRuntimeKind = RuntimeInstalledPluginRecord["runtime"];
-export type SettingValues = PluginRuntimeSettings["values"];
+export type SettingValues = RuntimePluginSettings["values"];
 
 /**
  * Composite plugin detail: the code-defined plugin record and its current
  * host-owned settings and secret readiness.
  */
-export type InstalledPluginDetail = RuntimeInstalledPluginRecord & PluginRuntimeSettings;
+export type InstalledPluginDetail = RuntimeInstalledPluginRecord & RuntimePluginSettings;
 
 /* === Constants === */
 

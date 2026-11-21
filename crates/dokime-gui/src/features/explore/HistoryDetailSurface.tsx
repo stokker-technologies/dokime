@@ -7,24 +7,24 @@
  * ***
  */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, FileText, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { checkpointStepStatus } from "@/lib/api/native-checkpoints";
 import { openNativeReport } from "@/lib/api/native-reports";
-import { timestampIso } from "@/lib/api/native-values";
-import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
-import { usePageChrome } from "@/shell/page-chrome";
+import { timestampIso } from "@dokime/plots/lib/api/native-values";
+import type { ExecutionBrowseEntry } from "@dokime/plots/lib/types/browse";
+import { usePageChrome } from "@dokime/document/shell/page-chrome";
 import { CheckpointEvidence } from "./CheckpointEvidence";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey, unrunCaption } from "./explore-contracts";
 import { fetchCheckpoint } from "./explore-data-source";

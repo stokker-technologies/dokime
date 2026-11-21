@@ -8,12 +8,12 @@
  */
 
 import type { EvidenceScope } from "@host/model";
-import type { Wire } from "@/lib/rpc/canonical";
-import { notesNewestFirst } from "@/features/cycle/operator-notes-model";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { notesNewestFirst } from "@dokime/document/features/cycle/operator-notes-model";
 /* === Local Imports === */
 import { useAddNoteMutation, useEditNoteMutation } from "@/features/cycle/server-state";
-import type { OperatorNote } from "@/lib/types";
-import { EditableOperatorNotes, FrozenOperatorNotes } from "./OperatorNotesView";
+import type { OperatorNote } from "@dokime/plots/lib/types";
+import { EditableOperatorNotes, FrozenOperatorNotes } from "@dokime/document/components/document/OperatorNotesView";
 
 /* === Types === */
 type OperatorNotesContentProps = {

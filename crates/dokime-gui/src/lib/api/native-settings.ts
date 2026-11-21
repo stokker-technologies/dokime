@@ -14,19 +14,20 @@
 /* === Local Imports === */
 
 import type { SettingValue } from "@host/model";
-import { NativeIntegerValue } from "./native-values";
-import type { Wire } from "@/lib/rpc/canonical";
+import { NativeIntegerValue } from "@dokime/plots/lib/api/native-values";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { RuntimePluginSettings, SettingsEntry } from "@/lib/types/view-contracts";
+import type { SettingsEntry } from "@dokime/plots/lib/types/settings";
+import type * as settingsPresentation from "@dokime/plots/lib/types/settings";
 
 /* === Types === */
 
-import { required } from "@/lib/rpc/canonical";
+import { required } from "@dokime/plots/lib/rpc/canonical";
 
-type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>;
-type SettingContribution = PluginRuntimeSettings["declarations"][number];
-type SettingValues = RuntimePluginSettings["values"];
+type RuntimePluginSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>;
+type SettingContribution = RuntimePluginSettings["declarations"][number];
+type SettingValues = settingsPresentation.RuntimePluginSettings["values"];
 
 /* === Settings frame === */
 
@@ -37,10 +38,10 @@ export async function fetchNativeSettingsFrame(session: SessionIdentity) {
 
 /* === Plugin Settings === */
 
-export function mapNativePluginRuntimeSettings(
-  settings: PluginRuntimeSettings,
+export function mapNativeRuntimePluginSettings(
+  settings: RuntimePluginSettings,
   requirements: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
-): RuntimePluginSettings {
+): settingsPresentation.RuntimePluginSettings {
   const secrets = requirements.secrets.map((requirement) => {
     const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
     return {
@@ -75,7 +76,7 @@ export async function getNativePluginSettings(session: SessionIdentity, pluginId
     rpc.pluginsSettingsList(session, { name: pluginId }),
     rpc.pluginsSecretsList(session, { name: pluginId }),
   ]);
-  return mapNativePluginRuntimeSettings(settings, requirements);
+  return mapNativeRuntimePluginSettings(settings, requirements);
 }
 
 export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {

@@ -14,7 +14,7 @@
 /* === Local Imports === */
 
 import type { NewCycleRequest } from "@/lib/api/native-planning";
-import { defaultCycleLabel } from "@/lib/time-format";
+import { defaultCycleLabel } from "@dokime/document/lib/time-format";
 
 /* === Constants === */
 

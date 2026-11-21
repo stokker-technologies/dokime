@@ -18,3 +18,23 @@
 - [x] 6.3 Select only the documentation job for guides, Markdown, OpenSpec and site changes; run documentation tooling checks inside that job.
 - [x] 6.4 Publish the current entry plus published release lines as a Nightly documentation image; route documentation-only Nightlies without moving the product tag.
 - [x] 6.5 Prove the updated site build, tooling, workflow lint and local container build.
+
+- [x] 7.1 Establish the pnpm workspace; migrate workspace locks, frontend tasks, cache keys and shell inventory lock inputs.
+- [x] 7.2 Use one root TypeScript/Biome/Vitest configuration extended by each package; shared presentation dependencies belong below their consumers and packages/dokime is absent.
+- [x] 7.3 Move host-independent palette, reduction, histogram-bin, viewport and interaction modules into packages/plots, migrate all their consumers and move their standalone tests.
+- [ ] 7.4 Move remaining plot components, shaping, scale and reference rendering into packages/plots after resolving native ErrorCard recovery ownership; retain uPlot and d3.
+- [ ] 7.5 Move document rendering and the shared generated-response decoder into packages/document; migrate desktop consumers without compatibility exports.
+- [x] 7.6 Move the standalone template into packages/report and preserve its RPC and transport import boundary using the live decoder.
+- [x] 7.7 Connect sites/docs to the shared plots and document renderer without desktop imports; report required owner documentation and workflow edits.
+- [ ] 7.8 Prove the complete extraction's frozen workspace install, package and desktop type checks, frontend lint and unit/integration tests, desktop/report/site builds, format, repository check and strict OpenSpec validation.
+
+- [x] 7.4.1 Extract the complete host-free plot catalog, group grid, shaping and canonical expression/reference inputs; move native recovery and palette selection into desktop providers.
+- [x] 7.5.1 Extract document presentation, response assembly, the live decoder and shared captured-evidence views; retire document-contracts and the serialized plot contract duplicates.
+- [ ] 7.9 Owner: migrate the excluded benchmark imports listed in design.md and close the desktop frontend type-check failure without compatibility paths or excluded checks.
+- [ ] 7.10 Owner: repair the SDK bindings gate's missing library/starter imports and type diagnostics; rerun the bindings gate.
+- [ ] 7.11 Owner: decide the repeated pinned-descriptor lookup in host-bindings.mjs; retain both generated output owners.
+- [ ] 7.12 Owner: decide the retained browse/live execution view-family overlap identified in design.md; migrate its consumers together if consolidated.
+
+- [x] 6.6 Integrate dev session recovery, migrate benchmark package imports, share one descriptor lookup, and add package/platform CI rows and frontend impact rules.
+- [x] 6.7 Generate canonical host messages once in the documentation workflow and type check the site before building it.
+- [x] 6.8 Prove the integrated frontend packages, desktop, documentation build and focused CI tooling checks; report the independent Python bindings failure.

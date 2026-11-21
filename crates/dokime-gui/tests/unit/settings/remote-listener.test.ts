@@ -18,7 +18,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { commitListener, type ListenerSettings, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
@@ -45,13 +45,13 @@ vi.mock("react", async (original) => ({
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => fixture.invoke(...args) }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => fixture.session }));
 vi.mock("@/features/settings/ApplicationPreferences", () => ({ ApplicationPreferences: () => null }));
-vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
+vi.mock("@dokime/document/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => fixture.query,
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 vi.mock("@/lib/host/client", () => ({}));
-vi.mock("@/lib/notifications", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@dokime/plots/lib/notifications", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const SETTINGS: ListenerSettings = {
   enabled: false,

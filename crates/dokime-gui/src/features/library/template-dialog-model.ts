@@ -21,7 +21,7 @@
 
 import { type EditorParameterRow, parameterValueType } from "@/components/parameter-editor/model";
 import { formatPreview, titleCaseIdentifier } from "@/components/start-cycle-form-model";
-import type { ParameterDefinition, PreviewTestCycleResponse, TestCycleSelection } from "@/lib/types";
+import type { ParameterDefinition, PreviewTestCycleResponse, TestCycleSelection } from "@dokime/plots/lib/types";
 
 /* === Types === */
 

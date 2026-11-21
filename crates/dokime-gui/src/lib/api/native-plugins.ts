@@ -9,8 +9,8 @@ import { Channel } from "@tauri-apps/api/core";
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { commands } from "@/lib/desktop/commands";
-import type { Wire } from "@/lib/rpc/canonical";
-import { required } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { required } from "@dokime/plots/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 

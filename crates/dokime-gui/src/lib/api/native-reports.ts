@@ -14,11 +14,11 @@
 // Third Party Imports
 
 // Local Imports
-import { failureOf, type NotificationFailure } from "@/lib/notification-details";
+import { failureOf, type NotificationFailure } from "@dokime/plots/lib/notification-details";
 import { reportsCreate, reportsPublish } from "@/lib/host/client";
-import { required } from "@/lib/rpc/canonical";
+import { required } from "@dokime/plots/lib/rpc/canonical";
 import { commands } from "@/lib/desktop/commands";
-import type { ArtifactSource } from "@/lib/desktop/delivery";
+import type { ArtifactSource } from "@dokime/document/lib/contracts/delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { deliverNativeContent } from "./native-delivery";
 

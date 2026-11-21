@@ -13,8 +13,8 @@
 
 /* === Local Imports === */
 
-import { failureOf } from "@/lib/notification-details";
-import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
 import type { AutosaveState } from "@/features/settings/settings-autosave";
 

@@ -21,7 +21,7 @@
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import type { SettingsFrame } from "@host/model";
-import type { Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 

@@ -19,7 +19,7 @@
 
 import type { TestCyclePlanSelectionDraft } from "@/components/start-cycle-form-model";
 
-import type { SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
+import type { SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 

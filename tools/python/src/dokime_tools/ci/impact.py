@@ -80,7 +80,17 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         parts = PurePosixPath(path).parts
         if not path or path.startswith("/") or "\\" in path or any(part in {".", ".."} for part in parts):
             return frozenset({"all"})
-        if (
+        if path.startswith("packages/") or path in {
+            "package.json",
+            "pnpm-workspace.yaml",
+            "pnpm-lock.yaml",
+            "biome.json",
+            "tsconfig.json",
+            "vite.config.ts",
+            "vitest.config.ts",
+        }:
+            classes.update({"gui", "docs"})
+        elif (
             path.startswith(("docs/", "openspec/", "sites/", "tools/python/src/dokime_tools/docs/"))
             or path.lower().endswith((".md", ".mdx"))
             or path

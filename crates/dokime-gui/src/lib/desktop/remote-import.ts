@@ -16,14 +16,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { listen } from "@tauri-apps/api/event";
 
 // Local Imports
 import type { NativeSession } from "@/app/native-session/session";
 
-import { toast } from "@/lib/notifications";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import { toast } from "@dokime/plots/lib/notifications";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
 
 /* === Re-Exports === */
 

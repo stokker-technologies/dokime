@@ -7,16 +7,25 @@
     "dev": "astro dev --host 127.0.0.1",
     "format": "biome format --write .",
     "lint": "biome lint .",
-    "test": "node --test"
+    "test": "node --test",
+    "typecheck": "astro sync && tsc --noEmit"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "7.3.9",
     "@astrojs/starlight": "0.43.1",
     "astro": "7.4.12",
-    "unist-util-visit": "5.2.0"
+    "unist-util-visit": "5.2.0",
+    "@dokime/plots": "workspace:*",
+    "@dokime/document": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "@tailwindcss/vite": "^4.3.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
-    "@types/mdast": "4.0.4"
+    "@types/mdast": "4.0.4",
+    "typescript": "^7.0.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
   }
 }

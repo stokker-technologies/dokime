@@ -28,9 +28,9 @@ import {
   wifiChannelChoices,
   wifiSelectionSummary,
 } from "@/components/start-cycle-form-model";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Checkbox } from "@dokime/plots/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -40,15 +40,15 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@dokime/plots/components/ui/dialog";
+import { Input } from "@dokime/plots/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@dokime/plots/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@dokime/document/components/ui/toggle-group";
 import {
   emptyListItem,
   expandChipValue,
@@ -58,8 +58,8 @@ import {
   listChips,
   parseParameterInput,
 } from "@/lib/parameter-parser";
-import type { FileDefinition, ParameterDefinition } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { FileDefinition, ParameterDefinition } from "@dokime/plots/lib/types";
+import { cn } from "@dokime/plots/lib/utils";
 import { type EditorParameterRow, isExpandedParameter, parameterChoiceList, parameterValueType } from "./model";
 
 /* === Constants === */

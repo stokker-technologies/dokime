@@ -71,7 +71,7 @@ const nativeType = (rust) => {
 const nativeLines = [
   "// Generated From The Native Command Inventory. Do Not Edit.",
   'import type { Document, SettingsScope } from "./application-settings";',
-  'import type { ConnectionSnapshot } from "@/lib/desktop/connection";',
+  'import type { ConnectionSnapshot } from "@dokime/document/lib/contracts/connection";',
   "export function createPreferencesCommands(invoke: <T>(command: string, args?: Record<string, unknown>) => Promise<T>) {",
   "  return {",
 ];

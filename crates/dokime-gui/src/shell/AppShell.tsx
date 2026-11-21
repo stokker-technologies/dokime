@@ -13,10 +13,10 @@ import type { ReactNode } from "react";
 /* === Local Imports === */
 import { useRuntimeStream } from "@/app/live/use-runtime-stream";
 import { PluginStartNotifications } from "@/features/settings/plugins/plugin-queries";
-import { AppShellLayout } from "./AppShellLayout";
+import { AppShellLayout } from "@dokime/document/shell/AppShellLayout";
 import { ConsoleDrawer } from "./ConsoleDrawer";
 import { MenuBar } from "./MenuBar";
-import { useRouteCycleScope } from "./route-scope";
+import { useRouteCycleScope } from "@dokime/document/shell/route-scope";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 

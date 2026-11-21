@@ -18,15 +18,15 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { Download } from "lucide-react";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { useCycleCommands } from "./cycle-queries";
-import { reportDownloadState } from "./cycle-workspace-model";
+import { reportDownloadState } from "@dokime/document/features/cycle/cycle-workspace-model";
 
 /* === Constants === */
 

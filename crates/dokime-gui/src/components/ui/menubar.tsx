@@ -1,33 +1,33 @@
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
-import { Menubar as MenubarPrimitive } from "radix-ui";
+import * as radix from "radix-ui";
 import type * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
-function Menubar({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.Root>) {
+function Menubar({ className, ...props }: React.ComponentProps<typeof radix.Menubar.Root>) {
   return (
-    <MenubarPrimitive.Root data-slot="menubar" className={cn("flex h-8 items-center gap-1 rounded-lg border p-1", className)} {...props} />
+    <radix.Menubar.Root data-slot="menubar" className={cn("flex h-8 items-center gap-1 rounded-lg border p-1", className)} {...props} />
   );
 }
 
-function MenubarMenu({ ...props }: React.ComponentProps<typeof MenubarPrimitive.Menu>) {
-  return <MenubarPrimitive.Menu data-slot="menubar-menu" {...props} />;
+function MenubarMenu({ ...props }: React.ComponentProps<typeof radix.Menubar.Menu>) {
+  return <radix.Menubar.Menu data-slot="menubar-menu" {...props} />;
 }
 
-function MenubarGroup({ ...props }: React.ComponentProps<typeof MenubarPrimitive.Group>) {
-  return <MenubarPrimitive.Group data-slot="menubar-group" {...props} />;
+function MenubarGroup({ ...props }: React.ComponentProps<typeof radix.Menubar.Group>) {
+  return <radix.Menubar.Group data-slot="menubar-group" {...props} />;
 }
 
-function MenubarPortal({ ...props }: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
-  return <MenubarPrimitive.Portal data-slot="menubar-portal" {...props} />;
+function MenubarPortal({ ...props }: React.ComponentProps<typeof radix.Menubar.Portal>) {
+  return <radix.Menubar.Portal data-slot="menubar-portal" {...props} />;
 }
 
-function MenubarRadioGroup({ ...props }: React.ComponentProps<typeof MenubarPrimitive.RadioGroup>) {
-  return <MenubarPrimitive.RadioGroup data-slot="menubar-radio-group" {...props} />;
+function MenubarRadioGroup({ ...props }: React.ComponentProps<typeof radix.Menubar.RadioGroup>) {
+  return <radix.Menubar.RadioGroup data-slot="menubar-radio-group" {...props} />;
 }
 
-function MenubarTrigger({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.Trigger>) {
+function MenubarTrigger({ className, ...props }: React.ComponentProps<typeof radix.Menubar.Trigger>) {
   return (
-    <MenubarPrimitive.Trigger
+    <radix.Menubar.Trigger
       data-slot="menubar-trigger"
       className={cn(
         "flex items-center rounded-lg px-2 py-1 text-sm font-medium outline-hidden select-none hover:bg-muted aria-expanded:bg-muted",
@@ -44,10 +44,10 @@ function MenubarContent({
   alignOffset = -4,
   sideOffset = 8,
   ...props
-}: React.ComponentProps<typeof MenubarPrimitive.Content>) {
+}: React.ComponentProps<typeof radix.Menubar.Content>) {
   return (
     <MenubarPortal>
-      <MenubarPrimitive.Content
+      <radix.Menubar.Content
         data-slot="menubar-content"
         align={align}
         alignOffset={alignOffset}
@@ -67,12 +67,12 @@ function MenubarItem({
   inset,
   variant = "default",
   ...props
-}: React.ComponentProps<typeof MenubarPrimitive.Item> & {
+}: React.ComponentProps<typeof radix.Menubar.Item> & {
   inset?: boolean;
   variant?: "default" | "destructive";
 }) {
   return (
-    <MenubarPrimitive.Item
+    <radix.Menubar.Item
       data-slot="menubar-item"
       data-inset={inset}
       data-variant={variant}
@@ -91,11 +91,11 @@ function MenubarCheckboxItem({
   checked,
   inset,
   ...props
-}: React.ComponentProps<typeof MenubarPrimitive.CheckboxItem> & {
+}: React.ComponentProps<typeof radix.Menubar.CheckboxItem> & {
   inset?: boolean;
 }) {
   return (
-    <MenubarPrimitive.CheckboxItem
+    <radix.Menubar.CheckboxItem
       data-slot="menubar-checkbox-item"
       data-inset={inset}
       className={cn(
@@ -106,12 +106,12 @@ function MenubarCheckboxItem({
       {...props}
     >
       <span className="pointer-events-none absolute left-1.5 flex size-4 items-center justify-center [&_svg:not([class*='size-'])]:size-4">
-        <MenubarPrimitive.ItemIndicator>
+        <radix.Menubar.ItemIndicator>
           <CheckIcon />
-        </MenubarPrimitive.ItemIndicator>
+        </radix.Menubar.ItemIndicator>
       </span>
       {children}
-    </MenubarPrimitive.CheckboxItem>
+    </radix.Menubar.CheckboxItem>
   );
 }
 
@@ -120,11 +120,11 @@ function MenubarRadioItem({
   children,
   inset,
   ...props
-}: React.ComponentProps<typeof MenubarPrimitive.RadioItem> & {
+}: React.ComponentProps<typeof radix.Menubar.RadioItem> & {
   inset?: boolean;
 }) {
   return (
-    <MenubarPrimitive.RadioItem
+    <radix.Menubar.RadioItem
       data-slot="menubar-radio-item"
       data-inset={inset}
       className={cn(
@@ -134,12 +134,12 @@ function MenubarRadioItem({
       {...props}
     >
       <span className="pointer-events-none absolute left-1.5 flex size-4 items-center justify-center [&_svg:not([class*='size-'])]:size-4">
-        <MenubarPrimitive.ItemIndicator>
+        <radix.Menubar.ItemIndicator>
           <CheckIcon />
-        </MenubarPrimitive.ItemIndicator>
+        </radix.Menubar.ItemIndicator>
       </span>
       {children}
-    </MenubarPrimitive.RadioItem>
+    </radix.Menubar.RadioItem>
   );
 }
 
@@ -147,11 +147,11 @@ function MenubarLabel({
   className,
   inset,
   ...props
-}: React.ComponentProps<typeof MenubarPrimitive.Label> & {
+}: React.ComponentProps<typeof radix.Menubar.Label> & {
   inset?: boolean;
 }) {
   return (
-    <MenubarPrimitive.Label
+    <radix.Menubar.Label
       data-slot="menubar-label"
       data-inset={inset}
       className={cn("px-2 py-1 text-sm font-medium data-inset:pl-6", className)}
@@ -160,8 +160,8 @@ function MenubarLabel({
   );
 }
 
-function MenubarSeparator({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.Separator>) {
-  return <MenubarPrimitive.Separator data-slot="menubar-separator" className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;
+function MenubarSeparator({ className, ...props }: React.ComponentProps<typeof radix.Menubar.Separator>) {
+  return <radix.Menubar.Separator data-slot="menubar-separator" className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />;
 }
 
 function MenubarShortcut({ className, ...props }: React.ComponentProps<"span">) {
@@ -174,8 +174,8 @@ function MenubarShortcut({ className, ...props }: React.ComponentProps<"span">) 
   );
 }
 
-function MenubarSub({ ...props }: React.ComponentProps<typeof MenubarPrimitive.Sub>) {
-  return <MenubarPrimitive.Sub data-slot="menubar-sub" {...props} />;
+function MenubarSub({ ...props }: React.ComponentProps<typeof radix.Menubar.Sub>) {
+  return <radix.Menubar.Sub data-slot="menubar-sub" {...props} />;
 }
 
 function MenubarSubTrigger({
@@ -183,11 +183,11 @@ function MenubarSubTrigger({
   inset,
   children,
   ...props
-}: React.ComponentProps<typeof MenubarPrimitive.SubTrigger> & {
+}: React.ComponentProps<typeof radix.Menubar.SubTrigger> & {
   inset?: boolean;
 }) {
   return (
-    <MenubarPrimitive.SubTrigger
+    <radix.Menubar.SubTrigger
       data-slot="menubar-sub-trigger"
       data-inset={inset}
       className={cn(
@@ -198,13 +198,13 @@ function MenubarSubTrigger({
     >
       {children}
       <ChevronRightIcon className="ml-auto size-4" />
-    </MenubarPrimitive.SubTrigger>
+    </radix.Menubar.SubTrigger>
   );
 }
 
-function MenubarSubContent({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.SubContent>) {
+function MenubarSubContent({ className, ...props }: React.ComponentProps<typeof radix.Menubar.SubContent>) {
   return (
-    <MenubarPrimitive.SubContent
+    <radix.Menubar.SubContent
       data-slot="menubar-sub-content"
       className={cn(
         "z-50 min-w-32 origin-(--radix-menubar-content-transform-origin) overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground ring-1 ring-border duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 ",

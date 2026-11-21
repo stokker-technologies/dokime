@@ -6,7 +6,7 @@ import { copyFile } from "node:fs/promises";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const selected = new Map([
-  ["/plots/live-frames.ts", new Map([["applyDocumentPlotMessages", "retained_update"]])],
+  ["/packages/plots/src/live-frames.ts", new Map([["applyDocumentPlotMessages", "retained_update"]])],
   ["/lib/api/native-plots.ts", new Map([["mapNativePlotWatchPage", "native_frame_adaptation"]])],
 ]);
 
@@ -42,10 +42,10 @@ await build({
           ]) {
             if (!source.includes(owner)) throw new Error(`Missing benchmark IPC instrumentation owner: ${owner}`);
           }
-          source = source.replace("fromBinary,", "fromBinary as decodeBinary,");
-          source += `\nconst fromBinary = (...args: Parameters<typeof decodeBinary>) => {
+          source = source.replaceAll("fromBinary(", "benchDecodeBinary(");
+          source += `\nconst benchDecodeBinary = (...args: Parameters<typeof fromBinary>) => {
           const started = performance.now();
-          try { return decodeBinary(...args); }
+          try { return fromBinary(...args); }
           finally { globalThis.__desktopBench?.sample('protobuf_decode', performance.now() - started); }
         };`;
           source = source.replace(

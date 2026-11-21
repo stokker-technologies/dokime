@@ -20,16 +20,16 @@ import { Search } from "lucide-react";
 import { useState } from "react";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { Input } from "@dokime/plots/components/ui/input";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { caseCountLabel, filterOpenCycles, type OpenCycle } from "@/features/library/active-cycle-model";
 import { NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE } from "@/features/library/template-dialog-model";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
-import { cn } from "@/lib/utils";
-import { useUiStore } from "@/stores/ui-store";
+import { cn } from "@dokime/plots/lib/utils";
+import { useUiStore } from "@dokime/document/stores/ui-store";
 
 /* === Re-Exports === */
 

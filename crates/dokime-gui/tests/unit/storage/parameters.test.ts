@@ -39,7 +39,7 @@ const fixture = vi.hoisted(() => {
 
 /* === Entry Point === */
 
-vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
+vi.mock("@dokime/document/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 vi.mock("@/lib/desktop/commands", () => ({
   commands: { desktopSavedSettingsRead: fixture.read, desktopSavedSettingsUpdate: fixture.write },
 }));

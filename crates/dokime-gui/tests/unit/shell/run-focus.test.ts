@@ -20,7 +20,7 @@
 // Local Imports
 import { test, expect } from "vitest";
 import { activeRunFocus, elapsedMinutes, runDestination } from "@/shell/run-focus";
-import type { TestCyclePlan, TestExecution } from "@/lib/types";
+import type { TestCyclePlan, TestExecution } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 
