@@ -21,7 +21,7 @@ use std::result;
 
 // Third Party Imports
 use prost::Message;
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::execution::StepBoundary;
@@ -97,10 +97,12 @@ impl Store {
     }
     pub fn cut(&self, execution: &str) -> Result<ExecutionCut> {
         let connection = self.lock()?;
-        let (state, payload, seal): (i32, Vec<u8>, Vec<u8>) =
-            connection.query_row("SELECT state,payload,seal FROM executions WHERE id=?1", [execution], |row| {
+        let (state, payload, seal): (i32, Vec<u8>, Vec<u8>) = connection
+            .query_row("SELECT state,payload,seal FROM executions WHERE id=?1", [execution], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-            })?;
+            })
+            .optional()?
+            .ok_or_else(|| Error::NotFound(format!("Inspect Execution: Select an Existing Execution {execution}")))?;
         let state = match state {
             0 => ExecutionState::Open,
             1 => ExecutionState::Closed,

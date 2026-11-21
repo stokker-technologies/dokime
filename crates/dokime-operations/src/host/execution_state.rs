@@ -425,11 +425,10 @@ pub(crate) fn template_metadata(snapshot: &ExecutionSnapshot) -> Result<Option<(
 }
 
 fn existing_cut(context: &Context, id: &str) -> Result<ExecutionCut> {
-    let store = context.host.store();
-    if !store.identifiers()?.iter().any(|identifier| identifier == id) {
-        return Err(Error::NotFound("Inspect Execution: Select an Existing Execution".into()));
-    }
-    Ok(store.cut(id)?)
+    context.host.store().cut(id).map_err(|source| match source {
+        dokime_storage::Error::NotFound(message) => Error::NotFound(message),
+        source => Error::Storage(source),
+    })
 }
 
 /* === Tests === */
