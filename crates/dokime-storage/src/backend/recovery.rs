@@ -16,22 +16,21 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::Read;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
-
-// Local Imports
-use super::{Backend, State, db, decode, encode, integer, invalid, meta, set_meta, unsigned};
 use harmos_domain::state::Position;
+use harmos_storage::BackendFailure;
+use harmos_storage::Error;
 use harmos_storage::state::{RecoveryEntry, RecoveryPage, RecoverySnapshot, SnapshotPayload, StateBackend};
 use harmos_storage::{ReadLimits, RecoveryPosition, Result, StorageBatch, StorageCursor, StorageFuture, StoreHistory};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::io::Read;
-use std::num::NonZeroUsize;
 
-use harmos_storage::BackendFailure;
-use harmos_storage::Error;
+// Local Imports
+use super::{Backend, State, db, decode, encode, integer, invalid, meta, set_meta, unsigned};
 
 /* === Constants === */
 
@@ -251,6 +250,19 @@ impl StateBackend for RecoveryBackend {
             set_meta(&tx, "recovery_saved", saved)?;
             tx.commit().map_err(db)?;
             position(state, "recovery_saved")
+        }))
+    }
+
+    fn compact_recovery(&self) -> StorageFuture<'_, ()> {
+        Box::pin(self.0.call(|state| {
+            check(state)?;
+            let tx = state.connection.transaction().map_err(db)?;
+            let newest: Option<i64> =
+                tx.query_row("SELECT max(sequence) FROM recovery_snapshots WHERE published=1", [], |row| row.get(0)).map_err(db)?;
+            let Some(newest) = newest else { return Ok(()) };
+            tx.execute("DELETE FROM recovery_entries WHERE sequence<=?1", [newest]).map_err(db)?;
+            tx.execute("DELETE FROM recovery_snapshots WHERE sequence<?1", [newest]).map_err(db)?;
+            tx.commit().map_err(db)
         }))
     }
 
