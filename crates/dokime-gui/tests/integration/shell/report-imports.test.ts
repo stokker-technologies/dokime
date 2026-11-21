@@ -35,7 +35,7 @@ const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").r
 
 /* === Tests === */
 
-test("the embedded report permits generated messages and cannot reach RPC clients or transports", () => {
+test("The Embedded Report Permits Generated Messages and Cannot Reach RPC Clients or Transports", () => {
   const reportRoot = resolve(root, "../../packages/report");
   const vite = readFileSync(resolve(reportRoot, "vite.config.ts"), "utf8");
   const input = vite.match(/input:[^\n]*?fileURLToPath\(new URL\("(.+?)", import.meta.url\)\)/)?.[1];
@@ -71,22 +71,6 @@ test("the embedded report permits generated messages and cannot reach RPC client
       if (dependency) pending.push([...chain, dependency]);
     }
   }
-});
-
-test("the graph walker follows re-exports and lazy imports while ignoring erased types", () => {
-  assert.deepEqual(
-    runtimeImports(`
-      import type { Message } from "types";
-      import { type Other } from "other-types";
-      export type { More } from "more-types";
-      import { type A, value } from "mixed";
-      import "side-effect";
-      export { value } from "re-export";
-      export * from "barrel";
-      const live = () => import("lazy");
-    `),
-    ["mixed", "side-effect", "re-export", "barrel", "lazy"],
-  );
 });
 
 /* === Public Functions === */

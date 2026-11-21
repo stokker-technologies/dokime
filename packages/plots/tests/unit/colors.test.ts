@@ -36,8 +36,9 @@ import { markerColor } from "@dokime/plots/colors";
 
 test("Marker Kinds Take the Reference Palette by Index", () => {
   const references = ["#a1a1a1", "#b2b2b2", "#c3c3c3"];
-  for (let index = 0; index < references.length * 2; index += 1) {
-    assert.equal(markerColor(references, index), references[index % references.length]);
+  const expected = ["#a1a1a1", "#b2b2b2", "#c3c3c3", "#a1a1a1", "#b2b2b2", "#c3c3c3"];
+  for (const [index, color] of expected.entries()) {
+    assert.equal(markerColor(references, index), color);
   }
 });
 

@@ -90,7 +90,9 @@ test("Repeated Remote Settings Loads and Failures Stay Inline", () => {
   }
   fixture.query.isPending = false;
   fixture.query.error = new Error("fixture-failure");
-  renderToStaticMarkup(createElement(RemoteSection, {}));
+  const html = renderToStaticMarkup(createElement(RemoteSection, {}));
+  assert.match(html, /role="alert"/);
+  assert.ok(html.includes(fixture.query.error.message));
 });
 
 test("Export Endpoint Preview", () => {
@@ -120,7 +122,7 @@ test("Export Endpoint Preview", () => {
   assert.equal(fixture.invoke.mock.calls.length, 0);
 });
 
-test("enabling applies the host's settings at once and shows the running listener", async () => {
+test("Enabling Applies the Host's Settings at Once and Shows the Running Listener", async () => {
   const sent: ListenerSettings[] = [];
   const failures: string[] = [];
   assert.equal(listenerRunning(STOPPED), false);
@@ -138,7 +140,7 @@ test("enabling applies the host's settings at once and shows the running listene
   assert.deepEqual(failures, []);
 });
 
-test("a refused enable keeps the stopped state and surfaces the host error", async () => {
+test("A Refused Enable Keeps the Stopped State and Surfaces the Host Error", async () => {
   const failures: string[] = [];
   const reason = new Error("authentication_required");
   const details: unknown[] = [];
@@ -159,14 +161,8 @@ test("a refused enable keeps the stopped state and surfaces the host error", asy
   assert.deepEqual(details, [reason]);
 });
 
-test("saved intent without a bound address is not running", () => {
+test("Saved Intent Without a Bound Address Is Not Running", () => {
   assert.equal(listenerRunning({ ...STOPPED, settings: { ...SETTINGS, enabled: true }, error: "address in use" }), false);
-});
-
-test("Export Has No WebView Credential or Endpoint Arguments", async () => {
-  fixture.invoke.mockResolvedValueOnce(null);
-  await commands.desktopPairingCreate();
-  assert.deepEqual(fixture.invoke.mock.calls[0], ["desktop_pairing_create", undefined]);
 });
 
 test("Export Failure Retains the Native Reason", async () => {

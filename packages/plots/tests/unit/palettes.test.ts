@@ -61,8 +61,26 @@ function recordingPlot(range: [number, number]) {
 /* === Tests === */
 
 test("Series Index N Takes Palette Entry N on Every Plot", () => {
-  for (let index = 0; index < PALETTE.length * 2; index += 1) {
-    assert.equal(plotColor(index, PALETTE), PALETTE[index % PALETTE.length]);
+  const expected = [
+    "#111111",
+    "#222222",
+    "#333333",
+    "#444444",
+    "#555555",
+    "#666666",
+    "#777777",
+    "#888888",
+    "#111111",
+    "#222222",
+    "#333333",
+    "#444444",
+    "#555555",
+    "#666666",
+    "#777777",
+    "#888888",
+  ];
+  for (const [index, color] of expected.entries()) {
+    assert.equal(plotColor(index, PALETTE), color);
   }
   const first = documentPlotSpec({ plot: descriptor("a", "Temperature", ["a", "b", "c"]), payload: null, plotPalette: PALETTE });
   const second = documentPlotSpec({ plot: descriptor("b", "Signal Strength", ["x", "y"]), payload: null, plotPalette: PALETTE });
@@ -71,8 +89,8 @@ test("Series Index N Takes Palette Entry N on Every Plot", () => {
 });
 
 test("References Take the Reference Palette by Index and Keep Author Colors", () => {
-  for (let index = 0; index < 8; index += 1) {
-    const expected = `var(--plot-reference-${(index % 4) + 1})`;
+  const colors = ["var(--plot-reference-1)", "var(--plot-reference-2)", "var(--plot-reference-3)", "var(--plot-reference-4)"];
+  for (const [index, expected] of colors.entries()) {
     assert.equal(referenceColor(DEFINITION_DEFAULT, index), expected);
     assert.equal(referenceColor(DEFINITION_DEFAULT.toUpperCase(), index), expected);
     assert.equal(referenceColor(undefined, index), expected);

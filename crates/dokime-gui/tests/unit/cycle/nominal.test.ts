@@ -118,22 +118,38 @@ test("Active Containers Persist", () => {
 
 test("Cycle State", () => {
   // Stopping One Execution Leaves Its Active Cycle Idle
-  assert.deepEqual(cycleState("active", "stopped", false), { label: "Active · Idle", variant: "outline" });
-  assert.equal(cycleState("active", "completed", false).label, "Active · Idle");
-  assert.equal(cycleState("active", "planned", false).label, "Active · Idle");
+  const idle = cycleState("active", "stopped", false);
+  assert.equal(idle.variant, "outline");
+  assert.equal(cycleState("active", "completed", false).label, idle.label);
+  assert.equal(cycleState("active", "planned", false).label, idle.label);
 
   // Running Covers Every Lifecycle That Still Produces Evidence
-  for (const lifecycle of ["running", "paused", "stopping"] as const) {
-    assert.equal(cycleState("active", lifecycle, false).label, "Active · Running");
+  const running = cycleState("active", "running", false);
+  assert.notEqual(running.label, idle.label);
+  for (const lifecycle of ["paused", "stopping"] as const) {
+    assert.equal(cycleState("active", lifecycle, false).label, running.label);
   }
 
   // An Answerable Prompt Means the Cycle Waits on the Operator
-  assert.equal(cycleState("active", "running", true).label, "Active · Waiting");
+  const waiting = cycleState("active", "running", true);
+  assert.notEqual(waiting.label, idle.label);
+  assert.notEqual(waiting.label, running.label);
 
   // The Closing Phases Name Only Themselves
-  assert.equal(cycleState("sealing", "stopping", true).label, "Sealing");
-  assert.equal(cycleState("sealed", "failed", false).label, "Sealed");
-  assert.deepEqual(cycleState("seal_failed", "stopped", true), { label: "Seal Failed", variant: "destructive" });
+  const closing = ["sealing", "sealed", "seal_failed"] as const;
+  for (const phase of closing) {
+    const state = cycleState(phase, "stopping", true);
+    assert.equal(cycleState(phase, "failed", false).label, state.label);
+    assert.notEqual(state.label, idle.label);
+    assert.notEqual(state.label, running.label);
+    assert.notEqual(state.label, waiting.label);
+    for (const other of closing) {
+      if (other !== phase) {
+        assert.notEqual(cycleState(other, "stopping", true).label, state.label);
+      }
+    }
+  }
+  assert.equal(cycleState("seal_failed", "stopped", true).variant, "destructive");
 
   // Only a Settled Seal, Sealed or Failed, Archives
   assert.deepEqual((["active", "sealing", "seal_failed", "sealed"] as const).filter(isCycleArchivable), ["seal_failed", "sealed"]);

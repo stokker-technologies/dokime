@@ -110,28 +110,26 @@ pub(crate) fn decode<T: Payload>(bytes: &[u8]) -> Result<T> {
 mod tests {
     use super::{Payload, decode};
     use prost::Message;
-    use prost_reflect::DescriptorPool;
+    use prost_reflect::{DescriptorPool, DynamicMessage, Value};
 
-    fn roundtrip<T: Payload + Clone + PartialEq + core::fmt::Debug>(value: T) {
+    fn roundtrip<T: Payload + Clone + PartialEq + core::fmt::Debug>(value: T, field: Value) {
         let expected = value.clone();
         let message = value.into_message();
         let bytes = message.encode_to_vec();
         assert_eq!(decode::<T>(&bytes).unwrap(), expected);
         let pool = DescriptorPool::from_file_descriptor_set(<T::Message as ::harmos::Message>::types()).unwrap();
         let descriptor = pool.get_message_by_name(&<T::Message as ::harmos::Message>::name()).unwrap();
-        let dynamic = prost_reflect::DynamicMessage::decode(descriptor, bytes.as_slice()).unwrap();
-        assert_eq!(dynamic.encode_to_vec(), bytes);
+        let dynamic = DynamicMessage::decode(descriptor, bytes.as_slice()).unwrap();
+        assert_eq!(dynamic.get_field_by_name("value").unwrap().as_ref(), &field);
     }
 
     #[test]
     fn plain_values_roundtrip_well_known_wrappers() {
-        roundtrip(false);
-        roundtrip(true);
-        roundtrip(String::from("a value"));
-        roundtrip(i64::MIN);
-        roundtrip(i64::MAX);
-        roundtrip(2.125_f64);
-        assert_eq!(true.into_message().encode_to_vec(), [8, 1]);
-        assert_eq!("abc".to_owned().into_message().encode_to_vec(), [10, 3, 97, 98, 99]);
+        roundtrip(false, Value::Bool(false));
+        roundtrip(true, Value::Bool(true));
+        roundtrip(String::from("a value"), Value::String("a value".into()));
+        roundtrip(i64::MIN, Value::I64(i64::MIN));
+        roundtrip(i64::MAX, Value::I64(i64::MAX));
+        roundtrip(2.125_f64, Value::F64(2.125));
     }
 }

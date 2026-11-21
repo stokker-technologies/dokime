@@ -45,10 +45,10 @@ TEST_CASE("Documents Preserve Composed Plot Operands") {
   document.mutable_metadata()->set_identifier("scan");
   document.mutable_metadata()->set_label("Scan");
   section(document, target);
-  Document decoded;
-  REQUIRE(decoded.ParseFromString(document.SerializeAsString()));
   surface.message.clear_y();
   input.message.mutable_stream()->set_field("changed");
+  Document decoded;
+  REQUIRE(decoded.ParseFromString(document.SerializeAsString()));
   const auto &captured = decoded.sections(0).cards(0).plot();
   REQUIRE(captured.y_size() == 1);
   REQUIRE(captured.z().transform().input().transform().input().stream().field() == "temperature");

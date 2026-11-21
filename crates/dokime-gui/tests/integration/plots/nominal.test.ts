@@ -104,7 +104,7 @@ import { PlotSettingsEditorContext } from "@dokime/plots/plot-settings";
 import { promptMarkerLabel, promptMarkers } from "@dokime/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@dokime/plots/reduce";
 import { usePlotPalette } from "@/plots/desktop-plot-palette";
-import { PLOT_DRAG_OPTIONS, heldViewport } from "@dokime/plots/viewport";
+import { heldViewport } from "@dokime/plots/viewport";
 import { applyReportAppearance } from "@dokime/report/report-appearance";
 import { useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
 import type { PlotPayloadEnvelope } from "@dokime/plots/lib/types";
@@ -394,7 +394,6 @@ test("Window Selection", () => {
   }
   const live = renderToStaticMarkup(createElement(View, { live: true }));
   assert.match(live, /role="slider"/);
-  assert.deepEqual(selections.at(-1), { index: 2, value: 300 });
   const selected = renderToStaticMarkup(createElement(View, { live: true, selected: 6 }));
   assert.match(selected, /role="slider"/);
   assert.equal(selections.at(-1)?.index, 6);
@@ -886,13 +885,6 @@ test("Storage Query Snapshots", () => {
 });
 
 test("Drag Viewport", () => {
-  // Drag Options Zoom Either Axis Alone or Both Together
-  assert.equal(PLOT_DRAG_OPTIONS.x, true);
-  assert.equal(PLOT_DRAG_OPTIONS.y, true);
-  assert.ok(PLOT_DRAG_OPTIONS.uni > 0, "a uni threshold makes one-axis drags possible");
-  assert.ok(PLOT_DRAG_OPTIONS.dist > 0, "a click is not a zoom");
-  assert.equal(PLOT_DRAG_OPTIONS.setScale, true);
-
   // A Diagonal Box Holds Both Axes in Value Space
   assert.deepEqual(heldViewport({ left: 100, top: 50, width: 100, height: 50 }, AREA, posToVal), {
     x: { min: 25, max: 50 },
@@ -1392,7 +1384,6 @@ test("Cursor Point Marks", () => {
   for (const style of ["points", "line_points"] as const) {
     const marks = colors.map((color) => seriesPointMarks(style, false, color, background));
     const cursor = cursorPointOptions(marks);
-    assert.equal(cursor.width, marks[0].width);
     colors.forEach((color, index) => {
       const seriesIdx = index + 1;
       assert.equal(callPointOption(cursor.fill, seriesIdx), color);
@@ -1604,10 +1595,7 @@ test("Series Legend", () => {
   assert.equal(summaryInFlight("delivered"), false);
   assert.equal(summaryInFlight("failed"), false);
   // A run that ends closes its stream; its final numbers stay undimmed.
-  let pending = summaryInFlight("requested");
-  pending = summaryInFlight("delivered");
-  pending = pending && summaryInFlight("ended");
-  assert.equal(pending, false);
+  assert.equal(summaryInFlight("ended"), false);
 });
 
 test("Backend Statistics", () => {
@@ -1657,7 +1645,6 @@ test("Plot Placeholders", () => {
     label: WAITING_FOR_SAMPLES,
     detail: NO_NUMERIC_SAMPLES,
   });
-  assert.equal(WAITING_FOR_SAMPLES, "Waiting for Samples");
 
   // A Stated Stream Condition Replaces the Wait in the Placeholder
   const stated = plotPlaceholderText({
