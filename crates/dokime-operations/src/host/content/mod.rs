@@ -322,18 +322,30 @@ pub async fn attach_artifact(context: &Context, mut request: ArtifactsCreateRequ
         key: Identifier::new(saved.mutation.clone()).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?,
     };
     let bound = NonZeroUsize::new(context.settings.message_bytes).unwrap();
-    let value = Administration {
+    let object = Administration {
         key,
         scope,
         payload: saved.encode_to_vec(),
     };
-    let value = persisted::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?;
-    let response = context
-        .storage::<Mutate>(MutateRequest {
-            mutation: Some(mutation),
-            items: vec![MutationItem::Create(value)],
-        })
-        .await?;
+    let value = persisted::catalog().encode(&object, bound).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?;
+    let mut native = MutateRequest {
+        mutation: Some(mutation),
+        items: vec![MutationItem::Create(value)],
+    };
+    let response = match context.storage::<Mutate>(native.clone()).await {
+        Err(source) if files::transfer::expired(&source) => {
+            let mutation = files::transfer::mutation(context, &object.key, &request.request_id).await?;
+            saved.window = mutation.window.to_string();
+            saved.mutation = mutation.key.to_string();
+            let object = Administration { payload: saved.encode_to_vec(), ..object };
+            let value =
+                persisted::catalog().encode(&object, bound).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?;
+            native.items = vec![MutationItem::Create(value)];
+            native.mutation = Some(mutation);
+            context.storage::<Mutate>(native).await?
+        }
+        response => response?,
+    };
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict("Create Artifact: Refresh the Artifact Before Saving".into()));
     }
@@ -390,18 +402,23 @@ pub async fn attach_execution_file(
     let definition = ObjectDefinition::of::<Administration>();
     let graph = definition.graph(&Default::default()).map_err(|source| Error::Invalid(format!("Attach Execution File: {source}")))?;
     let mutation = files::transfer::mutation(context, &key, &request_id).await?;
-    let response = context
-        .storage::<SetObject>(SetObjectRequest {
-            mutation: Some(mutation),
-            create_if_absent: revision.is_empty(),
-            expected_revision: revision,
-            schema: Some(SchemaInput {
-                key: Some(value.schema.clone()),
-                graph: Some(graph),
-            }),
-            value: Some(value),
-        })
-        .await?;
+    let mut native = SetObjectRequest {
+        mutation: Some(mutation),
+        create_if_absent: revision.is_empty(),
+        expected_revision: revision,
+        schema: Some(SchemaInput {
+            key: Some(value.schema.clone()),
+            graph: Some(graph),
+        }),
+        value: Some(value),
+    };
+    let response = match context.storage::<SetObject>(native.clone()).await {
+        Err(source) if files::transfer::expired(&source) => {
+            native.mutation = Some(files::transfer::mutation(context, &key, &request_id).await?);
+            context.storage::<SetObject>(native).await?
+        }
+        response => response?,
+    };
     let receipt = match response.outcome {
         Some(set_object_response::Outcome::Applied(saved)) => {
             saved.receipt.ok_or_else(|| Error::Precondition("Attach Execution File: Return Its Durable Receipt".into()))?

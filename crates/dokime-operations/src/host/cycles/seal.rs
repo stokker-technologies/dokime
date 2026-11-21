@@ -159,11 +159,17 @@ async fn cleanup(context: &Context, name: &str) -> Result<()> {
             // Claim the Recovered Writer Before Abandonment.
             let request_id = uuid::Uuid::now_v7().to_string();
             let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
-            let request = CreateFileWriterRequest {
+            let mut request = CreateFileWriterRequest {
                 session: Some(production.session),
                 mutation: Some(mutation),
             };
-            let response = context.storage::<CreateFileWriter>(request).await?;
+            let response = match context.storage::<CreateFileWriter>(request.clone()).await {
+                Err(source) if crate::host::files::transfer::expired(&source) => {
+                    request.mutation = Some(crate::host::files::transfer::mutation(context, ID, &request_id).await?);
+                    context.storage::<CreateFileWriter>(request).await?
+                }
+                response => response?,
+            };
             let production = response
                 .production
                 .ok_or_else(|| Error::Precondition(format!("Retire Cycle {name} Seal Attempt: Claim Its Recovered File Writer")))?;
@@ -171,11 +177,17 @@ async fn cleanup(context: &Context, name: &str) -> Result<()> {
             // Abandon the Current Writer Through Its Production Owner.
             let request_id = uuid::Uuid::now_v7().to_string();
             let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
-            let request = DeleteFileProductionRequest {
+            let mut request = DeleteFileProductionRequest {
                 session: Some(production.session),
                 mutation: Some(mutation),
             };
-            context.storage::<DeleteFileProduction>(request).await?;
+            match context.storage::<DeleteFileProduction>(request.clone()).await {
+                Err(source) if crate::host::files::transfer::expired(&source) => {
+                    request.mutation = Some(crate::host::files::transfer::mutation(context, ID, &request_id).await?);
+                    context.storage::<DeleteFileProduction>(request).await?
+                }
+                response => response?,
+            };
         }
         token = response.next_page_token;
         if token.is_empty() {
@@ -185,8 +197,14 @@ async fn cleanup(context: &Context, name: &str) -> Result<()> {
     // Delete Only the Settled Attempt Scope.
     let request_id = uuid::Uuid::now_v7().to_string();
     let mutation = crate::host::files::transfer::mutation(context, ID, &request_id).await?;
-    let request = DeleteScopeRequest { mutation: Some(mutation), scope };
-    let response = context.storage::<DeleteScope>(request).await?;
+    let mut request = DeleteScopeRequest { mutation: Some(mutation), scope };
+    let response = match context.storage::<DeleteScope>(request.clone()).await {
+        Err(source) if crate::host::files::transfer::expired(&source) => {
+            request.mutation = Some(crate::host::files::transfer::mutation(context, ID, &request_id).await?);
+            context.storage::<DeleteScope>(request).await?
+        }
+        response => response?,
+    };
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict(format!("Retire Cycle {name} Seal Attempt: Reopen the Host Before Retrying Seal")));
     }

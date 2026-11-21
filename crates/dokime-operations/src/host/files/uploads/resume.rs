@@ -48,12 +48,17 @@ pub async fn handle(context: &Context, request: UploadsResumeRequest) -> Result<
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let session = transfer::session(request.upload)?;
         let mutation = transfer::mutation(context, ID, &request.request_id).await?;
-        let response = context
-            .storage::<CreateFileWriter>(CreateFileWriterRequest {
-                session: Some(session),
-                mutation: Some(mutation),
-            })
-            .await?;
+        let mut native = CreateFileWriterRequest {
+            session: Some(session),
+            mutation: Some(mutation),
+        };
+        let response = match context.storage::<CreateFileWriter>(native.clone()).await {
+            Err(source) if transfer::expired(&source) => {
+                native.mutation = Some(transfer::mutation(context, ID, &request.request_id).await?);
+                context.storage::<CreateFileWriter>(native).await?
+            }
+            response => response?,
+        };
         Ok(UploadsResumeResponse {
             upload: response.production.map(transfer::upload),
             receipt: response.receipt,

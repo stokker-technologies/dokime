@@ -16,10 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error;
 
 // Third Party Imports
 use harmos_operations::storage::{Info, InfoRequest};
 use harmos_protocol::model::{FileReference, History, Upload, UploadState};
+use harmos_runtime::BackendFailure;
 use harmos_runtime::Identifier;
 use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, MutationId, StagedFile, StoreHistory};
 use sha2::{Digest, Sha256};
@@ -76,6 +78,28 @@ pub(crate) async fn mutation(context: &Context, action: &str, request_id: &str) 
     tracing::debug!(action, request_id, window = %window.id, mutation = %key, "Admit Storage Mutation");
     Ok(MutationId { window: window.id, key })
 }
+
+pub(crate) fn expired(source: &Error) -> bool {
+    let mut cause: Option<&(dyn error::Error + 'static)> = Some(source);
+    while let Some(current) = cause {
+        if let Some(native) = current.downcast_ref::<harmos_runtime::Error>() {
+            let carried =
+                native.failure().is_some_and(|failure| failure.detail("storage.kind") == Some("STORAGE_FAILURE_MUTATION_EXPIRED"));
+            let backend = matches!(
+                native,
+                harmos_runtime::Error::Backend {
+                    kind: BackendFailure::MutationExpired,
+                    ..
+                }
+            );
+            if carried || backend {
+                return true;
+            }
+        }
+        cause = current.source();
+    }
+    false
+}
 pub(crate) fn staged(upload: &Upload) -> Result<StagedFile> {
     let history = upload.history.clone().ok_or_else(|| Error::Invalid("Access Upload: Supply Its Store History".into()))?;
     let history = StoreHistory::try_from(history).map_err(|cause| Error::Invalid(format!("Access Upload: {cause}")))?;
@@ -126,10 +150,34 @@ pub(crate) fn progress(file: StagedFile, progress: FileProgress, generation: u64
 
 #[cfg(test)]
 mod tests {
-    use super::{progress, session, staged, upload};
+    use std::sync::Arc;
+
+    use super::{expired, progress, session, staged, upload};
     use harmos_protocol::model::{History, Upload, UploadState};
-    use harmos_runtime::Identifier;
+    use harmos_runtime::operations::FailureKind;
     use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, StoreHistory};
+    use harmos_runtime::{BackendFailure, Failure, Identifier};
+
+    #[test]
+    fn only_expired_mutations_request_a_fresh_identity() {
+        for kind in [BackendFailure::MutationExpired, BackendFailure::Transient, BackendFailure::Permanent, BackendFailure::Conflict] {
+            let source = harmos_runtime::Error::backend("Write File", kind, std::io::Error::other("storage failure"));
+            let source = crate::Error::Native { action: "Write File", source };
+            assert_eq!(expired(&source), kind == BackendFailure::MutationExpired);
+        }
+        assert!(!expired(&crate::Error::Invalid("Select a File".into())));
+    }
+
+    #[test]
+    fn mutation_expiry_survives_native_operation_failure_frames() {
+        let failure =
+            Failure::new(FailureKind::Transient, "Mutation Expired").with_detail("storage.kind", "STORAGE_FAILURE_MUTATION_EXPIRED");
+        let source = harmos_runtime::Error::OperationFailed {
+            operation: "Write File".into(),
+            source: Arc::new(failure),
+        };
+        assert!(expired(&crate::Error::Native { action: "Write File", source }));
+    }
 
     fn producer() -> FileProducer {
         FileProducer {

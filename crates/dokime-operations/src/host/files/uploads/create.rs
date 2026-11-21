@@ -85,12 +85,17 @@ pub(crate) async fn derived(context: &Context, request: UploadsCreateRequest) ->
             metadata.id = mutation.key.to_string();
         }
         let metadata = storage::FileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
-        let response = context
-            .storage::<CreateFileProduction>(CreateFileProductionRequest {
-                metadata: Some(metadata),
-                mutation: Some(mutation),
-            })
-            .await?;
+        let mut native = CreateFileProductionRequest {
+            metadata: Some(metadata),
+            mutation: Some(mutation),
+        };
+        let response = match context.storage::<CreateFileProduction>(native.clone()).await {
+            Err(source) if transfer::expired(&source) => {
+                native.mutation = Some(transfer::mutation(context, ID, &request.request_id).await?);
+                context.storage::<CreateFileProduction>(native).await?
+            }
+            response => response?,
+        };
         let upload = response.production.map(transfer::upload);
         Ok(UploadsCreateResponse {
             upload,

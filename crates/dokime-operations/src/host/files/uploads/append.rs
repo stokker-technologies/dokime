@@ -51,14 +51,19 @@ pub async fn handle(context: &Context, request: UploadsAppendRequest) -> Result<
         }
         let session = transfer::session(request.upload)?;
         let mutation = transfer::mutation(context, ID, &request.request_id).await?;
-        let response = context
-            .storage::<AppendFileBytes>(AppendFileBytesRequest {
-                session: Some(session),
-                offset: request.offset,
-                data: request.data,
-                mutation: Some(mutation),
-            })
-            .await?;
+        let mut native = AppendFileBytesRequest {
+            session: Some(session),
+            offset: request.offset,
+            data: request.data,
+            mutation: Some(mutation),
+        };
+        let response = match context.storage::<AppendFileBytes>(native.clone()).await {
+            Err(source) if transfer::expired(&source) => {
+                native.mutation = Some(transfer::mutation(context, ID, &request.request_id).await?);
+                context.storage::<AppendFileBytes>(native).await?
+            }
+            response => response?,
+        };
         Ok(UploadsAppendResponse {
             upload: response.production.map(transfer::upload),
             receipt: response.receipt,
