@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::future::Future;
+use std::pin::Pin;
 
 // Third Party Imports
 use harmos_operations::storage::{
@@ -26,6 +27,7 @@ use harmos_protocol::model::{FileReference, PageRequest, ReadCut, Receipt, Resou
 use harmos_runtime::storage::{self, Identifier, StagedFile};
 use prost::Message;
 use sha2::{Digest, Sha256};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 // Local Imports
@@ -84,7 +86,7 @@ pub(crate) async fn read<T: Message + Default>(
         value.encode_to_vec()
     };
     let revision = Sha256::digest(&payload).to_vec();
-    let file = retain(context, &scope, &format!("view:{name}:{}", hex(&revision)), &payload).await?;
+    let file = retain(context, &scope, format!("view:{name}:{}", hex(&revision)), payload).await?;
     let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
     administration::retain(context, &key, scope, &file).await?;
 
@@ -194,7 +196,39 @@ async fn retained(context: &Context, key: &str) -> Result<Option<Vec<u8>>> {
     Ok(Some(payload))
 }
 
-async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]) -> Result<FileReference> {
+async fn retain(context: &Context, scope: &Identifier, key: String, payload: Vec<u8>) -> Result<FileReference> {
+    // The Host Settles Admitted File Work After the Read Deadline Drops Its Receiver.
+    let owned = context.clone();
+    let scope = scope.clone();
+    settle(
+        |work| context.host.spawn_work(work),
+        move |sender| async move {
+            let result = retain_owned(&owned, &scope, &key, &payload, &sender).await;
+            if let Err(Err(source)) = sender.send(result)
+                && !matches!(source, Error::Cancelled(_))
+            {
+                tracing::error!(%source, "Settle Retained View: Inspect Its Storage Before Reusing the Root");
+            }
+        },
+    )
+    .await
+}
+
+async fn settle<F: Future<Output = ()> + Send + 'static>(
+    spawn: impl FnOnce(Pin<Box<dyn Future<Output = ()> + Send>>) -> Result<()>,
+    work: impl FnOnce(oneshot::Sender<Result<FileReference>>) -> F,
+) -> Result<FileReference> {
+    let (sender, receiver) = oneshot::channel();
+    spawn(Box::pin(work(sender)))?;
+    receiver.await.map_err(|_| Error::Cancelled("Retain View: Reconnect After the Host Stops".into()))?
+}
+
+async fn retain_owned(
+    context: &Context, scope: &Identifier, key: &str, payload: &[u8], sender: &oneshot::Sender<Result<FileReference>>,
+) -> Result<FileReference> {
+    if sender.is_closed() {
+        return Err(Error::Cancelled("Retain View: Read Ended Before Publication".into()));
+    }
     let (saved, revision) = administration::message::<FileReference>(context, key).await?;
     if !revision.is_empty() {
         return Ok(saved);
@@ -222,6 +256,9 @@ async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]
     let produced = async {
         let mut offset = 0;
         for data in payload.chunks(maximum) {
+            if sender.is_closed() {
+                return Err(Error::Cancelled("Retain View: Read Ended Before Publication".into()));
+            }
             append::handle(
                 context,
                 UploadsAppendRequest {
@@ -233,6 +270,9 @@ async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]
             )
             .await?;
             offset += data.len() as u64;
+        }
+        if sender.is_closed() {
+            return Err(Error::Cancelled("Retain View: Read Ended Before Publication".into()));
         }
         let published = publish::handle(
             context,
@@ -256,22 +296,74 @@ async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]
             return Err(source);
         }
     };
+    if sender.is_closed() {
+        discard(context, file, &request_id).await?;
+        return Err(Error::Cancelled("Retain View: Read Ended Before Indexing".into()));
+    }
     let saved = administration::retain(context, key, scope.clone(), &file).await?;
     if saved != file {
-        let file = storage::FileReference::try_from(file)
-            .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;
-        let mutation = transfer::mutation(context, "Discard Unused View", &request_id).await?;
-        context
-            .storage::<DeleteFile>(DeleteFileRequest {
-                file: Some(StagedFile {
-                    history: file.position.history,
-                    id: file.metadata.id,
-                }),
-                mutation: Some(mutation),
-            })
-            .await?;
+        discard(context, file, &request_id).await?;
     }
     Ok(saved)
 }
 
+async fn discard(context: &Context, file: FileReference, request_id: &str) -> Result<()> {
+    let file = storage::FileReference::try_from(file)
+        .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;
+    let mutation = transfer::mutation(context, "Discard Unused View", request_id).await?;
+    context
+        .storage::<DeleteFile>(DeleteFileRequest {
+            file: Some(StagedFile {
+                history: file.position.history,
+                id: file.metadata.id,
+            }),
+            mutation: Some(mutation),
+        })
+        .await?;
+    Ok(())
+}
+
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, time::Duration};
+
+    use tokio::sync::oneshot;
+
+    use super::settle;
+    use crate::{Error, host};
+
+    #[test]
+    fn deadline_cleanup() {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        runtime.block_on(async {
+            let root = tempfile::tempdir().unwrap();
+            let path = root.path().join("view.pb");
+            fs::write(&path, [1, 2, 3]).unwrap();
+            let open = fs::File::open(&path).unwrap();
+            let (release, blocked) = oneshot::channel::<()>();
+            let removed = path.clone();
+            let mut work = None;
+            let read = settle(
+                |task| {
+                    work = Some(tokio::spawn(task));
+                    Ok(())
+                },
+                move |sender| async move {
+                    blocked.await.unwrap();
+                    drop(open);
+                    fs::remove_file(removed).unwrap();
+                    let result = Err(Error::Conflict("index rejected".into()));
+                    let _ = sender.send(result);
+                },
+            );
+            let reply = host::complete("Read Document", Duration::ZERO, read).await;
+            assert!(matches!(reply, Err(Error::Deadline(_))));
+            assert!(path.exists());
+            release.send(()).unwrap();
+            work.unwrap().await.unwrap();
+            assert!(!path.exists());
+        });
+    }
+}
