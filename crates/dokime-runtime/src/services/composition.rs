@@ -18,7 +18,7 @@
 // Standard Library Imports
 use std::path::Path;
 use std::{
-    num::NonZeroUsize,
+    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     result,
     sync::Arc,
     time::{Duration, SystemTime},
@@ -30,14 +30,16 @@ use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
 use harmos_runtime::Lifecycle;
 use harmos_runtime::clock;
 use harmos_runtime::clock::Source;
+use harmos_runtime::config::ManagedStorageSettings;
 use harmos_runtime::operations;
 use harmos_runtime::operations::Lane;
 use harmos_runtime::plugin::grpc::{IntervalLag, PlacementSettings};
-use harmos_runtime::plugin::manager::{Manager, PluginManagerSettings};
-use harmos_runtime::state::Never;
+use harmos_runtime::plugin::manager::{self, Manager, PluginManagerSettings, PluginStateSettings};
+use harmos_runtime::state::{Never, SnapshotPolicy};
 use harmos_runtime::storage::Cursor;
 use harmos_runtime::storage::{
-    StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
+    Identifier, PayloadEncoding, ReadLimits, SchemaKey, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings,
+    StorageResponseSettings, StorageSettings,
 };
 use harmos_runtime::{
     Runtime, Setup, Startup,
@@ -49,10 +51,10 @@ use tokio::time::Instant;
 // Local Imports
 use super::ClientSettings;
 use crate::streams::{Samples, Timing};
-use crate::{Error, Host, Result, SchedulerClock};
+use crate::{Error, Host, Result, STOP_GRACE, SchedulerClock, plugin_settings};
 use dokime_operations::host::settings::get;
 use dokime_operations::native::Binding;
-use dokime_storage::{Backend, BackendLease};
+use dokime_storage::{Backend, BackendLease, persisted};
 
 /* === Constants === */
 
@@ -146,7 +148,7 @@ pub(super) async fn launch(
             origin: Instant::now(),
         })
     };
-    let catalog = harmos_runtime::plugin::manager::catalog().extend(dokime_storage::persisted::catalog());
+    let catalog = manager::catalog().extend(persisted::catalog());
     let (backends, lease) = Backend::open_with_execution(store, catalog.clone(), clock.clone())?;
     let storage = StorageManager::with_catalog(
         catalog,
@@ -180,11 +182,12 @@ pub(super) async fn launch(
         storage.clone(),
         PluginManagerSettings {
             namespace: store.identity().to_owned(),
+            state: PluginStateSettings { max_bytes: bytes },
             directory: root.canonicalize()?.join("plugins"),
             target: dokime_packaging::bundle::native_target().into(),
             placement: PlacementSettings {
                 reconnect_delay: placement.reconnect_delay,
-                stop_grace: crate::STOP_GRACE,
+                stop_grace: STOP_GRACE,
                 stream_window: placement.stream_window,
                 interval_window: placement.interval_window,
                 interval_lag: IntervalLag::new(placement.interval_lag),
@@ -209,7 +212,33 @@ pub(super) async fn launch(
             cursor: Cursor::ORIGIN,
             scopes: sample_scopes,
         });
-        setup.settings().clock(clock).storage(&storage).plugins(plugins.clone()).grpc_plugin_settings(crate::plugin_settings());
+        let recovery = ManagedStorageSettings {
+            replay: ReadLimits {
+                rows,
+                bytes: backend_settings.pending_bytes,
+            },
+            capture: ReadLimits {
+                rows,
+                bytes: backend_settings.pending_bytes,
+            },
+            journal_tail: capacity.get(),
+            snapshots: Some(SnapshotPolicy {
+                schema: SchemaKey {
+                    id: Identifier::new("dokime-runtime-state").expect("valid recovery schema identifier"),
+                    version: NonZeroU32::new(1).unwrap(),
+                    payload_encoding: PayloadEncoding::PostcardV1,
+                },
+                every: NonZeroU64::new(backend_settings.flush_rows.get() as u64).unwrap(),
+                max_bytes: bytes,
+            }),
+        };
+        setup
+            .settings()
+            .clock(clock)
+            .storage(&storage)
+            .managed_storage(recovery)
+            .plugins(plugins.clone())
+            .grpc_plugin_settings(plugin_settings());
         setup.settings().operation_settings(operations::Settings {
             preparation_bytes: Some(bytes),
             ..Default::default()

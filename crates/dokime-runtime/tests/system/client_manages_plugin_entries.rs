@@ -17,8 +17,10 @@
 
 // Standard Library Imports
 use std::error::Error;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tonic::transport::Endpoint;
 
@@ -291,3 +293,48 @@ fn externally_owned_listener_survives_disable_and_remove() -> Result<(), Box<dyn
     }))
 }
 
+#[test]
+fn plugin_state_survives_product_host_restart_and_refuses_stale_revisions() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        timeout(support::SYSTEM_HANG_GUARD, async {
+            let root = support::tempdir()?;
+            let mut settings = support::settings();
+            settings.storage.flush_rows = NonZeroUsize::new(1).unwrap();
+            // Start the Existing In-Process Product Host and One Externally Owned Listener.
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings.clone(), support::service_settings()).await?;
+            let client = client::connect_with(ConnectionSettings {
+                target: Some(format!("http://{}", server.endpoint())),
+                ..Default::default()
+            })
+            .await?;
+            let (observations, mut observed) = mpsc::unbounded_channel();
+            let plugin = Plugin::of::<()>("1.0.0").identifier("fixture").initialize(async move |context| {
+                // Read Through the Library Handle and Persist Before Initialization Completes.
+                let state = context.state()?;
+                let value = state.get::<String>().await?;
+                if value.is_empty() {
+                    let stale = context.state()?;
+                    assert_eq!(state.put(&String::from("durable value")).await?, 1);
+                    let error = stale.put(&String::from("stale value")).await.unwrap_err();
+                    assert!(format!("{error:?}").contains("state_revision_conflict"), "{error:?}");
+                }
+                observations
+                    .send(value)
+                    .map_err(|_| dokime::Error::Invalid("Observe Plugin State: Keep the Story Receiver Open".into()))?;
+                Ok(())
+            });
+            let registered = client.plugins().register(plugin).await?;
+            assert_eq!(registered.identifier(), "fixture");
+            assert_eq!(observed.recv().await.ok_or("Observe Plugin State: Return the Initialization Value")?, "");
+
+            // Restart the Host on the Same Root While the Listener Keeps Its Address and Owner.
+            server.close().await?;
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings, support::service_settings()).await?;
+            assert_eq!(observed.recv().await.ok_or("Observe Plugin State: Return the Reopened Value")?, "durable value");
+            server.close().await?;
+            client.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
