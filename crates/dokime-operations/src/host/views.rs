@@ -300,9 +300,23 @@ async fn retain_owned(
         discard(context, file, &request_id).await?;
         return Err(Error::Cancelled("Retain View: Read Ended Before Indexing".into()));
     }
-    let saved = administration::retain(context, key, scope.clone(), &file).await?;
+    finish_file(file.clone(), administration::retain(context, key, scope.clone(), &file), |file| discard(context, file, &request_id)).await
+}
+
+async fn finish_file<F: Future<Output = Result<()>>>(
+    file: FileReference, indexed: impl Future<Output = Result<FileReference>>, discard: impl FnOnce(FileReference) -> F,
+) -> Result<FileReference> {
+    let saved = match indexed.await {
+        Ok(saved) => saved,
+        Err(source) => {
+            if let Err(cleanup) = discard(file).await {
+                return Err(Error::Invalid(format!("Retain View: {source}; Remove Its Unindexed File: {cleanup}")));
+            }
+            return Err(source);
+        }
+    };
     if saved != file {
-        discard(context, file, &request_id).await?;
+        discard(file).await?;
     }
     Ok(saved)
 }
@@ -329,10 +343,34 @@ async fn discard(context: &Context, file: FileReference, request_id: &str) -> Re
 mod tests {
     use std::{fs, time::Duration};
 
+    use harmos_protocol::model::{FileMetadata, FileReference, History, Position};
+    use harmos_runtime::storage;
+    use sha2::{Digest, Sha256};
     use tokio::sync::oneshot;
 
-    use super::settle;
+    use super::{finish_file, settle};
     use crate::{Error, host};
+
+    fn reference(id: &str, data: &[u8]) -> FileReference {
+        let file = FileReference {
+            metadata: Some(FileMetadata {
+                id: id.into(),
+                media_type: "application/x-protobuf".into(),
+                ..Default::default()
+            }),
+            position: Some(Position {
+                history: Some(History {
+                    store: "backend".into(),
+                    epoch: "epoch".into(),
+                }),
+                sequence: 1,
+            }),
+            length: data.len() as u64,
+            sha256: Sha256::digest(data).to_vec(),
+        };
+        storage::FileReference::try_from(file.clone()).unwrap();
+        file
+    }
 
     #[test]
     fn deadline_cleanup() {
@@ -351,10 +389,19 @@ mod tests {
                     Ok(())
                 },
                 move |sender| async move {
-                    blocked.await.unwrap();
-                    drop(open);
-                    fs::remove_file(removed).unwrap();
-                    let result = Err(Error::Conflict("index rejected".into()));
+                    let result = finish_file(
+                        reference("view/original", &[1, 2, 3]),
+                        async {
+                            blocked.await.unwrap();
+                            Err(Error::Conflict("index rejected".into()))
+                        },
+                        |_| async move {
+                            drop(open);
+                            fs::remove_file(removed).unwrap();
+                            Ok(())
+                        },
+                    )
+                    .await;
                     let _ = sender.send(result);
                 },
             );
@@ -364,6 +411,44 @@ mod tests {
             release.send(()).unwrap();
             work.unwrap().await.unwrap();
             assert!(!path.exists());
+        });
+    }
+
+    #[test]
+    fn failed_index_cleanup() {
+        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        runtime.block_on(async {
+            let root = tempfile::tempdir().unwrap();
+            let path = root.path().join("view.pb");
+            fs::write(&path, [1, 2, 3]).unwrap();
+            let result =
+                finish_file(reference("view/original", &[1, 2, 3]), async { Err(Error::Conflict("index rejected".into())) }, |_| async {
+                    fs::remove_file(&path).unwrap();
+                    Ok(())
+                })
+                .await;
+            assert!(matches!(result, Err(Error::Conflict(_))));
+            assert!(!path.exists());
+        });
+    }
+
+    #[test]
+    fn publication_races() {
+        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        runtime.block_on(async {
+            for same in [false, true] {
+                let original = reference("view/original", &[1, 2, 3]);
+                let saved = if same { original.clone() } else { reference("view/winner", &[1, 2, 3]) };
+                let mut discarded = None;
+                let result = finish_file(original.clone(), async { Ok(saved.clone()) }, |file| {
+                    discarded = Some(file);
+                    async { Ok(()) }
+                })
+                .await
+                .unwrap();
+                assert_eq!(result, saved);
+                assert_eq!(discarded, (!same).then_some(original));
+            }
         });
     }
 }
