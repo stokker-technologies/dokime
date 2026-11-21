@@ -1,3 +1,19 @@
+## Library State and Ownership
+
+- [x] Refresh Every Library Pin, Native Lock, Vendored Protocol and Tracked Binding to `324ad01b0892b1ca6a3bce4bb9525b22974f606b`.
+- [x] Supply Operation Identities to All Four Desktop Benchmark Session Calls and Pass the Focused Benchmark Typecheck Without Building or Running a Benchmark.
+- [x] Admit the Generated C++ Plugin-State Resource Through the Existing Private Context Friend List and Compile All Debug Test Targets.
+- [x] Prove Registry Restart, Remove and Disable Preserve Externally Owned Listeners and Rust Remote Authoring.
+- [x] Compose Durable Plugin State and Prove Restart Readback and the Named Stale-Revision Conflict Through the Product Host.
+- [ ] Preserve Entry Identity, Settings and Durable State Across Remote Address Changes; Blocked by Managed-Only Library Replace. Retire Product Delete/Create After the Library Supports Remote Placement Updates.
+- [x] Compact Native Recovery Atomically and Prove Bounded Snapshots/Entries and Equivalent Reopened State.
+- [x] Expose the Library Collection Directly Through the Product Rust SDK.
+- [ ] Replace the Product Scheduler in `sdk/rust/src/stream.rs` With the Library Collection When the Host Plugin Lands; This File Belongs to That Integration Worker.
+- [x] Complete the Requested Native Windows Focused Proof and Gates.
+- [ ] Complete Native Linux Proof Separately; One Native Platform Does Not Establish the Other.
+
+## Product Contracts
+
 - [x] 2.2 Provide typed host progress, logs, traceability, document parts, record reads and execution/step statistics in `crates/dokime-operations/src/host/`.
 - [x] 2.3 Replace JSON catalog sections with protocol messages and embedded protocol-source export.
 - [ ] 2.3.1 Add protocol export from a running host, plugin URL and bundle; `commands/proto/export.rs` currently exports embedded sources only. Coordinate bundle inspection and archive closure with plugin-boundary.
@@ -257,7 +273,7 @@
 - [x] Add `PluginsCreateRequest.sdk_version` at Field 6 and Regenerate the Tracked Bindings.
 - [x] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
 - [x] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
-- [ ] Resolve the Rust Remote Authoring Harness's Readiness Assumption Before Full SDK Integration Proof.
+- [ ] Prove Rust Remote Authoring With the Pinned Library's Registry Process-Ownership Fix.
 - [ ] Complete C# Paired Startup, Stable Identity, Refusals and Entry Retention With Focused Proof.
   - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Listener Completion, Repeated Disposal, Explicit Removal and Client-Close Entry Retention.
   - [ ] Prove Automatic Paired C# Process Startup Against the Combined Host.
@@ -289,7 +305,7 @@
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
 - [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
 - [ ] Move Every Launch Readiness Consumer to `Launches/Announce` and Remove the Retired Listener Environment Configuration; Prove the Merged Starter and SDK Consumers.
-- [ ] Keep Registry Removal From Stopping an Externally Owned Endpoint; Blocked by the Library Sending Instance.Stop Even When Its Activation Owns No Spawned Process.
+- [ ] Prove Registry Removal Keeps Externally Owned Endpoints Serving With the Pinned Library's Ownership Fix.
 
 ## Desktop Failure Presentation
 
@@ -307,9 +323,9 @@
 - [x] Merge SDK Self-Registration and Current Dev, Regenerating Protocol Outputs and Keeping Shared Plugin Tables, Failure Cards, Placement and Offline Presentation.
 - [x] Select the Four SDK Run Entries by Launch Credentials, Then Pairing, Then Standalone Serving; Point Every Starter at That Entry.
 - [x] Remove Retired Address Configuration, SDK Readiness Helpers and Superseded Python Readiness Tests; Reuse C# Library Listeners and C++ Product Registration.
-- [ ] Identify and Repair the Registration Hang Without Changing Its Guard.
+- [x] Identify and Repair the Registration Hang Without Changing Its Guard.
   - [x] Identify External-Endpoint Stop During Host Shutdown as the Cause; Preserve the Registration-Across-Restart Contract and Its Existing Guard.
-  - [ ] Pin the Library's Ownership Fix and Pass the Failing Registration Restart and Remote Authoring Cases.
+  - [x] Pin the Library's Ownership Fix and Pass the Failing Registration Restart and Remote Authoring Cases.
 - [ ] Pass Generation Drift, Workspace Test Compilation With Desktop Testing, the Requested Focused Stories and SDK Selections, Native SDK Compilation, Frontend Build/Units, Formatting, Repository/Supply/Binding Gates and Strict OpenSpec Validation.
   - [x] Pass Generation Drift and Compile All Workspace Test Targets With Desktop Testing and All Rust SDK Consumer Test Targets.
   - [x] Pass the Two Selected CLI First-Hour Stories, Native-Interpreter Launch Round Trip, GUI Host Story and Desktop Acceptance Matrix.
@@ -317,6 +333,6 @@
   - [x] Build the C# Debug Solution and Packaged Starter; Pass Six Client Registration/Execution Cases and Direct Child Launch, Announcement and Clean Stop.
   - [x] Compile the C++ Debug SDK Test Targets, Build the Frontend and Pass Fourteen Plugin-List Unit Cases.
   - [x] Pass Formatting, Repository, Supply, Unused-Dependency, Release-Context Binding and Strict Change Validation Gates.
-  - [ ] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
+  - [x] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
 - [x] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
-- [ ] Resolve the Read-Only Library's Remote-Removal Ownership Defect and Prove User-Owned Reattachment; Preserve This Obligation if the Library Capability Is Unavailable.
+- [x] Prove User-Owned Reattachment With the Pinned Library's Remote-Removal Ownership Fix.
