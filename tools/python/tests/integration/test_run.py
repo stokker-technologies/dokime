@@ -14,7 +14,7 @@
 import io
 import json
 import os
-import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -31,7 +31,7 @@ from unittest.mock import Mock, patch
 
 # Local Imports
 from dokime_tools.build import paths
-from dokime_tools.test import archive, benchmark, credentials, execution, lanes, policy, report
+from dokime_tools.test import archive, benchmark, credentials, execution, job, lanes, policy, report
 
 # Type Checking Imports
 
@@ -203,49 +203,49 @@ class RunTests(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             directory = Path(temporary).resolve()
-            # The Child Holds A Socket Until Killed; The Parent Reports Before Hanging.
-            child = (
-                "import pathlib, socket, sys, threading; "
-                "server = socket.socket(); server.bind(('127.0.0.1', 0)); server.listen(); "
-                "pathlib.Path(sys.argv[1]).write_text(str(server.getsockname()[1])); "
-                "threading.Event().wait()"
-            )
-            parent = (
-                "import pathlib, subprocess, sys, threading, time\n"
-                "port = pathlib.Path(sys.argv[2])\n"
-                f"subprocess.Popen([sys.executable, '-c', {child!r}, str(port)])\n"
-                "while not port.exists(): time.sleep(0.01)\n"
-                "pathlib.Path(sys.argv[1]).write_text('<testsuite><testcase name=\"finished\"/></testsuite>')\n"
-                "threading.Event().wait()\n"
-            )
-            port = directory / "port"
-            rules = policy.Policy(limits={}, deadlines={"system": 3}, overrides=())
+            rules = policy.load(ROOT)
+            process = Mock(pid=1234, stdout=None, stderr=None, stdin=None)
+            process.wait.side_effect = [subprocess.TimeoutExpired("fixture", rules.deadline("system")), 0, 0]
+            process.poll.return_value = None
             scratch_directory = lanes.prepare_scratch(directory, "system-typescript", "dev")
             scratch = scratch_directory.path
             try:
                 junit = scratch / "junit.xml"
-                result = lanes.record(
-                    directory,
-                    rules,
-                    "system-typescript",
-                    "system",
-                    "typescript",
-                    ".",
-                    "dev",
-                    [sys.executable, "-c", parent, str(junit), str(port)],
-                    directory,
-                    None,
-                    junit,
-                    scratch,
-                )
+                junit.write_text('<testsuite><testcase name="finished"/></testsuite>', encoding="utf-8")
+                with (
+                    patch.object(job, "own_children"),
+                    patch.object(execution.subprocess, "Popen", return_value=process) as spawn,
+                    patch.object(execution.subprocess, "run") as terminate,
+                    patch.object(execution.os, "killpg", create=True) as kill_group,
+                ):
+                    result = lanes.record(
+                        directory,
+                        rules,
+                        "system-typescript",
+                        "system",
+                        "typescript",
+                        ".",
+                        "dev",
+                        ["fixture"],
+                        directory,
+                        None,
+                        junit,
+                        scratch,
+                    )
+                self.assertIn("fixture", spawn.call_args.args[0])
+                self.assertEqual(process.wait.call_args_list[0].kwargs, {"timeout": rules.deadline("system")})
+                if os.name == "nt":
+                    terminate.assert_called_once()
+                    self.assertEqual(terminate.call_args.args[0], ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"])
+                    kill_group.assert_not_called()
+                else:
+                    terminate.assert_not_called()
+                    kill_group.assert_called_once_with(process.pid, execution.signal.SIGKILL)
+                process.kill.assert_called_once_with()
+                self.assertEqual(process.wait.call_count, 3)
             finally:
                 scratch_directory.close()
             self.assertEqual(result["outcome"], "failed")
-            client = socket.socket()
-            try:
-                self.assertNotEqual(client.connect_ex(("127.0.0.1", int(port.read_text()))), 0)
-            finally:
-                client.close()
         finally:
             temporary_directory.cleanup()
 

@@ -57,6 +57,8 @@ class HostFixtureTests(unittest.TestCase):
                 bundle.write_bytes(b"archive")
                 bundle.with_name(f"{bundle.name}.sha256").write_text("a" * 64, encoding="utf-8")
                 output = root / "target/build/dev/native"
+                (output / "bin").mkdir(parents=True)
+                (output / "bin" / f"dokime{extension}").write_bytes(b"product cli")
                 placements = []
 
                 def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
