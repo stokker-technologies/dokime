@@ -25,6 +25,7 @@ from unittest.mock import Mock, patch
 import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Lane, Plugin, Scalar, Suite
+from dokime_sdk._generated import shared
 from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, Visibility, operation
 from dokime_sdk.templates import Document, Materialization, Section, TestTemplate, criterion, materialize, record, step
 
@@ -62,6 +63,21 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_scalar_list_elements_and_choices_preserve_wire_kinds(self) -> None:
+        for value, kind, field in (
+            (True, shared.VALUE_TYPE_BOOLEAN, "boolean"),
+            (-2, shared.VALUE_TYPE_INTEGER, "integer"),
+            (1.5, shared.VALUE_TYPE_NUMBER, "number"),
+            ("fast", shared.VALUE_TYPE_TEXT, "text"),
+        ):
+            listed = dokime_sdk.templates.Parameter.list("values", "Values", type(value)).default([value]).build()
+            self.assertEqual(listed.element_type, kind)
+            self.assertEqual(listed.expression.literal.list.values[0].WhichOneof("kind"), field)
+            chosen = dokime_sdk.templates.Parameter.choice("mode", "Mode", [value]).default(value).build()
+            self.assertEqual(chosen.type, kind)
+            self.assertEqual(chosen.choices[0].WhichOneof("kind"), field)
+            self.assertEqual(getattr(chosen.expression.literal, field), value)
+
     def test_declaration_builders_preserve_parameters_and_document_queries(self) -> None:
         templates = dokime_sdk.templates
         parameter = templates.Parameter.text("serial", "Serial").required().build()
