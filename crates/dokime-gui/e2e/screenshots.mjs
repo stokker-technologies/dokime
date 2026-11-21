@@ -49,7 +49,7 @@ const { values: options } = parseArgs({ options: { scene: { type: "string" }, pr
 const scenes = ["cycle", "plots", "report", "history", "library", "cycles", "touch"];
 assert.ok(!options.scene || scenes.includes(options.scene), "Unknown screenshot scene");
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const folder = resolve(process.env.DOKIME_SCREENSHOT_OUTPUT ?? join(workspace, "docs/screenshots"));
+const folder = resolve(process.env.DOKIME_SCREENSHOT_OUTPUT ?? join(workspace, "docs/guides/screenshots"));
 const work = await mkdtemp(join(tmpdir(), "dokime-screenshots-"));
 await mkdir(join(workspace, "target/screenshots"), { recursive: true });
 const evidence = await mkdtemp(join(workspace, "target/screenshots/run-"));
