@@ -111,8 +111,7 @@ class PeerRequirementsTests(unittest.IsolatedAsyncioTestCase):
             version = "1.0.0"
             operations = (invoke,)
 
-        with self.assertRaises(ValueError):
-            ConflictingPlugin()
+        self.assertRaises(ValueError, ConflictingPlugin)
 
     def test_module_reference_is_discovered_without_a_direct_import(self) -> None:
         @operation("caller.module")

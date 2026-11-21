@@ -16,12 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::{Duration, SystemTime};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 // Third Party Imports
 use async_trait::async_trait;
-use harmos_runtime::clock::{Clock, Controller};
+use harmos_runtime::clock::{Clock, Controller, Reading, Sleep, Source};
 use tokio::sync::watch;
+use tokio::time::Instant;
 
 // Local Imports
 use crate::Result;
@@ -34,8 +38,16 @@ use crate::Result;
 
 /* === Structs === */
 
+#[derive(Clone)]
 pub struct ControlledClock {
     now: watch::Sender<i64>,
+    manual: bool,
+}
+
+pub(crate) struct SchedulerSource {
+    source: Arc<dyn SchedulerClock>,
+    origin: Instant,
+    origin_ns: i64,
 }
 
 /* === Enums === */
@@ -56,12 +68,24 @@ pub trait SchedulerClock: Send + Sync {
 
 impl ControlledClock {
     pub fn new(at_ns: i64) -> Self {
-        Self { now: watch::channel(at_ns).0 }
+        Self {
+            now: watch::channel(at_ns).0,
+            manual: false,
+        }
+    }
+    pub fn manual(at_ns: i64) -> Self {
+        Self {
+            now: watch::channel(at_ns).0,
+            manual: true,
+        }
     }
 }
 #[async_trait]
 impl SchedulerClock for ControlledClock {
     fn execution_clock(&self) -> (Clock, Option<Controller>) {
+        if self.manual {
+            return (Clock::with_clock(SchedulerSource::new(Arc::new(self.clone()))), None);
+        }
         let (clock, controller) = Clock::virtual_at(date(self.now_ns()));
         (clock, Some(controller))
     }
@@ -88,6 +112,36 @@ impl SchedulerClock for ControlledClock {
                 return;
             }
         }
+    }
+}
+
+impl SchedulerSource {
+    pub(crate) fn new(source: Arc<dyn SchedulerClock>) -> Self {
+        Self {
+            origin_ns: source.now_ns(),
+            source,
+            origin: Instant::now(),
+        }
+    }
+}
+
+impl Source for SchedulerSource {
+    fn read(&self) -> Reading {
+        let now_ns = self.source.now_ns();
+        Reading {
+            instant: self.origin + Duration::from_nanos(now_ns.saturating_sub(self.origin_ns).max(0) as u64),
+            date: if now_ns < 0 {
+                SystemTime::UNIX_EPOCH - Duration::from_nanos(now_ns.unsigned_abs())
+            } else {
+                SystemTime::UNIX_EPOCH + Duration::from_nanos(now_ns as u64)
+            },
+        }
+    }
+    fn sleep_until(&self, deadline: Instant) -> Sleep {
+        let source = self.source.clone();
+        let deadline_ns =
+            self.origin_ns.saturating_add(deadline.saturating_duration_since(self.origin).as_nanos().min(i64::MAX as u128) as i64);
+        Box::pin(async move { source.reached(deadline_ns).await })
     }
 }
 

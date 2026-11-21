@@ -24,9 +24,10 @@ reach shared plugin state through `ctx.plugin`.
 
 ## Public Peer Operations
 
-Publish a typed `Operation` value alongside the callee's request and response
-types. Import that reference in the caller's handler module before constructing
-the plugin. Own and peer operations use the same bound call:
+Create `Operation(identifier, Request, Response, Visibility.PUBLIC)` at module
+scope from the callee's generated message types, or import a typed reference
+published by its package. Make the reference available before constructing the
+plugin. Own and peer operations use the same bound call:
 
 ```python
 from peer_package.operations import increment
