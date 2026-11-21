@@ -23,9 +23,9 @@ import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
 import {
-  createExecutionFileRefresh,
+  createEvidenceRefresh,
   createRuntimeProjectionRefreshCoordinator,
-  createThrottledRefresh,
+  runtimeStateOf,
   settledOf,
   type RuntimeProjectionRefreshCoordinator,
 } from "./runtime-refresh";
@@ -33,11 +33,10 @@ import {
 /* === Constants === */
 
 const GUI_FILE_REFRESH_MS = 250;
+/** The Most Often a Running Cycle Re-Reads Its Open Documents. */
 const GUI_DOCUMENT_REFRESH_MS = 5_000;
 const GUI_RECONNECT_MS = 1_000;
-
-/** The most often a running cycle re-reads its open documents. */
-const DOCUMENT_REFRESH_MS = GUI_DOCUMENT_REFRESH_MS;
+const EMPTY_OPERATIONS: NonNullable<BackendOperationsPatch["operations"]> = [];
 
 /* === Runtime stream ===
    The single live subscription. Native frames carry an observed cursor and
@@ -62,20 +61,20 @@ export function useRuntimeStream(): void {
       if (!active || !session.identity.isCurrent()) return;
       await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }, { cancelRefetch: false });
     });
-    const fileRefresh = createExecutionFileRefresh(() => {
+    const fileRefresh = createEvidenceRefresh(() => {
       const ensureTrailing = queryClient.isFetching({ queryKey: [...workflowQueryKeys.all, "execution-files"] }) > 0;
       void fileCoordinator.request({ ensureTrailing }).catch((error: unknown) => {
         if (!active || !session.identity.isCurrent()) return;
         toast.error(failureOf(error, "Execution Files Failed"), { context: "background" });
       });
     }, GUI_FILE_REFRESH_MS);
-    const documentRefresh = createThrottledRefresh(() => {
+    const documentRefresh = createEvidenceRefresh(() => {
       invalidateRuntimeDocuments(queryClient).catch((error: unknown) => {
         if (!active || !session.identity.isCurrent()) return;
         toast.error(failureOf(error, "Runtime Stream Failed"), { context: "background" });
         setHubState({ error: failureOf(error, "Runtime Stream Failed").message });
       });
-    }, DOCUMENT_REFRESH_MS);
+    }, GUI_DOCUMENT_REFRESH_MS);
     /* A cycle that settles or seals re-reads its documents at once: live growth
        is throttled, but the settled evidence must not wait behind it. */
     let observedSettled: string | null = null;
@@ -89,8 +88,6 @@ export function useRuntimeStream(): void {
       if (settled) {
         settled = false;
         documentRefresh.now();
-      } else {
-        documentRefresh.request();
       }
     });
 
@@ -107,6 +104,7 @@ export function useRuntimeStream(): void {
         for await (const frame of stream) {
           if (!active) break;
           fileRefresh.observe(frame);
+          documentRefresh.observe(frame);
           const current = settledOf(frame);
           if (current !== null && current !== observedSettled) {
             settled ||= observedSettled !== null;
@@ -132,7 +130,7 @@ export function useRuntimeStream(): void {
       } finally {
         stream = undefined;
         if (active && session.identity.isCurrent()) {
-          setHubState({ connection: "reconnecting", operations: [] });
+          setHubState({ connection: "reconnecting", operations: EMPTY_OPERATIONS });
           retry = window.setTimeout(() => void connect(), GUI_RECONNECT_MS);
         }
       }
@@ -165,16 +163,14 @@ function handleRuntimeFrame(
   setHubState({
     error: null,
     lastStreamFrameAt: Date.now(),
-    operations: [],
+    operations: EMPTY_OPERATIONS,
   });
   if (frame.overview?.shuttingDown) {
     setHubState({ connection: "reconnecting" });
   }
   /* Execution files refresh separately on operation changes; the other
      projections follow changes to the state cursor. */
-  const cursor = frame.resolvedAt
-    ? JSON.stringify(frame.resolvedAt, (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value))
-    : null;
+  const cursor = runtimeStateOf(frame);
   if (frame.opening || (cursor !== null && cursor !== observed)) {
     const ensureTrailing =
       queryClient.isFetching({

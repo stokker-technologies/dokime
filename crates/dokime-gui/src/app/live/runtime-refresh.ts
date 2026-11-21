@@ -112,8 +112,14 @@ export function settledOf(frame: Pick<RuntimeStateFrame, "overview">): string | 
   );
 }
 
-/** File capture can advance on an operation-only frame with an unchanged state cursor. */
-export function createExecutionFileRefresh(refresh: () => void, intervalMs: number) {
+/** Runtime Projections Follow Lifecycle Changes, Independently of Evidence Growth. */
+export function runtimeStateOf(frame: Pick<RuntimeStateFrame, "overview">): string | null {
+  const cursor = frame.overview?.observedCursor;
+  return cursor ? JSON.stringify(cursor, (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value)) : null;
+}
+
+/** Evidence Can Advance Without Changing Runtime State. */
+export function createEvidenceRefresh(refresh: () => void, intervalMs: number) {
   const throttled = createThrottledRefresh(refresh, intervalMs);
   let observed: string | undefined;
   return {
@@ -123,8 +129,7 @@ export function createExecutionFileRefresh(refresh: () => void, intervalMs: numb
       observed = revision;
       throttled.request();
     },
-    dispose(): void {
-      throttled.dispose();
-    },
+    now: throttled.now,
+    dispose: throttled.dispose,
   };
 }

@@ -20,9 +20,10 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import {
-  createExecutionFileRefresh,
+  createEvidenceRefresh,
   createRuntimeProjectionRefreshCoordinator,
   createThrottledRefresh,
+  runtimeStateOf,
   settledOf,
 } from "@/app/live/runtime-refresh";
 import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
@@ -189,10 +190,28 @@ test("Planned Execution Retains Host Start Capability", () => {
   }
 });
 
-test("Live File Refresh", () => {
+test("Runtime State Is Independent of Evidence Growth", () => {
+  const frame = (samples: bigint, state: number, epoch = "epoch") =>
+    ({
+      overview: {
+        observedCursor: {
+          positions: [],
+          revisions: [{ name: `runtime/${epoch}`, revision: Uint8Array.of(state) }],
+        },
+        evidenceCounts: { telemetry: samples },
+      },
+      resolvedAt: { positions: [{ history: { store: "runtime", epoch }, sequence: samples }], revisions: [] },
+    }) as unknown as RuntimeStateFrame;
+  assert.equal(runtimeStateOf(frame(1n, 1)), runtimeStateOf(frame(100n, 1)));
+  assert.notEqual(runtimeStateOf(frame(100n, 1)), runtimeStateOf(frame(100n, 2)));
+  assert.notEqual(runtimeStateOf(frame(100n, 2)), runtimeStateOf(frame(100n, 2, "restarted")));
+  assert.equal(runtimeStateOf({ overview: undefined }), null);
+});
+
+test("Live Evidence Refresh", () => {
   vi.useFakeTimers();
   const refresh = vi.fn();
-  const files = createExecutionFileRefresh(refresh, 100);
+  const files = createEvidenceRefresh(refresh, 100);
   const frame = (phase: string, cursor = "1") =>
     ({
       resolvedAt: {
