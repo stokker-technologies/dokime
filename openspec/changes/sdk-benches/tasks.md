@@ -15,7 +15,7 @@
 ## 3. Driver and Guard
 
 - [x] 3.1 Add the `system-sdk` bench target with the catalog guard that compares each plugin's admitted catalog with the Rust reference plugin; verify a deterministic test that a plugin with one extra stream is refused with that stream's identifier and records no measurement.
-- [x] 3.2 Implement the fixed scenario and the round trip, throughput at 128 × 1 kHz, single-stream ceiling, start to ready, idle and loaded memory measures in the existing report row shape, with units in square brackets and `not_measured` rows for unmeasurable stages; verify `mise run bench -- --language rust --layer system --binary system-sdk --once` produces every case name for each available language.
+- [ ] 3.2 Implement the fixed scenario and the round trip, throughput at 128 × 1 kHz, single-stream ceiling, start to ready, idle and loaded memory measures in the existing report row shape, with units in square brackets and `not_measured` rows for unmeasurable stages; verify `mise run bench -- --language rust --layer system --binary system-sdk --once` produces every case name for each available language.
   - Owner decision: vary the existing observer interval setting for the single-stream ceiling; every response retains exactly the host-granted sample count.
 - [x] 3.3 Route `--binary system-sdk` and the language `--select` variants through `tools/python/src/dokime_tools/task/bench.py` and `test/benchmark.py`, and add the build of the bench target and its fixtures to `build:rust:bench`; verify the task selection with the existing tooling tests.
 

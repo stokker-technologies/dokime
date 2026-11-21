@@ -20,13 +20,12 @@ mod scenario;
 
 // Standard Library Imports
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::BTreeSet,
     env,
     error::Error,
     num::NonZeroUsize,
     path::PathBuf,
     process::{self, Stdio},
-    slice,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
@@ -34,7 +33,7 @@ use std::{
 // Third Party Imports
 use harmos_protocol::{
     host::{InvocationsCreateRequest, InvocationsCreateResponse},
-    model::{PageRequest, SettingValue, SettingValues, setting_value},
+    model::PageRequest,
 };
 use harmos_runtime::plugin::grpc::Launches;
 use prost::Message;
@@ -55,7 +54,6 @@ use dokime_protocol::{
         PluginsGetRequest, PluginsWatchRequest, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues,
         evidence::{SamplesListRequest, SamplesListResponse, sample_row},
         plugin_placement,
-        plugins::{SettingsListRequest, SettingsListResponse, SettingsSetRequest, SettingsSetResponse},
         plugins_client::PluginsClient,
     },
     model::{EvidenceScope, Metadata, Value, origin, value},
@@ -320,7 +318,7 @@ async fn run(channel: Channel, endpoint: &str, language: &str) -> BenchResult<()
             None,
         ));
         let scenario = Scenario::new();
-        let (rate, loaded) = throughput(channel.clone(), endpoint, false, &scenario.channels, pid).await?;
+        let (rate, loaded) = throughput(channel.clone(), endpoint, &scenario.channels, pid).await?;
         measurements.push(Measurement::new(
             language,
             "throughput/channels_128_at_1khz",
@@ -337,42 +335,17 @@ async fn run(channel: Channel, endpoint: &str, language: &str) -> BenchResult<()
             loaded,
             loaded.is_none().then(|| "Read Plugin Memory: Process Resident Memory Is Unavailable on This Platform".into()),
         ));
-        let mut ceiling: f64 = 0.0;
-        for interval in scenario.intervals_ns {
-            let current: SettingsListResponse = call(
-                channel.clone(),
-                "/dokime.host.v1.plugins.Settings/List",
-                SettingsListRequest {
-                    name: Some("thermal".into()),
-                    ..Default::default()
-                },
-            )
-            .await?;
-            let _: SettingsSetResponse = call(
-                channel.clone(),
-                "/dokime.host.v1.plugins.Settings/Set",
-                SettingsSetRequest {
-                    name: "thermal".into(),
-                    value: Some(SettingValues {
-                        values: HashMap::from([(
-                            "thermal.load.interval".into(),
-                            SettingValue {
-                                value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: interval as i32 })),
-                            },
-                        )]),
-                    }),
-                    expected_revision: current.revision,
-                    request_id: format!("interval-{interval}"),
-                },
-            )
-            .await?;
-            let (rate, _) = throughput(channel.clone(), endpoint, true, slice::from_ref(&scenario.ceiling), pid).await?;
-            if rate <= ceiling {
-                break;
-            }
-            ceiling = rate;
-        }
-        measurements.push(Measurement::new(language, "throughput/ceiling", "Throughput [samples/s]", "samples/s", Some(ceiling), None));
+        measurements.push(Measurement::new(
+            language,
+            "throughput/ceiling",
+            "Throughput [samples/s]",
+            "samples/s",
+            None,
+            Some(format!(
+                "Count {} at {:?} ns: Provide Bounded Receipt-Time Counting; Samples.List Exceeded Its Read Deadline During the Sweep",
+                scenario.ceiling, scenario.intervals_ns
+            )),
+        ));
         Ok::<_, Box<dyn Error + Send + Sync>>(measurements)
     }
     .await;
@@ -416,7 +389,7 @@ async fn echo(channel: Channel, fingerprint: Vec<u8>) -> BenchResult<()> {
     Ok(())
 }
 
-async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[String], pid: u32) -> BenchResult<(f64, Option<f64>)> {
+async fn throughput(channel: Channel, endpoint: &str, streams: &[String], pid: u32) -> BenchResult<(f64, Option<f64>)> {
     let identity = format!("load-{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_nanos());
     let cases: CasesCreateResponse = call(
         channel.clone(),
@@ -430,7 +403,7 @@ async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[St
                     parameters: vec![RegisteredSelectionParametersEntry {
                         key: "burst".into(),
                         value: Some(SelectionValues {
-                            values: vec![Value { kind: Some(value::Kind::Boolean(burst)) }],
+                            values: vec![Value { kind: Some(value::Kind::Boolean(false)) }],
                         }),
                     }],
                     ..Default::default()

@@ -81,7 +81,7 @@ that the `operation-boundary` cutover deletes; any wall-clock assertion in a tes
 
 ## Decisions
 
-### Reference Plugin: Thermal Extended in Place (Proposed)
+### Reference Plugin: Thermal Extended in Place
 
 Each language's thermal plugin becomes its reference plugin. It gains one
 plugin-level `echo` operation and a second template, `thermal.load`, that holds
@@ -90,7 +90,7 @@ so the equivalence stories keep their assertions. One plugin per language then
 backs both the equivalence stories and the benches, and the existing fixture jobs
 build it.
 
-Alternative: a separate `reference` plugin per language. Rejected as proposed: it
+Alternative: a separate `reference` plugin per language. Rejected: it
 duplicates four plugins, their build entries and their declarations, and the
 equivalence and bench catalogs could drift apart.
 
@@ -177,7 +177,9 @@ The scenario is fixed and identical for every language:
 6. Ceiling: run `thermal.load.burst` with decreasing values of the existing
    observer interval setting `thermal.load.interval` until the accepted rate stops
    rising; record the highest accepted rate. Every response contains exactly the
-   host-granted row count; the observer contract is unchanged.
+   host-granted row count; the observer contract is unchanged. Settings are
+   activation inputs: after each settings mutation, use `Plugins.Restart`, await
+   the new activation's readiness and check its catalog before measuring.
 
 Rows follow the existing report shape. Case names (proposed):
 
@@ -269,16 +271,31 @@ declaration entry, although its observers accept interval setting names. Those
 SDK owners must expose the existing concepts before their reference plugins can
 run this same scenario; the bench does not invent a second sampling mechanism.
 
+### High-Rate Counting Prerequisite
+
+The corrected interval sweep reached the 100 ns setting, but reading its retained
+rows through `Samples.List` exceeded the existing operation deadline. The query
+owner must supply bounded high-rate iteration or receipt-time counting at a fixed
+cut. The driver reports the ceiling as `not_measured` and leaves task 3.2 open;
+the other eight measures remain available. The sweep is not retained as a path
+that would publish a false ceiling or repeatedly exhaust the query deadline.
+
 ## Risks / Trade-Offs
 
+- [High-rate result reads are expensive] →
+  `crates/dokime-storage/src/telemetry/reader.rs::sample_window` decodes each
+  selected batch in full even after its result limit is filled. Repeated small
+  pages therefore repeat decoding within a large interval batch. This remains
+  with the storage owner; the driver keeps the product's existing query path and
+  receipt-time counting boundary.
 - [Shared hosted runners are noisy] → Baselines are kept per platform and per
   variant, the report shows the change against the previous `dev` run, and no
   threshold gates anything.
 - [Extending thermal changes a plugin the equivalence stories use] → The new
   operation and template sit beside `thermal.cycle`; the equivalence stories keep
   materializing `thermal.cycle` only.
-- [Start-up changes with the launch handshake] → Implementation waits for that
-  change, so no baseline is recorded and then discarded.
+- [Start-up changes with the launch handshake] → The driver uses the landed
+  announce handshake and the SDK run entries confirmed by prerequisite 1.1.
 - [Python at 128 × 1 kHz may not keep up] → The accepted rate is recorded as it is;
   the gap is the finding.
 
@@ -297,6 +314,12 @@ job. Removing a job removes its rows from the report and nothing else.
 
 ## Open Questions
 
+- `Echo` in `sdk/benches/system-sdk/main.rs` mirrors the bytes message in
+  `sdk/rust/examples/thermal.rs`: the driver uses one for invocation encoding and
+  decoding, and the reference operation uses the other as its SDK payload.
+  Proposed: delete the driver's static mirror and use its already-admitted
+  descriptor through the existing reflection dependency. Both remain pending the
+  owner's overlap decision.
 - Common report-row construction overlaps between
   `tools/python/src/dokime_tools/release/reports.py::measurements` (called by the
   Criterion/Python producer in `test/benchmark.py`) and
@@ -305,10 +328,6 @@ job. Removing a job removes its rows from the report and nothing else.
   assumes nanoseconds. Proposed: extend the shared report owner, then delete the
   private row-envelope construction while retaining each collector's parsing.
   Both remain pending the owner's overlap decision.
-- The plugin launch handshake change and the plugin contract freeze have no
-  change in `openspec/changes/` yet; this change names them in words until they do.
-- Thermal extended in place versus a separate reference plugin per language;
-  proposed: extend in place.
 - The fate of `crates/dokime-runtime/benches/storage/` after the cutover;
   proposed: migrate its cases into `Bench / Storage` through the library's
   storage operations and delete the direct-store target.
