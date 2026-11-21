@@ -60,18 +60,22 @@ pub(crate) async fn read<T: Message + Default>(
     let store = context.host.store();
     let name = format!("{}/{}:{scope}/{resource}", store.identity(), scope.as_str().len());
     if let Some(at) = at {
-        if at.revisions.is_empty() && at.positions.len() == 1 {
-            let position = store.evidence_position(at.positions.first())?;
+        let position_matches = at.positions.len() == 1;
+        let revision_matches = at.revisions.is_empty() || at.revisions.len() == 1 && at.revisions[0].name == name;
+        if !position_matches || !revision_matches {
+            return Err(Error::Invalid(format!("Read {resource}: Supply Its Returned Cut")));
+        }
+        let position = {
+            let (reader, _cancellation) = store.read_session()?;
+            reader.evidence_position(at.positions.first())?
+        };
+        if at.revisions.is_empty() {
             let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
             let Some(saved) = retained(context, &key).await? else {
                 return Err(Error::Precondition(format!("Read {resource}: The Selected View Is Unavailable; Resynchronize")));
             };
             return Ok((T::decode(saved.as_slice())?, at.clone()));
         }
-        if at.revisions.len() != 1 || at.revisions[0].name != name || at.positions.len() != 1 {
-            return Err(Error::Invalid(format!("Read {resource}: Supply Its Returned Cut")));
-        }
-        store.evidence_position(at.positions.first())?;
         let revision = hex(&at.revisions[0].revision);
         let Some(saved) = retained(context, &format!("view:{name}:{revision}")).await? else {
             return Err(Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")));

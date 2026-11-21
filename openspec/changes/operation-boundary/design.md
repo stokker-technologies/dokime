@@ -886,8 +886,9 @@ by peer address cannot observe the end of an idle connection. The library must
 expose a connection-scoped identity and end notification/lease to both plaintext
 and access/TLS listeners before the product can implement the complete rule.
 Preserve that transport owner; do not add a second product listener or infer
-connection loss from an operation error. No partial retention repair is implemented
-while this prerequisite is unresolved.
+connection loss from an operation error. Session-owned retirement remains deferred
+while this prerequisite is unresolved. Failure cleanup is independent and follows
+the document-read decision below.
 
 The same `views.rs::read` has two retained-reference lookup paths: position-only
 client cuts select `view-at:{resource}:{epoch}:{sequence}`, while returned cuts with
@@ -896,6 +897,67 @@ through `retained`; catalog, document, content, plot and report read operations 
 this function with their client's cut. Prefer deleting the position-only lookup and
 `view-at` index family after canonical cuts and their consumers migrate, subject to
 the owner's contract decision. Keep both paths and their existing accepted cuts now.
+
+## Document Card Result Reads
+
+The root document read retains one expanded declaration, execution boundary,
+repeat selection and plot settings. It returns that view's cut with its bounded
+structure frames. Card reads use the existing selector:
+
+```text
+Documents.Get { scope, document_id, at: root.resolved_at, card_ids: [card_id] }
+```
+
+At that cut, the host reads the saved declaration and evaluates only the selected
+cards. It neither replays appended parts, expands repeats, evaluates unrelated
+cards nor publishes another view. The reply includes the selected cards' section,
+declaration and completion framing for the existing decoder; it does not repeat
+the complete document structure. Full reads use the same result evaluator.
+Continuations bind both the root cut and the structure/card selection. The saved
+declaration uses the `document-read/` resource namespace, replacing the old saved
+response shape without interpreting old response bytes as declarations.
+
+Desktop captures carry the root cut through progressive assembly. Refresh first
+obtains the new root cut, then refreshes cards independently through the existing
+coordinator. An active card retains its old cut until it settles; its trailing
+refresh selects the newest root cut without cancelling other cards. Card retry
+alone uses its current root cut.
+
+File production and its index settlement are admitted host work. The caller's
+read deadline ends observation, while the host settles the current storage call
+and deletes the unfinished upload or unindexed published file. Index rejection
+and publication-race loss delete only the newly produced file. Existing operation
+bounds remain unchanged. This failure cleanup does not implement session-owned
+view retirement, which still requires the library connection-lifetime contract.
+Both generic view index families remain used and retain the earlier owner decision.
+
+Upload Append, Create, Resume and retained-view file creation read native Info once
+for their chunk limit and mutation window.
+The transfer owner continues to compute chunk bounds and mutation identities.
+
+### Remaining Overlaps
+
+These existing pairs remain for the owner's decision; the card-read change does
+not retire either owner implicitly.
+
+| Locations | Responsibilities and Callers | Preferred Removal |
+| --- | --- | --- |
+| `crates/dokime-operations/src/host/views.rs::read` position-only `view-at` lookup and revision-based `view` lookup | Catalog, case, document, content, plot and report readers use the same retained file through two index families, selected by the caller's cut shape. | Delete `view-at` after every caller uses its returned canonical revision. Both accepted cut shapes remain supported now. |
+| `crates/dokime-operations/src/host/reports/create.rs` upload loop and `crates/dokime-operations/src/host/views.rs::retain_owned` upload loop | Reports.Create uploads temporary HTML; latest resource reads upload protobuf views. Both create, append and publish native files with failure cleanup. | Delete the report-specific loop after the transfer owner exposes bounded publication for both byte producers; preserve their distinct durable and browsing owners. |
+| `crates/dokime-gui/src/features/cycle/server-state.ts::capturedDocuments` and the same file's root `useQuery` hooks | Execution/cycle document hooks retain mapped payloads in the query cache and again alongside native captures in a separately capped map. Card queries read the latter for declarations and the root cut. | Delete `capturedDocuments` after root queries own native captures and project their view with the existing query selector; preserve progressive publication and in-flight card refresh. |
+| `sdk/python/tools/installed.py::main` and `tools/python/src/dokime_tools/test/archive.py::install_wheels` | SDK Install selects a dev wheel and installs examples; bindings/archive preparation selects wheels by profile. Both install the SDK in the root environment. | Delete the SDK installer's hardcoded profile selection by reusing the profile-aware artifact owner, with one owner for example preparation. This remains outside the document worker's tooling ownership. |
+
+Generic retained revisions still hash raw protobuf bytes. Map-bearing declarations
+and execution origins can encode equivalent values in different map orders, losing
+content deduplication. The request-selection digest in `host/paging.rs::bytes`
+already canonicalizes maps. Any consolidation must preserve native file SHA-256
+integrity while the owner chooses the retained-revision contract; this change does
+not add another hashing or caching mechanism.
+
+The repair's in-process storage/task proof stays in the owned operations modules'
+existing libtest harness. This differs from the generic pure-unit layer. Moving
+these stories to an integration target requires the test-composition owner's
+decision; this change adds no public testing API or alternate test harness.
 
 ## Administration Reader Ownership Review
 

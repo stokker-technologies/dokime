@@ -13,7 +13,13 @@
 
 /* === Imports === */
 
-import * as rpc from "@/lib/host/client";
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+import { documentsGet, plotsSettingsGet, plotsSettingsSet } from "@/lib/host/client";
 
 import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
 
@@ -25,12 +31,6 @@ import { Downsample } from "@host/model";
 
 import { assembleDocument, sameFrontiers, type CompletedDocument } from "@dokime/document/lib/api/native-documents";
 
-// Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-
 /* === Re-Exports === */
 
 /* === Constants === */
@@ -40,7 +40,7 @@ const DOCUMENT_FRAME_PAGE_SIZE = 32;
 /* === Types === */
 
 export interface NativeDocumentRequest {
-  at?: Parameters<typeof rpc.documentsGet>[1]["at"];
+  at?: Parameters<typeof documentsGet>[1]["at"];
   cycleId: string;
   executionId: string;
   documentId: string;
@@ -53,6 +53,10 @@ export interface NativeDocumentRequest {
 export interface NativeDocumentSession extends SessionIdentity {
   /** Keep the stream attached to the owning generation until it settles. */
   own(dispose: () => void): () => void;
+}
+
+export interface NativeDocumentCapture extends CompletedDocument {
+  resolvedAt: NonNullable<NativeDocumentRequest["at"]>;
 }
 
 /** One operator edit of a plot's display settings on a running cycle's frozen document. */
@@ -91,8 +95,8 @@ export async function updatePlotSettings(session: SessionIdentity, update: PlotS
     documentId: update.documentId,
     plotId: update.plotId,
   };
-  const current = await rpc.plotsSettingsGet(session, identity);
-  await rpc.plotsSettingsSet(session, {
+  const current = await plotsSettingsGet(session, identity);
+  await plotsSettingsSet(session, {
     ...identity,
     expectedRevision: current.revision,
     requestId: crypto.randomUUID(),
@@ -101,14 +105,15 @@ export async function updatePlotSettings(session: SessionIdentity, update: PlotS
   if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
 }
 
-/** Open one generation-owned document stream and assemble it after clean EOF. */
+/** Read bounded document pages at one cut and assemble their frames. */
 export async function fetchNativeDocument(
   session: NativeDocumentSession,
   request: NativeDocumentRequest,
   signal?: AbortSignal,
-  previous?: CompletedDocument | null,
-  publish?: (document: CompletedDocument) => void,
-): Promise<CompletedDocument> {
+  previous?: NativeDocumentCapture | null,
+  publish?: (document: NativeDocumentCapture) => void,
+): Promise<NativeDocumentCapture> {
+  if (request.cardIds?.length && !request.at) throw new Error("Read Card Results: Refresh the Document to Select Its Cut");
   const scope = createDocumentScope(request);
   const documentId = request.executionId && request.documentId === "default" ? "" : request.documentId;
   let cancelled = false;
@@ -116,13 +121,13 @@ export async function fetchNativeDocument(
     cancelled = true;
   });
   const active = () => !cancelled && !signal?.aborted && session.isCurrent();
+  let at: NativeDocumentRequest["at"] = request.at;
   const frames = (async function* () {
     let pageToken = request.page ?? "";
-    let at: Parameters<typeof rpc.documentsGet>[1]["at"] = request.at;
     const tokens = new Set<string>();
     for (let index = 0; index < 4096; index++) {
       if (!active()) throw new Error("Read Document: Selection Changed or Transfer Cancelled");
-      const reply = await rpc.documentsGet(session, {
+      const reply = await documentsGet(session, {
         scope,
         documentId,
         structureOnly: request.structureOnly ?? false,
@@ -143,14 +148,15 @@ export async function fetchNativeDocument(
     invalid("document page budget exceeded");
   })();
   try {
-    return await assembleDocument(
+    const document = await assembleDocument(
       frames,
       { scope, documentId, epoch: request.epoch, structureOnly: request.structureOnly, cardIds: request.cardIds },
       active,
-      publish,
+      publish ? (document) => publish(Object.assign(document, { resolvedAt: required(at, "Read Document Cut") })) : undefined,
       async (header) => {
         if (
           previous &&
+          cutKey(previous.resolvedAt.revisions) === cutKey(at?.revisions) &&
           previous.complete !== false &&
           ![...previous.bindings].some(
             ([id, binding]) => (!request.cardIds?.length || request.cardIds.includes(id)) && binding.result?.kind.case === "failure",
@@ -161,6 +167,7 @@ export async function fetchNativeDocument(
         return undefined;
       },
     );
+    return Object.assign(document, { resolvedAt: required(at, "Read Document Cut") });
   } finally {
     dispose();
   }
