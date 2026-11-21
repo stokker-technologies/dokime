@@ -38,6 +38,10 @@ import argparse
 def select(args: argparse.Namespace, parser: argparse.ArgumentParser) -> list[tuple[str, list[str]]]:
     tasks: list[tuple[str, list[str]]] = []
     layers = [args.layer] if args.layer else ["unit", "integration", "system"]
+    if args.binary in {"system-sdk", "protocol"}:
+        if args.language not in (None, "rust") or args.layer not in (None, "system"):
+            parser.error("SDK and protocol benchmarks use the Rust system producer")
+        layers = ["system"]
     if args.binary == "storage":
         if args.language not in (None, "rust") or args.refresh_baseline:
             parser.error("storage benchmarks use Rust and native Criterion output; baseline promotion is separate")

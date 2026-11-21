@@ -37,7 +37,7 @@ import dokime_tools.test.scratch
 
 from ..build import paths
 from ..release import reports
-from . import archive, desktop_bench, execution, lanes, policy, pytest, report
+from . import archive, desktop_bench, execution, lanes, policy, protocol_bench, pytest, report
 
 # Type Checking Imports
 
@@ -66,7 +66,15 @@ def run(
     binary: str | None = None,
 ) -> int:
     """Measure one benchmark layer and compare it with the `dev` baseline."""
+    if binary == "system-sdk":
+        from . import sdk_bench
+
+        return sdk_bench.run(directory, refresh, extra)
     rules = policy.load(directory)
+    output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
+    if output.is_symlink() or not output.resolve().is_relative_to(directory.resolve()):
+        raise policy.TestError("Run Benchmark Tests: keep the native report inside the repository and unlinked")
+    output.unlink(missing_ok=True)
     measure = category in ("integration", "system")
     if language == "rust" and category == "system" and binary in (None, "system-desktop"):
         previous = directory / report.BENCHMARKS / "benchmarks-rust-desktop.json"
@@ -106,7 +114,6 @@ def run(
 
     revision = os.environ.get("GITHUB_SHA") or dokime_tools.policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
     summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent, boundaries=boundaries)
-    output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
     dokime_tools.policy.write_json(output, summary)
 
     for name, median, baseline in rows:
@@ -142,10 +149,6 @@ def rust(
     if not messages.is_file():
         raise policy.TestError("Run Benchmark Tests: missing benchmark compiler metadata; run build:rust:bench first")
     archive.fixtures(directory, "bench", [messages.relative_to(directory).as_posix()])
-    # Runner Names and Image Patch Versions Are Observations, Not Baseline Partitions.
-    compatible = {key: value for key, value in identity.items() if key not in {"runner", "platform"}}
-    compatible["platform"] = identity.get("platform", [])[:2]
-    compatibility = hashlib.sha256(json.dumps(compatible, sort_keys=True).encode()).hexdigest()
     rows = []
     status = 0
     executed = False
@@ -153,22 +156,28 @@ def rust(
         message = json.loads(line) if line.startswith("{") else {}
         target = message.get("target", {})
         name = target.get("name", "")
+        if name == "system-sdk":
+            continue
         if binary is not None and name != binary:
             continue
         artifact = message.get("reason") == "compiler-artifact" and "bench" in target.get("kind", []) and message.get("executable")
         if not artifact:
             continue
-        if not (name == category or name.startswith(category + "-")):
+        if not (name == category or name.startswith(category + "-") or name == "protocol" and category == "system"):
             continue
         executed = True
         manifest = Path(message["manifest_path"])
         owner = manifest.parent / name
         if manifest.is_absolute() or ".." in owner.parts:
             raise policy.TestError("Run Benchmark Tests: benchmark owner escapes the repository")
+        compatibility = baseline_identity(identity | {"compiler_profile": message.get("profile", {})})
         home = report.native_directory(directory, CRITERION / compatibility / owner)
         if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):
             raise policy.TestError("Run Benchmark Tests: native benchmark files must not be linked")
         baselines = read_baselines(home)
+        if name == "protocol":
+            (home / "encoded-sizes.json").unlink(missing_ok=True)
+            (directory / report.BENCHMARKS / "benchmarks-rust-protocol-sizes.json").unlink(missing_ok=True)
         since = time.time()
         environment = dict(os.environ, CRITERION_HOME=str(home.resolve()))
         environment.pop("TEST_REPORT_DIR", None)
@@ -209,6 +218,10 @@ def rust(
             desktop_bench.collect(
                 directory, home / "desktop", identity, policy.load(directory).bench_regression_percent, refresh=refresh, success=code == 0
             )
+        if name == "protocol":
+            protocol_bench.collect(
+                directory, home, identity, policy.load(directory).bench_regression_percent, refresh=refresh, success=code == 0
+            )
         for path in sorted(home.rglob("new/estimates.json")) if home.is_dir() else []:
             if path.stat().st_mtime < since:
                 continue
@@ -224,6 +237,13 @@ def rust(
     if not executed:
         raise policy.TestError("Run Benchmark Tests: no native benchmark executable matched the selection")
     return rows, status
+
+
+def baseline_identity(identity: dict) -> str:
+    """Partition by Platform, Toolchain and Scenario, Independently of Runner Replacement."""
+    compatible = {key: value for key, value in identity.items() if key not in {"runner", "platform"}}
+    compatible["platform"] = identity.get("platform", [])[:2]
+    return hashlib.sha256(json.dumps(compatible, sort_keys=True).encode()).hexdigest()
 
 
 def read_baselines(home: Path) -> dict[Path, float]:
@@ -250,10 +270,7 @@ def python(
     owner = Path(project)
     if owner.is_absolute() or ".." in owner.parts:
         raise policy.TestError("Run Benchmark Tests: benchmark project escapes the repository")
-    # Runner Names and Image Patch Versions Are Observations, Not Baseline Partitions.
-    compatible = {key: value for key, value in identity.items() if key not in {"runner", "platform"}}
-    compatible["platform"] = identity.get("platform", [])[:2]
-    compatibility = hashlib.sha256(json.dumps(compatible, sort_keys=True).encode()).hexdigest()
+    compatibility = baseline_identity(identity)
     home = report.native_directory(directory, report.BENCHMARKS / "python" / compatibility / owner / category)
     output = home / "new.json"
     stored = home / f"{BASELINE}.json"

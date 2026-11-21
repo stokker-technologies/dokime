@@ -23,9 +23,11 @@ use std::time::Duration;
 // Local Imports
 use dokime::RetryPolicy;
 use dokime::model::Section;
+use dokime::operations;
 use dokime::prelude::*;
 use dokime::templates::Context;
 use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, Severity, card, value};
+use dokime::{SettingDeclaration, SettingValue, setting_value};
 
 /* === Constants === */
 
@@ -38,6 +40,19 @@ use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotK
 struct ThermalPlugin;
 struct ThermalSuite;
 struct CycleTestTemplate;
+struct LoadTestTemplate;
+
+#[derive(dokime::Message)]
+#[dokime(package = "thermal")]
+struct Echo {
+    payload: Vec<u8>,
+}
+
+#[derive(dokime::Parameters)]
+#[dokime(package = "thermal")]
+struct LoadParameters {
+    burst: bool,
+}
 
 #[derive(dokime::Row)]
 #[dokime(package = "thermal")]
@@ -139,8 +154,49 @@ fn main() -> Result<()> {
                 ..Default::default()
             }),
         ));
-    let plugin = Plugin::of::<ThermalPlugin>("1.0.0").suite(Suite::of::<ThermalSuite>().template(template));
+    let mut load = Template::of::<LoadTestTemplate>()
+        .label("Thermal Load")
+        .parameters(LoadParameters { burst: false })
+        .initialize(load_initialize)
+        .step(Step::new("Hold", load_hold).identifier("hold"))
+        .materialize(|mut case, parameters| {
+            let burst = matches!(parameters.get("burst").and_then(|value| value.kind.as_ref()), Some(value::Kind::Boolean(true)));
+            case.streams.retain(|stream| stream.ends_with(".burst") == burst);
+            Ok(case)
+        });
+    for index in 0..128 {
+        let stream = Stream::<Counter>::new(format!("channel_{index:03}"), format!("Channel {index:03}"));
+        let observer = Observer::window(&stream, read_counter).every(Duration::from_millis(1));
+        load = load.stream(stream).observer(observer);
+    }
+    let burst = Stream::<Counter>::new("burst", "Single-Stream Ceiling");
+    let observer = Observer::window(&burst, read_counter).every(Duration::from_millis(1)).interval_setting("thermal.load.interval");
+    load = load.stream(burst).observer(observer);
+    let plugin = Plugin::of::<ThermalPlugin>("1.0.0")
+        .operation(Operation::new("thermal.echo", Visibility::Public, echo))
+        .setting(SettingDeclaration {
+            name: "thermal.load.interval".into(),
+            title: "Load Interval".into(),
+            description: String::new(),
+            default: Some(SettingValue {
+                value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 1_000_000 })),
+            }),
+        })
+        .suite(Suite::of::<ThermalSuite>().template(template).template(load));
     plugin.run()
+}
+
+async fn echo(_: &operations::Context, request: Echo) -> Result<Echo> {
+    Ok(request)
+}
+
+async fn load_initialize(ctx: &Context) -> Result<()> {
+    ctx.progress(0, 1, "Hold").await
+}
+
+async fn load_hold(ctx: &Context) -> Result<()> {
+    ctx.cancelled().await;
+    Ok(())
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {

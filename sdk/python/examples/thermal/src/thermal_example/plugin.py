@@ -17,15 +17,17 @@ from datetime import timedelta
 # isort: split
 
 # Third Party Imports
-from dokime_sdk import Plugin, Suite
-from dokime_sdk.operations import OperationPolicy, RetryPolicy
+from dokime_sdk import Plugin, Suite, operations
+from dokime_sdk.operations import OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
 from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
 from google.protobuf.message import Message
 
 # isort: split
 
 # Local Imports
-from thermal_example.models import Counter, CounterColumns, Door, Temperature
+from thermal_example import sampling
+from thermal_example.load import ThermalLoadTestTemplate
+from thermal_example.models import Counter, CounterColumns, Door, Echo, Temperature
 
 # Type Checking Imports
 
@@ -72,7 +74,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     @stream("Exact Counter", row=Counter)
     @window_observer(columns=CounterColumns, interval_ms=1)
     def counter(self, ctx: Context, window: Window) -> Message:
-        return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
+        return sampling.counter(window)
 
     @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:
@@ -92,12 +94,19 @@ class ThermalCycleTestTemplate(TestTemplate):
 
 
 class ThermalSuite(Suite):
-    templates = [ThermalCycleTestTemplate]
+    templates = [ThermalCycleTestTemplate, ThermalLoadTestTemplate]
+
+
+@operation("thermal.echo", visibility=Visibility.PUBLIC)
+async def echo(ctx: operations.Context, request: Echo) -> Echo:
+    return request
 
 
 class ThermalPlugin(Plugin):
     version = "1.0.0"
     suites = [ThermalSuite]
+    operations = [echo]
+    settings = [SettingDeclaration("thermal.load.interval", "Load Interval", "", SettingValue(duration=timedelta(milliseconds=1)))]
 
 
 # === Public Functions === #

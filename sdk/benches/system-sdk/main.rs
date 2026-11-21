@@ -1,0 +1,524 @@
+/* ***
+ *
+ * dokime-rust-workspace
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Measure the Shared SDK Scenario
+
+/* === Modules === */
+
+mod memory;
+mod scenario;
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::{
+    collections::{BTreeSet, HashMap},
+    env,
+    error::Error,
+    num::NonZeroUsize,
+    path::PathBuf,
+    process::{self, Stdio},
+    slice,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime},
+};
+
+// Third Party Imports
+use harmos_protocol::{
+    host::{InvocationsCreateRequest, InvocationsCreateResponse},
+    model::{PageRequest, SettingValue, SettingValues, setting_value},
+};
+use harmos_runtime::plugin::grpc::Launches;
+use prost::Message;
+use prost_types::Timestamp;
+use tokio::{
+    process::{Child, Command},
+    task::JoinSet,
+};
+use tonic::{Request, client::Grpc, codegen::http::uri::PathAndQuery, transport::Channel};
+use tonic_prost::ProstCodec;
+
+// Local Imports
+use dokime_protocol::{host, model};
+use dokime_runtime::{CaptureSettings, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, services};
+use scenario::{Measurement, Scenario};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+type BenchResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+/* === Structs === */
+
+struct Plugin {
+    child: Child,
+    entry: host::PluginEntry,
+    ready_ms: f64,
+}
+
+#[derive(dokime::Message)]
+#[dokime(package = "thermal")]
+struct Echo {
+    payload: Vec<u8>,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+impl Plugin {
+    async fn start(channel: Channel, language: &str) -> BenchResult<Self> {
+        let executable = env::var_os(if language == "rust" { "DOKIME_BENCH_REFERENCE" } else { "DOKIME_BENCH_EXECUTABLE" })
+            .ok_or("Start SDK Bench: Supply the Built Reference Plugin Executable")?;
+        let mut command = Command::new(executable);
+        if language == "python" {
+            command.args(["-m", "thermal_example.plugin"]);
+        }
+        let launches = Launches::new();
+        let mut launch = launches.reserve("SDK Benchmark").await?;
+        command
+            .envs(launch.environment())
+            .env_remove("DOKIME_REMOTE")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .kill_on_drop(true);
+        let started = Instant::now();
+        let mut child = command.spawn()?;
+        let admitted = async {
+            let address = launch.announced().await?;
+            let mut plugins = host::plugins_client::PluginsClient::new(channel);
+            let response = plugins
+                .create(host::PluginsCreateRequest {
+                    request_id: format!("sdk-{language}-{}", child.id().unwrap_or_default()),
+                    name: "thermal".into(),
+                    placement: Some(host::PluginPlacement {
+                        kind: Some(host::plugin_placement::Kind::Remote(host::PluginRemote { url: format!("http://{address}") })),
+                    }),
+                    value: Some(host::PluginValue { enabled: true }),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
+            let mut entry = response.entry.ok_or("Admit Plugin: Return Its Entry")?;
+            let mut watch = plugins.watch(host::PluginsWatchRequest { name: Some(entry.name.clone()), at: None }).await?.into_inner();
+            while entry.state != host::PluginState::Ready as i32 {
+                if let Some(failure) = &entry.failure {
+                    return Err(format!("Admit Plugin: {}", failure.message).into());
+                }
+                watch.message().await?.ok_or("Admit Plugin: Keep Its Readiness Watch Open")?;
+                entry = plugins
+                    .get(host::PluginsGetRequest { name: entry.name, at: None })
+                    .await?
+                    .into_inner()
+                    .entry
+                    .ok_or("Admit Plugin: Keep Its Entry")?;
+            }
+            Ok::<_, Box<dyn Error + Send + Sync>>(entry)
+        }
+        .await;
+        let ready_ms = started.elapsed().as_secs_f64() * 1000.0;
+        launches.shutdown().await;
+        match admitted {
+            Ok(entry) => Ok(Self { child, entry, ready_ms }),
+            Err(error) => {
+                child.kill().await?;
+                child.wait().await?;
+                Err(error)
+            }
+        }
+    }
+    async fn close(mut self, channel: Channel) -> BenchResult<()> {
+        let removed = host::plugins_client::PluginsClient::new(channel)
+            .delete(host::PluginsDeleteRequest {
+                name: self.entry.name,
+                expected_revision: self.entry.revision,
+            })
+            .await;
+        self.child.kill().await?;
+        self.child.wait().await?;
+        removed?;
+        Ok(())
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+#[tokio::main]
+async fn main() -> BenchResult<()> {
+    let language = env::var("DOKIME_BENCH_LANGUAGE").map_err(|_| "Measure SDK: Set DOKIME_BENCH_LANGUAGE")?;
+    let root = PathBuf::from(env::var("DOKIME_BENCH_ROOT")?);
+    let namespace = CredentialNamespace::new(format!("sdk-bench-{}", process::id()))?;
+    let server = services::serve(
+        "127.0.0.1:0".parse()?,
+        &root,
+        HostSettings {
+            installation: None,
+            credentials: namespace.clone(),
+            storage: dokime_runtime::storage_defaults(),
+            clock: Arc::new(services::WallClock),
+            capture: CaptureSettings::default(),
+            placement: PlacementSettings {
+                reconnect_delay: Duration::from_millis(25),
+                stream_window: NonZeroUsize::new(8).unwrap(),
+                interval_window: INTERVAL_WINDOW,
+                interval_lag: INTERVAL_LAG,
+                message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            },
+        },
+        services::ClientSettings {
+            read_timeout: Duration::from_secs(30),
+            mutation_timeout: Duration::from_secs(30),
+            watch_timeout: Duration::from_secs(3600),
+            max_cases: 1000,
+            page_items: 1000,
+            message_bytes: 4 * 1024 * 1024,
+            stream_buffer: 8,
+        },
+    )
+    .await?;
+    let endpoint = format!("http://{}", server.endpoint());
+    let channel = Channel::from_shared(endpoint.clone())?.connect().await?;
+    let result = run(channel.clone(), &endpoint, &language).await;
+    let closed = server.close().await;
+    services::remove_credentials(&root, &namespace)?;
+    closed?;
+    result
+}
+
+async fn run(channel: Channel, endpoint: &str, language: &str) -> BenchResult<()> {
+    let reference = Plugin::start(channel.clone(), "rust").await?;
+    let reference_catalog = scenario::catalog(
+        reference
+            .entry
+            .description
+            .as_ref()
+            .and_then(|description| description.declarations.as_ref())
+            .ok_or("Inspect Rust: Admit Its Declarations")?,
+    )?;
+    reference.close(channel.clone()).await?;
+    let mut ready = Vec::new();
+    for _ in 0..2 {
+        let plugin = Plugin::start(channel.clone(), language).await?;
+        let checked = scenario::guard(
+            &reference_catalog,
+            &scenario::catalog(
+                plugin
+                    .entry
+                    .description
+                    .as_ref()
+                    .and_then(|description| description.declarations.as_ref())
+                    .ok_or("Inspect Plugin: Admit Its Declarations")?,
+            )?,
+            language,
+        );
+        ready.push(plugin.ready_ms);
+        plugin.close(channel.clone()).await?;
+        checked?;
+    }
+    let plugin = Plugin::start(channel.clone(), language).await?;
+    ready.push(plugin.ready_ms);
+    let measured = async {
+        let declarations = plugin
+            .entry
+            .description
+            .as_ref()
+            .and_then(|description| description.declarations.as_ref())
+            .ok_or("Inspect Plugin: Admit Its Declarations")?;
+        scenario::guard(&reference_catalog, &scenario::catalog(declarations)?, language)?;
+        let mut measurements = Vec::new();
+        measurements.push(Measurement::new(
+            language,
+            "start_to_ready",
+            "Start to Ready [ms]",
+            "ms",
+            scenario::percentile(&ready, 50),
+            None,
+        ));
+        let pid = plugin.child.id().ok_or("Read Plugin Memory: Keep Its Process Running")?;
+        let idle = memory::resident(pid);
+        measurements.push(Measurement::new(
+            language,
+            "memory/idle",
+            "Memory [bytes]",
+            "bytes",
+            idle,
+            idle.is_none().then(|| "Read Plugin Memory: Process Resident Memory Is Unavailable on This Platform".into()),
+        ));
+        let fingerprint = declarations
+            .operations
+            .iter()
+            .find(|operation| operation.id == "thermal.echo")
+            .ok_or("Measure Echo: Declare thermal.echo")?
+            .fingerprint
+            .clone();
+        let mut latencies = Vec::new();
+        for _ in 0..scenario::CALLS {
+            let started = Instant::now();
+            echo(channel.clone(), fingerprint.clone()).await?;
+            latencies.push(started.elapsed().as_secs_f64() * 1e9);
+        }
+        for (percentile, case, label) in [
+            (50, "round_trip/echo/p50", "Round Trip p50 [ns]"),
+            (95, "round_trip/echo/p95", "Round Trip p95 [ns]"),
+            (99, "round_trip/echo/p99", "Round Trip p99 [ns]"),
+        ] {
+            measurements.push(Measurement::new(language, case, label, "ns", scenario::percentile(&latencies, percentile), None));
+        }
+        let started = Instant::now();
+        let mut callers = JoinSet::new();
+        for _ in 0..scenario::CONCURRENCY {
+            let channel = channel.clone();
+            let fingerprint = fingerprint.clone();
+            callers.spawn(async move {
+                for _ in 0..scenario::CALLS {
+                    echo(channel.clone(), fingerprint.clone()).await?;
+                }
+                Ok::<_, Box<dyn Error + Send + Sync>>(())
+            });
+        }
+        while let Some(result) = callers.join_next().await {
+            result??;
+        }
+        measurements.push(Measurement::new(
+            language,
+            "round_trip/echo_rate",
+            "Calls [calls/s]",
+            "calls/s",
+            Some((scenario::CALLS * scenario::CONCURRENCY) as f64 / started.elapsed().as_secs_f64()),
+            None,
+        ));
+        let scenario = Scenario::new();
+        let (rate, loaded) = throughput(channel.clone(), endpoint, false, &scenario.channels, pid).await?;
+        measurements.push(Measurement::new(
+            language,
+            "throughput/channels_128_at_1khz",
+            "Throughput [samples/s]",
+            "samples/s",
+            Some(rate),
+            None,
+        ));
+        measurements.push(Measurement::new(
+            language,
+            "memory/loaded",
+            "Memory [bytes]",
+            "bytes",
+            loaded,
+            loaded.is_none().then(|| "Read Plugin Memory: Process Resident Memory Is Unavailable on This Platform".into()),
+        ));
+        let mut ceiling: f64 = 0.0;
+        for interval in scenario.intervals_ns {
+            let current: host::plugins::SettingsListResponse = call(
+                channel.clone(),
+                "/dokime.host.v1.plugins.Settings/List",
+                host::plugins::SettingsListRequest {
+                    name: Some("thermal".into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+            let _: host::plugins::SettingsSetResponse = call(
+                channel.clone(),
+                "/dokime.host.v1.plugins.Settings/Set",
+                host::plugins::SettingsSetRequest {
+                    name: "thermal".into(),
+                    value: Some(SettingValues {
+                        values: HashMap::from([(
+                            "thermal.load.interval".into(),
+                            SettingValue {
+                                value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: interval as i32 })),
+                            },
+                        )]),
+                    }),
+                    expected_revision: current.revision,
+                    request_id: format!("interval-{interval}"),
+                },
+            )
+            .await?;
+            let (rate, _) = throughput(channel.clone(), endpoint, true, slice::from_ref(&scenario.ceiling), pid).await?;
+            if rate <= ceiling {
+                break;
+            }
+            ceiling = rate;
+        }
+        measurements.push(Measurement::new(language, "throughput/ceiling", "Throughput [samples/s]", "samples/s", Some(ceiling), None));
+        Ok::<_, Box<dyn Error + Send + Sync>>(measurements)
+    }
+    .await;
+    plugin.close(channel).await?;
+    for measurement in measured? {
+        println!(
+            "SDK\t{}\t{}\t{}\t{}\t{}",
+            measurement.case,
+            measurement.unit,
+            measurement.value.map(|value| value.to_string()).unwrap_or_else(|| "not_measured".into()),
+            measurement.label,
+            measurement.reason.unwrap_or_default()
+        );
+    }
+    Ok(())
+}
+
+async fn call<Q: Message + Default + Send + Sync + 'static, R: Message + Default + Send + Sync + 'static>(
+    channel: Channel, path: &'static str, request: Q,
+) -> BenchResult<R> {
+    let mut client = Grpc::new(channel);
+    client.ready().await?;
+    Ok(client.unary(Request::new(request), PathAndQuery::from_static(path), ProstCodec::default()).await?.into_inner())
+}
+
+async fn echo(channel: Channel, fingerprint: Vec<u8>) -> BenchResult<()> {
+    let request = Echo { payload: scenario::PAYLOAD.to_vec() };
+    let response: InvocationsCreateResponse = call(
+        channel,
+        "/dokime.host.v1.Invocations/Create",
+        InvocationsCreateRequest {
+            operation: "thermal.echo".into(),
+            fingerprint,
+            payload: request.encode_to_vec(),
+        },
+    )
+    .await?;
+    if Echo::decode(response.payload.as_slice())?.payload != scenario::PAYLOAD {
+        return Err("Measure Echo: Return the Request Payload Unchanged".into());
+    }
+    Ok(())
+}
+
+async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[String], pid: u32) -> BenchResult<(f64, Option<f64>)> {
+    let identity = format!("load-{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_nanos());
+    let cases: host::CasesCreateResponse = call(
+        channel.clone(),
+        "/dokime.host.v1.Cases/Create",
+        host::CasesCreateRequest {
+            request_id: identity.clone(),
+            plan: Some(host::SelectionPlan {
+                selections: vec![host::RegisteredSelection {
+                    suite_id: "thermal".into(),
+                    template_id: "thermal.load".into(),
+                    parameters: vec![host::RegisteredSelectionParametersEntry {
+                        key: "burst".into(),
+                        value: Some(host::SelectionValues {
+                            values: vec![model::Value {
+                                kind: Some(model::value::Kind::Boolean(burst)),
+                            }],
+                        }),
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            validate_only: false,
+        },
+    )
+    .await?;
+    let case = cases.cases.first().ok_or("Measure Throughput: Materialize Its Case")?;
+    let frozen = case
+        .origin
+        .as_ref()
+        .and_then(|origin| match origin.kind.as_ref() {
+            Some(model::origin::Kind::PluginRun(run)) => run.test_case.as_ref(),
+            _ => None,
+        })
+        .ok_or("Measure Throughput: Freeze the Plugin Case Before Running")?;
+    if frozen.streams.iter().collect::<BTreeSet<_>>() != streams.iter().collect::<BTreeSet<_>>() {
+        return Err("Measure Throughput: Materialize the Shared Scenario's Exact Stream Selection".into());
+    }
+    let cycle: host::CyclesCreateResponse = call(
+        channel.clone(),
+        "/dokime.host.v1.Cycles/Create",
+        host::CyclesCreateRequest {
+            request_id: format!("cycle-{identity}"),
+            metadata: Some(model::Metadata {
+                label: "Thermal Cycle".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await?;
+    let cycle = cycle.cycle.ok_or("Measure Throughput: Create Its Cycle")?.cycle_id;
+    let client = dokime::connect_with(dokime::ConnectionSettings {
+        target: Some(endpoint.into()),
+        ..Default::default()
+    })
+    .await?;
+    let case = client.cases().get(&case.case_id).await?;
+    let cycle = client.cycles().get(&cycle).await?;
+    let execution_handle = cycle.execution(&case).await?;
+    let execution = execution_handle.identifier().to_owned();
+    execution_handle.start().await?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let start = Timestamp::from(SystemTime::now());
+    let started = Instant::now();
+    let mut loaded = memory::resident(pid);
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if let Some(value) = memory::resident(pid) {
+            loaded = Some(loaded.unwrap_or_default().max(value));
+        }
+    }
+    let elapsed = started.elapsed().as_secs_f64();
+    let end = Timestamp::from(SystemTime::now());
+    let current: host::ExecutionsGetResponse = call(
+        channel.clone(),
+        "/dokime.host.v1.Executions/Get",
+        host::ExecutionsGetRequest {
+            name: execution.clone(),
+            ..Default::default()
+        },
+    )
+    .await?;
+    if current.execution.as_ref().and_then(|execution| execution.controls.as_ref()).is_some_and(|controls| controls.can_cancel) {
+        execution_handle.cancel().await?;
+    }
+    let mut watch = execution_handle.watch();
+    while watch.next().await?.is_some() {}
+    let mut count = 0;
+    let mut request = host::evidence::SamplesListRequest {
+        scope: Some(model::EvidenceScope {
+            execution_id: Some(execution),
+            ..Default::default()
+        }),
+        streams: streams.to_vec(),
+        ..Default::default()
+    };
+    loop {
+        let page: host::evidence::SamplesListResponse =
+            call(channel.clone(), "/dokime.host.v1.evidence.Samples/List", request.clone()).await?;
+        for row in page.samples {
+            let Some(host::evidence::sample_row::Kind::Raw(sample)) = row.kind else {
+                return Err("Measure Throughput: Return Raw Accepted Samples".into());
+            };
+            let received = sample.received_at.ok_or("Measure Throughput: Retain Host Receipt Timestamps")?;
+            count += usize::from(scenario::accepted(received, start, end));
+        }
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.at = page.resolved_at;
+        request.page = Some(PageRequest {
+            page_token: page.next_page_token,
+            ..Default::default()
+        });
+    }
+    client.close().await?;
+    Ok((count as f64 / elapsed, loaded))
+}
+
+/* === Tests === */

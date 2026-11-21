@@ -107,8 +107,8 @@ template   thermal.load
   stream   thermal.load.channel_000 .. thermal.load.channel_127
            row: Counter, window observer every 1 ms
   stream   thermal.load.burst
-           row: Counter, window observer every 1 ms, rows per window from the
-           template parameter rows_per_window
+           row: Counter, window observer default 1 ms, interval from the
+           plugin duration setting thermal.load.interval
   step     hold                         holds until the host stops the execution
 ```
 
@@ -139,7 +139,7 @@ class ThermalPlugin(Plugin):
 ### One Driver With a Catalog Guard (Proposed Location)
 
 The driver is one Rust bench target, `system-sdk`, at
-`crates/dokime-runtime/benches/sdk/`. It starts a host the way the equivalence
+`sdk/benches/system-sdk/` in the private `dokime-sdk-benches` package. It starts a host the way the equivalence
 stories do, launches one language's reference plugin as a managed sidecar and
 runs the scenario. The language under measurement is a variant selected with
 `--select`; the bench itself is written in Rust, so `test/benchmark.py` and
@@ -169,10 +169,14 @@ The scenario is fixed and identical for every language:
    for the latency distribution; then with a fixed number of concurrent callers
    for calls per second.
 4. Throughput at target: start `thermal.load` with all 128 channels at 1 kHz and
-   count the samples the host accepts per second in steady state.
+   count retained samples whose host `received_at` falls inside the steady-state
+   measurement window, divided by elapsed time. Source timestamps and rows
+   delivered after that window do not inflate the accepted rate.
 5. Loaded memory: read the plugin process's peak resident memory during step 4.
-6. Ceiling: run `thermal.load.burst` with increasing `rows_per_window` until the
-   accepted rate stops rising; record the highest accepted rate.
+6. Ceiling: run `thermal.load.burst` with decreasing values of the existing
+   observer interval setting `thermal.load.interval` until the accepted rate stops
+   rising; record the highest accepted rate. Every response contains exactly the
+   host-granted row count; the observer contract is unchanged.
 
 Rows follow the existing report shape. Case names (proposed):
 
@@ -240,6 +244,28 @@ Whether the cutover retires it, migrates it into `Bench / Storage`, or keeps it
 as a local measurement is an owner decision; `test-stories` also names the
 storage bench as a measurement owner.
 
+### Materialized Load Selection
+
+`thermal.load` has a Boolean `burst` parameter, default false. Its pure
+materializer retains the 128 channel streams when false and only the burst
+stream when true. Both placements use the same hold operation and granted-window
+counter sampler. The duration setting changes only the burst observer's interval.
+
+The private `sdk/benches/` workspace package owns both native bench targets, so
+the driver, protocol bench, desktop bench and thermal example share the product
+dependency graph without adding host dependencies to the author SDK.
+The bench producer stages the thermal example as `dokime-rust-thermal`; the
+standalone SDK consumer continues to own external-consumer proof.
+
+### SDK Capability Prerequisites
+
+The current C# author API (`sdk/csharp/src/Dokime/Templates.cs` and `Plugin.cs`)
+has no pure materialization hook for selecting the declared load streams. The
+current C++ `Plugin` (`sdk/cpp/include/dokime/plugin.hpp`) has no settings
+declaration entry, although its observers accept interval setting names. Those
+SDK owners must expose the existing concepts before their reference plugins can
+run this same scenario; the bench does not invent a second sampling mechanism.
+
 ## Risks / Trade-Offs
 
 - [Shared hosted runners are noisy] → Baselines are kept per platform and per
@@ -257,6 +283,14 @@ storage bench as a measurement owner.
 
 No data migration. Baselines start fresh on the first hosted `dev` run of each new
 job. Removing a job removes its rows from the report and nothing else.
+
+### Owner Decisions (2026-11-21)
+
+- Single-stream ceiling varies the existing observer interval setting, never rows
+  per window. Fixed-interval observers enforce the host-granted row count.
+- Baseline compatibility hashing has one owner,
+  `tools/python/src/dokime_tools/test/benchmark.py::baseline_identity`; both native
+  and Python producers use it. The second implementation is removed.
 
 ## Open Questions
 

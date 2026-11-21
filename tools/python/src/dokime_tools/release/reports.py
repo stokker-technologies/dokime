@@ -177,6 +177,8 @@ def table(summary: dict, results: dict, url: str, *, documentation: bool | None 
         if baseline <= 0:
             continue
         change = (row["value"] - baseline) / baseline * 100
+        if row.get("higher_is_better", False):
+            change = -change
         if change > row["threshold_percent"]:
             name = row["name"].replace("|", "\\|").replace("\n", " ")
             lines.append(f"| Benchmark / {row['suite']} / {name} | +{change:.1f}% (limit {row['threshold_percent']:g}%) |")

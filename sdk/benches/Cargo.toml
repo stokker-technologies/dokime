@@ -1,0 +1,94 @@
+# ***
+#
+# dokime-rust-workspace
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "dokime-sdk-benches"
+description = "Shared SDK scenarios and product protocol measurements."
+autotests = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# === Package Targets === #
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { path = "../rust" }
+dokime-protocol = { workspace = true }
+dokime-runtime = { workspace = true }
+
+# Git
+harmos-protocol = { workspace = true }
+harmos-runtime = { workspace = true, features = ["grpc"] }
+
+# Serialization
+prost = { workspace = true }
+prost-reflect = { workspace = true }
+prost-types = { workspace = true }
+
+# Async
+tokio = { workspace = true, features = ["process"] }
+
+# Networking
+tonic = { workspace = true, features = ["codegen", "transport"] }
+tonic-prost = { workspace = true }
+
+# Testing
+criterion = { workspace = true }
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+# === Target Dependencies === #
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Utilities
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
+
+# === Test Targets === #
+
+[[test]]
+name = "sdk-bench-scenario"
+path = "system-sdk/scenario.rs"
+
+# === Bench Targets === #
+
+[[bench]]
+name = "system-sdk"
+path = "system-sdk/main.rs"
+harness = false
+
+[[bench]]
+name = "protocol"
+path = "protocol/main.rs"
+harness = false
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #
