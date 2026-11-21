@@ -46,12 +46,10 @@ import { frozenQuery, useCycleSnapshotSource } from "@dokime/document/features/c
 /* === Constants === */
 
 const GUI_CAPTURED_DOCUMENTS = 16;
+/** How Long an Unobserved Evidence Read Stays Cached; Records and Documents Are Large. */
 const GUI_EVIDENCE_GC_MS = 30_000;
 const GUI_PAGE_ITEMS = 500;
 const GUI_RECONNECT_MS = 1_000;
-
-/** How long an unobserved evidence read stays cached; records and documents are large. */
-const EVIDENCE_GC_MS = GUI_EVIDENCE_GC_MS;
 
 /* === Types === */
 
@@ -137,7 +135,7 @@ export function useRecordsQuery(enabled: boolean, scope: Wire<EvidenceScope> | n
     enabled: enabled && session !== null && !snapshot,
     queryFn: () => fetchNativeRecordTail(identityOf(session), stableScope),
     queryKey,
-    gcTime: EVIDENCE_GC_MS,
+    gcTime: GUI_EVIDENCE_GC_MS,
     select: selectRecords,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -178,7 +176,7 @@ export function useTraceabilityQuery(enabled: boolean, scope: Wire<EvidenceScope
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeTraceability(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
-    gcTime: EVIDENCE_GC_MS,
+    gcTime: GUI_EVIDENCE_GC_MS,
   });
   return snapshot ? frozenQuery(snapshot.traceability(scope?.executionId ?? null)) : query;
 }
@@ -237,7 +235,7 @@ export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: s
         (document) => queryClient.setQueryData(queryKey, document),
       ),
     queryKey: captureKey,
-    gcTime: EVIDENCE_GC_MS,
+    gcTime: GUI_EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
   });
@@ -294,7 +292,7 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
         (document) => queryClient.setQueryData(queryKey, document),
       ),
     queryKey: captureKey,
-    gcTime: EVIDENCE_GC_MS,
+    gcTime: GUI_EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
   });
@@ -532,7 +530,7 @@ function useDocumentCards({
     queries: candidates.map(({ id, key, page }) => ({
       queryKey: key,
       enabled: enabled && session !== null,
-      gcTime: EVIDENCE_GC_MS,
+      gcTime: GUI_EVIDENCE_GC_MS,
       retry: documentRetry,
       retryDelay: documentRetryDelay,
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<CardRead> => {
@@ -608,7 +606,7 @@ function holdRecordTail(
     while (!stopped && session.isCurrent()) {
       const tail = queryClient.getQueryData<RecordTail>(queryKey);
       try {
-        stream = await openNativeRecordStream(session, scope, tail?.cursor);
+        stream = await openNativeRecordStream(session, scope, cursor ?? tail?.cursor);
         if (stopped) {
           await stream.cancel();
           return;
@@ -623,7 +621,9 @@ function holdRecordTail(
             }
           }
           cursor = page.cursor ?? cursor;
-          frame ??= window.requestAnimationFrame(flush);
+          if (pending.size > 0) {
+            frame ??= window.requestAnimationFrame(flush);
+          }
         }
       } catch {
         // The stream failed: the tail is re-read below and followed again.
@@ -638,6 +638,9 @@ function holdRecordTail(
   recordTails.set(key, {
     holders: 1,
     stop: () => {
+      if (pending.size === 0 && cursor) {
+        flush();
+      }
       stopped = true;
       if (frame !== null) window.cancelAnimationFrame(frame);
       pending.clear();
