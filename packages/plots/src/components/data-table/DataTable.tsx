@@ -1,0 +1,427 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* Every list in the GUI, drawn one way.
+ *
+ * Columns come from TanStack defs; this component owns the markup: one frame,
+ * a header band (title and description at the left; row filter, then actions
+ * at the right), one cell padding, the shared row height, sort toggles,
+ * per-column filters, an optional checkbox column, row activation, one empty,
+ * loading and failure slot in the body, and a footer that is always present.
+ * It renders through the `ui/table` primitives, so document tables share its
+ * cell padding.
+ */
+
+/* === External Imports === */
+
+import { type RowData, useTable } from "@tanstack/react-table";
+import { ArrowRight, ChevronLeft, ChevronRight, Eye, type LucideIcon, MoreHorizontal } from "lucide-react";
+import { Fragment, Children, type MouseEvent, type ReactNode, useId, useMemo, useState } from "react";
+
+/* === Local Imports === */
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+
+import { DataTableColumnHeader } from "./DataTableColumnHeader";
+import { type ActiveFilter, DataTableToolbar } from "./DataTableToolbar";
+import {
+  type DataTableColumns,
+  type DataTableProps,
+  dataTableColumns,
+  dataTableFeatures,
+  facetFilter,
+  filterSummary,
+} from "./data-table-model";
+import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { cn } from "../../lib/utils";
+
+/* === Types === */
+
+/** A row command: an icon button named by its label, which its tooltip repeats. */
+export type DataTableRowAction = { label: string; icon: LucideIcon; onSelect: () => void; disabled?: boolean };
+
+/* === Constants === */
+
+/** The outer cells carry the table inset so their text lines up with the page. */
+const EDGE_CELL = "first:pl-[var(--table-inset)] last:pr-[var(--table-inset)]";
+
+/** Undefined values (no owner, never updated) sort after every real one. */
+const DEFAULT_COLUMN = { sortUndefined: "last" } as const;
+
+/** Clicks on a row's own controls belong to those controls, not to the row. */
+const INNER_CONTROL = "a, button, input, label, select, textarea, [role=checkbox], [role=switch]";
+
+/** Fits a row's icon commands, on the trailing edge under the header. */
+const ACTIONS_WIDTH = "w-24";
+
+/* === Components === */
+
+export function DataTable<TData extends RowData>({
+  actions,
+  "aria-label": ariaLabel,
+  className,
+  columns,
+  data,
+  defaultSort,
+  description,
+  emptyText,
+  failure,
+  getRowId,
+  loading,
+  onRowClick,
+  rowDetail,
+  search,
+  selection,
+  title,
+}: DataTableProps<TData>) {
+  const pageSizeId = useId();
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  // Resolve Columns
+  const resolvedColumns = useMemo(() => {
+    const ordered = [...columns.filter((column) => column.id !== "actions"), ...columns.filter((column) => column.id === "actions")];
+    const filtered = ordered.map((column) => {
+      const id = column.id ?? ("accessorKey" in column ? String(column.accessorKey) : "");
+      const inferredWidth = /^(status|state|outcome)$/.test(id)
+        ? "w-36"
+        : /^(updated|created|connected|lastSeen|started|finished)(At|AtIso)?$/.test(id)
+          ? "w-44"
+          : /^(count|calls|cases|caseCount|executionCount|records|attempts|enabled)$/.test(id)
+            ? "w-24"
+            : id === "actions"
+              ? ACTIONS_WIDTH
+              : undefined;
+      const width = column.meta?.width ?? inferredWidth;
+      const label = column.meta?.label ?? (typeof column.header === "string" ? column.header : undefined);
+      // Commands sit last, on the trailing edge, header included.
+      const align = id === "actions" ? "end" : column.meta?.align;
+      column = { ...column, meta: { ...column.meta, align, label, width } };
+      const filter = column.meta?.filter;
+      if (filter === "facet") return { ...column, filterFn: facetFilter };
+      if (filter === "text") return { ...column, filterFn: "includesString" };
+      return column;
+    }) as DataTableColumns<TData>;
+    const helper = dataTableColumns<TData>();
+    if (!filtered.some((column) => column.id === "actions"))
+      filtered.push(
+        helper.display({
+          id: "actions",
+          header: "Actions",
+          meta: { width: ACTIONS_WIDTH, align: "end" },
+          cell: ({ row }) => (
+            <DataTableRowActions
+              label={row.id}
+              primary={{
+                label: onRowClick ? "Open" : "Inspect",
+                icon: onRowClick ? ArrowRight : Eye,
+                onSelect: () => (onRowClick ? onRowClick(row.original) : setInspectedId(row.id)),
+              }}
+            />
+          ),
+        }),
+      );
+    if (!selection) return filtered;
+
+    const select = helper.display({
+      cell: ({ row }) => (
+        <Checkbox
+          aria-label={selection.label(row.original)}
+          checked={selection.isSelected(row.original)}
+          onCheckedChange={() => selection.onToggle(row.original)}
+        />
+      ),
+      header: () => <span className="sr-only">Select</span>,
+      id: "select",
+      meta: { width: "w-10" },
+    });
+    return [select, ...filtered];
+  }, [columns, selection, onRowClick]);
+
+  const initialState = useMemo(
+    () => ({ pagination: { pageIndex: 0, pageSize: 10 }, sorting: defaultSort ? [defaultSort] : [] }),
+    [defaultSort],
+  );
+
+  const table = useTable({
+    columns: resolvedColumns,
+    data,
+    defaultColumn: DEFAULT_COLUMN,
+    features: dataTableFeatures,
+    getRowId,
+    initialState,
+    sortDescFirst: false,
+  });
+
+  // Derive View State
+  const rows = table.getRowModel().rows;
+  const columnCount = table.getAllLeafColumns().length;
+  const inspected = table.getCoreRowModel().rows.find((row) => row.id === inspectedId);
+  const activeFilters: ActiveFilter[] = table.state.columnFilters.map((filter) => ({
+    id: filter.id,
+    text: filterSummary(filter, table.getColumn(filter.id)?.columnDef.meta),
+  }));
+  const emptyMessage = loading
+    ? "Loading Rows…"
+    : data.length > 0 && (activeFilters.length || table.state.globalFilter)
+      ? "No Rows Match These Filters"
+      : emptyText;
+
+  function activate(event: MouseEvent<HTMLTableRowElement>, row: TData) {
+    if (!event.currentTarget.contains(event.target as Node)) return;
+    const control = (event.target as Element).closest(INNER_CONTROL);
+    if (control) return;
+    onRowClick?.(row);
+  }
+
+  // Rows keep the sidebar's pitch: its row height plus its 2px gap, the gap
+  // being the 1px rule and 1px below the content box. A table beside the
+  // navigation then reads as one grid with it.
+  return (
+    <div
+      data-slot="data-table"
+      className={cn(
+        "grid min-w-0 content-start [--table-row-height:var(--list-row-height)] rounded-lg border bg-card text-card-foreground overflow-hidden",
+        "[--table-inset:1rem]",
+        className,
+      )}
+    >
+      <DataTableToolbar
+        actions={actions}
+        description={description}
+        filters={activeFilters}
+        onClear={(id) => table.getColumn(id)?.setFilterValue(undefined)}
+        onClearAll={() => table.resetColumnFilters()}
+        search={
+          search ?? { label: "Filter Rows", value: table.state.globalFilter ?? "", onChange: (value) => table.setGlobalFilter(value) }
+        }
+        title={title}
+      />
+
+      <Table aria-label={ariaLabel ?? (typeof title === "string" ? title : undefined)} className="w-full min-w-full table-fixed">
+        <TableHeader className="bg-muted/50 border-b">
+          {table.getHeaderGroups().map((group) => (
+            <TableRow className="hover:bg-transparent" key={group.id}>
+              {group.headers.map((header) => {
+                const meta = header.column.columnDef.meta;
+                const sorted = header.column.getIsSorted();
+                const length = widthLength(meta?.width);
+                // Fixed Columns Share The Available Width With Flexible Content.
+                const reserved = length ? `min(${length}, calc(100% / ${columnCount + 1}))` : undefined;
+                return (
+                  <TableHead
+                    aria-sort={
+                      sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : header.column.getCanSort() ? "none" : undefined
+                    }
+                    className={cn(
+                      "h-[var(--table-row-height)] pt-0 pb-px",
+                      EDGE_CELL,
+                      meta?.align === "end" && "text-right tabular-nums",
+                      meta?.align === "center" && "text-center",
+                      "bg-muted/50",
+                    )}
+                    key={header.id}
+                    style={reserved ? { width: reserved } : undefined}
+                  >
+                    {header.isPlaceholder ? null : <DataTableColumnHeader header={header} />}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {failure ? (
+            <TableRow className="hover:bg-transparent">
+              <TableCell className="px-[var(--table-inset)] py-3 whitespace-normal" colSpan={columnCount}>
+                {failure}
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {rows.map((row) => {
+            const selected = selection?.isSelected(row.original) ?? false;
+            const detail = rowDetail?.(row.original);
+            return (
+              <Fragment key={row.id}>
+                <TableRow
+                  className={cn("h-[var(--table-row-height)]", onRowClick && "cursor-pointer")}
+                  data-row-id={row.id}
+                  data-state={selected ? "selected" : undefined}
+                  onClick={onRowClick ? (event) => activate(event, row.original) : undefined}
+                >
+                  {row.getAllCells().map((cell) => {
+                    const meta = cell.column.columnDef.meta;
+                    const value = cell.getValue();
+                    const content = <table.FlexRender cell={cell} />;
+                    return (
+                      <TableCell
+                        className={cn(
+                          "pt-0 pb-px",
+                          EDGE_CELL,
+                          meta?.align === "end" && "text-right tabular-nums",
+                          meta?.align === "center" && "text-center",
+                          cell.column.id !== "select" && "overflow-hidden",
+                        )}
+                        key={cell.id}
+                      >
+                        {meta?.primary && onRowClick ? (
+                          <Button
+                            variant="plain"
+                            size="inline"
+                            className="block min-h-[var(--control-height)] w-full min-w-0 rounded-lg text-left"
+                            onClick={() => onRowClick(row.original)}
+                            type="button"
+                          >
+                            {content}
+                          </Button>
+                        ) : meta?.truncate ? (
+                          <div
+                            className="truncate"
+                            title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}
+                          >
+                            {content}
+                          </div>
+                        ) : (
+                          content
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+                {detail ? (
+                  <TableRow>
+                    <TableCell colSpan={columnCount} className="whitespace-normal p-4">
+                      {detail}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </Fragment>
+            );
+          })}
+          {rows.length === 0 && !failure ? (
+            <TableRow className="hover:bg-transparent">
+              <TableCell className="h-24 px-[var(--table-inset)] text-center whitespace-normal text-muted-foreground" colSpan={columnCount}>
+                <span role={loading ? "status" : undefined}>{emptyMessage}</span>
+              </TableCell>
+            </TableRow>
+          ) : null}
+        </TableBody>
+      </Table>
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-[var(--table-inset)] py-3 text-sm text-muted-foreground">
+        <span className="tabular-nums">{table.getFilteredRowModel().rows.length} Rows</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <label htmlFor={pageSizeId} className="flex items-center gap-2">
+            Rows per Page
+            <Select value={String(table.state.pagination.pageSize)} onValueChange={(value) => table.setPageSize(Number(value))}>
+              <SelectTrigger id={pageSizeId} aria-label="Rows per Page" data-testid="table-page-size">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 25, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <Button disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()} size="sm" type="button" variant="outline">
+            <ChevronLeft data-icon="inline-start" />
+            Previous
+          </Button>
+          <span className="tabular-nums">
+            {table.state.pagination.pageIndex + 1} / {Math.max(1, table.getPageCount())}
+          </span>
+          <Button disabled={!table.getCanNextPage()} onClick={() => table.nextPage()} size="sm" type="button" variant="outline">
+            Next
+            <ChevronRight data-icon="inline-end" />
+          </Button>
+        </div>
+      </footer>
+      <Dialog
+        open={Boolean(inspected)}
+        onOpenChange={(open) => {
+          if (!open) setInspectedId(null);
+        }}
+      >
+        <DialogContent className="max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Row Details</DialogTitle>
+          </DialogHeader>
+          <dl className="grid gap-3">
+            {inspected
+              ?.getAllCells()
+              .filter((cell) => cell.column.id !== "actions" && cell.column.id !== "select")
+              .map((cell) => (
+                <div key={cell.id} className="grid gap-1">
+                  <dt className="text-xs text-muted-foreground">
+                    {cell.column.columnDef.meta?.label ??
+                      (typeof cell.column.columnDef.header === "string" ? cell.column.columnDef.header : cell.column.id)}
+                  </dt>
+                  <dd className="whitespace-pre-wrap break-words text-sm">{String(cell.getValue() ?? "—")}</dd>
+                </div>
+              ))}
+          </dl>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** A row's commands: the primary one as an icon button, then a menu holding
+    only the commands without a button of their own. The menu button is left
+    out when nothing remains for it. */
+export function DataTableRowActions({ label, primary, children }: { label: string; primary: DataTableRowAction; children?: ReactNode }) {
+  const Icon = primary.icon;
+  const overflow = Children.toArray(children);
+  // Its own provider, so a table outside the shell (the report) still renders.
+  return (
+    <TooltipProvider>
+      <div className="flex flex-wrap items-center justify-end gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={primary.label}
+              disabled={primary.disabled}
+              onClick={primary.onSelect}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{primary.label}</TooltipContent>
+        </Tooltip>
+        {overflow.length ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button aria-label={`Actions for ${label}`} data-testid="table-row-actions" size="icon-sm" type="button" variant="ghost">
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">{overflow}</DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/* === Private Functions === */
+
+/** A Tailwind width hint as a CSS length, capped against the table's container. */
+function widthLength(width: string | undefined): string | undefined {
+  const scale = width?.match(/^w-(\d+(?:\.\d+)?)$/);
+  if (scale) return `${Number(scale[1]) / 4}rem`;
+  return width?.match(/^w-\[(.+)\]$/)?.[1];
+}

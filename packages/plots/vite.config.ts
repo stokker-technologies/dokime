@@ -1,39 +1,8 @@
-/* ***
- *
- * dokime-rust-workspace
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/**
- * Plot Package Test Configuration
- */
-
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
+// Dokime — SPDX-License-Identifier: Apache-2.0
 import { defineConfig } from "vitest/config";
-
-// Local Imports
-
-/* === Re-Exports === */
-
-/* === Constants === */
-
-/* === Types === */
-
-/* === Classes === */
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-
-/* === Entry Point === */
+import workspace from "../../vitest.config.ts";
 
 export default defineConfig({
-  test: { environment: "node", include: ["tests/**/*.test.ts"] },
+  resolve: workspace.resolve,
+  test: { ...workspace.test },
 });
