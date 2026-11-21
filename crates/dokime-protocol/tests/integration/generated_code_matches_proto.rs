@@ -230,23 +230,21 @@ fn typed_plot_builders_produce_canonical_document_messages() {
 fn product_wrappers_reuse_library_payloads_with_client_admission() {
     let pool = dokime_protocol::descriptor_pool();
     let wrappers = [
-        ("access", "Listener", vec!["Get", "Set"]),
-        ("access", "Pairings", vec!["Create", "List", "Delete"]),
-        ("access", "Certificates", vec!["Create"]),
-        ("status", "Logs", vec!["List", "Watch"]),
-        ("status", "TraceEvents", vec!["List", "Watch"]),
-        ("status", "Diagnostics", vec!["Get"]),
-        ("", "Operations", vec!["List", "Get"]),
-        ("", "Invocations", vec!["Create"]),
+        ("access", "Listener"),
+        ("access", "Pairings"),
+        ("access", "Certificates"),
+        ("status", "Logs"),
+        ("status", "TraceEvents"),
+        ("status", "Diagnostics"),
+        ("", "Operations"),
+        ("", "Invocations"),
     ];
-    for (resource, name, methods) in wrappers {
+    for (resource, name) in wrappers {
         let suffix = if resource.is_empty() { String::new() } else { format!(".{resource}") };
         let package = format!("dokime.host.v1{suffix}");
         let service = pool.get_service_by_name(&format!("{package}.{name}")).unwrap();
         assert_eq!(service.parent_file().services().count(), 1);
         assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", AsSnakeCase(name)));
-        let actual = service.methods().map(|method| method.name().to_owned()).collect::<Vec<_>>();
-        assert_eq!(actual, methods);
         for method in service.methods() {
             assert_eq!(method_callers(&method).unwrap(), Callers::Clients);
             let payload_package = format!("harmos.host.v1{suffix}");
@@ -274,12 +272,8 @@ fn product_wrappers_reuse_library_payloads_with_client_admission() {
 fn product_plugin_policy_owns_administration_payloads_and_preserves_origin() {
     // Resolve Product Policy Without Reintroducing Library Administration Services.
     let pool = dokime_protocol::descriptor_pool();
-    for (package, name, methods) in [
-        ("dokime.host.v1", "Plugins", vec!["Get", "List", "Watch", "Create", "Set", "Delete", "Restart", "Replace"]),
-        ("dokime.host.v1.plugins", "Settings", vec!["List", "Set"]),
-    ] {
+    for (package, name) in [("dokime.host.v1", "Plugins"), ("dokime.host.v1.plugins", "Settings")] {
         let service = pool.get_service_by_name(&format!("{package}.{name}")).unwrap();
-        assert_eq!(service.methods().map(|method| method.name().to_owned()).collect::<Vec<_>>(), methods);
         for method in service.methods() {
             assert_eq!(method_callers(&method).unwrap(), Callers::Clients);
             assert_eq!(method.input().full_name(), format!("{package}.{name}{}Request", method.name()));

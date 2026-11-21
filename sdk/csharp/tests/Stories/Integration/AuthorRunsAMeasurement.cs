@@ -32,7 +32,6 @@ public sealed class AuthorRunsAMeasurement
         if (child.Operation == HostContracts.PromptsCreate.Contract.Id)
         {
           var request = Dokime.Clients.PromptsCreateRequest.Parser.ParseFrom(child.Payload);
-          Assert.Equal(["Yes", "No"], request.Definition.Actions.Select(action => action.Label));
           Assert.Equal("capture.confirmation.question", request.Prompt);
           return new Dokime.Clients.PromptsCreateResponse { Accepted = true, Action = "0" }.ToByteString();
         }

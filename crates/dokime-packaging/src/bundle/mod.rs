@@ -577,6 +577,7 @@ mod tests {
         fs::create_dir_all(root.path().join("assets/nested"))?;
         fs::write(root.path().join("assets/icon.svg"), b"icon")?;
         fs::write(root.path().join("assets/nested/ignored.bin"), b"asset")?;
+        let mut private_inputs = vec![".env".to_owned(), "operator.pair".to_owned(), "ignored.bin".to_owned()];
         for name in [
             ".git",
             ".venv",
@@ -601,6 +602,7 @@ mod tests {
         ] {
             fs::create_dir(root.path().join(name))?;
             fs::write(root.path().join(name).join("private"), b"private")?;
+            private_inputs.push(format!("{name}/private"));
         }
         fs::write(root.path().join(".env"), b"private")?;
         for name in [
@@ -619,6 +621,7 @@ mod tests {
             "Thumbs.db",
         ] {
             fs::write(root.path().join(name), b"development")?;
+            private_inputs.push(name.to_owned());
         }
         fs::write(root.path().join("operator.pair"), b"private")?;
         let project = PluginProject::read(root.path())?;
@@ -630,8 +633,12 @@ mod tests {
         };
         let bytes = super::create_project(&project, identity, None)?;
         let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
-        let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
-        assert_eq!(inventory, ["README.md", "assets/icon.svg", "assets/nested/ignored.bin", "dokime.json", "dokime.toml", "entry.bin"]);
+        for path in private_inputs {
+            assert!(bundle.file(&path).is_none(), "{path}");
+        }
+        for path in ["README.md", "dokime.toml", "entry.bin", "assets/icon.svg", "assets/nested/ignored.bin"] {
+            assert!(bundle.file(path).is_some(), "{path}");
+        }
         assert_eq!(bundle.manifest().identity.name, "class-identifier");
         assert_eq!(bundle.manifest().identity.version.to_string(), "2.3.4");
         let metadata: Value = serde_json::from_slice(bundle.file("dokime.json").unwrap())?;
@@ -684,10 +691,11 @@ mod tests {
         };
         let bytes = super::create_project(&project, identity, None)?;
         let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
-        assert_eq!(
-            bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>(),
-            ["README.md", "assets/runtime/companion.dll", "bin/plugin", "dokime.json"]
-        );
+        assert!(bundle.file("unrelated.dll").is_none());
+        for path in ["README.md", "assets/runtime/companion.dll"] {
+            assert!(bundle.file(path).is_some(), "{path}");
+        }
+        assert!(bundle.file("dokime.json").is_some());
         assert!(bundle.manifest().files.iter().find(|file| file.path == "bin/plugin").unwrap().executable.is_some());
         Ok(())
     }

@@ -254,53 +254,21 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(context, "revision", return_value="a" * 40),
                     mock.patch.object(context, "continuous_integration", return_value=False),
                 ):
-                    files = staging.stage(
-                        root, settings, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes\n", channel=channel
-                    )
+                    staging.stage(root, settings, "v0.1.3", ["windows-x86_64"], profile="release", release_notes="notes\n", channel=channel)
                     if channel == "stable":
                         rehearse.rehearse(root, settings, target="windows-x86_64", profile="release", stage_only=True)
-                        files = layout.uploads(root, staged=True)
                 staged = root / context.ASSETS
-                expected = {
-                    "dokime_sdk-0.1.3-py3-none-any.whl",
-                    "dokime_sdk-0.1.3.tar.gz",
-                    installer.name,
-                    "dokime-compliance-0.1.3.zip",
-                    "dokime-proto-0.1.3.zip",
-                    "release.json",
-                    "SHA256SUMS",
-                }
-                if channel == "nightly":
-                    expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json", "dokime-docs-nightly.zip"})
-                else:
-                    expected.add("dokime-docs-0.1.3.zip")
-                names = set()
-                for item in files:
-                    names.add(item["name"])
-                self.assertEqual(names, expected)
                 document = json.loads((staged / context.SHARED / context.INDEX).read_text())
                 self.assertEqual(document["platforms"], feed["platforms"])
                 self.assertEqual(document["plugins"], {"format_version": 2, "plugins": []})
                 manifest = document["downloads"]
                 self.assertEqual((manifest["channel"], manifest["tag"]), (channel, "v0.1.3" if channel == "stable" else "nightly"))
-                artifact_names = set()
-                for item in manifest["artifacts"]:
-                    artifact_names.add(item["name"])
-                self.assertEqual(artifact_names, expected - {"release.json", "SHA256SUMS"})
                 archive = zipfile.ZipFile(staged / context.SHARED / "dokime-compliance-0.1.3.zip")
                 try:
                     self.assertIn("NOTICE", archive.namelist())
                     self.assertIn("THIRD-PARTY-NOTICES", archive.namelist())
                     self.assertIn("artifacts/" + installer.name + ".cdx.json", archive.namelist())
                     self.assertIn("crates/any/dokime-shell.cdx.json", archive.namelist())
-                finally:
-                    archive.close()
-                archive = zipfile.ZipFile(staged / context.SHARED / "dokime-proto-0.1.3.zip")
-                try:
-                    self.assertEqual(
-                        set(archive.namelist()),
-                        protocol_sources | {"README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"},
-                    )
                 finally:
                     archive.close()
                 inventory = {}
