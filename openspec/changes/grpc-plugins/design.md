@@ -1592,6 +1592,25 @@ still settle on cancellation under their operation policies.
 
 ### Python Client and Bound Handles
 
+### Python Authoring Capability Dependencies
+
+- Typed stream subscription remains blocked at library revision
+  `324ad01b0892b1ca6a3bce4bb9525b22974f606b`: Python `plugin.Context` exposes operation
+  `watch`, but no admitted stream-sample demand API. Rust `operations::Context`
+  likewise has no subscription surface. The library must provide typed stream
+  demand in inherited scope, bounded/backpressured row delivery with source and
+  receipt timestamps, cancellation and explicit close releasing demand without
+  stopping the provider. Product code must consume that API, not poll stored samples.
+- Optional observer fields remain blocked by library Python `_columns.columns_type`
+  rejecting proto3 optional fields as oneofs and `_columns.append` reading scalar
+  defaults without presence. The library must preserve per-row presence through
+  observer/window batching and Rust/Python decoding, distinguishing absent, zero
+  and nonzero values without NaN sentinels. The product interval storage consumer
+  must adopt that library encoding before this capability is closed.
+- This task extends the operation context with record publication in its inherited
+  execution scope, overriding the earlier execution-only method inventory. It
+  does not permit choosing an execution or publishing outside an active run.
+
 ```python
 async def connect(
     target: str | Path | None = None, *, connect_timeout: float = 30.0,
