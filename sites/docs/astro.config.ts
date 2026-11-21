@@ -4,6 +4,8 @@
 import { fileURLToPath } from "node:url";
 import { unified } from "@astrojs/markdown-remark";
 import starlight from "@astrojs/starlight";
+import tailwindcss from "@tailwindcss/vite";
+import workspace from "../../vite.config.ts";
 import { defineConfig } from "astro/config";
 import { remarkDiagrams } from "./src/diagrams";
 import { remarkGuides } from "./src/guides";
@@ -17,7 +19,7 @@ const source = process.env.DOCS_SOURCE ?? "https://github.com/stokker-technologi
 export default defineConfig({
   base,
   server: { host: "127.0.0.1", port: 4321 },
-  vite: { server: { strictPort: true } },
+  vite: { resolve: workspace.resolve, plugins: [tailwindcss()], server: { strictPort: true } },
   outDir: `../../target/docs/${entry}`,
   markdown: {
     processor: unified({ remarkPlugins: [remarkGuides({ root, base, source }), remarkDiagrams()] }),
@@ -35,6 +37,7 @@ export default defineConfig({
       social: [{ icon: "github", label: "Source", href: "https://github.com/stokker-technologies/dokime" }],
       sidebar: [
         { label: "Start", items: ["index", "deployment", "support"] },
+        { label: "Presentation Examples", link: "/examples/" },
         {
           label: "Guides",
           items: ["gui", "execution-host", "plugins", "plugin-security", "query-api", "screenshots/readme"],

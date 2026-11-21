@@ -4,7 +4,7 @@ import { createDokimeQueryClient } from "@/app/query-client";
 import { commands } from "@/lib/desktop/commands";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 

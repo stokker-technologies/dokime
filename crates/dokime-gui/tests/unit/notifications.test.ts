@@ -22,8 +22,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { failureOf } from "@/lib/notification-details";
+import { Button } from "@dokime/plots/components/ui/button";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 
 /* === Re-Exports === */
 
@@ -44,7 +44,7 @@ vi.mock("react", async (original) => ({
   useEffect: (effect: () => void) => effect(),
   useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
 }));
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@dokime/plots/components/ui/dialog", () => ({
   Dialog: ({ open, onOpenChange, children }: { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) => {
     controls.close = () => onOpenChange(false);
     return open ? children : null;
@@ -55,7 +55,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogDescription: ({ children }: { children: ReactNode }) => createElement("p", null, children),
   DialogFooter: ({ children }: { children: ReactNode }) => createElement("footer", null, children),
 }));
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@dokime/plots/components/ui/button", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => {
     if (onClick) controls.buttons.push(onClick);
     if (children === "Copy" && onClick) controls.copy = onClick;
@@ -107,11 +107,11 @@ function buttonIn(node: ReactNode): ReactElement<{ onClick: () => void; type: st
 /* === Entry Point === */
 
 test("History Paging", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   assert.deepEqual((await history.notificationPage()).records, []);
   for (let index = 0; index < 53; index++) await history.recordNotification(record(index));
   vi.resetModules();
-  const reopened = await import("@/lib/notifications");
+  const reopened = await import("@dokime/plots/lib/notifications");
   const first = await reopened.notificationPage();
   assert.deepEqual(
     first.records.map((value) => value.id),
@@ -136,7 +136,7 @@ test("History Paging", async () => {
 });
 
 test("Unread and Clear", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   await history.recordNotification(record(0));
   await history.recordNotification(record(1));
   await history.markNotificationsRead();
@@ -157,7 +157,7 @@ test("Unread and Clear", async () => {
 });
 
 test("Discarded Plugin Notifications Clear After Reopening", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   const failed = { ...record(0), id: "1:failed:boot", pluginSettings: "failed", tone: "error" as const };
   const kept = { ...record(1), id: "1:kept:boot", pluginSettings: "kept", tone: "error" as const };
   const otherSession = { ...record(2), id: "2:remote:boot", pluginSettings: "remote", tone: "error" as const };
@@ -166,7 +166,7 @@ test("Discarded Plugin Notifications Clear After Reopening", async () => {
   await history.recordNotification(otherSession);
   await history.recordNotification(record(3));
   vi.resetModules();
-  const reopened = await import("@/lib/notifications");
+  const reopened = await import("@dokime/plots/lib/notifications");
   reopened.openNotificationDetails(failed);
   await reopened.clearPluginNotifications("1", new Set(["kept"]));
   const remaining = (await reopened.notificationPage()).records;
@@ -176,7 +176,7 @@ test("Discarded Plugin Notifications Clear After Reopening", async () => {
 });
 
 test("Failed Open Retries", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   const factory = indexedDB;
   vi.stubGlobal("indexedDB", {
     open: () => {
@@ -190,7 +190,7 @@ test("Failed Open Retries", async () => {
 });
 
 test("Sticky Error Delivery", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   vi.spyOn(Date, "now").mockReturnValue(7);
   history.toast.error(failureOf("fixture-detail", "fixture"), { id: "fixture", source: "fixture-source", duration: 1 });
   assert.equal(shown.error.mock.calls.at(-1)?.[1]?.duration, Infinity);
@@ -203,7 +203,7 @@ test("Sticky Error Delivery", async () => {
 });
 
 test("Updated Toasts Stay Recorded", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   history.toast.info("fixture-one", { id: "fixture" });
   history.toast.success("fixture-two", { id: "fixture" });
   const page = await history.notificationPage();
@@ -211,7 +211,7 @@ test("Updated Toasts Stay Recorded", async () => {
 });
 
 test("Plugin Settings Action Survives History", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   history.toast.error(failureOf("fixture", "fixture"), {
     pluginSettings: "example",
     missingSecret: "api_token",
@@ -224,7 +224,7 @@ test("Plugin Settings Action Survives History", async () => {
 });
 
 test("Notification Sources Never Use Empty or Root Route Labels", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   vi.stubGlobal("location", { pathname: "/" });
   for (const source of [undefined, "", " ", "/", " / "]) {
     history.toast.info("fixture", { source });
@@ -235,8 +235,8 @@ test("Notification Sources Never Use Empty or Root Route Labels", async () => {
 });
 
 test("Quiet Page Notices Do Not Publish Feedback", async () => {
-  const { PageNotice } = await import("@/shell/PageShell");
-  const history = await import("@/lib/notifications");
+  const { PageNotice } = await import("@dokime/document/shell/PageShell");
+  const history = await import("@dokime/plots/lib/notifications");
   const status = PageNotice({ children: "fixture" });
   assert.equal(status.type, "p");
   assert.equal(status.props.role, "status");
@@ -246,7 +246,7 @@ test("Quiet Page Notices Do Not Publish Feedback", async () => {
 
 test("Closed Connections Recover", async () => {
   const opened = vi.spyOn(indexedDB, "open");
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   await history.recordNotification(record(0));
   const connection = opened.mock.results[0].value.result as IDBDatabase;
   const closed = new Promise<void>((resolve) => connection.addEventListener("close", () => resolve(), { once: true }));
@@ -259,7 +259,7 @@ test("Closed Connections Recover", async () => {
 });
 
 test("Every Toast and History Entry Opens the Retained Details", async () => {
-  const history = await import("@/lib/notifications");
+  const history = await import("@dokime/plots/lib/notifications");
   const { NotificationHistoryEntry } = await import("@/features/notifications/NotificationsSurface");
   for (const tone of ["error", "warning", "info", "success"] as const) {
     if (tone === "error") history.toast.error(failureOf("complete message", "fixture"), { source: "fixture-source" });
@@ -283,8 +283,8 @@ test("Every Toast and History Entry Opens the Retained Details", async () => {
 });
 
 test("Failure Routes and Console Report Once per Occurrence", async () => {
-  const { failureOf, failureText } = await import("@/lib/notification-details");
-  const { routeFailure, failureDestinations, reportFailure } = await import("@/lib/failure-routing");
+  const { failureOf, failureText } = await import("@dokime/plots/lib/notification-details");
+  const { routeFailure, failureDestinations, reportFailure } = await import("@dokime/plots/lib/failure-routing");
   assert.deepEqual(failureDestinations("view"), { inline: true, toast: false, history: false, console: true });
   assert.deepEqual(failureDestinations("action"), { inline: false, toast: true, history: true, console: true });
   assert.deepEqual(failureDestinations("background"), { inline: false, toast: false, history: true, console: true });
@@ -306,8 +306,8 @@ test("Failure Routes and Console Report Once per Occurrence", async () => {
 });
 
 test("ErrorCard Renders Full Record Retry and Copy Without Toast", async () => {
-  const { failureOf, failureText } = await import("@/lib/notification-details");
-  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { failureOf, failureText } = await import("@dokime/plots/lib/notification-details");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
   const failure = failureOf(
     Object.assign(new Error("fixture-message"), { diagnostics: "fixture-span", requestId: "fixture-request" }),
     "fixture-title",
@@ -327,7 +327,8 @@ test("ErrorCard Renders Full Record Retry and Copy Without Toast", async () => {
 });
 
 test("Backend Recovery Actions Take Precedence Over Generic Retries", async () => {
-  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { ErrorCard, ErrorRecoveryContext } = await import("@dokime/plots/components/ErrorCard");
+  const { failureRecovery } = await import("@/lib/failure-recovery");
   const assign = vi.fn();
   const retry = vi.fn();
   vi.stubGlobal("window", { location: { assign } });
@@ -338,7 +339,13 @@ test("Backend Recovery Actions Take Precedence Over Generic Retries", async () =
     controls.buttons.length = 0;
     assign.mockClear();
     const failure = failureOf({ notificationFailure: { action: "Open Settings", plugin, message: "bench_source" } }, "bench_title");
-    renderToStaticMarkup(createElement(ErrorCard, { failure, onRetry: retry }));
+    renderToStaticMarkup(
+      createElement(
+        ErrorRecoveryContext.Provider,
+        { value: (failure) => failureRecovery(null, failure) },
+        createElement(ErrorCard, { failure, onRetry: retry }),
+      ),
+    );
     controls.buttons[0]();
     assert.deepEqual(assign.mock.calls, [[destination]]);
     assert.equal(retry.mock.calls.length, 0);
@@ -346,8 +353,8 @@ test("Backend Recovery Actions Take Precedence Over Generic Retries", async () =
 });
 
 test("Shared Failure Delivers Unchanged Once to Toast and History", async () => {
-  const { failureOf } = await import("@/lib/notification-details");
-  const history = await import("@/lib/notifications");
+  const { failureOf } = await import("@dokime/plots/lib/notification-details");
+  const history = await import("@dokime/plots/lib/notifications");
   const failure = failureOf(new Error("fixture-message"), "fixture-title");
   history.toast.error(failure, { context: "background" });
   history.toast.error(failure, { context: "action" });
@@ -407,8 +414,8 @@ test("Product Plain and Undecodable Statuses Keep Code and Message", async () =>
 });
 
 test("Failure Presentation Copies Decoded Fields and Omits Client Stack", async () => {
-  const { ErrorCard } = await import("@/components/ErrorCard");
-  const { failureText } = await import("@/lib/notification-details");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const { failureText } = await import("@dokime/plots/lib/notification-details");
   const error = Object.assign(new Error("bench_source"), {
     notificationFailure: { action: "bench_action", plugin: "bench", causes: ["bench_cause"] },
   });
@@ -424,7 +431,7 @@ test("Failure Presentation Copies Decoded Fields and Omits Client Stack", async 
 
 test("Quiet Autosave States Never Render a Failure", async () => {
   const { SettingsFieldStatus } = await import("@/features/settings/SettingsFieldStatus");
-  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
   const retry = vi.fn();
   for (const kind of ["idle", "saving", "saved"] as const) {
     const content = SettingsFieldStatus({ state: { kind }, onRetry: retry });
@@ -439,8 +446,8 @@ test("Quiet Autosave States Never Render a Failure", async () => {
 });
 
 test("Description Readiness Remains a Quiet Waiting State", async () => {
-  const { ErrorCard } = await import("@/components/ErrorCard");
-  const history = await import("@/lib/notifications");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const history = await import("@dokime/plots/lib/notifications");
   const failure = failureOf(
     { notificationFailure: { reason: "settings_not_ready", message: "bench_wait", plugin: "bench" } },
     "bench_section",
@@ -455,9 +462,9 @@ test("Description Readiness Remains a Quiet Waiting State", async () => {
 });
 
 test("Feedback Is Recorded", async () => {
-  const history = await import("@/lib/notifications");
-  const { ErrorCard } = await import("@/components/ErrorCard");
-  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
+  const history = await import("@dokime/plots/lib/notifications");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
+  const { NotificationDetailsDialog } = await import("@dokime/document/features/notifications/NotificationDetailsDialog");
   const failure = failureOf(new Error("fixture-action"), "fixture-title");
   const write = vi.spyOn(IDBObjectStore.prototype, "put");
   for (let render = 0; render < 2; render++) renderToStaticMarkup(createElement(ErrorCard, { failure, notificationContext: "action" }));
@@ -476,7 +483,7 @@ test("Feedback Is Recorded", async () => {
 });
 
 test("Failure Stem Retains Identity and All Context", async () => {
-  const { failureOf } = await import("@/lib/notification-details");
+  const { failureOf } = await import("@dokime/plots/lib/notification-details");
   assert.ok(failureOf(new Error(" "), "fixture-title").message.trim());
   const root = new Error("fixture-root");
   const wrapper = new Error("fixture-wrapper", { cause: root });
@@ -501,9 +508,9 @@ test("Failure Stem Retains Identity and All Context", async () => {
 });
 
 test("Failure Copy Retains Notification Metadata and Field Problems", async () => {
-  const { failureText, notificationDetailsText } = await import("@/lib/notification-details");
-  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
-  const history = await import("@/lib/notifications");
+  const { failureText, notificationDetailsText } = await import("@dokime/plots/lib/notification-details");
+  const { NotificationDetailsDialog } = await import("@dokime/document/features/notifications/NotificationDetailsDialog");
+  const history = await import("@dokime/plots/lib/notifications");
   const failure = failureOf(
     Object.assign(new Error("fixture-failure"), {
       problems: [{ label: "fixture-field", message: "fixture-problem", causes: ["fixture-field-cause"] }],
@@ -562,7 +569,7 @@ test("Transport Admission Failures Retain All Request Identifiers", async () => 
 });
 
 test("Plugin Settings Can Restart While Retaining the Settings Recovery Record", async () => {
-  const { ErrorCard } = await import("@/components/ErrorCard");
+  const { ErrorCard } = await import("@dokime/plots/components/ErrorCard");
   const retry = vi.fn();
   const failure = failureOf({ notificationFailure: { action: "Open Settings", plugin: "bench", message: "fixture-start" } }, "fixture");
   renderToStaticMarkup(createElement(ErrorCard, { failure, onRetry: retry, retryLabel: "Restart Plugin", retryFirst: true }));

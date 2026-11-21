@@ -10,14 +10,14 @@
 /* === External Imports === */
 
 import type { EvidenceScope } from "@host/model";
-import { cutKey, type Wire } from "@/lib/rpc/canonical";
-import { failureOf } from "@/lib/notification-details";
+import { cutKey, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import type { PlotRefreshState } from "@/features/cycle/PlotWindowSlider";
+import type { PlotRefreshState } from "@dokime/document/features/cycle/PlotWindowSlider";
 import {
   fetchNativePlotPayloads,
   NATIVE_PLOT_MAX_REQUESTS,
@@ -25,13 +25,13 @@ import {
   openNativePlotStream,
   type PlotPayloadRequestInput,
 } from "@/lib/api/native-plots";
-import { NativeApiLimitError } from "@/lib/api/native-values";
-import { toast } from "@/lib/notifications";
-import { summaryInFlight } from "@/lib/statistics";
-import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
-import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
+import { toast } from "@dokime/plots/lib/notifications";
+import { summaryInFlight } from "@dokime/plots/lib/statistics";
+import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
+import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@dokime/plots/live-frames";
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
-import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
+import { type SummaryWindow, useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
 
 /* === Constants === */
 

@@ -9,21 +9,21 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { FileUp, Loader2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { formatInstallPluginBytes, type InstallPluginProgress } from "@/lib/api/native-plugins";
-import { useBrand } from "@/lib/brand";
-import { isTauriDesktop } from "@/lib/desktop-open";
-import { toast } from "@/lib/notifications";
-import { cn } from "@/lib/utils";
+import { useBrand } from "@dokime/document/lib/brand";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import { toast } from "@dokime/plots/lib/notifications";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Types === */
 

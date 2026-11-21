@@ -9,11 +9,11 @@
 
 /* === Local Imports === */
 
-import type { RuntimeAppearanceFrame } from "@/lib/appearance";
-import { type Brand, brandFromLogos, defaultBrand } from "@/lib/brand";
-import { applyBrandFavicon } from "@/lib/favicon";
-import { applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";
-import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
+import type { RuntimeAppearanceFrame } from "@dokime/document/lib/appearance";
+import { type Brand, brandFromLogos, defaultBrand } from "@dokime/document/lib/brand";
+import { applyBrandFavicon } from "@dokime/document/lib/favicon";
+import { applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@dokime/document/lib/theme";
+import { materializeThemeFamilyVariables, resolveThemeFamily } from "@dokime/document/lib/theme-family";
 
 /* === Report appearance ===
    The generated report carries the captured runtime appearance frame. Applying it here

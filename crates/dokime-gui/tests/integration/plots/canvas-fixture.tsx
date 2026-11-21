@@ -20,21 +20,21 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 // Local Imports
-import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
-import { CartesianPlot } from "@/plots/CartesianPlot";
+import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@dokime/plots/lib/types";
+import { CartesianPlot } from "@dokime/plots/CartesianPlot";
 import { PlotInteractionProvider } from "@dokime/plots/interaction";
-import { HistogramChart } from "@/components/HistogramChart";
-import { PiePlot } from "@/plots/catalog/PiePlot";
-import { BarPlot } from "@/plots/catalog/BarPlot";
-import { BoxPlot } from "@/plots/catalog/BoxPlot";
-import { ContourPlot } from "@/plots/catalog/ContourPlot";
-import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
-import { documentPlotSpec } from "@/plots/grouping";
-import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
-import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
-import type { PlotCardSpec } from "@/plots/types";
-import "@/styles.css";
+import { HistogramChart } from "@dokime/plots/components/HistogramChart";
+import { PiePlot } from "@dokime/plots/catalog/PiePlot";
+import { BarPlot } from "@dokime/plots/catalog/BarPlot";
+import { BoxPlot } from "@dokime/plots/catalog/BoxPlot";
+import { ContourPlot } from "@dokime/plots/catalog/ContourPlot";
+import { XyIntervalPlot } from "@dokime/plots/catalog/XyIntervalPlot";
+import { TrajectoryPlot } from "@dokime/plots/catalog/TrajectoryPlot";
+import { documentPlotSpec } from "@dokime/plots/grouping";
+import type { DocumentViewPlot, PlotPayload } from "@dokime/plots/lib/types";
+import { GridChartPlot } from "@dokime/plots/catalog/GridChartPlot";
+import type { PlotCardSpec } from "@dokime/plots/types";
+import "../../../src/desktop.css";
 
 /* === Re-Exports === */
 

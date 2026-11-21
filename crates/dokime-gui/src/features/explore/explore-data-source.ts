@@ -31,7 +31,7 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
   SavedCycleSummary,
-} from "@/lib/types/view-contracts";
+} from "@dokime/plots/lib/types/browse";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey, isUnrunExecution } from "./explore-contracts";
 
 const GUI_CHECKPOINT_WINDOW_BYTES = 65_536;

@@ -9,8 +9,8 @@
 
 /* === Local Imports === */
 
-import type { CycleHistorySummary } from "@/lib/types";
-import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
+import type { CycleHistorySummary } from "@dokime/plots/lib/types";
+import type { ExecutionBrowseEntry } from "@dokime/plots/lib/types/browse";
 
 /* === Types === */
 

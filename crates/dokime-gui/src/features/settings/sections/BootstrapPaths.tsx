@@ -11,8 +11,8 @@
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { SettingsCard } from "../SettingsCard";
 import { SettingsPathField } from "../SettingsPathField";

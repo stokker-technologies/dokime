@@ -32,14 +32,14 @@ import type { ReactNode } from "react";
 // Local Imports
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { Button } from "@/components/ui/button";
-import { failureOf } from "@/lib/notification-details";
-import { toast } from "@/lib/notifications";
-import type { PromptRequest, TestExecution } from "@/lib/types";
+import { Button } from "@dokime/plots/components/ui/button";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { toast } from "@dokime/plots/lib/notifications";
+import type { PromptRequest, TestExecution } from "@dokime/plots/lib/types";
 import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
-import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "./cycle-workspace-model";
+import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "@dokime/document/features/cycle/cycle-workspace-model";
 
 /* === Re-Exports === */
 

@@ -13,11 +13,11 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@/components/data-table/DataTable";
-import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import { DataTable } from "@dokime/plots/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
 import { type ExploreEntry, exploreEntryKey } from "@/features/explore/explore-contracts";
-import { formatDuration } from "@/lib/format";
-import { PageNotice } from "@/shell/PageShell";
+import { formatDuration } from "@dokime/plots/lib/format";
+import { PageNotice } from "@dokime/document/shell/PageShell";
 
 /* === Types === */
 

@@ -15,15 +15,15 @@
 
 import * as rpc from "@/lib/host/client";
 
-import { cutKey, required } from "@/lib/rpc/canonical";
+import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
-import type { DocumentDownsampleTechnique } from "@/lib/types";
+import type { DocumentDownsampleTechnique } from "@dokime/plots/lib/types";
 
 import { Downsample } from "@host/model";
 
-import { assembleDocument, sameFrontiers, type CompletedDocument } from "./native-documents";
+import { assembleDocument, sameFrontiers, type CompletedDocument } from "@dokime/document/lib/api/native-documents";
 
 // Standard Library Imports
 

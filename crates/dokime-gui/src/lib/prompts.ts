@@ -9,10 +9,10 @@
 
 /* === Local Imports === */
 
-import { NativeIntegerValue, NativeNumberValue, parseNativeInteger } from "@/lib/api/native-values";
-import { numericValue } from "@/lib/utils";
+import { NativeIntegerValue, NativeNumberValue, parseNativeInteger } from "@dokime/plots/lib/api/native-values";
+import { numericValue } from "@dokime/plots/lib/utils";
 
-import type { JsonObject, PromptField, PromptRequest } from "./types";
+import type { JsonObject, PromptField, PromptRequest } from "@dokime/plots/lib/types";
 
 /* === Types === */
 

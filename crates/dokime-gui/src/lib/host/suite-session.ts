@@ -13,19 +13,19 @@
 
 /* === Imports === */
 
-import { required } from "@/lib/rpc/canonical";
+import { required } from "@dokime/plots/lib/rpc/canonical";
 
 import type { Suite } from "@host/model";
 
-import type { Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
-import type { TestSuiteEntry } from "@/lib/types";
+import type { TestSuiteEntry } from "@dokime/plots/lib/types";
 
 import * as client from "./client";
 
-import { mapSuite } from "./suites";
+import { mapSuite } from "@dokime/document/lib/host/suites";
 
 // Standard Library Imports
 

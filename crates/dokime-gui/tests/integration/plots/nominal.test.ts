@@ -34,20 +34,20 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 // Local Imports
-import { StatsSummaryTable } from "@/components/StatsSummaryTable";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { StatsSummaryTable } from "@dokime/plots/components/StatsSummaryTable";
+import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
+import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
 import {
   mapNativePlotWatchPage,
   toNativePlotRequest,
   type NativePlotStreamMessage,
   type NativePlotStreamUpdate,
 } from "@/lib/api/native-plots";
-import { NativeApiLimitError } from "@/lib/api/native-values";
-import type { RuntimeThemeFamily, useAppearance } from "@/lib/appearance";
-import { ApplicationThemeProvider } from "@/lib/application-theme";
-import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
-import { jsonToNativeValue } from "@/lib/host/values";
+import { NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
+import type { RuntimeThemeFamily, useAppearance } from "@dokime/document/lib/appearance";
+import { ApplicationThemeProvider } from "@dokime/document/lib/application-theme";
+import { formatNumber, formatTime, formatUnitLabel } from "@dokime/plots/lib/format";
+import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
@@ -58,43 +58,56 @@ import {
   summaryInFlight,
   toggleTrace,
   type SeriesSummary,
-} from "@/lib/statistics";
-import { applyThemeVariables } from "@/lib/theme";
-import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec, TelemetryStream } from "@/lib/types";
-import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
+} from "@dokime/plots/lib/statistics";
+import { applyThemeVariables } from "@dokime/document/lib/theme";
+import type {
+  DocumentViewPlot,
+  HubRecord,
+  PlotPayload,
+  PlotPayloadStreamMessage,
+  TelemetryColumnSpec,
+  TelemetryStream,
+} from "@dokime/plots/lib/types";
+import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@dokime/plots/CartesianPlot";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
-import { formatBooleanState, formatCursorX } from "@/plots/axis";
-import { BarPlot } from "@/plots/catalog/BarPlot";
-import { ContourPlot } from "@/plots/catalog/ContourPlot";
-import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
-import { PiePlot } from "@/plots/catalog/PiePlot";
-import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
-import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
-import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { XyPlot } from "@/plots/catalog/XyPlot";
-import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
+import { formatBooleanState, formatCursorX } from "@dokime/plots/axis";
+import { BarPlot } from "@dokime/plots/catalog/BarPlot";
+import { ContourPlot } from "@dokime/plots/catalog/ContourPlot";
+import { GridChartPlot } from "@dokime/plots/catalog/GridChartPlot";
+import { PiePlot } from "@dokime/plots/catalog/PiePlot";
+import { TimeSeriesPlot } from "@dokime/plots/catalog/TimeSeriesPlot";
+import { TrajectoryPlot } from "@dokime/plots/catalog/TrajectoryPlot";
+import { XyIntervalPlot } from "@dokime/plots/catalog/XyIntervalPlot";
+import { XyPlot } from "@dokime/plots/catalog/XyPlot";
+import { documentPlotSpec, groupRepeatsPlotTitle } from "@dokime/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
   histogramAxes,
   histogramAxisTitle,
   type HistogramColumn,
   type HistogramDeclaration,
-} from "@/plots/histogram-axes";
+} from "@dokime/plots/histogram-axes";
 import { histogramBars } from "@dokime/plots/histogram-bins";
 import { PlotInteractionProvider } from "@dokime/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
-import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
-import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
-import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@/plots/playback";
-import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
-import { PlotSettingsEditorContext } from "@/plots/plot-settings";
-import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@dokime/plots/live-frames";
+import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@dokime/plots/markers";
+import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@dokime/plots/playback";
+import {
+  NO_NUMERIC_SAMPLES,
+  STREAM_ERROR,
+  WAITING_FOR_SAMPLES,
+  plotPlaceholderText,
+  plotUnavailableText,
+} from "@dokime/plots/plot-placeholder";
+import { PlotSettingsEditorContext } from "@dokime/plots/plot-settings";
+import { promptMarkerLabel, promptMarkers } from "@dokime/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@dokime/plots/reduce";
-import { usePlotPalette } from "@/plots/use-plot-palette";
+import { usePlotPalette } from "@/plots/desktop-plot-palette";
 import { PLOT_DRAG_OPTIONS, heldViewport } from "@dokime/plots/viewport";
-import { applyReportAppearance } from "@/report/report-appearance";
-import { useSummaryWindowStore } from "@/stores/summary-window-store";
-import type { NativePlotPayloadEnvelope } from "../../../src/lib/api/native-plot-projection";
+import { applyReportAppearance } from "@dokime/report/report-appearance";
+import { useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
+import type { PlotPayloadEnvelope } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 
@@ -338,7 +351,7 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   };
 }
 
-function snapshotEnvelopes(plots: DocumentViewPlot[]): NativePlotPayloadEnvelope[] {
+function snapshotEnvelopes(plots: DocumentViewPlot[]): PlotPayloadEnvelope[] {
   return plots.map((plot) => ({ ...streamMessage("snapshot", 1, hostFrame([0, 1], [[2, 3]])), plot_id: plot.plot_id }));
 }
 
@@ -349,7 +362,7 @@ vi.mock("@/lib/api/native-plots", async (original) => ({
   fetchNativePlotPayloads: refreshFixture.read,
   openNativePlotStream: refreshFixture.watch,
 }));
-vi.mock("@/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
+vi.mock("@dokime/plots/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
 vi.mock("@/lib/application-settings", async (original) => {
   const settings = await original<typeof import("@/lib/application-settings")>();
   return { ...settings, useReportDefaults: () => settings.BUILT_IN_REPORT_DEFAULTS };
@@ -417,10 +430,10 @@ test("Manual All Refresh", async () => {
     refreshFixture.watch.mock.calls[0][1].map((request: { windowS: number }) => request.windowS),
     [300, 300],
   );
-  let complete: (envelopes: NativePlotPayloadEnvelope[]) => void = () => {};
+  let complete: (envelopes: PlotPayloadEnvelope[]) => void = () => {};
   refreshFixture.read.mockImplementation(
     () =>
-      new Promise<NativePlotPayloadEnvelope[]>((resolve) => {
+      new Promise<PlotPayloadEnvelope[]>((resolve) => {
         complete = resolve;
       }),
   );
@@ -619,7 +632,7 @@ test("Refresh Cancellation", async () => {
   const pending: (() => void)[] = [];
   refreshFixture.read.mockImplementation(
     (_session, requests) =>
-      new Promise<NativePlotPayloadEnvelope[]>((resolve) => {
+      new Promise<PlotPayloadEnvelope[]>((resolve) => {
         pending.push(() =>
           resolve(
             snapshotEnvelopes(view.plots).filter((envelope) =>
@@ -1201,7 +1214,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     mode_locked: false,
     source_plugin_id: null,
   };
-  const readAppearance = vi.spyOn(await import("@/lib/appearance"), "useAppearance").mockReturnValue(frame);
+  const readAppearance = vi.spyOn(await import("@dokime/document/lib/appearance"), "useAppearance").mockReturnValue(frame);
   onTestFinished(() => readAppearance.mockRestore());
   function Palette() {
     return createElement("output", null, JSON.stringify(usePlotPalette()));
@@ -1842,7 +1855,7 @@ test("Bounded Report Envelopes", () => {
 });
 
 test("Reference Values Resolve Constants Parameters and Tolerances Per Case in Live and Frozen Plots", () => {
-  const parameter = (name: string) => ({ source: { type: "parameter" as const, name }, transforms: [] });
+  const parameter = (name: string) => ({ expression: { label: "", kind: { case: "parameter" as const, value: name } } });
   const descriptor = {
     plot_id: "reference-values",
     title: "Temperature",
@@ -1851,16 +1864,16 @@ test("Reference Values Resolve Constants Parameters and Tolerances Per Case in L
     y: ["temperature_c"],
     scale: 10,
     reference_lines: [
-      { value: 0, label: "Zero" },
+      { value: { constant: 0 }, label: "Zero" },
       { value: parameter("limit_c"), label: "Limit" },
     ],
     reference_bands: [
-      { min: -10, max: 10 },
+      { min: { constant: -10 }, max: { constant: 10 } },
       { min: parameter("lower_limit_c"), max: parameter("upper_limit_c") },
-      { center: 0, tolerance: parameter("band_c") },
-      { center: parameter("target_c"), tolerance: 2 },
-      { center: parameter("missing"), tolerance: 1 },
-      { center: 0, tolerance: parameter("negative") },
+      { center: { constant: 0 }, tolerance: parameter("band_c") },
+      { center: parameter("target_c"), tolerance: { constant: 2 } },
+      { center: parameter("missing"), tolerance: { constant: 1 } },
+      { center: { constant: 0 }, tolerance: parameter("negative") },
       { min: parameter("upper_limit_c"), max: parameter("lower_limit_c") },
     ],
   } as DocumentViewPlot;
@@ -1917,24 +1930,46 @@ test("Reference Expressions Apply Numeric Maps in Order", () => {
     reference_lines: [
       {
         value: {
-          source: { type: "parameter", name: "target" },
-          transforms: [
-            { type: "scale", factor: 2 },
-            { type: "offset", value: -1 },
-          ],
+          expression: {
+            label: "",
+            kind: {
+              case: "transform",
+              value: {
+                kind: { case: "offset", value: -1 },
+                input: {
+                  label: "",
+                  kind: {
+                    case: "transform",
+                    value: { kind: { case: "scale", value: 2 }, input: { label: "", kind: { case: "parameter", value: "target" } } },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     ],
     reference_bands: [
       {
         center: {
-          source: { type: "parameter", name: "target" },
-          transforms: [
-            { type: "offset", value: -1 },
-            { type: "scale", factor: 2 },
-          ],
+          expression: {
+            label: "",
+            kind: {
+              case: "transform",
+              value: {
+                kind: { case: "scale", value: 2 },
+                input: {
+                  label: "",
+                  kind: {
+                    case: "transform",
+                    value: { kind: { case: "offset", value: -1 }, input: { label: "", kind: { case: "parameter", value: "target" } } },
+                  },
+                },
+              },
+            },
+          },
         },
-        tolerance: 1,
+        tolerance: { constant: 1 },
       },
     ],
   } as DocumentViewPlot;
@@ -1979,14 +2014,14 @@ test("Display Scale Converts Returned Points Statistics and References Without M
     unit: "mm",
     scale: 1000,
     reference_lines: [
-      { value: 0.004, color: "red" },
-      { value: { source: { type: "parameter", name: "target_m" }, transforms: [] }, color: "green" },
+      { value: { constant: 0.004 }, color: "red" },
+      { value: { expression: { label: "", kind: { case: "parameter", value: "target_m" } } }, color: "green" },
     ],
     reference_bands: [
-      { min: -0.002, max: 0.003, color: "red" },
+      { min: { constant: -0.002 }, max: { constant: 0.003 }, color: "red" },
       {
-        center: { source: { type: "parameter", name: "target_m" } },
-        tolerance: { source: { type: "parameter", name: "tolerance_m" } },
+        center: { expression: { label: "", kind: { case: "parameter", value: "target_m" } } },
+        tolerance: { expression: { label: "", kind: { case: "parameter", value: "tolerance_m" } } },
         color: "green",
       },
     ],
@@ -2155,7 +2190,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(absent?.textContent, "");
   assert.equal(absent?.getAttribute("data-valid"), "false");
   assert.equal(absent?.getAttribute("style"), null);
-  const field = (name: string) => ({ source: { type: "telemetry", stream: "readings", field: name }, transforms: [] });
+  const field = (name: string) => ({ label: "", kind: { case: "stream" as const, value: { identifier: "readings", field: name } } });
   const request = toNativePlotRequest({
     stream: "readings",
     yKeys: ["value"],
@@ -2182,11 +2217,23 @@ test("Numeric Expression Maps Preserve Their Wire Order", () => {
     yKeys: [],
     plotType: "contour",
     zExpression: {
-      source: { type: "telemetry", stream: "scan", field: "temperature" },
-      transforms: [
-        { type: "scale", factor: 2 },
-        { type: "offset", value: -1 },
-      ],
+      label: "",
+      kind: {
+        case: "transform",
+        value: {
+          kind: { case: "offset", value: -1 },
+          input: {
+            label: "",
+            kind: {
+              case: "transform",
+              value: {
+                kind: { case: "scale", value: 2 },
+                input: { label: "", kind: { case: "stream", value: { identifier: "scan", field: "temperature" } } },
+              },
+            },
+          },
+        },
+      },
     },
   });
   const outer = request.zExpression?.kind;

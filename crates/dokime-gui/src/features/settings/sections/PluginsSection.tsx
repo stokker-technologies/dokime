@@ -9,18 +9,18 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { RotateCw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
@@ -38,8 +38,8 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import type { PluginSource } from "@/lib/api/native-plugins";
-import { useBrand } from "@/lib/brand";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import { useBrand } from "@dokime/document/lib/brand";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Components === */

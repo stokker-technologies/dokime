@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 
 /* === Re-Exports === */
 

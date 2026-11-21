@@ -20,11 +20,11 @@ import { type ReactNode, useId } from "react";
 
 /* === Local Imports === */
 
-import { notificationText } from "@/lib/notifications";
-import { failureOf } from "@/lib/notification-details";
-import { ErrorCard } from "@/components/ErrorCard";
+import { notificationText } from "@dokime/plots/lib/notifications";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Types === */
 

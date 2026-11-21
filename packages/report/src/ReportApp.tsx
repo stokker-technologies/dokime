@@ -19,10 +19,10 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
-import { DokimeToaster } from "@/components/DokimeToaster";
-import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
-import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
-import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
+import { DokimeToaster } from "@dokime/document/components/DokimeToaster";
+import type { CycleSelection } from "@dokime/document/features/cycle/cycle-workspace-model";
+import type { CycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
+import { CycleSnapshotProvider, useCycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
 import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
 import { ReportShell } from "./ReportShell";
 

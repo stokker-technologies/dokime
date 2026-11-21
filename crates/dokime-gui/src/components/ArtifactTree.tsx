@@ -10,7 +10,7 @@
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
-import { type ArtifactTreeProps, ArtifactTreeView } from "./ArtifactTreeView";
+import { type ArtifactTreeProps, ArtifactTreeView } from "@dokime/document/components/ArtifactTreeView";
 import { TextArtifactViewer } from "./TextArtifactViewer";
 
 /* === Components === */

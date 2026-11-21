@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import type { ListenerSettings, ListenerStatus } from "@/lib/api/native-remote";
 export type { ListenerSettings, ListenerStatus } from "@/lib/api/native-remote";
 

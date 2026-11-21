@@ -14,8 +14,8 @@ import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { viteSingleFile } from "vite-plugin-singlefile";
 import { defineConfig } from "vitest/config";
+import workspace from "../../vitest.config.ts";
 
 /* === Constants === */
 
@@ -24,26 +24,24 @@ const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version?: string };
 const appVersion = packageJson.version ?? "dev";
 
-// `--mode report` builds the single-file report template that the runtime embeds; Vitest runs in `test` mode.
+// The Desktop Builds Live Assets; The Report Package Owns Its Standalone Template.
 export default defineConfig(({ mode }) => ({
   root: projectRoot,
   // Concurrent Lanes Own Separate Vite Dependency And Vitest Result Caches.
   cacheDir: `node_modules/.vite/${mode}${mode === "test" ? `/${process.env.DOKIME_TEST_LANE ?? "all"}` : ""}`,
-  publicDir: mode === "report" ? false : "public",
+  publicDir: "public",
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
-    __DOKIME_UI_MODE__: JSON.stringify(mode === "report" ? "report" : "live"),
+    __DOKIME_UI_MODE__: JSON.stringify("live"),
   },
   plugins: {
-    report: [react(), tailwindcss(), viteSingleFile()],
     test: [],
   }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
-    dedupe: ["@bufbuild/protobuf"],
+    dedupe: workspace.resolve?.dedupe,
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@generated": fileURLToPath(new URL("../../target/generated/typescript", import.meta.url)),
-      "@host": fileURLToPath(new URL("../../target/generated/host", import.meta.url)),
+      ...workspace.resolve?.alias,
     },
   },
   server: {
@@ -56,37 +54,25 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: mode === "report" ? fileURLToPath(new URL("../../target/generated/report", import.meta.url)) : "dist",
+    outDir: "dist",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {
         pluginTimings: false,
       },
-      input: mode === "report" ? fileURLToPath(new URL("./report.html", import.meta.url)) : undefined,
-      output:
-        mode === "report"
-          ? undefined
-          : {
-              strictExecutionOrder: true,
-              codeSplitting: {
-                maxSize: 800_000,
-                groups: [
-                  { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
-                  { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
-                  { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
-                  { name: "document-surface", test: /\/src\/(?:components\/document|plots)\// },
-                ],
-              },
-            },
+      output: {
+        strictExecutionOrder: true,
+        codeSplitting: {
+          maxSize: 800_000,
+          groups: [
+            { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
+            { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
+            { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
+            { name: "document-surface", test: /\/src\/(?:components\/document|plots)\// },
+          ],
+        },
+      },
     },
   },
-  test: {
-    // Isolated Worker Threads Avoid A Node Process Startup For Every Test File.
-    pool: "threads",
-    environment: "node",
-    setupFiles: ["tests/setup.ts"],
-    include: ["tests/**/*.test.ts"],
-    testTimeout: 240_000,
-    hookTimeout: 240_000,
-  },
+  test: { ...workspace.test, setupFiles: ["tests/setup.ts"] },
 }));

@@ -25,12 +25,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
-import type { DocumentSurface } from "@/features/cycle/document-view-model";
-import { CycleSnapshotProvider } from "@/features/cycle/snapshot-source";
-import { ReportShell } from "@/report/ReportShell";
-import { ReportCycleWorkspace } from "@/report/ReportCycleWorkspace";
-import { NativeIntegerValue } from "@/lib/api/native-values";
-import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
+import type { DocumentSurface } from "@dokime/document/features/cycle/document-view-model";
+import { CycleSnapshotProvider } from "@dokime/document/features/cycle/snapshot-source";
+import { ReportShell } from "@dokime/report/ReportShell";
+import { ReportCycleWorkspace } from "@dokime/report/ReportCycleWorkspace";
+import { NativeIntegerValue } from "@dokime/plots/lib/api/native-values";
+import { materializeReport, readReportCapture, reportOutcome } from "@dokime/report/native-report";
 import {
   AppearanceLogoSchema,
   CaseStatus,
@@ -55,7 +55,7 @@ import {
 
 /* === Constants === */
 
-vi.mock("@/features/cycle/ExecutionSectionsView", () => ({
+vi.mock("@dokime/document/features/cycle/ExecutionSectionsView", () => ({
   ExecutionSectionsView: ({ surface }: { surface: DocumentSurface }) =>
     createElement("output", { "data-record-count": surface.view.records.length }),
 }));

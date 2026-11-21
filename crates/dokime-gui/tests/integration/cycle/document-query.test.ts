@@ -25,8 +25,8 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { invalidateRuntimeDocuments, useExecutionDocumentQuery } from "@/features/cycle/server-state";
-import { documentCard, documentView } from "@/lib/document-presentation";
-import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
+import { documentCard, documentView } from "@dokime/document/lib/document-presentation";
+import type { DocumentViewCard, DocumentViewPayload } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 
@@ -44,7 +44,7 @@ vi.mock("@/app/native-session/context", () => {
 vi.mock("@/lib/api/native-document-session", () => ({
   fetchNativeDocument: (...args: unknown[]) => backend.fetch(...args),
 }));
-vi.mock("@/lib/api/native-documents", () => ({
+vi.mock("@dokime/document/lib/api/native-documents", () => ({
   mapNativeDocument: (capture: { view: DocumentViewPayload }) => capture.view,
   mapNativeDocumentCard: (capture: { card: DocumentViewCard }, id: string) => {
     assert.equal(capture.card.card_id, id);

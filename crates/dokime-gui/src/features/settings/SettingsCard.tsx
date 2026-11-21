@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Types === */
 

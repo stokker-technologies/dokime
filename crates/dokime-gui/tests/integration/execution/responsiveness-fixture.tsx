@@ -21,21 +21,21 @@ import { createRoot } from "react-dom/client";
 // Local Imports
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import { RecordTimeline } from "@/components/document/RecordTimeline";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ExecutionStepsCriteria } from "@/features/cycle/ExecutionStepsCriteria";
-import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
-import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
+import { RecordTimeline } from "@dokime/document/components/document/RecordTimeline";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { ExecutionStepsCriteria } from "@dokime/document/features/cycle/ExecutionStepsCriteria";
+import { ExecutionSectionsView } from "@dokime/document/features/cycle/ExecutionSectionsView";
+import { usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
 import { useDocumentView } from "@/features/cycle/use-document-view";
-import type { DocumentViewOptions } from "@/features/cycle/document-view-model";
-import { documentSurface } from "@/features/cycle/document-view-model";
-import type { DocumentViewPlot, PlotPayload, StepExecutionRecord, TestExecution } from "@/lib/types";
-import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import type { DocumentViewOptions } from "@dokime/document/features/cycle/document-view-model";
+import { documentSurface } from "@dokime/document/features/cycle/document-view-model";
+import type { DocumentViewPlot, PlotPayload, StepExecutionRecord, TestExecution } from "@dokime/plots/lib/types";
+import { emptyLivePlotState, type LivePlotStateMap } from "@dokime/plots/live-frames";
 import { appendPage, detailReads } from "./responsiveness-source";
 import type { RecordTail } from "@/lib/api/native-evidence";
-import "@/styles.css";
+import "../../../src/desktop.css";
 
 /* === Re-Exports === */
 

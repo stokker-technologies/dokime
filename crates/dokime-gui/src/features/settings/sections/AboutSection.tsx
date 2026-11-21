@@ -17,16 +17,16 @@ import { useEffect, useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { DesktopUpdateDialog } from "@/components/DesktopUpdateDialog";
-import { copyTraceabilityText } from "@/components/traceability/clipboard";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { copyTraceabilityText } from "@dokime/document/components/traceability/clipboard";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
 import { buildLabel } from "@/features/settings/sections/build-version";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { useBrand } from "@/lib/brand";
-import { isTauriDesktop } from "@/lib/desktop-open";
+import { useBrand } from "@dokime/document/lib/brand";
+import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
 import { commands } from "@/lib/desktop/commands";
-import type { BuildIdentity } from "@/lib/desktop/connection";
+import type { BuildIdentity } from "@dokime/document/lib/contracts/connection";
 
 /* === Components === */
 

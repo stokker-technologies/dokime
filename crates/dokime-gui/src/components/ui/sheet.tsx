@@ -10,33 +10,32 @@
 /* === External Imports === */
 
 import { XIcon } from "lucide-react";
-import { Dialog as SheetPrimitive } from "radix-ui";
+import * as radix from "radix-ui";
 import * as React from "react";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@dokime/plots/components/ui/button";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Components === */
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+function Sheet({ ...props }: React.ComponentProps<typeof radix.Dialog.Root>) {
+  return <radix.Dialog.Root data-slot="sheet" {...props} />;
 }
 
 const SheetTrigger = React.forwardRef<
-  React.ElementRef<typeof SheetPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Trigger>
->(({ ...props }, ref) => <SheetPrimitive.Trigger data-slot="sheet-trigger" ref={ref} {...props} />);
+  React.ElementRef<typeof radix.Dialog.Trigger>,
+  React.ComponentPropsWithoutRef<typeof radix.Dialog.Trigger>
+>(({ ...props }, ref) => <radix.Dialog.Trigger data-slot="sheet-trigger" ref={ref} {...props} />);
 
-SheetTrigger.displayName = SheetPrimitive.Trigger.displayName;
+SheetTrigger.displayName = radix.Dialog.Trigger.displayName;
 
-const SheetClose = React.forwardRef<
-  React.ElementRef<typeof SheetPrimitive.Close>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Close>
->(({ ...props }, ref) => <SheetPrimitive.Close data-slot="sheet-close" ref={ref} {...props} />);
+const SheetClose = React.forwardRef<React.ElementRef<typeof radix.Dialog.Close>, React.ComponentPropsWithoutRef<typeof radix.Dialog.Close>>(
+  ({ ...props }, ref) => <radix.Dialog.Close data-slot="sheet-close" ref={ref} {...props} />,
+);
 
-SheetClose.displayName = SheetPrimitive.Close.displayName;
+SheetClose.displayName = radix.Dialog.Close.displayName;
 
 /**
  * A full-height side panel.
@@ -51,13 +50,13 @@ function SheetContent({
   side = "left",
   showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+}: React.ComponentProps<typeof radix.Dialog.Content> & {
   side?: "left" | "right";
   showCloseButton?: boolean;
 }) {
   return (
-    <SheetPrimitive.Portal>
-      <SheetPrimitive.Content
+    <radix.Dialog.Portal>
+      <radix.Dialog.Content
         data-slot="sheet-content"
         data-side={side}
         className={cn(
@@ -72,15 +71,15 @@ function SheetContent({
       >
         {children}
         {showCloseButton && (
-          <SheetPrimitive.Close data-slot="sheet-close" asChild>
+          <radix.Dialog.Close data-slot="sheet-close" asChild>
             <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
               <XIcon />
               <span className="sr-only">Close</span>
             </Button>
-          </SheetPrimitive.Close>
+          </radix.Dialog.Close>
         )}
-      </SheetPrimitive.Content>
-    </SheetPrimitive.Portal>
+      </radix.Dialog.Content>
+    </radix.Dialog.Portal>
   );
 }
 
@@ -88,14 +87,14 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="sheet-header" className={cn("flex flex-col gap-1 border-b px-4 py-3", className)} {...props} />;
 }
 
-function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Title>) {
+function SheetTitle({ className, ...props }: React.ComponentProps<typeof radix.Dialog.Title>) {
   return (
-    <SheetPrimitive.Title data-slot="sheet-title" className={cn("font-sans text-base leading-none font-medium", className)} {...props} />
+    <radix.Dialog.Title data-slot="sheet-title" className={cn("font-sans text-base leading-none font-medium", className)} {...props} />
   );
 }
 
-function SheetDescription({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Description>) {
-  return <SheetPrimitive.Description data-slot="sheet-description" className={cn("text-sm text-muted-foreground", className)} {...props} />;
+function SheetDescription({ className, ...props }: React.ComponentProps<typeof radix.Dialog.Description>) {
+  return <radix.Dialog.Description data-slot="sheet-description" className={cn("text-sm text-muted-foreground", className)} {...props} />;
 }
 
 export { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger };

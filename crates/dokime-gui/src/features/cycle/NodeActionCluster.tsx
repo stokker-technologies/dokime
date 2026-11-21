@@ -18,8 +18,8 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
-import { focusPresentation, useFocusMode } from "@/shell/focus-mode";
+import { Button } from "@dokime/plots/components/ui/button";
+import { focusPresentation, useFocusMode } from "@dokime/document/shell/focus-mode";
 import { CycleExportMenuItem } from "./CycleExportMenuItem";
 import { CycleReportMenuItem } from "./CycleReportMenuItem";
 import { type CycleMenu, type ExecutionMenu, NodeMenu } from "./NodeMenu";

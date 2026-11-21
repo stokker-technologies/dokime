@@ -23,7 +23,7 @@
 /* === External Imports === */
 
 import type { EvidenceScope } from "@host/model";
-import type { Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import { useMemo } from "react";
 
 /* === Local Imports === */
@@ -33,17 +33,17 @@ import { OperatorNotesContent } from "@/components/document/OperatorNotesContent
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
-import type { HubLiveState, PromptRequest, TestCyclePlan, TestExecution } from "@/lib/types";
-import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
+import type { HubLiveState, PromptRequest, TestCyclePlan, TestExecution } from "@dokime/plots/lib/types";
+import { type CycleExecutionRow, isUnstartedExecution } from "@dokime/document/features/cycle/cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { DocumentPagination } from "./DocumentPagination";
-import { evidencePaneState } from "./document-query-model";
+import { evidencePaneState } from "@dokime/document/features/cycle/document-query-model";
 import { ExecutionActionButton, type ExecutionActions, ExecutionControl, useExecutionActions } from "./ExecutionControl";
-import { ExecutionSectionsView } from "./ExecutionSectionsView";
-import { executionPagePrompts } from "./execution-sections-model";
+import { ExecutionSectionsView } from "@dokime/document/features/cycle/ExecutionSectionsView";
+import { executionPagePrompts } from "@dokime/document/features/cycle/execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
 import type { ExecutionMenu } from "./NodeMenu";
-import { usePlotWindow } from "./PlotWindowSlider";
+import { usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
 import { PromptQueue } from "./PromptQueue";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
 

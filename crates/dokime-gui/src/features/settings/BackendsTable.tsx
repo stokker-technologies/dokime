@@ -13,19 +13,19 @@
 
 /* === Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
-import { toast } from "@/lib/notifications";
-import { failureOf } from "@/lib/notification-details";
+import { toast } from "@dokime/plots/lib/notifications";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import type { Document, Profile } from "@generated/application-settings";
 import { Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController } from "@/app/native-session/context";
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { commands } from "@/lib/desktop/commands";
 import { preferencesCommands } from "@/lib/desktop/settings";
 

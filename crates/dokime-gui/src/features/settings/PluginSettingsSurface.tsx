@@ -21,13 +21,13 @@
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import {
@@ -41,7 +41,7 @@ import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { SettingsAdvancedSwitch } from "@/features/settings/SettingsSurface";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
-import { usePageChrome } from "@/shell/page-chrome";
+import { usePageChrome } from "@dokime/document/shell/page-chrome";
 
 /* === Types === */
 

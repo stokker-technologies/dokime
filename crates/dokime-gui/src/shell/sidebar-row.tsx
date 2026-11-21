@@ -21,14 +21,14 @@
 
 /* === External Imports === */
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import type { LucideIcon } from "lucide-react";
 import type { ComponentProps, ReactNode, Ref } from "react";
 
 /* === Local Imports === */
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Types === */
 

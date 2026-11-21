@@ -14,18 +14,18 @@
 
 /* === External Imports === */
 
-import { Button } from "@/components/ui/button";
-import { failureOf } from "@/lib/notification-details";
+import { Button } from "@dokime/plots/components/ui/button";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { Clipboard } from "lucide-react";
 import { Fragment } from "react";
-import { toast } from "@/lib/notifications";
+import { toast } from "@dokime/plots/lib/notifications";
 
 /* === Local Imports === */
 
 import { TagChip } from "@/components/suite-picker/SuiteTags";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { useBrand } from "@/lib/brand";
-import { cn } from "@/lib/utils";
+import { useBrand } from "@dokime/document/lib/brand";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Types === */
 

@@ -11,24 +11,24 @@
 
 /* === External Imports === */
 
+import { validatedExpression } from "@dokime/plots/expression";
 import { create } from "@bufbuild/protobuf";
 import type { EvidenceScope } from "@host/model";
 import * as hostModel from "@host/model";
 import {
-  type NativePlotPayloadEnvelope,
   type PlotEnvelope,
   type PlotRequest,
   mapNativePlotEnvelope,
   mapNativePlotPayload,
   plotType,
   requiredText,
-} from "./native-plot-projection";
+} from "@dokime/plots/lib/api/native-plot-projection";
 
 /* === Local Imports === */
 
 import * as rpc from "@/lib/host/client";
-import { jsonToNativeValue } from "@/lib/host/values";
-import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
+import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
+import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentAxisScale,
@@ -40,11 +40,11 @@ import type {
   DocumentSigmaInterval,
   DocumentViewPlot,
   PlotPayloadStreamMessage,
-} from "@/lib/types";
+  PlotPayloadEnvelope,
+} from "@dokime/plots/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
 import type { SnapshotsWatchResponse } from "@host/model";
 import {
-  Aggregate,
   BarArrangement,
   ContourRender,
   Downsample,
@@ -55,13 +55,10 @@ import {
   PlotRequestSchema,
   Reduction,
   XyInterval,
-  type TransformExpression,
 } from "@host/model";
-import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber } from "./native-values";
+import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber } from "@dokime/plots/lib/api/native-values";
 
 /* === Canonical Types === */
-
-type DataExpression = NonNullable<PlotRequest["xExpression"]>;
 
 type AxisScale = NonNullable<PlotRequest["xScale"]>;
 type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
@@ -75,10 +72,8 @@ type PlotTypes = ReadonlyMap<string, DocumentPlotType | null | undefined>;
 /* === Constants === */
 
 const GUI_PLOT_REQUESTS = 32;
-const GUI_PLOT_TRANSFORMS = 32;
 
 export const NATIVE_PLOT_MAX_REQUESTS = GUI_PLOT_REQUESTS;
-const MAX_PLOT_TRANSFORMS = GUI_PLOT_TRANSFORMS;
 
 /* === Types === */
 
@@ -166,14 +161,14 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     reduction: input.reduction ? { mean: Reduction.MEAN, min: Reduction.MIN, max: Reduction.MAX }[input.reduction] : undefined,
     grid: input.grid
       ? {
-          row: input.grid.row ? dataExpression(input.grid.row) : undefined,
-          column: input.grid.column ? dataExpression(input.grid.column) : undefined,
-          frame: input.grid.frame ? dataExpression(input.grid.frame) : undefined,
+          row: input.grid.row ? validatedExpression(input.grid.row) : undefined,
+          column: input.grid.column ? validatedExpression(input.grid.column) : undefined,
+          frame: input.grid.frame ? validatedExpression(input.grid.frame) : undefined,
           rows: input.grid.rows.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
           columns: input.grid.columns.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
           highlights: input.grid.highlights.map((highlight) => ({
-            row: dataExpression(highlight.row),
-            column: dataExpression(highlight.column),
+            row: validatedExpression(highlight.row),
+            column: validatedExpression(highlight.column),
             label: highlight.label,
           })),
           summaryLabel: input.grid.summaryLabel,
@@ -192,7 +187,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     }[input.style ?? "line"],
     xScale: axisScale(input.xScale),
     yScale: axisScale(input.yScale),
-    ...(input.zExpression == null ? {} : { zExpression: dataExpression(input.zExpression) }),
+    ...(input.zExpression == null ? {} : { zExpression: validatedExpression(input.zExpression) }),
     ...(input.fft == null
       ? {}
       : {
@@ -235,9 +230,9 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     filters: (input.filters ?? []).map(plotFilter),
     ...(input.xKey == null ? {} : { xKey: input.xKey }),
     ...(input.seriesBy == null ? {} : { seriesBy: input.seriesBy }),
-    ...(input.xExpression == null ? {} : { xExpression: dataExpression(input.xExpression) }),
-    yExpressions: (input.yExpressions ?? []).map(dataExpression),
-    ...(input.seriesByExpression == null ? {} : { seriesByExpression: dataExpression(input.seriesByExpression) }),
+    ...(input.xExpression == null ? {} : { xExpression: validatedExpression(input.xExpression) }),
+    yExpressions: (input.yExpressions ?? []).map(validatedExpression),
+    ...(input.seriesByExpression == null ? {} : { seriesByExpression: validatedExpression(input.seriesByExpression) }),
     ...(input.zStream == null ? {} : { zStream: input.zStream }),
     ...(input.zField == null ? {} : { zField: input.zField }),
     ...(input.unit == null ? {} : { unit: input.unit }),
@@ -256,11 +251,11 @@ export async function fetchNativePlotPayloads(
   session: SessionIdentity,
   requests: readonly PlotPayloadRequestInput[],
   options: NativePlotReadOptions = {},
-): Promise<NativePlotPayloadEnvelope[]> {
+): Promise<PlotPayloadEnvelope[]> {
   boundedRequestCount(requests.length, "Plots.Snapshots.List");
   ensureActive(session, options.signal);
   try {
-    const envelopes: NativePlotPayloadEnvelope[] = [];
+    const envelopes: PlotPayloadEnvelope[] = [];
     const nativeRequests = requests.map(toNativePlotRequest);
     const plotTypes: PlotTypes = new Map(requests.map((request) => [request.plotId ?? request.stream, request.plotType]));
     let at: Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["resolvedAt"];
@@ -415,7 +410,7 @@ function mapNativePlotStreamUpdate(frame: PlotStreamUpdate, plotType?: DocumentP
   };
 }
 
-function mapNativePlotErrorEnvelope(envelope: PlotEnvelope, plotType?: DocumentPlotType | null): NativePlotPayloadEnvelope {
+function mapNativePlotErrorEnvelope(envelope: PlotEnvelope, plotType?: DocumentPlotType | null): PlotPayloadEnvelope {
   if (envelope.payload && envelope.diagnostics) {
     return mapNativePlotEnvelope(envelope, plotType);
   }
@@ -434,105 +429,9 @@ function mapNativePlotErrorEnvelope(envelope: PlotEnvelope, plotType?: DocumentP
 
 /* === Request mapping === */
 
-function dataExpression(value: DocumentDataExpression): DataExpression {
-  const input = object(value, "data expression");
-  const source = object(input.source, "data expression source");
-  const sourceType = requiredText(source.type, "data expression source type");
-  let expression: DataExpression;
-  switch (sourceType) {
-    case "telemetry":
-      expression = {
-        label: "",
-        kind: {
-          case: "stream",
-          value: { identifier: requiredText(source.stream, "telemetry stream"), field: requiredText(source.field, "telemetry field") },
-        },
-      };
-      break;
-    case "record":
-      expression = {
-        label: "",
-        kind: { case: "record", value: { identifier: requiredText(source.record_type, "record type"), field: "" } },
-      };
-      break;
-    case "parameter":
-      expression = { label: "", kind: { case: "parameter", value: requiredText(source.name, "parameter name") } };
-      break;
-    case "dimension":
-      expression = { label: "", kind: { case: "dimension", value: requiredText(source.name, "dimension name") } };
-      break;
-    case "literal":
-      expression = { label: "", kind: { case: "literal", value: jsonToNativeValue(source.value) } };
-      break;
-    case "artifact":
-      expression = { label: "", kind: { case: "artifact", value: requiredText(source.artifact, "artifact") } };
-      break;
-    default:
-      throw new Error(`Unsupported data expression source: ${sourceType}`);
-  }
-  const rawTransforms = input.transforms;
-  if (rawTransforms !== undefined && !Array.isArray(rawTransforms)) {
-    throw new Error("Data expression transforms must be an array.");
-  }
-  if (Array.isArray(rawTransforms) && rawTransforms.length > MAX_PLOT_TRANSFORMS)
-    throw new NativeApiLimitError("Plots Expression", "Transform Budget Reached");
-  for (const raw of rawTransforms ?? []) {
-    const transform = object(raw, "data transform");
-    const type = requiredText(transform.type, "data transform type");
-    if (type === "aggregate") {
-      const name = requiredText(transform.aggregate, "aggregate");
-      const kinds: Record<string, Aggregate> = {
-        count: Aggregate.COUNT,
-        sum: Aggregate.SUM,
-        min: Aggregate.MIN,
-        max: Aggregate.MAX,
-        mean: Aggregate.MEAN,
-        std: Aggregate.STDDEV,
-        median: Aggregate.MEDIAN,
-        rms: Aggregate.RMS,
-        first: Aggregate.FIRST,
-        last: Aggregate.LAST,
-      };
-      const rank = /^p(\d{1,3})$/.exec(name)?.[1];
-      const percentile = rank === undefined ? 0 : Number(rank);
-      const kind = rank !== undefined && percentile <= 100 ? Aggregate.PERCENTILE : kinds[name];
-      if (kind === undefined) {
-        throw new Error(`Unsupported aggregate: ${name}`);
-      }
-      expression = { label: "", kind: { case: "aggregate", value: { input: expression, kind, percentile } } };
-      continue;
-    }
-    let kind: Wire<TransformExpression>["kind"];
-    switch (type) {
-      case "scale":
-      case "offset": {
-        const value = type === "scale" ? transform.factor : transform.value;
-        if (typeof value !== "number" || !Number.isFinite(value)) {
-          throw new Error(`${type} requires a finite number`);
-        }
-        kind = { case: type, value };
-        break;
-      }
-      case "detail":
-        kind = { case: "detail", value: requiredText(transform.name, "detail field") };
-        break;
-      case "time_between":
-        kind = { case: "timeBetween", value: requiredText(transform.previous_record_type, "previous record type") };
-        break;
-      case "per_case":
-        kind = { case: "perCase", value: true };
-        break;
-      default:
-        throw new Error(`Unsupported data transform: ${type}`);
-    }
-    expression = { label: "", kind: { case: "transform", value: { input: expression, kind } } };
-  }
-  return expression;
-}
-
 function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]): PlotRequest["filters"][number] {
   return {
-    expression: dataExpression(value.expression),
+    expression: validatedExpression(value.expression),
     operator: filterOperator(value.operator),
     ...(value.value === undefined ? {} : { value: jsonToNativeValue(value.value) }),
   };
@@ -629,13 +528,6 @@ function boundedWindow(value: number): number {
     throw new Error("Native plot window_s must be finite and non-negative.");
   }
   return value;
-}
-
-function object(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`Native ${label} must be an object.`);
-  }
-  return value as Record<string, unknown>;
 }
 
 function ensureActive(session: SessionIdentity, signal?: AbortSignal): void {

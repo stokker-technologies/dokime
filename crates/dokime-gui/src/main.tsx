@@ -1,11 +1,10 @@
-import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
 // Dokime — SPDX-License-Identifier: Apache-2.0
-
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { createRoot, type Root } from "react-dom/client";
-import { DokimeToaster } from "@/components/DokimeToaster";
-import { defaultBrand } from "@/lib/brand";
-import "@/styles.css";
+import { DokimeToaster } from "@dokime/document/components/DokimeToaster";
+import { defaultBrand } from "@dokime/document/lib/brand";
+import "./desktop.css";
 
 declare global {
   interface Window {

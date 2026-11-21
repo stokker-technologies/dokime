@@ -22,7 +22,7 @@ import { useCallback, useMemo } from "react";
 import { cycleRows, promptCountsByCycle } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { type OpenCycle, openCycles, resolveActiveCycle } from "@/features/library/active-cycle-model";
-import { useUiStore } from "@/stores/ui-store";
+import { useUiStore } from "@dokime/document/stores/ui-store";
 
 /* === Re-Exports === */
 

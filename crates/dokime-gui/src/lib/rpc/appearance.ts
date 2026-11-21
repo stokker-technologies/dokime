@@ -1,24 +1,14 @@
-import { logoVariant } from "../native-appearance";
 // Dokime — SPDX-License-Identifier: Apache-2.0
+import { type AppearanceResource, logoVariant } from "@dokime/document/lib/native-appearance";
 // Native appearance resources. The session owner disposes resources when replaced.
 
-import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
+import type { RuntimeAppLogo } from "@dokime/plots/lib/types/appearance";
 import * as rpc from "../host/client";
-import type { Wire } from "./canonical.js";
 
 import type { SessionIdentity } from "./transport.js";
 
 import { readFileReference } from "@/lib/api/native-content";
-import { required } from "./canonical";
-type AppearanceSnapshot = Wire<NonNullable<Awaited<ReturnType<typeof rpc.backendAppearance>>["appearance"]>>;
-
-export interface AppearanceResource {
-  appearance: AppearanceSnapshot;
-  logos: RuntimeAppLogo[];
-  unavailableReason?: string;
-  dispose(): void;
-}
-
+import { required } from "@dokime/plots/lib/rpc/canonical";
 function current(session: SessionIdentity) {
   if (!session.isCurrent()) throw { kind: "session", detail: { kind: "superseded" } };
 }

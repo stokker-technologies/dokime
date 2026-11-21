@@ -11,7 +11,7 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /* === Types === */

@@ -14,13 +14,13 @@ import { type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
-import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
+import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { Badge } from "@dokime/plots/components/ui/badge";
+import { Button } from "@dokime/plots/components/ui/button";
+import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
-import { cn } from "@/lib/utils";
+import { cn } from "@dokime/plots/lib/utils";
 
 /* === Constants === */
 

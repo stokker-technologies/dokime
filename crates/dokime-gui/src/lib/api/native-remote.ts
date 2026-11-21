@@ -3,7 +3,7 @@
 // Access-Owned Listener Projection for Desktop Settings.
 import type { ApplicationSettings, PreferencesSnapshot } from "@generated/application-settings";
 import * as rpc from "@/lib/host/client";
-import type { Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 export type ListenerSettings = {

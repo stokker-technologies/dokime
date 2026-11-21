@@ -20,7 +20,7 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
-import { failureOf } from "@/lib/notification-details";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */

@@ -19,10 +19,10 @@
 import type { ReactNode } from "react";
 
 // Local Imports
-import { CycleSidebarCasesView } from "@/features/cycle/CycleSidebarCasesView";
-import { useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
-import { AppShellLayout, type FrozenShell } from "@/shell/AppShellLayout";
-import { SidebarFrame } from "@/shell/SidebarFrame";
+import { CycleSidebarCasesView } from "@dokime/document/features/cycle/CycleSidebarCasesView";
+import { useCycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
+import { AppShellLayout, type FrozenShell } from "@dokime/document/shell/AppShellLayout";
+import { SidebarFrame } from "@dokime/document/shell/SidebarFrame";
 
 /* === Re-Exports === */
 

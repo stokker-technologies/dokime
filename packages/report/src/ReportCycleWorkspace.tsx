@@ -21,7 +21,7 @@
 // Third Party Imports
 
 // Local Imports
-import { CycleEvidenceView } from "@/features/cycle/CycleEvidenceView";
+import { CycleEvidenceView } from "@dokime/document/features/cycle/CycleEvidenceView";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
@@ -29,13 +29,13 @@ import {
   sealedCaseCount,
   isUnstartedExecution,
   selectedCycleRow,
-} from "@/features/cycle/cycle-workspace-model";
-import { evidencePaneState } from "@/features/cycle/document-query-model";
-import { type DocumentSurfaceOptions, documentSurface, documentView } from "@/features/cycle/document-view-model";
-import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
-import { NodeSummary } from "@/features/cycle/NodeSummary";
-import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
-import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
+} from "@dokime/document/features/cycle/cycle-workspace-model";
+import { evidencePaneState } from "@dokime/document/features/cycle/document-query-model";
+import { type DocumentSurfaceOptions, documentSurface, documentView } from "@dokime/document/features/cycle/document-view-model";
+import { ExecutionSectionsView } from "@dokime/document/features/cycle/ExecutionSectionsView";
+import { NodeSummary } from "@dokime/document/features/cycle/NodeSummary";
+import { usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
+import type { CycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
 import { reportOutcome } from "./native-report";
 
 /* === Re-Exports === */

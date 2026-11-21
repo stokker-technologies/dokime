@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openNativeExecutionProgressStream } from "@/lib/api/native-observation";
-import { safeNumber } from "@/lib/api/native-values";
+import { safeNumber } from "@dokime/plots/lib/api/native-values";
 
 const GUI_RECONNECT_MS = 1_000;
 

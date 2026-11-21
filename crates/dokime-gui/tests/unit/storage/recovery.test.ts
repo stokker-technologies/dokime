@@ -74,11 +74,11 @@ vi.mock("@/lib/desktop/commands", () => ({
     desktopStorageBackupDestination: fixture.destination,
   },
 }));
-vi.mock("@/lib/brand", () => ({ defaultBrand: { label: "Fixture" } }));
-vi.mock("@/shell/BrandMark", () => ({ BrandMark: () => null }));
+vi.mock("@dokime/document/lib/brand", () => ({ defaultBrand: { label: "Fixture" } }));
+vi.mock("@dokime/document/shell/BrandMark", () => ({ BrandMark: () => null }));
 vi.mock("@/features/settings/BackendsTable", () => ({ BackendsTable: () => null }));
 vi.mock("@/features/settings/SettingsSurface", () => ({ DisconnectedSettings: () => null }));
-vi.mock("@/components/PathPill", () => ({
+vi.mock("@dokime/document/components/PathPill", () => ({
   PathPill: ({ value }: { value: string }) => createElement("code", { "data-path": value }, value),
 }));
 

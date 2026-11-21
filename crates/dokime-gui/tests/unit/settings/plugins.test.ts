@@ -36,7 +36,7 @@ import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
-import type { NotificationFailure } from "@/lib/notification-details";
+import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
 import { FailureSchema, PluginEntrySchema, PluginState } from "@host/model";
 
 /* === Re-Exports === */
@@ -89,7 +89,7 @@ vi.mock("react", async (original) => {
     },
   };
 });
-vi.mock("@/components/ui/button", () => ({
+vi.mock("@dokime/plots/components/ui/button", () => ({
   Button: ({ onClick, ...props }: ComponentProps<"button">) => {
     if (onClick && !props.disabled && props.children !== "Copy") fixture.buttons.push(() => onClick({} as never));
     if (onClick && !props.disabled && props["aria-label"]) fixture.actions.set(props["aria-label"], () => onClick({} as never));
@@ -121,7 +121,7 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => fixture.hash,
   useNavigate: () => fixture.navigate,
 }));
-vi.mock("@/components/ui/dialog", () => ({
+vi.mock("@dokime/plots/components/ui/dialog", () => ({
   Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? children : null),
   DialogContent: ({ children }: { children: ReactNode }) => createElement("div", { role: "dialog" }, children),
   DialogHeader: ({ children }: { children: ReactNode }) => children,
@@ -143,9 +143,9 @@ vi.mock("@/features/settings/plugins/plugin-queries", async (original) => ({
 vi.mock("@/features/settings/use-settings-sections", () => ({ useSettingsSections: () => ({ frame: { sections: [], cards: [] } }) }));
 vi.mock("@/features/settings/SettingsSurface", () => ({ SettingsAdvancedSwitch: () => null }));
 vi.mock("@/features/settings/PluginSettingsCards", () => ({ PluginSettingsCards: () => null }));
-vi.mock("@/shell/page-chrome", () => ({ usePageChrome: vi.fn() }));
-vi.mock("@/lib/brand", () => ({ useBrand: () => ({ label: "Fixture" }) }));
-vi.mock("@/lib/desktop-open", () => ({ isTauriDesktop: () => true }));
+vi.mock("@dokime/document/shell/page-chrome", () => ({ usePageChrome: vi.fn() }));
+vi.mock("@dokime/document/lib/brand", () => ({ useBrand: () => ({ label: "Fixture" }) }));
+vi.mock("@dokime/document/lib/surface-environment", () => ({ isTauriDesktop: () => true }));
 
 beforeEach(() => {
   vi.clearAllMocks();

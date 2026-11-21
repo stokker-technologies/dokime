@@ -124,11 +124,11 @@ run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
 [tasks."docs:build"]
 description = "Build the Documentation Site Entry"
-run = "{{vars.tools}} dokime_tools.docs.site build"
+run = ["mise -C crates/dokime-gui run generate:host-frontend", "{{vars.tools}} dokime_tools.docs.site build"]
 
 [tasks."docs:serve"]
 description = "Preview the Documentation Site"
-run = "{{vars.tools}} dokime_tools.docs.site serve"
+run = ["mise -C crates/dokime-gui run generate:host-frontend", "{{vars.tools}} dokime_tools.docs.site serve"]
 
 [tasks."docs:image"]
 description = "Assemble Published Documentation Archives Into the Site Image"
@@ -210,7 +210,10 @@ run_windows = '''pwsh -NoProfile -Command "taplo fmt --config tools/config/taplo
 hide = true
 description = "Format TypeScript"
 usage = 'flag "--check"'
-run = ["pnpm -r exec biome format{% if usage.check %}{% else %} --write{% endif %} ."]
+run = [
+  "pnpm -r exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+  "pnpm exec biome format{% if usage.check %}{% else %} --write{% endif %} biome.json tsconfig.json vite.config.ts vitest.config.ts package.json",
+]
 
 [tasks."lint:python"]
 hide = true
@@ -231,7 +234,7 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = "pnpm -r exec biome lint ."
+run = ["pnpm -r exec biome lint .", "pnpm exec biome lint biome.json tsconfig.json vite.config.ts vitest.config.ts package.json"]
 
 [tasks."typecheck:typescript"]
 hide = true
@@ -563,7 +566,7 @@ flag "--select <select>"
 flag "--project <project>" default="crates/dokime-gui"
 '''
 run = [
-  "{% if not usage.prepared and usage.project == 'crates/dokime-gui' %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   '''{% if usage.prepared and not usage.select and usage.project == 'crates/dokime-gui' %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category unit --language typescript{% endif %}''',
   '''{% if not usage.prepared or usage.select or usage.project != 'crates/dokime-gui' %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category unit --language typescript --project {{usage.project}} -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/unit{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]
@@ -579,7 +582,7 @@ flag "--select <select>"
 flag "--project <project>" default="crates/dokime-gui"
 '''
 run = [
-  "{% if not usage.prepared and usage.project == 'crates/dokime-gui' %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
+  "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
   '''{% if usage.prepared and not usage.select and usage.project == 'crates/dokime-gui' %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language typescript{% endif %}''',
   '''{% if not usage.prepared or usage.select or usage.project != 'crates/dokime-gui' %}{{vars.lane}} {% if usage.prepared %}--prepared {% endif %}--profile {{usage.profile}} --category integration --language typescript --project {{usage.project}} -- node ./node_modules/vitest/vitest.mjs run {% if usage.select %}{{usage.select}}{% else %}tests/integration{% endif %} --reporter=default --reporter=junit --outputFile.junit={junit} --testTimeout={timeout_ms}{% endif %}''',
 ]

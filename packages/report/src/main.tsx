@@ -9,19 +9,19 @@
 
 /* === External Imports === */
 
-import { DokimeToaster } from "@/components/DokimeToaster";
-import { failureOf } from "@/lib/notification-details";
+import { DokimeToaster } from "@dokime/document/components/DokimeToaster";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
-import { BrandProvider, defaultBrand } from "@/lib/brand";
+import { BrandProvider, defaultBrand } from "@dokime/document/lib/brand";
 import { applyReportAppearance } from "./report-appearance";
 
-import "../styles.css";
+import "./report.css";
 
 /* === Constants === */
 

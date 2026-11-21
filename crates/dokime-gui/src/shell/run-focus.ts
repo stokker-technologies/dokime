@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import type { TestExecution, TestCyclePlan } from "@/lib/types";
+import type { TestExecution, TestCyclePlan } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 

@@ -25,7 +25,7 @@ import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } fr
 /* === Local Imports === */
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
-import { ErrorCard } from "@/components/ErrorCard";
+import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { type EditorParameterRow, editorProblems, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
 import {
@@ -38,17 +38,23 @@ import {
 } from "@/components/start-cycle-form-model";
 import { apiSelection } from "@/components/suite-picker/model";
 import { useAppendTestCycleMutation, usePreviewTestCycleMutation } from "@/components/suite-picker/server-state";
-import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CopyableTraceabilityValue } from "@dokime/document/components/traceability/CopyableTraceabilityValue";
+import { Button } from "@dokime/plots/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ActiveCycleInline } from "@/features/library/ActiveCycle";
 import type { OpenCycle } from "@/features/library/active-cycle-model";
 import { caseAppend, caseDeltas, NO_ACTIVE_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
-import { failureOf } from "@/lib/notification-details";
-import { toast } from "@/lib/notifications";
-import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { toast } from "@dokime/plots/lib/notifications";
+import type {
+  FileDefinition,
+  PreviewTestCycleResponse,
+  SuiteTemplateEntry,
+  TestCycleSelection,
+  TestSuiteEntry,
+} from "@dokime/plots/lib/types";
+import { cn } from "@dokime/plots/lib/utils";
 import { useParameterOverridesStatus, useParameterOverridesStore } from "@/stores/parameter-overrides-store";
 
 /* === Constants === */

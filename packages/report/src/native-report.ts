@@ -18,23 +18,23 @@ import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 
 // Local Imports
-import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
-import { mapNativeHealth, mapNativeNote } from "@/lib/api/native-annotation-projection";
-import { mapArtifactMetadata, mapExecutionFile } from "@/lib/api/native-content-projection";
-import { assembleDocument, mapNativeDocument } from "@/lib/api/native-documents";
-import { mapNativeExecution } from "@/lib/api/native-execution-projection";
-import { mapNativeCyclePlan } from "@/lib/api/native-planning-projection";
-import { mapNativePlotEnvelope } from "@/lib/api/native-plot-projection";
-import { decodeFrozenRecords } from "@/lib/api/native-record-projection";
-import { mapRuntimeShell } from "@/lib/api/native-runtime-projection";
-import { mapNativeTraceability } from "@/lib/api/native-traceability-projection";
-import { timestampIso } from "@/lib/api/native-values";
-import { frozenRegistry } from "@/lib/host/schema-registry";
-import { mapSuite } from "@/lib/host/suites";
-import { appearanceFrameFromNative, logoVariant } from "@/lib/native-appearance";
-import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
-import type { ArtifactRecord, DocumentViewPayload, PlotPayload } from "@/lib/types";
-import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
+import type { CycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
+import { mapNativeHealth, mapNativeNote } from "@dokime/document/lib/api/native-annotation-projection";
+import { mapArtifactMetadata, mapExecutionFile } from "@dokime/document/lib/api/native-content-projection";
+import { assembleDocument, mapNativeDocument } from "@dokime/document/lib/api/native-documents";
+import { mapNativeExecution } from "@dokime/document/lib/api/native-execution-projection";
+import { mapNativeCyclePlan } from "@dokime/document/lib/api/native-planning-projection";
+import { mapNativePlotEnvelope } from "@dokime/plots/lib/api/native-plot-projection";
+import { decodeFrozenRecords } from "@dokime/document/lib/api/native-record-projection";
+import { mapRuntimeShell } from "@dokime/document/lib/api/native-runtime-projection";
+import { mapNativeTraceability } from "@dokime/document/lib/api/native-traceability-projection";
+import { timestampIso } from "@dokime/plots/lib/api/native-values";
+import { frozenRegistry } from "@dokime/document/lib/host/schema-registry";
+import { mapSuite } from "@dokime/document/lib/host/suites";
+import { appearanceFrameFromNative, logoVariant } from "@dokime/document/lib/native-appearance";
+import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { ArtifactRecord, DocumentViewPayload, PlotPayload } from "@dokime/plots/lib/types";
+import type { RuntimeAppLogo } from "@dokime/plots/lib/types/appearance";
 import { ReportCaptureSchema, type DocumentsGetResponse, type FileReference, type ReportCapture } from "@host/model";
 
 /* === Re-Exports === */

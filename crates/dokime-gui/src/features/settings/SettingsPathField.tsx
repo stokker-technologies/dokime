@@ -23,7 +23,7 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@dokime/plots/components/ui/button";
 import { openLocalPath } from "@/lib/desktop-open";
 
 const GUI_COPIED_INDICATOR_MS = 1_500;
