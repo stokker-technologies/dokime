@@ -1,5 +1,57 @@
 # gRPC Plugins Design
 
+## Library State and Ownership
+
+The library pin is owned by the workspace `Cargo.toml`. Protocol generation
+refreshes every manifest projection and the vendored protocol inventory from
+that revision's archive, sharing the C++ archive checksum input. Generated
+bindings remain tracked. Cargo and native SDK locks follow the same revision.
+
+Registry removal, disable and host shutdown detach externally launched plugins;
+only registry-spawned children receive Stop. External launchers retain process
+exit ownership. Registration restart and remote authoring keep their existing
+guards and assertions.
+
+The host composes the library plugin state manager with managed storage recovery,
+including State Get and Put operation registration. Plugin state capacity comes
+from the product operation message budget. Recovery capture/replay use the
+existing storage pending-byte budget and operation page capacity; snapshot
+segments use the message budget and the snapshot cadence uses the storage flush
+row policy. Snapshot schemas remain at v1. SDK contexts forward the library
+StateHandle; local test contexts require a registered product host for durable
+state. A stale write revision returns `state_revision_conflict`.
+
+Remote address replacement remains blocked on a library capability. Product
+`crates/dokime-operations/src/plugin_policy.rs` currently handles a changed URL
+with Delete/Create, which removes the previous entry's durable state. The
+library's `crates/harmos-runtime/src/plugin/manager/replacement.rs` restricts
+Replace to managed bundles. Product Plugins/Create callers reach the former;
+the library manager's Replace path reaches the latter. The clean contract is
+one library-owned remote placement update preserving entry identity, settings
+and state; retire the product Delete/Create path after that capability lands.
+This adoption preserves one external listener across host restart and does not
+claim durability across remote address replacement.
+
+Native recovery compaction atomically removes journal entries covered by the
+newest published snapshot and older snapshots, retaining the uncovered suffix
+and any newer snapshot still awaiting publication. Without a published snapshot,
+compaction changes nothing. Publication and compaction preserve the saved
+frontier and require no migration or data reset.
+
+The Rust SDK exposes the library Collection directly. The product scheduler in
+`sdk/rust/src/stream.rs` remains owned by the host plugin integration worker;
+replace that scheduler with the library collection when the host plugin lands.
+Both it and the library's `sdk/rust/src/stream.rs` schedule observer windows.
+Product Plugin/Observer composition calls the former and library Collection
+publications call the latter. Delete the product scheduler after migrating its
+consumers; this work does not edit its other owner's files.
+
+The requested direct StateHandle and Collection exports supersede the earlier
+Rust worker brief's blanket removal of library-facing APIs for these types only;
+there is no product-owned mirror or compatibility layer. Work stays on
+`feat/library-state-and-ownership` as this task directs, overriding the project
+guidance's older integration branch name.
+
 ## Resuming
 
 The execution host, typed catalog/origins, four SDKs, CLI and desktop runtime
@@ -2698,6 +2750,9 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
 | `crates/dokime-gui/src/report/` and `crates/dokime-runtime/src/documents.rs` | The frontend build and report fixtures compile the standalone renderer; host report operations render retained HTML directly. Both render product reports, as `docs/gui.md` already records. | Keep the host report owner and retire the standalone renderer and its build consumers after the owner resolves the retained rendering contract. |
+| `crates/dokime-gui/benches/system/fixture.rs:Fixture::start` and `crates/dokime-gui/src-tauri/src/connection/host.rs:Session::install_plugin` | The benchmark admits a remote fixture and desktop installation admits a managed plugin; both independently issue Create, Watch and Get until Ready. Their callers are benchmark fixture startup and desktop installation respectively. | Keep readiness admission in Session and delete the benchmark loop once that owner supports remote placements; the owner must choose before either mechanism is removed. |
+| `crates/dokime-runtime/src/plugin.rs:PluginProcess` and the library `crates/harmos-runtime/src/plugin/grpc/mod.rs` | Development CLI, host fixtures and product stories use the product launcher for project scripts and externally owned children; registry-managed placements use the library launcher. Both implement native child startup, Stop and bounded exit handling, with distinct process owners. | Consider a library-owned reusable spawned-process lifecycle and delete the product mechanics after it supports project launch inputs; retain the external launcher's ownership and never transfer it through launch credentials. No consolidation is authorized here. |
+| `crates/dokime-runtime/src/host.rs:remove_plugin` and `detach_plugin` | Host facade consumers can invoke either method; detach forwards directly to remove with identical durable deletion behavior. | Prefer remove and delete the redundant detach entry point after the owner confirms its public API contract; this adoption does not change it. |
 | `sdk/cpp/src/plugin.cpp:Plugin::serve`, `sdk/tests/fixtures/cpp/thermal/main.cpp:main` and the library `sdk/cpp/src/server.cpp:Listener::close` | Product serving and the thermal fixture explicitly shut down the process default EventEngine; the library listener settles its dedicated serving engine. These are parallel teardown owners for different engine instances, with a repeated process-global release in the fixture. | Ask the library owner to own the full transport teardown, then delete the product and fixture process-global shutdown calls; do not remove either resource release speculatively. |
 | `crates/dokime-runtime/tests/system/client_edits_settings.rs:SettingsPlugin` and `sdk/rust/src/plugin/mod.rs:into_harmos` | The settings story builds its catalog with the SDK but implements the Instance protocol itself, including lifecycle acknowledgements; authored plugins use the SDK's library-owned listener. | Use an unpublished library-owned settings protocol fixture, then delete the story's manual carrier and SDK catalog dependency after the owner agrees. |
 | `mise.toml:lint:rust` and `tools/python/src/dokime_tools/build/rust/tests.py:build` | Rust lint selects all default-feature targets; test archive production additionally selects the GUI testing feature. The latter therefore found a fixture compilation failure after the lint task passed. | Share the required test-feature inventory and delete the independent hard-coded selection after the task owner agrees; retain both lint and archive proof. |
@@ -2754,7 +2809,7 @@ The documentation changes above remain with the owner; workers do not edit
 
 ### Managed Launch Handshake
 
-The library pin is `18e9b41cb0dd00e27020ee3120e5c973d82eec22`.
+The library pin is `324ad01b0892b1ca6a3bce4bb9525b22974f606b`.
 Managed startup uses the library's `Launches` reservation and its
 `HARMOS_HOST_ENDPOINT` and `HARMOS_LAUNCH_TOKEN` environment. The plugin serves
 its listener and calls `harmos.plugin.v1.Launches/Announce` once. Standard output
@@ -2770,14 +2825,14 @@ parsing plugin output. SDK entries select announcement, self-registration or sta
 the environment; retired address configuration and output parsers are removed. The library process owner is private; replacing the development
 process owner with it remains an owner decision.
 
-### Registry Process Ownership (Library Capability Required)
+### Registry Process Ownership
 
 Launch credentials authenticate readiness and do not transfer process ownership.
 The library registry must send Instance.Stop only when its activation owns a
-spawned process. In `crates/harmos-runtime/src/plugin/grpc/mod.rs`, Ending::Stop
-currently calls the endpoint even when `process` is None. Removing a remote entry
-must instead settle its host-side activity and close the registry connection,
-without stopping its externally owned endpoint. Managed process teardown keeps
+spawned process. The pinned `crates/harmos-runtime/src/plugin/grpc/mod.rs` gates
+Stop on that ownership. Removing a remote entry settles its host-side activity
+and closes the registry connection without stopping its externally owned endpoint.
+Managed process teardown keeps
 its Stop, exit, kill and reap policies unchanged. This removes the need for a
 second product lifecycle marker or for mode selection based on credentials.
 
@@ -2898,17 +2953,13 @@ to the library. Otherwise a configured remote selects self-registration and an
 absent remote selects standalone serving. Programmatic registration owns its listener; no listener environment variable
 or output parser participates in startup.
 
-A remote registry entry does not own the process serving it. At the pinned
-library revision `18e9b41cb0dd00e27020ee3120e5c973d82eec22`,
-`crates/harmos-runtime/src/plugin/grpc/mod.rs:923` turns host shutdown into Stop,
-and `:938` sends Instance.Stop before inspecting its optional spawned process at
-`:954`. Initialization failure at `:674` and reconnect failure at `:1078` also
-send Stop. The library must gate every such call on its existing spawned-process
-ownership, including entry removal and host shutdown. Rust and C# default launch listeners
-currently exit on that call. Registration across a host restart remains required:
-its Ready wait observes Offline after the first host has stopped the external
-fixture. This is a lifecycle defect, not a retired readiness test, and its guard
-must remain unchanged.
+A remote registry entry does not own the process serving it. The pinned library
+gates Instance.Stop on its existing spawned-process ownership, including entry
+removal, disable, initialization/reconnect failure and host shutdown. Detaching
+an external listener ends its attached RPCs while the listener continues serving.
+Registration across a host restart remains required, and its existing guard and
+Ready assertions remain unchanged. Launch credentials authenticate announcement;
+they never transfer process ownership.
 
 The Python library's `sdk/python/src/harmos/_authoring.py:426` answers Stop without
 closing its endpoint, including when that endpoint was started through managed

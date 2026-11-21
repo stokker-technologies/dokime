@@ -14,10 +14,12 @@
 # Standard Library Imports
 import runpy
 import shutil
+import tarfile
 import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
+from tarfile import TarInfo
 from unittest import mock
 
 # isort: split
@@ -27,7 +29,7 @@ from unittest import mock
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol import cpp_dependency, library_dependencies
+from dokime_tools.build.protocol import cpp_dependency, library_dependencies, library_protocol
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
@@ -42,6 +44,38 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
+    def test_library_protocol_replaces_the_inventory_and_rejects_drift(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        archive = BytesIO()
+        files = tarfile.open(fileobj=archive, mode="w:gz")
+        try:
+            for name, data in {
+                "library/proto/harmos/plugin/v1/plugins/state.proto": b"state contract",
+                "library/proto/other/ignored.proto": b"other contract",
+            }.items():
+                entry = TarInfo(name)
+                entry.size = len(data)
+                files.addfile(entry, BytesIO(data))
+        finally:
+            files.close()
+        try:
+            stale = scratch / "proto/harmos/removed.proto"
+            stale.parent.mkdir(parents=True)
+            stale.write_bytes(b"removed contract")
+            library_protocol(scratch, archive.getvalue())
+            self.assertFalse(stale.exists())
+            self.assertFalse((scratch / "proto/other").exists())
+            library_protocol(scratch, archive.getvalue(), check=True)
+            state = scratch / "proto/harmos/plugin/v1/plugins/state.proto"
+            self.assertEqual(state.read_bytes(), b"state contract")
+            state.write_bytes(b"changed contract")
+            self.assertRaises(ValueError, library_protocol, scratch, archive.getvalue(), check=True)
+            library_protocol(scratch, archive.getvalue())
+            library_protocol(scratch, archive.getvalue(), check=True)
+            self.assertRaises(tarfile.ReadError, library_protocol, scratch, b"not an archive")
+        finally:
+            shutil.rmtree(scratch)
+
     def test_manifest_pins_follow_workspace_and_reject_each_stale_consumer(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         try:

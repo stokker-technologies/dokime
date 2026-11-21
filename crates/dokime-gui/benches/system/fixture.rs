@@ -16,7 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, path::Path, sync::Arc, time::Duration};
+use std::{
+    env, fs,
+    num::NonZeroUsize,
+    path::Path,
+    process,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 // Third Party Imports
 use serde_json::Value;
@@ -62,10 +72,6 @@ use dokime_sdk::{
     AxisScale, Card, ContourRender, Document, EvidenceScope, FieldReference, GridAxisEntry, GridChart, Metadata, Plot, PlotKind, PlotStyle,
     Reduction, SettingDeclaration, SettingValue, card, setting_value,
 };
-
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 
 /* === Constants === */
 
@@ -147,7 +153,7 @@ impl Fixture {
         let session = owner.start(root).await.unwrap();
         let manifest = root.join("bench-fixture.json");
         if restoring {
-            let saved: Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
+            let saved: Value = serde_json::from_slice(&fs::read(manifest).unwrap()).unwrap();
             return Self {
                 owner,
                 session,
@@ -166,7 +172,7 @@ impl Fixture {
             interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
-        let executable = std::env::current_exe().unwrap();
+        let executable = env::current_exe().unwrap();
         let control = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let plugin = PluginProcess::start_with_environment(
             &executable,
@@ -184,7 +190,10 @@ impl Fixture {
             kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
-            .execute(session.client().plugins.create_with("bench.pipeline", placement, PluginValue { enabled: true }, options))
+            .execute(
+                "Plugins.Create",
+                session.client().plugins.create_with("bench.pipeline", placement, PluginValue { enabled: true }, options),
+            )
             .await
             .unwrap();
         let mut entry = admitted.entry.expect("Admit Benchmark Fixture: Missing Entry");
@@ -193,16 +202,16 @@ impl Fixture {
             context: session.call_options().unwrap(),
             ..Default::default()
         };
-        let mut watching = session.execute(session.client().plugins.watch_with(options)).await.unwrap();
+        let mut watching = session.execute("Plugins.Watch", session.client().plugins.watch_with(options)).await.unwrap();
         while entry.state != PluginState::Ready as i32 {
             assert!(entry.failure.is_none(), "Admit Benchmark Fixture: {:?}", entry.failure);
             assert_ne!(entry.state, PluginState::Stopped as i32);
-            session.execute(watching.next()).await.unwrap().expect("Admit Benchmark Fixture: Watch Closed");
+            session.execute("Plugins.Watch", watching.next()).await.unwrap().expect("Admit Benchmark Fixture: Watch Closed");
             let options = PluginsGetOptions {
                 context: session.call_options().unwrap(),
                 ..Default::default()
             };
-            entry = session.execute(session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
+            entry = session.execute("Plugins.Get", session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
         }
         drop(watching);
         let plan: CasesCreateResponse = session
@@ -251,7 +260,7 @@ impl Fixture {
             .await
             .unwrap();
         let execution = executions.executions[0].summary.as_ref().unwrap().execution_id.clone();
-        std::fs::write(manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle, "execution": execution})).unwrap()).unwrap();
+        fs::write(manifest, serde_json::to_vec(&serde_json::json!({"cycle": cycle, "execution": execution})).unwrap()).unwrap();
         Self {
             owner,
             session,
@@ -338,7 +347,7 @@ pub fn serve() -> Result<()> {
         .label("Pipeline Capture")
         .initialize(async |context: &Context| {
             context.set(History::default());
-            let address = std::env::var("DOKIME_DESKTOP_BENCH_CONTROL")
+            let address = env::var("DOKIME_DESKTOP_BENCH_CONTROL")
                 .map_err(|error| Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
             let stream = TcpStream::connect(address)
                 .await
@@ -369,7 +378,7 @@ pub fn serve() -> Result<()> {
 }
 
 pub fn rows() -> usize {
-    std::env::var("DOKIME_DESKTOP_HISTORY_ROWS").ok().map(|value| value.parse().expect("Benchmark Row Count")).unwrap_or(ROWS)
+    env::var("DOKIME_DESKTOP_HISTORY_ROWS").ok().map(|value| value.parse().expect("Benchmark Row Count")).unwrap_or(ROWS)
 }
 pub fn sample_ns() -> i64 {
     259_200_000_000_000 / rows() as i64
@@ -379,9 +388,9 @@ pub fn sample_ns() -> i64 {
 
 /// The Bench Run's Credential Namespace, Which the Runner Names and Removes; Otherwise This Process's Own.
 fn credentials() -> dokime_runtime::CredentialNamespace {
-    let namespace = std::env::var("DOKIME_CREDENTIAL_NAMESPACE").unwrap_or_else(|_| {
-        let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-        format!("dokime-bench-{}-{unique}", std::process::id())
+    let namespace = env::var("DOKIME_CREDENTIAL_NAMESPACE").unwrap_or_else(|_| {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+        format!("dokime-bench-{}-{unique}", process::id())
     });
     dokime_runtime::CredentialNamespace::new(namespace).expect("Name the Bench Credential Namespace")
 }

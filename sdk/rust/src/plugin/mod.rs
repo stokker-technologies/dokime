@@ -24,8 +24,7 @@ pub use crate::record::Record;
 pub use crate::stream::{Observer, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
-pub use ::harmos::plugin::Publisher;
-pub use ::harmos::plugin::Window;
+pub use ::harmos::plugin::{Collection, CollectionOutput, Publisher, Window};
 pub use types::*;
 include!("host_exports.rs");
 
@@ -60,6 +59,7 @@ use crate::template::validate_names;
 use crate::testing::Selected;
 use crate::{Declarations, Error, Lane, Message, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
+use crate::{authoring, client, configuration};
 
 /* === Constants === */
 
@@ -165,12 +165,12 @@ impl Plugin {
     }
 
     pub fn of<T>(version: impl Into<String>) -> Self {
-        let identifier = crate::authoring::code_name::<T>(true);
+        let identifier = authoring::code_name::<T>(true);
         let version = version.into();
         Self {
             assembly: Assembly {
                 identifier,
-                label: crate::authoring::type_label::<T>(),
+                label: authoring::type_label::<T>(),
                 version,
                 state: Arc::new(()),
                 requirements: Vec::new(),
@@ -420,7 +420,7 @@ impl Plugin {
         if env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some() {
             return self.into_harmos()?.run().map_err(Error::from);
         }
-        let values = crate::configuration::load()?;
+        let values = configuration::load()?;
         let configured = env::var_os("DOKIME_REMOTE")
             .map(|value| !value.is_empty())
             .unwrap_or_else(|| values.get("DOKIME_REMOTE").is_some_and(|value| !value.is_empty()));
@@ -435,14 +435,14 @@ impl Plugin {
                 Ok(())
             });
         }
-        let remote = crate::configuration::resolve("DOKIME_REMOTE", None, &values)?;
+        let remote = configuration::resolve("DOKIME_REMOTE", None, &values)?;
         runtime.block_on(async move {
-            let client = crate::client::connect_with(crate::client::ConnectionSettings {
+            let client = client::connect_with(client::ConnectionSettings {
                 target: Some(remote),
                 ..Default::default()
             })
             .await?;
-            let options = crate::client::PluginRegisterOptions {
+            let options = client::PluginRegisterOptions {
                 address: Some(address.into()),
                 ..Default::default()
             };

@@ -210,6 +210,7 @@ private:
   friend struct HostOperationsResource;
   friend struct HostPluginsResource;
   friend struct HostPluginsSettingsResource;
+  friend struct HostPluginsStateResource;
   friend struct HostPromptsResource;
   friend struct HostSecretsResource;
   friend struct HostTimeResource;

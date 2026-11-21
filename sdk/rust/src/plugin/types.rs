@@ -29,6 +29,8 @@ pub use harmos_protocol::host::InvocationsGetResponse;
 pub use harmos_protocol::host::InvocationsWatchResponse;
 pub use harmos_protocol::host::TimeGetResponse;
 pub use harmos_protocol::host::TimeSleepResponse;
+pub use harmos_protocol::host::plugins::StateGetResponse;
+pub use harmos_protocol::host::plugins::StatePutResponse;
 pub mod dokime {
     pub mod host {
         pub mod files {

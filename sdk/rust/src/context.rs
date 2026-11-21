@@ -34,23 +34,17 @@ use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
 
 // Local Imports
-use crate::OperationPolicy;
-use crate::Record;
-use crate::RecordsListResponse;
-use crate::client::{ArtifactCreateOptions, mutations};
+use crate::client::{ArtifactCreateOptions, mutations, queries::Paging};
 use crate::operation::FutureResult;
-use crate::plugin::{CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions};
 use crate::plugin::{
-    HostEffectsCreateOptions, HostEffectsSetOptions, HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions,
+    CaptureMode, EffectWritable, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEffectsCreateOptions,
+    HostEffectsSetOptions, HostEvidenceTraceabilityGetOptions, HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions,
+    HostPromptsCreateOptions, Prompt, Step,
 };
-use crate::templates::{CaptureResult, Environment};
 use crate::templates::{
-    DocumentAppendOptions, EffectConfirmOptions, EffectCreateOptions, LogAppendOptions, ProgressSetOptions, RecordAppendOptions,
-    TraceabilitySetOptions,
+    CaptureResult, DocumentAppendOptions, DocumentPart, EffectConfirmOptions, EffectCreateOptions, Environment, LogAppendOptions,
+    ProgressSetOptions, PromptAnswer, RecordAppendOptions, RecordRow, StatisticsReadOptions, StatisticsSnapshot, TraceabilitySetOptions,
 };
-use crate::{FileSource, Metadata, TraceabilityEntry};
-
-use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
 use crate::{
@@ -58,7 +52,10 @@ use crate::{
     transfers::{self, Uploads},
 };
 use crate::{Error, Message, Result, data, host, host::Wire};
-use crate::{ExecutionProgressValue, PageRequest, Severity};
+use crate::{
+    ExecutionProgressValue, FileSource, Metadata, OperationPolicy, PageRequest, Record, RecordsListResponse, SettingValue, Severity,
+    Statistics, TraceabilityEntry, Value,
+};
 use crate::{Origin, Termination, TestCase, origin};
 use crate::{Payload, authoring::build_identifier, payload};
 
@@ -273,6 +270,12 @@ impl Context {
             .downcast_ref()
             .ok_or_else(|| Error::Invalid(format!("Read Plugin State: Supply {} With Plugin::state", any::type_name::<T>())))
     }
+    pub fn state(&self) -> Result<plugin::StateHandle> {
+        match &self.transport {
+            Transport::Harmos(transport) => Ok(transport.state()),
+            Transport::Local(_) => Err(Error::Invalid("Access Durable Plugin State: Register the Plugin With a Product Host".into())),
+        }
+    }
     pub async fn secret(&self, identifier: &str) -> Result<Vec<u8>> {
         if !self.secrets.contains(identifier) {
             return Err(Error::Invalid(format!("Read Secret: Declare {identifier} on the Plugin")));
@@ -373,10 +376,10 @@ impl Context {
 
     pub async fn settings<T: Message>(&self) -> Result<T> {
         let response = self.host().plugins.settings.list().await?;
-        crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
+        data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
     }
 
-    pub async fn setting(&self, identifier: &str) -> Result<crate::SettingValue> {
+    pub async fn setting(&self, identifier: &str) -> Result<SettingValue> {
         let response = self.host().plugins.settings.list().await?;
         response
             .value
@@ -384,9 +387,7 @@ impl Context {
             .ok_or_else(|| Error::Invalid(format!("Read Setting: Declare and Configure {identifier}")))
     }
 
-    pub async fn prompt_answer(
-        &self, prompt: impl Into<Prompt>, values: HashMap<String, crate::Value>,
-    ) -> Result<crate::templates::PromptAnswer> {
+    pub async fn prompt_answer(&self, prompt: impl Into<Prompt>, values: HashMap<String, Value>) -> Result<PromptAnswer> {
         let prompt = prompt.into();
         let mut definition = prompt.definition;
         let metadata = definition.metadata.as_mut().expect("Prompt Metadata");
@@ -405,7 +406,7 @@ impl Context {
                 },
             )
             .await?;
-        Ok(crate::templates::PromptAnswer {
+        Ok(PromptAnswer {
             accepted: answer.accepted,
             action: answer.action,
             values: answer.values,
@@ -486,13 +487,13 @@ impl Context {
 
     pub async fn statistics(
         &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>,
-    ) -> Result<Option<crate::Statistics>> {
-        Ok(self.statistics_with(stream, field, step, crate::templates::StatisticsReadOptions::default()).await?.value)
+    ) -> Result<Option<Statistics>> {
+        Ok(self.statistics_with(stream, field, step, StatisticsReadOptions::default()).await?.value)
     }
 
     pub async fn statistics_with(
-        &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>, options: crate::templates::StatisticsReadOptions,
-    ) -> Result<crate::templates::StatisticsSnapshot> {
+        &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>, options: StatisticsReadOptions,
+    ) -> Result<StatisticsSnapshot> {
         let step = step.into();
         let response = self
             .call_with(
@@ -510,7 +511,7 @@ impl Context {
                 None,
             )
             .await?;
-        Ok(crate::templates::StatisticsSnapshot {
+        Ok(StatisticsSnapshot {
             value: response.statistics,
             at: response.resolved_at,
         })
@@ -600,8 +601,7 @@ impl Context {
         })
     }
     pub async fn traceability(
-        &self, identifier: impl Into<String>, value: crate::Value, label: impl Into<String>, source: impl Into<String>,
-        unit: impl Into<String>,
+        &self, identifier: impl Into<String>, value: Value, label: impl Into<String>, source: impl Into<String>, unit: impl Into<String>,
     ) -> Result<()> {
         self.traceability_with(
             identifier,
@@ -615,9 +615,7 @@ impl Context {
         )
         .await
     }
-    pub async fn traceability_with(
-        &self, identifier: impl Into<String>, value: crate::Value, options: TraceabilitySetOptions,
-    ) -> Result<()> {
+    pub async fn traceability_with(&self, identifier: impl Into<String>, value: Value, options: TraceabilitySetOptions) -> Result<()> {
         let identifier = identifier.into();
         let host = self.host();
         let current = host
@@ -652,22 +650,19 @@ impl Context {
             .await?;
         Ok(())
     }
-    pub async fn document(
-        &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
-    ) -> Result<()> {
+    pub async fn document(&self, document: impl Into<String>, part: DocumentPart, section: impl Into<String>) -> Result<()> {
         self.document_with(document, part, section, DocumentAppendOptions::default()).await
     }
     pub async fn document_with(
-        &self, document: impl Into<String>, part: crate::templates::DocumentPart, section: impl Into<String>,
-        mutation: DocumentAppendOptions,
+        &self, document: impl Into<String>, part: DocumentPart, section: impl Into<String>, mutation: DocumentAppendOptions,
     ) -> Result<()> {
         let mut options = HostDocumentsAppendPartsOptions {
             request_id: Some(mutations::request_id(mutation.request_id)?),
             ..Default::default()
         };
         match part {
-            crate::templates::DocumentPart::Section(value) => options.subsection = Some(*value),
-            crate::templates::DocumentPart::Card(value) => options.card = Some(*value),
+            DocumentPart::Section(value) => options.subsection = Some(*value),
+            DocumentPart::Card(value) => options.card = Some(*value),
         }
         self.host().documents.append_parts_with(self.execution_id().into(), document.into(), section.into(), options).await?;
         Ok(())
@@ -711,7 +706,7 @@ impl Context {
         host.effects
             .set_with(
                 ticket.into(),
-                crate::plugin::EffectWritable {
+                EffectWritable {
                     applied_at: Some(match at {
                         Some(at) => at,
                         None => self.now().await?,
@@ -771,9 +766,9 @@ impl<T: Payload> RecordsQuery<'_, T> {
         self.read(1).await?.last.map(|record| payload::decode(&record.payload)).transpose()
     }
 
-    pub async fn rows(&self) -> Result<Vec<crate::templates::RecordRow<T>>> {
+    pub async fn rows(&self) -> Result<Vec<RecordRow<T>>> {
         let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
-        let mut paging = crate::client::queries::Paging::default();
+        let mut paging = Paging::default();
         let mut rows = Vec::new();
         loop {
             let page = self
@@ -793,7 +788,7 @@ impl<T: Payload> RecordsQuery<'_, T> {
                 )
                 .await?;
             for record in page.records {
-                rows.push(crate::templates::RecordRow {
+                rows.push(RecordRow {
                     identifier: record.record_id,
                     ordinal: record.sequence,
                     timestamp: record.timestamp,
