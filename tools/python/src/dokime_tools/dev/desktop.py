@@ -221,7 +221,8 @@ def main(arguments: list[str] | None = None) -> int:
         stderr=sys.stderr,
     )
 
-    # Build the OBC Charger Plugin and the Tools That Install It and Remove Credentials
+    # Build the Shipped Plugins and the Tools That Install Them and Remove Credentials
+    shipped = [plugin["package"] for plugin in policy.policy(ROOT, "release").get("plugins", [])]
     subprocess.run(
         [
             "mise",
@@ -231,10 +232,7 @@ def main(arguments: list[str] | None = None) -> int:
             "--cargo",
             "build",
             "--locked",
-            "--package",
-            "plugin-obc",
-            "--bin",
-            "plugin-obc",
+            *[argument for package in shipped for argument in ("--package", package, "--bin", package)],
             "--package",
             "dokime-cli",
             "--bin",
@@ -253,7 +251,6 @@ def main(arguments: list[str] | None = None) -> int:
     )
     cli = ROOT / "target/debug" / f"dokime{extension}"
     host = ROOT / "target/debug" / f"dokime-host{extension}"
-    plugin = ROOT / "target/debug" / f"plugin-obc{extension}"
 
     # Create the Disposable Root and Credential Namespace; Never the User's Own
     root = Path(tempfile.mkdtemp(prefix="dokime-dev-"))
@@ -274,24 +271,28 @@ def main(arguments: list[str] | None = None) -> int:
     owner = Owner()
     status = 1
     try:
-        # Bundle the Plugin Exactly as the Product Build Packages It
-        project = root / "plugin-obc"
-        project.mkdir()
-        shutil.copy2(plugin, project / plugin.name)
-        (project / "dokime.toml").write_text('[plugin]\n[scripts]\nexecutable = "plugin-obc"\n', encoding="utf-8")
-        bundle = root / "plugin-obc.dokime"
-        subprocess.run(
-            [str(cli), "plugin", "bundle", str(project), "--out", str(bundle)],
-            cwd=ROOT,
-            env=environment,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=subprocess.DEVNULL,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+        # Bundle Each Shipped Plugin Exactly as the Product Build Packages It
+        bundles = []
+        for package in shipped:
+            plugin = ROOT / "target/debug" / f"{package}{extension}"
+            project = root / package
+            project.mkdir()
+            shutil.copy2(plugin, project / plugin.name)
+            (project / "dokime.toml").write_text(f'[plugin]\n[scripts]\nexecutable = "{package}"\n', encoding="utf-8")
+            bundle = root / f"{package}.dokime"
+            subprocess.run(
+                [str(cli), "plugin", "bundle", str(project), "--out", str(bundle)],
+                cwd=ROOT,
+                env=environment,
+                check=True,
+                creationflags=spawn_flags(),
+                stdin=subprocess.DEVNULL,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+            bundles.append(bundle)
 
-        # Install It Into the Desktop's Data Folder Through a Short-Lived Host; the Desktop Host Starts It Again
+        # Install Them Into the Desktop's Data Folder Through a Short-Lived Host; the Desktop Host Starts Them Again
         server = owner.start(
             [cli, "--credential-namespace", namespace, "server", "--endpoint", "127.0.0.1:0", "--storage", data],
             cwd=root,
@@ -304,21 +305,22 @@ def main(arguments: list[str] | None = None) -> int:
         assert server.stdin is not None and server.stdout is not None
         endpoint = server.stdout.readline().strip()
         if not endpoint:
-            raise policy.ToolError(f"Install the OBC Plugin: the Seeding Host Exited With {server.wait()}")
-        subprocess.run(
-            [str(cli), "--credential-namespace", namespace, "--endpoint", endpoint, "plugin", "install", str(bundle)],
-            cwd=root,
-            env=environment,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=subprocess.DEVNULL,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+            raise policy.ToolError(f"Install the Shipped Plugins: the Seeding Host Exited With {server.wait()}")
+        for bundle in bundles:
+            subprocess.run(
+                [str(cli), "--credential-namespace", namespace, "--endpoint", endpoint, "plugin", "install", str(bundle)],
+                cwd=root,
+                env=environment,
+                check=True,
+                creationflags=spawn_flags(),
+                stdin=subprocess.DEVNULL,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
         server.stdin.close()
         server.stdout.read()
         if server.wait() != 0:
-            raise policy.ToolError(f"Install the OBC Plugin: the Seeding Host Exited With {server.returncode}")
+            raise policy.ToolError(f"Install the Shipped Plugins: the Seeding Host Exited With {server.returncode}")
         # The Reaped Host's Identifier May Be Reused; Stop Never Signals It Again.
         owner.processes.remove(server)
 
