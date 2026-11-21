@@ -60,6 +60,18 @@ pub struct Plan {
     pub mutation: Identifier,
 }
 
+/// Execution Command State and Its Original Admission for Receipt Replay.
+/// Both Payloads Decode as `dokime.host.v1.executions.ExecutionCommandReceipt`.
+#[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
+pub struct Command {
+    pub key: String,
+    pub scope: Identifier,
+    pub current: Vec<u8>,
+    pub original: Vec<u8>,
+    pub window: Identifier,
+    pub mutation: Identifier,
+}
+
 /* === Enums === */
 
 /// Exact Opaque Owners; Relationships Are Product Data, Never Scope Prefixes.
@@ -143,6 +155,23 @@ impl StoredObject for Plan {
     }
 }
 
+impl Identified for Command {
+    const ID: &'static str = "dokime.command";
+}
+
+impl StoredObject for Command {
+    type Key = str;
+    const RETENTION: ObjectRetention = ObjectRetention::All;
+
+    fn key(&self) -> &str {
+        &self.key
+    }
+
+    fn scope(&self) -> Option<&Identifier> {
+        Some(&self.scope)
+    }
+}
+
 /* === Public Functions === */
 
 pub fn catalog() -> ObjectCatalog {
@@ -150,6 +179,7 @@ pub fn catalog() -> ObjectCatalog {
         .entry(ObjectDefinition::of::<Administration>())
         .entry(ObjectDefinition::of::<Case>())
         .entry(ObjectDefinition::of::<Plan>())
+        .entry(ObjectDefinition::of::<Command>())
 }
 
 /* === Private Functions === */

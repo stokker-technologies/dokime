@@ -67,6 +67,13 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   objects carry the execution scope; roots holding superseded command journals
   are refused and preserved at baseline v1. Execution state and evidence remain on
   the coupled lifecycle cutover path.
+  The command object is the registered `persisted::Command`, not an administration
+  value. Its current and original payloads bind to the product's
+  `dokime.host.v1.executions.ExecutionCommandReceipt`; original bytes and mutation
+  identity never change when a phase advances. Restart recovery consumes bounded
+  native pages at one issued cut and interrupts only unfinished commands. A root
+  with live commands in the superseded administration envelope is refused rather
+  than silently omitting, converting or clearing those commands.
 - Composition: `protocol/composition.toml` is read by `services/composition.rs`
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and
@@ -113,7 +120,7 @@ delivery; it is not permission to begin another open change.
 
 | Owner | Source Set and Required Replacement |
 | --- | --- |
-| 1.6–1.7 | `crates/dokime-storage/src/execution.rs`, `persisted.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/storage/**`; `crates/dokime-runtime/src/services/composition.rs`: persisted objects, frozen schemas, exact scopes, durable evidence-cut ownership and native backend registration. |
+| 1.6–1.7 | `crates/dokime-storage/src/execution.rs`, `persisted.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/{storage,executions/commands}/**`; `crates/dokime-runtime/src/services/{composition,mod}.rs`: persisted objects, frozen schemas, exact scopes, durable evidence-cut ownership, native backend registration and inline command-recovery proof. |
 | 2.2–2.4 | Storage `store.rs`, `cycles.rs`, `history.rs`, `resource_values.rs`, `evidence_positions.rs`, `outcome.rs`; runtime `execution.rs`, `execution_manager.rs`, `run_control.rs`, `capabilities.rs`, `host.rs`; operations `host/{cases,cycles,executions}/**`, `host/execution_state.rs`, `host/projection.rs`: lifecycle, bindings, attributed outcomes, seal and deletion policy. Command persistence in `host/executions/commands/**` also adopts exact E. |
 | 3.3–3.5 | Runtime `streams.rs` and composition's sample consumer; operations `resources.rs`, `host/evidence/**`; storage `notes.rs`, `telemetry.rs`, `telemetry/{codec,writer,reader,catalog}.rs`, `ipc.rs`, `ipc/**`: admitted columnar intake, records, notes, traceability, health, native row watches and frozen decoding. Physical Arrow/catalog code survives only under the backend. |
 | 4.4–4.5 | Runtime `documents.rs`, `prompts.rs`, `reports.rs`; operations `host/{documents,prompts,prompt_definitions,reports,content,files}/**`, `host/views.rs`, `host/catalog_inventory.rs`, `host/record_schemas/**`, `host/evidence/archive.rs`; storage `content.rs`, `content_name.rs`, `document_values.rs`, `report.rs`: source reads at C, explicit publication and byte-preserving archives. |
@@ -682,6 +689,16 @@ preserving the existing SQL identity/key metadata. Keep both until the owner dec
 this prefix repair reads only SQL key metadata when pruning and introduces no new
 payload store or reader.
 
+`crates/dokime-storage/src/cycles.rs::{command,save_command,interrupt_commands}`
+and `crates/dokime-operations/src/host/executions/commands/mod.rs` both implement
+command persistence and restart interruption. The SQL methods have no remaining
+repository callers; runtime `run_control.rs`, `execution.rs` and
+`services/mod.rs` call the native operations, as do the command RPC handlers.
+Prefer deleting the unused SQL methods and their `commands` table/refusal path
+under the owner's coupled ledger-removal decision. This persisted-shape change
+replaces the native administration envelope only; it does not independently
+delete that discovered SQL mechanism.
+
 ### Populated Release Measurement Baseline
 
 The report benchmark now prepares 306 native plot views and their cut indexes
@@ -837,8 +854,9 @@ the owner's contract decision. Keep both paths and their existing accepted cuts 
 
 The scan callers enumerate collections: `content/mod.rs::validate_root` checks legacy
 artifact presence; `artifact_payloads` lists committed artifacts; `execution_files`
-lists an execution's logical files; `evidence/notes/list.rs` selects notes; and
-`executions/commands/mod.rs::recover` examines interrupted command receipts.
+lists an execution's logical files; and `evidence/notes/list.rs` selects notes.
+`executions/commands/mod.rs::recover` owns bounded native Command pages and keyed
+reads at their opening cut, preserving continuation ownership while phases advance.
 `reports/get.rs` scans prepared reports only to select the latest one for a cycle;
 its named prepared/published report reads already use keyed administration access.
 Report capture lists files/artifacts and then uses their existing keyed Get operations.
@@ -846,12 +864,16 @@ None of these prefix scans is an exact-key lookup. File/artifact continuation re
 reopen retained views without rescanning; note continuations previously rescanned the
 same prefix. Capture now selects notes once and pages that request-local image through
 the same page operation, without retaining a cache across Create requests.
+The remaining administration scans still accumulate complete collections despite
+bounded native pages. Their note/content/report owners should stream those consumers
+during the canonical cutover instead of introducing another scan registry.
 
 | Overlap | Callers and Purpose | Preferred Removal |
 | --- | --- | --- |
-| `crates/dokime-storage/src/administration.rs` and `crates/dokime-operations/src/host/storage/administration.rs` | SQL keyed protobuf administration serves runtime root claims/access credentials and the secret journal; native administration serves content, notes, commands, views and prepared reports. | Delete SQL administration after migrating its remaining root/security owners with their durable replay and cleanup semantics. Keep both pending the coupled storage cutover. |
+| `crates/dokime-storage/src/administration.rs` and `crates/dokime-operations/src/host/storage/administration.rs` | SQL keyed protobuf administration serves runtime root claims/access credentials and the secret journal; native administration serves content, notes, views and prepared reports. Commands use their own registered shape. | Delete SQL administration after migrating its remaining root/security owners with their durable replay and cleanup semantics. Keep both pending the coupled storage cutover. |
 | `crates/dokime-storage/src/notes.rs` and `crates/dokime-operations/src/host/evidence/notes/{create,get,set,list,watch}.rs` | SQL note persistence has no current operation callers; native note operations own Create/Get/Set/List/Watch. Native Create/List still call SQL-backed `Store::note_owner` for owner validation. | Delete unused SQL note persistence after the owner's decision; preserve/migrate owner validation. |
 | `tools/python/src/dokime_tools/build/{desktop_fixtures,host_fixtures}.py::build` raw executable-path selection and `build/outputs.py::executables` compiler-record selection | Desktop/host fixture tasks map dev to debug and otherwise use the requested profile directory. The native Product builder selects non-test executable paths from Cargo compiler messages through `outputs.executables`. | Prefer deleting the fixture path inference after the owner agrees that fixture builds should emit compiler records consumed by the existing selector. Keep independent Product/Tests builds; do not add a second selector or make Tests depend on Product. |
+| `tools/python/src/dokime_tools/test/focused.py::{selections,run}` required-feature discovery | Changed-path tests call `selections`, which derives test-target features, then `run` derives them again for `--tests`; direct package tests also call `run`. Workspace compilation consequently appends desktop `testing` twice. | Prefer making `run` the single owner for required features across explicit targets and `--tests`, then deleting required-feature derivation from `selections`. Preserve target/package boundaries and required features; tooling remains outside this worker's ownership. |
 
 The storage benchmark's `main.rs` also prepares an unrelated 16,384-row export
 fixture even when Criterion selects only `reports/save`. Prefer lazy fixture setup

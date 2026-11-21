@@ -60,7 +60,8 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 // Local Imports
-use dokime_storage::persisted::{self, Administration, Case, Plan, Scope};
+use dokime_protocol::host::executions::{ExecutionCommandAction, ExecutionCommandPhase, ExecutionCommandReceipt};
+use dokime_storage::persisted::{self, Administration, Case, Command, Plan, Scope};
 use dokime_storage::{Backend, Store};
 
 /* === Constants === */
@@ -869,10 +870,23 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         scope: Scope::Root("shared").identifier()?,
         payload: vec![8, 1],
     };
-    let command = Administration {
-        key: "execution-command/shared/first".into(),
+    let admission = ExecutionCommandReceipt {
+        request_id: "command-admission".into(),
+        execution_id: "shared".into(),
+        command_id: "first".into(),
+        action: ExecutionCommandAction::Next as i32,
+        phase: ExecutionCommandPhase::Accepted as i32,
+        accepted_at: Some(Default::default()),
+        ..Default::default()
+    };
+    let payload = prost::Message::encode_to_vec(&admission);
+    let command = Command {
+        key: "execution-command/6/sharedfirst".into(),
         scope: Scope::Execution("shared").identifier()?,
-        payload: vec![8, 2],
+        current: payload.clone(),
+        original: payload,
+        window: product_mutation.window.clone(),
+        mutation: Identifier::new("command-admission")?,
     };
     let product_items = vec![
         MutationItem::Create(catalog.encode(&plan, limits().bytes)?),
@@ -892,7 +906,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     assert_eq!(storage.get_object::<Case>(&related.key, ObjectVersion::Latest).await?.unwrap().value, related);
     assert_eq!(storage.get_object::<Plan>(&plan.key, ObjectVersion::Latest).await?.unwrap().value, plan);
     assert_eq!(storage.get_object::<Administration>(&settings.key, ObjectVersion::Latest).await?.unwrap().value, settings);
-    assert_eq!(storage.get_object::<Administration>(&command.key, ObjectVersion::Latest).await?.unwrap().value, command);
+    assert_eq!(storage.get_object::<Command>(&command.key, ObjectVersion::Latest).await?.unwrap().value, command);
     let encoded = catalog.encode(&case, limits().bytes)?;
     let point = ObjectPoint {
         schema: encoded.schema.id,
@@ -928,6 +942,17 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         key: Identifier::new("delete-execution-views")?,
     };
     storage.mutate_once(&deletion, vec![MutationItem::DeleteScope(Scope::Execution("shared").identifier()?)]).await?;
+    assert!(storage.get_object::<Command>(&command.key, ObjectVersion::Latest).await?.is_none());
+    let command_value = catalog.encode(&command, limits().bytes)?;
+    let retained_command = image
+        .get_object(&ObjectPoint {
+            schema: command_value.schema.id,
+            item: command_value.item,
+            version: ObjectVersion::Latest,
+        })
+        .await?
+        .unwrap();
+    assert_eq!(catalog.decode::<Command>(&retained_command.value, limits().bytes)?, command);
     let current = storage.snapshot(&storage.get_saved_position()).await?;
     assert!(current.get_file_bytes(&files[0], 0, NonZeroUsize::new(2).unwrap()).await.is_err());
     for file in &files {
