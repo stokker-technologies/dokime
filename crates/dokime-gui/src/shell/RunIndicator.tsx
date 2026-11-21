@@ -21,13 +21,14 @@
 import { useNativeSession } from "@/app/native-session/context";
 import { Button } from "@dokime/plots/components/ui/button";
 import { workflowQueryKeys } from "@/features/cycle/server-state";
-import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
+import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { isNativeCycleLive } from "@dokime/document/lib/api/native-planning-projection";
+import { cn } from "@dokime/plots/lib/utils";
 import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
 
 /* === Re-Exports === */
@@ -44,6 +45,7 @@ import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./ru
 export function RunIndicator() {
   const session = useNativeSession();
   const cycles = useCyclesQuery();
+  const prompts = usePendingPromptsQuery();
   const navigate = useNavigate();
   const activeCycles = (cycles.data ?? []).filter((cycle) => isNativeCycleLive(cycle.status));
   const details = useQueries({
@@ -73,9 +75,13 @@ export function RunIndicator() {
   const first = focus[0];
   const [now, setNow] = useState(Date.now);
   const ticking = first !== undefined && first.percent === null;
+  const startedAt = first?.execution.started_at;
   useEffect(() => {
     if (!ticking) return;
-    const tick = () => setNow(Date.now());
+    const tick = () => {
+      const next = Date.now();
+      setNow((current) => (elapsedMinutes(startedAt, current) === elapsedMinutes(startedAt, next) ? current : next));
+    };
     tick();
     // This updates only the displayed clock; runtime data is subscription driven.
     const timer = window.setInterval(tick, 1000);
@@ -86,7 +92,7 @@ export function RunIndicator() {
       window.removeEventListener("focus", tick);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [ticking]);
+  }, [startedAt, ticking]);
   if (!first) {
     const failed = cycles.isError || details.some((detail) => detail.isError);
     const pending = cycles.isPending || details.some((detail) => detail.isPending);
@@ -97,6 +103,9 @@ export function RunIndicator() {
     );
   }
   const destination = runDestination(focus);
+  const waiting =
+    first.execution.controls?.paused ||
+    (prompts.data ?? []).some((prompt) => prompt.scope?.executionId === first.execution.test_execution_id);
   return (
     <Button
       variant="plain"
@@ -107,7 +116,9 @@ export function RunIndicator() {
         if (destination) void navigate(destination);
       }}
     >
-      {first.percent === null ? <LoaderCircle aria-hidden className="size-4 shrink-0 animate-spin motion-reduce:animate-none" /> : null}
+      {first.percent === null ? (
+        <LoaderCircle aria-hidden className={cn("size-4 shrink-0", !waiting && "animate-spin motion-reduce:animate-none")} />
+      ) : null}
       <span className="truncate">
         {first.cycleLabel} / {first.executionLabel} /{" "}
         {first.percent === null ? runElapsed(elapsedMinutes(first.execution.started_at, now)) : `${first.percent}%`}
