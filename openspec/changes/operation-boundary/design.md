@@ -578,36 +578,25 @@ those DTOs without introducing the facade.
 
 #### Scoped Production Recovery Gap (2026-11-21)
 
-The pinned library revision `324ad01b0892b1ca6a3bce4bb9525b22974f606b`
-has scoped retained cuts, compound mutations and complete watch frontiers.
-Those capabilities are available; G1–G3 are not reopened here.
+Harmos `489dc40935c186aff38fe9dbdc77d25913932ce9` supplies G4 through
+`ListFileProductions { scope, page, at }`. Its bounded, resumable pages enumerate
+the library's live/recovered staging set by exact scope, returning session identity,
+current writer generation, accepted/durable byte lengths and `resolved_at`.
+This includes uploads whose create response was lost. G1–G3 remain available.
 
-G4 is missing operation-owned discovery of unfinished file productions by exact
-scope. `harmos-operations/src/storage/native/requests.rs` exposes
-`GetFileProductionRequest { file, at }` and `DeleteFileProductionRequest {
-session, mutation }`, both requiring an already-known identity. `ListRows` with
-`Source::Files` lists published file references, not unfinished productions.
-Library recovery obtains unfinished checkpoints privately through
-`harmos-storage/src/staging/checkpoint.rs::recover_files`; the native operation
-catalog exposes no equivalent bounded discovery operation.
+Cycle-seal cleanup belongs to `host/cycles/seal.rs::cleanup`, after storage recovery
+and before host admission at startup, or under the administration guard on retry.
+It pages at one returned cut, claims each discovered writer through
+`CreateFileWriter` (recovered sessions are disconnected), abandons the returned
+generation through `DeleteFileProduction`, then calls `DeleteScope` for the exact attempt scope.
+Other scopes and sealed cycles retain their productions. The backend-owned SQL
+discovery/abandonment in `Backend::open_with_execution` and its superseded test are
+deleted; no product upload registry, timeout or second recovery owner is added.
+The backend still refuses scope deletion until all its productions are settled.
 
-The required upstream change is a native `ListFileProductions` operation with an
-exact scope selector and bounded, resumable pages. It must discover recovered
-unfinished productions and return their staged identities, current writer
-generations and progress, so the product can fence admission, settle or abandon
-each production using existing operations, and then delete the scope. Discovery
-must include uploads whose create succeeded before the caller received its
-response. It must not require a second product upload registry or SQL access.
-
-This blocks 2.3 finalization and 2.4 settlement: the native backend correctly
-refuses `DeleteScope` while unfinished productions exist
-(`crates/dokime-storage/src/backend/compound.rs::delete_scope`). Current seal
-upload recovery instead queries native SQL directly inside
-`backend.rs::Backend::open_with_execution`. Retaining that product recovery path
-or adding an object registry would duplicate library production ownership.
-The coupled lifecycle/evidence replacement in 2.2 and the remaining 1.6/1.7
-consumer cutover therefore stay open until G4 is adopted. No unused shape
-scaffolds, replacement registry, altered timeout or SQL workaround is added.
+G4 adoption does not implement the coupled lifecycle/evidence replacement:
+2.3 finalization, 2.4 guarded execution deletion, 2.2 lifecycle/history and the
+remaining 1.6/1.7 consumers stay open until their own replacement and proof.
 
 The independent SQL command and note APIs are retired. Note ownership and
 open-owner policy belong to the host evidence operations, shared by native
