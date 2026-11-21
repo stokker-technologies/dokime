@@ -53,7 +53,7 @@ fn typescript_native_bridge() {
             dokime_runtime::process::command("node")
                 .env("DOKIME_TEST_GENERATION", snapshot.generation)
                 .env("DOKIME_TEST_BACKEND_ID", snapshot.backend.unwrap().backend_id)
-                .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/test-rpc-interop.mjs"))
+                .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/test-rpc-interop.ts"))
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit())

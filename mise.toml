@@ -216,7 +216,7 @@ description = "Format TypeScript"
 usage = 'flag "--check"'
 run = [
   "pnpm -r exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
-  "pnpm exec biome format{% if usage.check %}{% else %} --write{% endif %} biome.json tsconfig.json vite.config.ts vitest.config.ts package.json",
+  "pnpm exec biome format{% if usage.check %}{% else %} --write{% endif %} biome.json tsconfig.json vite.config.ts vitest.config.ts package.json tools/typescript",
 ]
 
 [tasks."lint:python"]
@@ -238,7 +238,10 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = ["pnpm -r exec biome lint .", "pnpm exec biome lint biome.json tsconfig.json vite.config.ts vitest.config.ts package.json"]
+run = [
+  "pnpm -r exec biome lint .",
+  "pnpm exec biome lint biome.json tsconfig.json vite.config.ts vitest.config.ts package.json tools/typescript",
+]
 
 [tasks."typecheck:typescript"]
 hide = true
@@ -556,7 +559,7 @@ flag "--select <select>"
 '''
 run = [
   "{% if not usage.prepared %}{{vars.tools}} dokime_tools.prepare.generated --profile {{usage.profile}}{% endif %}",
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% else %}{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.mjs --profile {{usage.profile}} --junit {junit}{% if usage.select %} --select {{usage.select}}{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category system --language typescript{% else %}{{vars.lane}} --profile {{usage.profile}} --category system --language typescript --project crates/dokime-gui -- node e2e/system.ts --profile {{usage.profile}} --junit {junit}{% if usage.select %} --select {{usage.select}}{% endif %}{% endif %}''',
 ]
 
 [tasks."test:typescript:unit"]

@@ -20,9 +20,9 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { transformWithOxc } from "vite";
 
 // Third Party Imports
+import { transformWithOxc } from "vite";
 
 // Local Imports
 
@@ -44,7 +44,7 @@ export async function openHarness() {
     cwd: resolve(gui, "../.."),
     stdio: ["pipe", "pipe", "inherit"],
   });
-  const stopped = new Promise((resolve, reject) => {
+  const stopped = new Promise<void>((resolve, reject) => {
     owner.once("error", reject);
     owner.once("exit", (code, signal) => {
       if (code === 0) resolve();
@@ -53,14 +53,16 @@ export async function openHarness() {
   });
   const readiness = createInterface({ input: owner.stdout });
   const temporary = await Promise.race([
-    new Promise((resolve) => readiness.once("line", resolve)),
-    stopped.then(() => { throw new Error("Temporary fixture owner exited before readiness"); }),
+    new Promise<string>((resolve) => readiness.once("line", resolve)),
+    stopped.then(() => {
+      throw new Error("Temporary fixture owner exited before readiness");
+    }),
   ]);
   readiness.close();
   writeFileSync(resolve(temporary, "package.json"), JSON.stringify({ type: "module" }));
   const lines = createInterface({ input: process.stdin });
-  const pending = new Map();
-  const callbacks = new Map();
+  const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: unknown) => void }>();
+  const callbacks = new Map<number, (frame: { message: ArrayBuffer; index: number }) => void>();
   let nextInvoke = 0;
   let nextCallback = 1;
   // Replies and channel frames interleave: every reply names its invoke, and
@@ -79,33 +81,41 @@ export async function openHarness() {
       else call.resolve(message.bytes !== undefined ? buffer(message.bytes) : message.value);
     }
   })();
-  function invoke(cmd, args, options) {
+  function invoke(cmd: string, args: unknown, options?: { headers?: Record<string, string> }) {
     const id = nextInvoke++;
     const bytes = args instanceof Uint8Array ? args : new Uint8Array(0);
     const headers = options?.headers ?? {};
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
-      process.stdout.write(
-        `${JSON.stringify({ id, cmd, bytes: Buffer.from(bytes).toString("base64"), headers })}\n`,
-      );
+      process.stdout.write(`${JSON.stringify({ id, cmd, bytes: Buffer.from(bytes).toString("base64"), headers })}\n`);
     });
   }
-  globalThis.__DOKIME_UI_MODE__ = "live";
-  globalThis.window = {
+  (globalThis as typeof globalThis & { __DOKIME_UI_MODE__: string }).__DOKIME_UI_MODE__ = "live";
+  (
+    globalThis as unknown as {
+      window: {
+        __TAURI_INTERNALS__: {
+          invoke: typeof invoke;
+          transformCallback(callback: (frame: { message: ArrayBuffer; index: number }) => void): number;
+          unregisterCallback(id: number): void;
+        };
+      };
+    }
+  ).window = {
     __TAURI_INTERNALS__: {
       invoke,
-      transformCallback(callback) {
+      transformCallback(callback: (frame: { message: ArrayBuffer; index: number }) => void) {
         const id = nextCallback++;
         callbacks.set(id, callback);
         return id;
       },
-      unregisterCallback(id) {
+      unregisterCallback(id: number) {
         callbacks.delete(id);
       },
     },
   };
   // Preserve The GUI Tree So Canonical Descriptor Imports Resolve Unchanged.
-  function resolvableSpecifiers(source, destination) {
+  function resolvableSpecifiers(source: string, destination: string) {
     return source.replace(/(from\s+["'])([^"']+)(["'])/g, (match, prefix, specifier, suffix) => {
       if (specifier.startsWith("@/")) {
         const target = resolve(temporary, "src", specifier.slice(2));
@@ -128,11 +138,11 @@ export async function openHarness() {
       return `${prefix}${specifier}${extension}${suffix}`;
     });
   }
-  async function transpile(source, path) {
+  async function transpile(source: string, path: string) {
     const result = await transformWithOxc(source, path, { target: "es2022", lang: "ts" });
     return result.code;
   }
-  async function compile(source, destination) {
+  async function compile(source: string, destination: string) {
     mkdirSync(destination, { recursive: true });
     for (const entry of readdirSync(source, { withFileTypes: true })) {
       if (entry.isDirectory()) {
@@ -161,11 +171,14 @@ export async function openHarness() {
   }
   return {
     invoke,
-    load: (path) => import(pathToFileURL(resolve(rpc, path))),
-    loadCanonical: (path) => import(pathToFileURL(resolve(canonical, path))),
-    loadHost: (path) => import(pathToFileURL(resolve(temporary, "host", path))),
+    load: (path: string) => import(pathToFileURL(resolve(rpc, path)) as unknown as string),
+    loadCanonical: (path: string) => import(pathToFileURL(resolve(canonical, path)) as unknown as string),
+    loadHost: <P extends "client.js" | "model.js">(path: P) =>
+      import(pathToFileURL(resolve(temporary, "host", path)) as unknown as string) as Promise<
+        P extends "client.js" ? typeof import("@host/client") : typeof import("@host/model")
+      >,
     /** Report one observation to the driving test without awaiting a reply. */
-    report(value) {
+    report(value: unknown) {
       process.stdout.write(`${JSON.stringify(value)}\n`);
     },
     async close() {
@@ -180,7 +193,7 @@ export async function openHarness() {
 
 /* === Private Functions === */
 
-function buffer(text) {
+function buffer(text: string) {
   const bytes = Buffer.from(text, "base64");
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }

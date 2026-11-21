@@ -25,7 +25,7 @@ import { parseArgs } from "node:util";
 // Third Party Imports
 
 // Local Imports
-import "./test-trace.mjs";
+import "./test-trace.ts";
 
 /* === Re-Exports === */
 
@@ -38,7 +38,7 @@ const { values: options } = parseArgs({
     select: { type: "string" },
   },
 });
-const workflows = {
+const workflows: Record<string, string> = {
   "native-desktop": "execution",
   "desktop-configuration": "configuration",
   "desktop-appearance": "appearance",
@@ -51,7 +51,7 @@ const selected = options.select
       name
         .trim()
         .replace(/^e2e[/\\]/, "")
-        .replace(/\.(mjs|js)$/, ""),
+        .replace(/\.(ts|js)$/, ""),
     )
   : stories;
 for (const name of selected) assert.ok(stories.includes(name), `Unknown system story: ${name}`);
@@ -76,7 +76,7 @@ try {
       const report = join(scratch, `${name}.xml`);
       const script = workflows[name] ? "native-desktop" : name;
       const workflow = workflows[name] ? ["--workflow", workflows[name]] : [];
-      const child = spawn(process.execPath, [`e2e/${script}.mjs`, "--profile", options.profile, "--junit", report, ...workflow], {
+      const child = spawn(process.execPath, [`e2e/${script}.ts`, "--profile", options.profile, "--junit", report, ...workflow], {
         stdio: "inherit",
         windowsHide: true,
       });
@@ -87,7 +87,7 @@ try {
       suites.push(document.slice(document.indexOf("<testsuite "), document.lastIndexOf("</testsuites>")));
     } catch (failure) {
       failed = true;
-      process.stderr.write(`${failure.stack ?? failure}\n`);
+      process.stderr.write(`${(failure as Error).stack ?? failure}\n`);
     }
   }
 } finally {

@@ -8,11 +8,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import type { DescMessage, Message } from "@bufbuild/protobuf";
+import type { DescriptorProto, EnumDescriptorProto } from "@bufbuild/protobuf/wkt";
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const gui = resolve(root, "crates/dokime-gui");
 const require = createRequire(resolve(gui, "package.json"));
-const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");
-const { CodeGeneratorRequestSchema, CodeGeneratorResponseSchema, FileDescriptorSetSchema } = require("@bufbuild/protobuf/wkt");
+const { create, fromBinary, toBinary } = require("@bufbuild/protobuf") as typeof import("@bufbuild/protobuf");
+const { CodeGeneratorRequestSchema, CodeGeneratorResponseSchema, FileDescriptorSetSchema } =
+  require("@bufbuild/protobuf/wkt") as typeof import("@bufbuild/protobuf/wkt");
 const set = fromBinary(FileDescriptorSetSchema, readFileSync(resolve(root, "crates/dokime-protocol/src/descriptors.bin")));
 const { values: options } = parseArgs({
   options: {
@@ -25,7 +29,6 @@ const output = resolve(options.output ?? resolve(root, "target/generated/typescr
 if (output === root || output === gui) throw new Error("Generate Messages: Output Must Be a Generated Module Directory");
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
-
 
 const request = create(CodeGeneratorRequestSchema, {
   protoFile: set.file,
@@ -60,13 +63,13 @@ const nativePattern =
   /async\s+(desktop_(?:backends_list|backend_import_pairing|backend_remove|backend_use|settings_read|settings_update))\s*\[[\s\S]*?\]\s*\(([\s\S]*?)\)\s*->\s*Result<([^,]+),/g;
 const nativeBindings = [...nativeSource.matchAll(nativePattern)];
 if (nativeBindings.length !== 6) throw new Error("Native preferences command inventory is incomplete.");
-const nativeType = (rust) => {
+const nativeType = (rust: string): string => {
   const type = rust.trim();
   if (type.startsWith("Option<") && type.endsWith(">")) return `${nativeType(type.slice(7, -1))} | null`;
   if (type === "Vec<u8>") return "number[]";
   if (type.startsWith("Vec<") && type.endsWith(">")) return `Array<${nativeType(type.slice(4, -1))}>`;
   if (type === "tauri::ipc::Response") return "ArrayBuffer";
-  return type === "String" ? "string" : type.split("::").at(-1);
+  return type === "String" ? "string" : type.split("::").at(-1)!;
 };
 const nativeLines = [
   "// Generated From The Native Command Inventory. Do Not Edit.",
@@ -92,15 +95,15 @@ nativeLines.push("  };", "}");
 writeFileSync(resolve(output, "native-preferences.ts"), `${nativeLines.join("\n")}\n`);
 
 // Project Preference View Models From Their Canonical Protobuf and Native Declarations.
-const messageTypes = new Map();
-const enumTypes = new Map();
+const messageTypes = new Map<string, DescriptorProto>();
+const enumTypes = new Map<string, EnumDescriptorProto>();
 for (const file of set.file) {
   for (const value of file.messageType) messageTypes.set(`.${file.package}.${value.name}`, value);
   for (const value of file.enumType) enumTypes.set(`.${file.package}.${value.name}`, value);
 }
-const models = new Map();
-function preferenceType(name) {
-  const typeName = name.split(".").at(-1);
+const models = new Map<string, string>();
+function preferenceType(name: string): string {
+  const typeName = name.split(".").at(-1)!;
   if (models.has(typeName)) return typeName;
   const enumeration = enumTypes.get(name);
   if (enumeration) {
@@ -129,33 +132,54 @@ const registry = readFileSync(resolve(gui, "src-tauri/src/connection/registry.rs
 for (const name of ["Document", "Profile"]) {
   const declaration = registry.match(new RegExp(`pub struct ${name} \{([^}]+)\}`));
   if (!declaration) throw new Error(`Generate Preferences: Missing Native ${name}`);
-  const fields = [...declaration[1].matchAll(/pub (\w+): ([^,]+),/g)].map(([, field, type]) => `  ${field}: ${nativeType(type).replace(/^Vec<(.+)>$/, "Array<$1>")};`);
+  const fields = [...declaration[1].matchAll(/pub (\w+): ([^,]+),/g)].map(
+    ([, field, type]) => `  ${field}: ${nativeType(type).replace(/^Vec<(.+)>$/, "Array<$1>")};`,
+  );
   models.set(name, `export interface ${name} {\n${fields.join("\n")}\n}`);
 }
 const preferences = readFileSync(resolve(gui, "src-tauri/src/app/preferences.rs"), "utf8");
 const scope = preferences.match(/pub enum SettingsScope \{([^}]+)\}/);
 if (!scope) throw new Error("Generate Preferences: Missing Native Scope");
-models.set("SettingsScope", `export type SettingsScope = ${scope[1].split(",").map((value) => value.trim()).filter(Boolean).map((value) => JSON.stringify(value.toLowerCase())).join(" | ")};`);
-writeFileSync(resolve(output, "application-settings.ts"), `// Generated From Host Preferences and Native Registry Declarations. Do Not Edit.\n${[...models.values()].join("\n")}\n`);
+models.set(
+  "SettingsScope",
+  `export type SettingsScope = ${scope[1]
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => JSON.stringify(value.toLowerCase()))
+    .join(" | ")};`,
+);
+writeFileSync(
+  resolve(output, "application-settings.ts"),
+  `// Generated From Host Preferences and Native Registry Declarations. Do Not Edit.\n${[...models.values()].join("\n")}\n`,
+);
 
 // Read Defaults Exported From the Product's Declarations.
-const { createFileRegistry } = require("@bufbuild/protobuf");
+const { createFileRegistry } = require("@bufbuild/protobuf") as typeof import("@bufbuild/protobuf");
 const registryTypes = createFileRegistry(set);
 if (options["messages-only"]) process.exit(0);
-const snapshotType = registryTypes.getMessage("dokime.host.v1.SettingsGetResponse");
+const snapshotType = registryTypes.getMessage("dokime.host.v1.SettingsGetResponse")!;
 const defaults = fromBinary(snapshotType, readFileSync(options.defaults ?? resolve(root, "target/generated/preferences/defaults.bin")));
-function project(message, descriptor) {
-  const value = {};
+type SettingsValue = string | number | boolean | null | SettingsObject;
+type SettingsObject = { [name: string]: SettingsValue };
+function project(message: Record<string, unknown>, descriptor: DescMessage): Record<string, unknown> {
+  const value: Record<string, unknown> = {};
   for (const field of descriptor.fields) {
     const current = message[field.localName];
-    if (field.fieldKind === "message") value[field.name] = project(current, field.message);
+    if (field.fieldKind === "message") value[field.name] = project(current as Record<string, unknown>, field.message);
     else if (field.fieldKind === "enum") {
-      const enumeration = enumTypes.get(`.${field.enum.typeName}`);
+      const enumeration = enumTypes.get(`.${field.enum.typeName}`)!;
       const prefix = enumeration.value[0].name.replace(/UNSPECIFIED$/, "");
-      value[field.name] = field.enum.values.find((item) => item.number === current).name.slice(prefix.length).toLowerCase();
-    } else value[field.name] = typeof current === "bigint" ? Number(current) : current ?? null;
+      value[field.name] = field.enum.values
+        .find((item) => item.number === current)!
+        .name.slice(prefix.length)
+        .toLowerCase();
+    } else value[field.name] = typeof current === "bigint" ? Number(current) : (current ?? null);
   }
   return value;
 }
-const settingsField = snapshotType.fields.find((field) => field.name === "value");
-writeFileSync(resolve(output, "application-settings.json"), `${JSON.stringify(project(defaults.value, settingsField.message), null, 2)}\n`);
+const settingsField = snapshotType.fields.find((field) => field.name === "value")!;
+writeFileSync(
+  resolve(output, "application-settings.json"),
+  `${JSON.stringify(project((defaults as Message & { value: Record<string, unknown> }).value, (settingsField as { message: DescMessage }).message), null, 2)}\n`,
+);

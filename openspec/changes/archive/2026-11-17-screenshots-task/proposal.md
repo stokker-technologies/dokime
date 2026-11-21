@@ -58,5 +58,5 @@ rest). The site that shows the screenshots reads the new names under `docs/scree
 ## Impact
 
 `tools/python` screenshots module, the desktop story harness, `mise.toml`, `docs/screenshots/`,
-README, docs/tooling.md and the product guide. The screenshot journey uses native-fixture.mjs and its --controlled-clock backend;
+README, docs/tooling.md and the product guide. The screenshot journey uses native-fixture.ts and its --controlled-clock backend;
 scene readiness drives capture. Workstation capture/review remains explicit.

@@ -55,7 +55,7 @@ fn desktop_runs_matrix() {
             let mut child = Process(
                 dokime_runtime::process::command("node")
                     .env("DOKIME_TEST_GENERATION", fixture.session.status().generation)
-                    .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/test-execution-matrix.mjs"))
+                    .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/test-execution-matrix.ts"))
                     .arg(scenario)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())

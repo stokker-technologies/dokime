@@ -20,14 +20,24 @@ import { join } from "node:path";
 // Third Party Imports
 
 // Local Imports
-import { chooseNativeFile, until } from "./native-fixture.mjs";
-import { call } from "./native-rpc.mjs";
+import { type Session, chooseNativeFile, until } from "./native-fixture.ts";
+import { type Reply, call } from "./native-rpc.ts";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
-const saves = [];
+type LogEvent = Reply<"dokime.host.v1.status.Logs", "List">["events"][number];
+const saves: {
+  label: string;
+  creationMs: number | null;
+  observation: Record<string, number>;
+  inventory: { streams: Record<string, number>; samples: number; records: number | string };
+  events: LogEvent[];
+  applicationRoot: string;
+  milliseconds: number;
+  dump: Session["dump"];
+}[] = [];
 
 /* === Types === */
 
@@ -35,7 +45,7 @@ const saves = [];
 
 /* === Public Functions === */
 
-export async function saveReport(desktop, path, { label, executionId }) {
+export async function saveReport(desktop: Session, path: string, { label, executionId }: { label: string; executionId: string }) {
   const started = performance.now();
   // Submit the Same Save Action an Operator Uses.
   await desktop.clickNamed("button", "Execution Actions");
@@ -58,12 +68,12 @@ export async function saveReport(desktop, path, { label, executionId }) {
     picker_observation_tail_ms: Math.max(0, pickerCompleted - fileCompleted),
   };
   let creationMs = null;
-  const events = [];
+  const events: LogEvent[] = [];
   try {
-    let at;
+    let at: Reply<"dokime.host.v1.status.Logs", "List">["resolvedAt"] | undefined;
     let pageToken = "";
     do {
-      const logs = await call(desktop, "dokime.host.v1.status.Logs", "List", {
+      const logs: Reply<"dokime.host.v1.status.Logs", "List"> = await call(desktop, "dokime.host.v1.status.Logs", "List", {
         ...(at ? { at } : {}),
         page: { pageSize: 4096, maxBytes: "3145728", pageToken },
       });
@@ -82,15 +92,15 @@ export async function saveReport(desktop, path, { label, executionId }) {
     if (firstStage > 0) events.splice(0, firstStage);
     await desktop.dump("report-save-host-timings", events);
   } catch (error) {
-    process.stdout.write(`Report Creation Timing Unavailable: ${error.message}\n`);
+    process.stdout.write(`Report Creation Timing Unavailable: ${(error as Error).message}\n`);
   }
 
   // Inventory the Complete Source After the Timed Save, Without Warming Its Reads.
-  const streams = {};
-  let at;
+  const streams: Record<string, number> = {};
+  let at: Reply<"dokime.host.v1.evidence.Samples", "List">["resolvedAt"] | undefined;
   let pageToken = "";
   do {
-    const page = await call(desktop, "dokime.host.v1.evidence.Samples", "List", {
+    const page: Reply<"dokime.host.v1.evidence.Samples", "List"> = await call(desktop, "dokime.host.v1.evidence.Samples", "List", {
       scope: { executionId },
       ...(at ? { at } : {}),
       page: { pageSize: 4096, maxBytes: "3145728", pageToken },
@@ -136,7 +146,7 @@ export async function printReportSaveTimings() {
           .split("\n")
           .filter((line) => line.includes("Save Destination Selected"))
           .at(-1) ?? "";
-      const milliseconds = (line, key) => Number(line.match(new RegExp(`\\b${key}=([0-9.]+)`))?.[1] ?? NaN);
+      const milliseconds = (line: string, key: string) => Number(line.match(new RegExp(`\\b${key}=([0-9.]+)`))?.[1] ?? NaN);
       const calls = logs
         .split("\n")
         .filter((line) => line.includes("Native RPC Completed") && line.includes('operation="/dokime.host.v1.Reports/'))
@@ -153,6 +163,14 @@ export async function printReportSaveTimings() {
         native_picker_ms: milliseconds(picker, "picker_ms"),
         transfer_ms: milliseconds(delivery, "request_ms") + milliseconds(delivery, "transfer_ms"),
         write_ms: milliseconds(delivery, "write_ms") + milliseconds(published, "write_publish_ms"),
+      } as { label: string; [key: string]: string | number | null } & {
+        total_ms: number;
+        host_creation_ms: number;
+        transfer_ms: number;
+        write_ms: number;
+        remainder_ms: number;
+        host_publication_ms: number;
+        native_picker_ms: number;
       };
       timing.remainder_ms = timing.total_ms - timing.host_creation_ms - timing.transfer_ms - timing.write_ms;
       timing.observation_ms = timing.remainder_ms - timing.host_publication_ms - timing.native_picker_ms;
@@ -177,7 +195,7 @@ export async function printReportSaveTimings() {
       });
     } catch (error) {
       process.stdout.write(
-        `Report Save Timing: ${save.label} total_ms=${save.milliseconds.toFixed(3)}; phase logs unavailable: ${error.message}\n`,
+        `Report Save Timing: ${save.label} total_ms=${save.milliseconds.toFixed(3)}; phase logs unavailable: ${(error as Error).message}\n`,
       );
     }
   }

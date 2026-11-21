@@ -25,6 +25,7 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
+import type { Session } from "./native-fixture.ts";
 import {
   answerPendingPrompts,
   obcExecutable,
@@ -37,9 +38,9 @@ import {
   stopBackend,
   terminate,
   until,
-} from "./native-fixture.mjs";
-import { call } from "./native-rpc.mjs";
-import { printReportSaveTimings, saveReport } from "./report-save.mjs";
+} from "./native-fixture.ts";
+import { call } from "./native-rpc.ts";
+import { printReportSaveTimings, saveReport } from "./report-save.ts";
 
 /* === Re-Exports === */
 
@@ -47,13 +48,13 @@ import { printReportSaveTimings, saveReport } from "./report-save.mjs";
 
 const { values: options } = parseArgs({ options: { scene: { type: "string" }, profile: { type: "string", default: "dev" } } });
 const scenes = ["cycle", "plots", "report", "history", "library", "cycles", "touch"];
-assert.ok(!options.scene || scenes.includes(options.scene), "Unknown screenshot scene");
+assert.ok(!options.scene || scenes.includes(options.scene!), "Unknown screenshot scene");
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const folder = resolve(process.env.DOKIME_SCREENSHOT_OUTPUT ?? join(workspace, "docs/guides/screenshots"));
 const work = await mkdtemp(join(tmpdir(), "dokime-screenshots-"));
 await mkdir(join(workspace, "target/screenshots"), { recursive: true });
 const evidence = await mkdtemp(join(workspace, "target/screenshots/run-"));
-const entries = [];
+const entries: { image: string; scene: string; theme: string; [key: string]: unknown }[] = [];
 const desktop = { width: 1600, height: 1000, density: "comfortable" };
 const touch = { width: 1920, height: 1200, density: "touch" };
 const environment = {
@@ -66,10 +67,10 @@ const environment = {
   DOKIME_TEST_HUB_OPERATOR: "Bench Operator",
   RUST_LOG: process.env.RUST_LOG ?? "info,dokime_runtime=debug,dokime_operations::host::files::transfer=debug",
 };
-let session;
-let backend;
-let cleanup;
-let failure;
+let session!: Session;
+let backend: Awaited<ReturnType<typeof startBackend>>;
+let cleanup: (() => Promise<void>) | undefined;
+let failure: unknown;
 const cleanupErrors = [];
 
 /* === Types === */
@@ -80,7 +81,7 @@ const cleanupErrors = [];
 
 /* === Private Functions === */
 
-async function capture(scene, ready, prepare) {
+async function capture(scene: string, ready: () => unknown | Promise<unknown>, prepare: (theme: string) => Promise<void>) {
   if (options.scene && options.scene !== scene) return;
   const viewport = scene === "touch" ? touch : desktop;
   for (const theme of ["light", "dark"]) {
@@ -337,7 +338,10 @@ try {
     };
     const parameters = Object.entries(overrides).map(([name, [kind, value]]) => {
       const parameter = template.parameters.find(
-        (row) => row.name === name || row.metadata?.identifier === name || row.parameterId?.endsWith(`.${name}`),
+        (row) =>
+          (row as typeof row & { name?: string }).name === name ||
+          row.metadata?.identifier === name ||
+          (row as typeof row & { parameterId?: string }).parameterId?.endsWith(`.${name}`),
       );
       assert.ok(parameter, `The bench declares ${name}`);
       return { key: name, value: { values: [{ [kind === "Bool" ? "boolean" : "number"]: value }] } };
@@ -397,7 +401,7 @@ try {
         },
       );
     }
-    if (["cycle", "touch"].includes(options.scene)) {
+    if (["cycle", "touch"].includes(options.scene!)) {
       await call(session, "Executions", "Stop", { requestId: crypto.randomUUID(), name: executionId });
     } else {
       // Finish And Seal The Measured Execution Through The Real Backend.
@@ -433,7 +437,7 @@ try {
           await session.clickNamed("button", "Refresh");
           await until("finished plot statistics", () => session.find("css selector", 'table[aria-label="Trace Statistics"]'));
           await session.execute("document.querySelector('.uplot').scrollIntoView({block:'start'});");
-          const bounds = await session.execute(
+          const bounds = await session.execute<{ x: number; y: number; width: number; height: number }>(
             "const r = document.querySelector('.u-over').getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}",
           );
           await session.request("POST", "/actions", {
@@ -589,7 +593,7 @@ try {
     }
   }
   const view = session ? await session.text().catch(() => "Webview unavailable") : "Webview not started";
-  await writeFile(join(evidence, "failure.txt"), `${error.stack ?? String(error)}\n\n${view}`).catch((captureError) =>
+  await writeFile(join(evidence, "failure.txt"), `${(error as Error).stack ?? String(error)}\n\n${view}`).catch((captureError) =>
     cleanupErrors.push(captureError),
   );
   if (session) {
@@ -617,11 +621,11 @@ try {
         if (cleanup) await cleanup();
       },
     ],
-  ]) {
+  ] as const) {
     try {
       await stop();
     } catch (error) {
-      cleanupErrors.push(new Error(`${label}: ${error.message}`, { cause: error }));
+      cleanupErrors.push(new Error(`${label}: ${(error as Error).message}`, { cause: error }));
     }
   }
   await printReportSaveTimings();
@@ -640,7 +644,7 @@ try {
 }
 // Preserve Ready Scenes Even When A Later Product Operation Fails.
 if (entries.length) {
-  const previous = JSON.parse(await readFile(join(folder, "manifest.json"), "utf8").catch(() => "[]"));
+  const previous: typeof entries = JSON.parse(await readFile(join(folder, "manifest.json"), "utf8").catch(() => "[]"));
   const replaced = new Set(entries.map((entry) => entry.image));
   const manifest = [...previous.filter((entry) => !replaced.has(entry.image)), ...entries];
   manifest.sort(

@@ -96,7 +96,7 @@ fn main() {
     // Start The Real Native Desktop Driver Once Outside Criterion's Timers.
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut child = process::command("node")
-        .arg(directory.join("benches/system/driver.mjs"))
+        .arg(directory.join("benches/system/driver.ts"))
         .env("DOKIME_DESKTOP_BENCH_HOST", env::current_exe().unwrap())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

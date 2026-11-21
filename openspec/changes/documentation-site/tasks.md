@@ -32,7 +32,7 @@
 - [x] 7.5.1 Extract document presentation, response assembly, the live decoder and shared captured-evidence views; retire document-contracts and the serialized plot contract duplicates.
 - [ ] 7.9 Owner: migrate the excluded benchmark imports listed in design.md and close the desktop frontend type-check failure without compatibility paths or excluded checks.
 - [ ] 7.10 Owner: repair the SDK bindings gate's missing library/starter imports and type diagnostics; rerun the bindings gate.
-- [ ] 7.11 Owner: decide the repeated pinned-descriptor lookup in host-bindings.mjs; retain both generated output owners.
+- [ ] 7.11 Owner: decide the repeated pinned-descriptor lookup in host-bindings.ts; retain both generated output owners.
 - [ ] 7.12 Owner: decide the retained browse/live execution view-family overlap identified in design.md; migrate its consumers together if consolidated.
 
 - [x] 6.6 Integrate dev session recovery, migrate benchmark package imports, share one descriptor lookup, and add package/platform CI rows and frontend impact rules.

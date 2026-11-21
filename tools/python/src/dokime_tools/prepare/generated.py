@@ -63,7 +63,7 @@ def prepare() -> None:
     if status:
         raise SystemExit(status)
     subprocess.run(
-        ["node", str(configuration.ROOT / "tools/typescript/generate.mjs")],
+        ["node", str(configuration.ROOT / "tools/typescript/generate.ts")],
         cwd=configuration.ROOT,
         check=True,
         creationflags=spawn_flags(),

@@ -27,14 +27,14 @@ import { basename, join } from "node:path";
 /* === Constants === */
 
 const directory = process.env.DOKIME_TEST_TRACE_DIR;
-const context = new AsyncLocalStorage();
+const context = new AsyncLocalStorage<number>();
 const started = performance.now();
 const epoch = Date.now() * 1000;
-let file;
+let file: number | undefined;
 let position = 16;
 let count = 0;
 let next = 1;
-const story = basename(process.argv[1], ".mjs");
+const story = basename(process.argv[1], ".ts");
 
 /* === Types === */
 
@@ -42,7 +42,7 @@ const story = basename(process.argv[1], ".mjs");
 
 /* === Public Functions === */
 
-export async function traceSpan(name, category, work) {
+export async function traceSpan<T>(name: string, category: string, work: () => T) {
   if (file === undefined) return work();
   const id = ++next;
   const parent = context.getStore() ?? 1;
@@ -60,7 +60,7 @@ function now() {
   return epoch + (performance.now() - started) * 1000;
 }
 
-function record(name, category, id, parent, begin) {
+function record(name: string, category: string, id: number, parent: number | null, begin: number) {
   const event = {
     ph: "X",
     name,
@@ -72,9 +72,9 @@ function record(name, category, id, parent, begin) {
     args: { span_id: id, parent_id: parent },
   };
   const data = Buffer.from(`${count ? ",\n" : ""}${JSON.stringify(event)}`);
-  writeSync(file, data, 0, data.length, position);
+  writeSync(file!, data, 0, data.length, position);
   position += data.length;
-  writeSync(file, Buffer.from("]}"), 0, 2, position);
+  writeSync(file!, Buffer.from("]}"), 0, 2, position);
   count++;
 }
 
@@ -84,12 +84,12 @@ if (directory) {
   mkdirSync(directory, { recursive: true });
   file = openSync(join(directory, `${story}-${process.pid}-${Date.now()}.pftrace`), "wx");
   const header = Buffer.from('{"traceEvents":[');
-  writeSync(file, header);
+  writeSync(file!, header);
   position = header.length;
-  writeSync(file, Buffer.from("]}"), 0, 2, position);
+  writeSync(file!, Buffer.from("]}"), 0, 2, position);
   process.once("exit", () => {
     record(story, "story", 1, null, epoch);
-    fsyncSync(file);
-    closeSync(file);
+    fsyncSync(file!);
+    closeSync(file!);
   });
 }

@@ -1,20 +1,21 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import assert from "node:assert/strict";
 
-import { execFile, spawn } from "node:child_process";
+import { type ChildProcess, type ExecFileOptions, execFile, spawn } from "node:child_process";
 import { once } from "node:events";
 
 import { existsSync } from "node:fs";
 
-import { appendFile, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { type FileHandle, appendFile, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
+import type { AddressInfo } from "node:net";
 import net from "node:net";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 
 import { basename, dirname, join, resolve } from "node:path";
 
-import { createInterface } from "node:readline";
+import { type Interface, createInterface } from "node:readline";
 
 import { setTimeout } from "node:timers/promises";
 
@@ -26,7 +27,7 @@ import { parseArgs, promisify } from "node:util";
 
 // Local Imports
 import { ReportBrowser } from "./report-browser.ts";
-import { traceSpan } from "./test-trace.mjs";
+import { traceSpan } from "./test-trace.ts";
 
 /* === Constants === */
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -57,36 +58,96 @@ const windows = process.platform === "win32";
 const credentialNamespace = process.env.DOKIME_CREDENTIAL_NAMESPACE ?? `dokime-story-${randomUUID().replaceAll("-", "")}`;
 process.env.DOKIME_CREDENTIAL_NAMESPACE = credentialNamespace;
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
-const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004", Control: "\uE009", Backspace: "\uE003", End: "\uE010" };
+const WEBDRIVER_KEYS: Record<string, string> = {
+  Enter: "\uE007",
+  Escape: "\uE00C",
+  Tab: "\uE004",
+  Control: "\uE009",
+  Backspace: "\uE003",
+  End: "\uE010",
+};
 const STARTUP_PROMPT = "Is the Door Closed?";
 const OPERATOR_NOTE = "Desktop Story";
-const timings = [],
-  promptSightings = [],
-  cycleInputSightings = [];
-const secrets = new Set();
-let timingScene = "setup",
-  work,
-  evidence,
-  reportBrowser,
-  nativePickerWorker,
-  driverProcess,
-  backend,
-  nativeScratch,
-  secretBus,
-  secretKeyring;
+const timings: { scene: string; category: string; name: string; milliseconds: number }[] = [];
+const promptSightings: unknown[] = [];
+const cycleInputSightings: unknown[] = [];
+const secrets = new Set<string>();
+
+let timingScene = "setup";
+let work: string;
+let evidence: string;
+let reportBrowser: ReportBrowser;
+let nativePickerWorker: NativePickerWorker | undefined;
+let driverProcess: ChildProcess;
+let backend: Backend | undefined;
+let nativeScratch: string;
+let secretBus: ChildProcess | undefined;
+let secretKeyring: ChildProcess | undefined;
 let scratchEnvironment = {};
+/* === Types === */
+
+export type Element = { "element-6066-11e4-a52e-4f735466cecf": string };
+export type Picker = { window: string | number | null; entered?: boolean | number; submitted?: boolean };
+type Process = ChildProcess & { startupError?: Error };
+type Backend = { child: Process; endpoint: string; log: FileHandle; root: string; plugins: ChildProcess[] };
+export type Session = {
+  closed: boolean;
+  applicationRoot: string;
+  downloads: string;
+  id: string;
+  lastBody: string;
+  process: ChildProcess;
+  origin: string;
+  request<T = unknown>(method: string, path: string, body?: unknown): Promise<T>;
+  execute<T = unknown>(script: string, args?: unknown[]): Promise<T>;
+  executeAsync<T = unknown>(script: string, args?: unknown[]): Promise<T>;
+  domRevision(): Promise<number>;
+  waitForDom<T = unknown>(description: string, script: string, args?: unknown[], maximumWait?: number): Promise<T>;
+  url(): Promise<string>;
+  location(): Promise<URL>;
+  text(): Promise<string>;
+  find(using: string, value: string): Promise<Element>;
+  findAll(using: string, value: string): Promise<Element[]>;
+  textOf(element: Element): Promise<string>;
+  click(element: Element, options?: { unobscured?: boolean }): Promise<unknown>;
+  named(role: string, name: string, options?: { enabled?: boolean }): Promise<Element>;
+  clickNamed(role: string, name: string, options?: { enabled?: boolean }): Promise<unknown>;
+  openPicker(element: Element): Promise<unknown>;
+  clickCss(selector: string): Promise<unknown>;
+  exists(role: string, name: string): Promise<boolean>;
+  type(element: Element, value: string): Promise<void>;
+  key(key: string): Promise<unknown>;
+  resize(width: number, height: number): Promise<{ width: number; height: number }>;
+  viewport(): Promise<[number, number]>;
+  screenshot(label: string): Promise<string>;
+  dump(label: string, value: unknown): Promise<string>;
+  modalLayers(): Promise<unknown>;
+  connected(): Promise<unknown>;
+  load(url: string): Promise<void>;
+  goto(path: string, options?: { reload?: boolean }): Promise<void>;
+  close(): Promise<void>;
+};
+type NativePickerWorker = {
+  child: ChildProcess;
+  lines: Interface;
+  responses: AsyncIterableIterator<string>;
+  diagnostics: string;
+  busy: boolean;
+  closed?: Promise<never>;
+};
+
 async function unusedPort() {
   const socket = net.createServer();
   socket.listen(0, "127.0.0.1");
   await once(socket, "listening");
-  const port = socket.address().port;
-  await new Promise((done) => socket.close(done));
+  const port = (socket.address() as AddressInfo).port;
+  await new Promise<void>((done) => socket.close(done as (error?: Error) => void));
   return port;
 }
 
-function listening(endpoint) {
+function listening(endpoint: string) {
   const url = new URL(endpoint);
-  return new Promise((done) => {
+  return new Promise<boolean>((done) => {
     const socket = net.connect(Number(url.port), url.hostname);
     socket.once("connect", () => {
       socket.destroy();
@@ -100,14 +161,20 @@ function listening(endpoint) {
   });
 }
 
-async function executeFile(command, args, options) {
+async function executeFile(command: string, args: string[], options?: ExecFileOptions & { encoding?: "utf8" }) {
   const category = command === cliBinary ? "cli" : command === "python" ? "fixture-preparation" : "native-process";
-  return measured(category, basename(command), () =>
-    promisify(execFile)(command, args, { ...options, env: { ...process.env, ...options?.env, ...scratchEnvironment } }),
+  return measured(
+    category,
+    basename(command),
+    () =>
+      promisify(execFile)(command, args, { ...options, env: { ...process.env, ...options?.env, ...scratchEnvironment } }) as Promise<{
+        stdout: string;
+        stderr: string;
+      }>,
   );
 }
 
-async function measured(category, name, run) {
+async function measured<T>(category: string, name: string, run: () => T | Promise<T>): Promise<T> {
   const started = performance.now();
   const scene = timingScene;
   try {
@@ -117,28 +184,28 @@ async function measured(category, name, run) {
   }
 }
 
-function until(description, check, timeout = WAIT_MS, interval = 25) {
+function until<T>(description: string, check: () => T | Promise<T>, timeout = WAIT_MS, interval = 25) {
   return traceSpan(description, "step", () => waitUntil(description, check, timeout, interval));
 }
 
-async function waitUntil(description, check, timeout, interval) {
+async function waitUntil<T>(description: string, check: () => T | Promise<T>, timeout: number, interval: number) {
   return measured("wait", description, async () => {
     const deadline = Date.now() + timeout;
-    let last;
+    let last: unknown;
     while (Date.now() < deadline) {
       try {
         const value = await measured("step", description, check);
-        if (value) return value;
+        if (value) return value as Exclude<Awaited<T>, false | 0 | "" | null | undefined>;
       } catch (failure) {
         last = failure;
       }
       await measured("poll-delay", description, () => setTimeout(interval));
     }
-    throw new Error(`Timed out: ${description}${last ? ` (last error: ${last.message})` : ""}`);
+    throw new Error(`Timed out: ${description}${last ? ` (last error: ${(last as Error).message})` : ""}`);
   });
 }
 
-function xpathLiteral(value) {
+function xpathLiteral(value: string) {
   if (!value.includes("'")) return `'${value}'`;
   if (!value.includes('"')) return `"${value}"`;
   return `concat(${value
@@ -147,28 +214,28 @@ function xpathLiteral(value) {
     .join(', "\'", ')})`;
 }
 
-function normalize(value) {
+function normalize(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function redact(value) {
+function redact(value: unknown) {
   let text = String(value);
   for (const secret of secrets) text = text.replaceAll(secret, "[REDACTED]");
   return text;
 }
 
-function hasText(body, expected) {
+function hasText(body: string, expected: string) {
   return normalize(body).toLowerCase().includes(normalize(expected).toLowerCase());
 }
 
-async function startBackend(...args) {
+async function startBackend(...args: Parameters<typeof startBackendMeasured>) {
   return measured("backend-launch", "startBackend", () => startBackendMeasured(...args));
 }
 
 async function startBackendMeasured(
-  work,
-  evidence,
-  endpoint,
+  work: string,
+  evidence: string,
+  endpoint?: string,
   label = "backend",
   launchPlugin = true,
   { dataRoot = join(work, "data"), environment = {}, plugins = [pluginExecutable] } = {},
@@ -178,7 +245,7 @@ async function startBackendMeasured(
   }
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
-  const child = spawn(
+  const child: Process = spawn(
     backendBinary,
     [
       "--credential-namespace",
@@ -218,7 +285,7 @@ async function startBackendMeasured(
         if (child.startupError) throw child.startupError;
         if (child.exitCode !== null) throw new Error(`Native backend exited during startup: ${child.exitCode}`);
         readiness.attempts += 1;
-        readiness.ready = await listening(backend.endpoint);
+        readiness.ready = await listening(backend!.endpoint);
         return readiness.ready;
       },
       STARTUP_WAIT_MS,
@@ -252,11 +319,17 @@ async function startBackendMeasured(
   return backend;
 }
 
-async function startSession(...args) {
+async function startSession(...args: Parameters<typeof startSessionMeasured>) {
   return measured("gui-launch", "startSession", () => startSessionMeasured(...args));
 }
 
-async function startSessionMeasured(work, endpoint, evidence, distribution, { startLocal = true, downloadsRoot } = {}) {
+async function startSessionMeasured(
+  work: string,
+  endpoint: string | undefined,
+  evidence: string,
+  distribution?: { identifier: string; shell: string },
+  { startLocal = true, downloadsRoot }: { startLocal?: boolean; downloadsRoot?: string } = {},
+): Promise<Session> {
   const home = join(work, "shell");
   const downloads = downloadsRoot ?? join(evidence, "downloads");
   const applicationRoot = distribution ? join(home, "data", distribution.identifier) : join(home, "application");
@@ -312,7 +385,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       stdio: ["ignore", "ignore", windows ? "inherit" : "pipe"],
     },
   );
-  const webdriver = driverProcess;
+  const webdriver: Process = driverProcess;
   let driverStderr = Buffer.alloc(0);
   webdriver.stderr?.on("data", (chunk) => {
     driverStderr = Buffer.concat([driverStderr, chunk]).subarray(-65536);
@@ -320,7 +393,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   });
   const base = `http://127.0.0.1:${port}`;
 
-  async function request(method, path, body) {
+  async function request<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
     const response = await fetch(base + path, {
       method,
       headers: { "content-type": "application/json" },
@@ -346,7 +419,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     return true;
   });
 
-  const created = await request("POST", "/session", {
+  const created = await request<{ sessionId: string }>("POST", "/session", {
     capabilities: {
       alwaysMatch: windows
         ? {
@@ -375,17 +448,17 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     id: created.sessionId,
     lastBody: "",
     process: webdriver,
-  };
-  let queue = Promise.resolve();
-  session.request = (method, path, body) => {
+  } as Session;
+  let queue: Promise<unknown> = Promise.resolve();
+  session.request = <T>(method: string, path: string, body?: unknown): Promise<T> => {
     const queued = queue.then(() =>
-      measured("webdriver", `${method} ${path}`, () => request(method, `/session/${session.id}${path}`, body)),
+      measured("webdriver", `${method} ${path}`, () => request<T>(method, `/session/${session.id}${path}`, body)),
     );
     queue = queued.catch(() => undefined);
     return queued;
   };
-  session.execute = (script, args = []) => session.request("POST", "/execute/sync", { args, script });
-  session.executeAsync = (script, args = []) => session.request("POST", "/execute/async", { args, script });
+  session.execute = <T>(script: string, args: unknown[] = []) => session.request<T>("POST", "/execute/sync", { args, script });
+  session.executeAsync = <T>(script: string, args: unknown[] = []) => session.request<T>("POST", "/execute/async", { args, script });
   session.domRevision = () =>
     session.execute(`
     if (!globalThis.__dokimeDom) {
@@ -395,9 +468,9 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     }
     return globalThis.__dokimeDom.revision;
   `);
-  session.waitForDom = (description, script, args = [], maximumWait) =>
+  session.waitForDom = <T>(description: string, script: string, args: unknown[] = [], maximumWait?: number) =>
     measured("dom-wait", description, async () => {
-      const result = await session.executeAsync(
+      const result = await session.executeAsync<{ failure?: string; value: T }>(
         `
       const args = arguments[0];
       const maximumWait = arguments[1];
@@ -430,13 +503,13 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     `,
         [args, maximumWait],
       );
-      assert.equal(result.failure, undefined, result.failure);
+      assert.equal(result.failure, undefined, result.failure!);
       return result.value;
     });
   session.url = () => session.request("GET", "/url");
   session.location = async () => new URL(await session.url());
   session.text = async () => {
-    session.lastBody = redact(await session.execute("return document.body.innerText"));
+    session.lastBody = redact(await session.execute<string>("return document.body.innerText"));
     return session.lastBody;
   };
   session.find = (using, value) => session.request("POST", "/element", { using, value });
@@ -476,7 +549,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     try {
       return await session.request("POST", `/element/${key}/click`, {});
     } catch (failure) {
-      if (!/intercepted|not interactable|obscured/i.test(failure.message)) throw failure;
+      if (!/intercepted|not interactable|obscured/i.test((failure as Error).message)) throw failure;
       return session.execute(
         `const element = arguments[0];
          if (element.disabled) throw new Error('Control is disabled');
@@ -502,7 +575,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       try {
         return { value: await session.click(element) };
       } catch (failure) {
-        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return null;
+        if (/stale element reference|pointer target must remain mounted/i.test((failure as Error).message)) return null;
         return { failure };
       }
     });
@@ -525,7 +598,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       try {
         return { value: await session.click(element, { unobscured: true }) };
       } catch (failure) {
-        if (/stale element reference|pointer target must remain mounted/i.test(failure.message)) return null;
+        if (/stale element reference|pointer target must remain mounted/i.test((failure as Error).message)) return null;
         return { failure };
       }
     });
@@ -597,7 +670,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
         });
         return session.request("DELETE", "/actions");
       } catch (failure) {
-        throw new Error(`WebDriver could not press ${key}: ${failure.message}`, {
+        throw new Error(`WebDriver could not press ${key}: ${(failure as Error).message}`, {
           cause: failure,
         });
       }
@@ -620,7 +693,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       document.head.append(style);
     `);
     try {
-      const bytes = await session.request("GET", "/screenshot");
+      const bytes = await session.request<string>("GET", "/screenshot");
       const target = join(evidence, `${label}.png`);
       await writeFile(target, Buffer.from(bytes, "base64"));
       return target;
@@ -686,8 +759,13 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   session.goto = async (path, { reload = false } = {}) => {
     const url = path.startsWith("file:") ? path : session.origin + path;
     const target = new URL(url);
-    const destinations = { "/cycles": "Cycles", "/library": "Library", "/history": "History", "/notifications": "Notifications" };
-    const sections = {
+    const destinations: Record<string, string> = {
+      "/cycles": "Cycles",
+      "/library": "Library",
+      "/history": "History",
+      "/notifications": "Notifications",
+    };
+    const sections: Record<string, string> = {
       backends: "Backends",
       engine: "Engine",
       appearance: "Appearance",
@@ -697,8 +775,8 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       diagnostics: "Diagnostics",
       about: "About",
     };
-    const section = sections[/^\/settings\/([^/]+)$/.exec(target.pathname)?.[1]];
-    const button = (navigation, label) =>
+    const section = sections[/^\/settings\/([^/]+)$/.exec(target.pathname)?.[1] as string];
+    const button = (navigation: string, label: string) =>
       session.find(
         "xpath",
         `//nav[@aria-label=${xpathLiteral(navigation)}]//button[normalize-space(.)=${xpathLiteral(label)} or @aria-label=${xpathLiteral(label)}]`,
@@ -706,7 +784,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
     let navigated = false;
     if (
       !reload &&
-      (await session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));")) &&
+      (await session.execute<boolean>("return Boolean(document.querySelector('nav[aria-label=Navigation]'));")) &&
       (!target.search || (target.search === "?view=cycle" && (await session.location()).pathname === target.pathname)) &&
       (await session.execute("return !document.querySelector('[role=dialog][data-state=open], [role=alertdialog][data-state=open]');"))
     ) {
@@ -717,7 +795,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
         await session.click(overview);
         navigated = true;
       } else if (section) {
-        if (!(await session.execute("return Boolean(document.querySelector('nav[aria-label=\"Settings Sections\"]'));"))) {
+        if (!(await session.execute<boolean>("return Boolean(document.querySelector('nav[aria-label=\"Settings Sections\"]'));"))) {
           await session.click(await button("Navigation", "Settings"));
           await until("settings navigation", () => session.find("css selector", 'nav[aria-label="Settings Sections"]'));
         }
@@ -739,9 +817,9 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   };
   session.close = async () => {
     if (session.closed) return;
-    const linuxProcesses = async (known = []) => {
+    const linuxProcesses = async (known: number[] = []) => {
       if (windows) return null;
-      const pending = [...new Set([webdriver.pid, ...known])];
+      const pending = [...new Set([webdriver.pid!, ...known])];
       const processes = [];
       for (let index = 0; index < pending.length && index < 64; index += 1) {
         const pid = pending[index];
@@ -767,19 +845,19 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       } catch (error) {
         // WebKit May Lose The Close Reply; The Window And Owned Shell Must Still Exit Below.
         const closedBeforeReply = windows
-          ? /target frame detached|invalid session id|disconnected/i.test(error.message)
-          : ownedShells.length && /Session terminated without a reply|\/execute\/sync: unknown error:\s*$/i.test(error.message);
+          ? /target frame detached|invalid session id|disconnected/i.test((error as Error).message)
+          : ownedShells.length && /Session terminated without a reply|\/execute\/sync: unknown error:\s*$/i.test((error as Error).message);
         if (!closedBeforeReply) throw error;
         closeReplyLost = true;
       }
       await until(
         "native window completes orderly close",
         async () => {
-          let closed;
+          let closed: boolean;
           try {
-            closed = (await session.request("GET", "/window/handles")).length === 0;
+            closed = (await session.request<string[]>("GET", "/window/handles")).length === 0;
           } catch (error) {
-            if (!/invalid session id|disconnected|connection refused/i.test(error.message)) throw error;
+            if (!/invalid session id|disconnected|connection refused/i.test((error as Error).message)) throw error;
             closed = true;
           }
           if (!closed || !closeReplyLost) return closed;
@@ -788,7 +866,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
               await readFile(`/proc/${pid}/stat`, "utf8");
               return false;
             } catch (error) {
-              if (error.code !== "ENOENT") throw error;
+              if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
             }
           }
           return true;
@@ -812,9 +890,13 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
           };
       const captures = await Promise.allSettled([
         session.screenshot(label),
-        session.text().then((body) => writeFile(join(evidence, `${label}.txt`), redact(`${failure.stack ?? failure.message}\n\n${body}`))),
         session
-          .executeAsync(`
+          .text()
+          .then((body) =>
+            writeFile(join(evidence, `${label}.txt`), redact(`${(failure as Error).stack ?? (failure as Error).message}\n\n${body}`)),
+          ),
+        session
+          .executeAsync<{ connection?: { endpoint?: string } }>(`
           const done = arguments[arguments.length - 1];
           globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status')
             .then(done, (error) => done({error: String(error)}));
@@ -882,8 +964,8 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
       );
       await writeFile(
         join(evidence, `${label}.json`),
-        redact(JSON.stringify({ error: failure.message, ...diagnostics, linuxDriver }, null, 2)),
-      ).catch((error) => process.stderr.write(`Native close evidence failed: ${error.message}\n`));
+        redact(JSON.stringify({ error: (failure as Error).message, ...diagnostics, linuxDriver }, null, 2)),
+      ).catch((error) => process.stderr.write(`Native close evidence failed: ${(error as Error).message}\n`));
       throw failure;
     } finally {
       session.closed = true;
@@ -891,7 +973,7 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   };
 
   const initial = await until("main native window", async () => {
-    const handles = await session.request("GET", "/window/handles");
+    const handles = await session.request<string[]>("GET", "/window/handles");
     if (!handles.length) return false;
     await session.request("POST", "/window", { handle: handles[0] });
     const location = await session.location();
@@ -906,9 +988,9 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
   return session;
 }
 
-async function sizeViewport(session, target) {
+async function sizeViewport(session: Session, target: { width: number; height: number }) {
   await session.connected();
-  const restored = await session.executeAsync(`
+  const restored = await session.executeAsync<{ error?: string; maximized: boolean }>(`
     const done = arguments[arguments.length - 1];
     const invoke = globalThis.__TAURI_INTERNALS__.invoke;
     invoke('plugin:window|is_maximized', {label: 'main'}).then(async (maximized) => {
@@ -925,7 +1007,7 @@ async function sizeViewport(session, target) {
     `),
   );
   let frame = { height: target.height, width: target.width };
-  const measurements = [];
+  const measurements: unknown[] = [];
   for (let attempt = 0; attempt < 8; attempt += 1) {
     assert.ok(Number.isSafeInteger(frame.width) && frame.width > 0, `Invalid frame width after ${JSON.stringify(measurements)}`);
     assert.ok(Number.isSafeInteger(frame.height) && frame.height > 0, `Invalid frame height after ${JSON.stringify(measurements)}`);
@@ -946,9 +1028,9 @@ async function sizeViewport(session, target) {
   throw new Error(`The native window did not reach its required viewport: ${JSON.stringify({ target, measurements })}`);
 }
 
-async function installSaveTap(session) {
+async function installSaveTap(session: Session) {
   await until("Tauri IPC bridge", () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"), WAIT_MS);
-  const state = await session.execute(`
+  const state = await session.execute<{ installed: boolean }>(`
     globalThis.__dokimeSavedDocuments = globalThis.__dokimeSavedDocuments ?? [];
     globalThis.__dokimeInvokes = globalThis.__dokimeInvokes ?? [];
     globalThis.__dokimeStreams = globalThis.__dokimeStreams ?? [];
@@ -1108,7 +1190,7 @@ async function installSaveTap(session) {
   assert.ok(state?.installed, `The save tap did not take on window.fetch (${JSON.stringify(state)})`);
 }
 
-async function drainInvokeLedger(session) {
+async function drainInvokeLedger(session: Session) {
   return session
     .execute(`
       const now = Date.now();
@@ -1154,7 +1236,7 @@ async function drainInvokeLedger(session) {
     .catch((failure) => ({ error: redact(String(failure)) }));
 }
 
-async function setDensity(session, variant) {
+async function setDensity(session: Session, variant: { width: number; height: number; density: string }) {
   await session.goto("/settings/appearance");
   await until("appearance section", async () => hasText(await session.text(), "Density"), WAIT_MS);
   await selectDensity(session, variant.density);
@@ -1166,13 +1248,13 @@ async function setDensity(session, variant) {
   await sizeViewport(session, variant);
 }
 
-async function selectDensity(session, density) {
+async function selectDensity(session: Session, density: string) {
   await session.clickNamed("combobox", "Density");
   const option = density[0].toUpperCase() + density.slice(1);
   await session.clickNamed("option", option);
 }
 
-async function settle(session) {
+async function settle(session: Session) {
   await until(
     "toast dismissal",
     () =>
@@ -1188,8 +1270,8 @@ async function settle(session) {
   );
 }
 
-async function answerPendingPrompts(session) {
-  const selection = await session.execute(`
+async function answerPendingPrompts(session: Session) {
+  const selection = await session.execute<{ cycle: string; executionId: string } | null>(`
     if (document.querySelector('ol[aria-label="Pending Prompts"]')) return null;
     const attention = document.querySelector('[data-testid="navigation-prompt-count"]');
     const executionId = new URL(location.href).searchParams.get('executionId');
@@ -1230,7 +1312,7 @@ async function answerPendingPrompts(session) {
     /* The queue is gone the moment its last prompt is answered, so what it
      showed is read here, before answering, and asserted once the run is over. */
     const observe = () =>
-      session.execute(`
+      session.execute<{ cards: { text: string }[]; progress: unknown } | null>(`
     const queue = document.querySelector('ol[aria-label="Pending Prompts"]');
     if (!queue) return null;
     const cards = [...queue.querySelectorAll('li[data-prompt-level]')];
@@ -1330,7 +1412,7 @@ async function answerPendingPrompts(session) {
   }
 }
 
-async function terminate(child, signal = "SIGTERM") {
+async function terminate(child: ChildProcess | undefined, signal: NodeJS.Signals = "SIGTERM") {
   if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (windows) {
     try {
@@ -1340,7 +1422,7 @@ async function terminate(child, signal = "SIGTERM") {
       try {
         process.kill(child.pid, 0);
       } catch (probe) {
-        if (probe.code === "ESRCH") return;
+        if ((probe as NodeJS.ErrnoException).code === "ESRCH") return;
       }
       throw error;
     }
@@ -1349,11 +1431,11 @@ async function terminate(child, signal = "SIGTERM") {
   try {
     process.kill(-child.pid, signal);
   } catch (error) {
-    if (error.code !== "ESRCH") throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
   }
 }
 
-async function stopBackend(...args) {
+async function stopBackend(...args: Parameters<typeof stopBackendMeasured>) {
   return measured("backend-shutdown", "stopBackend", () => stopBackendMeasured(...args));
 }
 
@@ -1361,7 +1443,7 @@ async function stopBackendMeasured() {
   if (!backend) return;
   const owned = backend;
   if (owned.child.startupError) throw owned.child.startupError;
-  owned.child.stdin.end();
+  owned.child.stdin!.end();
   const exited =
     owned.child.exitCode === null ? once(owned.child, "exit") : Promise.resolve([owned.child.exitCode, owned.child.signalCode]);
   const timer = new AbortController();
@@ -1380,7 +1462,7 @@ async function stopBackendMeasured() {
   await owned.log.close();
   for (const plugin of owned.plugins) {
     const exited = plugin.exitCode === null ? once(plugin, "exit") : Promise.resolve([plugin.exitCode, plugin.signalCode]);
-    plugin.stdin.end();
+    plugin.stdin!.end();
     const timer = new AbortController();
     try {
       const [code, signal] = await Promise.race([
@@ -1399,7 +1481,7 @@ async function stopBackendMeasured() {
   backend = undefined;
 }
 
-async function windowsPicker(script, environment) {
+async function windowsPicker(script: string, environment: NodeJS.ProcessEnv) {
   if (!nativePickerWorker) {
     const boundary = script.indexOf("      $filenameId =");
     const initialization = script.slice(0, boundary);
@@ -1426,11 +1508,11 @@ async function windowsPicker(script, environment) {
       stdio: ["pipe", "pipe", "pipe"],
     });
     const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    const worker = { child, lines, responses: lines[Symbol.asyncIterator](), diagnostics: "", busy: false };
+    const worker = { child, lines, responses: lines[Symbol.asyncIterator](), diagnostics: "", busy: false } as NativePickerWorker;
     worker.closed = once(child, "exit").then(([code]) => {
       throw new Error(`Native picker host exited (${code})`);
     });
-    worker.closed.catch(() => {});
+    worker.closed!.catch(() => {});
     child.stdin.on("error", () => {});
     child.stderr.on("data", (chunk) => {
       worker.diagnostics = (worker.diagnostics + chunk).slice(-65536);
@@ -1442,10 +1524,10 @@ async function windowsPicker(script, environment) {
   worker.busy = true;
   const timer = new AbortController();
   try {
-    worker.child.stdin.write(`${JSON.stringify(environment)}\n`);
+    worker.child.stdin!.write(`${JSON.stringify(environment)}\n`);
     const line = await Promise.race([
       worker.responses.next(),
-      worker.closed,
+      worker.closed!,
       setTimeout(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
         throw new Error("Native picker host did not answer");
       }),
@@ -1457,7 +1539,7 @@ async function windowsPicker(script, environment) {
     worker.diagnostics = "";
     return { stdout: response.value, stderr: diagnostics };
   } catch (error) {
-    const failure = new Error(`${error.message}${worker.diagnostics ? `\n${worker.diagnostics}` : ""}`, { cause: error });
+    const failure = new Error(`${(error as Error).message}${worker.diagnostics ? `\n${worker.diagnostics}` : ""}`, { cause: error });
     await stopNativePicker();
     throw failure;
   } finally {
@@ -1470,22 +1552,22 @@ async function stopNativePicker() {
   const worker = nativePickerWorker;
   if (!worker) return;
   nativePickerWorker = undefined;
-  worker.child.stdin.end();
+  worker.child.stdin!.end();
   await terminate(worker.child);
   worker.lines.close();
 }
 
-async function chooseNativeFile(...args) {
+async function chooseNativeFile(...args: Parameters<typeof chooseNativeFileMeasured>) {
   return measured("native-picker", "chooseNativeFile", () => chooseNativeFileMeasured(...args));
 }
 
-async function chooseNativeFileMeasured(picker, file, operation = "Open", owner = driverProcess) {
+async function chooseNativeFileMeasured(picker: Picker, file: string, operation = "Open", owner = driverProcess) {
   if (!windows) {
     const children = await readFile(`/proc/${owner.pid}/task/${owner.pid}/children`, "utf8");
     const executable = await realpath(shellBinary);
     for (const pid of children.trim().split(/\s+/)) {
       if (!pid || (await realpath(`/proc/${pid}/exe`)) !== executable) continue;
-      const run = (args) => executeFile("xdotool", args, { windowsHide: true, timeout: WAIT_MS });
+      const run = (args: string[]) => executeFile("xdotool", args, { windowsHide: true, timeout: WAIT_MS });
       const found = await run([
         "search",
         "--all",
@@ -1495,7 +1577,7 @@ async function chooseNativeFileMeasured(picker, file, operation = "Open", owner 
         "--name",
         operation === "Save" ? "^Save( File| As)?$" : "^Open File$",
       ]).catch((error) => {
-        if (error.code === 1) return null;
+        if ((error as { code?: number }).code === 1) return null;
         throw error;
       });
       if (!found) return picker.submitted === true;
@@ -1718,16 +1800,16 @@ async function startSecretService() {
     stdio: ["ignore", "pipe", "inherit"],
   });
   let address = "";
-  let startupError;
+  let startupError: Error | undefined;
   secretBus.on("error", (error) => {
     startupError = error;
   });
-  secretBus.stdout.on("data", (data) => {
+  secretBus.stdout!.on("data", (data) => {
     address += data.toString();
   });
   await until("isolated secret-service bus", () => {
     if (startupError) throw startupError;
-    if (secretBus.exitCode !== null) throw new Error("The private D-Bus exited before startup");
+    if (secretBus!.exitCode !== null) throw new Error("The private D-Bus exited before startup");
     return address.includes("\n");
   });
   process.env.DBUS_SESSION_BUS_ADDRESS = address.trim();
@@ -1767,10 +1849,10 @@ async function startSecretService() {
   secretKeyring.on("error", (error) => {
     startupError = error;
   });
-  secretKeyring.stdin.end("native-fixture-keyring-password");
+  secretKeyring.stdin!.end("native-fixture-keyring-password");
   await until("isolated unlocked OS keyring", async () => {
     if (startupError) throw startupError;
-    if (secretKeyring.exitCode !== null) throw new Error("The private keyring exited before startup");
+    if (secretKeyring!.exitCode !== null) throw new Error("The private keyring exited before startup");
     const result = await executeFile(
       "dbus-send",
       [
@@ -1787,7 +1869,7 @@ async function startSecretService() {
   });
 }
 
-async function openNativeReport(path) {
+async function openNativeReport(path: string) {
   const reopened = await fetch(reportBrowser.endpoint, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1795,15 +1877,15 @@ async function openNativeReport(path) {
   });
   const response = await reopened.text();
   assert.ok(reopened.ok, `The owned report browser reopens saved HTML: ${response}`);
-  const reader = JSON.parse(response);
+  const reader = JSON.parse(response) as { headings: string[]; outcome: string; points: number };
   await reportBrowser.closeTabs();
   return reader;
 }
 
-async function discardHostCredentials(root) {
+async function discardHostCredentials(root: string) {
   const pending = [root];
   while (pending.length) {
-    const directory = pending.pop();
+    const directory = pending.pop()!;
     if (existsSync(join(directory, "backend-id"))) {
       await executeFile(credentialHost, ["--credential-namespace", credentialNamespace, "--storage", directory, "--remove-credentials"], {
         windowsHide: true,
@@ -1816,14 +1898,14 @@ async function discardHostCredentials(root) {
   }
 }
 
-async function prepareNativeFixture(root, output) {
+async function prepareNativeFixture(root: string, output: string) {
   work = root;
   evidence = output;
   const prepared = join(workspace, "target/tooling/desktop/chrome-linux64/chrome");
   const chrome =
     process.env.DOKIME_E2E_CHROME ??
     (windows
-      ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles, "Microsoft/Edge/Application/msedge.exe")
+      ? join(process.env["ProgramFiles(x86)"] ?? process.env.ProgramFiles!, "Microsoft/Edge/Application/msedge.exe")
       : existsSync(prepared)
         ? prepared
         : "google-chrome");

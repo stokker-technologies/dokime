@@ -125,7 +125,7 @@ def check(directory: Path, _: str = "check") -> None:
 
 
 def capture(directory: Path, scene: str | None = None) -> None:
-    arguments = ["node", "crates/dokime-gui/e2e/screenshots.mjs"]
+    arguments = ["node", "crates/dokime-gui/e2e/screenshots.ts"]
     if scene:
         arguments += ["--scene", scene]
     policy.execute(directory, arguments)

@@ -74,7 +74,7 @@ writeFileSync(process.argv[1], toBinary(type, value));
             )
             output = directory / "modules"
             subprocess.run(
-                ["node", str(root / "tools/typescript/generate.mjs"), "--output", str(output), "--defaults", str(fixture)],
+                ["node", str(root / "tools/typescript/generate.ts"), "--output", str(output), "--defaults", str(fixture)],
                 cwd=root,
                 check=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -112,8 +112,7 @@ writeFileSync(process.argv[1], toBinary(type, value));
                 self.assertEqual((host / "client.ts").read_bytes(), (staged.parent / "host/client.ts").read_bytes())
                 (staged.parent / "host/client.ts").unlink()
                 (staged.parent / "host").rmdir()
-                with self.assertRaises(SystemExit):
-                    generated.restore("dev")
+                self.assertRaises(SystemExit, generated.restore, "dev")
                 self.assertTrue((modules / "preferences.ts").is_file())
         finally:
             scratch_directory.cleanup()
