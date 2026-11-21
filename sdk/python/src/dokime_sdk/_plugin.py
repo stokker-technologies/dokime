@@ -38,7 +38,7 @@ from dokime_sdk._wire.model.v1.prompts_pb2 import PromptDefinitions
 from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
-from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._authoring import Materialization, Record, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._configuration import load
 from ._connection import connect
 from ._errors import wire_failure
@@ -91,7 +91,17 @@ class Plugin:
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
         self._suites = tuple(bind_suite(item) for item in tuple(self.suites))
-        self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
+        plugin_members: dict[str, object] = {}
+        for cls in reversed(type(self).__mro__):
+            plugin_members.update(vars(cls))
+        self._record_identifiers = {
+            id(member): build_identifier(name, member.identifier, prefix=self.identifier)
+            for name, member in plugin_members.items()
+            if isinstance(member, Record)
+        }
+        self._records = tuple(
+            (template.resolve(record), record) for suite in self._suites for template in suite.templates for record in template.records
+        ) + tuple((self._record_identifiers[id(member)], member) for member in plugin_members.values() if isinstance(member, Record))
         self._operations = tuple(self.operations)
         self._secrets = tuple(self.secrets)
         self._settings = tuple(self.settings)
@@ -101,7 +111,7 @@ class Plugin:
         for name, identifiers in (
             ("suite", [item.identifier for item in self._suites]),
             ("template", [item.identifier for item in templates]),
-            ("record", [template.resolve(item) for template, item in self._records]),
+            ("record", [identity for identity, _ in self._records]),
             ("secret", [item.identifier for item in self._secrets]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
@@ -131,9 +141,7 @@ class Plugin:
                 if hasattr(method, "__dokime_stream__"):
                     methods[f"stream_{index}_{position}"] = self._stream(template, name, method)
         self._streams: dict[int, str] = {}
-        plugin_methods: dict[str, object] = {}
-        for cls in reversed(type(self).__mro__):
-            plugin_methods.update(vars(cls))
+        plugin_methods = plugin_members
         handlers = [*self._operations, *plugin_methods.values()]
         for template in templates:
             handlers.extend(template._methods.values())
@@ -165,10 +173,10 @@ class Plugin:
                 RecordContracts(
                     records=[
                         RecordContract(
-                            metadata={"identifier": template.resolve(item), "label": item.label or template.resolve(item)},
+                            metadata={"identifier": identity, "label": item.label or identity},
                             message=message_type(item.row).DESCRIPTOR.full_name,
                         )
-                        for template, item in self._records
+                        for identity, item in self._records
                     ],
                 )
             )

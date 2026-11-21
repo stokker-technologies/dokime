@@ -255,11 +255,10 @@ class AuthoringStory(unittest.TestCase):
         templates = dokime_sdk.templates.Context
         self.assertIsNot(operations, templates)
         self.assertTrue(issubclass(templates, operations))
-        for name in ("operation", "sleep", "now", "cancelled", "secret", "settings"):
+        for name in ("operation", "record", "sleep", "now", "cancelled", "secret", "settings"):
             self.assertTrue(callable(getattr(operations, name)))
         for name in (
             "prompt",
-            "record",
             "records",
             "statistics",
             "progress",
