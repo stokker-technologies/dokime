@@ -35,6 +35,7 @@ test = false
 dokime = { path = "../../../sdk/rust" }
 
 # Git
+harmos = { workspace = true }
 
 # Error Handling
 

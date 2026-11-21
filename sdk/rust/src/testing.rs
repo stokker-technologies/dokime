@@ -32,7 +32,7 @@ use prost_types::{self, Timestamp};
 use crate::context::{Execution, Local, LocalHost};
 use crate::operation::FutureResult;
 use crate::plugin::Window;
-use crate::stream::{Feed, Listener, Sampler, Tick};
+use crate::stream::Sampler;
 use crate::template::Parts;
 use crate::wire::host::evidence::{
     CapturedRecord, LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, RecordsListRequest,
@@ -43,7 +43,7 @@ use crate::wire::host::{
     BackendEnvironmentRequest, BackendEnvironmentResponse, EvidenceStatisticsRequest, EvidenceStatisticsResponse, PromptsCreateRequest,
     PromptsCreateResponse, Statistics,
 };
-use crate::{Classification, Context, Error, ExecutionProgressValue, Origin, PluginRun, Result, Severity, Termination, operations};
+use crate::{Classification, Context, Error, ExecutionProgressValue, Origin, PluginRun, Result, Severity, Termination};
 use crate::{Value, origin, plugin::Plugin, value};
 use harmos_protocol::host::{TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse};
 
@@ -114,7 +114,6 @@ pub(crate) struct Selected {
     pub prompts: Vec<crate::wire::model::Prompt>,
     pub requirements: Vec<&'static str>,
     pub samplers: Vec<Sampler>,
-    pub feeds: Vec<Arc<Feed>>,
 }
 
 #[derive(Clone)]
@@ -147,9 +146,6 @@ struct Memory {
     prompts: Vec<crate::wire::model::Prompt>,
     answers: HashMap<String, Answer>,
     observers: Vec<(Sampler, i64)>,
-    collections: Vec<(Arc<Feed>, i64)>,
-    streams: Vec<String>,
-    listeners: Mutex<Vec<Listener>>,
     state: Mutex<State>,
 }
 
@@ -159,7 +155,6 @@ struct State {
     step: String,
     due_ns: Vec<i64>,
     sequences: Vec<u64>,
-    ticks_ns: Vec<i64>,
     records: Vec<Recorded>,
     samples: Vec<Sampled>,
     logs: Vec<Logged>,
@@ -224,7 +219,6 @@ impl Harness {
             prompts,
             requirements,
             samplers,
-            feeds,
         } = self.selected?;
         let Parts {
             definition,
@@ -272,17 +266,6 @@ impl Harness {
             let interval_ns = i64::try_from(interval.as_nanos()).unwrap_or(i64::MAX).max(1);
             observers.push((sampler, interval_ns));
         }
-        // Collections Feeding the Case's Streams Tick From Their First Due Interval While the Steps Run.
-        let mut collections = Vec::new();
-        for feed in feeds {
-            if !feed.rows.iter().any(|fed| case.streams.contains(&fed.stream)) {
-                continue;
-            }
-            let Some(interval) = feed.interval else {
-                return Err(Error::Invalid("Test Template: Give Each Listened Collection a Fixed Interval With every".into()));
-            };
-            collections.push((feed, i64::try_from(interval.as_nanos()).unwrap_or(i64::MAX).max(1)));
-        }
         let origin = Origin {
             kind: Some(origin::Kind::PluginRun(PluginRun {
                 test_case: Some(case.clone()),
@@ -294,7 +277,6 @@ impl Harness {
         let execution = Execution::new(case.clone(), origin);
         let due_ns = observers.iter().map(|(_, interval_ns)| self.origin_ns.saturating_add(*interval_ns)).collect();
         let sequences = vec![0; observers.len()];
-        let ticks_ns = collections.iter().map(|(_, interval_ns)| self.origin_ns.saturating_add(*interval_ns)).collect();
         let host = Arc::new_cyclic(|me| Memory {
             plugin_state,
             me: me.clone(),
@@ -303,14 +285,10 @@ impl Harness {
             prompts,
             answers: self.answers,
             observers,
-            collections,
-            streams: case.streams.clone(),
-            listeners: Mutex::new(Vec::new()),
             state: Mutex::new(State {
                 now_ns: self.origin_ns,
                 sequences,
                 due_ns,
-                ticks_ns,
                 ..State::default()
             }),
         });
@@ -329,18 +307,6 @@ impl Harness {
                 false
             }
         };
-        if initialized {
-            // The Execution Listens to Its Streams From Its First Step Until Its Last Settles.
-            for (feed, _) in &host.collections {
-                match feed.join(operations::Context::from_inner(host.context("", 1))) {
-                    Ok(listener) => host.listeners.lock().map_err(|_| poisoned())?.push(listener),
-                    Err(error) => {
-                        failure = Some(error);
-                        break;
-                    }
-                }
-            }
-        }
         if initialized && failure.is_none() {
             for frozen in &case.steps {
                 let Some((_, step)) = steps.iter().find(|(operation, _)| *operation == frozen.operation) else {
@@ -367,7 +333,6 @@ impl Harness {
                 }
             }
         }
-        host.listeners.lock().map_err(|_| poisoned())?.clear();
         if failure.is_none() {
             for frozen in &case.criteria {
                 let Some((_, criterion)) = criteria.iter().find(|(operation, _)| *operation == frozen.operation) else {
@@ -487,7 +452,7 @@ impl Memory {
 
     // Advance Virtual Time; Before the Wait Settles, Each Observer Answers One Window of Every Sample Due by Its End.
     async fn advance(&self, duration_ns: i64) -> Result<()> {
-        let (step, grants, ticks) = {
+        let (step, grants) = {
             let mut state = self.state.lock().map_err(|_| poisoned())?;
             let target = state.now_ns.saturating_add(duration_ns.max(0));
             state.now_ns = target;
@@ -502,14 +467,7 @@ impl Memory {
                 grants.push((index, first, count as u64, state.sequences[index] + 1));
                 state.sequences[index] += count as u64;
             }
-            let mut ticks = Vec::new();
-            for (index, (_, period)) in self.collections.iter().enumerate() {
-                while state.ticks_ns[index] <= target {
-                    ticks.push((index, state.ticks_ns[index]));
-                    state.ticks_ns[index] = state.ticks_ns[index].saturating_add(*period);
-                }
-            }
-            (state.step.clone(), grants, ticks)
+            (state.step.clone(), grants)
         };
         for (index, first, count, sequence) in grants {
             let (sampler, period) = &self.observers[index];
@@ -539,16 +497,6 @@ impl Memory {
                     (sampler.stream.clone(), payload, first.saturating_add((offset as i64).saturating_mul(*period)))
                 }),
             )?;
-        }
-        // A Collection Ticks Only While the Execution Listens; Each Tick's Rows Share Its Due Time.
-        let listening = !self.listeners.lock().map_err(|_| poisoned())?.is_empty();
-        for (index, at_ns) in ticks.into_iter().filter(|_| listening) {
-            let (feed, period) = &self.collections[index];
-            let context = operations::Context::from_inner(self.context(&step, 1));
-            let interval = std::time::Duration::from_nanos(u64::try_from(*period).unwrap_or_default());
-            let tick: Arc<Tick> = feed.tick(&context, timestamp(at_ns), interval).await?;
-            let rows = tick.rows.iter().filter(|(stream, _)| self.streams.contains(stream));
-            self.sampled(&step, rows.map(|(stream, row)| (stream.clone(), row.clone(), at_ns)))?;
         }
         Ok(())
     }
@@ -760,11 +708,11 @@ impl Memory {
         if field.is_empty() || samples.is_empty() {
             return Ok(statistics);
         }
-        let observed =
-            self.observers.iter().find(|(sampler, _)| sampler.stream == stream).map(|(sampler, _)| (&sampler.types, &sampler.name));
-        let collected = || self.collections.iter().flat_map(|(feed, _)| feed.rows.iter()).find(|fed| fed.stream == stream);
-        let (types, name) = observed
-            .or_else(|| collected().map(|fed| (&fed.types, &fed.name)))
+        let (types, name) = self
+            .observers
+            .iter()
+            .find(|(sampler, _)| sampler.stream == stream)
+            .map(|(sampler, _)| (&sampler.types, &sampler.name))
             .ok_or_else(|| Error::Invalid(format!("Testing Host: Observe Stream {stream} Before Reading Its Statistics")))?;
         let pool = DescriptorPool::from_file_descriptor_set(types.clone()).map_err(|error| Error::Invalid(error.to_string()))?;
         let descriptor = pool.get_message_by_name(name).ok_or_else(|| Error::Invalid(format!("Missing Descriptor {name}")))?;

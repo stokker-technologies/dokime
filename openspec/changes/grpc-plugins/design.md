@@ -1,5 +1,57 @@
 # gRPC Plugins Design
 
+## Library State and Ownership
+
+The library pin is owned by the workspace `Cargo.toml`. Protocol generation
+refreshes every manifest projection and the vendored protocol inventory from
+that revision's archive, sharing the C++ archive checksum input. Generated
+bindings remain tracked. Cargo and native SDK locks follow the same revision.
+
+Registry removal, disable and host shutdown detach externally launched plugins;
+only registry-spawned children receive Stop. External launchers retain process
+exit ownership. Registration restart and remote authoring keep their existing
+guards and assertions.
+
+The host composes the library plugin state manager with managed storage recovery,
+including State Get and Put operation registration. Plugin state capacity comes
+from the product operation message budget. Recovery capture/replay use the
+existing storage pending-byte budget and operation page capacity; snapshot
+segments use the message budget and the snapshot cadence uses the storage flush
+row policy. Snapshot schemas remain at v1. SDK contexts forward the library
+StateHandle; local test contexts require a registered product host for durable
+state. A stale write revision returns `state_revision_conflict`.
+
+Remote address replacement remains blocked on a library capability. Product
+`crates/dokime-operations/src/plugin_policy.rs` currently handles a changed URL
+with Delete/Create, which removes the previous entry's durable state. The
+library's `crates/harmos-runtime/src/plugin/manager/replacement.rs` restricts
+Replace to managed bundles. Product Plugins/Create callers reach the former;
+the library manager's Replace path reaches the latter. The clean contract is
+one library-owned remote placement update preserving entry identity, settings
+and state; retire the product Delete/Create path after that capability lands.
+This adoption preserves one external listener across host restart and does not
+claim durability across remote address replacement.
+
+Native recovery compaction atomically removes journal entries covered by the
+newest published snapshot and older snapshots, retaining the uncovered suffix
+and any newer snapshot still awaiting publication. Without a published snapshot,
+compaction changes nothing. Publication and compaction preserve the saved
+frontier and require no migration or data reset.
+
+The Rust SDK exposes the library Collection directly. The product scheduler in
+`sdk/rust/src/stream.rs` remains owned by the host plugin integration worker;
+replace that scheduler with the library collection when the host plugin lands.
+Both it and the library's `sdk/rust/src/stream.rs` schedule observer windows.
+Product Plugin/Observer composition calls the former and library Collection
+publications call the latter. Delete the product scheduler after migrating its
+consumers; this work does not edit its other owner's files.
+
+The requested direct StateHandle and Collection exports supersede the earlier
+Rust worker brief's blanket removal of library-facing APIs for these types only;
+there is no product-owned mirror or compatibility layer. Work stays on
+`feat/library-state-and-ownership` as this task directs, overriding the project
+guidance's older integration branch name.
+
 ## Resuming
 
 The execution host, typed catalog/origins, four SDKs, CLI and desktop runtime
@@ -2696,6 +2748,11 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `sdk/{rust,csharp,cpp}/tools/test_created.py:Host/HostFactory` and `sdk/python/tests/system/test_starter.py:Host/HostFactory` | Each created-project story declares the same structural host-support contract for runpy loading. | Give a shared test-support module the contract, then delete the per-story protocol copies; keep test support outside the public SDK. |
 | `sdk/python/tests/support/host.py:fixture` and `sdk/tests/test_authoring.py:commands` | Prepared host/CLI/Rust consumers resolve profile-aware paths through the shared lookup; shared capture independently hard-codes the C# development and C++ test fixture paths. | Extend the shared prepared-fixture inventory, then delete the C#/C++ path construction from the capture story after the owner selects its profile policy. |
 | `crates/dokime-gui/src/report/`, `crates/dokime-operations/src/host/reports/create.rs:193` and `crates/dokime-runtime/src/services/state.rs:151` | Current Reports/Create collects a protobuf capture, inserts its Base64 bytes into the generated React template and retains that HTML. Runtime supplies the template; `src/documents.rs` resolves documents and stored report metadata, with no separate HTML renderer. The previous overlap claim and `docs/gui.md:5` are stale. | Keep this single pipeline; the owner must reconcile the stale documentation and review any proposed renderer change against the current retained-report contract before deleting code. |
+| `crates/dokime-gui/benches/system/fixture.rs:Fixture::start` and `crates/dokime-gui/src-tauri/src/connection/host.rs:Session::install_plugin` | The benchmark admits a remote fixture and desktop installation admits a managed plugin; both independently issue Create, Watch and Get until Ready. Their callers are benchmark fixture startup and desktop installation respectively. | Keep readiness admission in Session and delete the benchmark loop once that owner supports remote placements; the owner must choose before either mechanism is removed. |
+| `crates/dokime-runtime/src/plugin.rs:PluginProcess` and the library `crates/harmos-runtime/src/plugin/grpc/mod.rs` | Development CLI, host fixtures and product stories use the product launcher for project scripts and externally owned children; registry-managed placements use the library launcher. Both implement native child startup, Stop and bounded exit handling, with distinct process owners. | Consider a library-owned reusable spawned-process lifecycle and delete the product mechanics after it supports project launch inputs; retain the external launcher's ownership and never transfer it through launch credentials. No consolidation is authorized here. |
+| `crates/dokime-runtime/src/host.rs:remove_plugin` and `detach_plugin` | Host facade consumers can invoke either method; detach forwards directly to remove with identical durable deletion behavior. | Prefer remove and delete the redundant detach entry point after the owner confirms its public API contract; this adoption does not change it. |
+| `proto/dokime/host/v1/plugins.proto:PluginState` and `proto/harmos/host/v1/plugins.proto:PluginState` | Product RPC projections (`crates/dokime-operations/src/plugin_policy.rs:333`) add Offline while native `Host::entry_state` exposes the library family without Offline. The launch proof uses the native return type; desktop/client projections retain the product type. | Prefer library-owned Offline classification and then delete the product enum after owner approval; preserve current Offline behavior and add no conversion or alias for the launch test. |
+| `sdk/rust/src/stream.rs:Stream` and library `sdk/rust/src/stream.rs:Stream` | Product templates, observers and push producers use the context-adapting product wrapper; native host collections use the library stream directly. Both own identifiers, descriptions and row types. | Prefer one library stream after author-context composition is available, then delete the product wrapper; collection adoption does not authorize removing template and producer support. |
 | `sdk/cpp/src/plugin.cpp:Plugin::serve`, `sdk/tests/fixtures/cpp/thermal/main.cpp:main` and the library `sdk/cpp/src/server.cpp:Listener::close` | Product serving and the thermal fixture explicitly shut down the process default EventEngine; the library listener settles its dedicated serving engine. These are parallel teardown owners for different engine instances, with a repeated process-global release in the fixture. | Ask the library owner to own the full transport teardown, then delete the product and fixture process-global shutdown calls; do not remove either resource release speculatively. |
 | `crates/dokime-runtime/tests/system/client_edits_settings.rs:SettingsPlugin` and `sdk/rust/src/plugin/mod.rs:into_harmos` | The settings story builds its catalog with the SDK but implements the Instance protocol itself, including lifecycle acknowledgements; authored plugins use the SDK's library-owned listener. | Use an unpublished library-owned settings protocol fixture, then delete the story's manual carrier and SDK catalog dependency after the owner agrees. |
 | `mise.toml:lint:rust` and `tools/python/src/dokime_tools/build/rust/tests.py:build` | Rust lint selects all default-feature targets; test archive production additionally selects the GUI testing feature. The latter therefore found a fixture compilation failure after the lint task passed. | Share the required test-feature inventory and delete the independent hard-coded selection after the task owner agrees; retain both lint and archive proof. |
@@ -2743,9 +2800,9 @@ When implementation lands, these current statements need reconciliation:
 | `docs/sdk-csharp.md:65`, `:81`, `:115`, `:139` | Author bases/attributes, one shared-library/plugin/client starter and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
 | `docs/sdk-cpp.md:5`, `:13`, `:26`, `:85`, `:90` | The library pin is the common maintenance revision; author classes, protected lifecycle operations and blocking bound handles use one argument-free starter whose build stages Release bundle inputs. |
 | `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
-| `docs/architecture.md:449` | External inverses belong to durable plugin state; the product Effects service and per-call confirmation tickets are removed, while durable state access and bounded recovery remain blocked on the library. |
+| `docs/architecture.md:449` | External inverses belong to durable plugin state; the product Effects service and per-call confirmation tickets are removed, with durable state access and bounded recovery now supplied by the library. |
 | `docs/execution-host.md:920` | Effects/Create, Effects/Get and Effects/Set no longer exist in the protocol or SDKs. |
-| `docs/sdk-cpp.md:152` | The product effects surface is removed; the host plugin journal remains unavailable until library-backed plugin persistence exists. |
+| `docs/sdk-cpp.md:152` | The product effects surface is removed; the host plugin journal now uses revisioned library-backed plugin persistence. |
 | `docs/rust-sdk.md:100` | `operations::Context::environment()` returns the same backend process ID and in-step flag as the template context. |
 | `docs/gui.md:5` | Reports/Create embeds a protobuf capture into the generated React report template; there is no separate native HTML renderer in `dokime-runtime/src/documents.rs`. |
 
@@ -2792,33 +2849,30 @@ plugin beside OBC. The decisions:
   owner's review before the other SDKs copy it:
 
   ```rust
-  let collection = Collection::operation(async |ctx: &operations::Context, rows: &mut Rows| {
+  let stream = harmos::plugin::Stream::<WifiAdapter>::new(WifiAdapter::STREAM);
+  let collection = Collection::operation(async |ctx, rows: CollectionOutput| {
       let reading = read(ctx).await?;
-      rows.publish(WifiAdapter::STREAM, reading.adapter())?;
-      if let Some(link) = reading.link() {
-          rows.publish(WifiLink::STREAM, link)?;
-      }
-      for network in reading.scan() {
-          rows.publish(WifiNetwork::STREAM, network)?;
-      }
+      rows.publish(&stream, reading.adapter());
       Ok(())
   })
-  .stream(Stream::<WifiAdapter>::new(WifiAdapter::STREAM, WifiAdapter::LABEL))
-  .stream(Stream::<WifiLink>::new(WifiLink::STREAM, WifiLink::LABEL))
-  .stream(Stream::<WifiNetwork>::new(WifiNetwork::STREAM, WifiNetwork::LABEL))
-  .interval_setting(settings::WIFI_LINK_INTERVAL)
-  .on_start(|ctx: &operations::Context| Ok(()))
-  .on_stop(|ctx: &operations::Context| Ok(()));
+  .stream(harmos::plugin::Stream::<WifiAdapter>::new(WifiAdapter::STREAM))
+  .interval_setting("wifi_link_interval")
+  .on_start(acquire)
+  .on_stop(release);
   let plugin = plugin.collection(collection);
   ```
 
-  The eventual library collection capability must use host-owned windows. The
-  current product `Collection` in `sdk/rust/src/stream.rs` uses demand-bound
-  producer streams with sleeping ticks. The owner keeps that scheduler unchanged
-  in this integration unit until the library supplies multi-stream ticks with
-  zero or more rows, a common timestamp and first/last-listener hooks. Adoption
-  and deletion of the interim product scheduler remain open; this integration
-  does not claim they are complete.
+  The library collection now owns demand and granted windows. The product-side
+  `Collection`, feed/listener state and sleep-loop producer are removed. Rust
+  collections use the library `Collection` and `CollectionOutput` directly;
+  `Plugin::collection` registers that value without scheduling it. A collection
+  callback binds its invocation and captured author state through
+  `operations::Context::from_collection`; it never retains a prior invocation.
+  The in-process template harness refuses collection sampling and directs callers
+  to a product host, since it cannot drive library-owned collection windows.
+  System COM and network watching acquire through `on_start`; Wi-Fi link counters
+  acquire there too. Stop hooks discard resources and cached measurements.
+
 - **Effect journal.** Plugin state, persisted by the host through the library's state
   management; no product effects store and no product `Effects` operations.
   `plugins/sidecars/host/src/journal.rs` implements `controls::Journal` over one opaque,
@@ -2828,10 +2882,10 @@ plugin beside OBC. The decisions:
   recording order. The plugin's `initialize` hook runs `controls::State::restore`,
   newest first, before any control runs; a failed inverse stays outstanding and fails
   `initialize`, so the host withholds the plugin with that failure on its entry. A host
-  that serves no durable state refuses every record, so no control writes. Inverses
+  that cannot persist the value fails its state operation before any control writes. Inverses
   are absolute control states, so a restore repeated after a crash between record,
-  write, restore and clear is idempotent. The library does not yet serve plugin state,
-  so the `Context` store reports none.
+  write, restore and clear is idempotent. The `Context` store uses the library
+  StateHandle and propagates persistence failures before a control writes.
 - **Start snapshot.** The old automatic adapter capture at run start becomes an
   explicit typed snapshot operation that a consuming template calls from its
   `initialize` and records itself; the host adds no run-start contribution.
@@ -2844,73 +2898,35 @@ plugin beside OBC. The decisions:
 | Prerequisite | Status |
 |---|---|
 | Duration settings | `dokime::operations::Context::duration_setting` and `setting` (`sdk/rust/src/operations.rs`), backed by `crate::context::Context::duration_setting` (`sdk/rust/src/context.rs`); the name is the one `Observer::interval_setting` takes. |
-| Producer host calls | Blocked at library pin `18e9b41cb0dd00e27020ee3120e5c973d82eec22`: the unscoped producer context has neither an output nor a child carrier, so `sdk/rust/src/stream.rs:produce` cannot read its duration setting through `harmos.plugin.v1.plugins.Settings/List`. The real host plugin announces through `PluginProcess`, but publication ends with `Child Carrier Required` and the entry becomes Offline. The library must supply host calls from producer contexts or the agreed host-window collection capability; keep the locked product scheduler unchanged and add no settings cache, fixed interval or alternate transport. |
+| Collection host calls | Library `sdk/rust/src/context.rs:230` refuses the old unscoped producer because it has neither a child transport nor an output carrier. Native collection invocations carry host calls; interval settings are resolved by the host. The product no longer calls Settings/List from a producer. |
 | Plugin-wide retention | Withdrawn: host streams are demand-driven; historical facts follow. Blocked. Storage keys every sample, stream and telemetry file on an execution (`streams`, telemetry catalog), `crates/dokime-runtime/src/streams.rs` drops unscoped publications, the runtime observes no plugin connect/disconnect, and `dokime.model.v1.EvidenceScope` has no plugin selector, so plot requests (`PlotRequest.scope`) cannot address a plugin-scoped stream (Samples List/Watch could through `sources`). The contract needs `EvidenceScope` to name the plugin entry; that regenerates every SDK binding and needs the owner's go. |
-| Effect journal | Plugin side landed (`plugins/sidecars/host/src/journal.rs`, restore in `src/lib.rs` `initialize`). Blocked on the library: plugins have no durable state value. `harmos_runtime::state::StateManager` is the host application's compile-time state (Dokime composes `State = ()`, `Transaction = Never`, `crates/dokime-runtime/src/services/composition.rs`), and no `harmos.host.v1` service or SDK call reads or writes plugin state. Needed: one opaque, revisioned value per plugin entry, persisted by the host state manager and readable by the plugin from `initialize`. The recovery journal is also unbounded: `crates/dokime-storage/src/backend/recovery.rs` (`flush`) publishes snapshots but never retires entries or snapshots it supersedes. |
+| Effect journal | `plugins/sidecars/host/src/journal.rs` persists the Effects value through the library StateHandle. The product composes plugin state with its durable storage/recovery owner. Revision conflicts re-read within the current invocation; no local files or product state manager are added. |
 
 ### Effect Journal Library Boundary
 
-The following paths describe the inspected library source, not an implemented
-plugin persistence API. The consumer remains blocked on that API; the local
-`journal::Store` is an unconnected contract and its tests use an in-memory fake.
+The library owns one opaque revisioned state value per plugin entry, accessible
+from initialization and admitted collection/operation invocations. The product
+composes StateGet/StatePut with its storage and recovery backend; plugin inverses
+use this facility rather than application transactions, product Effects calls or
+plugin-local files. Recovery compaction retains the latest published snapshot
+and the uncovered suffix in `crates/dokime-storage/src/backend/recovery.rs`.
 
-- **State access.** Harmos `crates/harmos-runtime/src/state/manager.rs:159`
-  commits application transactions; `:305` waits for storage and `:316` undoes
-  transactions. These belong to the host application, whose product composition
-  has no state or transactions (`crates/dokime-runtime/src/services/composition.rs:92`).
-  Harmos `sdk/rust/src/context.rs:186` and `:190` only put and get process-local
-  resources in a type-indexed map. The plugin-admitted call inventory in
-  `sdk/rust/src/plugin/host.rs:26` contains invocations, discovery, settings and
-  time, with no state or storage calls. OBC's `plugin.state(manual)`
-  (`plugins/sidecars/obc/src/operations/mod.rs:49`) likewise keeps its device in
-  memory; it does not opt into journal or snapshot persistence.
-- **Persistence and bounds.** `crates/dokime-storage/src/backend.rs:140` opens
-  `<data-root>/storage.sqlite3`; `:249` creates `recovery_entries` and
-  `recovery_snapshots` in that database. There are no persisted plugin effect
-  values today. `crates/dokime-storage/src/backend/recovery.rs:216` publishes a
-  snapshot and advances the saved position without deleting covered entries or
-  older published snapshots. Startup only discards entries beyond the saved
-  boundary (`:69`). Recovery storage is therefore unbounded over multi-day runs.
-  The smallest library change is an explicit recovery compaction contract tied
-  to durable snapshot publication, retaining the newest complete snapshot and
-  its uncovered suffix; the existing backend must honor that contract. Bounded
-  replay also needs a successful snapshot policy. The product must not invent
-  a second journal or silently delete existing recovery data.
-- **Inverse semantics.** Harmos
-  `crates/harmos-domain/src/state/transaction.rs:50` applies a transaction to
-  application state; `:66` derives an inverse from that state. The writer captures
-  the inverse before applying the transaction
-  (`crates/harmos-runtime/src/state/writer.rs:247`). This provides undo of managed
-  application state, not a detached promise to undo an external operating-system
-  action later. It does not expose a durable external-effect journal to a plugin.
-  No second product transaction engine is needed or authorized.
-- **Required crash behavior.** A durable record acknowledged before a mutation
-  makes a crash before that mutation restore the already-current absolute state.
-  A crash after the mutation, or after restoration but before clear, must replay
-  the same absolute inverse idempotently. Clear must be durable after restoration;
-  a failed restore retains its entry and fails initialization. These remain
-  requirements, not proven host-restart behavior while the store is unconnected.
-  `plugins/sidecars/host/src/controls/mod.rs:288` applies saved inverses newest
-  first before clearing them. The Windows and Unix platform implementations
-  (`src/platform/windows/controls.rs:171`, `src/platform/unix/controls.rs:118`)
-  set absolute radio, adapter and power-plan states, including when restoring an
-  already-current state; they do not toggle values. No real machine mutations
-  are part of this item's proof.
-- **Operator visibility.** There is no outstanding-effect read operation today.
-  Restoration failure can surface as plugin initialization failure; normal
-  outstanding entries are not visible through an operator API. Once supported
-  state access exists, the plugin can expose `controls::Journal::outstanding`
-  through its existing operation catalog; no second host registry is needed.
-  Until then controls refuse record attempts and no external mutation occurs.
-- **Disposition.** Keep 4.6.5 open. The library owner must supply durable,
-  revision-checked plugin state with acknowledgement after persistence, available
-  during plugin initialization, and the recovery compaction contract. Adoption
-  then replaces the unconnected `Store` boundary with that supported API. Do not
-  add product Effects operations, files, shims or another persistence path.
-  The owner's plugin-state decision supersedes the product-owned, provider-bound
-  confirmation tickets in `operation-grammar/specs/operation-contracts/spec.md:590`.
-  That separate change and `docs/architecture.md:449` still need owner
-  reconciliation; this delivery does not implement the old ticket contract.
+A durable record acknowledged before mutation makes a crash before that mutation
+restore the already-current absolute state. A crash after mutation, or after
+restoration but before clear, replays the same absolute inverse idempotently.
+Clear is durable after restoration. Failed restoration retains its entry and
+fails initialization. Fake-store tests prove ordering and conflict preservation;
+actual machine mutations and disk-process crash restoration are not this proof.
+
+The platform implementations set absolute radio, adapter and power-plan states,
+including when restoring an already-current state. There is no separate
+outstanding-effect operator read operation: restoration failure surfaces through
+the plugin entry. An operator read capability remains a separate owner decision.
+
+The owner's plugin-state decision supersedes the product-owned confirmation
+tickets in `operation-grammar/specs/operation-contracts/spec.md:590`. That separate
+change and `docs/architecture.md:449` require owner reconciliation; this delivery
+does not restore the old ticket contract.
 
 ### Host Plugin Ownership
 
@@ -2935,14 +2951,14 @@ to the area that declares the stream and need plugin-wide retention first.
 
 ### Host Integration Gate
 
-The current library pin has no durable plugin state. `journal::Journal::check` and
-`record` share the journal's durable-state boundary; controls check it before any
-platform call, and record the inverse before writing. CPU load holds use the same
-boundary before calibration or worker creation. `impl journal::Store for
-operations::Context` is the single connection point for the eventual library API.
-Read-only operations and telemetry remain available. No in-memory mutation fallback
-is permitted. The wire contract remains fluid; no replacement Effects protocol is
-introduced here.
+The pinned library supplies durable plugin state. `journal::Store for Context`
+reads one typed Effects value through `ctx.state().get`, retains that handle's
+observed revision, and performs revisioned Put before the native write. Store
+futures follow the library's invocation-local future contract. A
+`state_revision_conflict` re-reads the value and reapplies record or clear inside
+the same operation's policy; other failures propagate. The unavailable-state
+fallback and refusal gate are removed. Fake stores prove concurrency and inverse
+preservation; native controls are not executed by these tests.
 
 System collection start acquires its COM usage lease; stop drops the native
 inventory before releasing the lease. A stopped collection cannot lazily recreate
@@ -2962,7 +2978,7 @@ installation is needed to prove this staging behavior.
 
 ### Managed Launch Handshake
 
-The library pin is `18e9b41cb0dd00e27020ee3120e5c973d82eec22`.
+The library pin is `324ad01b0892b1ca6a3bce4bb9525b22974f606b`.
 Managed startup uses the library's `Launches` reservation and its
 `HARMOS_HOST_ENDPOINT` and `HARMOS_LAUNCH_TOKEN` environment. The plugin serves
 its listener and calls `harmos.plugin.v1.Launches/Announce` once. Standard output
@@ -2978,14 +2994,14 @@ parsing plugin output. SDK entries select announcement, self-registration or sta
 the environment; retired address configuration and output parsers are removed. The library process owner is private; replacing the development
 process owner with it remains an owner decision.
 
-### Registry Process Ownership (Library Capability Required)
+### Registry Process Ownership
 
 Launch credentials authenticate readiness and do not transfer process ownership.
 The library registry must send Instance.Stop only when its activation owns a
-spawned process. In `crates/harmos-runtime/src/plugin/grpc/mod.rs`, Ending::Stop
-currently calls the endpoint even when `process` is None. Removing a remote entry
-must instead settle its host-side activity and close the registry connection,
-without stopping its externally owned endpoint. Managed process teardown keeps
+spawned process. The pinned `crates/harmos-runtime/src/plugin/grpc/mod.rs` gates
+Stop on that ownership. Removing a remote entry settles its host-side activity
+and closes the registry connection without stopping its externally owned endpoint.
+Managed process teardown keeps
 its Stop, exit, kill and reap policies unchanged. This removes the need for a
 second product lifecycle marker or for mode selection based on credentials.
 
@@ -3106,17 +3122,13 @@ to the library. Otherwise a configured remote selects self-registration and an
 absent remote selects standalone serving. Programmatic registration owns its listener; no listener environment variable
 or output parser participates in startup.
 
-A remote registry entry does not own the process serving it. At the pinned
-library revision `18e9b41cb0dd00e27020ee3120e5c973d82eec22`,
-`crates/harmos-runtime/src/plugin/grpc/mod.rs:923` turns host shutdown into Stop,
-and `:938` sends Instance.Stop before inspecting its optional spawned process at
-`:954`. Initialization failure at `:674` and reconnect failure at `:1078` also
-send Stop. The library must gate every such call on its existing spawned-process
-ownership, including entry removal and host shutdown. Rust and C# default launch listeners
-currently exit on that call. Registration across a host restart remains required:
-its Ready wait observes Offline after the first host has stopped the external
-fixture. This is a lifecycle defect, not a retired readiness test, and its guard
-must remain unchanged.
+A remote registry entry does not own the process serving it. The pinned library
+gates Instance.Stop on its existing spawned-process ownership, including entry
+removal, disable, initialization/reconnect failure and host shutdown. Detaching
+an external listener ends its attached RPCs while the listener continues serving.
+Registration across a host restart remains required, and its existing guard and
+Ready assertions remain unchanged. Launch credentials authenticate announcement;
+they never transfer process ownership.
 
 The Python library's `sdk/python/src/harmos/_authoring.py:426` answers Stop without
 closing its endpoint, including when that endpoint was started through managed
@@ -3130,3 +3142,45 @@ The launch source inventory comprises the four SDK entry implementations and
 starters, SDK listener configuration and readiness fixtures, the product launcher
 and registration stories, generated bindings after merging dev, and desktop
 plugin-table integration. Required proof stays open until performed.
+
+The host duration-setting path also makes a redundant read:
+`plugins/sidecars/host/src/settings.rs:539` validates through `checked`, then
+`sdk/rust/src/context.rs:390` fetches the same setting again for conversion.
+Host collector and control timing readers call this path. A shared conversion
+of the already-validated value would remove the second request and the change
+between validation and use; its API owner remains an open streamlining decision.
+
+### Host Collection Integration Contract
+
+The host plugin shares one `Arc<Host>` between operation authoring and native
+collection callbacks. Interval resolution and tick timestamps belong to the
+library host. Sparse rows use typed member streams and the library output,
+which retains publication validation until handler completion. Durable control
+inverses use the library state operation family composed by the product host;
+no plugin-local state or journal files exist. The launcher proof observes Ready,
+two network collection rows, and Ready again before joining its owned child.
+
+This requested native collection adoption supersedes the earlier product-only
+collection author surface: callbacks, member streams and outputs use library
+values. The product operation-context adapter binds the shared Host value for
+existing collectors. Other authoring surfaces and other language SDKs retain
+their current owners; this delivery adds no second collection implementation.
+
+Scoped execution ingestion distinguishes native collection members from ordinary
+interval observers: collection rows retain their per-tick source timestamp and
+are persisted individually, while ordinary observer column batches keep their
+existing expansion path in `crates/dokime-runtime/src/streams.rs`.
+
+Collection lifecycle hooks in the pinned library currently clear their child output
+(`sdk/rust/src/server.rs:604`) and cannot call host operations. The host plugin's
+hooks therefore acquire/release native resources only. Network link baselines
+are read during the configured collection invocation and seed only unknown
+links, preserving queued native events. Supporting host calls in library hooks
+would require retaining a Samples child output in `transition` and pumping child
+requests/replies while the hook runs, instead of treating every input as closure.
+The plugin requires no such call, settings cache, fixed interval or alternate
+transport. Other settings remain read on their current collection/operation call.
+
+Network resource acquisition completes synchronously inside the lifecycle hook,
+like the system COM lease and Wi-Fi link counter acquisition. No detached
+blocking job can install native resources after cancelled demand has stopped.

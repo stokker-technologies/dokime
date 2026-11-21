@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+
 #[rustfmt::skip]
 #[allow(dead_code, reason = "The Shared Generator Emits the Complete Internal Host Transport")]
 mod host;
@@ -21,11 +22,10 @@ mod types;
 
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
-pub use crate::stream::{Collection, Observer, Rows, Stream};
+pub use crate::stream::{Observer, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
-pub use ::harmos::plugin::Publisher;
-pub use ::harmos::plugin::Window;
+pub use ::harmos::plugin::{Collection, CollectionOutput, Publisher, Window};
 pub use types::*;
 include!("host_exports.rs");
 
@@ -55,11 +55,12 @@ use crate::host::Request;
 use crate::message::Wire;
 use crate::operation::{self, Operation};
 use crate::operations;
-use crate::stream::{self, Feed, Sampler};
+use crate::stream::{self, Sampler};
 use crate::template::validate_names;
 use crate::testing::Selected;
 use crate::{Declarations, Error, Lane, Message, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
+use crate::{authoring, client, configuration};
 
 /* === Constants === */
 
@@ -85,7 +86,7 @@ struct Assembly {
     state: Arc<dyn Any + Send + Sync>,
     requirements: Vec<&'static str>,
     samplers: Vec<Sampler>,
-    feeds: Vec<Arc<Feed>>,
+    collections: bool,
     dependencies: Vec<DependencyRegistration>,
     suites: Vec<Suite>,
     settings: Vec<SettingDeclaration>,
@@ -166,17 +167,17 @@ impl Plugin {
     }
 
     pub fn of<T>(version: impl Into<String>) -> Self {
-        let identifier = crate::authoring::code_name::<T>(true);
+        let identifier = authoring::code_name::<T>(true);
         let version = version.into();
         Self {
             assembly: Assembly {
                 identifier,
-                label: crate::authoring::type_label::<T>(),
+                label: authoring::type_label::<T>(),
                 version,
                 state: Arc::new(()),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
-                feeds: Vec::new(),
+                collections: false,
                 dependencies: Vec::new(),
                 suites: Vec::new(),
                 settings: Vec::new(),
@@ -273,13 +274,10 @@ impl Plugin {
     }
     /// Feed Several Streams From One Measurement per Tick, Only While One of Them Has a Listener.
     pub fn collection(mut self, collection: Collection) -> Self {
-        match collection.into_parts() {
-            Ok((feed, registrations)) => {
-                self.assembly.feeds.push(feed);
-                self.assembly.registrations.extend(registrations);
-            }
-            Err(error) => self.assembly.errors.push(error.to_string()),
-        }
+        self.assembly.collections = true;
+        self.assembly
+            .registrations
+            .push(Box::new(move |plugin, _, _| plugin.register(|registrar| registrar.register(collection)).map_err(Error::from)));
         self
     }
     pub fn observer(mut self, observer: Observer) -> Self {
@@ -311,14 +309,24 @@ impl Plugin {
         }
         let template = selected.remove(0);
         let prompts = template.prompts.clone();
+        let template = template.parts()?;
+        let needs_collection = template
+            .case
+            .streams
+            .iter()
+            .any(|stream| !template.samplers.iter().chain(&self.assembly.samplers).any(|sampler| &sampler.stream == stream));
+        if self.assembly.collections && needs_collection {
+            return Err(Error::Invalid(
+                "Test Collection Streams: Register the Plugin With a Product Host to Use Library-Owned Windows".into(),
+            ));
+        }
         Ok(Selected {
             plugin: self.assembly.identifier,
-            template: template.parts()?,
+            template,
             prompts,
             requirements: self.assembly.requirements,
             state: self.assembly.state,
             samplers: self.assembly.samplers,
-            feeds: self.assembly.feeds,
         })
     }
 
@@ -335,7 +343,7 @@ impl Plugin {
             state,
             requirements: _,
             samplers: _,
-            feeds: _,
+            collections: _,
             dependencies,
             suites,
             settings,
@@ -435,7 +443,7 @@ impl Plugin {
         if env::var_os("HARMOS_HOST_ENDPOINT").is_some() || env::var_os("HARMOS_LAUNCH_TOKEN").is_some() {
             return self.into_harmos()?.run().map_err(Error::from);
         }
-        let values = crate::configuration::load()?;
+        let values = configuration::load()?;
         let configured = env::var_os("DOKIME_REMOTE")
             .map(|value| !value.is_empty())
             .unwrap_or_else(|| values.get("DOKIME_REMOTE").is_some_and(|value| !value.is_empty()));
@@ -450,14 +458,14 @@ impl Plugin {
                 Ok(())
             });
         }
-        let remote = crate::configuration::resolve("DOKIME_REMOTE", None, &values)?;
+        let remote = configuration::resolve("DOKIME_REMOTE", None, &values)?;
         runtime.block_on(async move {
-            let client = crate::client::connect_with(crate::client::ConnectionSettings {
+            let client = client::connect_with(client::ConnectionSettings {
                 target: Some(remote),
                 ..Default::default()
             })
             .await?;
-            let options = crate::client::PluginRegisterOptions {
+            let options = client::PluginRegisterOptions {
                 address: Some(address.into()),
                 ..Default::default()
             };
@@ -510,6 +518,32 @@ mod tests {
         model::{Protobuf, lane_declaration},
         schema,
     };
+
+    #[derive(crate::Row)]
+    struct CollectionReading {
+        value: f64,
+    }
+
+    #[derive(crate::Row)]
+    struct CollectionLink {
+        value: u64,
+    }
+
+    #[test]
+    fn native_collections_register_grouped_members_without_product_producers() -> Result<()> {
+        let first = ::harmos::plugin::Stream::<CollectionReading>::new("first");
+        let second = ::harmos::plugin::Stream::<CollectionLink>::new("second");
+        let collection = ::harmos::plugin::Collection::operation(async |_, _| Ok(()))
+            .stream(first)
+            .stream(second)
+            .every(prost_types::Duration { seconds: 0, nanos: 25_000_000 });
+        let declarations = Plugin::of::<()>("1.0.0").identifier("native").collection(collection).declarations()?;
+        assert_eq!(declarations.streams.len(), 2);
+        let group = &declarations.streams[0].collection;
+        assert!(!group.is_empty());
+        assert!(declarations.streams.iter().all(|member| &member.collection == group));
+        Ok(())
+    }
 
     #[test]
     fn lanes_preserve_declarations_and_operation_assignments() -> Result<()> {

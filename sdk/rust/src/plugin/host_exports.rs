@@ -12,6 +12,7 @@ pub(crate) use self::host::{
     HostFilesUploadsPublishOptions, HostFilesUploadsResource, HostFilesUploadsResumeOptions, HostFilesWatch, HostFilesWatchOptions,
     HostInvocationsCancelOptions, HostInvocationsGetOptions, HostInvocationsResource, HostInvocationsWatch, HostInvocationsWatchOptions,
     HostOperation, HostOperationsGetOptions, HostOperationsListOptions, HostOperationsResource, HostPluginsResource,
-    HostPluginsSettingsListOptions, HostPluginsSettingsResource, HostPromptsCreateOptions, HostPromptsResource, HostRoot,
-    HostSecretsGetOptions, HostSecretsResource, HostTimeGetOptions, HostTimeResource, HostTimeSleepOptions,
+    HostPluginsSettingsListOptions, HostPluginsSettingsResource, HostPluginsStateGetOptions, HostPluginsStatePutOptions,
+    HostPluginsStateResource, HostPromptsCreateOptions, HostPromptsResource, HostRoot, HostSecretsGetOptions, HostSecretsResource,
+    HostTimeGetOptions, HostTimeResource, HostTimeSleepOptions,
 };

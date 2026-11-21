@@ -119,6 +119,14 @@ struct Scan {
 /* === Implementations === */
 
 impl Collector {
+    /// Acquire Adapter Counters When Link Collection Demand Starts.
+    pub fn start_link(&self) -> Result<()> {
+        let networks = Networks::new_with_refreshed_list()
+            .map_err(|error| Error::Invalid(format!("Start Wi-Fi Link Collection: {error}; Restart the Plugin")))?;
+        self.link.lock().map_err(|_| poisoned())?.networks = Some((networks, Instant::now()));
+        Ok(())
+    }
+
     /// One Link Row: the Current Connection Plus the Adapter's Throughput Since the Previous Row.
     pub async fn link(&self, options: LinkOptions) -> Result<WifiLink> {
         let state = Arc::clone(&self.link);
@@ -132,14 +140,8 @@ impl Collector {
             };
             let adapter = read_link(&options, &mut row);
             let now = Instant::now();
-            if state.networks.is_none() {
-                let networks = Networks::new_with_refreshed_list()
-                    .map_err(|error| Error::Invalid(format!("Read Adapter Counters: {error}; Restart the Plugin")))?;
-                state.networks = Some((networks, now));
-            }
-            let Some((networks, last)) = state.networks.as_mut() else {
-                return Ok(row);
-            };
+            let (networks, last) =
+                state.networks.as_mut().ok_or_else(|| Error::Invalid("Collect Wi-Fi Link: Start the Collection Before Reading".into()))?;
             let elapsed_s = now.duration_since(*last).max(options.minimum_rate_window).as_secs_f64();
             networks.refresh(true);
             *last = now;

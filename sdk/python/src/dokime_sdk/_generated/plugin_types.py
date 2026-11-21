@@ -1,5 +1,6 @@
 # @generated from protocol descriptors; do not edit.
 from harmos._wire.host.v1.invocations_pb2 import InvocationsCancelResponse, InvocationsGetResponse, InvocationsWatchResponse
+from harmos._wire.host.v1.plugins.state_pb2 import StateGetResponse, StatePutResponse
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse, TimeSleepResponse
 
 from dokime_sdk._wire.host.v1.backend_pb2 import BackendEnvironmentResponse
@@ -87,6 +88,8 @@ __all__ = [
     "ProgressSetResponse",
     "PromptsCreateResponse",
     "RecordsAppendResponse",
+    "StateGetResponse",
+    "StatePutResponse",
     "StepsExecuteResponse",
     "StreamCapture",
     "TestCasesMaterializeResponse",

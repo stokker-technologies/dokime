@@ -1,3 +1,19 @@
+## Library State and Ownership
+
+- [x] Refresh Every Library Pin, Native Lock, Vendored Protocol and Tracked Binding to `324ad01b0892b1ca6a3bce4bb9525b22974f606b`.
+- [x] Supply Operation Identities to All Four Desktop Benchmark Session Calls and Pass the Focused Benchmark Typecheck Without Building or Running a Benchmark.
+- [x] Admit the Generated C++ Plugin-State Resource Through the Existing Private Context Friend List and Compile All Debug Test Targets.
+- [x] Prove Registry Restart, Remove and Disable Preserve Externally Owned Listeners and Rust Remote Authoring.
+- [x] Compose Durable Plugin State and Prove Restart Readback and the Named Stale-Revision Conflict Through the Product Host.
+- [ ] Preserve Entry Identity, Settings and Durable State Across Remote Address Changes; Blocked by Managed-Only Library Replace. Retire Product Delete/Create After the Library Supports Remote Placement Updates.
+- [x] Compact Native Recovery Atomically and Prove Bounded Snapshots/Entries and Equivalent Reopened State.
+- [x] Expose the Library Collection Directly Through the Product Rust SDK.
+- [ ] Replace the Product Scheduler in `sdk/rust/src/stream.rs` With the Library Collection When the Host Plugin Lands; This File Belongs to That Integration Worker.
+- [x] Complete the Requested Native Windows Focused Proof and Gates.
+- [ ] Complete Native Linux Proof Separately; One Native Platform Does Not Establish the Other.
+
+## Product Contracts
+
 - [x] 2.2 Provide typed host progress, logs, traceability, document parts, record reads and execution/step statistics in `crates/dokime-operations/src/host/`.
 - [x] 2.3 Replace JSON catalog sections with protocol messages and embedded protocol-source export.
 - [ ] 2.3.1 Add protocol export from a running host, plugin URL and bundle; `commands/proto/export.rs` currently exports embedded sources only. Coordinate bundle inspection and archive closure with plugin-boundary.
@@ -275,7 +291,7 @@
 - [x] Add `PluginsCreateRequest.sdk_version` at Field 6 and Regenerate the Tracked Bindings.
 - [x] Prove Python Paired Startup, Stable Identity, Refusal Output, Silent SDK Serving and Entry Retention.
 - [x] Complete Rust Paired Startup, Stable Identity, Actionable Refusals and Entry Retention With Focused Proof.
-- [ ] Resolve the Rust Remote Authoring Harness's Readiness Assumption Before Full SDK Integration Proof.
+- [ ] Prove Rust Remote Authoring With the Pinned Library's Registry Process-Ownership Fix.
 - [ ] Complete C# Paired Startup, Stable Identity, Refusals and Entry Retention With Focused Proof.
   - [x] Prove Stable Registration, SDK Version Transmission, Refusal Handling, Listener Completion, Repeated Disposal, Explicit Removal and Client-Close Entry Retention.
   - [ ] Prove Automatic Paired C# Process Startup Against the Combined Host.
@@ -307,7 +323,7 @@
 - [ ] Stop Deleting the Entry When a Registered Plugin Exits and Send the SDK Version From Every Product SDK.
 - [ ] Reconnect Initially Unreachable Remote Entries Through the Library's Existing Policy and Distinguish Unreachability From Other Activation Failures; Blocked by the Pinned Library's Lifecycle and Failure Classification.
 - [ ] Move Every Launch Readiness Consumer to `Launches/Announce` and Remove the Retired Listener Environment Configuration; Prove the Merged Starter and SDK Consumers.
-- [ ] Keep Registry Removal From Stopping an Externally Owned Endpoint; Blocked by the Library Sending Instance.Stop Even When Its Activation Owns No Spawned Process.
+- [ ] Prove Registry Removal Keeps Externally Owned Endpoints Serving With the Pinned Library's Ownership Fix.
 
 ## Desktop Failure Presentation
 
@@ -325,9 +341,9 @@
 - [x] Merge SDK Self-Registration and Current Dev, Regenerating Protocol Outputs and Keeping Shared Plugin Tables, Failure Cards, Placement and Offline Presentation.
 - [x] Select the Four SDK Run Entries by Launch Credentials, Then Pairing, Then Standalone Serving; Point Every Starter at That Entry.
 - [x] Remove Retired Address Configuration, SDK Readiness Helpers and Superseded Python Readiness Tests; Reuse C# Library Listeners and C++ Product Registration.
-- [ ] Identify and Repair the Registration Hang Without Changing Its Guard.
+- [x] Identify and Repair the Registration Hang Without Changing Its Guard.
   - [x] Identify External-Endpoint Stop During Host Shutdown as the Cause; Preserve the Registration-Across-Restart Contract and Its Existing Guard.
-  - [ ] Pin the Library's Ownership Fix and Pass the Failing Registration Restart and Remote Authoring Cases.
+  - [x] Pin the Library's Ownership Fix and Pass the Failing Registration Restart and Remote Authoring Cases.
 - [ ] Pass Generation Drift, Workspace Test Compilation With Desktop Testing, the Requested Focused Stories and SDK Selections, Native SDK Compilation, Frontend Build/Units, Formatting, Repository/Supply/Binding Gates and Strict OpenSpec Validation.
   - [x] Pass Generation Drift and Compile All Workspace Test Targets With Desktop Testing and All Rust SDK Consumer Test Targets.
   - [x] Pass the Two Selected CLI First-Hour Stories, Native-Interpreter Launch Round Trip, GUI Host Story and Desktop Acceptance Matrix.
@@ -335,15 +351,30 @@
   - [x] Build the C# Debug Solution and Packaged Starter; Pass Six Client Registration/Execution Cases and Direct Child Launch, Announcement and Clean Stop.
   - [x] Compile the C++ Debug SDK Test Targets, Build the Frontend and Pass Fourteen Plugin-List Unit Cases.
   - [x] Pass Formatting, Repository, Supply, Unused-Dependency, Release-Context Binding and Strict Change Validation Gates.
-  - [ ] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
+  - [x] Pass Runtime Registration Restart and Rust Remote Authoring After the Pinned Library Stops Sending Stop to External Endpoints.
 - [x] Prove the Created Python Starter's Dev Task With Candidate Product Bytes in External Temporary Storage.
-- [ ] Resolve the Read-Only Library's Remote-Removal Ownership Defect and Prove User-Owned Reattachment; Preserve This Obligation if the Library Capability Is Unavailable.
+- [x] Prove User-Owned Reattachment With the Pinned Library's Remote-Removal Ownership Fix.
 
 ## Host Launch Handshake Integration
 
 - [x] Merge the Managed Launch Handshake and Self-Registration Cutover From Dev; Preserve the Host Plugin, Default Shipping, Environment Context and Effects Removal; Regenerate Protocol and Desktop Contracts and Refresh Tracked Cargo Locks.
 - [x] Keep the Host Plugin on the SDK Single Run Entry, With Launch Credentials Selected by the SDK and No Readiness Output or Address Variables.
 - [x] Collapse the SDK Registration Refusal Guard Reported by Rust Lint Without Changing Listener Cleanup or Structured Host Failure Propagation; Import Its Named Types Without Aliases.
-- [ ] Obtain a Passing Rust Lint Result for the Corrected Candidate; the Single Allowed Local Invocation Reported the Now-Corrected Registration Guard.
-- [ ] Prove a Stable Ready Host Plugin Through the Product Launcher After the Library Supplies Host Calls From Unscoped Producer Contexts; Settings/List Currently Refuses With Child Carrier Required and Ends Publication. Keep the Locked Scheduler Unchanged.
+- [x] Obtain a Passing Rust Lint Result for the Corrected Candidate; the Single Allowed Local Invocation Passed Without Findings.
+- [x] Prove a Stable Ready Host Plugin Through the Product Launcher With Library-Owned Collections and Revisioned Durable Plugin State; Observe Ready and Collection Rows Without Sleeps or Native Controls.
 - [x] Complete the Independent Native Windows Generation, Workspace Test Compilation, Desktop Bench Compilation, Host Plugin Tests, Native Packaging Tooling, C++ Test Compilation, Format, Repository, Supply and Strict OpenSpec Proof; Keep Linux, Corrected Rust Lint and Ready Launch Proof Independent.
+
+## Host Collection and Journal Adoption
+
+- [x] Merge Dev's Library Collection and Durable Plugin State Pin, Regenerating Tracked Contracts and Refreshing Cargo Locks.
+- [x] Delete the Product Collection Type, Producer Scheduler and Superseded Harness Scheduler and Tests; Register Native Library Collections.
+- [x] Bind Native Collection Invocations to Shared Author State, Host-Resolved Interval Settings and Demand-Owned Acquisition/Release Hooks.
+- [x] Ingest Native Collection Members as Individual Scoped Rows Instead of Legacy Observer Column Batches.
+- [x] Implement the Context Journal Store on Revisioned Plugin State and Re-Read Conflicts Within the Operation Policy.
+- [x] Prove Fake-Store Conflict Preservation and the Shipped Plugin's Ready State With Consecutive Collection Rows Through the Product Launcher.
+- [ ] Complete the Requested Generation, Compilation, Focused Tests, Native Packaging, Lint, Format, Repository, Supply, Binding and Strict Change Gates.
+  - [x] Pass Generation Drift, Workspace Test-Target Compilation With Desktop Testing, Desktop Bench Compilation and Isolated Rust SDK Consumer Test-Target Compilation.
+  - [x] Pass the Safe Host Integration Tests, Network Baseline Test, Launcher and Collection Storage Tests, Focused Rust SDK Tests and Native Packaging Tooling Tests.
+  - [x] Pass the Single Rust Lint Invocation, Format, Repository, Supply, Unused-Dependency and Strict OpenSpec Checks.
+  - [x] Build and Package the Pure Python SDK in the Release Context and Pass the Binding Gate After Preparing Its Existing Example Distributions.
+  - [ ] Resolve the Required Whole-Package Host Test Versus the No-Native-CPU-Load Rule: `collectors::cpu::workers::tests::active_workers_count_whole_batches` Starts Real Load; Keep This Proof Open Until the Owner Chooses Its Test Scope.

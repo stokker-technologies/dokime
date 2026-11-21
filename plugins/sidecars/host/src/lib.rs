@@ -26,6 +26,7 @@ pub mod streams;
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
 
@@ -67,19 +68,20 @@ pub struct Host {
 
 /// Compose the Plugin-Wide Streams, Observers, Operations and Settings of Every Area.
 pub fn plugin() -> Result<Plugin> {
+    let host = Arc::new(Host::default());
     let mut plugin = Plugin::of::<Host>(env!("CARGO_PKG_VERSION")).identifier(IDENTIFIER).label("Host Telemetry").initialize(initialize);
     for setting in settings::catalog() {
         plugin = plugin.setting(setting);
     }
-    let plugin = streams::system::catalog(plugin)?;
-    let plugin = streams::network::catalog(plugin)?;
+    let plugin = streams::system::catalog(plugin, host.clone())?;
+    let plugin = streams::network::catalog(plugin, host.clone())?;
     let plugin = streams::cpu::catalog(plugin)?;
-    let plugin = streams::wifi::catalog(plugin)?;
-    let plugin = streams::bluetooth::catalog(plugin)?;
+    let plugin = streams::wifi::catalog(plugin, host.clone())?;
+    let plugin = streams::bluetooth::catalog(plugin, host.clone())?;
     let plugin = controls::catalog(plugin)?;
     let plugin = adapters::catalog(plugin)?;
     let plugin = power::catalog(plugin)?;
-    Ok(plugin.state(Host::default()))
+    Ok(plugin.state(host))
 }
 
 /// The Frozen Catalog the Host Admits, Without Opening a Socket.

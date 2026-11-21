@@ -90,10 +90,14 @@ struct Timing {
 /* === Implementations === */
 
 impl Collector {
+    /// Acquire Native Change Watching and Counters With the First Listener.
+    pub fn start(&self) -> Result<()> {
+        let state = State::new()?;
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = Some(state);
+        Ok(())
+    }
+
     /// Collect One Throughput Reading With Every Change Queued Since the Previous One.
-    ///
-    /// Native change watching starts with the first collection, so it runs only once the stream
-    /// is observed.
     pub async fn collect(&self, ctx: &Context) -> Result<Network> {
         let timing = Timing {
             probe_timeout: settings::duration_value(ctx, settings::NETWORK_PROBE_TIMEOUT).await?,
@@ -102,10 +106,8 @@ impl Collector {
         let state = self.state.clone();
         let collected = tokio::task::spawn_blocking(move || {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
-            if state.is_none() {
-                *state = Some(State::new(&timing)?);
-            }
-            let state = state.as_mut().expect("State Created Above");
+            let state =
+                state.as_mut().ok_or_else(|| Error::Invalid("Collect Network Telemetry: Start the Collection Before Reading".into()))?;
             state.collect(&timing)
         })
         .await
@@ -140,6 +142,13 @@ impl Pending {
         }
     }
 
+    /// Fill the Initial Baseline Without Replacing States Already Reported by Native Events.
+    pub fn seed(&mut self, links: BTreeMap<String, bool>) {
+        for (adapter, up) in links {
+            self.links.entry(adapter).or_insert(up);
+        }
+    }
+
     /// Queue a Change; a Link Change Repeating the Link's Known State Is No Change.
     pub fn push(&mut self, change: Change, up: Option<bool>) {
         if let Some(up) = up
@@ -171,11 +180,7 @@ impl Pending {
 }
 
 impl State {
-    fn new(timing: &Timing) -> Result<Self> {
-        let links = adapters::native(timing.probe_timeout)?.adapters.into_iter().map(|adapter| {
-            let up = adapter.status == AdapterStatus::Up.as_str();
-            (adapter.id, up)
-        });
+    fn new() -> Result<Self> {
         Ok(Self {
             sample_index: 0,
             networks: Networks::new_with_refreshed_list()
@@ -183,7 +188,7 @@ impl State {
             last_refresh: Instant::now(),
             primary_interface: None,
             refresh_primary: true,
-            notifications: connectivity::Notifications::new(links.collect())?,
+            notifications: connectivity::Notifications::new(BTreeMap::new())?,
         })
     }
 
@@ -201,8 +206,11 @@ impl State {
         self.networks.refresh(true);
         self.last_refresh = now;
         if self.refresh_primary {
-            self.primary_interface =
-                adapters::native(timing.probe_timeout)?.adapters.into_iter().find(|adapter| adapter.primary).map(|adapter| adapter.id);
+            let snapshot = adapters::native(timing.probe_timeout)?;
+            let links =
+                snapshot.adapters.iter().map(|adapter| (adapter.id.clone(), adapter.status == AdapterStatus::Up.as_str())).collect();
+            self.notifications.seed(links);
+            self.primary_interface = snapshot.adapters.into_iter().find(|adapter| adapter.primary).map(|adapter| adapter.id);
             self.refresh_primary = false;
         }
         let sum = |value: fn(&NetworkData) -> u64| self.networks.values().map(value).sum::<u64>();

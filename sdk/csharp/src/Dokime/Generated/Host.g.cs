@@ -53,6 +53,8 @@ internal enum HostOperation
   OperationsList,
   OperationsGet,
   PluginsSettingsList,
+  PluginsStateGet,
+  PluginsStatePut,
   TimeGet,
   TimeSleep,
 }
@@ -121,6 +123,8 @@ internal static class HostRequirements
     HostOperation.OperationsList => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.OperationsList),
     HostOperation.OperationsGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.OperationsGet),
     HostOperation.PluginsSettingsList => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsSettingsList),
+    HostOperation.PluginsStateGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsStateGet),
+    HostOperation.PluginsStatePut => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsStatePut),
     HostOperation.TimeGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.TimeGet),
     HostOperation.TimeSleep => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.TimeSleep),
     _ => throw new ArgumentOutOfRangeException(nameof(operation), "Declare Host Requirement: Unknown Operation")
@@ -573,12 +577,24 @@ internal sealed class HostOperationsResource(Context context)
 internal sealed class HostPluginsResource(Context context)
 {
   public HostPluginsSettingsResource Settings { get; } = new(context);
+  public HostPluginsStateResource State { get; } = new(context);
 }
 internal sealed class HostPluginsSettingsResource(Context context)
 {
   public async Task<global::Harmos.Clients.SettingsListResponse> List(string? name = null, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     return await context.Transport.Host.Plugins.Settings.List(name, at, policy, cancellationToken);
+  }
+}
+internal sealed class HostPluginsStateResource(Context context)
+{
+  public async Task<global::Harmos.Clients.StateGetResponse> Get(OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  {
+    return await context.Transport.Host.Plugins.State.Get(policy, cancellationToken);
+  }
+  public async Task<ulong> Put(ulong expected_revision, ByteString value, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  {
+    return await context.Transport.Host.Plugins.State.Put(expected_revision, value, policy, cancellationToken);
   }
 }
 internal sealed class HostPromptsResource(Context context)

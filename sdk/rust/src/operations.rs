@@ -14,18 +14,19 @@
 /* === Re-Exports === */
 
 pub use crate::operation::Operation;
+pub use ::harmos::plugin::StateHandle;
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Duration;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 // Third Party Imports
 use ::harmos::plugin;
 use prost_types::Timestamp;
 
 // Local Imports
-use crate::context::Executions;
+use crate::context::{self, Executions};
 use crate::templates::Environment;
 use crate::{Message, Result};
 
@@ -39,7 +40,7 @@ use crate::{Message, Result};
 
 // An Operation Cannot Manufacture an Execution Context.
 pub struct Context {
-    inner: crate::context::Context,
+    inner: context::Context,
 }
 
 /* === Enums === */
@@ -49,16 +50,25 @@ pub struct Context {
 /* === Implementations === */
 
 impl Context {
-    pub(crate) fn from_inner(inner: crate::context::Context) -> Self {
+    /// Bind a Library Collection Invocation to the Same Author State as the Plugin.
+    pub fn from_collection<T: Send + Sync + 'static>(transport: &plugin::Context, state: T) -> Result<Self> {
+        let executions = Executions::new(Arc::new(state), HashSet::new());
+        Self::invocation(transport, &executions)
+    }
+
+    pub(crate) fn from_inner(inner: context::Context) -> Self {
         Self { inner }
     }
     pub(crate) fn invocation(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
         Ok(Self {
-            inner: crate::context::Context::invocation(transport, executions)?,
+            inner: context::Context::invocation(transport, executions)?,
         })
     }
     pub fn plugin<T: Send + Sync + 'static>(&self) -> Result<&T> {
         self.inner.plugin::<T>()
+    }
+    pub fn state(&self) -> Result<StateHandle> {
+        self.inner.state()
     }
     pub fn attempt(&self) -> u32 {
         self.inner.attempt()

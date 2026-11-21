@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
 
@@ -30,7 +31,8 @@ use crate::settings;
 use crate::streams;
 use dokime::Result;
 use dokime::operations::Context;
-use dokime::plugin::{Collection, Plugin, Rows, Stream};
+use dokime::plugin::{Collection, CollectionOutput, Plugin};
+use harmos::plugin::Stream;
 
 /* === Constants === */
 
@@ -49,33 +51,45 @@ use dokime::plugin::{Collection, Plugin, Rows, Stream};
 /* === Public Functions === */
 
 /// Declare the System Collection and Every Stream It Feeds.
-pub fn catalog(plugin: Plugin) -> Result<Plugin> {
-    let collection = Collection::operation(collect)
-        .stream(streams::probe(SYSTEM_PROBE))
-        .stream(Stream::<SystemIdentity>::new(SystemIdentity::STREAM, SystemIdentity::LABEL))
-        .stream(Stream::<SystemGit>::new(SystemGit::STREAM, SystemGit::LABEL))
-        .stream(Stream::<SystemResources>::new(SystemResources::STREAM, SystemResources::LABEL))
-        .stream(Stream::<SystemTemperature>::new(SystemTemperature::STREAM, SystemTemperature::LABEL))
-        .stream(Stream::<CpuCapacity>::new(CpuCapacity::STREAM, CpuCapacity::LABEL))
-        .stream(Stream::<Battery>::new(Battery::STREAM, Battery::LABEL))
-        .stream(Stream::<BatteryIdentity>::new(BatteryIdentity::STREAM, BatteryIdentity::LABEL))
-        .stream(Stream::<BatteryTemperature>::new(BatteryTemperature::STREAM, BatteryTemperature::LABEL))
-        .stream(Stream::<BatteryTimeToFull>::new(BatteryTimeToFull::STREAM, BatteryTimeToFull::LABEL))
-        .stream(Stream::<BatteryTimeToEmpty>::new(BatteryTimeToEmpty::STREAM, BatteryTimeToEmpty::LABEL))
-        .stream(Stream::<BatteryCycles>::new(BatteryCycles::STREAM, BatteryCycles::LABEL))
-        .stream(Stream::<PowerPlan>::new(PowerPlan::STREAM, PowerPlan::LABEL))
-        .interval_setting(settings::SYSTEM_INTERVAL)
-        .on_start(|ctx: &Context| ctx.plugin::<Host>()?.system.start())
-        .on_stop(|ctx: &Context| {
-            ctx.plugin::<Host>()?.system.stop();
+pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
+    let collection = Collection::operation({
+        let host = host.clone();
+        async move |transport, rows: CollectionOutput| {
+            let ctx = Context::from_collection(transport, host.clone())?;
+            collect(&ctx, &rows).await.map_err(Into::into)
+        }
+    })
+    .stream(streams::probe(SYSTEM_PROBE))
+    .stream(Stream::<SystemIdentity>::new(SystemIdentity::STREAM).description(SystemIdentity::LABEL))
+    .stream(Stream::<SystemGit>::new(SystemGit::STREAM).description(SystemGit::LABEL))
+    .stream(Stream::<SystemResources>::new(SystemResources::STREAM).description(SystemResources::LABEL))
+    .stream(Stream::<SystemTemperature>::new(SystemTemperature::STREAM).description(SystemTemperature::LABEL))
+    .stream(Stream::<CpuCapacity>::new(CpuCapacity::STREAM).description(CpuCapacity::LABEL))
+    .stream(Stream::<Battery>::new(Battery::STREAM).description(Battery::LABEL))
+    .stream(Stream::<BatteryIdentity>::new(BatteryIdentity::STREAM).description(BatteryIdentity::LABEL))
+    .stream(Stream::<BatteryTemperature>::new(BatteryTemperature::STREAM).description(BatteryTemperature::LABEL))
+    .stream(Stream::<BatteryTimeToFull>::new(BatteryTimeToFull::STREAM).description(BatteryTimeToFull::LABEL))
+    .stream(Stream::<BatteryTimeToEmpty>::new(BatteryTimeToEmpty::STREAM).description(BatteryTimeToEmpty::LABEL))
+    .stream(Stream::<BatteryCycles>::new(BatteryCycles::STREAM).description(BatteryCycles::LABEL))
+    .stream(Stream::<PowerPlan>::new(PowerPlan::STREAM).description(PowerPlan::LABEL))
+    .interval_setting(settings::SYSTEM_INTERVAL)
+    .on_start({
+        let host = host.clone();
+        async move |_| host.system.start().map_err(Into::into)
+    })
+    .on_stop({
+        let host = host.clone();
+        async move |_| {
+            host.system.stop();
             Ok(())
-        });
+        }
+    });
     Ok(plugin.collection(collection))
 }
 
 /// Publish Each Group of a Reading Whose Fields Were All Read; the Outcome Row Always.
-pub fn publish(reading: System, rows: &mut Rows) -> Result<()> {
-    streams::outcome(rows, SYSTEM_PROBE, reading.probe_status, reading.probe_error)?;
+pub fn publish(reading: System, rows: &CollectionOutput) {
+    streams::outcome(rows, SYSTEM_PROBE, reading.probe_status, reading.probe_error);
     let identity = (
         reading.host_name,
         reading.user,
@@ -119,10 +133,10 @@ pub fn publish(reading: System, rows: &mut Rows) -> Result<()> {
             physical_cpu_count,
             logical_cpu_count,
         };
-        rows.publish(SystemIdentity::STREAM, row)?;
+        rows.publish(&Stream::new(SystemIdentity::STREAM), row);
     }
     if let (Some(git_user_name), Some(git_user_email)) = (reading.git_user_name, reading.git_user_email) {
-        rows.publish(SystemGit::STREAM, SystemGit { git_user_name, git_user_email })?;
+        rows.publish(&Stream::new(SystemGit::STREAM), SystemGit { git_user_name, git_user_email });
     }
     let resources = (
         reading.cpu_load_percent,
@@ -155,13 +169,13 @@ pub fn publish(reading: System, rows: &mut Rows) -> Result<()> {
             system_uptime_s,
             temperature_sensor_count,
         };
-        rows.publish(SystemResources::STREAM, row)?;
+        rows.publish(&Stream::new(SystemResources::STREAM), row);
     }
     if let Some(max_temperature_c) = reading.max_temperature_c {
-        rows.publish(SystemTemperature::STREAM, SystemTemperature { max_temperature_c })?;
+        rows.publish(&Stream::new(SystemTemperature::STREAM), SystemTemperature { max_temperature_c });
     }
     if let (Some(cpu_capacity_gflops), Some(cpu_load_gflops)) = (reading.cpu_capacity_gflops, reading.cpu_load_gflops) {
-        rows.publish(CpuCapacity::STREAM, CpuCapacity { cpu_capacity_gflops, cpu_load_gflops })?;
+        rows.publish(&Stream::new(CpuCapacity::STREAM), CpuCapacity { cpu_capacity_gflops, cpu_load_gflops });
     }
     let battery = (
         reading.battery_percent,
@@ -203,53 +217,53 @@ pub fn publish(reading: System, rows: &mut Rows) -> Result<()> {
             battery_voltage_v,
             battery_state_of_health_ratio,
         };
-        rows.publish(Battery::STREAM, row)?;
+        rows.publish(&Stream::new(Battery::STREAM), row);
     }
     if let (Some(battery_vendor), Some(battery_model), Some(battery_serial_number)) =
         (reading.battery_vendor, reading.battery_model, reading.battery_serial_number)
     {
         rows.publish(
-            BatteryIdentity::STREAM,
+            &Stream::new(BatteryIdentity::STREAM),
             BatteryIdentity {
                 battery_vendor,
                 battery_model,
                 battery_serial_number,
             },
-        )?;
+        );
     }
     if let Some(battery_temperature_c) = reading.battery_temperature_c {
-        rows.publish(BatteryTemperature::STREAM, BatteryTemperature { battery_temperature_c })?;
+        rows.publish(&Stream::new(BatteryTemperature::STREAM), BatteryTemperature { battery_temperature_c });
     }
     if let Some(battery_time_to_full_s) = reading.battery_time_to_full_s {
-        rows.publish(BatteryTimeToFull::STREAM, BatteryTimeToFull { battery_time_to_full_s })?;
+        rows.publish(&Stream::new(BatteryTimeToFull::STREAM), BatteryTimeToFull { battery_time_to_full_s });
     }
     if let Some(battery_time_to_empty_s) = reading.battery_time_to_empty_s {
-        rows.publish(BatteryTimeToEmpty::STREAM, BatteryTimeToEmpty { battery_time_to_empty_s })?;
+        rows.publish(&Stream::new(BatteryTimeToEmpty::STREAM), BatteryTimeToEmpty { battery_time_to_empty_s });
     }
     if let Some(battery_cycle_count) = reading.battery_cycle_count {
-        rows.publish(BatteryCycles::STREAM, BatteryCycles { battery_cycle_count })?;
+        rows.publish(&Stream::new(BatteryCycles::STREAM), BatteryCycles { battery_cycle_count });
     }
     if let (Some(power_plan_name), Some(power_plan_guid), Some(power_mode), Some(power_mode_performance_bias)) =
         (reading.power_plan_name, reading.power_plan_guid, reading.power_mode, reading.power_mode_performance_bias)
     {
         rows.publish(
-            PowerPlan::STREAM,
+            &Stream::new(PowerPlan::STREAM),
             PowerPlan {
                 power_plan_name,
                 power_plan_guid,
                 power_mode,
                 power_mode_performance_bias,
             },
-        )?;
+        );
     }
-    Ok(())
 }
 
 /* === Private Functions === */
 
-async fn collect(ctx: &Context, rows: &mut Rows) -> Result<()> {
-    let reading = ctx.plugin::<Host>()?.system.collect(ctx).await?;
-    publish(reading, rows)
+async fn collect(ctx: &Context, rows: &CollectionOutput) -> Result<()> {
+    let reading = ctx.plugin::<Arc<Host>>()?.system.collect(ctx).await?;
+    publish(reading, rows);
+    Ok(())
 }
 
 /* === Tests === */

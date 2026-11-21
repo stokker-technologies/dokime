@@ -140,7 +140,7 @@ impl Collector {
                 git
             }
         };
-        let capacity_gflops = ctx.plugin::<Host>()?.cpu.capacity_gflops(ctx).await.ok();
+        let capacity_gflops = ctx.plugin::<Arc<Host>>()?.cpu.capacity_gflops(ctx).await.ok();
         let state = self.state.clone();
         let collected = tokio::task::spawn_blocking(move || {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);

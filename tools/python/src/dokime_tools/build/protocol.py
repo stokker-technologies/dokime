@@ -14,10 +14,12 @@
 # Standard Library Imports
 import argparse
 import hashlib
+import io
 import runpy
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 import urllib.request
@@ -48,14 +50,15 @@ from dokime_tools.process import spawn_flags
 # === Public Functions === #
 
 
-def cpp_dependency(root: Path, *, check: bool = False) -> None:
+def cpp_dependency(root: Path, *, check: bool = False) -> bytes:
     """Bind the C++ Archive Checksum to the Workspace Library Revision."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     dependency = manifest["workspace"]["dependencies"]["harmos"]
     url = f"{dependency['git']}/archive/{dependency['rev']}.tar.gz"
     response = urllib.request.urlopen(url)
     try:
-        checksum = hashlib.file_digest(response, "sha256").hexdigest()
+        archive = response.read()
+        checksum = hashlib.sha256(archive).hexdigest()
     finally:
         response.close()
     text = (
@@ -77,6 +80,42 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
             raise ValueError("Check C++ Dependency: Run mise run generate -- --protocol to Refresh the Pinned Archive and Checksum")
     else:
         path.write_text(text, encoding="utf-8", newline="\n")
+    return archive
+
+
+def library_protocol(root: Path, archive: bytes, *, check: bool = False) -> None:
+    """Refresh Vendored Protocol Inputs From the Same Pinned Library Archive."""
+    files = tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz")
+    expected: dict[Path, bytes] = {}
+    try:
+        for member in files.getmembers():
+            relative = Path(*Path(member.name).parts[1:])
+            if not member.isfile() or not relative.is_relative_to("proto/harmos"):
+                continue
+            source = files.extractfile(member)
+            if source is None:
+                raise ValueError("Vendor Library Protocol: Download a Complete Library Archive")
+            try:
+                expected[relative] = source.read()
+            finally:
+                source.close()
+    finally:
+        files.close()
+    if not expected:
+        raise ValueError("Vendor Library Protocol: Download an Archive Containing proto/harmos")
+    existing = {path.relative_to(root) for path in (root / "proto/harmos").rglob("*") if path.is_file()}
+    if check:
+        differences = existing ^ expected.keys()
+        differences.update(path for path in existing & expected.keys() if (root / path).read_bytes() != expected[path])
+        if differences:
+            raise ValueError("Check Library Protocol: Run mise run generate -- --protocol\n" + "\n".join(map(str, sorted(differences))))
+        return
+    for relative in existing - expected.keys():
+        (root / relative).unlink()
+    for relative, data in expected.items():
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
 
 
 def library_dependencies(root: Path, *, check: bool = False) -> None:
@@ -235,7 +274,8 @@ def main() -> None:
     library_dependencies(Path.cwd(), check=options.check)
     # Generate or Verify the C++ Archive Against the Workspace Pin.
     if options.language is None:
-        cpp_dependency(Path.cwd(), check=options.check)
+        archive = cpp_dependency(Path.cwd(), check=options.check)
+        library_protocol(Path.cwd(), archive, check=options.check)
     if options.check and options.language is None:
         # Verify Protocol Output Against Its Generator.
         command = ["mise", "run", "test", "--", "--package", "dokime-protocol", "--target", "integration"]

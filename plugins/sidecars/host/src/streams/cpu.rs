@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::future;
+use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
@@ -79,12 +80,12 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
 /* === Private Functions === */
 
 async fn read(ctx: &Context, _: LoadRead) -> Result<Load> {
-    ctx.plugin::<Host>()?.cpu.load(ctx).await
+    ctx.plugin::<Arc<Host>>()?.cpu.load(ctx).await
 }
 
 async fn load_hold(ctx: &Context, request: LoadHold) -> Result<LoadSummary> {
     crate::journal::Journal::new(ctx).check().await?;
-    let cpu = &ctx.plugin::<Host>()?.cpu;
+    let cpu = &ctx.plugin::<Arc<Host>>()?.cpu;
     let settings = CpuLoad::read(ctx).await?;
     let capacity_gflops = cpu.capacity_gflops(ctx).await?;
     let period = settings.sample_period;
@@ -104,7 +105,7 @@ async fn load_hold(ctx: &Context, request: LoadHold) -> Result<LoadSummary> {
 
 /// Forward Every Percent Hold's Controller Rows While the Stream Has Demand.
 async fn publish_percent(ctx: &dokime::templates::Context, publisher: Publisher<LoadPercentControl>) -> Result<()> {
-    let mut rows = ctx.plugin::<Host>()?.cpu.subscribe();
+    let mut rows = ctx.plugin::<Arc<Host>>()?.cpu.subscribe();
     loop {
         match rows.recv().await {
             Ok(LoadControl::Percent(row)) => publisher.publish(row).await?,
@@ -116,7 +117,7 @@ async fn publish_percent(ctx: &dokime::templates::Context, publisher: Publisher<
 
 /// Forward Every FLOP/s Hold's Controller Rows While the Stream Has Demand.
 async fn publish_flops(ctx: &dokime::templates::Context, publisher: Publisher<LoadFlopsControl>) -> Result<()> {
-    let mut rows = ctx.plugin::<Host>()?.cpu.subscribe();
+    let mut rows = ctx.plugin::<Arc<Host>>()?.cpu.subscribe();
     loop {
         match rows.recv().await {
             Ok(LoadControl::Flops(row)) => publisher.publish(row).await?,

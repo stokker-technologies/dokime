@@ -16,6 +16,7 @@
 #include "harmos/plugin/v1/invocations.pb.h"
 #include "harmos/plugin/v1/operations.pb.h"
 #include "harmos/plugin/v1/plugins/settings.pb.h"
+#include "harmos/plugin/v1/plugins/state.pb.h"
 #include "harmos/plugin/v1/time.pb.h"
 using ::dokime::CapturedRecordSelection;
 using ::dokime::ExecutionProgressValue;
@@ -102,6 +103,10 @@ using ::harmos::host::v1::TimeSleepRequest;
 using ::harmos::host::v1::TimeSleepResponse;
 using ::harmos::host::v1::plugins::SettingsListRequest;
 using ::harmos::host::v1::plugins::SettingsListResponse;
+using ::harmos::host::v1::plugins::StateGetRequest;
+using ::harmos::host::v1::plugins::StateGetResponse;
+using ::harmos::host::v1::plugins::StatePutRequest;
+using ::harmos::host::v1::plugins::StatePutResponse;
 using std::invalid_argument;
 using std::optional;
 using std::runtime_error;
@@ -155,6 +160,20 @@ TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSlee
   auto operation = Operation<PromptsCreateRequest, PromptsCreateResponse>("dokime.host.v1.Prompts/Create", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   return response;
+}
+StateGetResponse HostPluginsStateResource::get(HostPluginsStateGetOptions options) {
+  StateGetRequest request;
+  auto operation = Operation<StateGetRequest, StateGetResponse>("harmos.plugin.v1.plugins.State/Get", VISIBILITY_PUBLIC);
+  auto response = context.call(operation, request, options.policy).get();
+  return response;
+}
+uint64_t HostPluginsStateResource::put(const uint64_t &expected_revision, const string &value, HostPluginsStatePutOptions options) {
+  StatePutRequest request;
+  request.set_expected_revision(expected_revision);
+  request.set_value(value);
+  auto operation = Operation<StatePutRequest, StatePutResponse>("harmos.plugin.v1.plugins.State/Put", VISIBILITY_PUBLIC);
+  auto response = context.call(operation, request, options.policy).get();
+  return response.revision();
 }
 SettingsListResponse HostPluginsSettingsResource::list(HostPluginsSettingsListOptions options) {
   SettingsListRequest request;
@@ -640,6 +659,10 @@ Registrar &Registrar::add(templates::HostOperation operation) {
   case HostOperation::PluginsSettingsList:
     return add(
         Dependency{Operation<SettingsListRequest, SettingsListResponse>("harmos.plugin.v1.plugins.Settings/List", VISIBILITY_PUBLIC)});
+  case HostOperation::PluginsStateGet:
+    return add(Dependency{Operation<StateGetRequest, StateGetResponse>("harmos.plugin.v1.plugins.State/Get", VISIBILITY_PUBLIC)});
+  case HostOperation::PluginsStatePut:
+    return add(Dependency{Operation<StatePutRequest, StatePutResponse>("harmos.plugin.v1.plugins.State/Put", VISIBILITY_PUBLIC)});
   case HostOperation::TimeGet:
     return add(Dependency{Operation<TimeGetRequest, TimeGetResponse>("harmos.plugin.v1.Time/Get", VISIBILITY_PUBLIC)});
   case HostOperation::TimeSleep:

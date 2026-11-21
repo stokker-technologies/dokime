@@ -22,9 +22,9 @@ use std::future::Future;
 
 // Local Imports
 use crate::domain::controls::ControlState;
-use dokime::encoding;
 use dokime::operations::Context;
 use dokime::{Error, Message, Result};
+use harmos::plugin::StateHandle;
 
 /* === Constants === */
 
@@ -35,9 +35,9 @@ use dokime::{Error, Message, Result};
 /* === Structs === */
 
 /// One Revision of the Plugin's Durable State Value.
-pub struct Saved {
-    pub value: Vec<u8>,
-    pub revision: Vec<u8>,
+pub struct Saved<R> {
+    pub value: Effects,
+    pub revision: R,
 }
 
 /// The Outstanding Effects, Read From and Saved To One Durable State Value.
@@ -46,7 +46,7 @@ pub struct Journal<'a, S> {
 }
 
 /// One Outstanding Effect: the Target a Control Mutated and the State That Restores It.
-#[derive(Message)]
+#[derive(Clone, Message)]
 #[dokime(package = "host")]
 struct Effect {
     target: String,
@@ -54,9 +54,9 @@ struct Effect {
 }
 
 /// The Durable Journal Value, Outstanding Effects in Recording Order.
-#[derive(Message)]
+#[derive(Clone, Message)]
 #[dokime(package = "host")]
-struct Effects {
+pub struct Effects {
     effects: Vec<Effect>,
 }
 
@@ -64,11 +64,12 @@ struct Effects {
 
 /* === Traits === */
 
-/// The Plugin's Durable State Value, Persisted by the Host; `None` When the Host Serves No Durable State.
+/// The Plugin's Single Revisioned Value; a Conflict Returns False and Requires a Fresh Read.
 pub trait Store: Sync {
-    fn load(&self) -> impl Future<Output = Result<Option<Saved>>> + Send;
-    /// Replace the Value Only While Its Revision Is Still `expected` (Empty for a Value Never Saved).
-    fn save(&self, value: Vec<u8>, expected: Vec<u8>) -> impl Future<Output = Result<()>> + Send;
+    type Revision: Send;
+
+    fn load(&self) -> impl Future<Output = Result<Saved<Self::Revision>>>;
+    fn save(&self, value: Effects, expected: Self::Revision) -> impl Future<Output = Result<bool>>;
 }
 
 /* === Implementations === */
@@ -78,26 +79,14 @@ impl<'a, S: Store> Journal<'a, S> {
         Self { store }
     }
 
-    /// Refuse Before Any Native Probe or Mutation When the Store Is Not Durable.
+    /// Verify the Durable Value Before Any Native Probe or Mutation.
     pub async fn check(&self) -> Result<()> {
-        self.durable().await.map(drop)
+        self.read().await.map(drop)
     }
 
-    async fn durable(&self) -> Result<(Effects, Vec<u8>)> {
-        self.read().await?.ok_or_else(|| {
-            Error::Invalid(
-                "Host Controls Need Durable Plugin State: the Library Cannot Persist Control Inverses; Connect Durable Plugin State Before Changing Host Controls".into(),
-            )
-        })
-    }
-
-    async fn read(&self) -> Result<Option<(Effects, Vec<u8>)>> {
-        let Some(saved) = self.store.load().await? else {
-            return Ok(None);
-        };
-        let effects = <Effects as encoding::Message>::decode(saved.value.as_slice())
-            .map_err(|error| Error::Invalid(format!("Read Effect Journal: Restore Its Saved Value: {error}")))?;
-        Ok(Some((effects, saved.revision)))
+    async fn read(&self) -> Result<(Effects, S::Revision)> {
+        let saved = self.store.load().await?;
+        Ok((saved.value, saved.revision))
     }
 }
 
@@ -107,34 +96,37 @@ impl<S: Store> crate::controls::Journal for Journal<'_, S> {
     }
 
     async fn record(&self, target: &str, inverse: &ControlState) -> Result<bool> {
-        let (mut effects, revision) = self.durable().await?;
-        if effects.effects.iter().any(|effect| effect.target == target) {
-            return Ok(false);
+        loop {
+            let (mut effects, revision) = self.read().await?;
+            if effects.effects.iter().any(|effect| effect.target == target) {
+                return Ok(false);
+            }
+            effects.effects.push(Effect {
+                target: target.into(),
+                inverse: Some(inverse.clone()),
+            });
+            if self.store.save(effects, revision).await? {
+                return Ok(true);
+            }
         }
-        effects.effects.push(Effect {
-            target: target.into(),
-            inverse: Some(inverse.clone()),
-        });
-        self.store.save(encoding::Message::encode_to_vec(&effects), revision).await?;
-        Ok(true)
     }
 
     async fn clear(&self, target: &str) -> Result<()> {
-        let Some((mut effects, revision)) = self.read().await? else {
-            return Ok(());
-        };
-        let count = effects.effects.len();
-        effects.effects.retain(|effect| effect.target != target);
-        if effects.effects.len() == count {
-            return Ok(());
+        loop {
+            let (mut effects, revision) = self.read().await?;
+            let count = effects.effects.len();
+            effects.effects.retain(|effect| effect.target != target);
+            if effects.effects.len() == count {
+                return Ok(());
+            }
+            if self.store.save(effects, revision).await? {
+                return Ok(());
+            }
         }
-        self.store.save(encoding::Message::encode_to_vec(&effects), revision).await
     }
 
     async fn outstanding(&self) -> Result<Vec<(String, ControlState)>> {
-        let Some((effects, _)) = self.read().await? else {
-            return Ok(Vec::new());
-        };
+        let (effects, _) = self.read().await?;
         effects
             .effects
             .into_iter()
@@ -148,13 +140,22 @@ impl<S: Store> crate::controls::Journal for Journal<'_, S> {
     }
 }
 
-/// The Library Serves No Durable Plugin State Yet, So Records Are Refused and Nothing Is Outstanding.
+/// Keep Control Inverses in the Host's Durable Plugin Value, Using Its Observed Revision.
 impl Store for Context {
-    async fn load(&self) -> Result<Option<Saved>> {
-        Ok(None)
+    type Revision = StateHandle;
+
+    async fn load(&self) -> Result<Saved<StateHandle>> {
+        let state = self.state()?;
+        let effects = state.get::<Effects>().await?;
+        Ok(Saved { value: effects, revision: state })
     }
-    async fn save(&self, _: Vec<u8>, _: Vec<u8>) -> Result<()> {
-        Err(Error::Invalid("Save Effect Journal: Run a Host That Keeps Durable Plugin State".into()))
+
+    async fn save(&self, value: Effects, expected: StateHandle) -> Result<bool> {
+        match expected.put(&value).await {
+            Ok(_) => Ok(true),
+            Err(harmos::Error::Failure(failure)) if failure.code == "state_revision_conflict" => Ok(false),
+            Err(error) => Err(error.into()),
+        }
     }
 }
 

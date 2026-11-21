@@ -29,7 +29,6 @@ use plugin_host::controls::{
     ADAPTER_SET, AdapterSet, Caller, Change, Journal, Native, PLAN_SET, PlanSet, RADIO_SET, RESTORE, RadioSet, State, cuts_connection,
 };
 use plugin_host::domain::controls::{AdapterState, ControlState, Radio, RadioState};
-use plugin_host::journal;
 use plugin_host::power::PLAN_GET;
 
 /* === Constants === */
@@ -56,8 +55,6 @@ struct Fake {
     written: Mutex<Vec<ControlState>>,
     journal: Mutex<Vec<(String, ControlState)>>,
 }
-
-struct NonDurable;
 
 /* === Enums === */
 
@@ -135,16 +132,6 @@ impl Journal for Fake {
 
     async fn outstanding(&self) -> Result<Vec<(String, ControlState)>> {
         Ok(self.journal.lock().unwrap().clone())
-    }
-}
-
-impl journal::Store for NonDurable {
-    async fn load(&self) -> Result<Option<journal::Saved>> {
-        Ok(None)
-    }
-
-    async fn save(&self, _: Vec<u8>, _: Vec<u8>) -> Result<()> {
-        panic!("A Non-Durable Store Must Never Receive a Record")
     }
 }
 
@@ -255,19 +242,6 @@ async fn an_unavailable_journal_refuses_before_any_write() {
     assert!(state.execute(plan("performance"), &fake, &fake, &fake).await.is_err());
 
     assert!(fake.calls().is_empty());
-}
-
-#[tokio::test]
-async fn a_non_durable_store_refuses_a_control_before_any_platform_call() {
-    let fake = Fake {
-        before: plan_state("balanced"),
-        ..Default::default()
-    };
-    let journal = journal::Journal::new(&NonDurable);
-    let error = State::default().execute(plan("performance"), &fake, &journal, &fake).await.err().unwrap();
-    assert!(matches!(error, Error::Invalid(_)));
-    assert!(fake.calls().is_empty());
-    assert!(fake.written.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

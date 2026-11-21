@@ -171,6 +171,16 @@ impl Request for harmos_protocol::host::plugins::SettingsListRequest {
     const ID: &'static str = "harmos.plugin.v1.plugins.Settings/List";
     const WATCH: bool = false;
 }
+impl Request for harmos_protocol::host::plugins::StateGetRequest {
+    type Response = harmos_protocol::host::plugins::StateGetResponse;
+    const ID: &'static str = "harmos.plugin.v1.plugins.State/Get";
+    const WATCH: bool = false;
+}
+impl Request for harmos_protocol::host::plugins::StatePutRequest {
+    type Response = harmos_protocol::host::plugins::StatePutResponse;
+    const ID: &'static str = "harmos.plugin.v1.plugins.State/Put";
+    const WATCH: bool = false;
+}
 impl Request for harmos_protocol::host::TimeGetRequest {
     type Response = harmos_protocol::host::TimeGetResponse;
     const ID: &'static str = "harmos.plugin.v1.Time/Get";

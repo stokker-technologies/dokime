@@ -85,6 +85,10 @@ use harmos_protocol::host::TimeSleepRequest;
 use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::host::plugins::SettingsListRequest;
 use harmos_protocol::host::plugins::SettingsListResponse;
+use harmos_protocol::host::plugins::StateGetRequest;
+use harmos_protocol::host::plugins::StateGetResponse;
+use harmos_protocol::host::plugins::StatePutRequest;
+use harmos_protocol::host::plugins::StatePutResponse;
 use harmos_protocol::model::DiscoveredOperation;
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
@@ -130,11 +134,13 @@ pub enum HostOperation {
     OperationsList,
     OperationsGet,
     PluginsSettingsList,
+    PluginsStateGet,
+    PluginsStatePut,
     TimeGet,
     TimeSleep,
 }
 impl HostOperation {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 36] = [
         Self::BackendEnvironment,
         Self::ContentArtifactsCreate,
         Self::DocumentsAppendParts,
@@ -167,6 +173,8 @@ impl HostOperation {
         Self::OperationsList,
         Self::OperationsGet,
         Self::PluginsSettingsList,
+        Self::PluginsStateGet,
+        Self::PluginsStatePut,
         Self::TimeGet,
         Self::TimeSleep,
     ];
@@ -206,6 +214,8 @@ impl Registration for HostOperation {
             HostOperation::OperationsList => ctx.register(Dependency::<OperationsListRequest>::new()),
             HostOperation::OperationsGet => ctx.register(Dependency::<OperationsGetRequest>::new()),
             HostOperation::PluginsSettingsList => ctx.register(Dependency::<SettingsListRequest>::new()),
+            HostOperation::PluginsStateGet => ctx.register(Dependency::<StateGetRequest>::new()),
+            HostOperation::PluginsStatePut => ctx.register(Dependency::<StatePutRequest>::new()),
             HostOperation::TimeGet => ctx.register(Dependency::<TimeGetRequest>::new()),
             HostOperation::TimeSleep => ctx.register(Dependency::<TimeSleepRequest>::new()),
         }
@@ -442,6 +452,14 @@ pub struct HostOperationsGetOptions {
 pub struct HostPluginsSettingsListOptions {
     pub name: Option<String>,
     pub at: Option<ReadCut>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostPluginsStateGetOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostPluginsStatePutOptions {
     pub policy: Option<OperationPolicy>,
 }
 #[derive(Default)]
@@ -1005,11 +1023,13 @@ impl HostOperationsResource {
 #[derive(Clone)]
 pub struct HostPluginsResource {
     pub settings: HostPluginsSettingsResource,
+    pub state: HostPluginsStateResource,
 }
 impl HostPluginsResource {
     fn new(context: Context) -> Self {
         Self {
             settings: HostPluginsSettingsResource::new(context.clone()),
+            state: HostPluginsStateResource::new(context.clone()),
         }
     }
 }
@@ -1028,6 +1048,31 @@ impl HostPluginsSettingsResource {
         let request = SettingsListRequest { name: options.name, at: options.at };
         let response: SettingsListResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostPluginsStateResource {
+    context: Context,
+}
+impl HostPluginsStateResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn get(&self) -> Result<StateGetResponse> {
+        self.get_with(HostPluginsStateGetOptions::default()).await
+    }
+    pub async fn get_with(&self, options: HostPluginsStateGetOptions) -> Result<StateGetResponse> {
+        let request = StateGetRequest {};
+        let response: StateGetResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+    pub async fn put(&self, expected_revision: u64, value: Vec<u8>) -> Result<u64> {
+        self.put_with(expected_revision, value, HostPluginsStatePutOptions::default()).await
+    }
+    pub async fn put_with(&self, expected_revision: u64, value: Vec<u8>, options: HostPluginsStatePutOptions) -> Result<u64> {
+        let request = StatePutRequest { expected_revision, value };
+        let response: StatePutResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response.revision)
     }
 }
 #[derive(Clone)]

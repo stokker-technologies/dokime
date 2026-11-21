@@ -84,6 +84,11 @@ impl Notifications {
         Ok(Self { socket, pending: Pending::new(links) })
     }
 
+    /// Seed Unobserved Links From the First Configured Collection Probe.
+    pub fn seed(&mut self, links: BTreeMap<String, bool>) {
+        self.pending.seed(links);
+    }
+
     /// Read Every Waiting Datagram, Then Take the Oldest Queued Change.
     pub fn take(&mut self) -> Result<Option<Change>> {
         let mut datagrams = 0;

@@ -93,6 +93,11 @@ impl Notifications {
         Ok(())
     }
 
+    /// Seed Unobserved Links From the First Configured Collection Probe.
+    pub fn seed(&mut self, links: BTreeMap<String, bool>) {
+        self.sink.lock().unwrap_or_else(PoisonError::into_inner).seed(links);
+    }
+
     /// Take the Oldest Queued Change.
     pub fn take(&mut self) -> Result<Option<Change>> {
         self.sink.lock().unwrap_or_else(PoisonError::into_inner).pop()

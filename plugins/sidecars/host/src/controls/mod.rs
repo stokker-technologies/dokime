@@ -27,6 +27,7 @@ mod platform {
 
 // Standard Library Imports
 use std::future::Future;
+use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
@@ -377,21 +378,21 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
     let radio = Operation::new(RADIO_SET, Visibility::Public, async |ctx: &Context, request: RadioSet| {
         let change = Change::radio(request)?;
         let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
+        ctx.plugin::<Arc<Host>>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
     })
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Switch Every Radio of One Kind On or Off, Recording the Prior State for Restoration.");
     let adapter = Operation::new(ADAPTER_SET, Visibility::Public, async |ctx: &Context, request: AdapterSet| {
         let change = Change::adapter(request);
         let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
+        ctx.plugin::<Arc<Host>>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
     })
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Enable or Disable One Network Adapter, Recording the Prior State for Restoration.");
     let plan = Operation::new(PLAN_SET, Visibility::Public, async |ctx: &Context, request: PlanSet| {
         let change = Change::plan(request);
         let machine = Machine { timing: Timing::read(ctx).await? };
-        ctx.plugin::<Host>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
+        ctx.plugin::<Arc<Host>>()?.controls.execute(change, &machine, &crate::journal::Journal::new(ctx), ctx).await
     })
     .policy(settings::policy(settings::CONTROL_BUDGET, Duration::ZERO))
     .description("Activate One Power Plan, Recording the Prior Plan for Restoration.");
@@ -409,7 +410,7 @@ pub fn catalog(plugin: Plugin) -> Result<Plugin> {
 /// Restore Every Outstanding Control State; the Restore Operation and the Plugin Start Both Run It.
 pub async fn restore(ctx: &Context) -> Result<()> {
     let machine = Machine { timing: Timing::read(ctx).await? };
-    ctx.plugin::<Host>()?.controls.restore(&machine, &crate::journal::Journal::new(ctx)).await
+    ctx.plugin::<Arc<Host>>()?.controls.restore(&machine, &crate::journal::Journal::new(ctx)).await
 }
 
 /// Whether Disabling the Change Cuts One of the Connected Adapters.
