@@ -57,6 +57,7 @@ RELEASE = {"release_dry", "release_rehearsal"}
 CLASSES = {"docs", "rust", "rust_tests", "fixtures", "python", "csharp", "cpp", "gui", "package", "all"}
 # Consumers Name Every Required Artifact Producer, Including Optional Test Inputs.
 PRODUCERS = {
+    "build_tests": {"build_product"},
     "test_host_csharp": {"build_tests", "build_host_fixtures_csharp"},
     "check_generated": {"build_python"},
     "package": {"build_product", "build_python", "build_sdk_cpp"},

@@ -7,7 +7,7 @@
 # ***
 
 
-"""Prepare desktop SDK fixtures without a retired host"""
+"""Prepare Desktop SDK Fixtures From Matching Product Bytes"""
 
 # === Imports === #
 
@@ -50,18 +50,11 @@ def build(profile: str) -> None:
     output = paths.output(root, "build", profile) / "fixtures/desktop"
     output.mkdir(parents=True, exist_ok=True)
 
-    # Build the Current CLI Through Its Focused Project Task
-    subprocess.run(
-        ["mise", "run", "build", "--", "--package", "dokime-cli", "--profile", profile],
-        cwd=root,
-        check=True,
-        creationflags=spawn_flags(),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-    compiler_profile = "debug" if profile == "dev" else profile
-    cli = root / "target" / compiler_profile / f"dokime{extension}"
+    # Stage the Command-Line Tool From the Matching Product Build.
+    product = paths.output(root, "build", profile) / "bin"
+    cli = product / f"dokime{extension}"
+    if not cli.is_file():
+        raise ValueError(f"Build Desktop Fixtures: Run build:product --profile {profile} or Download Its build-cli Artifact: {cli}")
     shutil.copy2(cli, output / cli.name)
 
     # Bundle the Prepared Shared SDK Fixture Without Compiling in a Story
@@ -85,26 +78,14 @@ def build(profile: str) -> None:
     print(result.stderr, end="", file=sys.stderr, flush=True)
     result.check_returncode()
 
-    # Bundle the OBC Charger Plugin Exactly as the Product Build Packages It
+    # Stage the Product Plugin Bundle and Preserve the Fixture Project Inventory.
     executable = paths.output(root, "build", profile) / "fixtures/host" / f"plugin-obc{extension}"
     project = output / "projects/plugin-obc"
     project.mkdir(parents=True, exist_ok=True)
     shutil.copy2(executable, project / executable.name)
     (project / "dokime.toml").write_text('[plugin]\n[scripts]\nexecutable = "plugin-obc"\n', encoding="utf-8")
     bundle = output / "plugin-obc.dokime"
-    bundle.unlink(missing_ok=True)
-    result = subprocess.run(
-        [str(cli), "plugin", "bundle", str(project), "--out", str(bundle)],
-        cwd=root,
-        check=False,
-        text=True,
-        creationflags=spawn_flags(),
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=subprocess.PIPE,
-    )
-    print(result.stderr, end="", file=sys.stderr, flush=True)
-    result.check_returncode()
+    shutil.copy2(product / bundle.name, bundle)
 
     # Extend the Tests Fixture Inventory Without Replacing Product Bytes
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"

@@ -89,9 +89,10 @@ jobs:
     with:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_tests == 'true'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_tests == 'true' && needs.build_product.result == 'success'
     needs:
     - impact
+    - build_product
   build_sdk_cpp:
     name: Build / SDK / C++
     uses: ./.github/workflows/validate-build-tests.yml

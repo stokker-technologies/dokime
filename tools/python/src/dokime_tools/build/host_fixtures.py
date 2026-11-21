@@ -93,7 +93,7 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
                 "sdk/rust/tests/consumer/Cargo.toml",
                 "--package",
                 "dokime-rust-stories",
-                *(["--bin", fixture] if fixture else ["--bins"]),
+                *[argument for name in ((fixture,) if fixture else RUST_FIXTURES) for argument in ("--bin", name)],
                 "--profile",
                 profile,
             ],
@@ -108,7 +108,7 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
         for name in (fixture,) if fixture else RUST_FIXTURES:
             shutil.copy2(root / "target" / compiler_profile / f"{name}{extension}", output / f"{name}{extension}")
 
-    # Build the Remaining Rust Host Fixtures Only for the Complete Producer.
+    # Build the Test-Only Content Fixture.
     if "rust" in languages and fixture is None:
         subprocess.run(
             [
@@ -122,13 +122,9 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
                 "--profile",
                 profile,
                 "--package",
-                "dokime-runtime",
-                "--package",
                 "dokime-client-internal",
                 "--bin",
                 "content_fixture",
-                "--bin",
-                "dokime-host",
             ],
             cwd=root,
             check=True,
@@ -138,67 +134,49 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             stderr=sys.stderr,
         )
         shutil.copy2(root / "target" / compiler_profile / f"content_fixture{extension}", output / f"content_fixture{extension}")
-        shutil.copy2(root / "target" / compiler_profile / f"dokime-host{extension}", output / f"dokime-host{extension}")
-        # Build the OBC Charger Plugin the Desktop Stories and Screenshots Install
-        subprocess.run(
-            [
-                "mise",
-                "run",
-                "build",
-                "--",
-                "--cargo",
-                "build",
-                "--locked",
-                "--package",
-                "plugin-obc",
-                "--bin",
-                "plugin-obc",
-                "--profile",
-                profile,
-            ],
-            cwd=root,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        shutil.copy2(root / "target" / compiler_profile / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
 
-        # Build the Reference Host From the Same Library Revision as the Product.
-        # Its library crates are path dependencies of the pinned checkout. Cargo fingerprints their workspace-relative paths,
-        # so each revision builds in its own target directory rather than reusing another revision's artifacts.
+        # Stage the Matching Product Host and Plugin Without Recompiling Them.
+        product = paths.output(root, "build", profile) / "bin"
+        for name in ("dokime-host", "plugin-obc"):
+            source = product / f"{name}{extension}"
+            if not source.is_file():
+                raise ValueError(f"Stage Host Fixtures: Run build:product --profile {profile} or Download Its build-cli Artifact: {source}")
+            shutil.copy2(source, output / source.name)
+
+        # Reuse the Reference Host for This Pinned Revision, Platform and Profile.
         manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
         library = manifest["workspace"]["dependencies"]["harmos"]
-        subprocess.run(
-            [
-                "cargo",
-                "install",
-                "--git",
-                library["git"],
-                "--rev",
-                library["rev"],
-                "--locked",
-                "--profile",
-                profile,
-                "--force",
-                "--root",
-                str(root / "target/reference-host"),
-                "--target-dir",
-                str(root / "target/reference-host/build" / library["rev"]),
-                "--bin",
-                "harmos-conformance",
-                "harmos-conformance",
-            ],
-            cwd=root,
-            env=cargo.compiler_environment(profile),
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        shutil.copy2(root / "target/reference-host/bin" / f"harmos-conformance{extension}", output / f"harmos-conformance{extension}")
+        installation = root / "target/reference-host" / paths.target() / profile / library["rev"]
+        reference = installation / "bin" / f"harmos-conformance{extension}"
+        if not reference.is_file():
+            subprocess.run(
+                [
+                    "cargo",
+                    "install",
+                    "--git",
+                    library["git"],
+                    "--rev",
+                    library["rev"],
+                    "--locked",
+                    "--profile",
+                    profile,
+                    "--root",
+                    str(installation),
+                    "--target-dir",
+                    str(root / "target"),
+                    "--bin",
+                    "harmos-conformance",
+                    "harmos-conformance",
+                ],
+                cwd=root,
+                env=cargo.compiler_environment(profile),
+                check=True,
+                creationflags=spawn_flags(),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+        shutil.copy2(reference, output / reference.name)
 
         # Stage the Python Fixture From the Same Locked Source as the Reference Host.
         metadata = subprocess.run(

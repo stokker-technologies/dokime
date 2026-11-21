@@ -329,7 +329,7 @@ run = "{{vars.tools}} dokime_tools.release.sbom --auditable {{usage.profile}} --
 
 [tasks."build:rust:tests"]
 hide = true
-description = "Build Independent Test Archive"
+description = "Build Test Archive and Fixtures From Prepared Product Bytes"
 usage = 'flag "--profile <profile>" default="dev"; flag "--timings"'
 run = [
   "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",

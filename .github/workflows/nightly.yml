@@ -102,6 +102,7 @@ jobs:
       profile: release
     needs:
     - plan
+    - build_product
   build_host_fixtures:
     if: needs.plan.outputs.product == 'true'
     name: Build / SDK / ${{ matrix.language == 'csharp' && 'C#' || 'C++' }} / Fixtures
