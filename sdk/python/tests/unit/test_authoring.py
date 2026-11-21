@@ -79,7 +79,7 @@ class AuthoringStory(unittest.TestCase):
         declaration = record(int, identifier="reading")
         reading = declaration.field()
         section = Section("Readings").repeat(reading, order_by=reading.max()).traceability()
-        plot = templates.time_series(templates.field("samples", "value")).markers("reading")
+        plot = templates.time_series(templates.field("samples", "value")).x(reading.time_between("reading")).markers("reading")
         document = Document("Report").section(section.plot(plot))
         reopened = type(document.message).FromString(document.message.SerializeToString())
         repeated = reopened.sections[0]
@@ -106,6 +106,7 @@ class AuthoringStory(unittest.TestCase):
         cards = bound.documents[0].message.sections[0].cards
         self.assertEqual(bound.documents[0].message.sections[0].repeat.value.record.identifier, "readings.readings.reading")
         self.assertEqual(list(cards[1].plot.marker_records), ["readings.readings.reading"])
+        self.assertEqual(cards[1].plot.x.transform.time_between, "readings.readings.reading")
         self.assertEqual(reading.message.record.identifier, "reading")
 
     def test_lanes_preserve_declarations_and_operation_assignments(self) -> None:
