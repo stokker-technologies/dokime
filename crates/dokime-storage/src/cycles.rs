@@ -16,22 +16,20 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::result;
 
 // Third Party Imports
 use prost::Message;
 use prost_types::Timestamp;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::ExecutionState;
-use crate::{Error, Execution, Result, Store};
+use crate::{Error, Evidence, Execution, Result, Store};
 use dokime_protocol::host::CycleSummary;
-use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::host::{CyclePhase, ExecutionOutcome, UnevaluatedOutcome, execution_outcome};
 use dokime_protocol::host::{CyclesSetRequest, CyclesSetResponse};
 use dokime_protocol::model::Termination;
-
-use dokime_protocol::host::executions::ExecutionCommandPhase;
 
 /* === Constants === */
 
@@ -45,6 +43,7 @@ use dokime_protocol::host::executions::ExecutionCommandPhase;
 struct CycleRequest {
     #[prost(bytes, tag = "1")]
     fingerprint: Vec<u8>,
+
     #[prost(message, optional, tag = "2")]
     response: Option<CyclesSetResponse>,
 }
@@ -56,11 +55,6 @@ struct CycleRequest {
 /* === Implementations === */
 
 impl Store {
-    pub fn require_evidence_owner(&self, cycle: Option<&str>, execution: Option<&str>, action: &str) -> Result<()> {
-        let connection = self.lock()?;
-        require_owner(&connection, cycle, execution, action)
-    }
-
     pub fn seal_unstarted(&self, execution: &str, at: Timestamp) -> Result<()> {
         let cut = self.cut(execution)?;
         if cut.state != ExecutionState::Open || cut.frontier != 0 {
@@ -129,33 +123,9 @@ impl Store {
             .query_row("SELECT payload FROM evidence WHERE execution=?1 ORDER BY position DESC LIMIT 1", [execution], |row| row.get(0))
             .optional()?;
         Ok((
-            first.map(|bytes| crate::Evidence::decode(bytes.as_slice()).map(|entry| entry.receipt_ns)).transpose()?,
-            last.map(|bytes| crate::Evidence::decode(bytes.as_slice()).map(|entry| entry.receipt_ns)).transpose()?,
+            first.map(|bytes| Evidence::decode(bytes.as_slice()).map(|entry| entry.receipt_ns)).transpose()?,
+            last.map(|bytes| Evidence::decode(bytes.as_slice()).map(|entry| entry.receipt_ns)).transpose()?,
         ))
-    }
-    pub fn interrupt_commands(&self, at: Timestamp) -> Result<()> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        let mut statement = transaction.prepare("SELECT payload FROM commands")?;
-        let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-        drop(statement);
-        for payload in payloads {
-            let mut receipt = ExecutionCommandReceipt::decode(payload.as_slice())?;
-            if matches!(
-                ExecutionCommandPhase::try_from(receipt.phase),
-                Ok(ExecutionCommandPhase::Accepted | ExecutionCommandPhase::Dispatching | ExecutionCommandPhase::Running)
-            ) {
-                receipt.phase = ExecutionCommandPhase::Interrupted as i32;
-                receipt.updated_at = Some(at);
-                receipt.detail = Some("Host Restarted; Inspect the Sealed Execution Before Starting a New Run".into());
-                transaction.execute(
-                    "UPDATE commands SET payload=?1 WHERE request=?2 AND id=?3",
-                    params![receipt.encode_to_vec(), receipt.execution_id, receipt.command_id],
-                )?;
-            }
-        }
-        transaction.commit()?;
-        Ok(())
     }
     pub fn sample_count(&self) -> Result<u64> {
         Ok(self.lock()?.query_row("SELECT COALESCE(SUM(rows),0) FROM telemetry_batches", [], |row| row.get::<_, i64>(0))? as u64)
@@ -179,8 +149,8 @@ impl Store {
     pub fn client_cycles(&self) -> Result<Vec<CycleSummary>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM cycles ORDER BY rowid")?;
-        let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-        Ok(payloads.iter().map(|payload| CycleSummary::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
+        let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<result::Result<Vec<_>, _>>()?;
+        Ok(payloads.iter().map(|payload| CycleSummary::decode(payload.as_slice())).collect::<result::Result<_, _>>()?)
     }
     pub fn bind_executions(&self, cycle: &str, executions: &[(Execution, String, String)]) -> Result<()> {
         let mut connection = self.lock()?;
@@ -215,57 +185,10 @@ impl Store {
         self.lock()?.execute("INSERT INTO bindings VALUES (?1,?2,?3,?4) ON CONFLICT(execution) DO UPDATE SET label=excluded.label,archived=excluded.archived", params![execution,case,label.unwrap_or(&previous_label),archived.unwrap_or(previous_archived)])?;
         Ok(())
     }
-    pub fn command(&self, request: &str, id: &str) -> Result<Option<ExecutionCommandReceipt>> {
-        let payload: Option<Vec<u8>> = self
-            .lock()?
-            .query_row("SELECT payload FROM commands WHERE request=?1 AND id=?2", params![request, id], |row| row.get(0))
-            .optional()?;
-        Ok(payload.map(|payload| ExecutionCommandReceipt::decode(payload.as_slice())).transpose()?)
-    }
-    pub fn save_command(&self, receipt: &ExecutionCommandReceipt) -> Result<()> {
-        self.lock()?.execute(
-            "INSERT INTO commands VALUES (?1,?2,?3) ON CONFLICT(request,id) DO UPDATE SET payload=excluded.payload",
-            params![receipt.execution_id, receipt.command_id, receipt.encode_to_vec()],
-        )?;
-        Ok(())
-    }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-pub(crate) fn require_owner(connection: &Connection, cycle: Option<&str>, execution: Option<&str>, action: &str) -> Result<()> {
-    let cycle = if let Some(execution) = execution {
-        let row: Option<(String, i32)> = connection
-            .query_row("SELECT cycle,state FROM executions WHERE id=?1", [execution], |row| Ok((row.get(0)?, row.get(1)?)))
-            .optional()?;
-        let (owner, state) = row.ok_or_else(|| Error::NotFound(format!("{action}: Select an Existing Execution {execution}")))?;
-        if cycle.is_some_and(|cycle| cycle != owner) {
-            return Err(Error::Invalid(format!("{action}: Select Execution {execution} in Its Own Cycle {owner}")));
-        }
-        if state != 0 {
-            return Err(Error::Invalid(format!(
-                "{action}: Execution {execution} Is Sealed; Attach New Evidence to Its Unsealed Cycle {owner}"
-            )));
-        }
-        owner
-    } else {
-        cycle.ok_or_else(|| Error::Invalid(format!("{action}: Select an Execution or Cycle")))?.to_owned()
-    };
-    let payload: Option<Vec<u8>> = connection.query_row("SELECT payload FROM cycles WHERE id=?1", [&cycle], |row| row.get(0)).optional()?;
-    if let Some(payload) = payload {
-        let summary = CycleSummary::decode(payload.as_slice())?;
-        if summary.sealed || summary.phase == CyclePhase::Sealing as i32 {
-            return Err(Error::Invalid(format!("{action}: Cycle {cycle} Is Sealed or Sealing; Create a New Cycle for New Evidence")));
-        }
-        return Ok(());
-    }
-    let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM executions WHERE cycle=?1)", [&cycle], |row| row.get(0))?;
-    if !exists {
-        return Err(Error::NotFound(format!("{action}: Select an Existing Cycle {cycle}")));
-    }
-    Ok(())
-}
 
 /* === Tests === */

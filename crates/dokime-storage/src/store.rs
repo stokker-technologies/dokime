@@ -43,6 +43,7 @@ use rusqlite::TransactionBehavior;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch::{self, Sender};
+use uuid::Uuid;
 
 // Local Imports
 use crate::telemetry::aggregates::SummaryReads;
@@ -136,20 +137,28 @@ impl Store {
             }
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
-            let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<result::Result<Vec<_>, _>>()?;
+            let mut tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<result::Result<Vec<_>, _>>()?;
+            // Preserve Superseded Journals; Refuse Only Roots With Undecodable Runtime State.
+            for table in ["commands", "notes"] {
+                if tables.iter().any(|name| name == table) {
+                    let occupied: bool = connection.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {table})"), [], |row| row.get(0))?;
+                    if occupied {
+                        return Err(Error::Incompatible(root.display().to_string()));
+                    }
+                    tables.retain(|name| name != table);
+                }
+            }
             if tables
                 != [
                     "administration",
                     "attempts",
                     "bindings",
-                    "commands",
                     "cycle_history",
                     "cycles",
                     "deletions",
                     "evidence",
                     "evidence_reads",
                     "executions",
-                    "notes",
                     "read_positions",
                     "record_fields",
                     "reports",
@@ -180,8 +189,7 @@ impl Store {
                 [],
                 |row| row.get(0),
             )?;
-            let superseded_commands: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM commands)", [], |row| row.get(0))?;
-            if !response_column || !evidence_kind || !preview_bounds || superseded_journals || superseded_commands {
+            if !response_column || !evidence_kind || !preview_bounds || superseded_journals {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -197,10 +205,8 @@ impl Store {
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
                 CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
-                CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE cycles(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE bindings(execution TEXT PRIMARY KEY REFERENCES executions(id), case_id TEXT NOT NULL, label TEXT NOT NULL, archived INTEGER NOT NULL);
-                CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
                 CREATE TABLE cycle_history(sequence INTEGER PRIMARY KEY AUTOINCREMENT, cycle TEXT NOT NULL, execution TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE deletions(request TEXT PRIMARY KEY, execution TEXT NOT NULL, seal BLOB NOT NULL, response BLOB NOT NULL);
                 CREATE TABLE reports(execution TEXT NOT NULL REFERENCES executions(id), id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,id));
@@ -216,18 +222,18 @@ impl Store {
         let identity = if identity_path.exists() {
             fs::read_to_string(&identity_path)?
         } else {
-            let identity = uuid::Uuid::now_v7().to_string();
+            let identity = Uuid::now_v7().to_string();
             let mut file = OpenOptions::new().write(true).create_new(true).open(identity_path)?;
             file.write_all(identity.as_bytes())?;
             file.sync_all()?;
             identity
         };
-        uuid::Uuid::parse_str(&identity).map_err(|_| Error::Incompatible(root.display().to_string()))?;
+        Uuid::parse_str(&identity).map_err(|_| Error::Incompatible(root.display().to_string()))?;
         let evidence_history: Option<Vec<u8>> =
             connection.query_row("SELECT payload FROM administration WHERE id='evidence-read-history'", [], |row| row.get(0)).optional()?;
         if let Some(history) = evidence_history {
             let history = History::decode(history.as_slice())?;
-            if history.store != identity || uuid::Uuid::parse_str(&history.epoch).is_err() {
+            if history.store != identity || Uuid::parse_str(&history.epoch).is_err() {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -237,14 +243,14 @@ impl Store {
             }
             let history = History {
                 store: identity.clone(),
-                epoch: uuid::Uuid::now_v7().to_string(),
+                epoch: Uuid::now_v7().to_string(),
             };
             connection.execute("INSERT INTO administration VALUES('evidence-read-history',?1)", [history.encode_to_vec()])?;
         }
         if !exists {
             let history = History {
                 store: identity.clone(),
-                epoch: uuid::Uuid::now_v7().to_string(),
+                epoch: Uuid::now_v7().to_string(),
             };
             connection.execute("INSERT INTO administration VALUES('native-storage-history',?1)", [history.encode_to_vec()])?;
         }
@@ -253,7 +259,7 @@ impl Store {
             .optional()?;
         let native_history = native_history.ok_or_else(|| Error::Incompatible(root.display().to_string()))?;
         let native_history = History::decode(native_history.as_slice())?;
-        if native_history.store != identity || uuid::Uuid::parse_str(&native_history.epoch).is_err() {
+        if native_history.store != identity || Uuid::parse_str(&native_history.epoch).is_err() {
             return Err(Error::Incompatible(root.display().to_string()));
         }
         let store = Self {

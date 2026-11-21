@@ -58,8 +58,8 @@ pub async fn handle(context: &Context, mut request: UploadsCreateRequest) -> Res
         let selected = request.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref());
         let scope = scope(&context.host.identity().backend_id, context.caller.as_ref().map(|caller| caller.execution.as_str()), selected)?;
         match scope.split_once('/') {
-            Some(("execution", execution)) => context.host.store().require_evidence_owner(None, Some(execution), "Upload File")?,
-            Some(("cycle", cycle)) => context.host.store().require_evidence_owner(Some(cycle), None, "Upload File")?,
+            Some(("execution", execution)) => crate::host::evidence::require_open(context, None, Some(execution), "Upload File")?,
+            Some(("cycle", cycle)) => crate::host::evidence::require_open(context, Some(cycle), None, "Upload File")?,
             _ => {}
         }
         if let Some(metadata) = request.metadata.as_mut() {

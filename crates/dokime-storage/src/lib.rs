@@ -24,7 +24,6 @@ mod execution;
 mod expressions;
 mod history;
 mod ipc;
-mod notes;
 mod outcome;
 pub mod persisted;
 mod plot_kinds;

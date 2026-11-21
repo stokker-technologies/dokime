@@ -65,7 +65,7 @@ pub async fn handle(context: &Context, request: NotesSetRequest) -> Result<Notes
         }
         if existing.revision == request.expected_revision {
             let scope = note.scope.as_ref().ok_or_else(|| Error::Precondition("Set Note: Restore Its Owner Scope".into()))?;
-            super::require_open(context, scope)?;
+            crate::host::evidence::require_open(context, scope.cycle_id.as_deref(), scope.execution_id.as_deref(), "Write Note")?;
         }
         note.message = value.message.clone();
         let scope = note.scope.as_ref().ok_or_else(|| Error::Precondition("Set Note: Restore Its Owner Scope".into()))?;
