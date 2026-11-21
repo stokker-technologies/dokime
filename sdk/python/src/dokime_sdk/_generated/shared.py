@@ -19,6 +19,8 @@ from harmos._wire.model.v1.file_pb2 import (
     File,
     FileMetadata,
     FileReference,
+    ListFileProductionsRequest,
+    ListFileProductionsResponse,
     Upload,
     UploadState,
 )
@@ -889,6 +891,8 @@ __all__ = [
     "LaneDeclaration",
     "LineStyle",
     "LinearSpace",
+    "ListFileProductionsRequest",
+    "ListFileProductionsResponse",
     "Listeners",
     "MapValue",
     "MessageSettings",

@@ -172,6 +172,8 @@ pub use harmos_protocol::model::Grpc;
 pub use harmos_protocol::model::History;
 pub use harmos_protocol::model::InstanceState;
 pub use harmos_protocol::model::LaneDeclaration;
+pub use harmos_protocol::model::ListFileProductionsRequest;
+pub use harmos_protocol::model::ListFileProductionsResponse;
 pub use harmos_protocol::model::MessageSettings;
 pub use harmos_protocol::model::OperationContract;
 pub use harmos_protocol::model::OperationPolicy;
