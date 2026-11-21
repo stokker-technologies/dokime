@@ -235,8 +235,16 @@ def operation[F: Callable[..., object]](
     return decorate
 
 
+def declaration[Q: Payload, R: Payload](handler: Callable[[Context, Q], Awaitable[R]]) -> Operation[Q, R]:
+    """Read the Immutable Declaration Attached by the Operation Decorator."""
+    definition = vars(handler).get("__dokime_operation__") if isinstance(handler, FunctionType) else None
+    if not isinstance(definition, Operation):
+        raise TypeError("Read Operation Declaration: Supply a Function Decorated With operation")
+    return cast(Operation[Q, R], definition)
+
+
 def _bind_operation(handler: Callable[..., object], owner: "Plugin") -> Callable[..., Awaitable[Message]]:
-    definition = cast(Operation[Any, Any], vars(handler)["__dokime_operation__"])
+    definition = declaration(cast(Callable[[Context, Any], Awaitable[Any]], handler))
     transport = definition._definition()
 
     async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:

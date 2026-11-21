@@ -27,7 +27,7 @@ from harmos._wire.model.v1.failure_pb2 import Failure
 # Local Imports
 from dokime_sdk import Plugin, Suite
 from dokime_sdk._generated.shared import RecordContracts
-from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, Visibility, operation
+from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, Visibility, declaration, operation
 from dokime_sdk.templates import TestTemplate, observer, record, step, stream
 
 # Type Checking Imports
@@ -68,6 +68,26 @@ class CallerPlugin(Plugin):
 
 
 class PeerRequirementsTests(unittest.IsolatedAsyncioTestCase):
+    def test_operation_declaration_retains_payload_types_policy_and_identifier(self) -> None:
+        policy = OperationPolicy(timeout=timedelta(seconds=3))
+
+        @operation("peer.increment", policy=policy)
+        async def increment(ctx: Context, request: int) -> int:
+            return request + 1
+
+        definition = declaration(increment)
+        self.assertEqual(definition.identifier, PEER.identifier)
+        self.assertIs(definition.request, int)
+        self.assertIs(definition.response, int)
+        self.assertIs(definition.policy, policy)
+        self.assertEqual(definition.visibility, Visibility.PUBLIC)
+        self.assertIs(declaration(increment), definition)
+
+        async def undecorated(ctx: Context, request: int) -> int:
+            return request
+
+        self.assertRaises(TypeError, declaration, undecorated)
+
     async def test_plugin_observer_publishes_declared_records_in_inherited_scope(self) -> None:
         class RecordingPlugin(Plugin):
             version = "1.0.0"

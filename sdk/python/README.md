@@ -52,6 +52,11 @@ Catch `dokime_sdk.operations.FailureError` around a bound call and inspect
 and `cause`. These are product failure values, including cancellation and timeout
 classifications; the library's exception does not escape a bound peer call.
 
+Read a decorated function's public contract with `declaration(increment)` from
+`dokime_sdk.operations`. It returns the immutable `Operation` with its identifier,
+request and response Python types, visibility and policy. Publish that value for
+peer consumers to pass to `ctx.operation(...)`.
+
 ## Starter
 
 [The starter](examples/starter/) contains one uv project with an installed
