@@ -68,7 +68,8 @@ const root = base.slice(0, base.length - entry.length - 1);
 
   .release-select :global(svg) {
     position: absolute;
-    inset-inline-end: var(--release-select-pad);
+    /* The Caret Icon Carries 0.25rem of Empty Space on Its Right; Align the Visible Chevron With the Text Inset. */
+    inset-inline-end: calc(var(--release-select-pad) - 0.25rem);
     color: var(--foreground);
     pointer-events: none;
   }
