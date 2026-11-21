@@ -18,6 +18,7 @@ from collections.abc import Mapping
 
 # Third Party Imports
 from dokime_sdk import Scalar
+from dokime_sdk.operations import OperationPolicy
 from dokime_sdk.templates import Context, Materialization, Parameter, TestTemplate, Window, materialize, step, stream, window_observer
 from google.protobuf.message import Message
 
@@ -189,7 +190,7 @@ class ThermalLoadTestTemplate(TestTemplate):
         case.message.streams.extend(retained)
         case.step("Hold", self.hold)
 
-    @step("Hold", identifier="hold")
+    @step("Hold", identifier="hold", policy=OperationPolicy())
     async def hold(self, ctx: Context) -> None:
         await ctx.cancelled()
 

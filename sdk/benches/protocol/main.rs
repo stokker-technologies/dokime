@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -24,7 +24,14 @@ use prost::Message;
 use prost_types::Timestamp;
 
 // Local Imports
-use dokime_protocol::{host, model};
+use dokime_protocol::{
+    host::{
+        ReportMetadata, ReportOrigin, ReportsGetResponse,
+        evidence::{CapturedRecord, RecordsListResponse, SampleRow, SamplesListResponse, TelemetrySample, sample_row::Kind},
+        plots::{NullableNumber, PlotColumn, PlotFrame},
+    },
+    model::{EvidenceScope, Metadata},
+};
 
 /* === Constants === */
 
@@ -47,13 +54,13 @@ use dokime_protocol::{host, model};
 fn main() -> Result<(), Box<dyn Error>> {
     let mut criterion = Criterion::default().configure_from_args();
     let timestamp = Timestamp { seconds: 1_700_000_000, nanos: 0 };
-    let scope = model::EvidenceScope {
+    let scope = EvidenceScope {
         execution_id: Some("00000000-0000-7000-8000-000000000001".into()),
         ..Default::default()
     };
-    let records = host::evidence::RecordsListResponse {
+    let records = RecordsListResponse {
         records: (0..128)
-            .map(|index| host::evidence::CapturedRecord {
+            .map(|index| CapturedRecord {
                 record_id: format!("00000000-0000-7000-8000-{index:012x}"),
                 record_type: "thermal.cycle.door".into(),
                 sequence: index,
@@ -68,10 +75,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         count: 128,
         ..Default::default()
     };
-    let samples = host::evidence::SamplesListResponse {
+    let samples = SamplesListResponse {
         samples: (0..1024)
-            .map(|index| host::evidence::SampleRow {
-                kind: Some(host::evidence::sample_row::Kind::Raw(host::evidence::TelemetrySample {
+            .map(|index| SampleRow {
+                kind: Some(Kind::Raw(TelemetrySample {
                     sample_id: format!("00000000-0000-7000-8000-{index:012x}"),
                     stream: "thermal.cycle.counter".into(),
                     schema_version: 1,
@@ -86,11 +93,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             .collect(),
         ..Default::default()
     };
-    let frame = host::plots::PlotFrame {
+    let frame = PlotFrame {
         time: (0..1024).map(|index| index as f64 / 1000.0).collect(),
         series: (0..4)
-            .map(|_| host::plots::PlotColumn {
-                y: (0..1024).map(|index| host::plots::NullableNumber { value: Some(index as f64) }).collect(),
+            .map(|_| PlotColumn {
+                y: (0..1024).map(|index| NullableNumber { value: Some(index as f64) }).collect(),
                 ..Default::default()
             })
             .collect(),
@@ -98,18 +105,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         signature: "thermal.cycle.counter".into(),
         ..Default::default()
     };
-    let report = host::ReportsGetResponse {
-        report: Some(host::ReportMetadata {
+    let report = ReportsGetResponse {
+        report: Some(ReportMetadata {
             test_cycle_id: "00000000-0000-7000-8000-000000000002".into(),
             test_execution_id: Some("00000000-0000-7000-8000-000000000001".into()),
             identifier: "thermal.report".into(),
-            metadata: Some(model::Metadata {
+            metadata: Some(Metadata {
                 identifier: "thermal.report".into(),
                 label: "Thermal Report".into(),
                 ..Default::default()
             }),
             generated_at: Some(timestamp),
-            origin: host::ReportOrigin::Sealed as i32,
+            origin: ReportOrigin::Sealed as i32,
             ..Default::default()
         }),
         ..Default::default()

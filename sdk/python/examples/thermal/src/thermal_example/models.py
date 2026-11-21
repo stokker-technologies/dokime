@@ -43,7 +43,6 @@ DEFINITION = FileDescriptorProto(
                 )
             ],
         ),
-        DescriptorProto(name="Echo", field=[FieldDescriptorProto(name="payload", number=1, type=FieldDescriptorProto.TYPE_BYTES)]),
         DescriptorProto(name="Door", field=[FieldDescriptorProto(name="closed", number=1, type=FieldDescriptorProto.TYPE_BOOL)]),
     ],
 )
@@ -58,7 +57,6 @@ POOL.Add(DEFINITION)
 Temperature = GetMessageClass(POOL.FindMessageTypeByName("thermal.Temperature"))
 Counter = GetMessageClass(POOL.FindMessageTypeByName("thermal.Counter"))
 CounterColumns = GetMessageClass(POOL.FindMessageTypeByName("thermal.CounterColumns"))
-Echo = GetMessageClass(POOL.FindMessageTypeByName("thermal.Echo"))
 Door = GetMessageClass(POOL.FindMessageTypeByName("thermal.Door"))
 
 

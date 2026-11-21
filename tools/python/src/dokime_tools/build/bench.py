@@ -137,6 +137,7 @@ def main() -> None:
     if options.compiler_profile != "bench" and options.binary not in {"system-sdk", "protocol"}:
         parser.error("--compiler-profile dev is supported for system-sdk and protocol")
     if options.binary == "protocol":
+        generated.prepare()
         directory = Path.cwd()
         print(
             build(

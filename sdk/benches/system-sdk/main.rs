@@ -1,6 +1,6 @@
 /* ***
  *
- * dokime-rust-workspace
+ * Dokime
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -47,8 +47,24 @@ use tonic::{Request, client::Grpc, codegen::http::uri::PathAndQuery, transport::
 use tonic_prost::ProstCodec;
 
 // Local Imports
-use dokime_protocol::{host, model};
-use dokime_runtime::{CaptureSettings, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, services};
+use dokime::{ConnectionSettings, client::ExecutionsQuery, connect_with};
+use dokime_protocol::{
+    host::{
+        CasesCreateRequest, CasesCreateResponse, CyclesCreateRequest, CyclesCreateResponse, ExecutionsGetRequest, ExecutionsGetResponse,
+        PluginEntry, PluginPlacement, PluginRemote, PluginState, PluginValue, PluginsCreateRequest, PluginsDeleteRequest,
+        PluginsGetRequest, PluginsWatchRequest, RegisteredSelection, RegisteredSelectionParametersEntry, SelectionPlan, SelectionValues,
+        evidence::{SamplesListRequest, SamplesListResponse, sample_row},
+        plugin_placement,
+        plugins::{SettingsListRequest, SettingsListResponse, SettingsSetRequest, SettingsSetResponse},
+        plugins_client::PluginsClient,
+    },
+    model::{EvidenceScope, Metadata, Value, origin, value},
+};
+use dokime_runtime::{
+    CaptureSettings, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings,
+    services::{self, ClientSettings, WallClock},
+    storage_defaults,
+};
 use scenario::{Measurement, Scenario};
 
 /* === Constants === */
@@ -63,14 +79,14 @@ type BenchResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 struct Plugin {
     child: Child,
-    entry: host::PluginEntry,
+    entry: PluginEntry,
     ready_ms: f64,
 }
 
 #[derive(dokime::Message)]
 #[dokime(package = "thermal")]
 struct Echo {
-    payload: Vec<u8>,
+    value: Vec<u8>,
 }
 
 /* === Enums === */
@@ -100,28 +116,28 @@ impl Plugin {
         let mut child = command.spawn()?;
         let admitted = async {
             let address = launch.announced().await?;
-            let mut plugins = host::plugins_client::PluginsClient::new(channel);
+            let mut plugins = PluginsClient::new(channel);
             let response = plugins
-                .create(host::PluginsCreateRequest {
+                .create(PluginsCreateRequest {
                     request_id: format!("sdk-{language}-{}", child.id().unwrap_or_default()),
                     name: "thermal".into(),
-                    placement: Some(host::PluginPlacement {
-                        kind: Some(host::plugin_placement::Kind::Remote(host::PluginRemote { url: format!("http://{address}") })),
+                    placement: Some(PluginPlacement {
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: format!("http://{address}") })),
                     }),
-                    value: Some(host::PluginValue { enabled: true }),
+                    value: Some(PluginValue { enabled: true }),
                     ..Default::default()
                 })
                 .await?
                 .into_inner();
             let mut entry = response.entry.ok_or("Admit Plugin: Return Its Entry")?;
-            let mut watch = plugins.watch(host::PluginsWatchRequest { name: Some(entry.name.clone()), at: None }).await?.into_inner();
-            while entry.state != host::PluginState::Ready as i32 {
+            let mut watch = plugins.watch(PluginsWatchRequest { name: Some(entry.name.clone()), at: None }).await?.into_inner();
+            while entry.state != PluginState::Ready as i32 {
                 if let Some(failure) = &entry.failure {
                     return Err(format!("Admit Plugin: {}", failure.message).into());
                 }
                 watch.message().await?.ok_or("Admit Plugin: Keep Its Readiness Watch Open")?;
                 entry = plugins
-                    .get(host::PluginsGetRequest { name: entry.name, at: None })
+                    .get(PluginsGetRequest { name: entry.name, at: None })
                     .await?
                     .into_inner()
                     .entry
@@ -142,8 +158,8 @@ impl Plugin {
         }
     }
     async fn close(mut self, channel: Channel) -> BenchResult<()> {
-        let removed = host::plugins_client::PluginsClient::new(channel)
-            .delete(host::PluginsDeleteRequest {
+        let removed = PluginsClient::new(channel)
+            .delete(PluginsDeleteRequest {
                 name: self.entry.name,
                 expected_revision: self.entry.revision,
             })
@@ -164,14 +180,14 @@ async fn main() -> BenchResult<()> {
     let language = env::var("DOKIME_BENCH_LANGUAGE").map_err(|_| "Measure SDK: Set DOKIME_BENCH_LANGUAGE")?;
     let root = PathBuf::from(env::var("DOKIME_BENCH_ROOT")?);
     let namespace = CredentialNamespace::new(format!("sdk-bench-{}", process::id()))?;
-    let server = services::serve(
+    let server = Box::pin(services::serve(
         "127.0.0.1:0".parse()?,
         &root,
         HostSettings {
             installation: None,
             credentials: namespace.clone(),
-            storage: dokime_runtime::storage_defaults(),
-            clock: Arc::new(services::WallClock),
+            storage: storage_defaults(),
+            clock: Arc::new(WallClock),
             capture: CaptureSettings::default(),
             placement: PlacementSettings {
                 reconnect_delay: Duration::from_millis(25),
@@ -181,7 +197,7 @@ async fn main() -> BenchResult<()> {
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             },
         },
-        services::ClientSettings {
+        ClientSettings {
             read_timeout: Duration::from_secs(30),
             mutation_timeout: Duration::from_secs(30),
             watch_timeout: Duration::from_secs(3600),
@@ -190,11 +206,11 @@ async fn main() -> BenchResult<()> {
             message_bytes: 4 * 1024 * 1024,
             stream_buffer: 8,
         },
-    )
+    ))
     .await?;
     let endpoint = format!("http://{}", server.endpoint());
     let channel = Channel::from_shared(endpoint.clone())?.connect().await?;
-    let result = run(channel.clone(), &endpoint, &language).await;
+    let result = Box::pin(run(channel.clone(), &endpoint, &language)).await;
     let closed = server.close().await;
     services::remove_credentials(&root, &namespace)?;
     closed?;
@@ -323,19 +339,19 @@ async fn run(channel: Channel, endpoint: &str, language: &str) -> BenchResult<()
         ));
         let mut ceiling: f64 = 0.0;
         for interval in scenario.intervals_ns {
-            let current: host::plugins::SettingsListResponse = call(
+            let current: SettingsListResponse = call(
                 channel.clone(),
                 "/dokime.host.v1.plugins.Settings/List",
-                host::plugins::SettingsListRequest {
+                SettingsListRequest {
                     name: Some("thermal".into()),
                     ..Default::default()
                 },
             )
             .await?;
-            let _: host::plugins::SettingsSetResponse = call(
+            let _: SettingsSetResponse = call(
                 channel.clone(),
                 "/dokime.host.v1.plugins.Settings/Set",
-                host::plugins::SettingsSetRequest {
+                SettingsSetRequest {
                     name: "thermal".into(),
                     value: Some(SettingValues {
                         values: HashMap::from([(
@@ -383,7 +399,7 @@ async fn call<Q: Message + Default + Send + Sync + 'static, R: Message + Default
 }
 
 async fn echo(channel: Channel, fingerprint: Vec<u8>) -> BenchResult<()> {
-    let request = Echo { payload: scenario::PAYLOAD.to_vec() };
+    let request = Echo { value: scenario::PAYLOAD.to_vec() };
     let response: InvocationsCreateResponse = call(
         channel,
         "/dokime.host.v1.Invocations/Create",
@@ -394,7 +410,7 @@ async fn echo(channel: Channel, fingerprint: Vec<u8>) -> BenchResult<()> {
         },
     )
     .await?;
-    if Echo::decode(response.payload.as_slice())?.payload != scenario::PAYLOAD {
+    if Echo::decode(response.payload.as_slice())?.value != scenario::PAYLOAD {
         return Err("Measure Echo: Return the Request Payload Unchanged".into());
     }
     Ok(())
@@ -402,21 +418,19 @@ async fn echo(channel: Channel, fingerprint: Vec<u8>) -> BenchResult<()> {
 
 async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[String], pid: u32) -> BenchResult<(f64, Option<f64>)> {
     let identity = format!("load-{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_nanos());
-    let cases: host::CasesCreateResponse = call(
+    let cases: CasesCreateResponse = call(
         channel.clone(),
         "/dokime.host.v1.Cases/Create",
-        host::CasesCreateRequest {
+        CasesCreateRequest {
             request_id: identity.clone(),
-            plan: Some(host::SelectionPlan {
-                selections: vec![host::RegisteredSelection {
+            plan: Some(SelectionPlan {
+                selections: vec![RegisteredSelection {
                     suite_id: "thermal".into(),
                     template_id: "thermal.load".into(),
-                    parameters: vec![host::RegisteredSelectionParametersEntry {
+                    parameters: vec![RegisteredSelectionParametersEntry {
                         key: "burst".into(),
-                        value: Some(host::SelectionValues {
-                            values: vec![model::Value {
-                                kind: Some(model::value::Kind::Boolean(burst)),
-                            }],
+                        value: Some(SelectionValues {
+                            values: vec![Value { kind: Some(value::Kind::Boolean(burst)) }],
                         }),
                     }],
                     ..Default::default()
@@ -432,19 +446,20 @@ async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[St
         .origin
         .as_ref()
         .and_then(|origin| match origin.kind.as_ref() {
-            Some(model::origin::Kind::PluginRun(run)) => run.test_case.as_ref(),
+            Some(origin::Kind::PluginRun(run)) => run.test_case.as_ref(),
             _ => None,
         })
         .ok_or("Measure Throughput: Freeze the Plugin Case Before Running")?;
     if frozen.streams.iter().collect::<BTreeSet<_>>() != streams.iter().collect::<BTreeSet<_>>() {
         return Err("Measure Throughput: Materialize the Shared Scenario's Exact Stream Selection".into());
     }
-    let cycle: host::CyclesCreateResponse = call(
+    let cycle: CyclesCreateResponse = call(
         channel.clone(),
         "/dokime.host.v1.Cycles/Create",
-        host::CyclesCreateRequest {
+        CyclesCreateRequest {
+            origins: vec![case.origin.clone().ok_or("Measure Throughput: Retain Its Frozen Origin")?],
             request_id: format!("cycle-{identity}"),
-            metadata: Some(model::Metadata {
+            metadata: Some(Metadata {
                 label: "Thermal Cycle".into(),
                 ..Default::default()
             }),
@@ -453,14 +468,18 @@ async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[St
     )
     .await?;
     let cycle = cycle.cycle.ok_or("Measure Throughput: Create Its Cycle")?.cycle_id;
-    let client = dokime::connect_with(dokime::ConnectionSettings {
+    let client = connect_with(ConnectionSettings {
         target: Some(endpoint.into()),
         ..Default::default()
     })
     .await?;
-    let case = client.cases().get(&case.case_id).await?;
-    let cycle = client.cycles().get(&cycle).await?;
-    let execution_handle = cycle.execution(&case).await?;
+    let execution_handle = client
+        .executions()
+        .list_with(ExecutionsQuery { cycle, ..Default::default() })
+        .await?
+        .into_iter()
+        .next()
+        .ok_or("Measure Throughput: Admit Its Execution With the Frozen Origin")?;
     let execution = execution_handle.identifier().to_owned();
     execution_handle.start().await?;
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -475,10 +494,10 @@ async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[St
     }
     let elapsed = started.elapsed().as_secs_f64();
     let end = Timestamp::from(SystemTime::now());
-    let current: host::ExecutionsGetResponse = call(
+    let current: ExecutionsGetResponse = call(
         channel.clone(),
         "/dokime.host.v1.Executions/Get",
-        host::ExecutionsGetRequest {
+        ExecutionsGetRequest {
             name: execution.clone(),
             ..Default::default()
         },
@@ -490,8 +509,8 @@ async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[St
     let mut watch = execution_handle.watch();
     while watch.next().await?.is_some() {}
     let mut count = 0;
-    let mut request = host::evidence::SamplesListRequest {
-        scope: Some(model::EvidenceScope {
+    let mut request = SamplesListRequest {
+        scope: Some(EvidenceScope {
             execution_id: Some(execution),
             ..Default::default()
         }),
@@ -499,10 +518,9 @@ async fn throughput(channel: Channel, endpoint: &str, burst: bool, streams: &[St
         ..Default::default()
     };
     loop {
-        let page: host::evidence::SamplesListResponse =
-            call(channel.clone(), "/dokime.host.v1.evidence.Samples/List", request.clone()).await?;
+        let page: SamplesListResponse = call(channel.clone(), "/dokime.host.v1.evidence.Samples/List", request.clone()).await?;
         for row in page.samples {
-            let Some(host::evidence::sample_row::Kind::Raw(sample)) = row.kind else {
+            let Some(sample_row::Kind::Raw(sample)) = row.kind else {
                 return Err("Measure Throughput: Return Raw Accepted Samples".into());
             };
             let received = sample.received_at.ok_or("Measure Throughput: Retain Host Receipt Timestamps")?;

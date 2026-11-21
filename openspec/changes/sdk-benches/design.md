@@ -7,7 +7,7 @@ change them without changing the specs.
 
 ## Context
 
-### Bench Surface Today
+### Bench Surface Before This Change
 
 | Surface | Target | Local Task | Hosted |
 | --- | --- | --- | --- |
@@ -116,10 +116,10 @@ Illustrative Rust declaration (final names follow the SDK at implementation time
 
 ```rust
 let plugin = Plugin::of::<ThermalPlugin>("1.0.0")
-    .operation(Operation::new("thermal.echo", echo))
+    .operation(Operation::new("thermal.echo", Visibility::Public, echo))
     .suite(Suite::of::<ThermalSuite>().template(cycle).template(load));
 
-async fn echo(_: &Context, request: Echo) -> Result<Echo> {
+async fn echo(_: &operations::Context, request: Echo) -> Result<Echo> {
     Ok(request)
 }
 ```
@@ -127,7 +127,7 @@ async fn echo(_: &Context, request: Echo) -> Result<Echo> {
 Illustrative Python declaration:
 
 ```python
-async def echo(ctx: Context, request: Echo) -> Echo:
+async def echo(ctx: operations.Context, request: BytesValue) -> BytesValue:
     return request
 
 
@@ -164,7 +164,8 @@ The scenario is fixed and identical for every language:
 1. Start to ready: spawn the plugin process, stop the clock when the host admits it.
    Repeat with fresh processes.
 2. Idle memory: read the plugin process's resident memory after admission, with no
-   execution running.
+   execution running. On Windows include its interpreter descendants, so the
+   virtual-environment launcher alone is never reported as Python's footprint.
 3. Round trip: call `thermal.echo` with a fixed small payload, one call at a time,
    for the latency distribution; then with a fixed number of concurrent callers
    for calls per second.
@@ -231,7 +232,7 @@ platform and job variant, so a run is compared with the previous `dev` run.
 `proto/dokime/model/v1/evidence.proto` and `proto/dokime/host/v1/{evidence,plots,reports}`:
 encode and decode time per message and the encoded size in bytes for evidence,
 sample batches, plot frames and report responses at fixed sizes. Proposed
-location: `crates/dokime-protocol/benches/protocol/`.
+location: `sdk/benches/protocol/` in the private bench package.
 
 `Bench / Storage` measures this product's objects through the library's storage
 operations: write an execution with its evidence, seal it, and query one million
@@ -250,6 +251,8 @@ storage bench as a measurement owner.
 materializer retains the 128 channel streams when false and only the burst
 stream when true. Both placements use the same hold operation and granted-window
 counter sampler. The duration setting changes only the burst observer's interval.
+The echo payload is one bytes field named `value`; Python uses protobuf's typed
+`BytesValue`, and the Rust declaration has the same structural schema.
 
 The private `sdk/benches/` workspace package owns both native bench targets, so
 the driver, protocol bench, desktop bench and thermal example share the product
@@ -294,6 +297,14 @@ job. Removing a job removes its rows from the report and nothing else.
 
 ## Open Questions
 
+- Common report-row construction overlaps between
+  `tools/python/src/dokime_tools/release/reports.py::measurements` (called by the
+  Criterion/Python producer in `test/benchmark.py`) and
+  `test/{sdk_bench,protocol_bench}.py::collect` (called by the SDK and protocol
+  producers). The latter support mixed units and unavailable stages; the former
+  assumes nanoseconds. Proposed: extend the shared report owner, then delete the
+  private row-envelope construction while retaining each collector's parsing.
+  Both remain pending the owner's overlap decision.
 - The plugin launch handshake change and the plugin contract freeze have no
   change in `openspec/changes/` yet; this change names them in words until they do.
 - Thermal extended in place versus a separate reference plugin per language;

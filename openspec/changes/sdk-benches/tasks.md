@@ -14,10 +14,10 @@
 
 ## 3. Driver and Guard
 
-- [ ] 3.1 Add the `system-sdk` bench target with the catalog guard that compares each plugin's admitted catalog with the Rust reference plugin; verify a deterministic test that a plugin with one extra stream is refused with that stream's identifier and records no measurement.
-- [ ] 3.2 Implement the fixed scenario and the round trip, throughput at 128 × 1 kHz, single-stream ceiling, start to ready, idle and loaded memory measures in the existing report row shape, with units in square brackets and `not_measured` rows for unmeasurable stages; verify `mise run bench -- --language rust --layer system --binary system-sdk --once` produces every case name for each available language.
+- [x] 3.1 Add the `system-sdk` bench target with the catalog guard that compares each plugin's admitted catalog with the Rust reference plugin; verify a deterministic test that a plugin with one extra stream is refused with that stream's identifier and records no measurement.
+- [x] 3.2 Implement the fixed scenario and the round trip, throughput at 128 × 1 kHz, single-stream ceiling, start to ready, idle and loaded memory measures in the existing report row shape, with units in square brackets and `not_measured` rows for unmeasurable stages; verify `mise run bench -- --language rust --layer system --binary system-sdk --once` produces every case name for each available language.
   - Owner decision: vary the existing observer interval setting for the single-stream ceiling; every response retains exactly the host-granted sample count.
-- [ ] 3.3 Route `--binary system-sdk` and the language `--select` variants through `tools/python/src/dokime_tools/task/bench.py` and `test/benchmark.py`, and add the build of the bench target and its fixtures to `build:rust:bench`; verify the task selection with the existing tooling tests.
+- [x] 3.3 Route `--binary system-sdk` and the language `--select` variants through `tools/python/src/dokime_tools/task/bench.py` and `test/benchmark.py`, and add the build of the bench target and its fixtures to `build:rust:bench`; verify the task selection with the existing tooling tests.
 
 ## 4. Baselines and Report
 
@@ -28,7 +28,7 @@
 
 ## 5. Nightly Jobs
 
-- [ ] 5.1 Add `Bench / SDK / <Language> (<platform>)` for Rust, Python, C# and C++ on `unix` and `windows` to `.github/workflows/nightly.yml`, reusing the `Build / Bench`, `Build / SDK / Python` and `Build / SDK / <Language> / Fixtures` archives, and add them to the `needs` of `Release / Report / Nightly` only; verify the job graph shows `Release / Publish / GitHub` independent of them.
+- [x] 5.1 Add `Bench / SDK / <Language> (<platform>)` for Rust, Python, C# and C++ on `unix` and `windows` to `.github/workflows/nightly.yml`, reusing the `Build / Bench`, `Build / SDK / Python` and `Build / SDK / <Language> / Fixtures` archives, and add them to the `needs` of `Release / Report / Nightly` only; verify the job graph shows `Release / Publish / GitHub` independent of them.
 - [ ] 5.2 Add the `Bench / Protocol` Criterion target for evidence, sample, plot and report messages (encode, decode, size) and its `Bench / Protocol (<platform>)` job; verify it appears in `benchmarks.json` and the release notes of a Nightly run.
 
 ## 6. Storage Bench After the Cutover

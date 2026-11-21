@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -58,13 +58,18 @@ criterion = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # Utilities
-windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Threading",
+] }
 
 # === Test Targets === #
 
 [[test]]
 name = "sdk-bench-scenario"
-path = "system-sdk/scenario.rs"
+path = "system-sdk/tests.rs"
 
 # === Bench Targets === #
 

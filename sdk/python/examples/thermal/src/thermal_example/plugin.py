@@ -21,13 +21,14 @@ from dokime_sdk import Plugin, Suite, operations
 from dokime_sdk.operations import OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
 from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
 from google.protobuf.message import Message
+from google.protobuf.wrappers_pb2 import BytesValue
 
 # isort: split
 
 # Local Imports
 from thermal_example import sampling
 from thermal_example.load import ThermalLoadTestTemplate
-from thermal_example.models import Counter, CounterColumns, Door, Echo, Temperature
+from thermal_example.models import Counter, CounterColumns, Door, Temperature
 
 # Type Checking Imports
 
@@ -58,7 +59,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     async def ramp(self, ctx: Context) -> None:
         await ctx.progress(1, 2, label="Ramp to Target")
 
-    @step("Hold", identifier="hold")
+    @step("Hold", identifier="hold", policy=OperationPolicy())
     async def hold(self, ctx: Context) -> None:
         answer = await ctx.prompt("Is the Door Closed?", choices=["Yes", "No"])
         await ctx.record(self.door, Door(closed=answer == "Yes"))
@@ -98,7 +99,7 @@ class ThermalSuite(Suite):
 
 
 @operation("thermal.echo", visibility=Visibility.PUBLIC)
-async def echo(ctx: operations.Context, request: Echo) -> Echo:
+async def echo(ctx: operations.Context, request: BytesValue) -> BytesValue:
     return request
 
 

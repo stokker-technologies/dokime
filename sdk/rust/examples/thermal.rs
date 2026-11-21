@@ -45,7 +45,7 @@ struct LoadTestTemplate;
 #[derive(dokime::Message)]
 #[dokime(package = "thermal")]
 struct Echo {
-    payload: Vec<u8>,
+    value: Vec<u8>,
 }
 
 #[derive(dokime::Parameters)]
@@ -157,7 +157,7 @@ fn main() -> Result<()> {
     let mut load = Template::of::<LoadTestTemplate>()
         .label("Thermal Load")
         .parameters(LoadParameters { burst: false })
-        .initialize(load_initialize)
+        .initialize(async |ctx: &Context| ctx.progress(0, 1, "Hold").await)
         .step(Step::new("Hold", load_hold).identifier("hold"))
         .materialize(|mut case, parameters| {
             let burst = matches!(parameters.get("burst").and_then(|value| value.kind.as_ref()), Some(value::Kind::Boolean(true)));
@@ -188,10 +188,6 @@ fn main() -> Result<()> {
 
 async fn echo(_: &operations::Context, request: Echo) -> Result<Echo> {
     Ok(request)
-}
-
-async fn load_initialize(ctx: &Context) -> Result<()> {
-    ctx.progress(0, 1, "Hold").await
 }
 
 async fn load_hold(ctx: &Context) -> Result<()> {
