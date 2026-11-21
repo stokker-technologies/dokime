@@ -3,7 +3,8 @@
 - [x] Reproduce and Retire the Superseded Load-Deadline Failure Story Against the Locked Offline Contract; Its Timeout-Prose Assertion Failed at Line 67 After Offline Projection Removed the Failure. Four Retained Readiness Tests Pass.
 - [ ] Reproduce and Retire the Superseded Unreachable-Remote Health Story; Identify Its Blocked Watch Await and Prove Retained Offline Registration Tests.
 - [x] Keep Embedded Reports Free of Live RPC Dependencies While Preserving Session-Owned Plugin Restart; Complete the Planning Session Mock and Prove Six Focused Desktop Integrations, 41 Neighboring Units and TypeScript Checking.
-- [ ] Resolve the Packaged C++ SDK Archive Before Entering the SDK Task Directory; Prove the CI Dispatch Regression and Native Package Consumers.
+- [x] Reproduce the C++ SDK Failure Before Configure and Resolve Its Archive Before Entering the SDK Task Directory; All 17 CI Dispatch Tooling Tests Pass.
+- [ ] Complete Native C++ Package Consumer Proof With a Compatible MSVC Toolset: Configure Passes, but the Hosted Archive Uses MSVC 19.52/14.52 and This Windows Machine Has 19.44/14.44; Linking Fails on New Standard-Library Symbols Before CTest.
 - [ ] Complete Format, Repository, Strict OpenSpec and Workspace Test-Target Compilation Proof; Report Native Linux Proof Separately.
 
 ## Library State and Ownership
