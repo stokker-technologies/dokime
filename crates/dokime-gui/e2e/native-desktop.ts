@@ -11,7 +11,6 @@
 
 /* === Imports === */
 
-import type { Session } from "./native-fixture.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -19,6 +18,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+
+import type { Session } from "./native-fixture.ts";
 
 import {
   answerPendingPrompts,

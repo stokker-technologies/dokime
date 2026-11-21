@@ -12,7 +12,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-import type { Session } from "./native-fixture.ts";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -26,6 +25,7 @@ import { parseArgs, promisify } from "node:util";
 // Third Party Imports
 
 // Local Imports
+import type { Session } from "./native-fixture.ts";
 import {
   answerPendingPrompts,
   obcExecutable,

@@ -8,6 +8,7 @@ import { dirname, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
+import type { Session } from "../../e2e/native-fixture.ts";
 
 // The Harness Parses Its Own Arguments; Criterion Arguments Belong To The Rust Owner.
 process.argv = [process.execPath, fileURLToPath(import.meta.url), "--profile", "bench"];
@@ -46,7 +47,7 @@ const keepEvidence = process.env.DOKIME_KEEP_EVIDENCE === "1";
 const results: (Record<string, unknown> & { outcome: string })[] = [];
 const resources: { epoch: number; time_ms: number; cpu_s: number; memory_bytes: number }[] = [];
 const captured = new Set();
-let desktop: import("../../e2e/native-fixture.ts").Session | undefined;
+let desktop: Session | undefined;
 let cleanup: (() => Promise<void>) | undefined;
 let host: NativeProcess | undefined;
 let sampler: ChildProcess | undefined;

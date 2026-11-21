@@ -1,14 +1,15 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Generate Frontend Protobuf Modules From the Authoritative Descriptor Set.
 
-import type { DescMessage, Message } from "@bufbuild/protobuf";
-import type { DescriptorProto, EnumDescriptorProto } from "@bufbuild/protobuf/wkt";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+
+import type { DescMessage, Message } from "@bufbuild/protobuf";
+import type { DescriptorProto, EnumDescriptorProto } from "@bufbuild/protobuf/wkt";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const gui = resolve(root, "crates/dokime-gui");
@@ -161,8 +162,8 @@ const snapshotType = registryTypes.getMessage("dokime.host.v1.SettingsGetRespons
 const defaults = fromBinary(snapshotType, readFileSync(options.defaults ?? resolve(root, "target/generated/preferences/defaults.bin")));
 type SettingsValue = string | number | boolean | null | SettingsObject;
 type SettingsObject = { [name: string]: SettingsValue };
-function project(message: Record<string, unknown>, descriptor: DescMessage): SettingsObject {
-  const value: SettingsObject = {};
+function project(message: Record<string, unknown>, descriptor: DescMessage): Record<string, unknown> {
+  const value: Record<string, unknown> = {};
   for (const field of descriptor.fields) {
     const current = message[field.localName];
     if (field.fieldKind === "message") value[field.name] = project(current as Record<string, unknown>, field.message);
@@ -173,7 +174,7 @@ function project(message: Record<string, unknown>, descriptor: DescMessage): Set
         .find((item) => item.number === current)!
         .name.slice(prefix.length)
         .toLowerCase();
-    } else value[field.name] = typeof current === "bigint" ? Number(current) : ((current as string | number | boolean | null) ?? null);
+    } else value[field.name] = typeof current === "bigint" ? Number(current) : (current ?? null);
   }
   return value;
 }

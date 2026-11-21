@@ -14,9 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-import type { DescMessage, JsonValue, MessageShape } from "@bufbuild/protobuf";
-import type { DesktopSessionSnapshot } from "../src/lib/desktop/session.ts";
-import type { Session } from "./native-fixture.ts";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
@@ -24,10 +21,13 @@ import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 
 // Third Party Imports
+import type { DescMessage, JsonValue, MessageShape } from "@bufbuild/protobuf";
 import { transformWithOxc } from "vite";
 import { fromBinary, fromJson, toBinary, toJson } from "@bufbuild/protobuf";
 
 // Local Imports
+import type { DesktopSessionSnapshot } from "../src/lib/desktop/session.ts";
+import type { Session } from "./native-fixture.ts";
 
 /* === Re-Exports === */
 

@@ -118,7 +118,7 @@ to documentation-only jobs; the metadata query compiles no Rust.
 ### Remaining Overlap Requiring Owner Decision
 
 The owner resolved the descriptor lookup overlap on 2026-11-21:
-`crates/dokime-gui/tools/host-bindings.mjs` resolves Cargo metadata and reads the
+`crates/dokime-gui/tools/host-bindings.ts` resolves Cargo metadata and reads the
 pinned library descriptor once at entry. It validates and combines the descriptors
 once and passes the same descriptor set and digest to native and frontend generators.
 There is no second lookup.

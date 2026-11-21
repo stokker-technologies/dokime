@@ -103,8 +103,18 @@ class TraceSummaryTests(unittest.TestCase):
                 (trace_directory / "child-123.pftrace").write_text('{"traceEvents":[]}', encoding="utf-8")
                 raise RuntimeError("fixture runner failure")
 
-            with patch.object(execution, "execute", side_effect=execute), self.assertRaisesRegex(RuntimeError, "fixture runner failure"):
-                lanes.run(root, "integration", "typescript", ".", "dev", ["node", "fixture", "{junit}"])
+            with patch.object(execution, "execute", side_effect=execute):
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "fixture runner failure",
+                    lanes.run,
+                    root,
+                    "integration",
+                    "typescript",
+                    ".",
+                    "dev",
+                    ["node", "fixture", "{junit}"],
+                )
             summary = destinations[0] / "time-summary.json"
             self.assertEqual(json.loads(summary.read_text(encoding="utf-8"))["trace_files"], 1)
         finally:

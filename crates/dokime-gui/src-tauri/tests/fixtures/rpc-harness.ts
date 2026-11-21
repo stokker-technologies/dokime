@@ -20,9 +20,9 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { transformWithOxc } from "vite";
 
 // Third Party Imports
+import { transformWithOxc } from "vite";
 
 // Local Imports
 

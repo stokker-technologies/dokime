@@ -3,12 +3,13 @@
 
 /* === Imports === */
 
-import type { DescriptorProto, FileDescriptorProto, FileDescriptorSet } from "@bufbuild/protobuf/wkt";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import type { DescriptorProto, FileDescriptorProto, FileDescriptorSet } from "@bufbuild/protobuf/wkt";
 import { create, createFileRegistry, fromBinary, getExtension, toBinary, toJsonString } from "@bufbuild/protobuf";
 import {
   CodeGeneratorRequestSchema,

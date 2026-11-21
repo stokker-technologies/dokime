@@ -72,6 +72,20 @@ const timings: { scene: string; category: string; name: string; milliseconds: nu
 const promptSightings: unknown[] = [];
 const cycleInputSightings: unknown[] = [];
 const secrets = new Set<string>();
+
+let timingScene = "setup";
+let work: string;
+let evidence: string;
+let reportBrowser: ReportBrowser;
+let nativePickerWorker: NativePickerWorker | undefined;
+let driverProcess: ChildProcess;
+let backend: Backend | undefined;
+let nativeScratch: string;
+let secretBus: ChildProcess | undefined;
+let secretKeyring: ChildProcess | undefined;
+let scratchEnvironment = {};
+/* === Types === */
+
 export type Element = { "element-6066-11e4-a52e-4f735466cecf": string };
 export type Picker = { window: string | number | null; entered?: boolean | number; submitted?: boolean };
 type Process = ChildProcess & { startupError?: Error };
@@ -121,17 +135,7 @@ type NativePickerWorker = {
   busy: boolean;
   closed?: Promise<never>;
 };
-let timingScene = "setup";
-let work: string;
-let evidence: string;
-let reportBrowser: ReportBrowser;
-let nativePickerWorker: NativePickerWorker | undefined;
-let driverProcess: ChildProcess;
-let backend: Backend | undefined;
-let nativeScratch: string;
-let secretBus: ChildProcess | undefined;
-let secretKeyring: ChildProcess | undefined;
-let scratchEnvironment = {};
+
 async function unusedPort() {
   const socket = net.createServer();
   socket.listen(0, "127.0.0.1");
