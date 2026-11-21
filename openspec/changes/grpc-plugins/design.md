@@ -1361,6 +1361,8 @@ def operation[F: Callable[..., object]](
     policy: OperationPolicy | None = None, description: str = "", replay_safe: bool = False,
 ) -> Callable[[F], F]: ...  # Infer one request and result annotation; identity defaults to function code name.
 
+def declaration[Q: Payload, R: Payload](handler: Callable[[Context, Q], Awaitable[R]]) -> Operation[Q, R]: ...  # Read the decorated function's immutable declaration.
+
 def step[F: Callable[..., object]](
     label: str, *, identifier: str | None = None, retries: int = 0,
     repeatable: bool = False, policy: OperationPolicy | None = None,
