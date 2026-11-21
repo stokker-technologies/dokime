@@ -50,9 +50,6 @@ class Document:
         self.message.sections.add().CopyFrom(section.message)
         return self
 
-    def _definition(self) -> dict[str, list[int]]:
-        return {"message": list(self.message.SerializeToString())}
-
 
 class Section:
     def __init__(self, label: str) -> None:
@@ -110,9 +107,6 @@ class Section:
         if order_by is not None:
             self.message.repeat.order_by.CopyFrom(_expression(order_by))
         return self
-
-    def _definition(self) -> dict[str, list[int]]:
-        return {"message": list(self.message.SerializeToString())}
 
 
 class Summary:

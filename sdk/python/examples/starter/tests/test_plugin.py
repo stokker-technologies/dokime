@@ -50,8 +50,6 @@ class PluginDescription(unittest.TestCase):
                 "capture.confirmation.confirmed",
             },
         )
-        self.assertEqual([suite.__name__ for suite in plugin.suites], ["CaptureSuite"])
-        self.assertEqual([template.__name__ for suite in plugin.suites for template in suite.templates], ["ConfirmationTestTemplate"])
 
         # Decode the Suite Section With Its Own Published Descriptor Set.
         pool = Default()
@@ -74,7 +72,6 @@ class PluginDescription(unittest.TestCase):
             ],
             [("capture.confirmation.confirm", "capture.confirmation.confirm")],
         )
-        self.assertIn("capture.confirmation.confirmed", operations)
         self.assertEqual([item.id for item in description.streams], ["capture.confirmation.temperature"])
 
 

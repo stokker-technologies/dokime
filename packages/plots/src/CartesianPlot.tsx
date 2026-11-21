@@ -34,7 +34,7 @@ import type {
 } from "./lib/types";
 import { isNumber } from "./lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "./axis";
-import { markerColor, resolvePlotCssColor, resolvePlotThemeColors } from "@dokime/plots/colors";
+import { markerColor, plotColor, resolvePlotCssColor, resolvePlotThemeColors } from "@dokime/plots/colors";
 import { usePlotInteraction } from "@dokime/plots/interaction";
 import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "./markers";
 import { PlotPlaceholder } from "./PlotPlaceholder";
@@ -1344,8 +1344,7 @@ function plotPixelRatio(): number {
  * declared colour, else the plot palette at the series index, resolved for canvas drawing.
  */
 export function seriesPaletteColor(colors: readonly string[], palette: readonly string[], index: number, element?: Element | null): string {
-  const paletteColor = palette.length ? palette[index % palette.length] : undefined;
-  return resolvePlotCssColor(colors[index] ?? paletteColor, element, palette[0]);
+  return resolvePlotCssColor(colors[index] ?? plotColor(index, palette), element, palette[0]);
 }
 
 /** Every point mark is a disc in the series colour with a plot-background outline for contrast. */

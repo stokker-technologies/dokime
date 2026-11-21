@@ -253,7 +253,10 @@ class AuthoringStory(unittest.TestCase):
         self.assertEqual(
             [item.metadata.identifier for item in case.message.steps], ["channels.channels.read_1", "channels.channels.read_2"]
         )
-        self.assertEqual([item.operation for item in case.message.steps], ["channels.channels.read"] * 2)
+        self.assertEqual(
+            {identifier: arguments for (_, identifier), (_, arguments) in case.bindings.items()},
+            {"channels.channels.read_1": {"channel": 1}, "channels.channels.read_2": {"channel": 2}},
+        )
         self.assertRaises(ValueError, case.step, "Duplicate", ChannelsTestTemplate.read, identifier="read_1")
 
     def test_operation_typing_comes_from_annotations(self) -> None:

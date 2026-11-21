@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,7 +21,6 @@ from unittest.mock import patch
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
 
 # Type Checking Imports
 
@@ -43,30 +42,28 @@ class HostFixtureStory(TestCase):
         original = Path.is_file
         for profile in ("dev", "release"):
             for name, home in (("dokime-host", "fixtures/host"), ("dokime", "bin")):
-                expected = paths.output(root, "build", profile) / home / f"{name}{extension}"
+                native = "windows-x86_64" if os.name == "nt" else "linux-x86_64"
+                expected = root / "target/build" / profile / native / home / f"{name}{extension}"
 
                 def present(path: Path, expected: Path = expected) -> bool:
                     return path == expected or original(path)
 
-                with (
-                    self.subTest(profile=profile, name=name),
-                    patch.dict(os.environ, {"TEST_PROFILE": profile}),
-                    patch.object(Path, "is_file", present),
-                ):
-                    os.environ.pop("DOKIME_TEST_HOST", None)
-                    os.environ.pop("DOKIME_TEST_CLI", None)
-                    self.assertEqual(host.fixture(name), expected)
+                self.enterContext(patch.dict(os.environ, {"TEST_PROFILE": profile}))
+                self.enterContext(patch.object(Path, "is_file", present))
+                os.environ.pop("DOKIME_TEST_HOST", None)
+                os.environ.pop("DOKIME_TEST_CLI", None)
+                self.assertEqual(host.fixture(name), expected)
 
         temporary_directory = TemporaryDirectory()
         try:
             binary = Path(temporary_directory.name) / f"prepared{extension}"
             binary.write_bytes(b"prepared")
             for name, variable in (("dokime-host", "DOKIME_TEST_HOST"), ("dokime", "DOKIME_TEST_CLI")):
-                with patch.dict(os.environ, {"TEST_PROFILE": "release", variable: str(binary)}):
-                    self.assertEqual(host.fixture(name), binary)
-                    binary.unlink()
-                    self.assertRaises(RuntimeError, host.fixture, name)
-                    binary.write_bytes(b"prepared")
+                self.enterContext(patch.dict(os.environ, {"TEST_PROFILE": "release", variable: str(binary)}))
+                self.assertEqual(host.fixture(name), binary)
+                binary.unlink()
+                self.assertRaises(RuntimeError, host.fixture, name)
+                binary.write_bytes(b"prepared")
         finally:
             temporary_directory.cleanup()
 

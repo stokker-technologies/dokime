@@ -81,7 +81,7 @@ class DocumentStory(unittest.TestCase):
         sweep = Parameter.sweep("loads", "Loads", [80.0, 100.0]).build()
         self.assertTrue(sweep.expansion.cartesian)
         self.assertEqual([value.literal.number for value in sweep.expression.array.values], [80.0, 100.0])
-        ladder = Parameter.numbers("ladder", "Ladder", [10.0, 20.0]).items(1, 8).build()
+        ladder = Parameter.list("ladder", "Ladder", float).default([10.0, 20.0]).items(1, 8).build()
         self.assertEqual([value.number for value in ladder.expression.literal.list.values], [10.0, 20.0])
         self.assertEqual((ladder.min_items, ladder.max_items), (1, 8))
         line = dokime_sdk.templates.Plot.line("voltage", "Voltage").unit("V").y(dokime_sdk.templates.field("samples", "voltage"))
