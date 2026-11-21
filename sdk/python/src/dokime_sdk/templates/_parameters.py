@@ -27,6 +27,13 @@ from .._values import Scalar, encode
 
 # === Constants === #
 
+_SCALAR_KINDS: dict[type, shared.ValueType] = {
+    bool: shared.VALUE_TYPE_BOOLEAN,
+    int: shared.VALUE_TYPE_INTEGER,
+    float: shared.VALUE_TYPE_NUMBER,
+    str: shared.VALUE_TYPE_TEXT,
+}
+
 # === Types === #
 
 # === Classes === #
@@ -56,16 +63,10 @@ class Parameter:
 
     @classmethod
     def list(cls, identifier: str, label: str, element: type[bool] | type[int] | type[float] | type[str]) -> "Parameter":
-        kinds: dict[type, shared.ValueType] = {
-            bool: shared.VALUE_TYPE_BOOLEAN,
-            int: shared.VALUE_TYPE_INTEGER,
-            float: shared.VALUE_TYPE_NUMBER,
-            str: shared.VALUE_TYPE_TEXT,
-        }
-        if element not in kinds:
+        if element not in _SCALAR_KINDS:
             raise TypeError("Declare List Parameter: Supply bool, int, float or str as the Element Type")
         result = cls(identifier, label, "VALUE_TYPE_LIST")
-        result.message.element_type = kinds[element]
+        result.message.element_type = _SCALAR_KINDS[element]
         return result
 
     @classmethod
@@ -73,11 +74,10 @@ class Parameter:
         choices = tuple(values)
         if not choices or any(type(value) is not type(choices[0]) for value in choices):
             raise ValueError("Declare Choice Parameter: Supply Nonempty Choices of One Scalar Type")
-        kinds = {bool: "VALUE_TYPE_BOOLEAN", int: "VALUE_TYPE_INTEGER", float: "VALUE_TYPE_NUMBER", str: "VALUE_TYPE_TEXT"}
-        kind = kinds.get(type(choices[0]))
+        kind = _SCALAR_KINDS.get(type(choices[0]))
         if kind is None:
             raise TypeError("Declare Choice Parameter: Supply bool, int, float or str Choices")
-        result = cls(identifier, label, kind)
+        result = cls(identifier, label, shared.ValueType.Name(kind))
         result.message.choices.extend(encode(value) for value in choices)
         return result
 
