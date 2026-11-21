@@ -13,22 +13,20 @@
 # Standard Library Imports
 import unittest
 from datetime import timedelta
-from types import ModuleType, SimpleNamespace
-from typing import Any, cast
+from types import ModuleType
+from typing import cast
 from unittest.mock import AsyncMock
 
 # Third Party Imports
 import harmos
-from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import Int64Value
 from harmos import plugin
 from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk import Plugin, Suite
-from dokime_sdk._generated.shared import RecordContracts
 from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, Visibility, declaration, operation
-from dokime_sdk.templates import TestTemplate, observer, record, step, stream
+from dokime_sdk.templates import TestTemplate, step
 
 # Type Checking Imports
 
@@ -87,41 +85,6 @@ class PeerRequirementsTests(unittest.IsolatedAsyncioTestCase):
             return request
 
         self.assertRaises(TypeError, declaration, undecorated)
-
-    async def test_plugin_observer_publishes_declared_records_in_inherited_scope(self) -> None:
-        class RecordingPlugin(Plugin):
-            version = "1.0.0"
-            reading = record(int)
-
-            @stream("Measurements", row=int)
-            @observer()
-            async def measurements(self, ctx: Context) -> int:
-                await ctx.record(self.reading, 42, request_id="reading")
-                return 42
-
-        owner = RecordingPlugin()
-        declarations = owner.declarations()
-        contracts = next(
-            RecordContracts.FromString(item.payload) for item in declarations.sections if item.type == RecordContracts.DESCRIPTOR.full_name
-        )
-        self.assertEqual(contracts.records[0].metadata.identifier, "recording.reading")
-        self.assertEqual(contracts.records[0].message, Int64Value.DESCRIPTOR.full_name)
-        transport = AsyncMock(spec=plugin.Context)
-        transport.attempt = 1
-        transport.scope = lambda: "execution"
-        context = Context(cast(plugin.Context, transport), owner)
-        host = AsyncMock()
-        host.time.get.return_value = Timestamp(seconds=5)
-        host.evidence.records.append.return_value = SimpleNamespace(ordinal=3)
-        context._host = cast(Any, host)
-        self.assertEqual(await owner.measurements(context), 42)
-        host.evidence.records.append.assert_awaited_once_with(
-            "execution", "recording.reading", Int64Value(value=42).SerializeToString(), Timestamp(seconds=5), request_id="reading"
-        )
-        unknown = record(int)
-        with self.assertRaises(ValueError):
-            await context.record(unknown, 1)
-        self.assertEqual(host.evidence.records.append.await_count, 1)
 
     def test_template_import_freezes_the_exact_contract_once(self) -> None:
         owner = CallerPlugin()

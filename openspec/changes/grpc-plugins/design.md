@@ -1605,9 +1605,14 @@ still settle on cancellation under their operation policies.
   observer/window batching and Rust/Python decoding, distinguishing absent, zero
   and nonzero values without NaN sentinels. The product interval storage consumer
   must adopt that library encoding before this capability is closed.
-- This task extends the operation context with record publication in its inherited
-  execution scope, overriding the earlier execution-only method inventory. It
-  does not permit choosing an execution or publishing outside an active run.
+- Plugin observer record publication is blocked by the library's scoped binding:
+  `Runtime::bind_grpc` and `ScopedBinding::start_samples` cannot accept product
+  call-context resources. `Dispatch::invoke` installs `Resources` for operations,
+  but sample child calls use the binding's original context; host admission then
+  refuses them. The library must accept an inherited call context when creating
+  the scoped binding and carry it through observer child calls. The product can
+  then supply its execution resources once before starting samples and expose
+  record publication on the operation context without a second scope registry.
 - Setting bounds require library `model/v1/setting.proto` `SettingDeclaration`
   to carry optional typed minimum/maximum values and validate both defaults and
   settings writes against them in every SDK. That declaration currently contains

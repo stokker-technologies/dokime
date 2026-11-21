@@ -32,7 +32,7 @@ from .._generated.shared import (
     ExecutionProgressValue,
     TraceabilityEntry,
 )
-from .._payloads import Payload
+from .._payloads import Payload, pack
 from .._transfers import publish_artifact
 from .._values import Artifact, Note, Scalar, Statistics, Termination, decode, encode
 from .._wire.model.v1.evidence_pb2 import ArtifactScope, Window
@@ -96,10 +96,19 @@ class Context(operations.Context):
             raise ValueError("Read Prompt Answer: Choose One of the Declared Actions")
         return actions[response.action]
 
-    def _record_identifier[T: Payload](self, declaration: Record[T]) -> str:
-        if id(declaration) in self.plugin._record_identifiers:
-            return super()._record_identifier(declaration)
-        return self._resolve(declaration)
+    async def record[T: Payload](
+        self,
+        declaration: Record[T],
+        payload: T,
+        *,
+        request_id: str | None = None,
+    ) -> int:
+        kind = self._resolve(declaration)
+        row = pack(declaration.row, payload)
+        response = await self._host.evidence.records.append(
+            self.execution, kind, row.SerializeToString(), _timestamp(await self.now()), request_id=request_id
+        )
+        return response.ordinal
 
     def records[T: Payload](self, declaration: Record[T], *, step: Callable[..., object] | None = None) -> "RecordsQuery[T]":
         self._resolve(declaration)

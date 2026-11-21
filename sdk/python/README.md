@@ -97,24 +97,6 @@ Programmatic `client.plugins.register(plugin, address=...)` owns the listener.
 Closing that client stops its listener and retains the host entry. Use
 `unregister()` explicitly to remove an entry.
 
-## Observer Records
-
-Declare records on the plugin class for plugin observers, or on a template for
-template handlers. Both contexts use the same publication method. Publication
-inherits the active execution scope; callers cannot select another execution.
-
-```python
-class MeasurementPlugin(Plugin):
-    version = "1.0.0"
-    reading = record(int)
-
-    @stream("Measurements", row=int)
-    @observer()
-    async def measurements(self, ctx):
-        await ctx.record(self.reading, 42)
-        return 42
-```
-
 The plugin version comes from its
 owning installed distribution, including editable installs; a class `version`
 overrides that metadata. Source-only plugins must declare a class version.

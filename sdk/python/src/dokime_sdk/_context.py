@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar
 # Third Party Imports
 import harmos
 from google.protobuf.duration_pb2 import Duration
-from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import VISIBILITY_PUBLIC, plugin
 
 import dokime_sdk._generated.client
@@ -32,7 +31,7 @@ from ._values import SampleRow
 # Type Checking Imports
 if TYPE_CHECKING:
     from . import operations
-    from ._authoring import Record, Stream
+    from ._authoring import Stream
     from ._plugin import Plugin
 
 # === Public Exports === #
@@ -54,24 +53,6 @@ class Context:
 
     def operation[Q: Payload, R: Payload](self, operation: "operations.Operation[Q, R]") -> "BoundOperation[Q, R]":
         return BoundOperation(self._transport, operation)
-
-    async def record[T: Payload](self, declaration: "Record[T]", payload: T, *, request_id: str | None = None) -> int:
-        kind = self._record_identifier(declaration)
-        row = pack(declaration.row, payload)
-        source_at = Timestamp()
-        source_at.FromDatetime(await self.now())
-        response = await call(
-            "evidence.records.append",
-            self._host.evidence.records.append(self._transport.scope(), kind, row.SerializeToString(), source_at, request_id=request_id),
-            request_id,
-        )
-        return response.ordinal
-
-    def _record_identifier[T: Payload](self, declaration: "Record[T]") -> str:
-        identity = self.plugin._record_identifiers.get(id(declaration))
-        if identity is None:
-            raise ValueError("Publish Record: Declare the Record on This Plugin Before Writing It")
-        return identity
 
     async def sleep(self, duration: float | timedelta) -> None:
         seconds = duration.total_seconds() if isinstance(duration, timedelta) else duration
