@@ -141,7 +141,10 @@ run = "{{vars.tools}} dokime_tools.docs.image"
 [tasks."docs:test"]
 description = "Test Documentation Tooling"
 usage = 'flag "--select <select>"'
-run = 'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/*.test.ts'
+run = [
+  "mise -C crates/dokime-gui run generate:host-frontend",
+  'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/*.test.ts',
+]
 
 [tasks."docs:format"]
 description = "Format the Documentation Site"
