@@ -21,7 +21,7 @@ confirmed support location; the owner must publish that location and coverage ho
 | Low | Usage question or minor defect | 10 business days |
 
 Statutory incident-reporting clocks run in elapsed hours independently of these
-targets; see [Compliance](compliance.md). No continuous monitoring or guaranteed
+targets; see [Compliance](project/compliance.md). No continuous monitoring or guaranteed
 resolution time is implied.
 
 ## Releases and End of Life
@@ -39,19 +39,19 @@ upgrade constraints and evidence-export guidance. Nightly has no maintenance win
 
 This development policy does not establish a CRA support period. Before applicable
 market placement, the owner must adopt the support-period rationale and obligations
-described in [Compliance](compliance.md); replacing a version cannot extinguish them.
+described in [Compliance](project/compliance.md); replacing a version cannot extinguish them.
 
 ## Upgrades and Continuity
 
 Read the [release notes](https://github.com/stokker-technologies/dokime/releases),
-[product guide](product-guide.md) and [Python SDK guide](../sdk/python/README.md).
+[product guide](index.md) and [Python SDK guide](../sdk/python/README.md).
 Pin matching application, client and plugin revisions. Export evidence and preserve
 backups before upgrading; qualify the new revision on a separate storage root.
 Development storage formats may break without a version bump, and no automatic
 migration is promised. Keep incompatible existing roots intact and use a fresh root.
 
 The [Apache-2.0 source](../LICENSE), [documented build](CONTRIBUTING.md#development-setup)
-and [exportable evidence](product-guide.md#storage-roots-and-archives) allow customers to retain
+and [exportable evidence](index.md#storage-roots-and-archives) allow customers to retain
 results and arrange independent maintenance. Archive the source revision, lockfiles,
 toolchain, build instructions and evidence format documentation alongside exports.
 These assets do not guarantee maintainer availability, replacement expertise,

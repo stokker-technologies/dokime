@@ -9,7 +9,7 @@ with both themes, declared viewports and a verifiable committed manifest.
 ### Requirement: Captured Screenshots
 
 The `screenshots` task SHALL capture every declared scene from the running desktop application in
-the light and the dark theme and write `docs/screenshots/<scene>-<theme>.png` with a manifest.
+the light and the dark theme and write `docs/guides/screenshots/<scene>-<theme>.png` with a manifest.
 
 #### Scenario: Both Themes Per Scene
 

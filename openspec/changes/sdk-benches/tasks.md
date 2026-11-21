@@ -34,5 +34,5 @@
 
 ## 7. Documentation and Final Validation
 
-- [ ] 7.1 Report the documentation impact to the owner: `docs/tooling.md` bench tasks and jobs, the cross-language report, and the SDK guides that name the reference plugin.
+- [ ] 7.1 Report the documentation impact to the owner: `docs/project/tooling.md` bench tasks and jobs, the cross-language report, and the SDK guides that name the reference plugin.
 - [ ] 7.2 After source closure, obtain hosted Nightly results for every `Bench / SDK / <Language>` and `Bench / Protocol` job on both platforms and report the measured rows, `not_measured` stages and regressions without claiming any pass or fail verdict.

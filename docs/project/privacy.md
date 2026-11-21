@@ -1,3 +1,6 @@
+---
+sidebar: { order: 4 }
+---
 # Privacy and Data Flows
 
 The host opens an explicitly configured local storage root. SQLite evidence,
@@ -17,7 +20,7 @@ pinned trust and bearer authorization; clients never access the data directory.
 Managed plugins execute trusted installed code in owned child processes. Remote
 plugins are user-owned endpoints. They are not sandboxed. Invocation context limits
 host operations by their admitted requirements and execution scope; it does not
-remove a plugin process's operating-system authority. See [Plugin Security](plugin-security.md).
+remove a plugin process's operating-system authority. See [Plugin Security](../guides/plugin-security.md).
 
 ## Diagnostics
 

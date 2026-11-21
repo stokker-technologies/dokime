@@ -12,7 +12,7 @@ fresh-root action.
 ## 1. Inventory and Contract
 
 - [ ] 1.1 Lock the source inventory against design.md Context: every template `cleanup` symbol, wire name and operation identity; every plugin `on_stop`/`OnStop` use; every Dokime `launch`, `shutdown` and `serve` symbol and whether it denotes start, stop or run; every plugin-level prompt and record registration; every import alias and path override in the repository; every module entry point in sample plugins, examples and fixtures. Accept when each item has an owning task below; record surprises in design.md before editing.
-- [ ] 1.2 Quote invariant 24 (Cancellation Preserves Cleanup and Evidence) and invariant 7 in `docs/architecture.md` with their purposes, update them and the `Executions` mapping and message rows of `docs/execution-host.md`, and record the paired-verb rule, host verbs, plugin and template phases (finalize after attempted initialize, termination in every SDK), Dokime kinds on the library registrar, template-owned prompts and records and the no-alias rule as locked direction with proposed status. Prove with `mise run check -- --repository`.
+- [ ] 1.2 Quote invariant 24 (Cancellation Preserves Cleanup and Evidence) and invariant 7 in `docs/project/architecture.md` with their purposes, update them and the `Executions` mapping and message rows of `docs/guides/execution-host.md`, and record the paired-verb rule, host verbs, plugin and template phases (finalize after attempted initialize, termination in every SDK), Dokime kinds on the library registrar, template-owned prompts and records and the no-alias rule as locked direction with proposed status. Prove with `mise run check -- --repository`.
 - [x] 1.3 Replace library-registrar re-exports and SDK ownership with the `plugin-boundary` decision; review both boundary changes and pass strict validation. Documentation only; implementation remains open.
 
 ## 2. Adopt the Harmos Revision
@@ -45,7 +45,7 @@ fresh-root action.
 ## 7. Authoring Guidance
 
 - [ ] 7.1 Document in the plugin authoring skill (`references/plugins.md` and `references/suites.md` under every tracked copy in `.claude/skills/dokime-authoring`, `.agents/skills/dokime-authoring` and `.github/skills/dokime-authoring`) the plugin and template phases, inert registration, native SDK register functions and module catalogs, the locked Python class composition and `plugin.serve()`, template-owned prompts and records, the canonical plugin layout with per-language sections (design.md D5), and the no-alias, no-path-override rule with each named exception. Accept when the three copies are identical; prove with `mise run check -- --repository`.
-- [ ] 7.2 Update `docs/rust-sdk.md`, `sdk/python/README.md`, `docs/sdk-python.md`, `docs/sdk-csharp.md`, `docs/sdk-cpp.md`, `docs/plugins.md` and `docs/plugin-obc.md` examples and lifecycle descriptions to the new names, register phase, native SDK catalogs and locked Python project/class surface. Prove with `mise run check -- --repository`.
+- [ ] 7.2 Update `docs/sdks/rust.md`, `sdk/python/README.md`, `docs/sdks/python.md`, `docs/sdks/csharp.md`, `docs/sdks/cpp.md`, `docs/guides/plugins.md` and `docs/plugin-obc.md` examples and lifecycle descriptions to the new names, register phase, native SDK catalogs and locked Python project/class surface. Prove with `mise run check -- --repository`.
 
 ## 8. Integration
 

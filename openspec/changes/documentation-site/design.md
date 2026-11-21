@@ -102,17 +102,17 @@ to documentation-only jobs; the metadata query compiles no Rust.
 
 ### Owner Documentation Edits Required
 
-- `docs/gui.md:4`: presentation now lives in the three workspace packages; the
+- `docs/guides/gui.md:4`: presentation now lives in the three workspace packages; the
   desktop retains native reads, recovery, plot editing and application composition.
-- `docs/gui.md:10`: organization presentation assets are generated in
+- `docs/guides/gui.md:10`: organization presentation assets are generated in
   `packages/document/src/generated/organization`; the report template is built at
   `target/generated/report/report.html` from `packages/report/report.html`.
-- `docs/architecture.md:647`: report capture embeds canonical host protobuf
+- `docs/project/architecture.md:647`: report capture embeds canonical host protobuf
   responses and uses the same host-free decoder as live document rendering;
   report -> document -> plots is the dependency direction.
-- `docs/tooling.md:279`: report building belongs to the report package; the GUI
+- `docs/project/tooling.md:279`: report building belongs to the report package; the GUI
   retains the generate:report orchestration task, not a build:report npm script.
-- `docs/tooling.md:308`: generate:report writes target/generated/report and the
+- `docs/project/tooling.md:308`: generate:report writes target/generated/report and the
   package tests run with the --project selector; docs build/serve prepare messages.
 
 ### Remaining Overlap Requiring Owner Decision

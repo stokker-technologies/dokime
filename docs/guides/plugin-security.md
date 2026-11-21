@@ -1,3 +1,6 @@
+---
+sidebar: { order: 4 }
+---
 # Plugin Security
 
 ## Trust Boundary
@@ -14,7 +17,7 @@ execution. The described identity/catalog must match the retained description.
 `services/managed_plugins.rs` owns replacement rollback and child cleanup;
 `crates/dokime-packaging/src/bundle/mod.rs` provides current CLI inspection.
 Description, operation fingerprints, explicit visibility and declared requirements
-remain admission boundaries. See [Architecture](architecture.md) for implemented
+remain admission boundaries. See [Architecture](../project/architecture.md) for implemented
 proof and remaining library composition/peer-routing obligations.
 
 ## Secrets and Remote Access
@@ -23,7 +26,7 @@ Product secret storage uses protected OS credential slots and durable metadata;
 saved settings are resolved on demand. Exported secret transfer files use bounded
 Base64 JSON, not encryption. Remote access uses the composed library Access TLS,
 pairing and certificate services, with one authorization layer for product services.
-See [Remote Access](remote/overview.md), [Privacy](privacy.md) and [Security](SECURITY.md).
+See [Remote Access](../remote/overview.md), [Privacy](../project/privacy.md) and [Security](../SECURITY.md).
 
 ## Failure and Cleanup
 

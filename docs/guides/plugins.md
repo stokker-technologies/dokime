@@ -1,3 +1,6 @@
+---
+sidebar: { order: 3 }
+---
 # Dokime Plugins
 
 Plugins expose operations and typed catalogs over gRPC. The host materializes
@@ -6,8 +9,8 @@ Managed executable and remote URL placements share these contracts.
 
 ## Authoring
 
-Use the [Rust](rust-sdk.md), [Python](../sdk/python/README.md),
-[C#](sdk-csharp.md) or [C++](sdk-cpp.md) SDK. Each owns its starter. The current
+Use the [Rust](../sdks/rust.md), [Python](../../sdk/python/README.md),
+[C#](../sdks/csharp.md) or [C++](../sdks/cpp.md) SDK. Each owns its starter. The current
 CLI embeds those exact starter sources:
 
 ```sh

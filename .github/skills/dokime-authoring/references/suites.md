@@ -5,7 +5,7 @@ The host initializes execution-local resources, orders steps and criteria, handl
 policy retries/cancellation and runs required cleanup. Samples, records and prompts
 retain scoped evidence; evaluated and declared outcomes stay distinct.
 
-Use the [Rust SDK Guide](../../../../docs/rust-sdk.md) or the other SDK's own guide
-for current builders and signatures. The [Execution Host Guide](../../../../docs/execution-host.md)
-owns current serving behavior; [Architecture](../../../../docs/architecture.md)
+Use the [Rust SDK Guide](../../../../docs/sdks/rust.md) or the other SDK's own guide
+for current builders and signatures. The [Execution Host Guide](../../../../docs/guides/execution-host.md)
+owns current serving behavior; [Architecture](../../../../docs/project/architecture.md)
 and the locked operation grammar own invariants and remaining proof obligations.

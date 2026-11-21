@@ -1,10 +1,13 @@
+---
+sidebar: { order: 5 }
+---
 # Read and Plot Contracts
 
 The current declarations live under the product model and host protocol folders,
 operations in `crates/dokime-operations/src/host/`, serving in
 `crates/dokime-runtime/src/services/` and persistence in `crates/dokime-storage/`.
 The [Execution Host Guide](execution-host.md) lists served methods and explicit refusals.
-The [Operation Grammar](../openspec/changes/operation-grammar/design.md) owns the
+The [Operation Grammar](../../openspec/changes/operation-grammar/design.md) owns the
 locked replacement names and position/revision contracts; those remain distinct
 from currently implemented behavior.
 

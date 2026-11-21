@@ -86,9 +86,9 @@ context callback configures every page's metadata or deadline override.
 
 The runnable examples are the scaffold sources:
 
-- [Client](../sdk/cpp/examples/client/main.cpp) reads the composed client resources.
-- [Plugin](../sdk/cpp/examples/plugin/main.cpp) serves a plugin in either placement.
-- [Test](../sdk/cpp/examples/test/main.cpp) declares a suite and template with
+- [Client](../../sdk/cpp/examples/client/main.cpp) reads the composed client resources.
+- [Plugin](../../sdk/cpp/examples/plugin/main.cpp) serves a plugin in either placement.
+- [Test](../../sdk/cpp/examples/test/main.cpp) declares a suite and template with
   execution resources, a step and a criterion.
 
 ```cpp
@@ -212,4 +212,4 @@ plugin administration, frozen schema caching, authoring contracts and both
 managed and remote execution. The library's conformance example is consumed
 from its pinned archive. The separate shared thermal fixture and real-host
 stories require the repaired core and their owner-managed fixture sources;
-see [Execution Host](execution-host.md) for those prerequisites.
+see [Execution Host](../guides/execution-host.md) for those prerequisites.

@@ -213,4 +213,4 @@ dotenv parsing and managed/remote calls. The C++ thermal host fixture is the
 `dokime-system-suite` target. Native Windows and Linux proof are independent.
 
 Use fresh development storage when changing evidence schemas; preserve existing
-roots. The [SDK guide](../../docs/sdk-cpp.md) is maintained by the owner.
+roots. The [SDK guide](../../docs/sdks/cpp.md) is maintained by the owner.

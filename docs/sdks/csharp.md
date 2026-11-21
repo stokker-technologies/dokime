@@ -1,3 +1,6 @@
+---
+sidebar: { order: 3 }
+---
 # C# SDK
 
 `Dokime` is the development NuGet package (`0.1.0-dev`, .NET 10). Public model

@@ -80,5 +80,5 @@ None. `native-desktop-performance` and `plot-refresh` keep the desktop benches.
   `tools/python/src/dokime_tools/{task/bench.py,test/benchmark.py,release/reports.py}`.
 - New Nightly jobs in `.github/workflows/nightly.yml` and the hosted baseline
   cache (`.github/actions/setup/action.yml`, `tools/python/src/dokime_tools/ci/native.py`).
-- Documentation impact for the owner: `docs/tooling.md` (bench tasks, jobs, the
+- Documentation impact for the owner: `docs/project/tooling.md` (bench tasks, jobs, the
   report) and the SDK guides that name the reference plugin.

@@ -5,7 +5,7 @@ description: Define Dokime domain, runtime, shell and packaging ownership and li
 
 # Dokime Architecture
 
-Read [Architecture](../../../docs/architecture.md) as the maintained source of
+Read [Architecture](../../../docs/project/architecture.md) as the maintained source of
 architectural invariants, their reasons, status and guarding proof. Quote the
 invariant a proposal touches and update that document in the same delivery.
 Establish a mechanism's purpose from its handler, tests and design, or the owner,

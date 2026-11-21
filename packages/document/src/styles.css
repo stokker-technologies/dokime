@@ -259,7 +259,7 @@
 }
 
 /* Plot references and markers: a muted sequence apart from the theme's series
-   palette (`--chart-*`), so a reference never reads as a trace. See docs/gui.md. */
+   palette (`--chart-*`), so a reference never reads as a trace. See docs/guides/gui.md. */
 :root {
   --plot-reference-1: #415166;
   --plot-reference-2: #9c8378;
