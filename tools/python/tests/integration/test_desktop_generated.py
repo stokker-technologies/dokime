@@ -74,7 +74,7 @@ writeFileSync(process.argv[1], toBinary(type, value));
             )
             output = directory / "modules"
             subprocess.run(
-                ["node", str(root / "tools/typescript/generate.mjs"), "--output", str(output), "--defaults", str(fixture)],
+                ["node", str(root / "tools/typescript/generate.ts"), "--output", str(output), "--defaults", str(fixture)],
                 cwd=root,
                 check=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

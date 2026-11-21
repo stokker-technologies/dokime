@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { execFileSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
-import { setTimeout as delay } from "node:timers/promises";
+import { setTimeout } from "node:timers/promises";
 
 const roots = new Set(process.argv.slice(2).map(Number));
 const ticks = Number(execFileSync("getconf", ["CLK_TCK"], { encoding: "utf8" }).trim());
@@ -19,7 +19,7 @@ while (true) {
         memory: Number(fields[21]) * pages,
       });
     } catch (error) {
-      if (!["ENOENT", "ESRCH", "EACCES"].includes(error.code)) throw error;
+      if (!["ENOENT", "ESRCH", "EACCES"].includes((error as NodeJS.ErrnoException).code!)) throw error;
     }
   }
   const owned = new Set(roots);
@@ -37,5 +37,5 @@ while (true) {
   process.stdout.write(
     `${JSON.stringify({ time_ms: Date.now(), cpu_s: selected.reduce((sum, entry) => sum + entry.cpu, 0), memory_bytes: selected.reduce((sum, entry) => sum + entry.memory, 0) })}\n`,
   );
-  await delay(200);
+  await setTimeout(200);
 }

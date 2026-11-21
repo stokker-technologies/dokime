@@ -78,7 +78,7 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
     elif language == "typescript":
         arguments += ["--project", "crates/dokime-gui"]
         if category == "system":
-            extra = ["node", "e2e/system.mjs", "--profile", profile, "--junit", "{junit}"]
+            extra = ["node", "e2e/system.ts", "--profile", profile, "--junit", "{junit}"]
         elif category in ("unit", "integration"):
             extra = [
                 "node",

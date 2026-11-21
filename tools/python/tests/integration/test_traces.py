@@ -111,12 +111,12 @@ class TraceSummaryTests(unittest.TestCase):
             temporary_directory.cleanup()
 
     def test_desktop_export(self) -> None:
-        module = Path(__file__).resolve().parents[4] / "crates/dokime-gui/e2e/test-trace.mjs"
+        module = Path(__file__).resolve().parents[4] / "crates/dokime-gui/e2e/test-trace.ts"
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            script = root / "fixture.mjs"
+            script = root / "fixture.ts"
             script.write_text(
                 f"import {{ traceSpan }} from {json.dumps(module.as_uri())};\n"
                 'await traceSpan("scene", "scene", async () => {\n'

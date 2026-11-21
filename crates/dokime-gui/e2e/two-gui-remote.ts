@@ -14,6 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
+import type { ArtifactSource, Delivered } from "@dokime/document/lib/contracts/delivery";
+import type { Document } from "@generated/application-settings";
+import type { Session } from "./native-fixture.ts";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -35,8 +38,8 @@ import {
   terminate,
   prepareNativeFixture,
   openNativeReport,
-} from "./native-fixture.mjs";
-import { call, invoke } from "./native-rpc.mjs";
+} from "./native-fixture.ts";
+import { call, invoke } from "./native-rpc.ts";
 
 /* === Re-Exports === */
 
@@ -45,15 +48,15 @@ import { call, invoke } from "./native-rpc.mjs";
 const { values: options } = parseArgs({ options: { profile: { type: "string", default: "dev" }, junit: { type: "string" } } });
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const target = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
-const sessions = [];
+const sessions: Session[] = [];
 const started = performance.now();
 const directory = await mkdtemp(join(tmpdir(), "dokime-two-gui-"));
 const work = await realpath(directory);
 const reports = join(workspace, "target/tests", options.profile, target, "system-typescript");
 await mkdir(reports, { recursive: true });
 const evidence = await mkdtemp(join(reports, "two-gui-remote-"));
-let cleanup;
-let failure;
+let cleanup: (() => Promise<void>) | undefined;
+let failure: unknown;
 
 /* === Types === */
 
@@ -64,7 +67,13 @@ let failure;
 /* === Private Functions === */
 
 // Drive the Native Picker Outside WebDriver; Keep Product Commands Unmodified.
-async function pick(desktop, command, args, path, operation = "Open") {
+async function pick<T = string>(
+  desktop: Session,
+  command: string,
+  args: Record<string, unknown>,
+  path: string,
+  operation = "Open",
+): Promise<T> {
   await desktop.execute(
     `
     const pending = {done: false};
@@ -82,7 +91,7 @@ async function pick(desktop, command, args, path, operation = "Open") {
     async () => (await desktop.execute("return window.__storyPicker.done;")) || chooseNativeFile(picker, path, operation, desktop.process),
   );
   const result = await until(`native ${command} completion`, async () => {
-    const current = await desktop.execute("return window.__storyPicker;");
+    const current = await desktop.execute<{ done: boolean; failure?: unknown; value: T }>("return window.__storyPicker;");
     return current.done ? current : null;
   });
   await desktop.execute("delete window.__storyPicker;");
@@ -92,7 +101,7 @@ async function pick(desktop, command, args, path, operation = "Open") {
   return result.value;
 }
 
-async function desktop(name, endpoint) {
+async function desktop(name: string, endpoint?: string) {
   const root = join(work, name);
   const output = join(evidence, name);
   await mkdir(root, { recursive: true });
@@ -105,11 +114,11 @@ async function desktop(name, endpoint) {
   return instance;
 }
 
-async function deliver(desktop, source, filename, kind, destination) {
+async function deliver(desktop: Session, source: ArtifactSource, filename: string, kind: string, destination?: string) {
   const status = await invoke(desktop, "desktop_session_status");
   const path = destination ?? join(desktop.downloads, filename);
   await mkdir(dirname(path), { recursive: true });
-  const saved = await pick(
+  const saved = await pick<Delivered>(
     desktop,
     "desktop_artifact_deliver",
     {
@@ -123,10 +132,10 @@ async function deliver(desktop, source, filename, kind, destination) {
   return saved;
 }
 
-function xml(value) {
+function xml(value: unknown) {
   return String(value).replace(
     /[&<>"']/g,
-    (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character],
+    (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character]!,
   );
 }
 
@@ -152,7 +161,7 @@ try {
   for (const [name, gui] of [
     ["a", a],
     ["b", b],
-  ]) {
+  ] as const) {
     const before = await call(a, "dokime.host.v1.access.Pairings", "List");
     const access = join(work, `client-${name}.pair`);
     assert.equal(await pick(a, "desktop_pairing_create", {}, access, "Save"), access);
@@ -166,12 +175,12 @@ try {
     await gui.connected();
     const selected = await invoke(gui, "desktop_session_status");
     assert.equal(selected.connection.remote, true);
-    assert.equal(selected.connection.backend.backendId, pairing.backend_identifier);
-    assert.equal(new URL(selected.connection.endpoint).origin, `https://${address}`);
-    const profiles = await invoke(gui, "desktop_backends_list");
+    assert.equal(selected.connection.backend!.backendId, pairing.backend_identifier);
+    assert.equal(new URL(selected.connection.endpoint!).origin, `https://${address}`);
+    const profiles = await invoke<Document>(gui, "desktop_backends_list");
     assert.ok(profiles.profiles.some((profile) => profile.identifier === `story-${name}`));
     assert.ok(!profiles.profiles.some((profile) => profile.identifier === `story-${name === "a" ? "b" : "a"}`));
-    const storage = await gui.execute("return JSON.stringify([Object.entries(localStorage),Object.entries(sessionStorage)]);");
+    const storage = await gui.execute<string>("return JSON.stringify([Object.entries(localStorage),Object.entries(sessionStorage)]);");
     assert.ok(!storage.includes(pairing.access_key), "Pairing Credentials Stay in Native Storage");
   }
 
@@ -247,7 +256,7 @@ try {
   for (const [name, gui] of [
     ["a", a],
     ["b", b],
-  ]) {
+  ] as const) {
     const report = await deliver(gui, { kind: "execution_report", executionId }, "execution.html", "html_report");
     assert.equal(report.origin, "sealed");
     const html = await readFile(report.path);
@@ -273,20 +282,25 @@ try {
   await writeFile(tampered, JSON.stringify({ ...imported[0].pairing, backend_identifier: randomUUID() }));
   await assert.rejects(
     pick(c, "desktop_backend_import_pairing", { identifier: "tampered" }, tampered),
-    (error) => error.detail.kind === "identity_changed",
+    (error) => (error as { detail: { kind: string; code: number; message: string } }).detail.kind === "identity_changed",
   );
   assert.equal((await invoke(c, "desktop_session_status")).connection.backend, null);
   await c.clickNamed("button", "Start Local Backend");
   await until("Occupied Storage Recovery", async () => /in use by another host/.test(await c.text()));
   await assert.rejects(
     invoke(c, "desktop_session_select", { selection: { kind: "owned_local" } }),
-    (error) => error.detail.kind === "backend_running",
+    (error) => (error as { detail: { kind: string; code: number; message: string } }).detail.kind === "backend_running",
   );
   assert.ok(await c.exists("button", "Start Local Backend"));
 
   // Revocation Removes Only One Pairing and Preserves the Other Client.
   await call(a, "dokime.host.v1.access.Pairings", "Delete", { name: imported[1].name });
-  await assert.rejects(call(b, "Suites", "List", {}), (error) => error.detail.kind === "grpc" && error.detail.detail.code === 16);
+  await assert.rejects(
+    call(b, "Suites", "List", {}),
+    (error) =>
+      (error as { detail: { kind: string; code: number; message: string } }).detail.kind === "grpc" &&
+      (error as { detail: { kind: string; code: number; message: string; detail: { code: number } } }).detail.detail.code === 16,
+  );
   assert.deepEqual((await call(a, "Suites", "List", {})).values, catalogA.values);
   assert.ok(await b.execute("return Boolean(document.body && window.__TAURI_INTERNALS__);"));
 
@@ -313,9 +327,10 @@ try {
 } catch (error) {
   failure = error;
   for (const [index, gui] of sessions.entries()) {
-    await writeFile(join(evidence, `failure-${index}.txt`), `${error.stack}\n${await gui.text().catch(() => "WebView unavailable")}`).catch(
-      () => {},
-    );
+    await writeFile(
+      join(evidence, `failure-${index}.txt`),
+      `${(error as Error).stack}\n${await gui.text().catch(() => "WebView unavailable")}`,
+    ).catch(() => {});
     await gui.screenshot(`failure-${index}`).catch(() => {});
   }
 } finally {
@@ -340,7 +355,7 @@ try {
   const seconds = (performance.now() - started) / 1000;
   if (options.junit) {
     await mkdir(dirname(resolve(options.junit)), { recursive: true });
-    const outcome = failure ? `<failure message="${xml(failure.message)}">${xml(failure.stack)}</failure>` : "";
+    const outcome = failure ? `<failure message="${xml((failure as Error).message)}">${xml((failure as Error).stack)}</failure>` : "";
     await writeFile(
       options.junit,
       `<?xml version="1.0"?><testsuites><testsuite name="Native Desktop" tests="1" failures="${failure ? 1 : 0}"><testcase classname="dokime.native.${process.platform}" name="Two GUI Remote" time="${seconds}">${outcome}</testcase></testsuite></testsuites>`,
@@ -348,7 +363,7 @@ try {
   }
   process.stdout.write(`Two GUI Remote: ${failure ? "FAILED" : "passed"} (${seconds.toFixed(2)}s)\nEvidence: ${evidence}\n`);
   if (failure) {
-    process.stderr.write(`${failure.stack}\n`);
+    process.stderr.write(`${(failure as Error).stack}\n`);
     process.exitCode = 1;
   } else await rm(work, { recursive: true, force: true });
 }

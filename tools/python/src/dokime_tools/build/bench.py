@@ -154,7 +154,7 @@ def main() -> None:
         # Build and Embed the Instrumented Surface in the Matching Native Shell.
         web = output / "web"
         subprocess.run(
-            ["node", "benches/system/build.mjs", str(web)],
+            ["node", "benches/system/build.ts", str(web)],
             cwd=directory / "crates/dokime-gui",
             check=True,
             creationflags=spawn_flags(),

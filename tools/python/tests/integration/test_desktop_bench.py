@@ -115,7 +115,7 @@ class DesktopBench(unittest.TestCase):
                 if command[:3] == ["mise", "run", "build:typescript"]:
                     self.assertEqual(command, ["mise", "run", "build:typescript", "--profile", "dev"])
                     return subprocess.CompletedProcess(command, 0)
-                self.assertEqual(command[:2], ["node", "benches/system/build.mjs"])
+                self.assertEqual(command[:2], ["node", "benches/system/build.ts"])
                 self.assertEqual(Path(command[2]), web)
                 web.mkdir(parents=True)
                 (web / "index.html").write_bytes(b"benchmark")

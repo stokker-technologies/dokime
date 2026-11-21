@@ -11,6 +11,7 @@
 
 /* === Imports === */
 
+import type { Session } from "./native-fixture.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -33,13 +34,13 @@ import {
   stopBackend,
   terminate,
   until,
-} from "./native-fixture.mjs";
-import { call, invoke } from "./native-rpc.mjs";
-import { printReportSaveTimings, saveReport } from "./report-save.mjs";
+} from "./native-fixture.ts";
+import { type Reply, call, invoke } from "./native-rpc.ts";
+import { printReportSaveTimings, saveReport } from "./report-save.ts";
 
 /* === Re-Exports === */
 
-export * from "./native-fixture.mjs";
+export * from "./native-fixture.ts";
 
 /* === Constants === */
 
@@ -55,20 +56,20 @@ const { values: options } = parseArgs({
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const target = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
 const reports = join(workspace, "target/tests", options.profile, target, "system-typescript");
-const sessions = [];
-const results = [];
-let cleanup;
-let evidence;
-let work;
-let desktop;
-let cycle;
-let executionId;
+const sessions: Session[] = [];
+const results: { name: string; seconds: number; error?: unknown }[] = [];
+let cleanup: (() => Promise<void>) | undefined;
+let evidence!: string;
+let work!: string;
+let desktop: Session;
+let cycle: Reply<"Cycles", "Get">["cycle"];
+let executionId: string;
 
 /* === Public Functions === */
 
 /* === Private Functions === */
 
-async function story(name, run, required = false) {
+async function story(name: string, run: () => Promise<void>, required = false) {
   const started = performance.now();
   try {
     await run();
@@ -76,16 +77,16 @@ async function story(name, run, required = false) {
     process.stdout.write(`${name}: Passed\n`);
   } catch (error) {
     results.push({ name, seconds: (performance.now() - started) / 1000, error });
-    process.stderr.write(`${name}: ${error.stack ?? error}\n`);
+    process.stderr.write(`${name}: ${(error as Error).stack ?? error}\n`);
     await desktop?.screenshot(name).catch(() => {});
-    await writeFile(join(evidence, `${name}.txt`), `${error.stack}\n${await desktop?.text().catch(() => "")}`).catch(() => {});
+    await writeFile(join(evidence, `${name}.txt`), `${(error as Error).stack}\n${await desktop?.text().catch(() => "")}`).catch(() => {});
     if (required) {
       throw error;
     }
   }
 }
 
-async function close(instance) {
+async function close(instance: Session) {
   try {
     await instance.close();
   } finally {
@@ -146,7 +147,7 @@ async function library() {
   await desktop.clickNamed("button", "Open Cycle");
   await until("Cycle Workspace", async () => (await desktop.location()).pathname === `/cycles/${cycleId}`);
   executionId = await until("Registered Execution Row", () =>
-    desktop.execute('return document.querySelector("li[data-execution-id]")?.dataset.executionId;'),
+    desktop.execute<string>('return document.querySelector("li[data-execution-id]")?.dataset.executionId;'),
   );
   cycle = await call(desktop, "Cycles", "Get", { name: cycleId }).then((reply) => reply.cycle);
   const detail = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
@@ -223,7 +224,7 @@ async function exactBench() {
   });
   assert.equal(detail.outcome.evaluated.status, "RESULT_STATUS_PASSED");
   const values = await until("Exact Summary Tiles", () =>
-    desktop.execute(`
+    desktop.execute<{ exact: Record<string, string>; shown: Record<string, string> }>(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
     if (tiles.length < 11 || tiles.some(tile => tile.dataset.documentValuePresent !== 'true')) {
       return null;
@@ -386,7 +387,13 @@ async function settings() {
     await until(`Settings ${section}`, async () => (await desktop.text()).includes(label));
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
     if (["plugins", "secrets", "backends"].includes(section)) {
-      const table = await desktop.execute(`const frame = document.querySelector('[data-slot="data-table"]');
+      const table = await desktop.execute<{
+        heading: boolean;
+        filter: boolean;
+        footer: boolean;
+        columns: number;
+        failureWidth: boolean;
+      } | null>(`const frame = document.querySelector('[data-slot="data-table"]');
         if (!frame) return null;
         return {
           heading: Boolean(frame.querySelector('h2')),
@@ -451,10 +458,10 @@ async function appearance() {
   await setDensity(desktop, { density: "comfortable", width: 1600, height: 1000 });
 }
 
-function xml(value) {
+function xml(value: unknown) {
   return String(value).replace(
     /[&<>"']/g,
-    (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character],
+    (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character]!,
   );
 }
 
@@ -493,7 +500,7 @@ try {
     }
   }
 } catch (error) {
-  process.stderr.write(`${error.stack}\n`);
+  process.stderr.write(`${(error as Error).stack}\n`);
   process.exitCode = 1;
   if (!results.some((result) => result.error)) {
     results.push({ name: "Fixture Setup", seconds: 0, error });
@@ -543,7 +550,9 @@ try {
               '" time="' +
               result.seconds +
               '">' +
-              (result.error ? `<failure message="${xml(result.error.message)}">${xml(result.error.stack)}</failure>` : "") +
+              (result.error
+                ? `<failure message="${xml((result.error as Error).message)}">${xml((result.error as Error).stack)}</failure>`
+                : "") +
               "</testcase>",
           )
           .join("") +
