@@ -24,9 +24,9 @@ var surface = Dokime.Templates.Plots.Contour(input.Scale(2).Offset(-1))
     });
 var section = new Section { Metadata = new Metadata { Identifier = "map", Label = "Map" } }.Plot(surface);
 var document = new Document { Metadata = new Metadata { Identifier = "scan", Label = "Scan" } }.Section(section);
-var decoded = Document.Parser.ParseFrom(document.ToByteArray());
 input.Stream.Field = "changed";
 surface.Y.Clear();
+var decoded = Document.Parser.ParseFrom(document.ToByteArray());
 if (decoded.Sections[0].Cards[0].Plot.Y.Count != 1 ||
     decoded.Sections[0].Cards[0].Plot.Z.Transform.Input.Transform.Input.Stream.Field != "temperature" ||
     decoded.Sections[0].Cards[0].Plot.Render != ContourRender.Bands ||

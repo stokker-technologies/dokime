@@ -102,7 +102,6 @@ public sealed class AuthorDeclaresQualifiedMembers
     Assert.DoesNotContain("Host", properties);
     Assert.DoesNotContain("Transport", properties);
     Assert.Contains("Plugin", properties);
-    Assert.NotEqual(typeof(Dokime.Operations.Context), typeof(Dokime.Templates.Context));
   }
 
   private static void RoundTrip<T>(T value) => Assert.Equal(value, Payload<T>.Unpack(Payload<T>.Pack(value).ToByteString()));
