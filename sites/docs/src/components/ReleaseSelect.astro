@@ -1,7 +1,7 @@
 ---
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Offer the Site's Entries From Its Root versions.json; Without It, Show Only the Current Entry.
-import Default from "@astrojs/starlight/components/ThemeSelect.astro";
+import ThemeSelect from "@astrojs/starlight/components/ThemeSelect.astro";
 
 const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const entry = base.split("/").filter(Boolean).at(-1) ?? "dev";
@@ -14,7 +14,7 @@ const root = base.slice(0, base.length - entry.length - 1);
     <option value={entry} selected>{entry === "dev" ? "Development" : entry}</option>
   </select>
 </label>
-<Default><slot /></Default>
+<ThemeSelect><slot /></ThemeSelect>
 
 <script>
   for (const label of document.querySelectorAll<HTMLElement>(".release-select")) {
@@ -43,11 +43,24 @@ const root = base.slice(0, base.length - entry.length - 1);
 
 <style>
   .release-select select {
-    background: transparent;
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 0.25rem;
-    color: var(--sl-color-gray-1);
+    background: var(--background);
+    border: 1px solid var(--input);
+    border-radius: var(--brand-radius);
+    color: var(--foreground);
+    font-family: var(--brand-font-mono);
     font-size: var(--sl-text-sm);
-    padding: 0.25rem 0.5rem;
+    min-height: 2.5rem;
+    max-width: 100%;
+    padding: 0.5rem;
+    cursor: pointer;
+  }
+
+  .release-select select:hover {
+    background: var(--muted);
+  }
+
+  .release-select select:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
   }
 </style>
