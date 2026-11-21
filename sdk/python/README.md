@@ -72,7 +72,9 @@ Import these authoring values from `dokime_sdk.templates`. Document record field
 require an explicit record identifier; template binding qualifies local record
 references and markers. Setting bounds and optional observer fields
 need upstream library contracts; typed stream subscription remains unavailable at
-the current library pin. Stop-completes-run has no current product declaration.
+the current library pin. Plugin observer record publication also requires inherited
+product resources in the library's scoped sample call context. Stop-completes-run
+has no current product declaration.
 
 ## Starter
 
