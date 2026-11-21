@@ -181,7 +181,7 @@ run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
 # === Dev === #
 
 [tasks.dev]
-description = "Start the Desktop with Live Reload and the OBC Plugin on a Disposable Root"
+description = "Start the Desktop with Live Reload and the Shipped Plugins on a Disposable Root"
 run = "{{vars.tools}} dokime_tools.dev.desktop"
 
 # === Internal Steps === #
