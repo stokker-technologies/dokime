@@ -34,7 +34,7 @@ import { evidencePaneState } from "@/features/cycle/document-query-model";
 import { type DocumentSurfaceOptions, documentSurface, documentView } from "@/features/cycle/document-view-model";
 import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
 import { NodeSummary } from "@/features/cycle/NodeSummary";
-import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { usePlotWindow } from "@/features/cycle/use-plot-window";
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { reportOutcome } from "./native-report";
 

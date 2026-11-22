@@ -40,7 +40,10 @@ import {
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
-import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { PlotWindowControl } from "@/features/cycle/PlotWindowControl";
+import PlotWindowControlView from "@/features/cycle/PlotWindowControl.svelte";
+import { usePlotWindow } from "@/features/cycle/use-plot-window";
+import { plotWindowOptions, plotWindows, type PlotWindowState } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import type { RuntimeThemeFamily, useAppearance } from "@/lib/appearance";
@@ -385,23 +388,21 @@ test("Window Presets", () => {
   );
 });
 
-test("Window Selection", () => {
-  const selections: { index: number; value: number | null }[] = [];
-  function View({ live, selected }: { live: boolean; selected?: number }) {
-    const window = usePlotWindow();
-    if (selected !== undefined && window.index !== selected) {
-      window.choose(selected);
-    }
-    selections.push({ index: window.index, value: window.option.value });
-    return createElement(PlotWindowControl, { elapsedUnit: null, live, window });
-  }
-  const live = renderToStaticMarkup(createElement(View, { live: true }));
-  assert.match(live, /role="slider"/);
-  const selected = renderToStaticMarkup(createElement(View, { live: true, selected: 6 }));
-  assert.match(selected, /role="slider"/);
-  assert.equal(selections.at(-1)?.index, 6);
-  assert.equal(selections.at(-1)?.value, null);
-  assert.equal(renderToStaticMarkup(createElement(View, { live: false, selected: 2 })), "");
+test("Window Selection", async () => {
+  const choose = vi.fn();
+  const refresh = { key: 0, refreshing: false, updatedAt: null, request: vi.fn(), onChange: vi.fn() };
+  const initial: PlotWindowState = { index: 2, option: plotWindows[2], choose, refresh };
+  const view = render(PlotWindowControlView, { live: true, elapsedUnit: null, window: initial });
+  const slider = view.getByRole("slider");
+  assert.equal(slider.getAttribute("aria-valuenow"), "2");
+  slider.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+  assert.deepEqual(choose.mock.calls, [[6]]);
+  const selected = { ...initial, index: 6, option: plotWindows[6] };
+  await view.rerender({ live: true, elapsedUnit: null, window: selected });
+  assert.equal(view.getByRole("slider").getAttribute("aria-valuenow"), "6");
+  assert.equal(selected.option.value, null);
+  await view.rerender({ live: false, elapsedUnit: null, window: initial });
+  assert.equal(view.container.childElementCount, 0);
 });
 
 test("A Complete Watch Revision Commits Every Chart in One Animation Frame", async () => {

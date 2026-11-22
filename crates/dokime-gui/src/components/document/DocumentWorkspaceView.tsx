@@ -17,7 +17,6 @@ import { orderedDocumentSections } from "@/lib/document-layout";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import { useLivePlotPayloads } from "@/plots/live-data";
 import type { PlotDisplaySettings } from "@/plots/plot-settings";
-import { PlotMeasurementsContext, PlotReportDefaultsContext } from "./PlotGroupGrid";
 import { updatePlotSettings } from "../../lib/api/native-document-session";
 import { DocumentCardContent } from "./DocumentSurface";
 import {
@@ -29,13 +28,7 @@ import { isDocumentSurfaceCard } from "@/components/document/document-surface-po
 
 /* === Components === */
 export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
-  return props.renderMode === "report" ? (
-    <DocumentWorkspacePresentation {...props} />
-  ) : (
-    <PlotMeasurementsContext.Provider value={useSummaryWindowStore.getInitialState()}>
-      <ConnectedDocumentWorkspace {...props} />
-    </PlotMeasurementsContext.Provider>
-  );
+  return props.renderMode === "report" ? <DocumentWorkspacePresentation {...props} /> : <ConnectedDocumentWorkspace {...props} />;
 }
 
 /* === Private Components === */
@@ -117,14 +110,14 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
   });
 
   return (
-    <PlotReportDefaultsContext.Provider value={reportDefaults}>
-      <DocumentWorkspacePresentation
-        {...props}
-        document={document}
-        livePlotStates={livePlotStates}
-        onPlotSettingsChange={cycleId ? onPlotSettingsChange : undefined}
-        renderCardContent={(cardProps) => <DocumentCardContent {...cardProps} />}
-      />
-    </PlotReportDefaultsContext.Provider>
+    <DocumentWorkspacePresentation
+      {...props}
+      document={document}
+      livePlotStates={livePlotStates}
+      measurements={useSummaryWindowStore.getInitialState()}
+      reportDefaults={reportDefaults}
+      onPlotSettingsChange={cycleId ? onPlotSettingsChange : undefined}
+      renderCardContent={(cardProps) => <DocumentCardContent {...cardProps} />}
+    />
   );
 }

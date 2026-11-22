@@ -35,7 +35,7 @@ import {
 } from "@generated/host/model";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import type { PlotRefreshState } from "@/features/cycle/PlotWindowSlider";
+import type { PlotRefreshState } from "@/features/cycle/plot-window";
 import { fetchNativePlotPayloads, NATIVE_PLOT_MAX_REQUESTS, type NativePlotStream, openNativePlotStream } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { toast } from "@/lib/notifications";

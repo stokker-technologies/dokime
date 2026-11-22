@@ -14,12 +14,11 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { render } from "@testing-library/svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { PlotCardDocument } from "./document-fixture";
+import PlotCardDocument from "./PlotCardDocument.svelte";
 
 /* === Re-Exports === */
 
@@ -37,17 +36,12 @@ import { PlotCardDocument } from "./document-fixture";
 
 test("Desktop and Frozen Documents Share Section Headings and Single Plot Cards", async () => {
   vi.stubGlobal("IntersectionObserver", undefined);
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
+  onTestFinished(() => {
     vi.unstubAllGlobals();
   });
+  const { container: host, rerender } = render(PlotCardDocument);
   for (const frozen of [false, true]) {
-    await act(async () => root.render(createElement(PlotCardDocument, { frozen })));
+    await rerender({ frozen });
     assert.equal(host.querySelectorAll("h4.document-section-title").length, 2);
     assert.equal(host.querySelectorAll("article.plot-card.border").length, 2);
     assert.equal(host.querySelectorAll('table[aria-label="Trace Statistics"]').length, 2);

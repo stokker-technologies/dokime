@@ -34,12 +34,12 @@
 
 /* === Local Imports === */
 
-import { DocumentRetryContext } from "../../components/document/DocumentViewRenderer";
+import { DocumentRetryContext } from "../../components/document/DocumentWorkspacePresentation";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import ArtifactTreeView from "../../components/ArtifactTreeView.svelte";
 import DocumentTraceability from "../../components/document/DocumentTraceability.svelte";
-import type { DocumentBlockChrome } from "../../components/document/DocumentViewRenderer";
+import type { DocumentBlockChrome } from "../../components/document/DocumentViewRenderer.svelte";
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
 import OperatorNotes from "../../components/document/OperatorNotes.svelte";
 import MarkdownText from "../../components/MarkdownText.svelte";
@@ -64,10 +64,12 @@ import { ExecutionSectionCard } from "./ExecutionSectionCard";
 import { ExecutionStepsCriteria } from "./ExecutionStepsCriteria";
 import { executionDocumentSections, executionParameterRows, executionSectionOf } from "./execution-sections-model";
 import { NodeSummary } from "./NodeSummary";
-import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
+import { PlotWindowControl } from "./PlotWindowControl";
+import { type usePlotWindow } from "./use-plot-window";
 import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
-import { durationText, useElapsedSeconds } from "./use-elapsed";
+import { durationText } from "./elapsed";
+import { useElapsedSeconds } from "./use-elapsed";
 
 /* === Types === */
 
@@ -193,13 +195,19 @@ export function ExecutionSectionsView({
             {present.has("media") && (live || shared.mediaArtifacts.length) ? (
               <ExecutionSectionCard empty={shared.mediaArtifacts.length ? null : "No media recorded."} title="Media">
                 {mediaContent ??
-                  (shared.mediaArtifacts.length ? <SvelteMount component={MediaGalleryView} props={{ artifacts: shared.mediaArtifacts, emptyMessage: "" }} /> : null)}
+                  (shared.mediaArtifacts.length ? (
+                    <SvelteMount component={MediaGalleryView} props={{ artifacts: shared.mediaArtifacts, emptyMessage: "" }} />
+                  ) : null)}
               </ExecutionSectionCard>
             ) : null}
 
             {present.has("artifacts") && (live || shared.artifacts.length) ? (
               <ExecutionSectionCard empty={shared.artifacts.length ? null : "No artifacts recorded."} title="Artifacts">
-                {shared.artifacts.length ? (artifactsContent ?? <SvelteMount component={ArtifactTreeView} props={{ artifacts: shared.artifacts, emptyMessage: "" }} />) : null}
+                {shared.artifacts.length
+                  ? (artifactsContent ?? (
+                      <SvelteMount component={ArtifactTreeView} props={{ artifacts: shared.artifacts, emptyMessage: "" }} />
+                    ))
+                  : null}
               </ExecutionSectionCard>
             ) : null}
 

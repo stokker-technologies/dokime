@@ -43,7 +43,7 @@ import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
 import { executionPagePrompts } from "@/features/cycle/execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
 import type { ExecutionMenu } from "./NodeMenu";
-import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { usePlotWindow } from "@/features/cycle/use-plot-window";
 import { PromptQueue } from "./PromptQueue";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
 

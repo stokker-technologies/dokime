@@ -7,10 +7,6 @@
  * ***
  */
 
-/* === External Imports === */
-
-import type { CSSProperties } from "react";
-
 /* === Local Imports === */
 
 import type { DocumentCardLayout, DocumentViewCard, DocumentViewNode, DocumentViewPayload, DocumentViewSection } from "@/lib/types";
@@ -43,20 +39,16 @@ export function orderedSectionCards(cards: DocumentViewCard[]): DocumentViewCard
     .map((item) => item.card);
 }
 
-export function documentCardLayoutStyle(layout: DocumentCardLayout): CSSProperties {
-  return {
-    "--document-card-col-span-base": String(clampedSpan(layout.col_span.base)),
-    "--document-card-col-span-sm": String(clampedSpan(layout.col_span.sm ?? layout.col_span.base)),
-    "--document-card-col-span-md": String(clampedSpan(layout.col_span.md ?? layout.col_span.sm ?? layout.col_span.base)),
-    "--document-card-col-span-lg": String(
-      clampedSpan(layout.col_span.lg ?? layout.col_span.md ?? layout.col_span.sm ?? layout.col_span.base),
-    ),
-    "--document-card-col-span-xl": String(
-      clampedSpan(layout.col_span.xl ?? layout.col_span.lg ?? layout.col_span.md ?? layout.col_span.sm ?? layout.col_span.base),
-    ),
-    "--document-card-row-span": String(Math.max(1, layout.row_span)),
-    order: layout.order,
-  } as CSSProperties;
+export function documentCardLayoutStyle(layout: DocumentCardLayout, spans = documentCardLayoutAttributes(layout)): string {
+  return [
+    `--document-card-col-span-base:${spans["data-col-span-base"]}`,
+    `--document-card-col-span-sm:${spans["data-col-span-sm"]}`,
+    `--document-card-col-span-md:${spans["data-col-span-md"]}`,
+    `--document-card-col-span-lg:${spans["data-col-span-lg"]}`,
+    `--document-card-col-span-xl:${spans["data-col-span-xl"]}`,
+    `--document-card-row-span:${Math.max(1, layout.row_span)}`,
+    `order:${layout.order}`,
+  ].join(";");
 }
 
 export function documentCardLayoutAttributes(layout: DocumentCardLayout): DocumentCardLayoutAttributes {

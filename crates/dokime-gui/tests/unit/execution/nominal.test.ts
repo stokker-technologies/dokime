@@ -59,7 +59,7 @@ import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
 import { formatValue } from "@/lib/dashboard";
 import { documentSummaryTile, documentTableRows } from "@/lib/document-presentation";
 import { formatRecordValue } from "@/lib/record-display";
-import { durationText } from "@/features/cycle/use-elapsed";
+import { durationText } from "@/features/cycle/elapsed";
 import { buildArtifactTree, type ArtifactTreeInput } from "@/lib/artifact-tree";
 import { shouldFollowArtifact } from "@/lib/execution-file-text";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";

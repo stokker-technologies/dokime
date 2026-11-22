@@ -37,7 +37,7 @@ import type {
   TraceabilitySnapshot,
 } from "@/lib/types";
 import { mergeParameterContexts, plotContextTelemetrySnapshot, uniqueArtifacts } from "./model-document";
-import type { PlotRefreshState, PlotWindowOption } from "./PlotWindowSlider";
+import type { PlotRefreshState, PlotWindowOption } from "./plot-window";
 import type { FrozenPlotPayloads } from "./snapshot-source";
 
 /* === Re-Exports === */

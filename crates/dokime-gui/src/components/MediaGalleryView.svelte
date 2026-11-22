@@ -43,16 +43,20 @@
   let openError = $state<{ artifactId: string; failure: NotificationFailure } | null>(null);
   let downloadError = $state<{ artifactId: string; failure: NotificationFailure } | null>(null);
   const visible = new SvelteSet<string>();
-  const media = $derived(artifacts.flatMap((artifact) => {
-    const kind = mediaArtifactKind(artifact);
-    return kind ? [{ ...artifact, displayPath: artifactDisplayPath(artifact, runDir), kind }] : [];
-  }));
-  const resolved = $derived(media.map((artifact) => ({
-    ...artifact,
-    href: artifact.href ?? artifact.downloadHref ?? preview?.urls[artifact.artifact_id] ?? null,
-    downloadHref: artifact.downloadHref ?? artifact.href ?? null,
-    nativeTransfer: Boolean(actions && !artifact.href && !artifact.downloadHref && isNativeArtifactSource(artifact)),
-  })));
+  const media = $derived(
+    artifacts.flatMap((artifact) => {
+      const kind = mediaArtifactKind(artifact);
+      return kind ? [{ ...artifact, displayPath: artifactDisplayPath(artifact, runDir), kind }] : [];
+    }),
+  );
+  const resolved = $derived(
+    media.map((artifact) => ({
+      ...artifact,
+      href: artifact.href ?? artifact.downloadHref ?? preview?.urls[artifact.artifact_id] ?? null,
+      downloadHref: artifact.downloadHref ?? artifact.href ?? null,
+      nativeTransfer: Boolean(actions && !artifact.href && !artifact.downloadHref && isNativeArtifactSource(artifact)),
+    })),
+  );
   const selected = $derived(resolved.find((artifact) => artifact.artifact_id === selectedId));
   const selectedError = $derived(selected ? preview?.errors[selected.artifact_id] : undefined);
   const outlineLink = buttonVariants({ size: "sm", variant: "outline" });
@@ -121,7 +125,9 @@
       <MediaGalleryCard
         {artifact}
         title={mediaArtifactTitle(artifact)}
-        onInspect={() => { selectedId = artifact.artifact_id; }}
+        onInspect={() => {
+          selectedId = artifact.artifact_id;
+        }}
         onNativeOpen={() => openArtifact(artifact)}
         onNativeDownload={() => downloadArtifact(artifact)}
         nativeBusy={openingId === artifact.artifact_id || downloadingId === artifact.artifact_id}
@@ -148,7 +154,7 @@
           <div class="overflow-hidden rounded-lg border bg-muted/20 p-2">
             {#if selected.href}
               {#if selected.kind === "image"}
-                <img alt={title} class="max-h-[70vh] w-full object-contain" src={selected.href} />
+                <img alt={title} class="max-h-[70vh] w-full object-contain" src={selected.href}>
               {:else if selected.kind === "audio"}
                 <!-- svelte-ignore a11y_media_has_caption (Operator Recordings Have No Caption Sidecars) -->
                 <audio class="w-full" controls preload="metadata" src={selected.href}></audio>
@@ -188,13 +194,21 @@
                 </Button>
               {:else}
                 {#if selected.href}
-                  <a class={outlineLink} href={selected.href} rel="noreferrer" target="_blank">
+                  <a
+                    class={outlineLink}
+                    data-slot="button"
+                    data-size="sm"
+                    data-variant="outline"
+                    href={selected.href}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
                     <ExternalLink data-icon="inline-start" size={14} />
                     Open
                   </a>
                 {/if}
                 {#if selected.downloadHref}
-                  <a class={outlineLink} href={selected.downloadHref}>
+                  <a class={outlineLink} data-slot="button" data-size="sm" data-variant="outline" href={selected.downloadHref}>
                     <Download data-icon="inline-start" size={14} />
                     Download
                   </a>

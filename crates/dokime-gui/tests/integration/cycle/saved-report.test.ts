@@ -15,16 +15,13 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import Metric from "@/components/Metric.svelte";
 import StatsSummaryTable from "@/plots/StatsSummaryTable.svelte";
 import { render } from "@testing-library/svelte";
-import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
-import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
+import DocumentLayoutFixture from "../document/DocumentLayoutFixture.svelte";
 import { type CompletedDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { nativeValueToJson } from "@/lib/host/values";
@@ -326,33 +323,16 @@ test("Desktop and Report Summary Values Share Ungrouped Decimal Formatting", () 
   }
 });
 
-test("Plot Cards Without a Declared Span Stack One per Row", async () => {
+test("Plot Cards Without a Declared Span Stack One per Row", () => {
   const view = mapNativeDocument(thermalDocument(100));
-  const host = document.createElement("div");
-  const root = createRoot(host);
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    vi.unstubAllGlobals();
-  });
-  await act(async () =>
-    root.render(
-      createElement(DocumentViewRenderer, {
-        document: view,
-        renderCard: (card) =>
-          card.kind === "overview"
-            ? createElement(DocumentCardContentView, { card, documentId: view.document_id, renderMode: "live" } as never)
-            : createElement("p", null, card.title),
-      }),
-    ),
-  );
+  const { container: host } = render(DocumentLayoutFixture, { document: view });
   const span = (element: Element | null | undefined) =>
     ["base", "sm", "md", "lg", "xl"].map((size) => element?.getAttribute(`data-col-span-${size}`));
   const children = (sectionId: string) => [...(host.querySelector(`[data-section-id="${sectionId}"] > .document-grid`)?.children ?? [])];
 
   // Every Plot Card Without a Span Is a Direct Grid Card Spanning All Twelve Columns.
   const plots = children("plots");
-  const plotCards = plots.filter((child) => /^plot-\d+$/.test(child.textContent ?? ""));
+  const plotCards = plots.filter((child) => /^plot-\d+$/.test(child.textContent?.trim() ?? ""));
   assert.equal(plotCards.length, 100);
   for (const card of plotCards) {
     assert.ok(card.classList.contains("document-card"));
@@ -360,7 +340,7 @@ test("Plot Cards Without a Declared Span Stack One per Row", async () => {
   }
 
   // An Explicit Span Is Honoured, and a Nested Section Fills Its Row.
-  const half = plots.find((child) => child.textContent === "half");
+  const half = plots.find((child) => child.textContent?.trim() === "half");
   assert.deepEqual(span(half), ["6", "6", "6", "6", "6"]);
   const nested = plots.find((child) => child.getAttribute("data-section-id") === "details");
   assert.ok(nested?.classList.contains("col-span-full"));

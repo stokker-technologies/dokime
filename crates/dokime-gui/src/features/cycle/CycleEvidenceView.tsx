@@ -24,22 +24,17 @@
 
 /* === External Imports === */
 
-import { DocumentRetryContext } from "../../components/document/DocumentViewRenderer";
+import { DocumentRetryContext } from "../../components/document/DocumentWorkspacePresentation";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
 import { Button } from "@/components/ui/button";
 import type { DocumentViewCard } from "@/lib/types";
 import { PageShell } from "../../shell/PageShell";
-import {
-  DocumentViewPresentation,
-  type DocumentViewProps,
-  documentWindowElapsedUnit,
-  FrozenDocumentConsole,
-} from "./DocumentViewPresentation";
+import { DocumentViewPresentation, type DocumentViewProps, FrozenDocumentConsole } from "./DocumentViewPresentation";
 import { BUSY_NOTICE, type evidencePaneState } from "./document-query-model";
 import type { DocumentSurface } from "./document-view-model";
-import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
+import { type usePlotWindow } from "./use-plot-window";
 import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
 
@@ -92,13 +87,7 @@ export function CycleEvidenceView({
           <div className="grid gap-6">
             {pane.failure ? <ErrorCard failure={pane.failure} onRetry={onRetry} /> : null}
             <DocumentRetryContext.Provider value={onRetry}>
-              <DocumentContent
-                cardFilter={isDocumentCard}
-                plotWindowControl={
-                  <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(surface.view.sections)} live={live} window={plotWindow} />
-                }
-                surface={surface}
-              />
+              <DocumentContent cardFilter={isDocumentCard} plotWindow={plotWindow} surface={surface} />
             </DocumentRetryContext.Provider>
             <RecordsSection live={live} records={surface.view.records} />
             <FrozenDocumentConsole surface={surface} />

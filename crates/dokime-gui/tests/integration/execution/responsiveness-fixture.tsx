@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ExecutionStepsCriteria } from "@/features/cycle/ExecutionStepsCriteria";
 import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
-import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { usePlotWindow } from "@/features/cycle/use-plot-window";
 import { useDocumentView } from "@/features/cycle/use-document-view";
 import type { DocumentViewOptions } from "@/features/cycle/document-view-model";
 import { documentSurface } from "@/features/cycle/document-view-model";

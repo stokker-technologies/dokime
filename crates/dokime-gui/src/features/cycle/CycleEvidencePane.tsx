@@ -33,7 +33,7 @@ import { CycleEvidenceView } from "@/features/cycle/CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { DocumentPagination } from "./DocumentPagination";
 import { evidencePaneState } from "@/features/cycle/document-query-model";
-import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
+import { usePlotWindow } from "@/features/cycle/use-plot-window";
 import { PromptQueue } from "./PromptQueue";
 import { useCycleDocumentQuery } from "./server-state";
 

@@ -21,28 +21,41 @@
     previewError: string | null;
   };
 
-  let { artifact, title, nativeBusy, nativeOpenError, nativeDownloadError, onInspect, onNativeOpen, onNativeDownload, onRetry, onVisibilityChange, previewError }: Props = $props();
+  let {
+    artifact,
+    title,
+    nativeBusy,
+    nativeOpenError,
+    nativeDownloadError,
+    onInspect,
+    onNativeOpen,
+    onNativeDownload,
+    onRetry,
+    onVisibilityChange,
+    previewError,
+  }: Props = $props();
   let element = $state<HTMLElement>();
   let failedImageHref = $state<string | null>(null);
   const meta = $derived(artifact.group_label ? artifactLabel(artifact.group_label) : formatArtifactSize(artifact.size_bytes));
   const Icon = $derived(artifact.kind === "image" ? Image : artifact.kind === "audio" ? AudioLines : Video);
+  const artifactId = $derived(artifact.artifact_id);
   const ghostLink = buttonVariants({ size: "icon-xs", variant: "ghost" });
 
   $effect(() => {
     const notify = onVisibilityChange;
-    const artifactId = artifact.artifact_id;
+    const id = artifactId;
     if (!element || !notify) {
       return;
     }
     if (typeof IntersectionObserver === "undefined") {
-      notify(artifactId, true);
-      return () => notify(artifactId, false);
+      notify(id, true);
+      return () => notify(id, false);
     }
-    const observer = new IntersectionObserver(([entry]) => notify(artifactId, entry?.isIntersecting ?? false), { rootMargin: "160px" });
+    const observer = new IntersectionObserver(([entry]) => notify(id, entry?.isIntersecting ?? false), { rootMargin: "160px" });
     observer.observe(element);
     return () => {
       observer.disconnect();
-      notify(artifactId, false);
+      notify(id, false);
     };
   });
 </script>
@@ -58,8 +71,10 @@
             decoding="async"
             loading="lazy"
             src={artifact.href}
-            onerror={() => { failedImageHref = artifact.href; }}
-          />
+            onerror={() => {
+              failedImageHref = artifact.href;
+            }}
+          >
         </Button>
       {:else if artifact.href && artifact.kind === "audio"}
         <!-- svelte-ignore a11y_media_has_caption (Operator Recordings Have No Caption Sidecars) -->
@@ -73,7 +88,13 @@
         </span>
       {/if}
     </div>
-    <Button variant="plain" size="inline" class="flex shrink-0 items-center justify-end gap-1 px-2 py-1 text-xs font-semibold" title={artifact.displayPath} onclick={onInspect}>
+    <Button
+      variant="plain"
+      size="inline"
+      class="flex shrink-0 items-center justify-end gap-1 px-2 py-1 text-xs font-semibold"
+      title={artifact.displayPath}
+      onclick={onInspect}
+    >
       <Search size={12} />
       Inspect
     </Button>
@@ -97,18 +118,48 @@
       {/if}
       <span class="flex shrink-0 items-center gap-1">
         {#if artifact.nativeTransfer}
-          <Button aria-label={nativeOpenError ? `Retry Open ${title}` : `Open ${title}`} disabled={nativeBusy} size="icon-xs" title={nativeOpenError ?? "Open Artifact"} variant="ghost" onclick={onNativeOpen}>
+          <Button
+            aria-label={nativeOpenError ? `Retry Open ${title}` : `Open ${title}`}
+            disabled={nativeBusy}
+            size="icon-xs"
+            title={nativeOpenError ?? "Open Artifact"}
+            variant="ghost"
+            onclick={onNativeOpen}
+          >
             <ExternalLink size={13} />
           </Button>
-          <Button aria-label={nativeDownloadError ? `Retry Download ${title}` : `Download ${title}`} disabled={nativeBusy} size="icon-xs" title={nativeDownloadError ?? "Download Artifact"} variant="ghost" onclick={onNativeDownload}>
+          <Button
+            aria-label={nativeDownloadError ? `Retry Download ${title}` : `Download ${title}`}
+            disabled={nativeBusy}
+            size="icon-xs"
+            title={nativeDownloadError ?? "Download Artifact"}
+            variant="ghost"
+            onclick={onNativeDownload}
+          >
             <Download size={13} />
           </Button>
         {:else}
           {#if artifact.href}
-            <a class={ghostLink} aria-label={`Open ${title}`} href={artifact.href}><ExternalLink size={13} /></a>
+            <a
+              class={ghostLink}
+              data-slot="button"
+              data-size="icon-xs"
+              data-variant="ghost"
+              aria-label={`Open ${title}`}
+              href={artifact.href}
+              ><ExternalLink size={13} /></a
+            >
           {/if}
           {#if artifact.downloadHref}
-            <a class={ghostLink} aria-label={`Download ${title}`} href={artifact.downloadHref}><Download size={13} /></a>
+            <a
+              class={ghostLink}
+              data-slot="button"
+              data-size="icon-xs"
+              data-variant="ghost"
+              aria-label={`Download ${title}`}
+              href={artifact.downloadHref}
+              ><Download size={13} /></a
+            >
           {/if}
         {/if}
       </span>

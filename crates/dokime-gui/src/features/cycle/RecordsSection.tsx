@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-import { RecordListContent } from "../../components/document/DocumentSurfaceView";
+import { RecordTimeline } from "../../components/document/RecordTimeline";
 import type { HubRecord } from "@/lib/types";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
 
@@ -40,7 +40,7 @@ export type RecordsSectionProps = {
 export function RecordsSection({ live, records }: RecordsSectionProps) {
   return (
     <ExecutionSectionCard empty={records.length ? null : "No records yet."} title="Records">
-      {records.length ? <RecordListContent live={live} records={records} /> : null}
+      {records.length ? <RecordTimeline live={live} records={records} /> : null}
     </ExecutionSectionCard>
   );
 }

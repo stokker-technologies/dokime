@@ -1,29 +1,27 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
-
-/* === Local Imports === */
-import { ArtifactTree } from "@/components/ArtifactTree";
-import { MediaCaptureControls } from "@/components/MediaCaptureControls";
-import { MediaGallery } from "@/components/MediaGallery";
-import { type DocumentCardContentProps, DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
+// Dokime — SPDX-License-Identifier: Apache-2.0
+import { ArtifactTree } from "../ArtifactTree";
+import { MediaCaptureControls } from "../MediaCaptureControls";
+import { MediaGallery } from "../MediaGallery";
+import type { DocumentCardContentProps } from "./DocumentCardContent.svelte";
 import { OperatorNotesContent } from "./OperatorNotesContent";
 
-/* === Components === */
 export function DocumentCardContent(props: DocumentCardContentProps) {
-  if (props.renderMode === "report") return <DocumentCardContentView {...props} />;
-  return (
-    <DocumentCardContentView
-      {...props}
-      captureControls={props.captureScope ? <MediaCaptureControls scope={props.captureScope} /> : null}
-      mediaContent={<MediaGallery artifacts={props.mediaArtifacts} emptyMessage="No media recorded." runDir={props.runDir} />}
-      artifactsContent={<ArtifactTree artifacts={props.artifacts} emptyMessage="No artifacts recorded." runDir={props.runDir} />}
-      notesContent={<OperatorNotesContent notes={props.notes} scope={props.noteScope} />}
-    />
-  );
+  if (props.renderMode === "report") {
+    return null;
+  }
+  switch (props.card.kind) {
+    case "media":
+      return (
+        <div className="grid gap-3">
+          {props.captureScope ? <MediaCaptureControls scope={props.captureScope} /> : null}
+          <MediaGallery artifacts={props.mediaArtifacts} emptyMessage="No media recorded." runDir={props.runDir} />
+        </div>
+      );
+    case "artifacts":
+      return <ArtifactTree artifacts={props.artifacts} emptyMessage="No artifacts recorded." runDir={props.runDir} />;
+    case "notes":
+      return <OperatorNotesContent notes={props.notes} scope={props.noteScope} />;
+    default:
+      return null;
+  }
 }

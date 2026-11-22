@@ -26,14 +26,7 @@ export function rowWindow(count: number, pitch: number | null, offset: number, h
   return fixedRowWindow(count, pitch, offset, height, OVERSCAN);
 }
 
-export function fixedRowWindow(
-  count: number,
-  pitch: number,
-  scrollTop: number,
-  height: number,
-  overscan: number,
-  padding = 0,
-): RowWindow {
+export function fixedRowWindow(count: number, pitch: number, scrollTop: number, height: number, overscan: number, padding = 0): RowWindow {
   const offset = Math.max(0, scrollTop - padding);
   const first = Math.min(count, Math.max(0, Math.floor(offset / pitch) - overscan));
   const last = Math.min(count, Math.max(first, Math.ceil((offset + height) / pitch) + overscan));
@@ -66,6 +59,18 @@ export function observeRowWindow(list: HTMLElement, update: (measurements: RowWi
     target.removeEventListener("scroll", read);
     observer.disconnect();
   };
+}
+
+/** Bring a row into the rendered window, then focus it after the viewport updates. */
+export function focusWindowRow(list: HTMLElement, index: number, pitch: number | null): void {
+  const scroller = scrollingAncestor(list);
+  if (pitch && scroller) {
+    const top = list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    scroller.scrollTop = top + index * pitch - scroller.clientHeight / 2;
+  }
+  window.requestAnimationFrame(() => {
+    list.querySelector<HTMLElement>(`[${WINDOW_ROW_ATTRIBUTE}="${index}"]`)?.focus();
+  });
 }
 
 /** The nearest ancestor that scrolls vertically, or `null` for the page itself. */

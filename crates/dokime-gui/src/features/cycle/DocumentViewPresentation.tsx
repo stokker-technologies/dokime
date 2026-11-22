@@ -13,11 +13,12 @@
 
 // Third Party Imports
 
-import { type ComponentType, type ReactNode, useCallback } from "react";
+import type { ComponentType } from "react";
+import type { PlotWindowState } from "./plot-window";
 
 // Local Imports
 
-import { type DocumentBlockChrome, DocumentSectionActionContext } from "../../components/document/DocumentViewRenderer";
+import type { DocumentBlockChrome } from "../../components/document/DocumentViewRenderer.svelte";
 import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps } from "../../components/document/DocumentWorkspacePresentation";
 
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
@@ -38,7 +39,7 @@ export type DocumentViewProps = {
   workspace?: ComponentType<DocumentWorkspaceViewProps>;
   surface: DocumentSurface;
   /** The plot window control, placed in the header of the first plot section. */
-  plotWindowControl?: ReactNode;
+  plotWindow?: PlotWindowState;
   /** The cards this view shows; absent shows every main-region card. */
   cardFilter?: (card: DocumentViewCard) => boolean;
   /** The frame each card gets; absent keeps the renderer's default. */
@@ -50,7 +51,7 @@ export type DocumentViewProps = {
 export function DocumentViewPresentation({
   workspace: Workspace = DocumentWorkspacePresentation,
   surface,
-  plotWindowControl = null,
+  plotWindow,
   cardFilter,
   cardChrome,
 }: DocumentViewProps) {
@@ -58,10 +59,6 @@ export function DocumentViewPresentation({
   /* The plot window belongs to the plots it scales: the first section that
      holds a windowed card carries it in its header. */
   const windowedSectionId = view.sections.find((section) => documentHasWindowedCards([section]))?.metadata.identifier ?? null;
-  const sectionAction = useCallback(
-    (sectionId: string) => (sectionId === windowedSectionId ? plotWindowControl : null),
-    [plotWindowControl, windowedSectionId],
-  );
   const shown = { ...shared, cardChrome, cardFilter };
 
   /* The frozen branch is the same surface reading embedded payloads instead of
@@ -69,29 +66,30 @@ export function DocumentViewPresentation({
      the two payload sets can never be confused for each other. */
   if (!options.live) {
     return (
-      <DocumentSectionActionContext.Provider value={sectionAction}>
-        <Workspace
-          {...shown}
-          renderMode="report"
-          reportPlots={view.reportPayloads?.plots ?? {}}
-          reportTelemetry={view.plotContextTelemetry}
-        />
-      </DocumentSectionActionContext.Provider>
+      <Workspace
+        {...shown}
+        renderMode="report"
+        reportPlots={view.reportPayloads?.plots ?? {}}
+        reportTelemetry={view.plotContextTelemetry}
+      />
     );
   }
 
+  const sectionWindow =
+    windowedSectionId && plotWindow
+      ? { sectionId: windowedSectionId, elapsedUnit: documentWindowElapsedUnit(view.sections), window: plotWindow }
+      : undefined;
   return (
-    <DocumentSectionActionContext.Provider value={sectionAction}>
-      <Workspace
-        {...shown}
-        plotContextTelemetry={view.plotContextTelemetry}
-        plotResetKey={options.plotWindow.label}
-        plotWindowS={options.plotWindow.value}
-        plotRefresh={options.plotRefresh}
-        renderMode="live"
-        scope={options.scope}
-      />
-    </DocumentSectionActionContext.Provider>
+    <Workspace
+      {...shown}
+      plotContextTelemetry={view.plotContextTelemetry}
+      plotResetKey={options.plotWindow.label}
+      plotWindowS={options.plotWindow.value}
+      plotRefresh={options.plotRefresh}
+      renderMode="live"
+      scope={options.scope}
+      sectionWindow={sectionWindow}
+    />
   );
 }
 

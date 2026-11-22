@@ -1,199 +1,52 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
+// Dokime — SPDX-License-Identifier: Apache-2.0
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { usePlotPalette } from "../../plots/use-plot-palette";
+import { SvelteMount } from "../SvelteMount";
+import { TraceabilitySaveContext } from "../traceability/TraceabilityJsonDialog";
+import type { DocumentCardContentProps } from "./DocumentCardContent.svelte";
+import DocumentWorkspaceBridge from "./DocumentWorkspaceBridge.svelte";
+import type { DocumentWorkspaceView } from "./DocumentWorkspacePresentation.svelte";
 
-/* === Imports === */
+export { visibleDocumentPlots } from "./DocumentWorkspacePresentation.svelte";
 
-// Standard Library Imports
+/** Retry one failed card or its enclosing structure. */
+export const DocumentRetryContext = createContext<((cardId?: string) => void) | undefined>(undefined);
 
-// Third Party Imports
-
-/* === External Imports === */
-
-import type { EvidenceScope } from "@generated/host/model";
-import type { Wire } from "@/lib/rpc/canonical";
-import { type ReactNode, useCallback } from "react";
-
-/* === Local Imports === */
-
-import type { PlotRefreshState } from "../../features/cycle/PlotWindowSlider";
-import type { DocumentCardContentProps } from "./DocumentSurfaceView";
-import { DocumentCardContentView } from "./DocumentSurfaceView";
-import { type DocumentBlockChrome, DocumentViewRenderer } from "./DocumentViewRenderer";
-import { isDocumentSurfaceCard } from "./document-surface-policy";
-import type { MediaGalleryArtifact } from "../media-gallery-model";
-import { TraceabilityJsonDialog } from "../traceability/TraceabilityJsonDialog";
-import type { ArtifactTreeInput } from "../../lib/artifact-tree";
-import type { TraceabilityExportName } from "../../lib/traceability";
-import type {
-  DocumentViewCard,
-  DocumentViewPayload,
-  DocumentViewSection,
-  HealthItem,
-  HubRecord,
-  Metadata,
-  OperatorNote,
-  PlotPayload,
-  StepExecutionRecord,
-  TelemetryStream,
-  TraceabilitySnapshot,
-} from "@/lib/types";
-import type { LivePlotStateMap } from "@/plots/live-frames";
-import type { PlotSettingsChange } from "@/components/document/PlotGroupGrid";
-
-/* === Constants === */
-
-/* === Types === */
-
-type DocumentWorkspaceViewBaseProps = {
+export type DocumentWorkspaceViewProps = DocumentWorkspaceView & {
   renderCardContent?: (props: DocumentCardContentProps) => ReactNode;
-  artifacts: ArtifactTreeInput[];
-  cardFilter?: (card: DocumentViewCard) => boolean;
-  /** The frame each card gets; absent keeps the renderer's default. */
-  cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
-  streams: TelemetryStream[];
-  criterionRecords: StepExecutionRecord[];
-  document: DocumentViewPayload | null | undefined;
-  emptyMessage?: ReactNode;
-  records: HubRecord[];
-  health: HealthItem[];
-  mediaArtifacts: MediaGalleryArtifact[];
-  notes: OperatorNote[];
-  plotParameterContext?: Record<string, unknown> | null;
-  prependSections?: ReactNode;
-  runDir?: string | null;
-  sectionChrome?: "plain" | "card";
-  sections: DocumentViewSection[];
-  stepRecords: StepExecutionRecord[];
-  traceability: TraceabilitySnapshot | null | undefined;
-  /** Names the traceability JSON a reader downloads from the traceability card. */
-  traceabilityExportName?: TraceabilityExportName | null;
 };
-
-type LiveDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
-  livePlotStates?: LivePlotStateMap;
-  onPlotSettingsChange?: PlotSettingsChange;
-  plotContextTelemetry: Record<string, TelemetryStream> | null;
-  plotResetKey: string;
-  plotWindowS?: number | null;
-  plotRefresh?: PlotRefreshState;
-  renderMode: "live";
-  scope: Wire<EvidenceScope> | null;
-};
-
-type ReportDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
-  renderMode: "report";
-  reportPlots: Record<string, PlotPayload>;
-  reportTelemetry: Record<string, TelemetryStream> | null;
-};
-
-export type DocumentWorkspaceViewProps = LiveDocumentWorkspaceViewProps | ReportDocumentWorkspaceViewProps;
-
-/* === Components === */
 
 export function DocumentWorkspacePresentation(props: DocumentWorkspaceViewProps) {
-  const authoredFilter = props.cardFilter ?? isDocumentSurfaceCard;
-  /* A frozen file cannot gain artifacts or media later, so an empty one of
-     either is a card that will never fill: it is left out rather than shown
-     saying nothing. Live, the same card is a promise the run may still keep. */
-  const artifactCount = props.artifacts.length;
-  const mediaCount = props.mediaArtifacts.length;
-  const frozen = props.renderMode === "report";
-  const resolvedCardFilter = useCallback(
-    (card: DocumentViewCard) => {
-      if (!authoredFilter(card)) return false;
-      if (!frozen) return true;
-      if (card.kind === "artifacts") return artifactCount > 0;
-      if (card.kind === "media") return mediaCount > 0;
-      return true;
-    },
-    [artifactCount, authoredFilter, frozen, mediaCount],
-  );
-  const document = props.document;
-  const livePlotStates = props.renderMode === "live" ? (props.livePlotStates ?? {}) : {};
+  const onRetry = useContext(DocumentRetryContext);
+  const traceabilitySave = useContext(TraceabilitySaveContext);
+  const plotPalette = usePlotPalette();
+  const [portals, setPortals] = useState(new Map<HTMLElement, DocumentCardContentProps>());
+  const keys = useRef(new WeakMap<HTMLElement, string>());
+  const nextKey = useRef(0);
+  const attachPortal = useCallback((element: HTMLElement, content: DocumentCardContentProps) => {
+    if (!keys.current.has(element)) {
+      nextKey.current += 1;
+      keys.current.set(element, String(nextKey.current));
+    }
+    setPortals((held) => new Map(held).set(element, content));
+    return () => {
+      setPortals((held) => {
+        const next = new Map(held);
+        next.delete(element);
+        return next;
+      });
+    };
+  }, []);
+  const workspace = useMemo(() => {
+    const { renderCardContent, ...view } = props;
+    return { ...view, plotPalette, attachPortal, hasCardOverride: Boolean(renderCardContent), onRetry, traceabilitySave };
+  }, [props, plotPalette, attachPortal, onRetry, traceabilitySave]);
 
   return (
-    <DocumentViewRenderer
-      cardAction={(card) =>
-        card.kind === "traceability" ? (
-          <TraceabilityJsonDialog exportName={props.traceabilityExportName} traceability={props.traceability} />
-        ) : null
-      }
-      cardChrome={props.cardChrome}
-      cardFilter={resolvedCardFilter}
-      document={document}
-      emptyMessage={props.emptyMessage}
-      prependSections={props.prependSections}
-      sectionChrome={props.sectionChrome}
-      renderCard={(card, section) => {
-        const contentProps = {
-          ...documentCardContentProps(props, card, section, livePlotStates),
-          ...(props.renderMode === "live" && props.onPlotSettingsChange ? { onPlotSettingsChange: props.onPlotSettingsChange } : {}),
-        };
-        return props.renderCardContent ? props.renderCardContent(contentProps) : <DocumentCardContentView {...contentProps} />;
-      }}
-    />
+    <>
+      <SvelteMount component={DocumentWorkspaceBridge} props={workspace} />
+      {[...portals].map(([element, content]) => createPortal(props.renderCardContent?.(content), element, keys.current.get(element)))}
+    </>
   );
 }
-
-/* === Private Functions === */
-
-function documentCardContentProps(
-  props: DocumentWorkspaceViewProps,
-  card: DocumentViewCard,
-  section: Metadata | null,
-  livePlotStates: LivePlotStateMap,
-): DocumentCardContentProps {
-  const shared = {
-    artifacts: props.artifacts,
-    card,
-    sectionTitle: section?.label ?? card.title,
-    streams: props.streams,
-    criterionRecords: props.criterionRecords,
-    documentId: props.document?.document_id,
-    records: props.records,
-    health: props.health,
-    mediaArtifacts: props.mediaArtifacts,
-    notes: props.notes,
-    plotParameterContext: props.plotParameterContext ?? null,
-    runDir: props.runDir,
-    stepRecords: props.stepRecords,
-    traceability: props.traceability,
-  };
-
-  if (props.renderMode === "report") {
-    return {
-      ...shared,
-      renderMode: "report",
-      reportPlots: props.reportPlots,
-      reportTelemetry: props.reportTelemetry,
-    };
-  }
-
-  return {
-    ...shared,
-    captureScope: props.scope?.cycleId && props.scope.executionId ? props.scope : null,
-    livePlotStates,
-    noteScope: props.scope?.cycleId ? props.scope : null,
-    plotContextTelemetry: props.plotContextTelemetry,
-    plotResetKey: props.plotResetKey,
-    renderMode: "live",
-  };
-}
-
-export function visibleDocumentPlots(sections: DocumentViewSection[], cardFilter: (card: DocumentViewCard) => boolean) {
-  return sections.flatMap((section) =>
-    section.cards.filter((card) => card.kind === "plots" && cardFilter(card)).flatMap((card) => card.plots),
-  );
-}
-
-/* === Re-Exports === */
-
-/* === Hooks === */
-
-/* === Public Functions === */
