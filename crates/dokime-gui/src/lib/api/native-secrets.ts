@@ -62,25 +62,21 @@ export async function readSecrets(session: SessionIdentity): Promise<SecretSnaps
   return { ...catalog(snapshot), hostId: identity.hostId, hostLabel: identity.applicationName || identity.hostId };
 }
 
+// The Host Refuses a Stale Catalog Generation, So New and Existing Secrets Need No Lookup First.
 export async function putSecret(session: SessionIdentity, metadata: SecretMetadata, value: string | undefined, generation: bigint) {
-  const current = await rpc.secretsGet(session, { name: metadata.identifier });
-  if ((await rpc.secretsList(session, {})).generation !== generation) throw new Error("Set Secret: Storage Changed; Refresh Before Saving");
   await rpc.secretsSet(session, {
     name: metadata.identifier,
     value: { metadata, value },
-    expectedRevision: current.revision,
+    expectedRevision: revision(generation),
     requestId: crypto.randomUUID(),
   });
   return readSecrets(session);
 }
 
 export async function removeSecret(session: SessionIdentity, identifier: string, generation: bigint) {
-  const current = await rpc.secretsGet(session, { name: identifier });
-  if ((await rpc.secretsList(session, {})).generation !== generation)
-    throw new Error("Delete Secret: Storage Changed; Refresh Before Deleting");
   const reply = await rpc.secretsDelete(session, {
     names: [identifier],
-    expectedRevision: current.revision,
+    expectedRevision: revision(generation),
     requestId: crypto.randomUUID(),
   });
   return { ...(await readSecrets(session)), cleanupPending: reply.cleanupPending };
@@ -124,6 +120,13 @@ export async function importSecrets(session: SessionIdentity, data: Uint8Array, 
 }
 
 /* === Private Functions === */
+
+// The Catalog Generation Travels as Its Eight Big-Endian Bytes.
+function revision(generation: bigint): Uint8Array {
+  const bytes = new Uint8Array(8);
+  new DataView(bytes.buffer).setBigUint64(0, generation);
+  return bytes;
+}
 
 function catalog(snapshot: Snapshot): Omit<SecretSnapshot, "hostId" | "hostLabel"> {
   const entries = snapshot.entries.map((entry) => {
