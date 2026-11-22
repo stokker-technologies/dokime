@@ -25,7 +25,7 @@ use dokime::ValueType;
 use dokime::operations;
 use dokime::prelude::*;
 use dokime::templates::Context;
-use dokime::{ExactNumber, FromValue, Value, encoding, value};
+use dokime::{ExactNumber, FromValue, SettingDeclaration, SettingValue, Value, encoding, setting_value, value};
 
 /* === Constants === */
 
@@ -40,11 +40,6 @@ struct Inputs {
     limit: f64,
     channels: Vec<u32>,
     serial: Option<String>,
-}
-
-#[derive(dokime::Settings)]
-struct Saved {
-    enabled: bool,
 }
 
 #[derive(dokime::Message)]
@@ -77,7 +72,16 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
     let declarations = Plugin::of::<()>("1.0.0")
         .identifier("data")
         .operation(echo)
-        .settings(Saved { enabled: true })
+        .setting(SettingDeclaration {
+            name: "enabled".into(),
+            title: "Enabled".into(),
+            description: String::new(),
+            default: Some(SettingValue {
+                value: Some(setting_value::Value::Flag(true)),
+            }),
+            minimum: None,
+            maximum: None,
+        })
         .suite(Suite::of::<()>().identifier("data").label("Data").template(template))
         .declarations()?;
     let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").expect("Suites Section");

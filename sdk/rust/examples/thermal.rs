@@ -175,6 +175,8 @@ fn main() -> Result<()> {
     let plugin = Plugin::of::<ThermalPlugin>("1.0.0")
         .operation(Operation::new("thermal.echo", Visibility::Public, echo))
         .setting(SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: "thermal.load.interval".into(),
             title: "Load Interval".into(),
             description: String::new(),

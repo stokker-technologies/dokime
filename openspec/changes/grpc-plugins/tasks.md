@@ -194,13 +194,21 @@
   - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Initialization With Python-Only Tests.
   - [ ] Complete Typed Stream Subscription and Real-Host Failure/Cancelled Plugin Initialization Finalization, Admission Draining and Repeated Shutdown Proof; the Operation-Encoded Hooks and Their Native Host Invocation Are Implemented.
   - [ ] Bind Typed Host/Plugin Stream Subscription After the Library Provides Admitted Sample Demand, Backpressure and Close in Inherited Scope.
-  - [ ] Publish Records From Plugin Observers After the Library Allows Product Call-Context Resources on Scoped Sample Child Calls.
+  - [x] Publish Records From Plugin Observers After the Library Allows Product Call-Context Resources on Scoped Sample Child Calls.
   - [x] Prove Product Failure Classifications, Causes, Identity and Actionable Details From Bound Python Operations.
   - [x] Expose and Prove a Decorated Operation's Immutable Typed Declaration Through `operations.declaration`.
   - [x] Complete and Prove Python Text/List/Choice/Required Parameters, Traceability Cards, Plot Markers, Section Repeats and Bound Record Fields.
-  - [ ] Adopt Library-Owned Minimum/Maximum Setting Bounds When Its Setting Declaration and Validation Support Them.
+  - [x] Adopt Library-Owned Minimum/Maximum Setting Bounds When Its Setting Declaration and Validation Support Them.
+  - [x] Seed Scoped Observer Bindings With Execution Resources and Replace Inherited Resources for Each Dispatched Operation.
+  - [x] Declare Host and OBC Scalar Setting Bounds Through the Library and Remove Local Scalar Range Validation.
+  - [x] Refuse Offline Python Registration and Release Its Listener; Prove Library Host Default and Settings-Write Bounds With Fake Plugins.
+  - [x] Remove Rust Reflective Setting Declarations and Migrate Their Consumer to Explicit `setting` Declarations.
   - [ ] Agree and Implement Stop-Completes-Run Across the Product Declaration, Runtime and Durable Sealing Owners; No Equivalent Contract Exists in This Candidate.
   - [ ] Adopt Library Observer Columns With Per-Row Optional Presence and Prove Absent, Zero and Nonzero Fields Through Product Storage.
+    - [x] Prove Absent, Zero and Nonzero Values Through Python Observer and Window Carriers and Frozen Sample Decoding at Library Revision `3cc1166fa`.
+  - [x] Generate Missing Host Frontend and Report Inputs for Focused Rust Fixtures Through the Existing Renderer.
+  - [x] Replace Fixed Capture Catalog Counts With Member Lookup, Read Exported Fixture Locations and Stage the Rust History Reader.
+  - [ ] Complete Native Fixture Production and Four-Language Capture Proof After the Library Pin's Rust Consumers and Runtime Context Overrides Are Migrated.
   - [x] Share Template/Client Record Query and Decode Ownership, Termination Values, Bound Operation Calls, Plugin-Owned Listener Activation and Artifact Publication; Complete Typed Statistics, Artifact Projection and Local Document Declaration Binding.
   - [ ] Admit Plugin Notes/Create and Resolve Complete Automatic Peer Requirements Against the Library's Frozen Activation Requirements; Authors Declare No Requirements.
   - [x] Complete Installed-Wheel Stub/Public-Home Consumer Proof With the Three Intentional Python Homes.

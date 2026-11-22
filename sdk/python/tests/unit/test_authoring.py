@@ -26,7 +26,7 @@ import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk._generated import shared
-from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, Visibility, operation
+from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
 from dokime_sdk.templates import Document, Materialization, Section, TestTemplate, criterion, materialize, record, step
 
 # Type Checking Imports
@@ -63,6 +63,28 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_setting_bounds(self) -> None:
+        for minimum, default, maximum, field, expected in (
+            (SettingValue(integer=0), SettingValue(integer=7), SettingValue(integer=10), "integer", (0, 7, 10)),
+            (SettingValue(number=0.0), SettingValue(number=1.5), SettingValue(number=2.0), "number", (0.0, 1.5, 2.0)),
+            (
+                SettingValue(duration=timedelta()),
+                SettingValue(duration=timedelta(seconds=1)),
+                SettingValue(duration=timedelta(seconds=2)),
+                "duration",
+                (timedelta(), timedelta(seconds=1), timedelta(seconds=2)),
+            ),
+        ):
+            declaration = SettingDeclaration("reading", "Reading", "", default, minimum=minimum, maximum=maximum)
+            value = declaration._definition()
+            for bound, expected_value in zip((value.minimum, value.default, value.maximum), expected, strict=True):
+                self.assertEqual(bound.WhichOneof("value"), field)
+                actual = bound.duration.ToTimedelta() if field == "duration" else getattr(bound, field)
+                self.assertEqual(actual, expected_value)
+        unbounded = SettingDeclaration("enabled", "Enabled", "", SettingValue(flag=False))._definition()
+        self.assertFalse(unbounded.HasField("minimum"))
+        self.assertFalse(unbounded.HasField("maximum"))
+
     def test_scalar_list_elements_and_choices_preserve_wire_kinds(self) -> None:
         for value, kind, field in (
             (True, shared.VALUE_TYPE_BOOLEAN, "boolean"),

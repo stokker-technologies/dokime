@@ -25,8 +25,7 @@ use prost_reflect::{DynamicMessage, Kind, ReflectMessage};
 use crate::ExactNumber;
 use crate::{Error, Message, Result};
 use crate::{
-    Metadata, Null, Parameter, ParameterExpression, SettingDeclaration, SettingValue, SettingValues, Value, ValueList, ValueType,
-    parameter_expression, setting_value, value,
+    Metadata, Null, Parameter, ParameterExpression, SettingValues, Value, ValueList, ValueType, parameter_expression, setting_value, value,
 };
 
 /* === Constants === */
@@ -235,32 +234,6 @@ pub(crate) fn parameters<T: Message>(defaults: T) -> Result<Vec<Parameter>> {
                     kind: Some(parameter_expression::Kind::Literal(value)),
                 }),
                 ..Default::default()
-            })
-        })
-        .collect()
-}
-
-pub(crate) fn settings<T: Message>(defaults: T) -> Result<Vec<SettingDeclaration>> {
-    parameters(defaults)?
-        .into_iter()
-        .map(|parameter| {
-            let metadata = parameter.metadata.ok_or_else(|| invalid("Declare Settings: Missing Metadata"))?;
-            let value = parameter.expression.and_then(|expression| match expression.kind {
-                Some(parameter_expression::Kind::Literal(value)) => value.kind,
-                _ => None,
-            });
-            let value = match value {
-                Some(value::Kind::Boolean(value)) => setting_value::Value::Flag(value),
-                Some(value::Kind::Integer(value)) => setting_value::Value::Integer(value),
-                Some(value::Kind::Number(value)) => setting_value::Value::Number(value),
-                Some(value::Kind::Text(value)) => setting_value::Value::Text(value),
-                _ => return Err(invalid("Declare Settings: Supply a Boolean, Signed Integer, Number or Text Default")),
-            };
-            Ok(SettingDeclaration {
-                name: metadata.identifier,
-                title: metadata.label,
-                description: metadata.description,
-                default: Some(SettingValue { value: Some(value) }),
             })
         })
         .collect()

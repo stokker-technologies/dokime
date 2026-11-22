@@ -47,6 +47,10 @@ pub const IMAGES_DIRECTORY: &str = "images_directory";
 pub fn catalog() -> [SettingDeclaration; 2] {
     [
         SettingDeclaration {
+            minimum: Some(SettingValue {
+                value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 1 })),
+            }),
+            maximum: None,
             name: SAMPLE_INTERVAL.into(),
             title: "Sample Interval".into(),
             description: "Host time between two observer samples; the simulated model advances one step per sample.".into(),
@@ -55,6 +59,8 @@ pub fn catalog() -> [SettingDeclaration; 2] {
             }),
         },
         SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: IMAGES_DIRECTORY.into(),
             title: "Reference Images Directory".into(),
             description: "Directory containing the optional reference.png the start-up evidence step attaches.".into(),
@@ -68,13 +74,8 @@ pub fn catalog() -> [SettingDeclaration; 2] {
 /// The Effective Observer Cadence for This Plugin Entry.
 pub async fn sample_interval(ctx: &Context) -> Result<Duration> {
     match value(ctx, SAMPLE_INTERVAL).await? {
-        setting_value::Value::Duration(interval) => {
-            let interval = Duration::try_from(interval).map_err(|error| Error::Invalid(format!("Read Sample Interval: {error}")))?;
-            if interval.is_zero() {
-                return Err(Error::Invalid("Read Sample Interval: Configure a Positive Interval in the Plugin Settings".into()));
-            }
-            Ok(interval)
-        }
+        setting_value::Value::Duration(interval) => Duration::try_from(interval)
+            .map_err(|error| Error::Invalid(format!("Read Sample Interval: Configure a Valid Duration: {error}"))),
         _ => Err(Error::Invalid("Read Sample Interval: Configure a Duration in the Plugin Settings".into())),
     }
 }

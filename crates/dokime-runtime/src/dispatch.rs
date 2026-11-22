@@ -65,6 +65,8 @@ impl Dispatch<'_> {
         resources.attempt = Arc::new(AtomicU32::new(1));
         let attempts = Arc::new(Attempts::new(resources.clock.now_ns()));
         let mut context = OperationHost::context(&operations).clone();
+        context.remove::<Arc<ExecutionTime>>();
+        context.remove::<Resources>();
         context.insert(self.time.clone()).map_err(|source| Error::Invalid(format!("Invoke {operation}: {source}")))?;
         context.insert(attempts).map_err(|source| Error::Invalid(format!("Invoke {operation}: {source}")))?;
         context.insert(resources).map_err(|source| Error::Invalid(format!("Invoke {operation}: {source}")))?;

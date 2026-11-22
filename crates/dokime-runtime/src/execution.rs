@@ -21,6 +21,7 @@ use std::sync::{Arc, Weak, atomic::AtomicU32};
 
 // Third Party Imports
 use harmos_protocol::host::PluginEntry;
+use harmos_runtime::operations::OperationHost;
 use harmos_runtime::plugin::grpc::{self, ScopedBinding};
 use prost::Message;
 use prost_types::Timestamp;
@@ -66,12 +67,14 @@ pub struct Cycle {
     store: Store,
     result: Receiver<Result<Completed>>,
 }
+
 /// What a Sealed Cycle Task Reports; Evidence Is Read Only When a Caller Waits for It.
 struct Completed {
     executions: Vec<String>,
     states: Vec<RunState>,
     counts: OutcomeCounts,
 }
+
 #[derive(Debug)]
 pub struct CycleResult {
     pub executions: Vec<ExecutionSnapshot>,
@@ -490,29 +493,32 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     host.inner.store.open_streams(&execution, &case.streams)?;
     let scope = SampleScope::new(catalog, &case.streams)?;
     lock(&host.inner.sample_scopes)?.insert(execution.clone(), scope);
+    let resources = Resources {
+        plugin: Arc::new(entry.clone()),
+        context: host
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
+        store: host.inner.store.clone(),
+        execution: execution.clone(),
+        step: String::new(),
+        operation: String::new(),
+        attempt: Arc::new(AtomicU32::new(0)),
+        clock: time.clone(),
+        prompts: host.inner.prompts.clone(),
+    };
+    let mut call_context = OperationHost::context(&runtime.operations).clone();
+    call_context.insert(time.clone()).map_err(|source| Error::Invalid(format!("Bind Execution Samples: {source}")))?;
+    call_context.insert(resources.clone()).map_err(|source| Error::Invalid(format!("Bind Execution Samples: {source}")))?;
     let binding = runtime
-        .bind_grpc(&activation, &execution, time.clock.clone())
+        .bind_grpc(&activation, &execution, time.clock.clone(), &call_context)
         .await
         .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
     // Close the Binding on Every Exit So Accepted Samples Drain Before the Scope Is Removed.
     let binding = &*active.binding.insert(binding);
     let prepared: Result<(Resources, Termination, Vec<bool>, Result<()>)> = async {
-        let resources = Resources {
-            plugin: Arc::new(entry.clone()),
-            context: host
-                .inner
-                .context
-                .get()
-                .and_then(Weak::upgrade)
-                .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
-            store: host.inner.store.clone(),
-            execution: execution.clone(),
-            step: String::new(),
-            operation: String::new(),
-            attempt: Arc::new(AtomicU32::new(0)),
-            clock: time.clone(),
-            prompts: host.inner.prompts.clone(),
-        };
         let mut dispatch = Dispatch {
             time: time.clone(),
             sample_failures: host.inner.sample_failures.clone(),

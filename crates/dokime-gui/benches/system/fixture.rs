@@ -363,6 +363,8 @@ pub fn serve() -> Result<()> {
     Plugin::of::<()>("1.0.0")
         .identifier("desktop.benchmark")
         .setting(SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: "sample_interval".into(),
             title: "Sample Interval".into(),
             description: "Canonical sample cadence for the three-day history".into(),

@@ -20,9 +20,9 @@ import harmos
 from google.protobuf.duration_pb2 import Duration
 from harmos import VISIBILITY_PUBLIC, plugin
 
+# Local Imports
 import dokime_sdk._generated.client
 
-# Local Imports
 from ._errors import Failure, FailureError, call, invalid, project_failure, refused
 from ._generated.host import HostRoot
 from ._payloads import Payload, message_type, pack, unpack
@@ -84,7 +84,7 @@ class Context:
         response = await self._host.plugins.settings.list()
         values = {}
         for key, value in response.value.values.items():
-            kind = value.WhichOneof("kind")
+            kind = value.WhichOneof("value")
             match kind:
                 case "flag":
                     result = operations.SettingValue(flag=value.flag)

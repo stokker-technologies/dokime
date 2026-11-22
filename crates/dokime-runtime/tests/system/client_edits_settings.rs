@@ -105,6 +105,8 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             // Declare Typed Library Settings on a Real Plugin Carrier
             let declarations = SettingsDeclarations {
                 values: vec![SettingDeclaration {
+                    minimum: None,
+                    maximum: None,
                     name: "enabled".into(),
                     title: "Enabled".into(),
                     description: String::new(),

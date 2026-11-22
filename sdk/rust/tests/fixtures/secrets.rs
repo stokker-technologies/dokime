@@ -77,6 +77,8 @@ fn main() -> Result<()> {
             required: true,
         })
         .setting(SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: "secrets.text".into(),
             title: "Text Setting".into(),
             description: String::new(),
