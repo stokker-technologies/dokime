@@ -158,7 +158,7 @@ internal sealed class HostBackendResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.BackendEnvironment, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.BackendEnvironment, request, policy, cancellationToken);
     return response;
   }
 }
@@ -185,7 +185,7 @@ internal sealed class HostContentArtifactsResource(Context context)
     {
       request.Metadata = metadata;
     }
-    var response = await context.CallAsync(HostContracts.ContentArtifactsCreate, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.ContentArtifactsCreate, request, policy, cancellationToken);
     return response;
   }
 }
@@ -208,7 +208,7 @@ internal sealed class HostDocumentsResource(Context context)
     {
       request.Card = card;
     }
-    var response = await context.CallAsync(HostContracts.DocumentsAppendParts, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.DocumentsAppendParts, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read DocumentsAppendParts: Missing Payload");
   }
 }
@@ -236,7 +236,7 @@ internal sealed class HostEvidenceResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.EvidenceStatistics, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.EvidenceStatistics, request, policy, cancellationToken);
     return response;
   }
 }
@@ -252,7 +252,7 @@ internal sealed class HostEvidenceLogsResource(Context context)
       At = at,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.EvidenceLogsAppend, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.EvidenceLogsAppend, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read EvidenceLogsAppend: Missing Payload");
   }
 }
@@ -280,7 +280,7 @@ internal sealed class HostEvidenceRecordsResource(Context context)
     {
       request.Page = page;
     }
-    var response = await context.CallAsync(HostContracts.EvidenceRecordsList, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.EvidenceRecordsList, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.EvidenceResources.RecordsAppendResponse> Append(string execution, string kind, ByteString payload, global::Google.Protobuf.WellKnownTypes.Timestamp source_at, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -293,7 +293,7 @@ internal sealed class HostEvidenceRecordsResource(Context context)
       SourceAt = source_at,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.EvidenceRecordsAppend, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.EvidenceRecordsAppend, request, policy, cancellationToken);
     return response;
   }
 }
@@ -320,7 +320,7 @@ internal sealed class HostEvidenceTraceabilityResource(Context context)
     {
       request.Entry = entry;
     }
-    var response = await context.CallAsync(HostContracts.EvidenceTraceabilityGet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.EvidenceTraceabilityGet, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.EvidenceResources.TraceabilitySetResponse> Set(global::Dokime.TraceabilityEntry value, ByteString expected_revision, string entry, string? name = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -336,7 +336,7 @@ internal sealed class HostEvidenceTraceabilityResource(Context context)
     {
       request.Name = name;
     }
-    var response = await context.CallAsync(HostContracts.EvidenceTraceabilitySet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.EvidenceTraceabilitySet, request, policy, cancellationToken);
     return response;
   }
 }
@@ -359,7 +359,7 @@ internal sealed class HostExecutionsProgressResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.ExecutionsProgressGet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.ExecutionsProgressGet, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.ExecutionsResources.ProgressSetResponse> Set(global::Dokime.ExecutionProgressValue value, ByteString expected_revision, string? name = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -374,7 +374,7 @@ internal sealed class HostExecutionsProgressResource(Context context)
     {
       request.Name = name;
     }
-    var response = await context.CallAsync(HostContracts.ExecutionsProgressSet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.ExecutionsProgressSet, request, policy, cancellationToken);
     return response;
   }
 }
@@ -392,7 +392,7 @@ internal sealed class HostFilesResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.FilesGet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesGet, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.FilesReadResponse> Read(global::Harmos.FileReference file, ulong offset, ulong max_bytes, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -407,7 +407,7 @@ internal sealed class HostFilesResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.FilesRead, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesRead, request, policy, cancellationToken);
     return response;
   }
   public async IAsyncEnumerable<global::Dokime.Clients.FilesWatchResponse> Watch(ulong offset, ulong maxItemBytes, global::Harmos.FileReference? file = null, global::Harmos.Upload? upload = null, global::Harmos.ReadCut? at = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -440,7 +440,7 @@ internal sealed class HostFilesResource(Context context)
       File = file,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.FilesDelete, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesDelete, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read FilesDelete: Missing Payload");
   }
   public async Task<global::Dokime.Clients.FilesCaptureResponse> Capture(global::Dokime.FileSource source, string output, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -450,7 +450,7 @@ internal sealed class HostFilesResource(Context context)
       Source = source,
       Output = output,
     };
-    var response = await context.CallAsync(HostContracts.FilesCapture, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesCapture, request, policy, cancellationToken);
     return response;
   }
 }
@@ -464,7 +464,7 @@ internal sealed class HostFilesCapturesResource(Context context)
       Output = output,
       Mode = mode,
     };
-    var response = await context.CallAsync(HostContracts.FilesCapturesStart, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesCapturesStart, request, policy, cancellationToken);
     return response.CaptureId;
   }
   public async Task<global::Dokime.Clients.FilesResources.CapturesStopResponse> Stop(ulong capture_id, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -473,7 +473,7 @@ internal sealed class HostFilesCapturesResource(Context context)
     {
       CaptureId = capture_id,
     };
-    var response = await context.CallAsync(HostContracts.FilesCapturesStop, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesCapturesStop, request, policy, cancellationToken);
     return response;
   }
 }
@@ -486,7 +486,7 @@ internal sealed class HostFilesUploadsResource(Context context)
       Metadata = metadata,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.FilesUploadsCreate, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesUploadsCreate, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.FilesResources.UploadsGetResponse> Get(global::Harmos.Upload upload, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -499,7 +499,7 @@ internal sealed class HostFilesUploadsResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.FilesUploadsGet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesUploadsGet, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.FilesResources.UploadsResumeResponse> Resume(global::Harmos.Upload upload, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -509,7 +509,7 @@ internal sealed class HostFilesUploadsResource(Context context)
       Upload = upload,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.FilesUploadsResume, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesUploadsResume, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.FilesResources.UploadsAppendResponse> Append(global::Harmos.Upload upload, ulong offset, ByteString data, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -521,7 +521,7 @@ internal sealed class HostFilesUploadsResource(Context context)
       Data = data,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.FilesUploadsAppend, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesUploadsAppend, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.FilesResources.UploadsPublishResponse> Publish(global::Harmos.Upload upload, ulong length, ByteString sha256, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -533,7 +533,7 @@ internal sealed class HostFilesUploadsResource(Context context)
       Sha256 = sha256,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.FilesUploadsPublish, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesUploadsPublish, request, policy, cancellationToken);
     return response;
   }
   public async Task<global::Dokime.Clients.FilesResources.UploadsDeleteResponse> Delete(global::Harmos.Upload upload, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
@@ -543,7 +543,7 @@ internal sealed class HostFilesUploadsResource(Context context)
       Upload = upload,
       RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    var response = await context.CallAsync(HostContracts.FilesUploadsDelete, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.FilesUploadsDelete, request, policy, cancellationToken);
     return response;
   }
 }
@@ -616,7 +616,7 @@ internal sealed class HostPromptsResource(Context context)
     {
       request.Definition = definition;
     }
-    var response = await context.CallAsync(HostContracts.PromptsCreate, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.PromptsCreate, request, policy, cancellationToken);
     return response;
   }
 }
@@ -632,7 +632,7 @@ internal sealed class HostSecretsResource(Context context)
     {
       request.At = at;
     }
-    var response = await context.CallAsync(HostContracts.SecretsGet, request, policy, cancellationToken);
+    var response = await context.Operation(HostContracts.SecretsGet, request, policy, cancellationToken);
     return response;
   }
 }

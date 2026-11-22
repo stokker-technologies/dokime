@@ -18,7 +18,6 @@ import runpy
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 import tomllib
 import urllib.request
@@ -34,6 +33,7 @@ from harmos_tools.build.resources.configuration import Configuration
 
 # Local Imports
 from dokime_tools.build import cargo
+from dokime_tools.package.staging import sync_output
 from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
@@ -81,44 +81,16 @@ def cpp_dependency(root: Path, *, check: bool = False) -> None:
 
 
 def inputs(root: Path) -> Path:
-    """Resolve Library Inputs at the Workspace Pin and Stage Current Product Sources."""
+    """Stage Protocol Sources From the Same Local Library as the Product Build."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     dependency = manifest["workspace"]["dependencies"]["harmos"]
-    # The Pinned Git Archive Is the Same Source the C++ Dependency Downloads; No Tool Is Required.
-    source = f"{dependency['git'].removesuffix('.git')}/archive/{dependency['rev']}.tar.gz"
+    patch = manifest.get("patch", {}).get(dependency["git"], {}).get("harmos", {}).get("path")
+    if not isinstance(patch, str):
+        raise ValueError("Stage Library Protocol: Configure the Workspace Harmos Path Patch")
+    library = (root / patch).resolve().parents[1] / "proto/harmos"
     output = root / "target/protocol"
-    stamp = output / ".revision"
-    if not stamp.is_file() or stamp.read_text(encoding="utf-8") != source:
-        if output.exists():
-            shutil.rmtree(output)
-        response = urllib.request.urlopen(source)
-        files = tarfile.open(fileobj=response, mode="r|gz")
-        exported = 0
-        try:
-            for member in files:
-                relative = Path(*Path(member.name).parts[1:])
-                if not member.isfile() or relative.suffix != ".proto" or not relative.is_relative_to("proto"):
-                    continue
-                contents = files.extractfile(member)
-                if contents is None:
-                    raise ValueError("Export Library Protocol: Download a Complete Library Archive")
-                destination = output / relative.relative_to("proto")
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    destination.write_bytes(contents.read())
-                finally:
-                    contents.close()
-                exported += 1
-        finally:
-            files.close()
-            response.close()
-        if not exported:
-            raise ValueError(f"Export Library Protocol: Pin a Library Revision Whose Archive Contains proto/ ({source})")
-        stamp.write_text(source, encoding="utf-8")
-    product = output / "dokime"
-    if product.exists():
-        shutil.rmtree(product)
-    shutil.copytree(root / "proto/dokime", product)
+    sync_output(library, output / "harmos")
+    sync_output(root / "proto/dokime", output / "dokime")
     return output
 
 

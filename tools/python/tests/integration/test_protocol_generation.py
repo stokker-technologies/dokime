@@ -15,7 +15,6 @@
 import hashlib
 import runpy
 import shutil
-import tarfile
 import tempfile
 import unittest
 from io import BytesIO
@@ -72,42 +71,25 @@ class GenerationContracts(unittest.TestCase):
         library.unlink()
         self.assertEqual(source_inventory(scratch), {"dokime/model/v1/renamed.proto": hashlib.sha256(b"changed").hexdigest()})
 
-    def test_protocol_inputs_export_the_workspace_pin_and_replace_product_inputs(self) -> None:
+    def test_protocol_inputs_follow_the_compiled_local_library_and_prune_stale_sources(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, scratch)
-        manifest = scratch / "Cargo.toml"
-        manifest.write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "first"\n')
+        (scratch / "Cargo.toml").write_text(
+            '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "first"\n'
+            '[patch."https://example.test/library".harmos]\npath = "library/sdk/rust"\n'
+        )
         product = scratch / "proto/dokime/model/v1/value.proto"
-        product.parent.mkdir(parents=True)
-        product.write_text("product contract")
-
-        def archive(url: str) -> BytesIO:
-            data = BytesIO()
-            files = tarfile.open(fileobj=data, mode="w:gz")
-            for name, text in (("library/proto/harmos/model/v1/value.proto", url), ("library/proto/harmos/model/v1/behaviour.md", "notes")):
-                contents = text.encode()
-                member = tarfile.TarInfo(name)
-                member.size = len(contents)
-                files.addfile(member, BytesIO(contents))
-            files.close()
-            data.seek(0)
-            return data
-
-        with mock.patch.object(protocol.urllib.request, "urlopen", side_effect=archive) as download:
-            output = protocol.inputs(scratch)
-            self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/first.tar.gz")
-            self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "https://example.test/library/archive/first.tar.gz")
-            self.assertFalse((output / "harmos/model/v1/behaviour.md").exists())
-            self.assertEqual((output / "dokime/model/v1/value.proto").read_text(), "product contract")
-            product.unlink()
-            protocol.inputs(scratch)
-            self.assertFalse((output / "dokime/model/v1/value.proto").exists())
-            self.assertEqual(download.call_count, 1)
-            manifest.write_text(manifest.read_text().replace('"first"', '"second"'))
-            protocol.inputs(scratch)
-            self.assertEqual(download.call_count, 2)
-            self.assertIn("second", (output / "harmos/model/v1/value.proto").read_text())
-        self.assertFalse((scratch / "proto/harmos").exists())
+        library = scratch / "library/proto/harmos/model/v1/value.proto"
+        for path in (product, library):
+            path.parent.mkdir(parents=True)
+            path.write_text("first")
+        output = protocol.inputs(scratch)
+        self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "first")
+        library.write_text("second")
+        product.unlink()
+        protocol.inputs(scratch)
+        self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "second")
+        self.assertFalse((output / "dokime/model/v1/value.proto").exists())
 
     def test_pin_projection_and_lock_refresh_precede_locked_generation(self) -> None:
         root = Path.cwd()

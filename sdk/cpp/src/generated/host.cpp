@@ -125,7 +125,7 @@ using ::harmos::plugin::Watching;
 Timestamp HostTimeResource::get(HostTimeGetOptions options) {
   TimeGetRequest request;
   auto operation = Operation<TimeGetRequest, TimeGetResponse>("harmos.plugin.v1.Time/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_now()) {
     throw runtime_error("Read TimeGet: Missing Payload");
   }
@@ -135,7 +135,7 @@ TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSlee
   TimeSleepRequest request;
   *request.mutable_duration() = duration;
   auto operation = Operation<TimeSleepRequest, TimeSleepResponse>("harmos.plugin.v1.Time/Sleep", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::SecretsGetResponse HostSecretsResource::get(const string &name, HostSecretsGetOptions options) {
@@ -145,7 +145,7 @@ TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSlee
     *request.mutable_at() = *options.at;
   }
   auto operation = Operation<SecretsGetRequest, SecretsGetResponse>("dokime.host.v1.Secrets/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::plugin::PromptsCreateResponse HostPromptsResource::create(const string &prompt, const string &prompt_type,
@@ -161,13 +161,13 @@ TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSlee
     *request.mutable_definition() = *options.definition;
   }
   auto operation = Operation<PromptsCreateRequest, PromptsCreateResponse>("dokime.host.v1.Prompts/Create", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 StateGetResponse HostPluginsStateResource::get(HostPluginsStateGetOptions options) {
   StateGetRequest request;
   auto operation = Operation<StateGetRequest, StateGetResponse>("harmos.plugin.v1.plugins.State/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 uint64_t HostPluginsStateResource::put(const uint64_t &expected_revision, const string &value, HostPluginsStatePutOptions options) {
@@ -175,7 +175,7 @@ uint64_t HostPluginsStateResource::put(const uint64_t &expected_revision, const 
   request.set_expected_revision(expected_revision);
   request.set_value(value);
   auto operation = Operation<StatePutRequest, StatePutResponse>("harmos.plugin.v1.plugins.State/Put", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response.revision();
 }
 SettingsListResponse HostPluginsSettingsResource::list(HostPluginsSettingsListOptions options) {
@@ -187,20 +187,20 @@ SettingsListResponse HostPluginsSettingsResource::list(HostPluginsSettingsListOp
     *request.mutable_at() = *options.at;
   }
   auto operation = Operation<SettingsListRequest, SettingsListResponse>("harmos.plugin.v1.plugins.Settings/List", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 vector<DiscoveredOperation> HostOperationsResource::list(HostOperationsListOptions options) {
   OperationsListRequest request;
   auto operation = Operation<OperationsListRequest, OperationsListResponse>("harmos.plugin.v1.Operations/List", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return vector<DiscoveredOperation>(response.operations().begin(), response.operations().end());
 }
 DiscoveredOperation HostOperationsResource::get(const string &id, HostOperationsGetOptions options) {
   OperationsGetRequest request;
   request.set_id(id);
   auto operation = Operation<OperationsGetRequest, OperationsGetResponse>("harmos.plugin.v1.Operations/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_operation()) {
     throw runtime_error("Read OperationsGet: Missing Payload");
   }
@@ -210,7 +210,7 @@ InstanceState HostInvocationsResource::get(const uint64_t &instance, HostInvocat
   InvocationsGetRequest request;
   request.set_instance(instance);
   auto operation = Operation<InvocationsGetRequest, InvocationsGetResponse>("harmos.plugin.v1.Invocations/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_invocation()) {
     throw runtime_error("Read InvocationsGet: Missing Payload");
   }
@@ -221,7 +221,7 @@ InstanceState HostInvocationsResource::cancel(const uint64_t &instance, const st
   request.set_instance(instance);
   request.set_reason(reason);
   auto operation = Operation<InvocationsCancelRequest, InvocationsCancelResponse>("harmos.plugin.v1.Invocations/Cancel", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_invocation()) {
     throw runtime_error("Read InvocationsCancel: Missing Payload");
   }
@@ -250,7 +250,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
   *request.mutable_metadata() = metadata;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<UploadsCreateRequest, UploadsCreateResponse>("dokime.host.v1.files.Uploads/Create", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::UploadsGetResponse HostFilesUploadsResource::get(const Upload &upload, HostFilesUploadsGetOptions options) {
@@ -260,7 +260,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
     *request.mutable_at() = *options.at;
   }
   auto operation = Operation<UploadsGetRequest, UploadsGetResponse>("dokime.host.v1.files.Uploads/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::UploadsResumeResponse HostFilesUploadsResource::resume(const Upload &upload, HostFilesUploadsResumeOptions options) {
@@ -268,7 +268,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
   *request.mutable_upload() = upload;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<UploadsResumeRequest, UploadsResumeResponse>("dokime.host.v1.files.Uploads/Resume", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::UploadsAppendResponse HostFilesUploadsResource::append(const Upload &upload, const uint64_t &offset, const string &data,
@@ -279,7 +279,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
   request.set_data(data);
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<UploadsAppendRequest, UploadsAppendResponse>("dokime.host.v1.files.Uploads/Append", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::UploadsPublishResponse HostFilesUploadsResource::publish(const Upload &upload, const uint64_t &length, const string &sha256,
@@ -290,7 +290,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
   request.set_sha256(sha256);
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<UploadsPublishRequest, UploadsPublishResponse>("dokime.host.v1.files.Uploads/Publish", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::UploadsDeleteResponse HostFilesUploadsResource::delete_(const Upload &upload, HostFilesUploadsDeleteOptions options) {
@@ -298,7 +298,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
   *request.mutable_upload() = upload;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<UploadsDeleteRequest, UploadsDeleteResponse>("dokime.host.v1.files.Uploads/Delete", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 uint64_t HostFilesCapturesResource::start(const FileSource &source, const string &output, const CaptureMode &mode,
@@ -308,7 +308,7 @@ uint64_t HostFilesCapturesResource::start(const FileSource &source, const string
   request.set_output(output);
   *request.mutable_mode() = mode;
   auto operation = Operation<CapturesStartRequest, CapturesStartResponse>("dokime.host.v1.files.Captures/Start", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response.capture_id();
 }
 ::dokime::plugin::host::files::CapturesStopResponse HostFilesCapturesResource::stop(const uint64_t &capture_id,
@@ -316,7 +316,7 @@ uint64_t HostFilesCapturesResource::start(const FileSource &source, const string
   CapturesStopRequest request;
   request.set_capture_id(capture_id);
   auto operation = Operation<CapturesStopRequest, CapturesStopResponse>("dokime.host.v1.files.Captures/Stop", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::FilesGetResponse HostFilesResource::get(const FileReference &file, HostFilesGetOptions options) {
@@ -326,7 +326,7 @@ uint64_t HostFilesCapturesResource::start(const FileSource &source, const string
     *request.mutable_at() = *options.at;
   }
   auto operation = Operation<FilesGetRequest, FilesGetResponse>("dokime.host.v1.Files/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::FilesReadResponse HostFilesResource::read(const FileReference &file, const uint64_t &offset, const uint64_t &max_bytes,
@@ -339,7 +339,7 @@ uint64_t HostFilesCapturesResource::start(const FileSource &source, const string
     *request.mutable_at() = *options.at;
   }
   auto operation = Operation<FilesReadRequest, FilesReadResponse>("dokime.host.v1.Files/Read", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 HostFilesWatch HostFilesResource::watch(const uint64_t &offset, size_t max_item_bytes, HostFilesWatchOptions options) {
@@ -371,7 +371,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   *request.mutable_file() = file;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<FilesDeleteRequest, FilesDeleteResponse>("dokime.host.v1.Files/Delete", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_receipt()) {
     throw runtime_error("Read FilesDelete: Missing Payload");
   }
@@ -383,7 +383,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   *request.mutable_source() = source;
   request.set_output(output);
   auto operation = Operation<FilesCaptureRequest, FilesCaptureResponse>("dokime.host.v1.Files/Capture", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::ProgressGetResponse HostExecutionsProgressResource::get(HostExecutionsProgressGetOptions options) {
@@ -395,7 +395,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
     *request.mutable_at() = *options.at;
   }
   auto operation = Operation<ProgressGetRequest, ProgressGetResponse>("dokime.host.v1.executions.Progress/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::plugin::ProgressSetResponse HostExecutionsProgressResource::set(const ExecutionProgressValue &value,
@@ -409,7 +409,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   request.set_expected_revision(expected_revision);
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<ProgressSetRequest, ProgressSetResponse>("dokime.host.v1.executions.Progress/Set", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::TraceabilityGetResponse HostEvidenceTraceabilityResource::get(HostEvidenceTraceabilityGetOptions options) {
@@ -428,7 +428,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   }
   auto operation =
       Operation<TraceabilityGetRequest, TraceabilityGetResponse>("dokime.host.v1.evidence.Traceability/Get", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::plugin::TraceabilitySetResponse HostEvidenceTraceabilityResource::set(const TraceabilityEntry &value,
@@ -444,7 +444,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   request.set_entry(entry);
   auto operation =
       Operation<TraceabilitySetRequest, TraceabilitySetResponse>("dokime.host.v1.evidence.Traceability/Set", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::RecordsListResponse HostEvidenceRecordsResource::list(const string &record_type, const vector<uint32_t> &versions,
@@ -467,7 +467,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
     *request.mutable_page() = *options.page;
   }
   auto operation = Operation<RecordsListRequest, RecordsListResponse>("dokime.host.v1.evidence.Records/List", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::plugin::RecordsAppendResponse HostEvidenceRecordsResource::append(const string &execution, const string &kind,
@@ -480,7 +480,7 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   *request.mutable_source_at() = source_at;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<RecordsAppendRequest, RecordsAppendResponse>("dokime.host.v1.evidence.Records/Append", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 Receipt HostEvidenceLogsResource::append(const string &execution, const Severity &severity, const string &message, const Timestamp &at,
@@ -492,7 +492,7 @@ Receipt HostEvidenceLogsResource::append(const string &execution, const Severity
   *request.mutable_at() = at;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation = Operation<LogsAppendRequest, LogsAppendResponse>("dokime.host.v1.evidence.Logs/Append", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_receipt()) {
     throw runtime_error("Read EvidenceLogsAppend: Missing Payload");
   }
@@ -517,7 +517,7 @@ Receipt HostEvidenceLogsResource::append(const string &execution, const Severity
   }
   auto operation =
       Operation<EvidenceStatisticsRequest, EvidenceStatisticsResponse>("dokime.host.v1.Evidence/Statistics", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 Receipt HostDocumentsResource::append_parts(const string &execution, const string &document, const string &section,
@@ -535,7 +535,7 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
   auto operation =
       Operation<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse>("dokime.host.v1.Documents/AppendParts", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   if (!response.has_receipt()) {
     throw runtime_error("Read DocumentsAppendParts: Missing Payload");
   }
@@ -556,7 +556,7 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
     *request.mutable_metadata() = *options.metadata;
   }
   auto operation = Operation<ArtifactsCreateRequest, ArtifactsCreateResponse>("dokime.host.v1.content.Artifacts/Create", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 ::dokime::plugin::BackendEnvironmentResponse HostBackendResource::environment(HostBackendEnvironmentOptions options) {
@@ -566,7 +566,7 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
   }
   auto operation =
       Operation<BackendEnvironmentRequest, BackendEnvironmentResponse>("dokime.host.v1.Backend/Environment", VISIBILITY_PUBLIC);
-  auto response = context.call(operation, request, options.policy).get();
+  auto response = context.operation(operation, request, options.policy).get();
   return response;
 }
 } // namespace dokime::templates

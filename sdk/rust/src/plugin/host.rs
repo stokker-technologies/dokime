@@ -487,7 +487,7 @@ impl HostBackendResource {
     }
     pub async fn environment_with(&self, options: HostBackendEnvironmentOptions) -> Result<BackendEnvironmentResponse> {
         let request = BackendEnvironmentRequest { at: options.at };
-        let response: BackendEnvironmentResponse = self.context.call_with(request, options.policy).await?;
+        let response: BackendEnvironmentResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -527,7 +527,7 @@ impl HostContentArtifactsResource {
             },
             metadata: options.metadata,
         };
-        let response: ArtifactsCreateResponse = self.context.call_with(request, options.policy).await?;
+        let response: ArtifactsCreateResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -559,7 +559,7 @@ impl HostDocumentsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: DocumentsAppendPartsResponse = self.context.call_with(request, options.policy).await?;
+        let response: DocumentsAppendPartsResponse = self.context.operation_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read DocumentsAppendParts: Missing Payload".into()))
     }
 }
@@ -595,7 +595,7 @@ impl HostEvidenceResource {
             step: options.step.unwrap_or_default(),
             at: options.at,
         };
-        let response: EvidenceStatisticsResponse = self.context.call_with(request, options.policy).await?;
+        let response: EvidenceStatisticsResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -623,7 +623,7 @@ impl HostEvidenceLogsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: LogsAppendResponse = self.context.call_with(request, options.policy).await?;
+        let response: LogsAppendResponse = self.context.operation_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read EvidenceLogsAppend: Missing Payload".into()))
     }
 }
@@ -649,7 +649,7 @@ impl HostEvidenceRecordsResource {
             at: options.at,
             page: options.page,
         };
-        let response: RecordsListResponse = self.context.call_with(request, options.policy).await?;
+        let response: RecordsListResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn append(&self, execution: String, kind: String, payload: Vec<u8>, source_at: Timestamp) -> Result<RecordsAppendResponse> {
@@ -668,7 +668,7 @@ impl HostEvidenceRecordsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: RecordsAppendResponse = self.context.call_with(request, options.policy).await?;
+        let response: RecordsAppendResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -690,7 +690,7 @@ impl HostEvidenceTraceabilityResource {
             at: options.at,
             entry: options.entry,
         };
-        let response: TraceabilityGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: TraceabilityGetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn set(&self, value: TraceabilityEntry, expected_revision: Vec<u8>, entry: String) -> Result<TraceabilitySetResponse> {
@@ -709,7 +709,7 @@ impl HostEvidenceTraceabilityResource {
             },
             entry,
         };
-        let response: TraceabilitySetResponse = self.context.call_with(request, options.policy).await?;
+        let response: TraceabilitySetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -737,7 +737,7 @@ impl HostExecutionsProgressResource {
     }
     pub async fn get_with(&self, options: HostExecutionsProgressGetOptions) -> Result<ProgressGetResponse> {
         let request = ProgressGetRequest { name: options.name, at: options.at };
-        let response: ProgressGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: ProgressGetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn set(&self, value: ExecutionProgressValue, expected_revision: Vec<u8>) -> Result<ProgressSetResponse> {
@@ -755,7 +755,7 @@ impl HostExecutionsProgressResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: ProgressSetResponse = self.context.call_with(request, options.policy).await?;
+        let response: ProgressSetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -778,7 +778,7 @@ impl HostFilesResource {
     }
     pub async fn get_with(&self, file: FileReference, options: HostFilesGetOptions) -> Result<FilesGetResponse> {
         let request = FilesGetRequest { file: Some(file), at: options.at };
-        let response: FilesGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: FilesGetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn read(&self, file: FileReference, offset: u64, max_bytes: u64) -> Result<FilesReadResponse> {
@@ -793,7 +793,7 @@ impl HostFilesResource {
             max_bytes,
             at: options.at,
         };
-        let response: FilesReadResponse = self.context.call_with(request, options.policy).await?;
+        let response: FilesReadResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn watch(&self, offset: u64, max_item_bytes: NonZeroUsize) -> Result<HostFilesWatch> {
@@ -824,7 +824,7 @@ impl HostFilesResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: FilesDeleteResponse = self.context.call_with(request, options.policy).await?;
+        let response: FilesDeleteResponse = self.context.operation_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read FilesDelete: Missing Payload".into()))
     }
     pub async fn capture(&self, source: FileSource, output: String) -> Result<FilesCaptureResponse> {
@@ -832,7 +832,7 @@ impl HostFilesResource {
     }
     pub async fn capture_with(&self, source: FileSource, output: String, options: HostFilesCaptureOptions) -> Result<FilesCaptureResponse> {
         let request = FilesCaptureRequest { source: Some(source), output };
-        let response: FilesCaptureResponse = self.context.call_with(request, options.policy).await?;
+        let response: FilesCaptureResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -855,7 +855,7 @@ impl HostFilesCapturesResource {
             output,
             mode: Some(mode),
         };
-        let response: CapturesStartResponse = self.context.call_with(request, options.policy).await?;
+        let response: CapturesStartResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response.capture_id)
     }
     pub async fn stop(&self, capture_id: u64) -> Result<CapturesStopResponse> {
@@ -863,7 +863,7 @@ impl HostFilesCapturesResource {
     }
     pub async fn stop_with(&self, capture_id: u64, options: HostFilesCapturesStopOptions) -> Result<CapturesStopResponse> {
         let request = CapturesStopRequest { capture_id };
-        let response: CapturesStopResponse = self.context.call_with(request, options.policy).await?;
+        let response: CapturesStopResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -886,7 +886,7 @@ impl HostFilesUploadsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: UploadsCreateResponse = self.context.call_with(request, options.policy).await?;
+        let response: UploadsCreateResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn get(&self, upload: Upload) -> Result<UploadsGetResponse> {
@@ -894,7 +894,7 @@ impl HostFilesUploadsResource {
     }
     pub async fn get_with(&self, upload: Upload, options: HostFilesUploadsGetOptions) -> Result<UploadsGetResponse> {
         let request = UploadsGetRequest { upload: Some(upload), at: options.at };
-        let response: UploadsGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: UploadsGetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn resume(&self, upload: Upload) -> Result<UploadsResumeResponse> {
@@ -908,7 +908,7 @@ impl HostFilesUploadsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: UploadsResumeResponse = self.context.call_with(request, options.policy).await?;
+        let response: UploadsResumeResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn append(&self, upload: Upload, offset: u64, data: Vec<u8>) -> Result<UploadsAppendResponse> {
@@ -926,7 +926,7 @@ impl HostFilesUploadsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: UploadsAppendResponse = self.context.call_with(request, options.policy).await?;
+        let response: UploadsAppendResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn publish(&self, upload: Upload, length: u64, sha256: Vec<u8>) -> Result<UploadsPublishResponse> {
@@ -944,7 +944,7 @@ impl HostFilesUploadsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: UploadsPublishResponse = self.context.call_with(request, options.policy).await?;
+        let response: UploadsPublishResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn delete(&self, upload: Upload) -> Result<UploadsDeleteResponse> {
@@ -958,7 +958,7 @@ impl HostFilesUploadsResource {
                 None => harmos::client::request_id()?,
             },
         };
-        let response: UploadsDeleteResponse = self.context.call_with(request, options.policy).await?;
+        let response: UploadsDeleteResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -975,7 +975,7 @@ impl HostInvocationsResource {
     }
     pub async fn get_with(&self, instance: u64, options: HostInvocationsGetOptions) -> Result<InstanceState> {
         let request = InvocationsGetRequest { instance };
-        let response: InvocationsGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: InvocationsGetResponse = self.context.operation_with(request, options.policy).await?;
         response.invocation.ok_or_else(|| Error::Invalid("Read InvocationsGet: Missing Payload".into()))
     }
     pub async fn cancel(&self, instance: u64, reason: String) -> Result<InstanceState> {
@@ -983,7 +983,7 @@ impl HostInvocationsResource {
     }
     pub async fn cancel_with(&self, instance: u64, reason: String, options: HostInvocationsCancelOptions) -> Result<InstanceState> {
         let request = InvocationsCancelRequest { instance, reason };
-        let response: InvocationsCancelResponse = self.context.call_with(request, options.policy).await?;
+        let response: InvocationsCancelResponse = self.context.operation_with(request, options.policy).await?;
         response.invocation.ok_or_else(|| Error::Invalid("Read InvocationsCancel: Missing Payload".into()))
     }
     pub async fn watch(&self, instance: u64, max_item_bytes: NonZeroUsize) -> Result<HostInvocationsWatch> {
@@ -1012,7 +1012,7 @@ impl HostOperationsResource {
     }
     pub async fn list_with(&self, options: HostOperationsListOptions) -> Result<Vec<DiscoveredOperation>> {
         let request = OperationsListRequest {};
-        let response: OperationsListResponse = self.context.call_with(request, options.policy).await?;
+        let response: OperationsListResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response.operations)
     }
     pub async fn get(&self, id: String) -> Result<DiscoveredOperation> {
@@ -1020,7 +1020,7 @@ impl HostOperationsResource {
     }
     pub async fn get_with(&self, id: String, options: HostOperationsGetOptions) -> Result<DiscoveredOperation> {
         let request = OperationsGetRequest { id };
-        let response: OperationsGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: OperationsGetResponse = self.context.operation_with(request, options.policy).await?;
         response.operation.ok_or_else(|| Error::Invalid("Read OperationsGet: Missing Payload".into()))
     }
 }
@@ -1050,7 +1050,7 @@ impl HostPluginsSettingsResource {
     }
     pub async fn list_with(&self, options: HostPluginsSettingsListOptions) -> Result<SettingsListResponse> {
         let request = SettingsListRequest { name: options.name, at: options.at };
-        let response: SettingsListResponse = self.context.call_with(request, options.policy).await?;
+        let response: SettingsListResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -1067,7 +1067,7 @@ impl HostPluginsStateResource {
     }
     pub async fn get_with(&self, options: HostPluginsStateGetOptions) -> Result<StateGetResponse> {
         let request = StateGetRequest {};
-        let response: StateGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: StateGetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn put(&self, expected_revision: u64, value: Vec<u8>) -> Result<u64> {
@@ -1075,7 +1075,7 @@ impl HostPluginsStateResource {
     }
     pub async fn put_with(&self, expected_revision: u64, value: Vec<u8>, options: HostPluginsStatePutOptions) -> Result<u64> {
         let request = StatePutRequest { expected_revision, value };
-        let response: StatePutResponse = self.context.call_with(request, options.policy).await?;
+        let response: StatePutResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response.revision)
     }
 }
@@ -1101,7 +1101,7 @@ impl HostPromptsResource {
             values,
             definition: options.definition,
         };
-        let response: PromptsCreateResponse = self.context.call_with(request, options.policy).await?;
+        let response: PromptsCreateResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -1118,7 +1118,7 @@ impl HostSecretsResource {
     }
     pub async fn get_with(&self, name: String, options: HostSecretsGetOptions) -> Result<SecretsGetResponse> {
         let request = SecretsGetRequest { name, at: options.at };
-        let response: SecretsGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: SecretsGetResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -1135,7 +1135,7 @@ impl HostTimeResource {
     }
     pub async fn get_with(&self, options: HostTimeGetOptions) -> Result<Timestamp> {
         let request = TimeGetRequest {};
-        let response: TimeGetResponse = self.context.call_with(request, options.policy).await?;
+        let response: TimeGetResponse = self.context.operation_with(request, options.policy).await?;
         response.now.ok_or_else(|| Error::Invalid("Read TimeGet: Missing Payload".into()))
     }
     pub async fn sleep(&self, duration: Duration) -> Result<TimeSleepResponse> {
@@ -1143,7 +1143,7 @@ impl HostTimeResource {
     }
     pub async fn sleep_with(&self, duration: Duration, options: HostTimeSleepOptions) -> Result<TimeSleepResponse> {
         let request = TimeSleepRequest { duration: Some(duration) };
-        let response: TimeSleepResponse = self.context.call_with(request, options.policy).await?;
+        let response: TimeSleepResponse = self.context.operation_with(request, options.policy).await?;
         Ok(response)
     }
 }
