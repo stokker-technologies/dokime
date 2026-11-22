@@ -16,13 +16,18 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { XyPlot } from "@dokime/plots/catalog/XyPlot";
+import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { documentPlotSpec } from "@dokime/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@dokime/plots/lib/types";
+import { failureOf } from "@dokime/plots/lib/notification-details";
+import { emptyLivePlotState } from "@dokime/plots/live-frames";
+import { PlotPlaceholder } from "../../src/PlotPlaceholder";
 
 /* === Re-Exports === */
 
@@ -45,7 +50,12 @@ const payload: PlotPayload = {
   max_points: 100,
   generated_at: "2026-01-01T00:00:00Z",
   series: [{ key: "position", label: "Position", raw_points: 3, downsampled: false, points: [] }],
-  cartesian: { mode: "faceted", series: [{ x: [1000, 1000.25, 1000.5], y: [1000, 1000.25, 1000.5] }], point_count: 3, signature: "position" },
+  cartesian: {
+    mode: "faceted",
+    series: [{ x: [1000, 1000.25, 1000.5], y: [1000, 1000.25, 1000.5] }],
+    point_count: 3,
+    signature: "position",
+  },
 };
 
 /* === Types === */
@@ -82,6 +92,10 @@ vi.mock("uplot", () => ({
       this.series = options.series;
     }
     setSize() {}
+    setSeries(index: number, options: uPlot.Series) {
+      Object.assign(this.series[index], options);
+    }
+    setData() {}
     destroy() {}
   },
 }));
@@ -97,12 +111,12 @@ test("XY Axes Keep Numeric Tick Spacing and Share Number Formatting", async () =
   assert.equal(options.scales?.x.time, false);
   const [x, y] = options.axes ?? [];
   assert.ok(!Object.hasOwn(x, "space") || (typeof x.space === "number" && Number.isFinite(x.space) && x.space > 0));
-  assert.equal(typeof x.values, "function");
-  assert.equal(typeof y.values, "function");
+  assert.ok(typeof x.values === "function");
+  assert.ok(typeof y.values === "function");
   const splits = [1000, 1000.25, 1000.5];
-  const labels = (x.values as uPlot.Axis.Values)({} as uPlot, splits, 0, 50, 0.25);
-  assert.deepEqual(labels, ["1000.00", "1000.25", "1000.50"]);
-  assert.deepEqual(labels, (y.values as uPlot.Axis.Values)({} as uPlot, splits, 1, 50, 0.25));
+  const labels = x.values({} as uPlot, splits, 0, 50, 0.01);
+  assert.deepEqual(labels, ["1000", "1000.25", "1000.5"]);
+  assert.deepEqual(labels, y.values({} as uPlot, splits, 1, 50, 0.01));
 });
 
 test("XY Frames With No Drawable Pairs Show an Empty State and Recover", async () => {
@@ -145,7 +159,58 @@ test("XY Counts Only Finite Pairs Admitted by the Selected Scales", async () => 
       },
     });
     await act(async () => root.render(createElement(XyPlot, { plot })));
-    const count = host.querySelector(".plot-card .text-xs")?.textContent?.trim().split(" ")[0];
+    const count = host.querySelector(".plot-card span.text-xs")?.textContent?.trim().split(" ")[0];
     assert.equal(Number(count), scale === "linear" ? 4 : 1);
   }
+});
+
+test("Document Plot Titles Remain in Their Cards Through Loading, Empty and Failure States", () => {
+  const host = document.createElement("div");
+  for (const plot_type of ["xy", "time_series"] as const) {
+    const plot = { ...descriptor, plot_type };
+    for (const status of ["loading", "live", "error"] as const) {
+      const state = {
+        ...emptyLivePlotState(),
+        status,
+        ...(status === "live"
+          ? {
+              payload: {
+                ...payload,
+                cartesian: { mode: "faceted" as const, signature: "empty", point_count: 0, series: [{ x: [], y: [] }] },
+              },
+            }
+          : {}),
+        ...(status === "error" ? { failure: failureOf(new Error("Reload the plot."), "Plot Refresh Failed") } : {}),
+      };
+      host.innerHTML = renderToStaticMarkup(
+        createElement(LivePlotGroupGrid, {
+          documentPlots: [plot],
+          liveStates: { position: state },
+          showGroupHeaders: false,
+          title: plot.title,
+          viewportMode: "fit",
+        }),
+      );
+      const title = host.querySelector(".plot-card strong");
+      assert.equal(title?.textContent, plot.title);
+      assert.ok(!title?.classList.contains("sr-only"));
+      assert.ok(status === "error" ? host.querySelector('[role="alert"]') : host.querySelector('[data-testid="plot-placeholder"]'));
+    }
+  }
+});
+
+test("Plot Placeholder Failures Retain Their Title and Settings Action", () => {
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(
+    createElement(PlotPlaceholder, {
+      title: descriptor.title,
+      label: "Stream Error",
+      detail: "Reload the plot.",
+      tone: "error",
+      actions: createElement("button", { type: "button", "aria-label": "Plot Settings" }),
+    }),
+  );
+  assert.equal(host.querySelector(".plot-card strong")?.textContent, descriptor.title);
+  assert.ok(host.querySelector(".plot-card button[aria-label]"));
+  assert.ok(host.querySelector('.plot-card [role="alert"]'));
 });

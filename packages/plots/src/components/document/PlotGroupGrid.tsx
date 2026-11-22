@@ -15,7 +15,7 @@ import { type ComponentProps, memo, type ReactNode, useEffect, useId, useMemo, u
 
 /* === Local Imports === */
 
-import { documentPlotGroupDescription, documentPlotSpec } from "../../grouping";
+import { documentPlotGroupDescription, documentPlotSpec, groupRepeatsPlotTitle } from "../../grouping";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "../../lib/types";
 import { PiePlot } from "../../catalog/PiePlot";
 import { BarPlot } from "../../catalog/BarPlot";
@@ -28,7 +28,6 @@ import { TrajectoryPlot } from "../../catalog/TrajectoryPlot";
 import { GridChartPlot } from "../../catalog/GridChartPlot";
 import { XyIntervalPlot } from "../../catalog/XyIntervalPlot";
 import { XyPlot } from "../../catalog/XyPlot";
-import { groupRepeatsPlotTitle } from "../../grouping";
 import { PlotInteractionProvider, usePlotInteraction } from "@dokime/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "../../live-frames";
 import { PlotPlaceholder } from "../../PlotPlaceholder";
@@ -88,8 +87,9 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
           const held = previous[index];
           return marker.kind === held.kind && marker.x === held.x && marker.title === held.title;
         })
-      )
+      ) {
         return previous;
+      }
       previous = next;
       return next;
     };
@@ -285,18 +285,24 @@ function plotCardClassName(plot: PlotCardSpec): string {
 }
 
 function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {
-  if (plot.failure && !plot.cartesian && !plot.series.some((series) => series.points.length))
+  if (plot.failure && !plot.cartesian && !plot.series.some((series) => series.points.length)) {
     return (
-      <div className="grid gap-2">
-        {actions}
+      <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <strong className="min-w-0 truncate" title={plot.title}>
+            {plot.title}
+          </strong>
+          {actions}
+        </div>
         <ErrorCard failure={plot.failure} />
-      </div>
+      </article>
     );
+  }
   if (plot.stateLabel === STREAM_ERROR) {
     return <PlotPlaceholder title={plot.title} actions={actions} {...plotPlaceholderText(plot)} />;
   }
   if (plot.analysis?.kind === "error") {
-    return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
+    return <PlotPlaceholder title={plot.title} actions={actions} {...plotUnavailableText(plot.analysis.message)} />;
   }
   if (plot.plotType === "grid_chart") {
     return <GridChartPlot key={plot.key} plot={plot} />;
@@ -328,8 +334,9 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.plotType === "box_plot") {
     return <BoxPlot plot={plot} />;
   }
-  if (plot.plotType === "time_series")
+  if (plot.plotType === "time_series") {
     return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+  }
   return (
     <ErrorCard
       failure={failureOf(

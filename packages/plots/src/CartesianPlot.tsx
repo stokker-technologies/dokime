@@ -894,7 +894,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <strong className={titleRepeated && !unit ? "sr-only" : "block truncate"} title={formatUnitLabel(title, unit)}>
+          <strong className={!placeholder && titleRepeated && !unit ? "sr-only" : "block truncate"} title={formatUnitLabel(title, unit)}>
             {formatUnitLabel(title, unit)}
           </strong>
           {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
@@ -1008,7 +1008,7 @@ function fontSizePx(size: string, root: Element): number {
   return Math.round(value);
 }
 
-/* === Axis gutter === */
+/* === Axis Gutter === */
 
 /** Measures text at `font`, reusing one offscreen canvas for every call. */
 let gutterContext: CanvasRenderingContext2D | null = null;
@@ -1190,7 +1190,9 @@ function applyHeldViewport(plot: uPlot, held: HeldViewport, data: uPlot.AlignedD
   plot.setData(data, true);
   if (held.x) {
     plot.setScale("x", held.x);
-  } else followX();
+  } else {
+    followX();
+  }
   if (held.y) {
     plot.setScale("y", held.y);
   }
