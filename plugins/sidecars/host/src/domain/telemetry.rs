@@ -33,12 +33,12 @@ pub const PROBES: [(&str, &str); 6] = [
     (BLUETOOTH_PROBE, "Host Bluetooth Probe"),
 ];
 
-pub const SYSTEM_PROBE: &str = "system_probe";
-pub const NETWORK_PROBE: &str = "network_probe";
-pub const WIFI_LINK_PROBE: &str = "wifi_link_probe";
-pub const WIFI_SCAN_PROBE: &str = "wifi_scan_probe";
-pub const WIFI_LATENCY_PROBE: &str = "wifi_latency_probe";
-pub const BLUETOOTH_PROBE: &str = "bluetooth_probe";
+pub const SYSTEM_PROBE: &str = "host.system_probe";
+pub const NETWORK_PROBE: &str = "host.network_probe";
+pub const WIFI_LINK_PROBE: &str = "host.wifi_link_probe";
+pub const WIFI_SCAN_PROBE: &str = "host.wifi_scan_probe";
+pub const WIFI_LATENCY_PROBE: &str = "host.wifi_latency_probe";
+pub const BLUETOOTH_PROBE: &str = "host.bluetooth_probe";
 
 /* === Macros === */
 
@@ -432,7 +432,7 @@ impl Probe {
 }
 
 impl SystemIdentity {
-    pub const STREAM: &'static str = "system_identity";
+    pub const STREAM: &'static str = "host.system_identity";
     pub const LABEL: &'static str = "Host System Identity";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("host_name", "Host Name", ""),
@@ -451,14 +451,14 @@ impl SystemIdentity {
 }
 
 impl SystemGit {
-    pub const STREAM: &'static str = "system_git";
+    pub const STREAM: &'static str = "host.system_git";
     pub const LABEL: &'static str = "Host Git Identity";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("git_user_name", "Git User Name", ""), Column::new("git_user_email", "Git User Email", "")];
 }
 
 impl SystemResources {
-    pub const STREAM: &'static str = "system";
+    pub const STREAM: &'static str = "host.system";
     pub const LABEL: &'static str = "Host System";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("cpu_load_percent", "CPU Load", "%"),
@@ -473,13 +473,13 @@ impl SystemResources {
 }
 
 impl SystemTemperature {
-    pub const STREAM: &'static str = "system_temperature";
+    pub const STREAM: &'static str = "host.system_temperature";
     pub const LABEL: &'static str = "Host Temperature";
     pub const COLUMNS: &'static [Column] = &[Column::new("max_temperature_c", "Max Temperature", "°C")];
 }
 
 impl CpuCapacity {
-    pub const STREAM: &'static str = "cpu_capacity";
+    pub const STREAM: &'static str = "host.cpu_capacity";
     pub const LABEL: &'static str = "Host CPU Capacity";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("cpu_capacity_gflops", "Calibrated CPU Capacity", "GFLOP/s"),
@@ -488,7 +488,7 @@ impl CpuCapacity {
 }
 
 impl Battery {
-    pub const STREAM: &'static str = "battery";
+    pub const STREAM: &'static str = "host.battery";
     pub const LABEL: &'static str = "Host Battery";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("battery_percent", "Battery", "%"),
@@ -506,7 +506,7 @@ impl Battery {
 }
 
 impl BatteryIdentity {
-    pub const STREAM: &'static str = "battery_identity";
+    pub const STREAM: &'static str = "host.battery_identity";
     pub const LABEL: &'static str = "Host Battery Identity";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("battery_vendor", "Battery Vendor", ""),
@@ -516,31 +516,31 @@ impl BatteryIdentity {
 }
 
 impl BatteryTemperature {
-    pub const STREAM: &'static str = "battery_temperature";
+    pub const STREAM: &'static str = "host.battery_temperature";
     pub const LABEL: &'static str = "Host Battery Temperature";
     pub const COLUMNS: &'static [Column] = &[Column::new("battery_temperature_c", "Battery Temperature", "°C")];
 }
 
 impl BatteryTimeToFull {
-    pub const STREAM: &'static str = "battery_time_to_full";
+    pub const STREAM: &'static str = "host.battery_time_to_full";
     pub const LABEL: &'static str = "Host Battery Time to Full";
     pub const COLUMNS: &'static [Column] = &[Column::new("battery_time_to_full_s", "Battery Time to Full", "s")];
 }
 
 impl BatteryTimeToEmpty {
-    pub const STREAM: &'static str = "battery_time_to_empty";
+    pub const STREAM: &'static str = "host.battery_time_to_empty";
     pub const LABEL: &'static str = "Host Battery Time to Empty";
     pub const COLUMNS: &'static [Column] = &[Column::new("battery_time_to_empty_s", "Battery Time to Empty", "s")];
 }
 
 impl BatteryCycles {
-    pub const STREAM: &'static str = "battery_cycles";
+    pub const STREAM: &'static str = "host.battery_cycles";
     pub const LABEL: &'static str = "Host Battery Cycles";
     pub const COLUMNS: &'static [Column] = &[Column::new("battery_cycle_count", "Battery Cycle Count", "")];
 }
 
 impl PowerPlan {
-    pub const STREAM: &'static str = "power_plan";
+    pub const STREAM: &'static str = "host.power_plan";
     pub const LABEL: &'static str = "Host Power Plan";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("power_plan_name", "Power Plan", ""),
@@ -551,7 +551,7 @@ impl PowerPlan {
 }
 
 impl Network {
-    pub const STREAM: &'static str = "network";
+    pub const STREAM: &'static str = "host.network";
     pub const LABEL: &'static str = "Host Network";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("network_interface_count", "Network Interface Count", ""),
@@ -565,32 +565,32 @@ impl Network {
 }
 
 impl NetworkPrimary {
-    pub const STREAM: &'static str = "network_primary";
+    pub const STREAM: &'static str = "host.network_primary";
     pub const LABEL: &'static str = "Host Primary Interface";
     pub const COLUMNS: &'static [Column] = &[Column::new("primary_interface", "Primary Interface", "")];
 }
 
 impl NetworkInternet {
-    pub const STREAM: &'static str = "network_internet";
+    pub const STREAM: &'static str = "host.network_internet";
     pub const LABEL: &'static str = "Host Internet";
     pub const COLUMNS: &'static [Column] = &[Column::new("internet", "Internet", "")];
 }
 
 impl NetworkChange {
-    pub const STREAM: &'static str = "network_change";
+    pub const STREAM: &'static str = "host.network_change";
     pub const LABEL: &'static str = "Host Network Change";
     pub const COLUMNS: &'static [Column] = &[Column::new("change", "Change", ""), Column::new("adapter_id", "Adapter", "")];
 }
 
 impl NetworkAddressChange {
-    pub const STREAM: &'static str = "network_address_change";
+    pub const STREAM: &'static str = "host.network_address_change";
     pub const LABEL: &'static str = "Host Address Change";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("change", "Change", ""), Column::new("adapter_id", "Adapter", ""), Column::new("address", "Address", "")];
 }
 
 impl WifiAdapter {
-    pub const STREAM: &'static str = "wifi_adapter";
+    pub const STREAM: &'static str = "host.wifi_adapter";
     pub const LABEL: &'static str = "Host Wi-Fi Adapter";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("wifi_adapter", "Wi-Fi Adapter", ""),
@@ -600,7 +600,7 @@ impl WifiAdapter {
 }
 
 impl WifiLink {
-    pub const STREAM: &'static str = "wifi_link";
+    pub const STREAM: &'static str = "host.wifi_link";
     pub const LABEL: &'static str = "Host Wi-Fi Link";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("wifi_ssid", "Wi-Fi SSID", ""),
@@ -611,51 +611,51 @@ impl WifiLink {
 }
 
 impl WifiSecurity {
-    pub const STREAM: &'static str = "wifi_security";
+    pub const STREAM: &'static str = "host.wifi_security";
     pub const LABEL: &'static str = "Host Wi-Fi Security";
     pub const COLUMNS: &'static [Column] = &[Column::new("wifi_auth", "Wi-Fi Auth", "")];
 }
 
 impl WifiCipher {
-    pub const STREAM: &'static str = "wifi_cipher";
+    pub const STREAM: &'static str = "host.wifi_cipher";
     pub const LABEL: &'static str = "Host Wi-Fi Radio and Cipher";
     pub const COLUMNS: &'static [Column] = &[Column::new("wifi_radio", "Wi-Fi Radio", ""), Column::new("wifi_cipher", "Wi-Fi Cipher", "")];
 }
 
 impl WifiProfile {
-    pub const STREAM: &'static str = "wifi_profile";
+    pub const STREAM: &'static str = "host.wifi_profile";
     pub const LABEL: &'static str = "Host Wi-Fi Profile";
     pub const COLUMNS: &'static [Column] = &[Column::new("wifi_profile", "Wi-Fi Profile", "")];
 }
 
 impl WifiSignal {
-    pub const STREAM: &'static str = "wifi_signal";
+    pub const STREAM: &'static str = "host.wifi_signal";
     pub const LABEL: &'static str = "Host Wi-Fi Signal";
     pub const COLUMNS: &'static [Column] = &[Column::new("wifi_signal_percent", "Wi-Fi Signal", "%")];
 }
 
 impl WifiRssi {
-    pub const STREAM: &'static str = "wifi_rssi";
+    pub const STREAM: &'static str = "host.wifi_rssi";
     pub const LABEL: &'static str = "Host Wi-Fi RSSI";
     pub const COLUMNS: &'static [Column] = &[Column::new("wifi_rssi_dbm", "Wi-Fi RSSI", "dBm")];
 }
 
 impl WifiPhyRate {
-    pub const STREAM: &'static str = "wifi_phy_rate";
+    pub const STREAM: &'static str = "host.wifi_phy_rate";
     pub const LABEL: &'static str = "Host Wi-Fi PHY Rate";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("wifi_rx_phy_mbps", "Wi-Fi RX PHY Rate", "Mbps"), Column::new("wifi_tx_phy_mbps", "Wi-Fi TX PHY Rate", "Mbps")];
 }
 
 impl WifiThroughput {
-    pub const STREAM: &'static str = "wifi_throughput";
+    pub const STREAM: &'static str = "host.wifi_throughput";
     pub const LABEL: &'static str = "Host Wi-Fi Throughput";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("wifi_rx_mbps", "Wi-Fi RX Throughput", "Mbps"), Column::new("wifi_tx_mbps", "Wi-Fi TX Throughput", "Mbps")];
 }
 
 impl WifiNetwork {
-    pub const STREAM: &'static str = "wifi_network";
+    pub const STREAM: &'static str = "host.wifi_network";
     pub const LABEL: &'static str = "Host Wi-Fi Network";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("wifi_bssid", "Wi-Fi BSSID", ""),
@@ -668,7 +668,7 @@ impl WifiNetwork {
 }
 
 impl WifiNetworkName {
-    pub const STREAM: &'static str = "wifi_network_name";
+    pub const STREAM: &'static str = "host.wifi_network_name";
     pub const LABEL: &'static str = "Host Wi-Fi Network Name";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("wifi_bssid", "Wi-Fi BSSID", ""),
@@ -678,14 +678,14 @@ impl WifiNetworkName {
 }
 
 impl WifiNetworkRssi {
-    pub const STREAM: &'static str = "wifi_network_rssi";
+    pub const STREAM: &'static str = "host.wifi_network_rssi";
     pub const LABEL: &'static str = "Host Wi-Fi Network RSSI";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("wifi_bssid", "Wi-Fi BSSID", ""), Column::new("wifi_rssi_dbm", "Wi-Fi RSSI", "dBm")];
 }
 
 impl WifiCongestion {
-    pub const STREAM: &'static str = "wifi_congestion";
+    pub const STREAM: &'static str = "host.wifi_congestion";
     pub const LABEL: &'static str = "Host Wi-Fi Congestion";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("scan_network_count", "Scan Networks", ""),
@@ -698,21 +698,21 @@ impl WifiCongestion {
 }
 
 impl WifiLatency {
-    pub const STREAM: &'static str = "wifi_latency";
+    pub const STREAM: &'static str = "host.wifi_latency";
     pub const LABEL: &'static str = "Host Wi-Fi Latency";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("wifi_latency_host", "Wi-Fi Latency Host", ""), Column::new("wifi_latency_ms", "Wi-Fi Latency", "ms")];
 }
 
 impl WifiLoss {
-    pub const STREAM: &'static str = "wifi_loss";
+    pub const STREAM: &'static str = "host.wifi_loss";
     pub const LABEL: &'static str = "Host Wi-Fi Packet Loss";
     pub const COLUMNS: &'static [Column] =
         &[Column::new("wifi_latency_host", "Wi-Fi Latency Host", ""), Column::new("wifi_packet_loss_percent", "Wi-Fi Packet Loss", "%")];
 }
 
 impl Bluetooth {
-    pub const STREAM: &'static str = "bluetooth";
+    pub const STREAM: &'static str = "host.bluetooth";
     pub const LABEL: &'static str = "Host Bluetooth";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("bluetooth_present_device_count", "Present Bluetooth Devices", ""),
@@ -721,19 +721,19 @@ impl Bluetooth {
 }
 
 impl BluetoothRadios {
-    pub const STREAM: &'static str = "bluetooth_radios";
+    pub const STREAM: &'static str = "host.bluetooth_radios";
     pub const LABEL: &'static str = "Host Bluetooth Radios";
     pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_adapter_count", "Bluetooth Adapters", "")];
 }
 
 impl BluetoothConnections {
-    pub const STREAM: &'static str = "bluetooth_connections";
+    pub const STREAM: &'static str = "host.bluetooth_connections";
     pub const LABEL: &'static str = "Host Bluetooth Connections";
     pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_connected_device_count", "Connected Bluetooth Devices", "")];
 }
 
 impl BluetoothTraffic {
-    pub const STREAM: &'static str = "bluetooth_traffic";
+    pub const STREAM: &'static str = "host.bluetooth_traffic";
     pub const LABEL: &'static str = "Host Bluetooth Traffic";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("bluetooth_recv_mb_per_second", "Bluetooth RX", "MB/s"),
@@ -742,13 +742,13 @@ impl BluetoothTraffic {
 }
 
 impl BluetoothDevice {
-    pub const STREAM: &'static str = "bluetooth_device";
+    pub const STREAM: &'static str = "host.bluetooth_device";
     pub const LABEL: &'static str = "Host Bluetooth Device";
     pub const COLUMNS: &'static [Column] = &[Column::new("bluetooth_device_name", "Bluetooth Device", "")];
 }
 
 impl LoadPercentControl {
-    pub const STREAM: &'static str = "cpu_load_percent_control";
+    pub const STREAM: &'static str = "host.cpu_load_percent_control";
     pub const LABEL: &'static str = "CPU Load Control";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("target_percent", "Target", "%"),
@@ -759,7 +759,7 @@ impl LoadPercentControl {
 }
 
 impl LoadFlopsControl {
-    pub const STREAM: &'static str = "cpu_load_flops_control";
+    pub const STREAM: &'static str = "host.cpu_load_flops_control";
     pub const LABEL: &'static str = "CPU Throughput Control";
     pub const COLUMNS: &'static [Column] = &[
         Column::new("target_flops", "Target", "FLOP/s"),
