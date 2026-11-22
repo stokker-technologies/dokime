@@ -45,6 +45,11 @@ Heat Strip SHALL display equal labelled squares in numeric CELL order for numeri
 - **THEN** their labels appear as 1, 2, 10 or a, b, c respectively
 - **AND** distinct integers beyond floating-point exact precision retain their identities
 
+#### Scenario: Mixed Numeric Cell Ordering
+- **WHEN** CELL identities include signed integers, unsigned integers, floating-point values and exact fractions
+- **THEN** Dokime storage orders them by numeric value, comparing fractions without rounding identities to floating point
+- **AND** equal numeric values retain deterministic typed identities and textual cells follow numeric cells lexically
+
 #### Scenario: Facets and Empty Slots
 - **WHEN** two facets contain overlapping cell sets and different value ranges
 - **THEN** strips use the sorted union of cells and equal square sizes

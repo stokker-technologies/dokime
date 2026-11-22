@@ -4,7 +4,7 @@
 
 - [x] 1.0 Author proposal, design, spec scenarios and task inventory; `openspec validate heat-strip-plot --strict` passes.
 - [x] 1.1 Agree proposal, design, scenarios and inventory; owner activates `heat-strip-plot` on `feat/heat-strip-plot` using `stkr specification start`; verify the marker before implementation.
-- [x] 1.2 Confirm required scope includes protocol builders/validation, snapshot proto, plot/document projection/types/grouping/registration and tests outside the initially named catalog folder; verify no concurrent ownership conflicts. Exclude Watch cadence, live-data.ts, docs, manifests, locks and CI.
+- [x] 1.2 Confirm required scope includes protocol builders/validation, snapshot proto, plot/document projection/types/grouping/registration and tests outside the initially named catalog folder; verify no concurrent ownership conflicts. The continuation grants live-data.ts request mapping and its focused tests. Exclude Watch cadence, docs, manifests, locks and CI.
 
 ## 2. Protocol and Authoring
 
@@ -18,24 +18,24 @@
 
 ## 3. Storage and Operations
 
-- [ ] 3.1 Extend `crates/dokime-storage/src/plot_selection.rs` and `plot_kinds.rs` and metadata-only source bounds through `expressions.rs` using existing projection and library accumulators; prove one grouped read, LAST/MAX/MEAN/COUNT, absence, typed cell identity, facets, deterministic ties, filters/cuts and budget refusal with focused deterministic tests.
+- [x] 3.1 Extend `crates/dokime-storage/src/plot_selection.rs` and `plot_kinds.rs` and metadata-only source bounds through `expressions.rs` using existing projection and library accumulators; prove one grouped read, LAST/MAX/MEAN/COUNT, absence, typed cell identity, facets, deterministic ties, filters/cuts and budget refusal with focused deterministic tests.
 - [x] 3.2 Map cell/facet in `crates/dokime-operations/src/host/documents/plot.rs` and add kind dispatch only in `src/host/plots/snapshots/list.rs`; prove request mapping and a Heat Strip snapshot including contribution times with focused tests. Leave snapshot Watch files untouched.
 - [x] 3.3 Verify existing report capture obtains whole-execution Heat Strip snapshots at the sealed cut; change only required capture dispatch if needed after ownership confirmation; prove parity independently of live window and later evidence. Report query/architecture documentation impact.
 
-- [ ] 3.4 Resolve the pinned Harmos mixed Float/integer/Exact comparison gap without a product comparator; the mixed numeric ordering test is REWORK pending an owner-supplied library capability or an explicit homogeneous numeric CELL contract.
+- [x] 3.4 Implement owner-approved numeric ordering in Dokime storage for mixed Float/integer/unsigned/Exact CELL values, without f64 identity loss; prove fractions, large unsigned values, signs and numeric ties.
 
 ## 4. Shared Rendering
 
 - [x] 4.1 Add `packages/plots/src/catalog/HeatStripPlot.tsx`, extend `components/document/PlotGroupGrid.tsx`, `grouping.ts`, `lib/types/plot.ts` and `lib/api/native-plot-projection.ts` only where required by kind dispatch; prove numeric/text ordering, facets, shared scale/legend, equal square geometry, empty slots and hover semantics in package unit/integration tests without pixel/prose assertions.
 - [x] 4.2 Extend kind/expression projection in `packages/document/src/lib/api/native-documents.ts`; verify `packages/report/src/native-report.ts` consumes Heat Strip with the same renderer, changing report consumers only if required. Prove frozen capture decoding/rendering in package tests and report GUI documentation impact.
 
-- [ ] 4.3 Complete desktop request mapping of cell/facet and LAST/COUNT in `crates/dokime-gui/src/plots/live-data.ts` after its owner grants the requested narrow ownership or supplies the change; do not modify cadence.
+- [x] 4.3 Complete desktop request mapping of cell/facet and LAST/COUNT in `crates/dokime-gui/src/plots/live-data.ts`; prove it in `tests/unit/plots/plot-pipeline.test.ts` and desktop typecheck. Preserve cadence.
 
 ## 5. Final Proof and Handoff
 
-- [ ] 5.1 After every implementation item closes, run focused `mise run test` commands for touched crates and TypeScript packages; run Python SDK install and unit/integration tasks once. Record actual test counts and failures classified REAL, SUPERSEDED or REWORK.
-- [x] 5.2 Compile every touched package test target and all workspace test targets through the project task with desktop `testing` when required; use dev/test profiles and `CARGO_BUILD_JOBS=6`, worktree target and a session-owned build-drive watcher. No lint/clippy, benches or whole test lanes.
-- [ ] 5.3 Run `mise run generate -- --check`, desktop `pnpm exec tsc --noEmit`, TypeScript lint, `mise run format`, repository check and `openspec validate heat-strip-plot --strict`; use the discovered task equivalents and run each slow gate once after source closure.
+- [x] 5.1 After every implementation item closes, run focused `mise run test` commands for touched crates and TypeScript packages; run Python SDK install and unit/integration tasks once. Proof: storage 6, protocol 11 (generation check), snapshot 1, Rust SDK 1, migrated catalog 1; TypeScript 31; Python unit 45, integration 49/52 initially plus all 3 failed tests passing individually after setting `DOKIME_TEST_HOST` to the task-built `target/debug/dokime-host.exe`. REAL validation setup: the new TypeScript fixture lacked required fields and Python had no prepared host path; both corrected without changing checks. No SUPERSEDED or REWORK test failures.
+- [x] 5.2 Compile every touched package test target and all workspace test targets through the project task with desktop `testing` when required; use dev/test profiles and `CARGO_BUILD_JOBS=6`, worktree target and a session-owned build-drive watcher. The continuation reran `mise run test -- --changed Cargo.toml --no-run`: all 15 workspace packages compiled with `dokime-gui/testing` (exit 0). No lint/clippy, benches or whole test lanes.
+- [x] 5.3 Run `mise run generate -- --check`, desktop `pnpm exec tsc --noEmit`, TypeScript lint, `mise run format`, repository check and `openspec validate heat-strip-plot --strict`; all exit 0 using discovered task equivalents. Desktop typecheck caught the incomplete new test fixture, then passed after its correction; rerun only this failed gate. Generation includes 11 protocol integration tests. TypeScript lint reports warnings only; no suppressed checks.
 - [x] 5.4 Run the required bindings gate and Python build/package gates only with their expressly required profiles; resolve any conflict with the general no-release-build rule before starting them. Do not alter manifests or locks.
 - [x] 5.5 Commit explicit owned paths in coherent Conventional Commits; hand back local SHAs, actual proof, remaining work, DOCS and OVERLAP findings in at most ten lines. Never push; leave final proof items open until performed.
 
@@ -46,6 +46,7 @@
 - Owner approved deleting `GridDefinition` and migrating every snapshot consumer to `GridChart`.
 - The owner integrates this complete feature with concurrent work and owns delivery authorization, hosted platform validation and OpenSpec retirement.
 
-- OVERLAP: `crates/dokime-protocol/src/model/plots.rs` raw `Plot::new/line/unit` serves existing SDK consumers; `crates/dokime-protocol/src/builders.rs` typed Plot serves the new SDK builder module and document builders. Recommend deleting the raw authoring convenience methods after migrating their consumers; retain generated wire messages. Owner decision required.
-- OVERLAP: `crates/dokime-storage/src/plot_kinds.rs` `category_window` groups Bar/Pie values while `heat_strip_window` groups Heat Strip values; both are dispatched by `host/plots/snapshots/list.rs`. Recommend one grouped reduction owner and deleting the old category grouping loop after preserving each kind's absence/ordering rules. Owner decision required.
-- OVERLAP: `packages/plots/src/catalog/{GridChartPlot,ContourPlot,HeatStripPlot}.tsx` each builds a finite colour domain over its own data; `PlotGroupGrid.tsx` calls all three. Recommend one shared colour-domain owner and deleting the per-component domain loops. Owner decision required.
+- Owner approved consolidating Bar/Pie and Heat Strip grouping in `crates/dokime-storage/src/plot_kinds.rs`; delete the old category loop and preserve each presentation's absence/ordering rules.
+- Owner approved one colour-domain owner in `packages/plots/src/colors.ts`, consumed by `catalog/{GridChartPlot,ContourPlot,HeatStripPlot}.tsx`; delete local loops and prove domain edge cases.
+- Owner approved deleting raw `Plot::new/line/unit` in `crates/dokime-protocol/src/model/plots.rs` and migrating the only remaining callers in `plugins/sidecars/obc/src/{suites/benchmark/plots,streams/measurement}.rs` to `builders.rs`; compile their test targets.
+- [x] 6.1 Prove and close the approved storage grouping, colour-domain and raw-builder consolidations; no duplicate mechanism remains.

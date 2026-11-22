@@ -13,7 +13,7 @@ ownership at architecture lines 653-655 and `docs/guides/gui.md:8` is outdated.
 
 One grouped read supplies every cell/facet at one evidence cut. Existing filters,
 expression evaluation, query limits, cancellation and viewer windows apply.
-Do not change Watch/notification cadence or `crates/dokime-gui/src/plots/live-data.ts`.
+Do not change Watch/notification cadence. The continuation includes desktop request mapping in `crates/dokime-gui/src/plots/live-data.ts`.
 No waterfall, new registry, report renderer, cache, dependency or data migration.
 
 ## Authoring
@@ -89,7 +89,7 @@ High cardinality can exceed output budgets; deterministic refusal preserves boun
 Typed identity and missing values need explicit tests to prevent merging or zero-fill.
 Migrate every dispatch/consumer together; retain tracked bindings, reserved retired
 kind tags and existing kinds.
-If the pinned library lacks a required facility, stop that item and report the gap.
+The owner explicitly assigns mixed numeric CELL ordering to Dokime storage. Compare Float/integer/unsigned/Exact numerically, retaining exact rational identities and deterministic typed ties; compare binary fractional digits when a Float cannot use the library exact comparator. Other missing pinned-library facilities remain blocked rather than duplicated.
 
 ## Ownership Findings
 
@@ -98,3 +98,19 @@ fields. Authored `Plot.grid` uses the former; `PlotRequest.grid` uses the
 latter through `host/documents/plot.rs`. The owner approved reusing `GridChart` and deleting
 `GridDefinition`, migrating request mapping, storage and exports in this change.
 Documentation: `docs/guides/query-api.md:22`, `docs/guides/gui.md:459` need Heat Strip; architecture line 646 needs grouped reads.
+
+## Approved Consolidation
+
+Bar/Pie and Heat Strip share `Store::grouped_values`: one bounded projected traversal
+owns typed grouping and accumulator state. Category presentation keeps its finite
+input and latest durable-position semantics; Heat Strip retains absent slots and
+selects contributors by source time then durable position. Their output layouts
+remain distinct consumers of that one reduction.
+
+`packages/plots/src/colors.ts::sequentialColorScale` owns finite colour-domain
+selection, empty fallback and constant-domain expansion for GridChart, Contour
+and Heat Strip. Each renderer passes its selected values and uses that scale.
+
+Delete the raw `Plot::new/line/unit` conveniences in `model/plots.rs`; migrate their
+remaining document consumers to `builders::Plot`, retaining the generated message
+as the wire payload. There is one authored Plot builder family.
