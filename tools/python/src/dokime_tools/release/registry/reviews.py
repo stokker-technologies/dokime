@@ -12,15 +12,10 @@
 # === Imports === #
 
 # Standard Library Imports
-import json
 import os
 import re
 import subprocess
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
-from collections.abc import Callable
 from pathlib import Path
 
 # isort: split
@@ -53,8 +48,9 @@ GITLAB_REHEARSAL_JOB = "Release / Rehearsal"
 # === Public Functions === #
 
 
-def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep: Callable[[float], None] = time.sleep) -> None:
-    """Arm Native Squash Auto-Merge After Opening the Release Review, Waiting Briefly for GitLab's Pipeline."""
+def merge(settings: dict, branch: str, title: str) -> None:
+    """Squash the Release Review Into Dev Immediately and Verify Its Commit."""
+    # Find the Release Review
     if settings["provider"] == "github":
         repository = settings.get("repository", os.environ.get("GITHUB_REPOSITORY", ""))
         head = urllib.parse.quote(repository.split("/")[0] + ":" + branch, safe="")
@@ -63,56 +59,45 @@ def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep: Callable[[
         source = urllib.parse.quote(branch, safe="")
         reviews = provider.pages(settings, f"merge_requests?state=opened&target_branch=dev&source_branch={source}")
     if len(reviews) != 1:
-        raise policy.ToolError(f"Verify Release Review: expected one open release review for {branch}; auto-merge was not armed")
+        raise policy.ToolError(f"Merge Release Review: find exactly one open release review for {branch} and merge it again")
     review = reviews[0]
-    if settings["provider"] == "github":
-        payload = {
-            "query": (
-                "mutation($input: EnablePullRequestAutoMergeInput!) { enablePullRequestAutoMerge(input: $input) "
-                "{ pullRequest { autoMergeRequest { mergeMethod commitHeadline } } } }"
-            ),
-            "variables": {"input": {"pullRequestId": review["node_id"], "mergeMethod": "SQUASH", "commitHeadline": title}},
-        }
-        response = json.loads(provider.request(settings, "graphql", "POST", json.dumps(payload).encode(), graphql=True) or b"{}")
-        if response.get("errors"):
-            raise policy.ToolError("enablePullRequestAutoMerge failed: " + json.dumps(response["errors"]))
-        result = ((response.get("data") or {}).get("enablePullRequestAutoMerge") or {}).get("pullRequest") or {}
-        if result.get("autoMergeRequest") != {"mergeMethod": "SQUASH", "commitHeadline": title}:
-            raise policy.ToolError(f"Verify Release Review: GitHub did not confirm squash auto-merge for {branch}")
-        return
 
-    endpoint = f"merge_requests/{review['iid']}"
-    for attempt in range(12):
-        current = provider.document(settings, endpoint) or {}
-        if current.get("head_pipeline"):
-            try:
-                result = (
-                    provider.document(
-                        settings,
-                        endpoint + "/merge",
-                        "PUT",
-                        {
-                            "merge_when_pipeline_succeeds": True,
-                            "squash": True,
-                            "squash_commit_message": title,
-                            "should_remove_source_branch": True,
-                        },
-                    )
-                    or {}
-                )
-            except policy.ToolError as error:
-                # GitLab can still be computing mergeability after creating the head pipeline.
-                if not isinstance(error.__cause__, urllib.error.HTTPError) or error.__cause__.code != 405:
-                    raise
-            else:
-                if result.get("merge_when_pipeline_succeeds") or result.get("state") == "merged":
-                    return
-                raise policy.ToolError(f"Verify Release Review: GitLab did not confirm auto-merge for {branch}")
-        if attempt < 11:
-            sleep(5)
-    raise policy.ToolError(
-        f"Verify Release Review: GitLab release review for {branch} was not ready for auto-merge after 12 attempts; the review remains open"
-    )
+    # Squash the Release Review
+    if settings["provider"] == "github":
+        result = (
+            provider.document(
+                settings,
+                f"pulls/{review['number']}/merge",
+                "PUT",
+                {"merge_method": "squash", "commit_title": title, "sha": review["head"]["sha"]},
+            )
+            or {}
+        )
+        merged = result.get("merged") is True
+        sha = result.get("sha")
+        endpoint = f"commits/{sha}"
+    else:
+        result = (
+            provider.document(
+                settings,
+                f"merge_requests/{review['iid']}/merge",
+                "PUT",
+                {"sha": review["sha"], "squash": True, "squash_commit_message": title, "should_remove_source_branch": True},
+            )
+            or {}
+        )
+        merged = result.get("state") == "merged"
+        sha = result.get("squash_commit_sha")
+        endpoint = f"repository/commits/{sha}"
+    if not merged or not isinstance(sha, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", sha):
+        raise policy.ToolError(f"Verify Release Review: inspect {branch} and complete its squash merge into dev")
+
+    # Verify the Merge Commit
+    commit = provider.document(settings, endpoint) or {}
+    revision = commit.get("sha") if settings["provider"] == "github" else commit.get("id")
+    message = commit.get("commit", {}).get("message", "") if settings["provider"] == "github" else commit.get("message", "")
+    if revision != sha or message.split("\n", 1)[0] != title:
+        raise policy.ToolError(f"Verify Release Review: inspect merge commit {sha}; its revision or release headline differs")
 
 
 def find(settings: dict, sha: str, branch: str) -> dict | None:
@@ -161,14 +146,17 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
                 raise ValueError("Verify Release Review: review identity or head differs")
             candidates = []
             for candidates_run in runs:
-                if not (dokime_tools.ci.review.github_review_run(candidates_run, pull)):
+                if not dokime_tools.ci.review.github_review_run(candidates_run, pull):
                     continue
                 candidates.append(candidates_run)
 
             def jobs_for(identifier: int) -> list[dict]:
                 return provider.pages(settings, f"actions/runs/{identifier}/jobs?filter=latest", "jobs")
 
-            _, jobs = dokime_tools.ci.review.github_validation_run(candidates, jobs_for)
+            def run_for(identifier: int) -> dict:
+                return provider.document(settings, f"actions/runs/{identifier}")
+
+            _, jobs = dokime_tools.ci.review.github_validation_run(candidates, jobs_for, run_for)
         except (KeyError, TypeError, ValueError) as error:
             raise policy.ToolError(
                 f"Verify Release Review: release PR #{review['number']} head {head} has no green validation: {error}"
@@ -196,6 +184,9 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
             f"Verify Release Review: release MR !{review['number']} pipeline {pipeline['id']} has no successful {GITLAB_REHEARSAL_JOB} job"
         )
     _same_tree(directory, head, sha)
+
+
+# === Private Functions === #
 
 
 def _same_tree(directory: Path, head: str, merged: str) -> None:
@@ -230,7 +221,5 @@ def _same_tree(directory: Path, head: str, merged: str) -> None:
             "Verify Release Review: the merged tree differs from the rehearsed release review head; update the review and merge again"
         )
 
-
-# === Private Functions === #
 
 # === Entry Point === #

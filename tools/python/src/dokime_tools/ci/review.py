@@ -10,6 +10,7 @@ import operator
 import os
 import re
 import subprocess
+import time
 import tomllib
 import urllib.error
 import urllib.parse
@@ -122,10 +123,38 @@ def github_review_run(run: dict, review: dict) -> bool:
     )
 
 
-def github_validation_run(runs: list[dict], jobs_for: Callable[[int], list[dict]]) -> tuple[dict, list[dict]]:
+def github_validation_run(
+    runs: list[dict],
+    jobs_for: Callable[[int], list[dict]],
+    run_for: Callable[[int], dict],
+    *,
+    timeout_s: float = 1800,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> tuple[dict, list[dict]]:
     for run in sorted(runs, key=operator.itemgetter("id"), reverse=True):
         if run.get("display_title") in ("CI / Closed Review", "CI / Draft Review"):
             continue
+        # Wait for This Review's Validation
+        identifier, head = run["id"], run.get("head_sha")
+        deadline = clock() + timeout_s
+        while run.get("display_title") == "CI / Validation" and run.get("status") in (
+            "queued",
+            "in_progress",
+            "requested",
+            "waiting",
+            "pending",
+        ):
+            remaining_s = deadline - clock()
+            if remaining_s <= 0:
+                raise ValueError("Verify Release Evidence: review validation is still pending; rerun Release after CI succeeds")
+            print(f"Waiting For Review Validation Run {identifier}", flush=True)
+            sleep(min(10, remaining_s))
+            run = run_for(identifier)
+            if run.get("id") != identifier or run.get("head_sha") != head:
+                raise ValueError("Verify Release Evidence: review run identity changed; rerun Release with the exact review head")
+
+        # Require Green Validation and Jobs
         if run.get("display_title") != "CI / Validation" or run.get("status") != "completed" or run.get("conclusion") != "success":
             raise ValueError("Verify Release Evidence: review run is not green validation")
         jobs = jobs_for(run["id"])
@@ -161,8 +190,7 @@ def github_release_mode() -> dict[str, str]:
     if sha != os.environ["GITHUB_SHA"]:
         raise ValueError("Verify Release Evidence: release decision checkout differs from event revision")
     fallback = {"mode": "prepare" if os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch" else "skip", "sha": ""}
-    with open("tools/project.toml", "rb") as stream:
-        version = tomllib.load(stream)["version"]["value"]
+    version = tomllib.loads(Path("tools/project.toml").read_text(encoding="utf-8"))["version"]["value"]
     tag = f"v{version}"
     if command("git", "ls-remote", "--tags", "origin", f"refs/tags/{tag}"):
         return fallback
@@ -194,8 +222,7 @@ def github_release_mode() -> dict[str, str]:
     if target_version != version:
         return fallback
     if os.environ["GITHUB_EVENT_NAME"] == "workflow_run":
-        with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as stream:
-            completed = json.load(stream)["workflow_run"]
+        completed = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))["workflow_run"]
         if (
             completed.get("head_sha") != review["head"]["sha"]
             or completed.get("event") != "pull_request"
@@ -243,7 +270,7 @@ def lookup() -> dict[str, str]:
         runs = pages(f"actions/workflows/ci.yml/runs?event=pull_request&head_sha={head}", "workflow_runs")
         runs_items = []
         for runs_run in runs:
-            if not (github_review_run(runs_run, review)):
+            if not github_review_run(runs_run, review):
                 continue
             runs_items.append(runs_run)
         runs = runs_items
@@ -251,7 +278,10 @@ def lookup() -> dict[str, str]:
         def jobs_for(identifier: int) -> list[dict]:
             return pages(f"actions/runs/{identifier}/jobs?filter=latest", "jobs")
 
-        run, jobs = github_validation_run(runs, jobs_for)
+        def run_for(identifier: int) -> dict:
+            return request(f"actions/runs/{identifier}")
+
+        run, jobs = github_validation_run(runs, jobs_for, run_for)
         artifacts = pages(f"actions/runs/{run['id']}/artifacts", "artifacts")
         for name in required:
             matches = []

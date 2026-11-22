@@ -96,7 +96,7 @@ def review(directory: Path, settings: dict) -> None:
         check=False,
     ).returncode:
         raise policy.ToolError(f"Open Release Review: opening the release review failed; {branch} is pushed and can be reviewed by hand")
-    registry.reviews.arm_auto_merge(settings, branch, title)
+    registry.reviews.merge(settings, branch, title)
 
 
 def commit_review(directory: Path, settings: dict, branch: str, title: str) -> None:
