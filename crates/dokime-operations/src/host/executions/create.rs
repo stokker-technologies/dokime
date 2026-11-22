@@ -87,7 +87,6 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
                 .declarations
                 .as_ref()
                 .ok_or_else(|| Error::Precondition("Append Executions: Discover the Plugin Catalog Before Admission".into()))?;
-            let catalog_bytes = catalog.encode_to_vec();
             let origin = if catalog.digest != run.digest || description.started_at != run.started_at {
                 let test_case =
                     run.test_case.as_ref().ok_or_else(|| Error::Invalid("Append Executions: Supply the Frozen TestCase".into()))?;
@@ -95,12 +94,16 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
             } else {
                 origin
             };
+            let Some(Kind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
+            let streams =
+                &run.test_case.as_ref().ok_or_else(|| Error::Invalid("Append Executions: Supply the Frozen TestCase".into()))?.streams;
+            let catalog = super::streams::resolve(plugin, &plugins, streams)?.catalog;
             prepared.push((
                 Execution {
                     identifier: binding.execution_id.clone(),
                     cycle: request.parent.clone(),
                     origin: Some(origin),
-                    catalog: catalog_bytes,
+                    catalog: catalog.encode_to_vec(),
                     ..Default::default()
                 },
                 binding.case_id.clone(),

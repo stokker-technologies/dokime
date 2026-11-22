@@ -21,6 +21,7 @@ use std::sync::{Arc, Weak, atomic::AtomicU32};
 
 // Third Party Imports
 use harmos_protocol::host::PluginEntry;
+use harmos_protocol::model::Declarations;
 use harmos_runtime::operations::OperationHost;
 use harmos_runtime::plugin::grpc::{self, ScopedBinding};
 use prost::Message;
@@ -82,7 +83,7 @@ pub struct CycleResult {
     pub counts: OutcomeCounts,
 }
 struct ActiveRun {
-    binding: Option<ScopedBinding>,
+    bindings: Vec<(ScopedBinding, Vec<String>)>,
     release: Option<Release>,
 }
 // Releases the Run's Scope, Failures and Prompts When Dropped.
@@ -124,21 +125,32 @@ impl Cycle {
 impl ActiveRun {
     // Stop Scoped Calls and Await Accepted Ingestion; the Scope Stays Until Drop.
     async fn close(&mut self) -> Result<()> {
-        let Some(binding) = self.binding.take() else { return Ok(()) };
-        binding.close().await.map_err(|source| settlement("Close Execution Binding", &source))
+        let mut failure = None;
+        while let Some((binding, _)) = self.bindings.pop() {
+            if let Err(source) = binding.close().await {
+                failure.get_or_insert_with(|| settlement("Close Execution Binding", &source));
+            }
+        }
+        failure.map_or(Ok(()), Err)
     }
 }
 impl Drop for ActiveRun {
     fn drop(&mut self) {
         // A Panic or Dropped Run Hands Its Binding to a Host Task That Drains Before Release.
         // A Task That Never Runs Still Drops Both, Which Signals Close and Releases.
-        let (Some(binding), Some(release)) = (self.binding.take(), self.release.take()) else { return };
+        let Some(release) = self.release.take() else { return };
+        if self.bindings.is_empty() {
+            return;
+        }
+        let bindings = std::mem::take(&mut self.bindings);
         let host = release.host.clone();
         let _ = host.spawn(async move {
-            if let Err(source) = binding.close().await {
-                let source = settlement("Close Abandoned Execution Binding", &source);
-                let execution = &release.execution;
-                tracing::error!(%execution, %source, "Close Abandoned Execution Binding; Inspect the Interrupted Evidence");
+            for (binding, _) in bindings {
+                if let Err(source) = binding.close().await {
+                    let source = settlement("Close Abandoned Execution Binding", &source);
+                    let execution = &release.execution;
+                    tracing::error!(%execution, %source, "Close Abandoned Execution Binding; Inspect the Interrupted Evidence");
+                }
             }
             drop(release);
         });
@@ -188,15 +200,17 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
         } else {
             origin.kind = Some(origin::Kind::PluginRun(run));
         }
-        prepared.push((uuid::Uuid::now_v7().to_string(), origin, entry));
+        let Some(origin::Kind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
+        let catalog = host.streams(&entry, &run.test_case.as_ref().unwrap().streams).await?.catalog;
+        prepared.push((uuid::Uuid::now_v7().to_string(), origin, entry, catalog));
     }
     let admitted: Vec<_> = prepared
         .iter()
-        .map(|(execution, origin, entry)| Execution {
+        .map(|(execution, origin, _, catalog)| Execution {
             identifier: execution.clone(),
             cycle: identifier.clone(),
             origin: Some(origin.clone()),
-            catalog: entry.description.as_ref().unwrap().declarations.as_ref().unwrap().encode_to_vec(),
+            catalog: catalog.encode_to_vec(),
             ..Default::default()
         })
         .collect();
@@ -205,7 +219,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
     let executions = admitted.iter().map(|execution| execution.identifier.clone()).collect();
     {
         let mut active = lock(&host.inner.active)?;
-        for (execution, _, entry) in &prepared {
+        for (execution, _, entry, _) in &prepared {
             active.insert(
                 execution.clone(),
                 Active {
@@ -216,6 +230,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
             );
         }
     }
+    let prepared = prepared.into_iter().map(|(execution, origin, entry, _)| (execution, origin, entry)).collect();
     launch(host, identifier, executions, prepared)
 }
 
@@ -243,6 +258,7 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
     {
         return Err(Error::Invalid("Start Execution: Rematerialize the Changed Plugin Catalog into New Execution Evidence".into()));
     }
+    host.streams(&entry, &run.test_case.as_ref().unwrap().streams).await?;
     host.register_cycle(&cut.execution.cycle)?;
     let current = host.inner.store.cut(execution)?;
     {
@@ -455,7 +471,7 @@ fn launch(
 async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry: PluginEntry) -> Result<(String, Vec<RunState>)> {
     let mut states = Vec::new();
     let mut active = ActiveRun {
-        binding: None,
+        bindings: Vec::new(),
         release: Some(Release {
             host: host.clone(),
             execution: execution.clone(),
@@ -484,14 +500,12 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     let runtime =
         host.inner.runtime.get().and_then(Weak::upgrade).ok_or_else(|| Error::Invalid("Start Execution: Assemble the Runtime".into()))?;
     let plugins = host.inner.library_plugins.get().ok_or_else(|| Error::Invalid("Start Execution: Assemble Plugins".into()))?;
-    // A Plugin That Misses Its Load Deadline Is Named With the Action; Other Startup Failures Keep Their Cause.
-    let activation = plugins
-        .activation(&entry.name)
-        .await
-        .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
+    let mut owners = host.streams(&entry, &case.streams).await?.owners;
+    let own_streams = owners.remove(&entry.name).unwrap_or_default();
     let (time, controller) = ExecutionTime::open(host.inner.settings.clock.as_ref());
     host.inner.store.open_streams(&execution, &case.streams)?;
-    let scope = SampleScope::new(catalog, &case.streams)?;
+    let frozen = Declarations::decode(host.inner.store.cut(&execution)?.execution.catalog.as_slice())?;
+    let scope = SampleScope::new(&frozen, &case.streams)?;
     lock(&host.inner.sample_scopes)?.insert(execution.clone(), scope);
     let resources = Resources {
         plugin: Arc::new(entry.clone()),
@@ -512,12 +526,25 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     let mut call_context = OperationHost::context(&runtime.operations).clone();
     call_context.insert(time.clone()).map_err(|source| Error::Invalid(format!("Bind Execution Samples: {source}")))?;
     call_context.insert(resources.clone()).map_err(|source| Error::Invalid(format!("Bind Execution Samples: {source}")))?;
-    let binding = runtime
-        .bind_grpc(&activation, &execution, time.clock.clone(), &call_context)
-        .await
-        .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
-    // Close the Binding on Every Exit So Accepted Samples Drain Before the Scope Is Removed.
-    let binding = &*active.binding.insert(binding);
+    // Bind Each Installed Owner Through the Library's Existing Activation Path.
+    for (owner, streams) in std::iter::once((entry.name.clone(), own_streams)).chain(owners) {
+        let mut owner_resources = resources.clone();
+        owner_resources.plugin = Arc::new(if owner == entry.name { entry.clone() } else { host.entry(&owner).await? });
+        let mut owner_context = call_context.clone();
+        owner_context.remove::<Resources>();
+        owner_context.insert(owner_resources).map_err(|source| Error::Invalid(format!("Bind Execution Samples: {source}")))?;
+        let activation = plugins
+            .activation(owner)
+            .await
+            .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
+        let binding = runtime
+            .bind_grpc(&activation, &execution, time.clock.clone(), &owner_context)
+            .await
+            .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
+        active.bindings.push((binding, streams));
+    }
+    // Close Every Binding on Every Exit Before Removing the Sample Scope.
+    let binding = &active.bindings[0].0;
     let prepared: Result<(Resources, Termination, Vec<bool>, Result<()>)> = async {
         let mut dispatch = Dispatch {
             time: time.clone(),
@@ -550,13 +577,14 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                     .await?;
             }
             // The Plugin Has Registered the Unit, So the Host May Now Grant Its Stream Windows.
-            // The Scope Samples Exactly the Case's Streams; the Library Refuses Any the Plugin Does Not Declare.
-            if let Err(source) = binding.start_samples(&case.streams).await {
-                let error = samples_settlement("Start Execution Samples", &source, &case.streams);
-                dispatch.resources.failure("streams", &error)?;
-                return Err(error);
-            }
             sampling = true;
+            for (binding, streams) in &active.bindings {
+                if let Err(source) = binding.start_samples(streams).await {
+                    let error = samples_settlement("Start Execution Samples", &source, streams);
+                    dispatch.resources.failure("streams", &error)?;
+                    return Err(error);
+                }
+            }
             states.push(RunState::Stepping);
             host.set_run_phase(&execution, "stepping")?;
             while let Some((index, mut command)) = control.next(case, &dispatch.cancellation).await? {
@@ -608,12 +636,14 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             }
             dispatch.resources.step.clear();
             // Criteria Read Settled Streams: Every Granted Window Is Committed Before Evaluation.
-            sampling = false;
-            if let Err(source) = binding.stop_samples().await {
-                let error = samples_settlement("Stop Execution Samples", &source, &case.streams);
-                dispatch.resources.failure("streams", &error)?;
-                return Err(error);
+            for (binding, streams) in &active.bindings {
+                if let Err(source) = binding.stop_samples().await {
+                    let error = samples_settlement("Stop Execution Samples", &source, streams);
+                    dispatch.resources.failure("streams", &error)?;
+                    return Err(error);
+                }
             }
+            sampling = false;
             states.push(RunState::Evaluating);
             host.set_run_phase(&execution, "evaluating")?;
             for criterion in &case.criteria {
@@ -655,10 +685,14 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         dispatch.cancellation = CancellationToken::new();
         dispatch.resources.step.clear();
         // A Run That Stopped Early Still Ends Its Demand Before Cleanup Ends the Unit.
-        if sampling && let Err(source) = binding.stop_samples().await {
-            termination = Termination::Interrupted;
-            let error = samples_settlement("Stop Execution Samples", &source, &case.streams);
-            dispatch.resources.failure("streams", &error)?;
+        if sampling {
+            for (binding, streams) in &active.bindings {
+                if let Err(source) = binding.stop_samples().await {
+                    termination = Termination::Interrupted;
+                    let error = samples_settlement("Stop Execution Samples", &source, streams);
+                    dispatch.resources.failure("streams", &error)?;
+                }
+            }
         }
         if initialization_started && let Some(operation) = &template.cleanup {
             let cleanup = dispatch

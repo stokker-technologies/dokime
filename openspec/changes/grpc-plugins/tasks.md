@@ -1,3 +1,14 @@
+## Peer Stream Capture
+
+- [x] Freeze Requested Peer Stream Declarations and Row Types Through the Existing Installed Plugin Inventory; Bind, Sample, Drain and Release Every Execution Owner on All Exit Paths. Prove Deterministic Peer Rows, Frozen Decoding and Cancellation Release in Runtime Tests.
+- [x] Add Explicit Qualified Python `TestTemplate.uses_streams`, Resolve Them Without Registering Producers and Materialize Them Into Cases. Prove Units and a Two-Plugin Product Host Journey.
+- [x] Accept Repeatable Desktop Development `--plugin` Bundle or Folder Arguments, Bundle Folders and Install After Shipped Plugins Through the Existing CLI. Prove Argument Handling.
+- [x] Complete Focused Tests, Workspace Test Compilation With Desktop Testing, Python Build/Package, Generation Drift, Formatting, Repository Checking and Strict Change Validation; Report SDK Authoring and Desktop Development Documentation Impact to the Owner.
+
+## Peer Stream Capture Follow-Up
+
+- [ ] Owner: Resolve the Windows Root Python Focused-Lane Runner's In-Process Protobuf Import Versus Native Wheel Reinstallation; Keep Preparation and Execution in Separate Processes Without Weakening Test Policy. Peer Capture Is Proved Through the Existing SDK Installed-Wheel Task.
+
 ## Nightly Regression Repairs
 
 - [x] Reproduce and Retire the Superseded Load-Deadline Failure Story Against the Locked Offline Contract; Its Timeout-Prose Assertion Failed at Line 67 After Offline Projection Removed the Failure. Four Retained Readiness Tests Pass.

@@ -2,6 +2,34 @@
 
 ## Library State and Ownership
 
+### Peer Stream Capture
+
+Templates may request already declared qualified streams without registering a
+producer. Python exposes `TestTemplate.uses_streams = (Stream("peer.system"),)`;
+Rust retains `Template::uses_stream`. Materialization preserves these identifiers
+and documents continue to select fields through `Stream.field`.
+Execution admission freezes the selected installed owners' stream declarations
+and descriptor files alongside the template catalog. The installed library plugin
+manager remains the sole activation owner, as for peer operation routing; no
+additional registry, launcher or sampling implementation is introduced. Each
+owner gets one execution-scoped binding sharing the execution clock and context.
+All demand settles before criteria and cleanup, and every binding closes before
+the sample scope is released, including cancellation and abandoned workers.
+Unknown or disabled streams name the identifier and ask to install or enable its
+declaring plugin. Development `--plugin` arguments append bundles or bundled
+plugin folders after shipped plugins in the disposable root's CLI install flow.
+The owner updates `sdk/python/README.md:71`, `docs/sdks/python.md:6` and
+`docs/sdks/rust.md:135` for explicit existing-stream capture and frozen peer row
+types; `docs/guides/gui.md:22` documents repeatable development `--plugin` inputs.
+
+The Windows root Python focused-lane runner imports protobuf through
+`tools/python/src/dokime_tools/test/python.py` → `build/wheel.py` →
+`build/protocol.py` → the library's `build/resources/configuration.py`, then
+`test/archive.py::install_wheels` reinstalls that interpreter's native extension.
+The loaded DLL cannot be replaced. This is an owner REWORK of the preparation
+and execution process boundary; the SDK's existing installed-wheel test task
+provides the peer story proof without changing either mechanism here.
+
 The library pin is owned by the workspace `Cargo.toml`. Protocol generation
 refreshes every manifest projection and the vendored protocol inventory from
 that revision's archive, sharing the C++ archive checksum input. Generated
