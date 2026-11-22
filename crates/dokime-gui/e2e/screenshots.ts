@@ -326,8 +326,8 @@ try {
       () => session.execute("return document.querySelectorAll('[role=dialog] [aria-label=\"Procedure Steps\"] li').length > 0"),
       async () => {
         await session.goto("/library");
-        await session.clickCss('details:has(table[aria-label="Benchmark"]) > summary');
-        await session.clickCss('table[aria-label="Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
+        await session.clickCss('details:has(table[aria-label="OBC / Benchmark"]) > summary');
+        await session.clickCss('table[aria-label="OBC / Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
         await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
       },
     );
@@ -512,8 +512,8 @@ try {
         () => session.execute("return document.querySelectorAll('[role=dialog] [aria-label=\"Procedure Steps\"] li').length > 0"),
         async () => {
           await session.goto("/library");
-          await session.clickCss('details:has(table[aria-label="Benchmark"]) > summary');
-          await session.clickCss('table[aria-label="Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
+          await session.clickCss('details:has(table[aria-label="OBC / Benchmark"]) > summary');
+          await session.clickCss('table[aria-label="OBC / Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
           await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
         },
       );

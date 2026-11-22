@@ -48,7 +48,7 @@ pub const SUITE: &str = "obc.benchmark";
 pub fn suite() -> Suite {
     Suite::of::<()>()
         .identifier(SUITE)
-        .label("Benchmark")
+        .label("OBC / Benchmark")
         .template(streams::template())
         .template(plots::template())
         .template(observers::template())

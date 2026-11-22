@@ -47,7 +47,7 @@ pub const SUITE: &str = "obc.transient";
 pub fn suite() -> Suite {
     Suite::of::<()>()
         .identifier(SUITE)
-        .label("Transient")
+        .label("OBC / Transient")
         .template(startup::template())
         .template(overcurrent::template())
         .template(overvoltage::template())

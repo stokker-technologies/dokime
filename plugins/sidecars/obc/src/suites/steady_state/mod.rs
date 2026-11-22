@@ -44,7 +44,7 @@ pub const SUITE: &str = "obc.steady_state";
 /* === Public Functions === */
 
 pub fn suite() -> Suite {
-    Suite::of::<()>().identifier(SUITE).label("Steady State").template(single_phase::template()).template(three_phase::template())
+    Suite::of::<()>().identifier(SUITE).label("OBC / Steady State").template(single_phase::template()).template(three_phase::template())
 }
 
 /* === Private Functions === */
