@@ -39,15 +39,17 @@ import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import type { HubLiveState, PromptRequest, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type CycleExecutionRow, isUnstartedExecution } from "@/features/cycle/cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
-import { DocumentPagination } from "./DocumentPagination";
+import DocumentPagination from "./DocumentPagination.svelte";
 import { evidencePaneState } from "@/features/cycle/document-query-model";
-import { ExecutionActionButton, type ExecutionActions, ExecutionControl, useExecutionActions } from "./ExecutionControl";
+import { type ExecutionActions, useExecutionActions } from "./execution-actions";
+import ExecutionActionButton from "./ExecutionActionButton.svelte";
+import ExecutionControl from "./ExecutionControl.svelte";
 import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
 import { executionPagePrompts } from "@/features/cycle/execution-sections-model";
 import { NodeActionCluster } from "./NodeActionCluster";
 import type { ExecutionMenu } from "./NodeMenu";
 import { usePlotWindow } from "@/features/cycle/use-plot-window";
-import { PromptQueue } from "./PromptQueue";
+import PromptQueue from "./PromptQueue.svelte";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
 
 /* === Types === */
@@ -163,7 +165,7 @@ export function ExecutionSections({
       <NodeActionCluster
         cycleId={cycleId}
         menu={pluginAvailable === false ? { ...menu, onRerun: null, rerunRefusal: "Plugin Unavailable" } : menu}
-        primary={primary && actions ? <ExecutionActionButton action={primary} actions={actions} /> : null}
+        primary={primary && actions ? <SvelteMount component={ExecutionActionButton} props={{ action: primary, actions }} /> : null}
         subject={reportSubject}
         reportSealed={execution?.sealed === true}
       />
@@ -181,7 +183,7 @@ export function ExecutionSections({
       pageActions={
         <>
           {pageActions}
-          <DocumentPagination navigation={documentQuery.navigation} />
+          <SvelteMount component={DocumentPagination} props={{ navigation: documentQuery.navigation }} />
         </>
       }
       trail={["Cycle", `Execution ${row.ordinal}`]}
@@ -191,8 +193,15 @@ export function ExecutionSections({
       plotWindow={plotWindow}
       onRetry={(cardId) => void documentQuery.retryCard(cardId)}
       documentView={DocumentView}
-      control={actions ? <ExecutionControl actions={actions} ordinal={row.ordinal} /> : null}
-      promptQueue={live ? <PromptQueue prompts={pagePrompts} records={surface.view.records} steps={surface.view.stepRecords} /> : undefined}
+      control={actions ? <SvelteMount component={ExecutionControl} props={{ actions, ordinal: row.ordinal }} /> : null}
+      promptQueue={
+        live ? (
+          <SvelteMount
+            component={PromptQueue}
+            props={{ prompts: pagePrompts, records: surface.view.records, steps: surface.view.stepRecords, session }}
+          />
+        ) : undefined
+      }
       notesContent={
         live ? (
           session && liveScope ? (

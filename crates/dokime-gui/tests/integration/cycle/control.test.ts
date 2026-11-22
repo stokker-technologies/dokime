@@ -27,7 +27,9 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { type ExecutionActions, ExecutionControl, useExecutionActions } from "@/features/cycle/ExecutionControl";
+import { SvelteMount } from "@/components/SvelteMount";
+import { type ExecutionActions, useExecutionActions } from "@/features/cycle/execution-actions";
+import ExecutionControl from "@/features/cycle/ExecutionControl.svelte";
 import { NodeMenu, type ExecutionMenu } from "@/features/cycle/NodeMenu";
 import type { CycleExecutionRow } from "@/features/cycle/cycle-workspace-model";
 import { mapNativeExecutionSummary } from "@/lib/api/native-planning-projection";
@@ -97,7 +99,12 @@ test("Planned Page Controls Follow Host Capability and Watch Only After Start", 
       prompts: [],
       row: { execution, case: { actions: null } } as CycleExecutionRow,
     });
-    return actions ? createElement(ExecutionControl, { actions, ordinal: 1 }) : null;
+    return actions
+      ? createElement(SvelteMount<{ actions: ExecutionActions; ordinal: number }>, {
+          component: ExecutionControl,
+          props: { actions, ordinal: 1 },
+        })
+      : null;
   }
   const render = () => act(async () => root.render(createElement(QueryClientProvider, { client }, createElement(Probe))));
   try {

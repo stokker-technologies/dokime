@@ -29,12 +29,14 @@ import { type ReactNode, useMemo } from "react";
 /* === Local Imports === */
 
 import type { HubLiveState, PromptRequest, TestCyclePlan } from "@/lib/types";
+import { useNativeSessionOptional } from "@/app/native-session/context";
+import { SvelteMount } from "@/components/SvelteMount";
 import { CycleEvidenceView } from "@/features/cycle/CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
-import { DocumentPagination } from "./DocumentPagination";
+import DocumentPagination from "./DocumentPagination.svelte";
 import { evidencePaneState } from "@/features/cycle/document-query-model";
 import { usePlotWindow } from "@/features/cycle/use-plot-window";
-import { PromptQueue } from "./PromptQueue";
+import PromptQueue from "./PromptQueue.svelte";
 import { useCycleDocumentQuery } from "./server-state";
 
 /* === Types === */
@@ -57,6 +59,7 @@ export type CycleEvidencePaneProps = {
 /* === Components === */
 
 export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, plan, prompts, snapshot, trail }: CycleEvidencePaneProps) {
+  const session = useNativeSessionOptional();
   const plotWindow = usePlotWindow();
   const scope = useMemo<Wire<EvidenceScope>>(() => ({ cycleId: cycleId }), [cycleId]);
   const documentQuery = useCycleDocumentQuery(cycleId, true);
@@ -92,12 +95,15 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
       pageActions={
         <>
           {pageActions}
-          <DocumentPagination navigation={documentQuery.navigation} />
+          <SvelteMount component={DocumentPagination} props={{ navigation: documentQuery.navigation }} />
         </>
       }
       promptQueue={
         live ? (
-          <PromptQueue prompts={prompts ?? []} records={surface.view.records.filter((record) => !record.scope?.executionId)} />
+          <SvelteMount
+            component={PromptQueue}
+            props={{ prompts: prompts ?? [], records: surface.view.records.filter((record) => !record.scope?.executionId), session }}
+          />
         ) : undefined
       }
       trail={trail}

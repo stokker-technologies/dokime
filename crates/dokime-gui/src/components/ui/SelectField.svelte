@@ -9,11 +9,13 @@
     value: Value;
     options: readonly { value: Value; label: string }[];
     class?: string;
+    id?: string;
+    disabled?: boolean;
     size?: "sm" | "default";
     onChange: (value: Value) => void;
   };
 
-  let { label, value, options, class: style, size = "default", onChange }: Props = $props();
+  let { label, value, options, class: style, id, disabled, size = "default", onChange }: Props = $props();
   const selected = $derived(options.find((option) => option.value === value)?.label);
 
   function choose(next: string) {
@@ -24,8 +26,9 @@
   }
 </script>
 
-<Select.Root type="single" {value} onValueChange={choose}>
+<Select.Root type="single" {value} {disabled} onValueChange={choose}>
   <Select.Trigger
+    {id}
     aria-label={label}
     data-slot="select-trigger"
     data-size={size}

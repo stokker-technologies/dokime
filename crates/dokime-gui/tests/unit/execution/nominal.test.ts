@@ -15,9 +15,6 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { fireEvent, render } from "@testing-library/svelte";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
 import { tick } from "svelte";
 import { onTestFinished, test, vi } from "vitest";
 
@@ -27,7 +24,7 @@ import OperatorNotes from "@/components/document/OperatorNotes.svelte";
 import ArtifactTreeView from "@/components/ArtifactTreeView.svelte";
 import MediaGalleryView from "@/components/MediaGalleryView.svelte";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
-import { PromptPanel } from "@/components/PromptPanel";
+import PromptPanel from "@/components/PromptPanel.svelte";
 import { formatPreview } from "@/components/start-cycle-form-model";
 import ExecutionParameters from "@/features/cycle/ExecutionParameters.svelte";
 import {
@@ -495,26 +492,27 @@ test("Prompt Decisions", () => {
   assert.equal(promptDecision(ask([field("a", "boolean")], [action("retry"), action("submit")])), null);
 
   // A Decision Answers with No and Yes, Not a Checkbox, Cancel at the Far Left
-  const html = renderToStaticMarkup(
-    createElement(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} }),
+  const panel = render(PromptPanel, { onAction: () => undefined, onValueChange: () => undefined, prompt: inspection, values: {} });
+  assert.equal(panel.queryByRole("checkbox"), null);
+  assert.deepEqual(
+    panel.getAllByRole("button").map((button) => button.textContent?.trim()),
+    ["cancel", "No", "Yes"],
   );
-  assert.doesNotMatch(html, /role="checkbox"/);
-  assert.ok(html.indexOf(">cancel<") < html.indexOf(">No<") && html.indexOf(">No<") < html.indexOf(">Yes<"));
 
   // An Untouched Field States No Error Before a Submit Attempt
-  assert.doesNotMatch(html, /Enter a value/);
+  assert.equal(panel.queryByRole("status"), null);
+  panel.unmount();
 
   // Several Booleans Keep Their Controls and Submit
-  const several = renderToStaticMarkup(
-    createElement(PromptPanel, {
-      onAction: () => undefined,
-      onValueChange: () => undefined,
-      prompt: ask([field("a", "boolean"), field("b", "boolean")]),
-      values: {},
-    }),
-  );
-  assert.match(several, /role="checkbox"/);
-  assert.match(several, />submit</);
+  const several = render(PromptPanel, {
+    onAction: () => undefined,
+    onValueChange: () => undefined,
+    prompt: ask([field("a", "boolean"), field("b", "boolean")]),
+    values: {},
+  });
+  assert.equal(several.getAllByRole("checkbox").length, 2);
+  assert.ok(several.getByRole("button", { name: "submit" }));
+  several.unmount();
 
   // The Answered Row States a Decision as Yes or No
   assert.equal(

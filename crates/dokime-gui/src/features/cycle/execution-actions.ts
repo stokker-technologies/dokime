@@ -20,30 +20,13 @@
  * only while live: a file has nothing to command.
  */
 
-/* === Imports === */
-
-// Standard Library Imports
-
-// Third Party Imports
-
-import { Ban, Pause, Play, RotateCcw, Square } from "lucide-react";
-import type { ReactNode } from "react";
-
-// Local Imports
-
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { Button } from "@/components/ui/button";
 import { failureOf } from "@/lib/notification-details";
 import { toast } from "@/lib/notifications";
 import type { PromptRequest, TestExecution } from "@/lib/types";
-import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
-import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "@/features/cycle/cycle-workspace-model";
-
-/* === Re-Exports === */
-
-/* === Constants === */
+import { type CycleExecutionRow, caseActionTooltip, isUnstartedExecution } from "./cycle-workspace-model";
 
 const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
   Cancel: { done: "Execution Cancelled", failed: "Execution Could Not Be Cancelled" },
@@ -54,17 +37,6 @@ const REPORTS: Record<ExecutionAction, { done: string; failed: string }> = {
   Stop: { done: "Execution Stopped and Evidence Saved", failed: "Execution Control Failed" },
 };
 
-const ACTION_ICONS: Record<ExecutionAction, ReactNode> = {
-  Cancel: <Ban data-icon="inline-start" />,
-  Pause: <Pause data-icon="inline-start" />,
-  "Re-Run": <RotateCcw data-icon="inline-start" />,
-  Resume: <Play data-icon="inline-start" />,
-  Start: <Play data-icon="inline-start" />,
-  Stop: <Square data-icon="inline-start" />,
-};
-
-/* === Types === */
-
 export type ExecutionActions = {
   state: ExecutionControlState;
   progress: { completed: number; phase: string; total: number } | null;
@@ -74,50 +46,6 @@ export type ExecutionActions = {
   /** Why the runtime refuses the actions, when it does. */
   refusal?: string;
 };
-
-export type ExecutionControlProps = {
-  actions: ExecutionActions;
-  ordinal: number;
-};
-
-export type ExecutionActionButtonProps = {
-  action: ExecutionAction;
-  actions: ExecutionActions;
-};
-
-/* === Components === */
-
-export function ExecutionControl({ actions, ordinal }: ExecutionControlProps) {
-  return (
-    <ControlCard
-      detail={actions.state.detail}
-      actions={actions.state.actions.map((action) => <ExecutionActionButton action={action} actions={actions} key={action} />)}
-      label={`Execution #${ordinal} Controls`}
-      progress={actions.progress}
-      state={actions.state.line}
-    />
-  );
-}
-
-/** One lifecycle action, styled by what it does: Start leads, Stop warns. */
-export function ExecutionActionButton({ action, actions }: ExecutionActionButtonProps) {
-  const disabled = actions.disabled(action);
-  return (
-    <Button
-      className="h-[var(--bar-control-height)] px-3"
-      data-execution-action={action}
-      disabled={disabled}
-      onClick={() => actions.run(action)}
-      title={disabled ? actions.refusal : undefined}
-      variant={action === "Start" ? "default" : action === "Stop" ? "danger" : "outline"}
-    >
-      {ACTION_ICONS[action]}
-      {action === "Start" || action === "Re-Run" ? action : `${action} Execution`}
-    </Button>
-  );
-}
-
-/* === Hooks === */
 
 /** The one decision both the Control card and the page bar read. */
 export function useExecutionActions({
@@ -199,7 +127,3 @@ export function useExecutionActions({
     state,
   };
 }
-
-/* === Public Functions === */
-
-/* === Private Functions === */

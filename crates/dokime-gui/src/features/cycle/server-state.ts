@@ -11,7 +11,7 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import { useMutation, useQueries, useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
@@ -31,7 +31,6 @@ import {
 } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
-import { respondNativePrompt } from "@/lib/api/native-prompts";
 import { failureOf } from "@/lib/notification-details";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import {
@@ -50,12 +49,6 @@ const GUI_EVIDENCE_GC_MS = 30_000;
 const GUI_RECONNECT_MS = 1_000;
 
 /* === Types === */
-
-type PromptResponseVariables = {
-  action: string;
-  correlationId: string;
-  values: Record<string, unknown>;
-};
 
 type RootDocument = {
   completed?: NativeDocumentCapture;
@@ -329,24 +322,6 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
     invalidateRuntimeDocuments(queryClient),
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }),
   ]);
-}
-
-/* === Mutation Hooks === */
-
-export function usePromptResponseMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ action, correlationId, values }: PromptResponseVariables) =>
-      respondNativePrompt(session.identity, correlationId, action, values),
-    onSuccess: async (_data, variables) => {
-      queryClient.setQueryData(workflowQueryKeys.prompts(), (current: unknown) =>
-        Array.isArray(current) ? current.filter((item) => item?.correlation_id !== variables.correlationId) : current,
-      );
-      await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() });
-    },
-  });
 }
 
 function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
