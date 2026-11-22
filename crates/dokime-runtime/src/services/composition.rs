@@ -156,7 +156,7 @@ pub(super) async fn launch(
                 stop_grace: STOP_GRACE,
                 stream_window: placement.stream_window,
                 interval_window: placement.interval_window,
-                interval_lag: IntervalLag::new(placement.interval_lag),
+                interval_lag: IntervalLag::new(placement.interval_lag, NonZeroU32::new(3).unwrap()),
             },
             bundle: Default::default(),
             entries: capacity,

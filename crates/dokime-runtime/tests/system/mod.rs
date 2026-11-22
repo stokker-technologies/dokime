@@ -60,7 +60,6 @@ mod python_plugin_matches_rust_thermal_evidence;
 mod step_failure_and_retries;
 mod storage_root_admission;
 mod thermal_suite_survives_host_restart;
-mod window_lag_names_its_stream;
 mod window_overflow_names_its_stream;
 mod window_setting_overrides_host_window;
 

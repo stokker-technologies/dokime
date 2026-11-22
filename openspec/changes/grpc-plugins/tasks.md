@@ -457,3 +457,12 @@
   - [x] Pass Workspace Compiler Checking With Desktop Testing, Generation Drift, Formatting, Repository, Release-Context Binding, Unused-Dependency and Strict OpenSpec Checks.
   - [x] Repair the Real Supply Failure by Refreshing Both Cargo Locks to `url 2.5.9` and Pass the Supply Gate Without New Exceptions.
 - [x] Reuse the Desktop Execution Matrix's Single Model Module and Prove Its Focused Story in a Separate Commit.
+
+## Interval Lag Recovery Library Adoption
+
+- [x] Pin Cargo and the Python SDK to Library Dev `8e2baf73a21381d0eaac8a2cf9c5ca84b89ce2a1`; Regenerate Projections and Refresh Every Tracked Lock Through Generation.
+- [x] Supply Three Consecutive Lagging Wakes to the Library Policy and Preserve the Consecutive Count in Actionable Execution Failures.
+- [x] Remove the Superseded Single-Wake Interruption Story.
+- [ ] Preserve Explicit Interval Gaps Without Treating Them as Evicted Rows and Prove Publication Recovery: the Pinned Library's `Batch::incomplete()` Combines Both Causes, So It Must Expose Them Separately Before Product Adoption Can Finish.
+- [x] Pass Focused Runtime Streams, Peer Capture, Burst Ingest and OBC Plugin Tests and Installed Python SDK Unit and Integration Tests.
+- [x] Pass Workspace Test-Target Compilation With Desktop Testing, Generation Drift, Formatting, Repository, Supply, Binding and Unused-Dependency Gates.
