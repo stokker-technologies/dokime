@@ -37,14 +37,14 @@
 import { DocumentRetryContext } from "../../components/document/DocumentViewRenderer";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
-import { ArtifactTreeView } from "../../components/ArtifactTreeView";
+import ArtifactTreeView from "../../components/ArtifactTreeView.svelte";
 import DocumentTraceability from "../../components/document/DocumentTraceability.svelte";
 import type { DocumentBlockChrome } from "../../components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
 import OperatorNotes from "../../components/document/OperatorNotes.svelte";
 import MarkdownText from "../../components/MarkdownText.svelte";
 import { SvelteMount } from "../../components/SvelteMount";
-import { MediaGalleryView } from "../../components/MediaGalleryView";
+import MediaGalleryView from "../../components/MediaGalleryView.svelte";
 import { TraceabilityJsonDialog } from "../../components/traceability/TraceabilityJsonDialog";
 import { parseTimestampMs } from "../../lib/time-format";
 import type { DocumentViewCard, TestCyclePlan, TestExecution } from "@/lib/types";
@@ -193,13 +193,13 @@ export function ExecutionSectionsView({
             {present.has("media") && (live || shared.mediaArtifacts.length) ? (
               <ExecutionSectionCard empty={shared.mediaArtifacts.length ? null : "No media recorded."} title="Media">
                 {mediaContent ??
-                  (shared.mediaArtifacts.length ? <MediaGalleryView artifacts={shared.mediaArtifacts} emptyMessage="" /> : null)}
+                  (shared.mediaArtifacts.length ? <SvelteMount component={MediaGalleryView} props={{ artifacts: shared.mediaArtifacts, emptyMessage: "" }} /> : null)}
               </ExecutionSectionCard>
             ) : null}
 
             {present.has("artifacts") && (live || shared.artifacts.length) ? (
               <ExecutionSectionCard empty={shared.artifacts.length ? null : "No artifacts recorded."} title="Artifacts">
-                {shared.artifacts.length ? (artifactsContent ?? <ArtifactTreeView artifacts={shared.artifacts} emptyMessage="" />) : null}
+                {shared.artifacts.length ? (artifactsContent ?? <SvelteMount component={ArtifactTreeView} props={{ artifacts: shared.artifacts, emptyMessage: "" }} />) : null}
               </ExecutionSectionCard>
             ) : null}
 

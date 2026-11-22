@@ -18,11 +18,13 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
 import { prepareNativeMedia } from "@/lib/api/native-delivery";
 import { isReportBuild } from "@/lib/ui-mode";
-import { MediaGallerySurface, useMediaGallery } from "@/components/MediaGalleryView";
+import MediaGalleryView, { type MediaPreviewRequest } from "./MediaGalleryView.svelte";
+import { SvelteMount } from "./SvelteMount";
 import {
   artifactContentKey,
   isNativeArtifactSource,
   type MediaArtifactCandidate,
+  type MediaGalleryArtifact,
   type MediaGalleryProps,
   type MediaPreviewState,
   mediaArtifactSource,
@@ -53,28 +55,25 @@ type MediaDownloadRequest = {
 
 /* === Constants === */
 
-const GUI_MEDIA_DOWNLOADS = 2;
-
-const MAX_ACTIVE_MEDIA_DOWNLOADS = GUI_MEDIA_DOWNLOADS;
+const MAX_ACTIVE_MEDIA_DOWNLOADS = 2;
 
 /* === Components === */
 export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryProps) {
   const session = useNativeSessionOptional();
-  const model = useMediaGallery(artifacts, runDir);
-  const preview = useNativeMediaUrls(model.media, model.requestedArtifactIds);
-  return (
-    <MediaGallerySurface
-      model={model}
-      emptyMessage={emptyMessage}
-      preview={preview}
-      actions={
-        session
-          ? {
-              open: (artifact) => openNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
-              download: (artifact) => downloadNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
-            }
-          : undefined
+  const [request, setRequest] = useState<MediaPreviewRequest>(() => ({ media: [], requested: new Set() }));
+  const preview = useNativeMediaUrls(request.media, request.requested);
+  const content = session ? nativeContentSession(session.identity, session.own) : null;
+  const actions = content
+    ? {
+        open: (artifact: MediaGalleryArtifact) => openNativeArtifact(content, artifact),
+        download: (artifact: MediaGalleryArtifact) => downloadNativeArtifact(content, artifact),
       }
+    : undefined;
+
+  return (
+    <SvelteMount
+      component={MediaGalleryView}
+      props={{ artifacts, emptyMessage, runDir, actions, preview, onPreviewRequest: setRequest }}
     />
   );
 }

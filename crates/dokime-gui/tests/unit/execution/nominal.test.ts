@@ -23,8 +23,8 @@ import { onTestFinished, test, vi } from "vitest";
 // Local Imports
 import Metric from "@/components/Metric.svelte";
 import OperatorNotes from "@/components/document/OperatorNotes.svelte";
-import { ArtifactTreeView } from "@/components/ArtifactTreeView";
-import { MediaGalleryView } from "@/components/MediaGalleryView";
+import ArtifactTreeView from "@/components/ArtifactTreeView.svelte";
+import MediaGalleryView from "@/components/MediaGalleryView.svelte";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
 import { PromptPanel } from "@/components/PromptPanel";
 import { formatPreview } from "@/components/start-cycle-form-model";
@@ -563,7 +563,7 @@ test("Prompt Answering", () => {
   );
 });
 
-test("Live Artifact Tree", () => {
+test("Live Artifact Tree", async () => {
   const file: ArtifactTreeInput = {
     artifact_id: "f1399950-a652-422c-8e3b-59405391b2e4",
     label: "device.log",
@@ -572,14 +572,11 @@ test("Live Artifact Tree", () => {
     stream_state: "streaming",
     size_bytes: 3,
   };
-  const render = (artifact: ArtifactTreeInput) =>
-    renderToStaticMarkup(
-      createElement(ArtifactTreeView, {
-        artifacts: [{ ...artifact, path: "device.log" }],
-        emptyMessage: "Empty",
-      }),
-    );
-  assert.match(render(file), />Live · 3 B</);
+  const rendered = render(ArtifactTreeView, {
+    artifacts: [{ ...file, path: "device.log" }],
+    emptyMessage: "Empty",
+  });
+  assert.match(rendered.container.innerHTML, />Live · 3 B</);
   const tree = buildArtifactTree([file]);
   const nested = tree.folders[0].folders[0].folders[0];
   assert.equal(nested.path, "artifacts/logs/sub");
@@ -590,7 +587,8 @@ test("Live Artifact Tree", () => {
   assert.equal(finished.artifact_id, file.artifact_id);
   assert.equal(finished.size_bytes, 9);
   assert.equal(shouldFollowArtifact(finished), false);
-  assert.match(render(finished), />Finished · 9 B</);
+  await rendered.rerender({ artifacts: [{ ...finished, path: "device.log" }], emptyMessage: "Empty" });
+  assert.match(rendered.container.innerHTML, />Finished · 9 B</);
   const collision = buildArtifactTree([file, { ...file, artifact_id: "other", path: "artifacts/logs/sub/device.2.log" }]);
   assert.deepEqual(
     collision.folders[0].folders[0].folders[0].files.map((entry) => entry.fileName),
@@ -611,7 +609,8 @@ test("Media Cards and Tree Share Live Uploads", () => {
   };
   const audio = { ...image, artifact_id: "audio", path: "media/recording.wav", media_type: "audio/wav", href: "blob:audio" };
   const video = { ...image, artifact_id: "video", path: "media/clip.webm", media_type: "video/webm", href: "blob:video" };
-  const markup = renderToStaticMarkup(createElement(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" }));
+  const { container } = render(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" });
+  const markup = container.innerHTML;
   assert.match(markup, /<img[^>]+src="data:image\/png;base64,/);
   assert.match(markup, /<audio[^>]+controls=""[^>]+src="blob:audio"/);
   assert.match(markup, /<video[^>]+controls=""[^>]+src="blob:video"/);

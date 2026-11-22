@@ -36,7 +36,7 @@ import { ErrorCard } from "@/components/ErrorCard";
 import { useEffect, useMemo, useRef } from "react";
 
 // Local Imports
-import { stepRecordLabel } from "@/components/document/StepRecordsCard";
+import { stepRecordLabel } from "@/components/document/step-records";
 import { PromptPanel } from "@/components/PromptPanel";
 import { Badge } from "@/components/ui/badge";
 import { type PromptValue, type PromptValues, promptResponseValues } from "@/lib/prompts";

@@ -27,7 +27,7 @@ import { LoaderCircle } from "lucide-react";
 
 import { ErrorCard } from "@/components/ErrorCard";
 
-import { stepFailure, sortedStepRecords, stepBadgeVariant, stepRecordLabel } from "../../components/document/StepRecordsCard";
+import { stepFailure, sortedStepRecords, stepBadgeVariant, stepRecordLabel } from "../../components/document/step-records";
 import { Badge } from "@/components/ui/badge";
 import type { StepExecutionRecord } from "@/lib/types";
 import { LIST_STATUS_PILL_CLASS } from "./cycle-workspace-model";

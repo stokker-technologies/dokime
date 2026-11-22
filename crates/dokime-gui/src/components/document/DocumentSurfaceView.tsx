@@ -23,7 +23,7 @@ import { type ReactNode, useContext } from "react";
 
 import { ErrorCard } from "@/components/ErrorCard";
 import { DocumentRetryContext } from "./DocumentViewRenderer";
-import { ArtifactTreeView } from "../ArtifactTreeView";
+import ArtifactTreeView from "../ArtifactTreeView.svelte";
 import DocumentMetricFlow from "./overview/DocumentMetricFlow.svelte";
 import { metricFlowStorageKey } from "./overview/metric-model";
 import DocumentStatus from "./DocumentStatus.svelte";
@@ -33,8 +33,8 @@ import { SvelteMount } from "../SvelteMount";
 import OperatorNotes from "./OperatorNotes.svelte";
 import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/document/PlotGroupGrid";
 import { RecordTimeline } from "./RecordTimeline";
-import { StepRecordList } from "./StepRecordsCard";
-import { MediaGalleryView } from "../MediaGalleryView";
+import StepRecordList from "./StepRecordList.svelte";
+import MediaGalleryView from "../MediaGalleryView.svelte";
 import type { MediaGalleryArtifact } from "../media-gallery-model";
 import type { ArtifactTreeInput } from "../../lib/artifact-tree";
 import type {
@@ -163,7 +163,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
       <div className="grid gap-3">
         {reportMode ? null : props.captureControls}
         {props.mediaContent ?? (
-          <MediaGalleryView artifacts={props.mediaArtifacts} emptyMessage="No media recorded." runDir={props.runDir} />
+          <SvelteMount component={MediaGalleryView} props={{ artifacts: props.mediaArtifacts, emptyMessage: "No media recorded.", runDir: props.runDir }} />
         )}
       </div>
     );
@@ -171,7 +171,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
 
   if (props.card.kind === "artifacts") {
     return (
-      props.artifactsContent ?? <ArtifactTreeView artifacts={props.artifacts} emptyMessage="No artifacts recorded." runDir={props.runDir} />
+      props.artifactsContent ?? <SvelteMount component={ArtifactTreeView} props={{ artifacts: props.artifacts, emptyMessage: "No artifacts recorded.", runDir: props.runDir }} />
     );
   }
 
@@ -189,19 +189,19 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
 
   if (props.card.kind === "steps") {
     return (
-      <StepRecordList
-        records={props.stepRecords}
-        emptyMessage={reportMode ? "No step records for the selected case run." : "No step records for the selected execution yet."}
-      />
+      <SvelteMount component={StepRecordList} props={{
+        records: props.stepRecords,
+        emptyMessage: reportMode ? "No step records for the selected case run." : "No step records for the selected execution yet.",
+      }} />
     );
   }
 
   if (props.card.kind === "criteria") {
     return (
-      <StepRecordList
-        records={props.criterionRecords}
-        emptyMessage={reportMode ? "No criteria records for the selected case run." : "No criteria records for the selected execution yet."}
-      />
+      <SvelteMount component={StepRecordList} props={{
+        records: props.criterionRecords,
+        emptyMessage: reportMode ? "No criteria records for the selected case run." : "No criteria records for the selected execution yet.",
+      }} />
     );
   }
 
