@@ -1619,6 +1619,20 @@ An effect inverse is durable plugin state, not an SDK finally block that could b
 lost with the plugin process. Capture stop and template cleanup
 still settle on cancellation under their operation policies.
 
+### Interval Lag Recovery
+
+Interval lag recovery uses library revision `6ced46a49eba9ab101e90bbf41be196f98e388fc`.
+Storage batches distinguish intentional publication gaps from actual lost rows:
+only `Batch::incomplete()` interrupts sampling executions. The runtime records
+each publication's gap under its inherited execution scope as `streams:gap`
+evidence, with JSON fields `stream`, `missed`, `start_ns` and exclusive `end_ns`.
+The evidence source time is the first skipped tick; its receipt time comes from
+the publication. Existing evidence persistence and sealing retain these records,
+and archives expose their decoded payloads in `data/stream-gaps.json`. File
+`CaptureGap` values remain file-offset loss records and cannot represent interval
+time spans. Publication resumes after a skipped interval without interrupting
+the execution; actual row eviction and persistent lag still fail sampling.
+
 ### Python Authoring Capability Dependencies
 
 - Library revision `9403bbf02` provides admitted typed stream subscriptions in

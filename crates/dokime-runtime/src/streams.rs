@@ -35,13 +35,14 @@ use harmos_protocol::model::Declarations;
 use harmos_runtime::BackendFailure;
 use harmos_runtime::operations::OperationOutcome;
 use harmos_runtime::operations::middleware::{AttemptObservation, Enter, Invocation, Middleware, Observation};
-use harmos_runtime::streams::{Definition, PublicationRow};
+use harmos_runtime::streams::{Definition, Gap, PublicationRow};
 use harmos_runtime::{
     clock::{self, Controller},
     storage::{Batch, Cursor, StreamConsumer},
 };
 use prost::Message;
 use prost_reflect::{self, DescriptorPool, DynamicMessage, Kind, MapKey, MessageDescriptor};
+use prost_types::Timestamp;
 use serde_json::Value;
 use tokio::sync::watch::{self, Sender};
 
@@ -49,7 +50,7 @@ use tokio::sync::watch::{self, Sender};
 use crate::services::composition::Application;
 use crate::{Error, SchedulerClock};
 use dokime_operations::{Clock, Resources, Result};
-use dokime_storage::{Sample, Store};
+use dokime_storage::{Evidence, Sample, Store};
 
 /* === Constants === */
 
@@ -281,7 +282,7 @@ impl Intake {
             }
         }
         for (definition, _, publication) in batch.publications() {
-            let result = self.ingest(definition, publication.value.row());
+            let result = self.ingest(definition, publication.value.row(), publication.value.gaps());
             if let Err(source) = result {
                 let scope = publication
                     .value
@@ -296,13 +297,30 @@ impl Intake {
             }
         }
     }
-    fn ingest(&self, definition: &Definition, publication: &PublicationRow) -> crate::Result<()> {
+    fn ingest(&self, definition: &Definition, publication: &PublicationRow, gaps: &[Gap]) -> crate::Result<()> {
         let Some(context) = &publication.context else { return Ok(()) };
         let context: Value = serde_json::from_str(context).map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
         let Some(execution) = context["scope"].as_str() else { return Ok(()) };
         let mut scopes = self.scopes.lock().map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
         let scope = scopes.get_mut(execution).ok_or_else(|| Error::Invalid("Ingest Sample Scope: Retain Its Execution Binding".into()))?;
         let Some(stream) = scope.streams.get_mut(definition.id()) else { return Ok(()) };
+        for gap in gaps {
+            let [start_ns, end_ns] = [gap.time.start, gap.time.end].map(|time| {
+                let time = Timestamp::from(time);
+                time.seconds.saturating_mul(1_000_000_000).saturating_add(i64::from(time.nanos))
+            });
+            let payload = serde_json::json!({"stream": definition.id(), "missed": gap.missed, "start_ns": start_ns, "end_ns": end_ns});
+            self.store.append(
+                execution,
+                Evidence {
+                    kind: "streams:gap".into(),
+                    source_ns: start_ns,
+                    receipt_ns: publication.published_unix_micros.unwrap_or_default().saturating_mul(1000),
+                    payload: payload.to_string().into_bytes(),
+                    ..Default::default()
+                },
+            )?;
+        }
         if stream.interval {
             // One Stored Batch Row Holds Consecutive Samples; Storage Expands It Column by Column.
             stream.sequence += self.store.sample_interval(execution, definition.id(), &publication.payload, stream.sequence + 1)?;
@@ -520,7 +538,7 @@ mod tests {
                 published_unix_micros: Some(10 + index as i64 * 1_000_000),
                 context: Some(serde_json::json!({"scope": "execution", "source_time": {"seconds": index, "nanos": 100}}).to_string()),
             };
-            intake.ingest(&definition, &publication)?;
+            intake.ingest(&definition, &publication, &[])?;
         }
 
         // Read the Stored Protobuf Rows and Their Exact Tick Times, Without Batch Expansion.

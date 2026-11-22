@@ -38,4 +38,4 @@ system-certs = true
 
 [tool.uv.sources]
 # Generated From the Workspace Library Pin by mise run generate -- --protocol.
-harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a", subdirectory = "tools/python" }
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "6ced46a49eba9ab101e90bbf41be196f98e388fc", subdirectory = "tools/python" }

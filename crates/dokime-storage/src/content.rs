@@ -425,6 +425,7 @@ fn evidence_projection(archive: &ArchivedExecution) -> Result<BTreeMap<String, s
         "execution",
         "execution-failures",
         "stream-failures",
+        "stream-gaps",
         "cleanup-failures",
         "reports",
         "logs",
@@ -473,11 +474,13 @@ fn evidence_projection(archive: &ArchivedExecution) -> Result<BTreeMap<String, s
             "document:part" => ("documents", Some("dokime.host.v1.DocumentsAppendPartsRequest")),
             "execution:failure" => ("execution-failures", None),
             "streams:failure" => ("stream-failures", None),
+            "streams:gap" => ("stream-gaps", None),
             "cleanup:failure" => ("cleanup-failures", None),
             kind => return Err(Error::Invalid(format!("Export Evidence: Add a Named JSON Projection for Evidence Kind {kind}"))),
         };
         let mut payload = match message {
             Some(message) => project_message(message, &evidence.payload)?,
+            None if evidence.kind == "streams:gap" => serde_json::from_slice(&evidence.payload)?,
             None if evidence.kind.ends_with(":failure") => serde_json::json!(
                 String::from_utf8(evidence.payload.clone())
                     .map_err(|source| Error::Invalid(format!("Project Failure: Restore Its UTF-8 Cause: {source}")))?
@@ -780,6 +783,7 @@ mod tests {
             "statistics",
             "steps",
             "stream-failures",
+            "stream-gaps",
             "traceability",
         ];
         let mut expected = Vec::new();
@@ -882,6 +886,7 @@ mod tests {
             ("criterion:confirmed", criterion.encode_to_vec()),
             ("prompt", prompt.encode_to_vec()),
             ("answer", answer.encode_to_vec()),
+            ("streams:gap", br#"{"stream":"reading","missed":3,"start_ns":10,"end_ns":40}"#.to_vec()),
         ]
         .into_iter()
         .enumerate()
@@ -908,6 +913,7 @@ mod tests {
         assert_eq!(projection["records"][0]["payload"]["payload"]["unsigned_integer"], u64::MAX);
         assert_eq!(projection["criteria"][0]["payload"]["passed"], true);
         assert_eq!(projection["prompts"][1]["payload"]["accepted"], true);
+        assert_eq!(projection["stream-gaps"][0]["payload"], serde_json::json!({"stream":"reading","missed":3,"start_ns":10,"end_ns":40}));
         assert_eq!(projection["notes"][0]["note_id"], "note");
         assert_eq!(projection["parameters"][0]["values"]["limit"]["unsigned_integer"], u64::MAX);
         let json = serde_json::to_string(&projection["records"])?;

@@ -325,8 +325,9 @@ fn stream_failure(action: &str, source: &(dyn error::Error + 'static)) -> Option
     let mut cause: Option<&(dyn error::Error + 'static)> = Some(source);
     while let Some(current) = cause {
         let message = match current.downcast_ref::<grpc::Error>() {
-            Some(grpc::Error::Lagging { stream, lag, limit }) => Some(format!(
-                "{action}: Stream {stream} Fell {lag:?} Behind Its Window End, Past Its Lag Limit of {limit:?}; Lower Its Rate or the \
+            Some(grpc::Error::Lagging { stream, lag, limit, consecutive_windows }) => Some(format!(
+                "{action}: Stream {stream} Fell {lag:?} Behind Its Window End, Past Its Lag Limit of {limit:?} for \
+                 {consecutive_windows} Consecutive Windows; Lower Its Rate or the \
                  Number of Streams, {WINDOW} or Raise interval_lag_windows, Then Rerun the Execution"
             )),
             Some(grpc::Error::PoolFull { stream, bytes, rows }) => Some(format!(

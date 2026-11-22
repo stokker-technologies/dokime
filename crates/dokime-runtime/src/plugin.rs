@@ -61,10 +61,10 @@ pub const STOP_GRACE: Duration = PLUGINS_TIMEOUT.checked_div(3).unwrap();
 /// samples sooner. A stream whose observer names a window setting takes that plugin setting instead.
 pub const INTERVAL_WINDOW: Duration = Duration::from_millis(100);
 
-/// How Many Window Lengths an Interval Demand May Fall Behind a Window's End Before It Fails.
+/// How Many Window Lengths an Interval Demand May Fall Behind Before Skipping Stale Samples.
 ///
-/// Clock jitter passes; a host that cannot keep up with a stream's rate fails within a few windows
-/// instead of granting ever longer ones.
+/// Skipped samples leave an explicit gap and publication resumes. Three consecutive lagging wakes
+/// fail the demand; a timely wake resets that count.
 pub const INTERVAL_LAG: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
 /* === Macros === */
@@ -81,7 +81,7 @@ pub struct PlacementSettings {
     /// Sampling Time One Interval Window Covers, Unless a Stream's Window Setting Overrides It.
     pub interval_window: Duration,
 
-    /// Window Lengths an Interval Demand May Fall Behind Before It Fails, Default [`INTERVAL_LAG`].
+    /// Window Lengths Before Skipping Stale Samples; Three Consecutive Lagging Wakes Fail, Default [`INTERVAL_LAG`].
     pub interval_lag: NonZeroU32,
 
     pub message_bytes: NonZeroUsize,

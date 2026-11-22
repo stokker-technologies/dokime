@@ -5,7 +5,7 @@ find_package(OpenSSL REQUIRED)
 include(FetchContent)
 # The Pinned Library Owns Its Internal Wire Headers and Generated Context; Only Its Libraries Are Built.
 FetchContent_Declare(harmos
-  URL https://github.com/stokker-technologies/harmos/archive/d9af0b8e1464881a445b4e507076ccd8b1fa1d4a.tar.gz
-  URL_HASH SHA256=6f322995105955da037fc863c5f89dcb3e1434bd5a5fec275a3a3f4839e2c42d
+  URL https://github.com/stokker-technologies/harmos/archive/6ced46a49eba9ab101e90bbf41be196f98e388fc.tar.gz
+  URL_HASH SHA256=ed7932a4ef70b146b68437cbe17079fb31df6d2f36f473f4e466a365383add95
   SOURCE_SUBDIR sdk/cpp DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(harmos)
