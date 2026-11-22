@@ -7,7 +7,7 @@
  * ***
  */
 
-// Host Telemetry Rows: Each Row Holds Fields That Always Exist Together, With Their Labels and Units
+// Host Telemetry Rows With Their Labels, Units and Measurement Presence
 
 /* === Modules === */
 
@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use crate::domain::readings::WifiScan;
 
 /* === Constants === */
 
@@ -325,16 +326,16 @@ pub struct WifiNetworkRssi {
     pub wifi_rssi_dbm: f64,
 }
 
-/// Congestion of the Associated Channel; Silent While Not Associated.
+/// One Scan's Congestion; Association and Model Inputs May Be Unavailable.
 #[derive(Clone, Debug, PartialEq, dokime::Row)]
 #[dokime(package = "host")]
 pub struct WifiCongestion {
-    pub scan_network_count: i64,
-    pub active_wifi_channel: i64,
-    pub active_wifi_band: String,
-    pub active_wifi_ssid: String,
-    pub wifi_network_congestion_score: f64,
-    pub congestion_model: String,
+    pub scan_network_count: Option<i64>,
+    pub active_wifi_channel: Option<i64>,
+    pub active_wifi_band: Option<String>,
+    pub active_wifi_ssid: Option<String>,
+    pub wifi_network_congestion_score: Option<f64>,
+    pub congestion_model: Option<String>,
 }
 
 /// Echo Round Trip and Loss; Silent When the Probe Cannot Run or the Reply Is Lost.
@@ -415,6 +416,19 @@ pub struct LoadFlopsControl {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl From<WifiScan> for WifiCongestion {
+    fn from(reading: WifiScan) -> Self {
+        Self {
+            scan_network_count: reading.scan_network_count,
+            active_wifi_channel: reading.active_wifi_channel,
+            active_wifi_band: reading.active_wifi_band,
+            active_wifi_ssid: reading.active_wifi_ssid,
+            wifi_network_congestion_score: reading.wifi_network_congestion_score,
+            congestion_model: reading.congestion_model,
+        }
+    }
+}
 
 impl Column {
     pub const fn new(field: &'static str, label: &'static str, unit: &'static str) -> Self {

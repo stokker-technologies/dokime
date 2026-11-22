@@ -158,37 +158,12 @@ pub fn publish_link(reading: readings::WifiLink, rows: &CollectionOutput) {
     }
 }
 
-/// Publish One Outcome per Scan, One Row per Network per Stream Its Fields Fill, and the Associated Channel's Congestion Once.
+/// Publish One Outcome and Congestion Row per Scan, and Each Network's Available Measurements.
 pub fn publish_scan(readings: Vec<readings::WifiScan>, rows: &CollectionOutput) {
-    let first = readings.first().cloned().unwrap_or_default();
-    streams::outcome(rows, WIFI_SCAN_PROBE, first.scan_status, first.scan_error);
-    let congestion = (
-        first.scan_network_count,
-        first.active_wifi_channel,
-        first.active_wifi_band,
-        first.active_wifi_ssid,
-        first.wifi_network_congestion_score,
-        first.congestion_model,
-    );
-    if let (
-        Some(scan_network_count),
-        Some(active_wifi_channel),
-        Some(active_wifi_band),
-        Some(active_wifi_ssid),
-        Some(wifi_network_congestion_score),
-        Some(congestion_model),
-    ) = congestion
-    {
-        let row = WifiCongestion {
-            scan_network_count,
-            active_wifi_channel,
-            active_wifi_band,
-            active_wifi_ssid,
-            wifi_network_congestion_score,
-            congestion_model,
-        };
-        rows.publish(&Stream::new(WifiCongestion::STREAM), row);
-    }
+    let mut first = readings.first().cloned().unwrap_or_default();
+    streams::outcome(rows, WIFI_SCAN_PROBE, first.scan_status.take(), first.scan_error.take());
+    let congestion = WifiCongestion::from(first);
+    rows.publish(&Stream::new(WifiCongestion::STREAM), congestion);
     for reading in readings {
         let Some(wifi_bssid) = reading.wifi_bssid else {
             continue;

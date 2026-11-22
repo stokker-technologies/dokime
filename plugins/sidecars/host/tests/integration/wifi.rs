@@ -22,10 +22,12 @@ use std::time::{Duration, Instant};
 // Third Party Imports
 
 // Local Imports
+use dokime::encoding::Message;
 use plugin_host::collectors::wifi::{
     CONGESTION_MODEL_24_GHZ, CONGESTION_MODEL_SAME_CHANNEL, Counters, ScanReport, band, congestion, latency_row, scan_due, scan_rows,
     throughput,
 };
+use plugin_host::domain::telemetry::WifiCongestion;
 use plugin_host::platform::ScannedNetwork;
 
 /* === Constants === */
@@ -60,6 +62,51 @@ fn network(bssid: &str, channel: u32, associated: bool) -> ScannedNetwork {
 }
 
 /* === Tests === */
+
+#[test]
+fn scan_congestion_preserves_missing_association_and_hidden_ssid() {
+    let mut hidden = network("a", 6, true);
+    hidden.ssid = None;
+    let scans = [
+        Ok(ScanReport {
+            networks: vec![hidden, network("b", 6, false)],
+            active: true,
+            error: None,
+        }),
+        Ok(ScanReport {
+            networks: vec![network("b", 6, false)],
+            active: true,
+            error: None,
+        }),
+        Ok(ScanReport::default()),
+        Err("scan refused".into()),
+    ];
+    let congestion = scans
+        .into_iter()
+        .enumerate()
+        .map(|(index, scan)| {
+            let readings = scan_rows(index as u64, scan, WEIGHT);
+            let row = WifiCongestion::from(readings.into_iter().next().unwrap());
+            let bytes = row.encode_to_vec();
+            WifiCongestion::decode(bytes.as_slice()).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(congestion.len(), 4);
+    assert_eq!(congestion[0].scan_network_count, Some(2));
+    assert_eq!(congestion[0].active_wifi_ssid, None);
+    assert_eq!(congestion[0].active_wifi_channel, Some(6));
+    assert_eq!(congestion[0].wifi_network_congestion_score, Some(20.0));
+    assert_eq!(congestion[1].scan_network_count, Some(1));
+    for row in &congestion[1..] {
+        assert_eq!(row.active_wifi_channel, None);
+        assert_eq!(row.active_wifi_band, None);
+        assert_eq!(row.active_wifi_ssid, None);
+        assert_eq!(row.wifi_network_congestion_score, None);
+        assert_eq!(row.congestion_model, None);
+    }
+    assert_eq!(congestion[2].scan_network_count, Some(0));
+    assert_eq!(congestion[3].scan_network_count, Some(0));
+}
 
 #[test]
 fn congestion_weighs_overlapping_channels() {
