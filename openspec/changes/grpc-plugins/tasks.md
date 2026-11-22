@@ -184,8 +184,8 @@
 
 - [x] Adopt the Library Typed Subscription Pin and Regenerate All Protocol Projections and Tracked Locks; Repair Forced Rust Callers and Tooling Imports.
 - [ ] Bind Python Typed Live Rows and Explicit Gaps to Library Subscription Demand; Prove Both Timestamps, Independent Close and Scope Cancellation.
-- [ ] Remove the Unused Rust Settings Derive and Migrate Host Duration Reads Directly to the SDK.
-- [ ] Complete Pin and Cleanup SDK Units, Integration, Lint, Type and Stub Checks; Focused Rust Proof, Workspace and Consumer Test Compilation, Binding, Supply, Build/Package, Generation Drift, Format, Repository and Strict Change Gates.
+- [x] Remove the Unused Rust Settings Derive and Migrate Host Duration Reads Directly to the SDK.
+- [x] Complete Pin and Cleanup SDK Units, Integration, Lint, Type and Stub Checks; Focused Rust Proof, Workspace and Consumer Test Compilation, Binding, Supply, Build/Package, Generation Drift, Format, Repository and Strict Change Gates.
 
 - [x] Python Peer Calls: Derive Frozen Requirements From Typed Handler References and Preserve the Existing Bound Call and One-Call Policy Override, Without Author Requirements.
 - [x] Python Peer Calls: Prove Derivation, Conflicting Contracts, Structured Failures and Undeclared References With SDK Unit Tests.

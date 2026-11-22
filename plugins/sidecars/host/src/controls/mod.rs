@@ -304,9 +304,9 @@ impl State {
 impl Timing {
     pub async fn read(ctx: &Context) -> Result<Self> {
         Ok(Self {
-            control_probe: settings::duration_value(ctx, CONTROL_PROBE_TIMEOUT).await?,
-            radio_settle: settings::duration_value(ctx, RADIO_SETTLE_TIMEOUT).await?,
-            network_probe: settings::duration_value(ctx, NETWORK_PROBE_TIMEOUT).await?,
+            control_probe: ctx.duration_setting(CONTROL_PROBE_TIMEOUT).await?,
+            radio_settle: ctx.duration_setting(RADIO_SETTLE_TIMEOUT).await?,
+            network_probe: ctx.duration_setting(NETWORK_PROBE_TIMEOUT).await?,
         })
     }
 }

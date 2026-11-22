@@ -100,8 +100,8 @@ impl Collector {
     /// Collect One Throughput Reading With Every Change Queued Since the Previous One.
     pub async fn collect(&self, ctx: &Context) -> Result<Network> {
         let timing = Timing {
-            probe_timeout: settings::duration_value(ctx, settings::NETWORK_PROBE_TIMEOUT).await?,
-            minimum_rate_window: settings::duration_value(ctx, settings::MINIMUM_RATE_WINDOW).await?,
+            probe_timeout: ctx.duration_setting(settings::NETWORK_PROBE_TIMEOUT).await?,
+            minimum_rate_window: ctx.duration_setting(settings::MINIMUM_RATE_WINDOW).await?,
         };
         let state = self.state.clone();
         let collected = tokio::task::spawn_blocking(move || {

@@ -116,8 +116,8 @@ pub fn publish(reading: readings::Bluetooth, rows: &CollectionOutput) {
 async fn collect(ctx: &Context, rows: &CollectionOutput) -> Result<()> {
     let options = Options {
         adapter: settings::selected(ctx, settings::BLUETOOTH_ADAPTER).await?,
-        probe_timeout: settings::duration_value(ctx, settings::BLUETOOTH_PROBE_TIMEOUT).await?,
-        deep_refresh_interval: settings::duration_value(ctx, settings::BLUETOOTH_DEEP_REFRESH_INTERVAL).await?,
+        probe_timeout: ctx.duration_setting(settings::BLUETOOTH_PROBE_TIMEOUT).await?,
+        deep_refresh_interval: ctx.duration_setting(settings::BLUETOOTH_DEEP_REFRESH_INTERVAL).await?,
         timing: Timing::read(ctx).await?,
     };
     let reading = ctx.plugin::<Arc<Host>>()?.bluetooth.collect(options).await?;

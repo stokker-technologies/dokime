@@ -21,7 +21,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use crate::settings::{self, NETWORK_PROBE_TIMEOUT};
+use crate::settings::NETWORK_PROBE_TIMEOUT;
 use dokime::operations::{Context, Operation};
 use dokime::plugin::Plugin;
 use dokime::{Error, Message, Result, Visibility};
@@ -136,7 +136,7 @@ impl Adapter {
 /// Declare the Adapters Operations.
 pub fn catalog(plugin: Plugin) -> Result<Plugin> {
     let read = Operation::new(ADAPTERS, Visibility::Public, async |ctx: &Context, _: AdaptersRead| {
-        let timeout = settings::duration_value(ctx, NETWORK_PROBE_TIMEOUT).await?;
+        let timeout = ctx.duration_setting(NETWORK_PROBE_TIMEOUT).await?;
         snapshot(timeout).await
     })
     .description("Report Every Network Adapter With Its Kind, Status, Addresses, Gateways, DNS Servers and DHCP State.");

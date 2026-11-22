@@ -130,7 +130,7 @@ impl Collector {
 
     /// Collect One System Row; a Failed Probe Becomes a Row Naming the Failure.
     pub async fn collect(&self, ctx: &Context) -> Result<System> {
-        let timeout = settings::duration_value(ctx, settings::SYSTEM_PROBE_TIMEOUT).await?;
+        let timeout = ctx.duration_setting(settings::SYSTEM_PROBE_TIMEOUT).await?;
         let known = self.git.lock().unwrap_or_else(PoisonError::into_inner).clone();
         let git = match known {
             Some(git) => git,

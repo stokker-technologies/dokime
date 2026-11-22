@@ -2304,8 +2304,9 @@ explicit identity overrides use `.identifier(...)` rather than a parallel
 constructor family. A template marker is stateless; execution state stays in the one
 context store via `set(value)` and `get::<T>()`. Plugin-lived state uses its owned
 state value and a typed `ctx.plugin::<T>()` borrow. Data alone uses derives such
-as `Message`, `Parameters`, `Settings`, `Record` and `Row`; ordinary value
-builders are consumed by value. Runtime validation of duplicate declarations and
+as `Message`, `Parameters`, `Record` and `Row`; settings use explicit declarations
+with library-owned typed bounds. Ordinary value builders are consumed by value.
+Runtime validation of duplicate declarations and
 unsupported values is acceptable. Operation handlers implement the existing
 typed Payload/handler bounds; no catalog proof trait is introduced.
 
@@ -2859,7 +2860,9 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `sdk/cpp/tools/sdk.py` and the library `tools/python/src/harmos_tools/build/cpp.py` | Product and library SDK tasks independently bootstrap the pinned vcpkg checkout and orchestrate native compiler, CMake, format, test and install operations. | Give the library a configurable native build owner, then delete the duplicated product bootstrap/build orchestration after the owner agrees; keep product task and artifact policy product-owned. |
 | `sdk/cpp/cmake/Protocol.cmake:dokime_protocol`, `sdk/cpp/tests/CMakeLists.txt` and the library `sdk/cpp/cmake/Protocol.cmake:harmos_protocol` | Product services, the thermal fixture and library services independently configure native protobuf generation and its compiler dependencies. | Share one configurable generation recipe, then delete the product helper and separate fixture recipe after the owner agrees; preserve their distinct protocol inventories and install namespaces. |
 | `tools/python/src/dokime_tools/test/archive.py:install_wheels` and `sdk/python/tools/installed.py:main` | Archived test lanes and bindings install the selected-profile wheel through the former; SDK preparation installs a hard-coded development wheel and its example distributions through the latter. Both select and install the built SDK wheel. | Give wheel installation one profile-aware owner, then delete the hard-coded development-wheel selection and installation block after the owner agrees; retain explicit example installation and the caller's selected artifact. |
+| `sdk/rust/derive/src/lib.rs:expand` and library `sdk/rust/derive/src/lib.rs:expand` | Product `Message`, `Parameters`, `Record` and `Row` derives and the library `Message` derive independently generate protobuf encoding and descriptors. | Prefer the library encoder and delete the product encoder once the owner selects support for product attribute names and traits. The unused product `Settings` entry is removed independently. |
 | `tools/python/src/dokime_tools/build/protocol_callers.py:check_public_surfaces` and library `tools/python/src/harmos_tools/source/protocol.py:check_public_surfaces` | Product repository and SDK checks and the library source check independently scan public surfaces for wire names and exports. The product additionally owns its closed public-home inventory. | Prefer the configurable library scan and delete the product's generic scanning loops after the owner resolves internal generated-path exclusions; retain the product inventory guard. |
+| `plugins/sidecars/host/src/settings.rs:duration` and `policy` in the same file | Setting declarations/defaults manually convert standard durations to protobuf durations; invocation policies use the standard checked conversion. | Delete the manual converter after the owner selects consistent range-failure handling; preserve typed bounds and policy deadlines. |
 
 Protocol-only generation currently leaves the desktop dispatch digest to the
 desktop host generator. Prefer invoking that existing generator from the pin
@@ -3045,7 +3048,7 @@ workspace already declares them), `src/lib.rs`, `src/main.rs`, `src/settings.rs`
 
 | Package | Owns | Consumes |
 |---|---|---|
-| 2 System, Network, CPU | `src/streams/{system,network,cpu}.rs`, `src/collectors/{system,network,cpu}.rs` (each may become a directory), `src/platform/windows/{connectivity,power}.rs`, `src/platform/unix/{connectivity,power}.rs`, `tests/integration/{system,network,cpu}.rs`, `benches/**` and the bench target | `domain::telemetry::{System, Network}` and `Column`, `settings::{duration_value, integer, number, text, selected, CpuLoad}`, `Host::{system, network, cpu}`, `platform::windows::apartment::retain`; exposes the power-read interface package 4 uses |
+| 2 System, Network, CPU | `src/streams/{system,network,cpu}.rs`, `src/collectors/{system,network,cpu}.rs` (each may become a directory), `src/platform/windows/{connectivity,power}.rs`, `src/platform/unix/{connectivity,power}.rs`, `tests/integration/{system,network,cpu}.rs`, `benches/**` and the bench target | `domain::telemetry::{System, Network}` and `Column`, SDK `Context::duration_setting`, `settings::{integer, number, text, selected, CpuLoad}`, `Host::{system, network, cpu}`, `platform::windows::apartment::retain`; exposes the power-read interface package 4 uses |
 | 3 Wi-Fi, Bluetooth | `src/streams/{wifi,bluetooth}.rs`, `src/collectors/{wifi,bluetooth}.rs`, `src/platform/windows/{wifi,echo,bluetooth,devices}.rs`, `src/platform/unix/{wifi,echo,bluetooth}.rs`, `tests/integration/{wifi,bluetooth}.rs` | `domain::telemetry::{WifiLink, WifiScan, WifiLatency, Bluetooth}`, settings readers, `Host::{wifi, bluetooth}`, `apartment::retain` |
 | 4 Controls, Adapters, Power | `src/controls/**`, `src/adapters/**`, `src/power/**`, `src/platform/{windows,unix}/{controls,adapters}.rs`, `tests/integration/{controls,adapters,power}.rs` | `domain::controls`, settings readers, `Host::{controls, adapters, power}`, package 2's power reads, and the effect journal once it lands |
 

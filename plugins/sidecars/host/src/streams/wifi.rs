@@ -253,8 +253,8 @@ pub fn publish_latency(reading: readings::WifiLatency, rows: &CollectionOutput) 
 async fn collect_link(ctx: &Context, rows: &CollectionOutput) -> Result<()> {
     let options = LinkOptions {
         adapter: settings::selected(ctx, settings::WIFI_ADAPTER).await?,
-        probe_timeout: settings::duration_value(ctx, settings::WIFI_LINK_PROBE_TIMEOUT).await?,
-        minimum_rate_window: settings::duration_value(ctx, settings::MINIMUM_RATE_WINDOW).await?,
+        probe_timeout: ctx.duration_setting(settings::WIFI_LINK_PROBE_TIMEOUT).await?,
+        minimum_rate_window: ctx.duration_setting(settings::MINIMUM_RATE_WINDOW).await?,
     };
     let reading = ctx.plugin::<Arc<Host>>()?.wifi.link(options).await?;
     publish_link(reading, rows);
@@ -264,9 +264,9 @@ async fn collect_link(ctx: &Context, rows: &CollectionOutput) -> Result<()> {
 async fn collect_scan(ctx: &Context, rows: &CollectionOutput) -> Result<()> {
     let options = ScanOptions {
         adapter: settings::selected(ctx, settings::WIFI_ADAPTER).await?,
-        probe_timeout: settings::duration_value(ctx, settings::WIFI_SCAN_PROBE_TIMEOUT).await?,
-        window: settings::duration_value(ctx, settings::WIFI_SCAN_WINDOW).await?,
-        minimum_interval: settings::duration_value(ctx, settings::MINIMUM_SCAN_INTERVAL).await?,
+        probe_timeout: ctx.duration_setting(settings::WIFI_SCAN_PROBE_TIMEOUT).await?,
+        window: ctx.duration_setting(settings::WIFI_SCAN_WINDOW).await?,
+        minimum_interval: ctx.duration_setting(settings::MINIMUM_SCAN_INTERVAL).await?,
         congestion_weight: settings::number(ctx, settings::CONGESTION_NETWORK_WEIGHT).await?,
     };
     let readings = ctx.plugin::<Arc<Host>>()?.wifi.scan(options).await?;
@@ -285,8 +285,8 @@ async fn collect_latency(ctx: &Context, rows: &CollectionOutput) -> Result<()> {
     let payload_bytes = settings::integer(ctx, settings::ECHO_PAYLOAD_BYTES).await?;
     let options = LatencyOptions {
         host,
-        reply_timeout: settings::duration_value(ctx, settings::ECHO_REPLY_TIMEOUT).await?,
-        process_timeout: settings::duration_value(ctx, settings::LATENCY_PROCESS_TIMEOUT).await?,
+        reply_timeout: ctx.duration_setting(settings::ECHO_REPLY_TIMEOUT).await?,
+        process_timeout: ctx.duration_setting(settings::LATENCY_PROCESS_TIMEOUT).await?,
         payload_bytes: u32::try_from(payload_bytes)
             .map_err(|_| Error::Invalid("Read Setting Echo Payload: Configure a Size Below 4 GiB in the Plugin Settings".into()))?,
     };
