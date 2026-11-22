@@ -18,7 +18,7 @@ internal sealed class Wire(CallInvoker calls)
       .GetProperty("Descriptor")!.GetValue(null)!;
 
   internal sealed record Description(string Id, Timestamp StartedAt, Declarations Declarations);
-  internal sealed record Child(string Operation, ByteString Payload);
+  internal sealed record Child(string Operation, ByteString Payload, string Json, ByteString Fingerprint);
 
   private static MessageDescriptor Descriptor(string name)
   {
@@ -79,7 +79,8 @@ internal sealed class Wire(CallInvoker calls)
       var nested = Field<IMessage?>(frame, "child");
       if (nested is not null)
       {
-        var payload = child?.Invoke(new Child(Field<string>(nested, "operation"), Field<ByteString>(nested, "payload")))
+        var payload = child?.Invoke(new Child(Field<string>(nested, "operation"), Field<ByteString>(nested, "payload"),
+            Field<string>(nested, "json"), Field<ByteString>(nested, "fingerprint")))
             ?? throw new InvalidOperationException("Invoke: Unexpected Child Call");
         var response = Frame("ChildResponse", ("call", Field<ulong>(nested, "call")), ("payload", payload));
         await call.RequestStream.WriteAsync(Frame("InstanceInvokeRequest", ("child", response)).ToByteString());

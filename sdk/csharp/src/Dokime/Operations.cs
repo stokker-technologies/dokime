@@ -8,6 +8,7 @@
  */
 
 using System.Reflection;
+using System.Text.Json.Nodes;
 using Dokime.Plugins;
 using Google.Protobuf.WellKnownTypes;
 
@@ -117,6 +118,8 @@ public class Context
     return reply.Value.Values.ToDictionary(item => item.Key, item => SettingValue.FromWire(item.Value));
   }
   public BoundOperation<TRequest, TResponse> Operation<TRequest, TResponse>(Operation<TRequest, TResponse> operation) => new(this, operation);
+  public Task<JsonNode?> Operation(string identifier, object? payload = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default) =>
+    Transport.Operation(identifier, payload, policy?.ToWire(), cancellationToken);
   public Task<StreamSubscription<T>> SubscribeAsync<T>(Dokime.Templates.Stream<T> stream, CancellationToken cancellationToken = default)
     =>
     throw new InvalidOperationException("Subscribe to Samples: Upgrade the Library to Provide Scoped Sample Demand, Cancellation and Subscription Close");

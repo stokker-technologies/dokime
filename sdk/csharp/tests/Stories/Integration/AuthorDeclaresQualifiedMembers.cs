@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Text.Json.Nodes;
 using Dokime;
 using Dokime.Plugins;
 using Dokime.Templates;
@@ -12,6 +13,31 @@ namespace Stories.Integration;
 
 public sealed class AuthorDeclaresQualifiedMembers
 {
+  [Fact]
+  public async Task UntypedOperationUsesTheLibraryChildCarrierWithoutAPeerContract()
+  {
+    var plugin = new LanePlugin().Operation(new Dokime.Operations.Operation<Metadata, Metadata>("caller.measure"), async (context, request) =>
+    {
+      var response = await context.Operation("device.measure", new
+      {
+        identifier = request.Identifier
+      });
+      return new Metadata { Identifier = response!["identifier"]!.GetValue<string>(), Label = response["label"]!.GetValue<string>() };
+    });
+    await using var server = await PluginServer.StartAsync(plugin);
+    var description = await server.Wire.DescribeAsync();
+    Assert.DoesNotContain(description.Declarations.Requires, item => item.Id == "device.measure");
+    var reply = await server.Wire.InvokeAsync<Metadata>(description, "caller.measure", new Metadata { Identifier = "reading" }, child: child =>
+    {
+      Assert.Equal("device.measure", child.Operation);
+      Assert.Equal("reading", JsonNode.Parse(child.Json)!["identifier"]!.GetValue<string>());
+      Assert.Empty(child.Payload);
+      Assert.Empty(child.Fingerprint);
+      return ByteString.CopyFromUtf8("{\"identifier\":\"reading\",\"label\":\"Reading\"}");
+    });
+    Assert.Equal(new Metadata { Identifier = "reading", Label = "Reading" }, reply);
+  }
+
   [Fact]
   public void LanesPreserveDeclarationsAndOperationAssignments()
   {

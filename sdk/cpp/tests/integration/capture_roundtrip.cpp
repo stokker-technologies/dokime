@@ -89,7 +89,9 @@ TEST_CASE("Capture Prompts Records and Reads Plain Values Over the Carrier") {
   string saved;
   bool has_record = false;
   bool accepted = true;
-  host.child = [&](const string &operation, const string &bytes) -> string {
+  host.child = [&](const harmos::plugin::v1::ChildRequest &child) -> string {
+    const auto &operation = child.operation();
+    const auto &bytes = child.payload();
     if (operation == "dokime.host.v1.Prompts/Create") {
       const auto request = harmos::plugin::decode<dokime::host::v1::PromptsCreateRequest>(bytes);
       check(request.definition().actions_size() == 2, "Prompt Lost Its Actions");

@@ -37,7 +37,7 @@ public:
       throw harmos::TransportError(status.error_code(), status.error_message());
     return response;
   }
-  std::function<std::string(const std::string &, const std::string &)> child;
+  std::function<std::string(const harmos::plugin::v1::ChildRequest &)> child;
   template <class R, class Q> R invoke(std::string operation, Q request, std::string scope = {}) {
     grpc::ClientContext context;
     auto call = stub_->Invoke(&context);
@@ -61,7 +61,7 @@ public:
         try {
           harmos::plugin::v1::InstanceInvokeRequest reply;
           reply.mutable_child()->set_call(output.child().call());
-          reply.mutable_child()->set_payload(child(output.child().operation(), output.child().payload()));
+          reply.mutable_child()->set_payload(child(output.child()));
           call->Write(reply);
         } catch (...) {
           context.TryCancel();

@@ -30,6 +30,7 @@ enum class HostOperation;
 }
 
 namespace dokime {
+using harmos::json;
 using harmos::plugin::Lane;
 
 class Plugin;
@@ -92,6 +93,9 @@ public:
   }
   std::string secret(const std::string &identifier);
   std::map<std::string, SettingValue> settings();
+  google::protobuf::Struct operation(const std::string &identifier, const google::protobuf::Struct &payload = {}) {
+    return transport_.operation(identifier, payload);
+  }
   template <class Q, class R> BoundOperation<Q, R> operation(const OperationValue<Q, R> &value) {
     return BoundOperation<Q, R>(*this, value);
   }
