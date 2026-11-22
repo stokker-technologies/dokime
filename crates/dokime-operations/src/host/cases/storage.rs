@@ -110,8 +110,9 @@ pub(crate) async fn register(
 }
 
 pub(crate) async fn read(context: &Context, identifier: &str, cycle: Option<&str>) -> Result<PlannedCase> {
-    let case =
-        read_object::<Case>(context, identifier).await?.ok_or_else(|| Error::NotFound("Read Case: Select a Registered Case".into()))?;
+    let case = read_object::<Case>(context, identifier).await?.ok_or_else(|| {
+        Error::NotFound(format!("Read Case {identifier}: Reload the Cycle and Register Its Template Before Running Again"))
+    })?;
     if cycle.is_some_and(|cycle| !case.cycle.is_empty() && case.cycle != cycle) {
         return Err(Error::Invalid("Read Case: Select a Case Registered for This Cycle".into()));
     }
