@@ -37,7 +37,7 @@ use dokime_protocol::model::PlotHistogramOptions;
 use dokime_protocol::model::PlotKind;
 use dokime_storage::{ExecutionCut, Store};
 
-use dokime_protocol::model::{data_expression, value};
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -56,20 +56,12 @@ use dokime_protocol::model::{data_expression, value};
 /* === Public Functions === */
 
 pub fn request(plot: &Plot, scope: EvidenceScope) -> Result<PlotRequest> {
-    let stream = plot
-        .y
-        .iter()
-        .find_map(stream)
-        .or_else(|| plot.z.as_ref().and_then(stream))
-        .or_else(|| plot.x.as_ref().and_then(stream))
-        .unwrap_or_default();
     Ok(PlotRequest {
         plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
         plot_type: plot.kind,
         style: plot.style,
         x_scale: plot.x_scale,
         y_scale: plot.y_scale,
-        stream,
         scope: Some(scope),
         x_expression: plot.x.clone(),
         y_expressions: plot.y.clone(),
@@ -160,15 +152,6 @@ pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<Pl
 }
 
 /* === Private Functions === */
-
-fn stream(expression: &DataExpression) -> Option<String> {
-    match expression.kind.as_ref()? {
-        data_expression::Kind::Stream(reference) => Some(reference.identifier.clone()),
-        data_expression::Kind::Aggregate(value) => value.input.as_ref().and_then(|input| stream(input)),
-        data_expression::Kind::Transform(value) => value.input.as_ref().and_then(|input| stream(input)),
-        _ => None,
-    }
-}
 
 /* === Tests === */
 
@@ -393,6 +376,7 @@ mod tests {
         )
         .unwrap();
         let mut columns = request.clone();
+        columns.stream = "readings".into();
         columns.y_expressions.clear();
         columns.y_keys = vec!["value".into()];
         let envelopes = snapshots_at(&store, &cut, vec![request, columns], 128, 0, "epoch").await.unwrap();

@@ -23,7 +23,7 @@ import { create } from "@bufbuild/protobuf";
 // Local Imports
 import { DataExpressionSchema, PlotKind, SnapshotsWatchResponseSchema } from "@host/model";
 import { Downsample, PlotStreamKind } from "@host/model";
-import { mapNativePlotWatchPage, toNativePlotRequest } from "@/lib/api/native-plots";
+import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@dokime/plots/live-frames";
 
@@ -108,12 +108,11 @@ test("Exact Statistics Can Lag the Drawn Frame Without Replacing It", () => {
 
 test("Viewport and Panel Width Reach the Native Request With Defaults Enabled", () => {
   const plot = { plot_id: "signal", stream: "signal", plot_type: "time_series", y: ["value"] } as DocumentViewPlot;
-  const input = plotRequestForDocumentPlot(plot, { scope: null, windowS: 300, summaryWindow: { from: 10, to: 20 }, panelWidth: 960 });
-  const native = toNativePlotRequest(input);
+  const native = plotRequestForDocumentPlot(plot, { scope: null, windowS: 300, summaryWindow: { from: 10, to: 20 }, panelWidth: 960 });
   assert.deepEqual({ from: native.viewport?.from, to: native.viewport?.to }, { from: 10, to: 20 });
   assert.equal(native.panelWidth, 960);
   assert.ok((native.maxPoints ?? 0n) > 0n);
-  assert.throws(() => toNativePlotRequest({ ...input, panelWidth: 0 }));
+  assert.throws(() => plotRequestForDocumentPlot(plot, { scope: null, panelWidth: 0 }));
 });
 
 test("Record-Only Document Intervals Reach the Native Histogram Request", () => {
@@ -139,7 +138,7 @@ test("Record-Only Document Intervals Reach the Native Histogram Request", () => 
     x_expression: interval,
     histogram: { bins: 2 },
   };
-  const native = toNativePlotRequest(plotRequestForDocumentPlot(plot, { scope: null }));
+  const native = plotRequestForDocumentPlot(plot, { scope: null });
   assert.equal(native.stream, "");
   assert.equal(native.plotType, PlotKind.HISTOGRAM);
   assert.deepEqual(native.xExpression, interval);
@@ -190,7 +189,7 @@ test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => 
 
 test("Document XY Requests Preserve the Declared Display Budget and Technique", () => {
   const plot = { plot_id: "voltage", stream: "measurement", plot_type: "xy", x: "elapsed_s", y: ["voltage"] } as DocumentViewPlot;
-  const defaults = toNativePlotRequest(plotRequestForDocumentPlot(plot, { scope: null }));
+  const defaults = plotRequestForDocumentPlot(plot, { scope: null });
   assert.equal(defaults.maxPoints, 2000n);
   assert.equal(defaults.technique, Downsample.AUTO);
   for (const [downsample, expected] of [
@@ -199,7 +198,7 @@ test("Document XY Requests Preserve the Declared Display Budget and Technique", 
     ["min_max", Downsample.MIN_MAX],
     ["lttb", Downsample.LTTB],
   ] as const) {
-    const native = toNativePlotRequest(plotRequestForDocumentPlot({ ...plot, display_points: 11801, downsample }, { scope: null }));
+    const native = plotRequestForDocumentPlot({ ...plot, display_points: 11801, downsample }, { scope: null });
     assert.equal(native.maxPoints, 11801n);
     assert.equal(native.technique, expected);
     assert.equal(native.xKey, "elapsed_s");
