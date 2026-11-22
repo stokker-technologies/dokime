@@ -118,12 +118,13 @@ def library_protocol(root: Path, archive: bytes, *, check: bool = False) -> None
         destination.write_bytes(data)
 
 
-def library_dependencies(root: Path, *, check: bool = False) -> None:
+def library_dependencies(root: Path, *, check: bool = False) -> bool:
     """Generate or Verify Required Manifest Literals From the Workspace Pin."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     dependency = manifest["workspace"]["dependencies"]["harmos"]
     source = dependency["git"]
     revision = dependency["rev"]
+    changed = False
     manifests = (
         (Path("Cargo.toml"), ("workspace", "dependencies")),
         (Path("sdk/rust/tests/consumer/Cargo.toml"), ("dev-dependencies",)),
@@ -143,7 +144,9 @@ def library_dependencies(root: Path, *, check: bool = False) -> None:
             if text != original:
                 raise ValueError(f"Check Library Pin: Run mise run generate -- --protocol to Refresh {relative}")
         else:
-            path.write_text(text, encoding="utf-8", newline="\n")
+            if text != original:
+                path.write_text(text, encoding="utf-8", newline="\n")
+                changed = True
 
     path = root / "sdk/python/pyproject.toml"
     original = path.read_text(encoding="utf-8")
@@ -159,7 +162,24 @@ def library_dependencies(root: Path, *, check: bool = False) -> None:
         if archive not in (root / "sdk/cpp/cmake/Dependencies.cmake").read_text(encoding="utf-8"):
             raise ValueError("Check Library Pin: Run mise run generate -- --protocol to Refresh the C++ Archive")
     else:
-        path.write_text(text, encoding="utf-8", newline="\n")
+        if text != original:
+            path.write_text(text, encoding="utf-8", newline="\n")
+            changed = True
+    return changed
+
+
+def locks(root: Path) -> None:
+    """Refresh Locks and Tooling After the Pin's Manifest Projection."""
+    for command in (
+        ["cargo", "update", "--package", "harmos"],
+        ["cargo", "update", "--manifest-path", "sdk/rust/tests/consumer/Cargo.toml", "--package", "harmos"],
+        ["cargo", "fetch", "--locked"],
+        ["cargo", "fetch", "--manifest-path", "sdk/rust/tests/consumer/Cargo.toml", "--locked"],
+        ["uv", "lock"],
+        ["uv", "lock", "--project", "sdk/python"],
+        ["uv", "sync", "--locked", "--all-groups"],
+    ):
+        subprocess.run(command, cwd=root, check=True, creationflags=spawn_flags())
 
 
 def configuration(root: Path) -> Configuration:
@@ -270,8 +290,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--language", choices=("python",))
+    parser.add_argument("--locks", action="store_true")
     options = parser.parse_args()
-    library_dependencies(Path.cwd(), check=options.check)
+    root = Path.cwd()
+    if options.locks and (options.check or options.language):
+        parser.error("--locks cannot be combined with generation selections")
+    changed = library_dependencies(root, check=options.check)
+    if options.locks or changed:
+        locks(root)
+        if options.locks:
+            return
+        # Reload the Generator From the Newly Selected Tooling Environment.
+        subprocess.run([sys.executable, "-m", "dokime_tools.build.protocol", *sys.argv[1:]], cwd=root, check=True, creationflags=spawn_flags())
+        return
     # Generate or Verify the C++ Archive Against the Workspace Pin.
     if options.language is None:
         archive = cpp_dependency(Path.cwd(), check=options.check)

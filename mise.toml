@@ -709,14 +709,7 @@ run = "{{vars.tools}} dokime_tools.release.run python-dry"
 [tasks."prepare:locks"]
 hide = true
 description = "Refresh Dependency Locks After a Library Pin Change"
-run = [
-  "cargo update --package harmos",
-  "cargo update --manifest-path sdk/rust/tests/consumer/Cargo.toml --package harmos",
-  "cargo fetch --locked",
-  "cargo fetch --manifest-path sdk/rust/tests/consumer/Cargo.toml --locked",
-  "uv lock",
-  "uv lock --project sdk/python",
-]
+run = "{{vars.tools}} dokime_tools.build.protocol --locks"
 
 [tasks."check:locks"]
 hide = true

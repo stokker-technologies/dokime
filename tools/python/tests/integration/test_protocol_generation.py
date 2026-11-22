@@ -29,6 +29,7 @@ from unittest import mock
 # isort: split
 
 # Local Imports
+from dokime_tools.build import protocol
 from dokime_tools.build.protocol import cpp_dependency, library_dependencies, library_protocol
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
@@ -75,6 +76,30 @@ class GenerationContracts(unittest.TestCase):
             self.assertRaises(tarfile.ReadError, library_protocol, scratch, b"not an archive")
         finally:
             shutil.rmtree(scratch)
+
+    def test_pin_projection_and_lock_refresh_precede_locked_generation(self) -> None:
+        root = Path.cwd()
+        with (
+            mock.patch.object(protocol.sys, "argv", ["protocol", "--language", "python"]),
+            mock.patch.object(protocol, "library_dependencies", return_value=True) as projection,
+            mock.patch.object(protocol, "locks") as locks,
+            mock.patch.object(protocol.subprocess, "run") as run,
+        ):
+            order = mock.Mock()
+            order.attach_mock(projection, "project")
+            order.attach_mock(locks, "locks")
+            order.attach_mock(run, "reload")
+            protocol.main()
+            self.assertEqual([call[0] for call in order.mock_calls], ["project", "locks", "reload"])
+            projection.assert_called_once_with(root, check=False)
+            locks.assert_called_once_with(root)
+            self.assertEqual(run.call_args.args[0][-2:], ["--language", "python"])
+        with mock.patch.object(protocol.subprocess, "run") as run:
+            protocol.locks(root)
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[0], ["cargo", "update", "--package", "harmos"])
+        self.assertEqual(commands[-1], ["uv", "sync", "--locked", "--all-groups"])
+        self.assertLess(commands.index(["uv", "lock"]), commands.index(commands[-1]))
 
     def test_manifest_pins_follow_workspace_and_reject_each_stale_consumer(self) -> None:
         scratch = Path(tempfile.mkdtemp())
