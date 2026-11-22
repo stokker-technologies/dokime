@@ -1,7 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { ComponentType, ReactNode } from "react";
 import type { ComponentProps } from "svelte";
-import { DocumentRetryContext } from "../../components/document/DocumentWorkspacePresentation";
 import { SvelteMount, useSvelteSlots } from "../../components/SvelteMount";
 import { pageTitle } from "../../shell/PageShell";
 import { usePageChrome } from "../../shell/page-chrome";
@@ -26,9 +25,7 @@ export function CycleEvidenceView({
 }: CycleEvidenceViewProps) {
   usePageChrome({ title: pageTitle(trail), actions: pageActions });
   const documentView = DocumentContent ? (
-    <DocumentRetryContext.Provider value={props.onRetry}>
-      <DocumentContent cardFilter={isCycleEvidenceCard} plotWindow={props.plotWindow} surface={props.surface} />
-    </DocumentRetryContext.Provider>
+    <DocumentContent cardFilter={isCycleEvidenceCard} onRetry={props.onRetry} plotWindow={props.plotWindow} surface={props.surface} />
   ) : null;
   const { rendered, portals } = useSvelteSlots({ documentView, lead, promptQueue });
   return (

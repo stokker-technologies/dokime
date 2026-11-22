@@ -15,8 +15,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { cleanup, fireEvent, render, type SvelteComponentOptions } from "@testing-library/svelte";
@@ -37,12 +36,10 @@ import {
   ValueFormatSchema,
   XyInterval,
 } from "@generated/host/model";
-import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
-import { PlotWindowControl } from "@/features/cycle/PlotWindowControl";
 import PlotWindowControlView from "@/features/cycle/PlotWindowControl.svelte";
-import { usePlotWindow } from "@/features/cycle/use-plot-window";
+import { createPlotWindow } from "@/features/cycle/plot-window-state";
 import { plotWindowOptions, plotWindows, type PlotWindowState } from "@/features/cycle/plot-window";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
@@ -90,11 +87,12 @@ import {
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
 import { plotInteractionContext } from "@/plots/plot-interaction";
-import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
-import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { plotRequestForDocumentPlot } from "@/plots/live-data";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, type LivePlotStateMap, plotWaitingLabel } from "@/plots/live-frames";
 import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
 import { instantTime, orderedInstants } from "@/plots/instants";
 import type { plotPlayback } from "@/plots/playback.svelte";
+import LivePlotProbe from "./LivePlotProbe.svelte";
 import PlaybackFixture from "./PlaybackFixture.svelte";
 import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
@@ -102,7 +100,7 @@ import { m4Indices, windowIndices } from "@/plots/reduce";
 import { usePlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@/plots/viewport";
 import { applyReportAppearance } from "@/report/report-appearance";
-import { useSummaryWindowStore } from "@/stores/summary-window-store";
+import { summaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Re-Exports === */
 
@@ -250,7 +248,6 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   const cancelAnimationFrame = vi
     .spyOn(globalThis.window, "cancelAnimationFrame")
     .mockImplementation((handle) => globalThis.clearTimeout(handle));
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   refreshFixture.read.mockReset();
   refreshFixture.watch.mockReset();
   refreshFixture.notify.mockReset();
@@ -276,80 +273,58 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
     }),
   );
   const scope = { cycleId: "cycle" };
-  useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
+  summaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  let window: ReturnType<typeof usePlotWindow>;
-  let states: ReturnType<typeof useLivePlotPayloads>;
+  const windowStore = createPlotWindow();
   const commits: number[][] = [];
-  let nextPlots = plots;
-  let nextScope = scope;
-  let renderActive = true;
-  function View() {
-    window = usePlotWindow();
-    states = useLivePlotPayloads({
-      enabled: true,
-      renderActive,
-      plots: nextPlots,
-      scope: nextScope,
-      windowS: window.option.value,
-      refresh: window.refresh,
-    });
-    commits.push(Object.values(states).map((plot) => plot.revision));
-    return createElement(PlotWindowControl, { live: true, elapsedUnit: null, window });
+  let states: LivePlotStateMap = {};
+  let options = { enabled: true, renderActive: true, plots, scope };
+  function onRender(next: LivePlotStateMap) {
+    states = next;
+    commits.push(Object.values(next).map((plot) => plot.revision));
   }
-  const render = async () => {
-    await act(async () => {
-      root.render(createElement(Connection.Provider, { value: session }, createElement(View)));
-    });
-  };
-  onTestFinished(async () => {
-    await act(async () => {
-      root.unmount();
-    });
-    host.remove();
-    useSummaryWindowStore.setState({ windows: {}, widths: {}, heights: {}, visible: {} });
+  const view = render(LivePlotProbe, { options, session, onRender, windowStore });
+
+  onTestFinished(() => {
+    view.unmount();
+    summaryWindowStore.setState({ windows: {}, widths: {}, heights: {}, visible: {} });
     animationFrame.mockRestore();
     cancelAnimationFrame.mockRestore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
-  await render();
+  await tick();
+
   return {
     plots,
     streams,
-    host,
-    setRenderActive: async (active: boolean) => {
-      renderActive = active;
-      await render();
+    async setRenderActive(active: boolean) {
+      options = { ...options, renderActive: active };
+      await view.rerender({ options });
     },
-    window: () => window,
+    window: windowStore.getState,
     states: () => states,
     commits,
-    button: () => host.querySelector("button") as HTMLButtonElement,
-    choose: async (index: number) => {
-      await act(async () => {
-        window.choose(index);
-      });
+    button: () => view.getByRole("button") as HTMLButtonElement,
+    async choose(index: number) {
+      windowStore.getState().choose(index);
+      await tick();
     },
-    click: async () => {
-      await act(async () => {
-        (host.querySelector("button") as HTMLButtonElement).click();
-      });
+    click: () => fireEvent.click(view.getByRole("button")),
+    async advance(ms = 20) {
+      await vi.advanceTimersByTimeAsync(ms);
+      await tick();
     },
-    advance: async (ms = 20) => {
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(ms);
-      });
-    },
-    runtimeUpdate: async (updated = plots.map((plot) => ({ ...plot, display_points: 200 }))) => {
-      nextPlots = updated;
-      nextScope = { ...scope };
-      await render();
+    async runtimeUpdate(updated = plots.map((plot) => ({ ...plot, display_points: 200 }))) {
+      options = { ...options, plots: updated, scope: { ...scope } };
+      await view.rerender({ options });
     },
   };
+}
+
+async function updatePlots(action: () => unknown | Promise<unknown>) {
+  await action();
+  await tick();
 }
 
 function snapshotEnvelopes(plots: DocumentViewPlot[]): PlotPayloadEnvelope[] {
@@ -409,14 +384,14 @@ test("A Complete Watch Revision Commits Every Chart in One Animation Frame", asy
   const ids = Array.from({ length: 8 }, (_, index) => `plot.${index}`);
   const view = await mountPlotView(ids);
   const initial = snapshotEnvelopes(view.plots);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push(...initial.map((frame) => ({ ...frame, kind: "snapshot" as const })));
   });
   assert.ok(Object.values(view.states()).every((plot) => plot.revision === 0));
   await view.advance();
   assert.ok(Object.values(view.states()).every((plot) => plot.revision === 1));
   view.commits.length = 0;
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push(...initial.map((frame) => ({ ...frame, revision: 2, kind: "replace" as const })));
     view.streams[0].push(...ids.map((plot_id) => ({ kind: "pending" as const, plot_id })));
   });
@@ -447,22 +422,22 @@ test("Manual All Refresh", async () => {
   assert.equal(view.button().disabled, true);
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 1);
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   assert.ok(Object.values(view.states()).every((state) => state.status === "live"));
   assert.equal(view.button().disabled, false);
   const firstTime = view.window().refresh.updatedAt;
   const retained = view.states().pulse.payload;
-  await act(async () => useSummaryWindowStore.getState().setSummaryWindow("pulse", { from: 0, to: 1 }));
+  await updatePlots(async () => summaryWindowStore.getState().setSummaryWindow("pulse", { from: 0, to: 1 }));
   assert.equal(refreshFixture.read.mock.calls.length, 2);
   assert.deepEqual(refreshFixture.read.mock.calls[1][1][0].viewport, create(PlotWindowSchema, { from: 0, to: 1 }));
   assert.equal(view.states().pulse.payload, retained);
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
-  await act(async () => useSummaryWindowStore.getState().setPanelWidth("pulse", 900));
+  await updatePlots(async () => summaryWindowStore.getState().setPanelWidth("pulse", 900));
   assert.equal(refreshFixture.read.mock.calls.length, 3);
   assert.equal(refreshFixture.read.mock.calls[2][1][0].panelWidth, 900);
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   const resizedTime = view.window().refresh.updatedAt;
   await view.runtimeUpdate([]);
@@ -473,7 +448,7 @@ test("Manual All Refresh", async () => {
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 4);
   assert.ok(refreshFixture.read.mock.calls[3][1].every((request: { maxPoints: bigint }) => request.maxPoints === 200n));
-  await act(async () => complete(snapshotEnvelopes(view.plots)));
+  await updatePlots(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
 });
@@ -481,24 +456,24 @@ test("Manual All Refresh", async () => {
 test("Timed Refresh", async () => {
   const view = await mountPlotView();
   assert.equal(view.button().disabled, true);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push({ kind: "pending", plot_id: "pulse" });
   });
   assert.equal(view.button().disabled, true);
   assert.equal(view.window().refresh.updatedAt, null);
   const initial = snapshotEnvelopes(view.plots);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push({ ...initial[0], kind: "snapshot" });
   });
   assert.equal(view.button().disabled, true);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push({ ...initial[1], kind: "snapshot" });
   });
   await view.advance();
   assert.equal(view.button().disabled, false);
   const firstTime = view.window().refresh.updatedAt;
   await view.advance(1_000);
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[0].push(
       ...initial.map((frame) => ({ ...frame, revision: 2, kind: "replace" as const, payload: hostFrame([2, 3], [[4, 5]]) })),
     );
@@ -512,7 +487,7 @@ test("Timed Refresh", async () => {
   assert.equal(refreshFixture.watch.mock.calls.length, 2);
   assert.equal(refreshFixture.read.mock.calls.length, 0);
   assert.equal(view.streams[0].cancel.mock.calls.length, 1);
-  await act(async () => {
+  await updatePlots(async () => {
     for (const frame of initial) {
       view.streams[1].push({ ...frame, kind: "snapshot" });
     }
@@ -521,24 +496,24 @@ test("Timed Refresh", async () => {
   assert.equal(view.button().disabled, false);
   await view.choose(0);
   assert.ok(refreshFixture.watch.mock.calls[2][1].every((request: { windowS: number }) => request.windowS === 60));
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
   });
   assert.equal(view.button().disabled, false);
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
   // Repeated Ticks Retain The Failure Without Adding Notifications.
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
   });
   await view.advance();
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
   assert.equal(view.states().pulse.status, "error");
   // A Successful Revision Allows A Later Failure To Be Reported Again.
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "snapshot" });
   });
   await view.advance();
-  await act(async () => {
+  await updatePlots(async () => {
     view.streams[2].push({ ...initial[0], kind: "error", warnings: ["Storage unavailable"] });
   });
   await view.advance();
@@ -550,7 +525,7 @@ test("Live Frames Coalesce and Resume", async () => {
   const view = await mountPlotView();
   const initial = snapshotEnvelopes(view.plots);
   const push = async (revision: number) => {
-    await act(async () => {
+    await updatePlots(async () => {
       view.streams[0].push(...initial.map((frame) => ({ ...frame, revision, kind: "snapshot" as const })));
     });
   };
@@ -577,8 +552,8 @@ test("Live Frames Coalesce and Resume", async () => {
   assert.equal(refreshFixture.watch.mock.calls.length, 1);
 
   // An Off-Screen Card in a Visible Group Retains Its Own Throttle.
-  await act(async () => {
-    useSummaryWindowStore.setState({ visible: { pulse: true, current: false } });
+  await updatePlots(async () => {
+    summaryWindowStore.setState({ visible: { pulse: true, current: false } });
   });
   await push(131);
   await view.advance(16);
@@ -595,7 +570,7 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
     [32, 32, 1],
   );
   const initial = snapshotEnvelopes(view.plots);
-  await act(async () => {
+  await updatePlots(async () => {
     for (let index = 0; index < view.streams.length; index++) {
       view.streams[index].push(...initial.slice(index * 32, (index + 1) * 32).map((frame) => ({ ...frame, kind: "snapshot" as const })));
     }
@@ -604,13 +579,15 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
   assert.equal(Object.values(view.states()).filter((state) => state.status === "live").length, 65);
   assert.equal(view.button().disabled, false);
   const retained = view.states()["plot-64"].payload;
-  await act(async () => useSummaryWindowStore.getState().setSummaryWindow("plot-0", { from: 0, to: 1 }));
+  await updatePlots(async () => summaryWindowStore.getState().setSummaryWindow("plot-0", { from: 0, to: 1 }));
   assert.equal(refreshFixture.watch.mock.calls.length, 4);
   assert.equal(view.streams[0].cancel.mock.calls.length, 1);
   assert.equal(view.streams[1].cancel.mock.calls.length, 0);
   assert.equal(view.streams[2].cancel.mock.calls.length, 0);
   assert.equal(view.states()["plot-64"].payload, retained);
-  await act(async () => view.streams[2].push({ ...initial[64], kind: "replace", revision: 2, payload: hostFrame([2, 3], [[4, 5]]) }));
+  await updatePlots(async () =>
+    view.streams[2].push({ ...initial[64], kind: "replace", revision: 2, payload: hostFrame([2, 3], [[4, 5]]) }),
+  );
   await view.advance();
   assert.equal(view.states()["plot-64"].revision, 2);
 });
@@ -621,28 +598,28 @@ test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", a
   const view = await mountPlotView(ids, [ids[0], ids[32]]);
   assert.equal(view.streams.length, 2);
   const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
-  await act(async () => view.streams[0].push(...initial.slice(0, 32)));
+  await updatePlots(async () => view.streams[0].push(...initial.slice(0, 32)));
   await view.advance();
   assert.deepEqual(
     refreshFixture.watch.mock.calls.map((call) => call[1].length),
     [32, 32],
   );
   const retained = view.states()[ids[0]];
-  await act(async () => view.streams[1].push(initial[32]));
+  await updatePlots(async () => view.streams[1].push(initial[32]));
   await view.advance();
   assert.equal(view.streams.length, 2);
-  await act(async () => view.streams[1].push(...initial.slice(33, 64)));
+  await updatePlots(async () => view.streams[1].push(...initial.slice(33, 64)));
   await view.advance();
   assert.deepEqual(
     refreshFixture.watch.mock.calls.map((call) => call[1].length),
     [32, 32, 1],
   );
-  await act(async () => useSummaryWindowStore.getState().setVisible(ids[64], true));
+  await updatePlots(async () => summaryWindowStore.getState().setVisible(ids[64], true));
   assert.equal(view.streams.length, 3);
   assert.equal(view.states()[ids[0]], retained);
   assert.equal(view.streams[0].cancel.mock.calls.length, 0);
   const sibling = view.states()[ids[32]];
-  await act(async () => useSummaryWindowStore.getState().setSummaryWindow(ids[0], { from: 0, to: 1 }));
+  await updatePlots(async () => summaryWindowStore.getState().setSummaryWindow(ids[0], { from: 0, to: 1 }));
   assert.equal(view.streams[1].cancel.mock.calls.length, 0);
   assert.equal(view.streams[2].cancel.mock.calls.length, 0);
   assert.equal(view.states()[ids[32]], sibling);
@@ -699,7 +676,7 @@ test("Refresh Cancellation", async () => {
   const signal = refreshFixture.read.mock.calls[0][2].signal as AbortSignal;
   await view.choose(2);
   assert.equal(signal.aborted, true);
-  await act(async () => {
+  await updatePlots(async () => {
     for (const complete of pending) {
       complete();
     }
@@ -2357,7 +2334,7 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
   let incoming = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000002Z", "2026-01-01T00:00:04Z"];
   let trajectory!: ReturnType<typeof plotPlayback<string[]>>;
   let grid!: ReturnType<typeof plotPlayback<string[]>>;
-  const windows = useSummaryWindowStore.getState().windows;
+  const windows = summaryWindowStore.getState().windows;
   const {
     container: host,
     rerender,
@@ -2423,7 +2400,7 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
     await rerender({ incoming });
     assert.equal(trajectory.instant, null);
     assert.equal(host.querySelector('[data-slot="slider"]')?.getAttribute("aria-disabled"), "true");
-    assert.equal(useSummaryWindowStore.getState().windows, windows);
+    assert.equal(summaryWindowStore.getState().windows, windows);
     assert.equal(fetch.mock.calls.length, 0);
   } finally {
     unmount();
@@ -2434,7 +2411,6 @@ test("Playback Holds Loaded Frames and Keeps Each Plot Independent", async () =>
 
 test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async () => {
   vi.useFakeTimers();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const raf = vi
     .spyOn(window, "requestAnimationFrame")
     .mockImplementation((callback) => setTimeout(() => callback(0), 16) as unknown as number);
@@ -2444,7 +2420,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     (_, index) =>
       ({ plot_id: `live-${index}`, title: `Plot ${index}`, stream: "signal", plot_type: "time_series", y: ["value"] }) as DocumentViewPlot,
   );
-  useSummaryWindowStore.setState({ visible: Object.fromEntries(plots.map((plot) => [plot.plot_id, true])) });
+  summaryWindowStore.setState({ visible: Object.fromEntries(plots.map((plot) => [plot.plot_id, true])) });
   refreshFixture.watch.mockReset();
   const streams: { generation: string; ids: string[]; stream: ReturnType<typeof plotStream> }[] = [];
   let release!: () => void;
@@ -2465,28 +2441,26 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
   const first = session("1", () => current);
   const second = session("2");
   const replacement = session("3");
-  const states = new Map<string, ReturnType<typeof useLivePlotPayloads>>();
-  function Probe({ name }: { name: string }) {
-    states.set(name, useLivePlotPayloads({ enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 }));
-    return null;
-  }
-  const roots = [createRoot(document.createElement("div")), createRoot(document.createElement("div"))];
-  const render = async (index: number, owner: ConnectedSession) =>
-    act(async () => {
-      roots[index].render(createElement(Connection.Provider, { value: owner }, createElement(Probe, { name: String(index) })));
-    });
+  const states = new Map<number, LivePlotStateMap>();
+  const options = { enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 };
+  const probes = [first, second].map((owner, index) =>
+    render(LivePlotProbe, {
+      options,
+      session: owner,
+      onRender: (state) => states.set(index, state),
+    }),
+  );
   try {
-    await render(0, first);
-    await render(1, second);
+    await tick();
     assert.equal(streams.filter((group) => group.generation === "1").length, 4);
     assert.equal(streams.filter((group) => group.generation === "2").length, 4);
     assert.ok(streams.every((group) => group.ids.length <= 32));
     current = false;
-    await render(0, replacement);
-    await act(async () => {
+    await probes[0].rerender({ session: replacement });
+    await updatePlots(async () => {
       release();
     });
-    await act(async () => {
+    await updatePlots(async () => {
       for (const group of streams) {
         // A Producer Can Deliver Many Revisions Before Either Client Paints.
         for (let revision = 1; revision <= 128; revision++) {
@@ -2500,7 +2474,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
       }
       await vi.advanceTimersByTimeAsync(20);
     });
-    for (const name of ["0", "1"]) {
+    for (const name of [0, 1]) {
       const values = Object.values(states.get(name) ?? {});
       assert.equal(values.length, 100);
       assert.ok(values.every((state) => state.revision === 128));
@@ -2508,23 +2482,21 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
       assert.ok(values.every((state) => state.droppedBatches === 0));
     }
     assert.ok(streams.filter((group) => group.generation === "1").every((group) => group.stream.cancel.mock.calls.length === 1));
-    const retained = states.get("0")?.["live-0"];
-    await act(async () => {
+    const retained = states.get(0)?.["live-0"];
+    await updatePlots(async () => {
       const group = streams.find((group) => group.generation === "3" && group.ids.includes("live-96"));
       assert.ok(group);
       group.stream.push(...group.ids.map((plot_id) => ({ ...streamMessage("replace", 129, hostFrame([129], [[129]])), plot_id })));
       await vi.advanceTimersByTimeAsync(20);
     });
-    assert.equal(states.get("0")?.["live-0"], retained);
-    assert.equal(states.get("1")?.["live-96"].revision, 128);
-    assert.equal(states.get("0")?.["live-96"].revision, 129);
+    assert.equal(states.get(0)?.["live-0"], retained);
+    assert.equal(states.get(1)?.["live-96"].revision, 128);
+    assert.equal(states.get(0)?.["live-96"].revision, 129);
   } finally {
-    await act(async () => {
-      for (const root of roots) {
-        root.unmount();
-      }
-    });
-    useSummaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
+    for (const probe of probes) {
+      probe.unmount();
+    }
+    summaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
     raf.mockRestore();
     cancel.mockRestore();
     vi.useRealTimers();

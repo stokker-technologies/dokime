@@ -9,14 +9,14 @@
 
 /* === Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { DocumentWorkspaceView } from "@/components/document/DocumentWorkspaceView";
+import { DocumentWorkspace } from "@/components/document/DocumentWorkspace";
 import { type DocumentSurfaceOptions, documentSurface } from "@/features/cycle/document-view-model";
 import { documentWorkspace, type DocumentViewProps } from "./document-workspace";
 import { useDocumentView } from "./use-document-view";
 
 /* === Components === */
 export function DocumentView(props: DocumentViewProps) {
-  return <DocumentWorkspaceView {...documentWorkspace(props)} />;
+  return <DocumentWorkspace {...documentWorkspace(props)} onRetry={props.onRetry} />;
 }
 
 /* === Hooks === */

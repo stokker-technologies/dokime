@@ -12,6 +12,7 @@ export type DocumentViewProps = {
   plotWindow?: PlotWindowState;
   cardFilter?: (card: DocumentViewCard) => boolean;
   cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
+  onRetry?: (cardId?: string) => void;
 };
 
 export function documentWorkspace({ surface, plotWindow, cardFilter, cardChrome }: DocumentViewProps): DocumentWorkspaceView {

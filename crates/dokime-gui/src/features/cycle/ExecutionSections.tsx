@@ -28,10 +28,13 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
+import { useNativeSessionOptional } from "@/app/native-session/context";
 import { ArtifactTree } from "@/components/ArtifactTree";
-import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
-import { MediaCaptureControls } from "@/components/MediaCaptureControls";
+import OperatorNotes from "@/components/document/OperatorNotes.svelte";
+import OperatorNotesContent from "@/components/document/OperatorNotesContent.svelte";
+import MediaCaptureControls from "@/components/MediaCaptureControls.svelte";
 import { MediaGallery } from "@/components/MediaGallery";
+import { SvelteMount } from "@/components/SvelteMount";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import type { HubLiveState, PromptRequest, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type CycleExecutionRow, isUnstartedExecution } from "@/features/cycle/cycle-workspace-model";
@@ -84,6 +87,7 @@ export function ExecutionSections({
   prompts,
   onSelectExecution,
 }: ExecutionSectionsProps) {
+  const session = useNativeSessionOptional();
   const plotWindow = usePlotWindow();
   const suitesQuery = useTestSuitesQuery();
   const pluginAvailable = suitesQuery.isSuccess
@@ -189,11 +193,19 @@ export function ExecutionSections({
       documentView={DocumentView}
       control={actions ? <ExecutionControl actions={actions} ordinal={row.ordinal} /> : null}
       promptQueue={live ? <PromptQueue prompts={pagePrompts} records={surface.view.records} steps={surface.view.stepRecords} /> : undefined}
-      notesContent={live ? <OperatorNotesContent notes={surface.view.notes} scope={liveScope} /> : undefined}
+      notesContent={
+        live ? (
+          session && liveScope ? (
+            <SvelteMount component={OperatorNotesContent} props={{ notes: surface.view.notes, scope: liveScope, session }} />
+          ) : (
+            <SvelteMount component={OperatorNotes} props={{ notes: surface.view.notes }} />
+          )
+        ) : undefined
+      }
       mediaContent={
         live ? (
           <>
-            {liveScope ? <MediaCaptureControls scope={liveScope} /> : null}
+            {session && liveScope ? <SvelteMount component={MediaCaptureControls} props={{}} /> : null}
             {surface.shared.mediaArtifacts.length ? <MediaGallery artifacts={surface.shared.mediaArtifacts} emptyMessage="" /> : null}
           </>
         ) : undefined

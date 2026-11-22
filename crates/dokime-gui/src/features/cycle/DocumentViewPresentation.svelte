@@ -4,7 +4,7 @@
   import { resolvePlotThemeColors } from "../../plots/colors";
   import { documentWorkspace, type DocumentViewProps } from "./document-workspace";
 
-  let { onRetry, ...props }: DocumentViewProps & { onRetry?: (cardId?: string) => void } = $props();
+  let { onRetry, ...props }: DocumentViewProps = $props();
   const workspace = $derived(documentWorkspace(props));
   const plotPalette = resolvePlotThemeColors().palette;
 </script>

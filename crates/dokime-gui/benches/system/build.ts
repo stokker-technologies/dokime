@@ -13,7 +13,6 @@ const selected = new Map([
 // Instrument The Existing Owners Only In The Bench Bundle; Shipping Source Is Unchanged.
 await build({
   root,
-  resolve: { alias: { "react-dom/client": "react-dom/profiling" } },
   plugins: [
     {
       name: "desktop-bench-observation",
@@ -24,7 +23,9 @@ await build({
         if (functions) {
           for (const [name, stage] of functions) {
             const declaration = `export function ${name}(`;
-            if (!source.includes(declaration)) throw new Error(`Missing benchmark instrumentation owner: ${id}/${name}`);
+            if (!source.includes(declaration)) {
+              throw new Error(`Restore Benchmark Instrumentation for ${id}/${name}`);
+            }
             source = source.replace(declaration, `function bench_${name}(`);
             source += `\nexport function ${name}(...args: Parameters<typeof bench_${name}>): ReturnType<typeof bench_${name}> {
             const started = performance.now();
@@ -40,7 +41,9 @@ await build({
             "const payload = await call.next();",
             "const frame = frames.shift();",
           ]) {
-            if (!source.includes(owner)) throw new Error(`Missing benchmark IPC instrumentation owner: ${owner}`);
+            if (!source.includes(owner)) {
+              throw new Error(`Restore Benchmark IPC Instrumentation at ${owner}`);
+            }
           }
           source = source.replaceAll("fromBinary(", "benchDecodeBinary(");
           source += `\nconst benchDecodeBinary = (...args: Parameters<typeof fromBinary>) => {
@@ -75,17 +78,19 @@ await build({
         const frame = frames.shift();`,
           );
         }
-        if (path.endsWith("/components/document/PlotGroupGrid.tsx")) {
-          if (!source.includes('data-live-mounted="true"')) throw new Error("Observe Plot Drawing: Restore Its Mounted Card Owner");
-          source = source.replace('data-live-mounted="true"', 'data-live-mounted="true" data-bench-has-payload={Boolean(state.payload)}');
-          for (const owner of ["<VisiblePlotCard", "viewportMode={viewportMode}\n    />"]) {
-            if (!source.includes(owner)) throw new Error(`Missing benchmark card instrumentation owner: ${owner}`);
+        if (path.endsWith("/components/document/PlotPanel.svelte")) {
+          const mounted = 'data-live-mounted="true"';
+          const viewport = "data-plot-viewport={descriptor.plot_id}";
+          if (!source.includes(mounted) || !source.includes(viewport)) {
+            throw new Error("Observe Plot Drawing: Restore Its Mounted Card Owner");
           }
+          source = source.replace(mounted, `${mounted} data-bench-has-payload={Boolean(liveState.payload)}`);
           source = source.replace(
-            "<VisiblePlotCard",
-            '<div key={descriptor.plot_id} data-bench-plot={descriptor.plot_id} data-bench-error={liveStates[descriptor.plot_id]?.status === "error" || Boolean(liveStates[descriptor.plot_id]?.failure && !liveStates[descriptor.plot_id]?.payload)} data-bench-ready={Boolean(liveStates[descriptor.plot_id]?.payload)} data-bench-revision={globalThis.__desktopBench.frame(liveStates[descriptor.plot_id]?.payload)}><VisiblePlotCard',
+            viewport,
+            `${viewport} data-bench-plot={descriptor.plot_id}
+              data-bench-error={liveState.status === "error" || Boolean(liveState.failure && !liveState.payload)}
+              data-bench-revision={globalThis.__desktopBench.frame(liveState.payload)}`,
           );
-          source = source.replace("viewportMode={viewportMode}\n    />", "viewportMode={viewportMode}\n    /></div>");
         }
         return { code: source, map: null };
       },

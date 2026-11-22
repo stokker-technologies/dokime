@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { create } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 /* === Types === */
 
@@ -34,22 +34,29 @@ type SummaryWindowStore = {
 
 /* === Stores === */
 
-export const useSummaryWindowStore = create<SummaryWindowStore>()((set) => ({
+export const summaryWindowStore = createStore<SummaryWindowStore>()((set) => ({
   windows: {},
   widths: {},
   heights: {},
   visible: {},
   setVisible: (plotId, shown) =>
     set((state) => {
-      if (state.visible[plotId] === (shown ?? undefined)) return state;
+      if (state.visible[plotId] === (shown ?? undefined)) {
+        return state;
+      }
       const visible = { ...state.visible };
-      if (shown === null) delete visible[plotId];
-      else visible[plotId] = shown;
+      if (shown === null) {
+        delete visible[plotId];
+      } else {
+        visible[plotId] = shown;
+      }
       return { visible };
     }),
   setPanelSize: (plotId, size) =>
     set((state) => {
-      if (state.widths[plotId] === size?.width && state.heights[plotId] === size?.height) return state;
+      if (state.widths[plotId] === size?.width && state.heights[plotId] === size?.height) {
+        return state;
+      }
       const widths = { ...state.widths };
       const heights = { ...state.heights };
       if (size) {
@@ -63,20 +70,30 @@ export const useSummaryWindowStore = create<SummaryWindowStore>()((set) => ({
     }),
   setPanelWidth: (plotId, width) =>
     set((state) => {
-      if (state.widths[plotId] === width || (width === null && state.widths[plotId] === undefined)) return state;
+      const current = state.widths[plotId];
+      if (current === (width ?? undefined)) {
+        return state;
+      }
       const widths = { ...state.widths };
-      if (width === null) delete widths[plotId];
-      else widths[plotId] = width;
+      if (width === null) {
+        delete widths[plotId];
+      } else {
+        widths[plotId] = width;
+      }
       return { widths };
     }),
   setSummaryWindow: (plotId, window) =>
     set((state) => {
       const current = state.windows[plotId];
-      if (window && current?.from === window.from && current.to === window.to) return state;
-      if (!window && !current) return state;
+      if (current?.from === window?.from && current?.to === window?.to) {
+        return state;
+      }
       const windows = { ...state.windows };
-      if (window) windows[plotId] = window;
-      else delete windows[plotId];
+      if (window) {
+        windows[plotId] = window;
+      } else {
+        delete windows[plotId];
+      }
       return { windows };
     }),
 }));

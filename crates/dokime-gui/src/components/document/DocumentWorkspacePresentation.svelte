@@ -135,8 +135,9 @@
   import TraceabilityJsonDialog from "../traceability/TraceabilityJsonDialog.svelte";
   import PlotWindowControl from "../../features/cycle/PlotWindowControl.svelte";
 
+  type LiveCardContent = Extract<DocumentCardContentProps, { renderMode: "live" }>;
   type Props = DocumentWorkspaceView & {
-    cardOverride?: Snippet<[DocumentCardContentProps]>;
+    cardOverride?: Snippet<[LiveCardContent]>;
     onRetry?: (cardId?: string) => void;
     traceabilitySave?: ((json: string, filename: string) => Promise<void>) | null;
   };

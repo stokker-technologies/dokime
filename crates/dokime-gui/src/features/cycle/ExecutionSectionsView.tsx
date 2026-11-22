@@ -1,7 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { type ComponentType, type ReactNode, useContext } from "react";
 import type { ComponentProps } from "svelte";
-import { DocumentRetryContext } from "../../components/document/DocumentWorkspacePresentation";
 import { SvelteMount, useSvelteSlots } from "../../components/SvelteMount";
 import { TraceabilitySaveContext } from "../../components/traceability/TraceabilityJsonDialog";
 import { pageTitle } from "../../shell/PageShell";
@@ -40,9 +39,12 @@ export function ExecutionSectionsView({
   });
   const traceabilitySave = useContext(TraceabilitySaveContext);
   const documentView = DocumentContent ? (
-    <DocumentRetryContext.Provider value={props.onRetry}>
-      <DocumentContent cardChrome={executionReportCardChrome} cardFilter={isExecutionReportCard} surface={props.surface} />
-    </DocumentRetryContext.Provider>
+    <DocumentContent
+      cardChrome={executionReportCardChrome}
+      cardFilter={isExecutionReportCard}
+      onRetry={props.onRetry}
+      surface={props.surface}
+    />
   ) : null;
   const { rendered, portals } = useSvelteSlots({ documentView, control, promptQueue, notesContent, mediaContent, artifactsContent });
   return (

@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { createRuntimeProjectionRefreshCoordinator, type RuntimeProjectionRefreshCoordinator } from "@/app/live/runtime-refresh";
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
-import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
+import { fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
 import { mapNativeDocument, mapNativeDocumentCard, nativeDocumentCardKey, type CompletedDocument } from "@/lib/api/native-documents";
 import {
@@ -55,16 +55,6 @@ type PromptResponseVariables = {
   action: string;
   correlationId: string;
   values: Record<string, unknown>;
-};
-
-type AddNoteVariables = {
-  scope?: Wire<EvidenceScope> | null;
-  text: string;
-};
-
-type EditNoteVariables = {
-  noteId: string;
-  text: string;
 };
 
 type RootDocument = {
@@ -359,33 +349,6 @@ export function usePromptResponseMutation() {
   });
 }
 
-export function useAddNoteMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ scope, text }: AddNoteVariables) => createNativeNote(session.identity, text, scope),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }),
-        queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }),
-      ]);
-    },
-  });
-}
-
-export function useEditNoteMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ noteId, text }: EditNoteVariables) => editNativeNote(session.identity, noteId, text),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() });
-    },
-  });
-}
-
 function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
   const epoch = session.snapshot.connection.backend?.epoch;
   if (!epoch) {
@@ -586,7 +549,9 @@ function holdRecordTail(
           return;
         }
         for await (const page of stream) {
-          if (stopped) break;
+          if (stopped) {
+            break;
+          }
           for (const record of page.records) {
             pending.set(record.record_id, record);
             if (pending.size > RECORD_TAIL) {
