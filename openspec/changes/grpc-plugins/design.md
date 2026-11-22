@@ -3330,3 +3330,27 @@ transport. Other settings remain read on their current collection/operation call
 Network resource acquisition completes synchronously inside the lifecycle hook,
 like the system COM lease and Wi-Fi link counter acquisition. No detached
 blocking job can install native resources after cancelled demand has stopped.
+
+### Plugin-Qualified Registration Identifiers
+
+Every identifier a plugin registers with the host belongs below its plugin
+identifier: plugin `host` registers only `host.*`. This includes operations,
+streams, record contracts, lifecycle operations and template members. Suites
+and templates establish qualified parents for their locally declared members.
+Peer references use the callee's qualified identifier unchanged.
+
+The Python SDK owns qualification in `build_identifier` at plugin binding.
+Derived suites, templates and members inherit the plugin root; explicit local
+identifiers bind below their parent, while an explicit identifier beginning
+with `<plugin>.` is already qualified and is preserved exactly. Binding copies
+declarations rather than mutating reusable author classes or decorated functions.
+`uses_streams`, `ctx.operation(...)` peer references and qualified document
+queries retain their written identifiers. For example, `ExamplePlugin` with
+`LayoutSuite` and `TrackingTestTemplate.status` registers
+`example.layout.tracking.status`; explicit `example.status` stays unchanged.
+
+Rust, C# and C++ examples and fixtures declare qualified suite roots and plugin
+operations/streams explicitly, reusing their existing member binders. OBC's
+`obc.*` suite roots already qualify its registered members. This is a clean
+identifier break: callers move with their declarations and no old-name aliases
+or compatibility paths remain.

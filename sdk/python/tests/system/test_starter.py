@@ -93,7 +93,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
             self.assertEqual(
                 json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
-                "record:capture.confirmation.confirmation",
+                "record:example.capture.confirmation.confirmation",
             )
             self.assertEqual(await cycle.report(), archive.read("report.html"))
             self.assertEqual(sha256(evidence).digest(), sha256(await cycle.evidence()).digest())
@@ -260,7 +260,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
             self.assertIn("executions/01 Confirmation/telemetry/capture-confirmation-temperature.arrow", archive.namelist())
             self.assertEqual(
                 json.loads(archive.read("executions/01 Confirmation/data/records.json"))[0]["kind"],
-                "record:capture.confirmation.confirmation",
+                "record:example.capture.confirmation.confirmation",
             )
             self.assertEqual(archive.read("report.html"), await cycle.report())
             for name in archive.namelist():

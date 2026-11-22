@@ -20,7 +20,12 @@ context from its module when authoring that kind of handler. Plugin handlers
 reach shared plugin state through `ctx.plugin`.
 
 `ExamplePlugin().identifier` is `example` before and after registration. A class
-`identifier` overrides the class-derived identity.
+`identifier` overrides the class-derived identity. The plugin binds every local
+registration below its identifier: `LayoutSuite` / `TrackingTestTemplate.status`
+in `ExamplePlugin` registers `example.layout.tracking.status`. Explicit local
+identifiers follow the same rule; `example.status` stays `example.status`.
+`uses_streams`, typed peer operation references and qualified document queries
+keep their identifiers as written.
 
 ## Public Peer Operations
 

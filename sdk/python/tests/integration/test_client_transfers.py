@@ -162,7 +162,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         types = FileDescriptorSet()
         BoolValue.DESCRIPTOR.file.CopyToProto(types.file.add())
         digest = sha256(types.SerializeToString()).digest()
-        bindings = [{"record_type": "capture.capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
+        bindings = [{"record_type": "capture.capture.capture.flag", "message_name": BoolValue.DESCRIPTOR.full_name}]
         self.detail = client_types.ExecutionDetail(
             summary={"execution_id": "execution", "case_id": "case"},
             cycle_id="cycle",
@@ -301,7 +301,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await context.artifact("trace.json", b"{}", mime="test/json")).mime, "test/json")
 
         self.requests.clear()
-        rows = await execution.records("capture.capture.flag", row_type=bool).read(limit=2)
+        rows = await execution.records("capture.capture.capture.flag", row_type=bool).read(limit=2)
         client_requests = list(self.requests)
         self.requests.clear()
         query = context.records(CaptureTestTemplate.flag)
@@ -329,7 +329,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         await context.document("report", Section("Measured"), request_id="part")
         self.assertEqual(self.requests[0], self.requests[1])
         assert isinstance(self.requests[0], documents_pb2.DocumentsAppendPartsRequest)
-        self.assertEqual(self.requests[0].document, "capture.capture.report")
+        self.assertEqual(self.requests[0].document, "capture.capture.capture.report")
         with self.assertRaises(ValueError):
             await context.document("unknown", Section("Measured"))
         with self.assertRaises(SdkError):

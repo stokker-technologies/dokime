@@ -430,3 +430,13 @@
   - [x] Pass the Single Rust Lint Invocation, Format, Repository, Supply, Unused-Dependency and Strict OpenSpec Checks.
   - [x] Build and Package the Pure Python SDK in the Release Context and Pass the Binding Gate After Preparing Its Existing Example Distributions.
   - [ ] Resolve the Required Whole-Package Host Test Versus the No-Native-CPU-Load Rule: `collectors::cpu::workers::tests::active_workers_count_whole_batches` Starts Real Load; Keep This Proof Open Until the Owner Chooses Its Test Scope.
+
+## Plugin-Qualified Registration Identifiers
+
+- [x] Record the Owner's Rule That Plugin Registrations Belong Below Their Plugin Identifier and Qualified Peer References Stay Unchanged.
+- [x] Bind Derived and Explicit Python Local Identifiers Through One Plugin Root, Preserve Already Qualified Identifiers and Migrate Tests and Examples Without Compatibility Paths.
+- [x] Qualify Rust, C# and C++ Example and Fixture Registrations and Their Runtime/SDK References; Verify OBC's Existing Qualified Catalog.
+- [x] Pass Installed Python Unit and Integration Tests and Release-Context Python Build and Package.
+- [ ] Pass Focused Rust Tests and Workspace and SDK Consumer Test-Target Compilation With Desktop Testing.
+- [ ] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
+- [ ] Migrate the CLI First-Hour and Desktop Execution-Matrix References in Their Owning Workspaces.
