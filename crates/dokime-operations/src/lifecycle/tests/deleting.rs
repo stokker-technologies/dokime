@@ -68,8 +68,14 @@ async fn deletion_guards_owners_and_productions_and_releases_only_its_cut() -> P
     fixture.native_cycle("cycle").await?;
     let (_, first_closed) = fixture.native_closed("first", "cycle", Vec::new()).await?;
     let first = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read First Execution")?;
-    let first_plan =
-        seal::prepare(operations, fixture.mutation("seal-first").await?, &first_closed, first, &[], 0, rows, fixture.bytes).await?;
+    let request = seal::Prepare {
+        mutation: fixture.mutation("seal-first").await?,
+        closed: &first_closed,
+        execution: first,
+        sources: &[],
+        receipt_ns: 0,
+    };
+    let first_plan = seal::prepare(operations, request, rows, fixture.bytes).await?;
     let first_cut = first_plan.evidence_cut.clone();
     seal::publish(operations, &first_plan, fixture.bytes).await?;
     let reader = io::call::<CreateSnapshot>(operations, CreateSnapshotRequest { at: Some(first_cut.clone()) }).await?;
@@ -77,8 +83,14 @@ async fn deletion_guards_owners_and_productions_and_releases_only_its_cut() -> P
     let reader_snapshot = reader.snapshot.ok_or("Retain the Reader Lease")?;
     let (_, second_closed) = fixture.native_closed("second", "cycle", Vec::new()).await?;
     let second = lifecycle::read::<Execution>(operations, "second", None, fixture.bytes).await?.ok_or("Read Second Execution")?;
-    let second_plan =
-        seal::prepare(operations, fixture.mutation("seal-second").await?, &second_closed, second, &[], 0, rows, fixture.bytes).await?;
+    let request = seal::Prepare {
+        mutation: fixture.mutation("seal-second").await?,
+        closed: &second_closed,
+        execution: second,
+        sources: &[],
+        receipt_ns: 0,
+    };
+    let second_plan = seal::prepare(operations, request, rows, fixture.bytes).await?;
     let second_cut = second_plan.evidence_cut.clone();
     seal::publish(operations, &second_plan, fixture.bytes).await?;
 

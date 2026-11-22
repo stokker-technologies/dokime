@@ -54,6 +54,22 @@ pub struct Admission {
     pub receipt_ns: i64,
 }
 
+pub(super) struct Close {
+    pub mutation: MutationId,
+    pub execution: Version<Execution>,
+    pub outcome: Protobuf,
+    pub termination: i32,
+    pub streams: Vec<Version<Stream>>,
+    pub receipt_ns: i64,
+}
+
+pub struct Revision<'a> {
+    pub mutation: MutationId,
+    pub permit: &'a Permit,
+    pub execution: Version<Execution>,
+    pub receipt_ns: i64,
+}
+
 #[derive(Clone)]
 pub struct Plan {
     request: MutateRequest,
@@ -167,10 +183,15 @@ pub async fn admit(operations: &OperationManager, plan: &Plan, bytes: NonZeroUsi
     mutations::mutate(operations, plan.request.clone(), bytes).await
 }
 
-pub(super) async fn close(
-    operations: &OperationManager, mutation: MutationId, execution: Version<Execution>, outcome: Protobuf, termination: i32,
-    streams: Vec<Version<Stream>>, receipt_ns: i64, bytes: NonZeroUsize,
-) -> Result<Receipt> {
+pub(super) async fn close(operations: &OperationManager, request: Close, bytes: NonZeroUsize) -> Result<Receipt> {
+    let Close {
+        mutation,
+        execution,
+        outcome,
+        termination,
+        streams,
+        receipt_ns,
+    } = request;
     if execution.value.state != State::Open {
         return Err(Error::Precondition("Close Execution: Select an Open Execution After Settling Its Intake".into()));
     }
@@ -214,30 +235,27 @@ pub(super) async fn close(
 }
 
 pub async fn set_progress(
-    operations: &OperationManager, mutation: MutationId, permit: &Permit, execution: Version<Execution>, progress: Version<Progress>,
-    value: Protobuf, receipt_ns: i64, bytes: NonZeroUsize,
+    operations: &OperationManager, revision: Revision<'_>, progress: Version<Progress>, value: Protobuf, bytes: NonZeroUsize,
 ) -> Result<Receipt> {
     value.decode(bytes)?;
     let value = Progress { value, ..progress.value };
-    revise(operations, mutation, permit, execution, progress.revision, value, "progress", receipt_ns, bytes).await
+    revise(operations, revision, progress.revision, value, "progress", bytes).await
 }
 
 pub async fn set_parameters(
-    operations: &OperationManager, mutation: MutationId, permit: &Permit, execution: Version<Execution>, parameters: Version<Parameters>,
-    value: Protobuf, receipt_ns: i64, bytes: NonZeroUsize,
+    operations: &OperationManager, revision: Revision<'_>, parameters: Version<Parameters>, value: Protobuf, bytes: NonZeroUsize,
 ) -> Result<Receipt> {
     value.decode(bytes)?;
     let value = Parameters { value, ..parameters.value };
-    revise(operations, mutation, permit, execution, parameters.revision, value, "parameters", receipt_ns, bytes).await
+    revise(operations, revision, parameters.revision, value, "parameters", bytes).await
 }
 
 pub async fn set_steps(
-    operations: &OperationManager, mutation: MutationId, permit: &Permit, execution: Version<Execution>, steps: Version<Steps>,
-    value: Protobuf, receipt_ns: i64, bytes: NonZeroUsize,
+    operations: &OperationManager, revision: Revision<'_>, steps: Version<Steps>, value: Protobuf, bytes: NonZeroUsize,
 ) -> Result<Receipt> {
     value.decode(bytes)?;
     let value = Steps { value, ..steps.value };
-    revise(operations, mutation, permit, execution, steps.revision, value, "steps", receipt_ns, bytes).await
+    revise(operations, revision, steps.revision, value, "steps", bytes).await
 }
 
 pub async fn append_transition(
@@ -261,9 +279,9 @@ pub async fn append_transition(
 /* === Private Functions === */
 
 async fn revise<T: StoredObject<Key = str>>(
-    operations: &OperationManager, mutation: MutationId, permit: &Permit, execution: Version<Execution>, expected: ObjectVersionToken,
-    value: T, kind: &str, receipt_ns: i64, bytes: NonZeroUsize,
+    operations: &OperationManager, revision: Revision<'_>, expected: ObjectVersionToken, value: T, kind: &str, bytes: NonZeroUsize,
 ) -> Result<Receipt> {
+    let Revision { mutation, permit, execution, receipt_ns } = revision;
     permit.require(&execution.value)?;
     if execution.value.state != State::Open || value.scope() != Some(&execution.value.scope) || value.key() != execution.value.key {
         return Err(Error::Precondition("Revise Execution: Select an Open Execution and Its Own Resource Revision".into()));

@@ -53,6 +53,24 @@ use dokime_storage::persisted::{
 
 /* === Structs === */
 
+pub struct Close<'a> {
+    pub mutation: MutationId,
+    pub closed: &'a Closed,
+    pub drained: DrainedIntake,
+    pub execution: Version<Execution>,
+    pub outcome: Protobuf,
+    pub termination: i32,
+    pub receipt_ns: i64,
+}
+
+pub struct Prepare<'a> {
+    pub mutation: MutationId,
+    pub closed: &'a Closed,
+    pub execution: Version<Execution>,
+    pub sources: &'a [Source],
+    pub receipt_ns: i64,
+}
+
 /// Preserve This Exact Plan With Its Admission for Mutation Receipt Replay.
 #[derive(Clone)]
 pub struct Plan {
@@ -76,10 +94,16 @@ impl Plan {
 
 /* === Public Functions === */
 
-pub async fn close(
-    operations: &OperationManager, mutation: MutationId, closed: &Closed, drained: DrainedIntake, execution: Version<Execution>,
-    outcome: Protobuf, termination: i32, receipt_ns: i64, rows: NonZeroUsize, bytes: NonZeroUsize,
-) -> Result<Receipt> {
+pub async fn close(operations: &OperationManager, request: Close<'_>, rows: NonZeroUsize, bytes: NonZeroUsize) -> Result<Receipt> {
+    let Close {
+        mutation,
+        closed,
+        drained,
+        execution,
+        outcome,
+        termination,
+        receipt_ns,
+    } = request;
     drained.require(closed, &execution.value)?;
     let durable: StorageCursor = drained
         .receipt
@@ -122,13 +146,25 @@ pub async fn close(
             break;
         }
     }
-    execution::close(operations, mutation, execution, outcome, termination, streams, receipt_ns, bytes).await
+    let request = execution::Close {
+        mutation,
+        execution,
+        outcome,
+        termination,
+        streams,
+        receipt_ns,
+    };
+    execution::close(operations, request, bytes).await
 }
 
-pub async fn prepare(
-    operations: &OperationManager, mutation: MutationId, closed: &Closed, execution: Version<Execution>, sources: &[Source],
-    receipt_ns: i64, rows: NonZeroUsize, bytes: NonZeroUsize,
-) -> Result<Plan> {
+pub async fn prepare(operations: &OperationManager, request: Prepare<'_>, rows: NonZeroUsize, bytes: NonZeroUsize) -> Result<Plan> {
+    let Prepare {
+        mutation,
+        closed,
+        execution,
+        sources,
+        receipt_ns,
+    } = request;
     closed.require(&execution.value)?;
     if execution.value.state != State::Closed || execution.value.seal.is_some() || execution.value.outcome.is_none() {
         return Err(Error::Precondition("Seal Execution: Durably Close Its Settled Evidence Before Issuing C".into()));

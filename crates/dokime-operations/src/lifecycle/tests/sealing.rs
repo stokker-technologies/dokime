@@ -91,19 +91,16 @@ impl Fixture {
         };
         let outcome = Protobuf::product("dokime.host.v1.ExecutionOutcome", &outcome, self.bytes)?;
         let execution = lifecycle::read::<Execution>(operations, name, None, self.bytes).await?.ok_or("Read Execution for Closing")?;
-        seal::close(
-            operations,
-            self.mutation(&format!("close/{name}")).await?,
-            &closed,
-            DrainedIntake { execution: name.into(), receipt },
+        let request = seal::Close {
+            mutation: self.mutation(&format!("close/{name}")).await?,
+            closed: &closed,
+            drained: DrainedIntake { execution: name.into(), receipt },
             execution,
             outcome,
-            Termination::Completed as i32,
-            0,
-            NonZeroUsize::new(1).unwrap(),
-            self.bytes,
-        )
-        .await?;
+            termination: Termination::Completed as i32,
+            receipt_ns: 0,
+        };
+        seal::close(operations, request, NonZeroUsize::new(1).unwrap(), self.bytes).await?;
         Ok((gate, closed))
     }
 }
@@ -156,19 +153,16 @@ async fn preview_clearing_never_deletes_another_execution_owner() -> Proof {
         execution: "first".into(),
         receipt: response.receipt.ok_or("Return Preview Durability")?,
     };
-    seal::close(
-        operations,
-        fixture.mutation("close-first").await?,
-        &closed,
+    let request = seal::Close {
+        mutation: fixture.mutation("close-first").await?,
+        closed: &closed,
         drained,
         execution,
         outcome,
-        Termination::Completed as i32,
-        0,
-        rows,
-        fixture.bytes,
-    )
-    .await?;
+        termination: Termination::Completed as i32,
+        receipt_ns: 0,
+    };
+    seal::close(operations, request, rows, fixture.bytes).await?;
 
     // Clear Only Existing Preview Revisions Visible at the Execution-Scoped C.
     let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read Closed First Execution")?;
@@ -180,19 +174,23 @@ async fn preview_clearing_never_deletes_another_execution_owner() -> Proof {
         source_start: None,
         source_end: None,
     });
-    let refused = seal::prepare(
-        operations,
-        fixture.mutation("partial-source").await?,
-        &closed,
-        execution.clone(),
-        &[partial],
-        0,
-        rows,
-        fixture.bytes,
-    )
-    .await;
+    let request = seal::Prepare {
+        mutation: fixture.mutation("partial-source").await?,
+        closed: &closed,
+        execution: execution.clone(),
+        sources: &[partial],
+        receipt_ns: 0,
+    };
+    let refused = seal::prepare(operations, request, rows, fixture.bytes).await;
     assert!(matches!(refused, Err(crate::Error::Invalid(_))));
-    let plan = seal::prepare(operations, fixture.mutation("seal-first").await?, &closed, execution, &[], 0, rows, fixture.bytes).await?;
+    let request = seal::Prepare {
+        mutation: fixture.mutation("seal-first").await?,
+        closed: &closed,
+        execution,
+        sources: &[],
+        receipt_ns: 0,
+    };
+    let plan = seal::prepare(operations, request, rows, fixture.bytes).await?;
     seal::publish(operations, &plan, fixture.bytes).await?;
     assert!(lifecycle::read::<Preview>(operations, "first/envelope", None, fixture.bytes).await?.is_none());
     assert!(lifecycle::read::<Preview>(operations, "second/envelope", None, fixture.bytes).await?.is_some());
@@ -245,17 +243,14 @@ async fn publication_uses_receipt_s_and_retains_c_through_restart() -> Proof {
     fixture.native_cycle("cycle").await?;
     let (gate, closed) = fixture.native_closed("first", "cycle", vec!["first/envelope".into(), "first/grid".into()]).await?;
     let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read Closed Execution")?;
-    let plan = seal::prepare(
-        operations,
-        fixture.mutation("seal").await?,
-        &closed,
+    let request = seal::Prepare {
+        mutation: fixture.mutation("seal").await?,
+        closed: &closed,
         execution,
-        &[],
-        0,
-        NonZeroUsize::new(1).unwrap(),
-        fixture.bytes,
-    )
-    .await?;
+        sources: &[],
+        receipt_ns: 0,
+    };
+    let plan = seal::prepare(operations, request, NonZeroUsize::new(1).unwrap(), fixture.bytes).await?;
     let evidence_cut = plan.evidence_cut.clone();
     let reader = io::call::<CreateSnapshot>(operations, CreateSnapshotRequest { at: Some(evidence_cut.clone()) }).await?;
     let reader_cut = reader.resolved_at.ok_or("Retain an Independent Reader")?;
@@ -296,17 +291,14 @@ async fn a_late_cycle_conflict_preserves_execution_and_every_preview() -> Proof 
     fixture.native_cycle("cycle").await?;
     let (_, closed) = fixture.native_closed("first", "cycle", vec!["first/envelope".into()]).await?;
     let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read Closed Execution")?;
-    let plan = seal::prepare(
-        operations,
-        fixture.mutation("seal").await?,
-        &closed,
+    let request = seal::Prepare {
+        mutation: fixture.mutation("seal").await?,
+        closed: &closed,
         execution,
-        &[],
-        0,
-        NonZeroUsize::new(1).unwrap(),
-        fixture.bytes,
-    )
-    .await?;
+        sources: &[],
+        receipt_ns: 0,
+    };
+    let plan = seal::prepare(operations, request, NonZeroUsize::new(1).unwrap(), fixture.bytes).await?;
     let cycle = lifecycle::read::<Cycle>(operations, "cycle", None, fixture.bytes).await?.ok_or("Read Cycle")?;
     let metadata = Protobuf::product(
         "dokime.model.v1.Metadata",

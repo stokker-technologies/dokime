@@ -237,35 +237,28 @@ async fn resource_revisions_commit_with_execution_guards() -> Proof {
     let mutation = fixture.mutation("progress").await?;
 
     // Preserve the Original CAS Input for Replay; a New Identity Cannot Reuse It.
-    let receipt = execution::set_progress(
-        operations,
-        mutation.clone(),
-        &permit,
-        execution.clone(),
-        progress.clone(),
-        value.clone(),
-        0,
-        fixture.bytes,
-    )
-    .await?;
-    let replay =
-        execution::set_progress(operations, mutation, &permit, execution.clone(), progress.clone(), value.clone(), 0, fixture.bytes)
-            .await?;
+    let revision = execution::Revision {
+        mutation: mutation.clone(),
+        permit: &permit,
+        execution: execution.clone(),
+        receipt_ns: 0,
+    };
+    let receipt = execution::set_progress(operations, revision, progress.clone(), value.clone(), fixture.bytes).await?;
+    let revision = execution::Revision {
+        mutation,
+        permit: &permit,
+        execution: execution.clone(),
+        receipt_ns: 0,
+    };
+    let replay = execution::set_progress(operations, revision, progress.clone(), value.clone(), fixture.bytes).await?;
     assert_eq!(receipt, replay);
-    assert!(
-        execution::set_progress(
-            operations,
-            fixture.mutation("stale-progress").await?,
-            &permit,
-            execution,
-            progress,
-            value,
-            0,
-            fixture.bytes
-        )
-        .await
-        .is_err()
-    );
+    let revision = execution::Revision {
+        mutation: fixture.mutation("stale-progress").await?,
+        permit: &permit,
+        execution,
+        receipt_ns: 0,
+    };
+    assert!(execution::set_progress(operations, revision, progress, value, fixture.bytes).await.is_err());
     let progress = lifecycle::read::<Progress>(operations, "first", None, fixture.bytes).await?.ok_or("Read Durable Progress")?;
     let value = ExecutionProgressValue::decode(progress.value.value.payload.as_slice())?;
     assert_eq!(value.completed, 7);
