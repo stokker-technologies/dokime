@@ -74,7 +74,7 @@ references and markers. Observer and window payloads preserve proto3 optional
 field presence, including explicit zero values; interval storage adoption remains
 pending. Execution observers inherit execution resources for admitted child calls,
 including record publication. Typed stream subscription remains unavailable
-at the current library pin. Stop-completes-run has no current product declaration.
+in the product context adapter. Stop-completes-run has no current product declaration.
 
 Setting bounds are inclusive and use the default's value type. The library
 validates defaults at host admission and every saved write:

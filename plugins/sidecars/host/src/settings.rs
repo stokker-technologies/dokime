@@ -435,14 +435,14 @@ impl Setting {
 impl CpuLoad {
     pub async fn read(ctx: &Context) -> Result<Self> {
         let load = Self {
-            period: self::duration_value(ctx, CPU_LOAD_PERIOD).await?,
-            sample_period: self::duration_value(ctx, CPU_LOAD_SAMPLE_PERIOD).await?,
-            slice: self::duration_value(ctx, CPU_LOAD_WORKER_SLICE).await?,
+            period: ctx.duration_setting(CPU_LOAD_PERIOD).await?,
+            sample_period: ctx.duration_setting(CPU_LOAD_SAMPLE_PERIOD).await?,
+            slice: ctx.duration_setting(CPU_LOAD_WORKER_SLICE).await?,
             proportional_gain: number(ctx, CPU_LOAD_PROPORTIONAL_GAIN).await?,
             integral_gain: number(ctx, CPU_LOAD_INTEGRAL_GAIN).await?,
             integral_min: number(ctx, CPU_LOAD_INTEGRATOR_MINIMUM).await?,
             integral_max: number(ctx, CPU_LOAD_INTEGRATOR_MAXIMUM).await?,
-            settlement: self::duration_value(ctx, CPU_LOAD_WORKER_SETTLEMENT).await?,
+            settlement: ctx.duration_setting(CPU_LOAD_WORKER_SETTLEMENT).await?,
             batch_iterations: u32::try_from(integer(ctx, CPU_LOAD_WORKER_BATCH_ITERATIONS).await?)
                 .map_err(|_| Error::Invalid("Read CPU Load Settings: Configure a Smaller Worker Batch".into()))?,
         };
@@ -488,10 +488,6 @@ pub fn catalog() -> Vec<SettingDeclaration> {
 pub async fn validate(ctx: &Context) -> Result<()> {
     CpuLoad::read(ctx).await?;
     Ok(())
-}
-
-pub async fn duration_value(ctx: &Context, name: &str) -> Result<Duration> {
-    ctx.duration_setting(name).await
 }
 
 pub async fn integer(ctx: &Context, name: &str) -> Result<i64> {

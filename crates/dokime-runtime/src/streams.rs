@@ -278,12 +278,11 @@ impl Intake {
             }
         }
         for (definition, _, publication) in batch.publications() {
-            let result = self.ingest(definition, publication.value);
+            let result = self.ingest(definition, publication.value.row());
             if let Err(source) = result {
                 let scope = publication
                     .value
-                    .context
-                    .as_ref()
+                    .context()
                     .and_then(|context| serde_json::from_str::<Value>(context).ok())
                     .and_then(|context| context["scope"].as_str().map(str::to_owned));
                 if let Some(scope) = scope {

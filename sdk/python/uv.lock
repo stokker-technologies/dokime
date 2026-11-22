@@ -111,7 +111,7 @@ stubs = [
 [package.metadata]
 requires-dist = [
     { name = "grpcio", specifier = ">=1.85.1,<2" },
-    { name = "harmos-sdk", git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=3cc1166fa" },
+    { name = "harmos-sdk", git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=9403bbf02" },
     { name = "pandas", marker = "extra == 'pandas'", specifier = ">=3,<4" },
     { name = "polars", marker = "extra == 'polars'", specifier = ">=2.1,<3" },
     { name = "protobuf", specifier = ">=7.35.1,<8" },
@@ -218,7 +218,7 @@ wheels = [
 [[package]]
 name = "harmos-sdk"
 version = "0.1.14"
-source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=3cc1166fa#3cc1166faa4cdc915f44d76215d15024e4870f21" }
+source = { git = "https://github.com/stokker-technologies/harmos?subdirectory=sdk%2Fpython&rev=9403bbf02#9403bbf02635813f5510097823ed252c9aff614a" }
 dependencies = [
     { name = "grpcio" },
     { name = "protobuf" },

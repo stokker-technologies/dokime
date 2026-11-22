@@ -62,11 +62,6 @@ pub fn parameters(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-#[proc_macro_derive(Settings, attributes(dokime))]
-pub fn settings(input: TokenStream) -> TokenStream {
-    expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
-}
-
 /* === Private Functions === */
 
 fn sdk_path() -> Option<proc_macro2::TokenStream> {

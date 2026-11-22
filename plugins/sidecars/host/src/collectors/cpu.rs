@@ -95,7 +95,7 @@ impl Collector {
         let capacity_gflops = self
             .capacity_gflops
             .get_or_try_init(|| async {
-                let window = settings::duration_value(ctx, settings::CPU_CALIBRATION_WINDOW).await?;
+                let window = ctx.duration_setting(settings::CPU_CALIBRATION_WINDOW).await?;
                 let batch_iterations = u32::try_from(settings::integer(ctx, settings::CALIBRATION_BATCH_ITERATIONS).await?)
                     .map_err(|_| Error::Invalid("Calibrate CPU Capacity: Configure a Smaller Calibration Batch".into()))?;
                 tokio::task::spawn_blocking(move || calibrate(window, batch_iterations))
