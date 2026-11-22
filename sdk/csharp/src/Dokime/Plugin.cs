@@ -237,6 +237,10 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         throw new ArgumentException($"{definition.Materialize}: Materialization Requires the Named Template and No Execution Scope");
       var result = testCase.Clone();
       result.Parameters.Add(request.Parameters.ToDictionary(item => item.Key, item => item.Value.Clone()));
+      result = ((TestTemplate)template.CreateInstance()!).Materialize(result);
+      if (result.Parameters.Count != request.Parameters.Count ||
+          request.Parameters.Any(item => !result.Parameters.TryGetValue(item.Key, out var value) || !value.Equals(item.Value)))
+        throw new ArgumentException($"{definition.Materialize}: Materialization Cannot Change Resolved Parameters");
       var materialized = new HashSet<string>(StringComparer.Ordinal);
       foreach (var step in result.Steps)
       {
