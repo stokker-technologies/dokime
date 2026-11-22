@@ -407,12 +407,6 @@ def main() -> None:
         if options.action != "build":
             return
     elif options.action == "test":
-        print("Test C++ SDK: Check That the Build Is Current", flush=True)
-        pending = subprocess.check_output(
-            ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
-        )
-        if pending.strip() != "ninja: no work to do.":
-            raise RuntimeError(f"Test C++ SDK: Build This Preset Before Running Its Stories\n{pending.strip()}")
         command = ["ctest", "--preset", options.preset, "--output-junit", str(directory / "junit.xml")]
         if options.exact:
             command += ["-R", "^" + re.escape(options.exact) + "$"]

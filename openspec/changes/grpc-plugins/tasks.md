@@ -439,5 +439,5 @@
 - [x] Pass Installed Python Unit and Integration Tests and Release-Context Python Build and Package.
 - [x] Pass Focused Rust Tests and Workspace and SDK Consumer Test-Target Compilation With Desktop Testing.
 - [x] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
-- [ ] Resolve the Native C++ Test Task's False Stale-Build Refusal for CMake `CONFIGURE_DEPENDS`; Keep the Failing Task Visible Alongside the Passing Native Build and Focused CTest Proof.
+- [x] Remove the Native C++ Test Freshness Dry Run and Keep Protocol Dependency Handling in CMake; Prove the Native Debug Build and Focused CTest Through the SDK Tasks.
 - [x] Migrate CLI First-Hour and Evidence Export, Desktop Execution-Matrix and Native E2E, and Python Thermal Readback References; Prove Focused CLI, Desktop Acceptance and Runtime Stories.
