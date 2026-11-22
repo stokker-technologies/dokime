@@ -14,6 +14,12 @@ CMake preset keeps Debug outputs in the build directory.
 
 ## Operation Lanes
 
+Integration Only: source builds select the sibling `harmos` main checkout through
+`FETCHCONTENT_SOURCE_DIR_HARMOS` and keep build outputs in this repository's `target/`.
+
+Both handler contexts support `ctx.operation("example.measure", dokime::json(R"({"channel":1})"))`,
+returning a `google::protobuf::Struct`. The library owns JSON conversion, validation and child admission.
+
 `dokime::Lane` re-exports the library declaration. Create `auto instrument = Lane::serial("instrument");`, assign it with `operation.lane(instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Plugin descriptions retain lane declarations and operation references; the library rejects undeclared references.
 
 ## Author a Plugin

@@ -6,18 +6,13 @@
 #
 # ***
 
-"""Stage and build the reference host from the immutable Harmos source revision."""
+"""Build the Local Library Reference Host for Integration Only."""
 
 # === Imports === #
 
 # Standard Library Imports
-import io
 import os
 import subprocess
-import tarfile
-import tomllib
-import urllib.request
-import zipfile
 from pathlib import Path
 
 # Third Party Imports
@@ -38,41 +33,16 @@ from pathlib import Path
 
 # === Entry Point === #
 
-manifest = tomllib.loads((Path(__file__).resolve().parents[3] / "Cargo.toml").read_text(encoding="utf-8"))
-revision: str = manifest["workspace"]["dependencies"]["harmos"]["rev"]
-# Each Revision Stages and Builds Apart: Cargo Fingerprints Path Sources by Location and Time, So a Shared Source
-# or Target Directory Could Reuse Another Revision's Artifacts.
-target: Path = (Path(__file__).resolve().parents[1] / "../../target").resolve()
-output: Path = target / "cs/reference" / revision
-output.mkdir(parents=True, exist_ok=True)
-source: str | None = os.environ.get("HARMOS_SOURCE")
-if source:
-    archive: bytes = subprocess.check_output(["git", "-C", source, "archive", "--format=zip", revision])
-    files = zipfile.ZipFile(io.BytesIO(archive))
-    try:
-        files.extractall(output)
-    finally:
-        files.close()
-else:
-    response = urllib.request.urlopen(f"https://github.com/stokker-technologies/harmos/archive/{revision}.tar.gz")
-    try:
-        archive = response.read()
-    finally:
-        response.close()
-    members = tarfile.open(fileobj=io.BytesIO(archive))
-    try:
-        for member in members.getmembers():
-            member.name = str(Path(*Path(member.name).parts[1:]))
-            if member.name != ".":
-                members.extract(member, output, filter="data")
-    finally:
-        members.close()
+root = Path(__file__).resolve().parents[3]
+target = root / "target"
+# Integration Only: Compile the Current Library Main Checkout Into Product-Owned Outputs.
+source = Path(os.environ.get("HARMOS_SOURCE") or root / "../harmos").resolve()
 subprocess.run(
     [
         "cargo",
         "install",
         "--path",
-        str(output / "tools/conformance"),
+        str(source / "tools/conformance"),
         "--locked",
         "--debug",
         "--force",
@@ -81,9 +51,9 @@ subprocess.run(
         "--bin",
         "harmos-conformance",
         "--jobs",
-        "1",
+        os.environ.get("CARGO_BUILD_JOBS", "6"),
         "--target-dir",
-        str(target / "reference-host/build" / revision),
+        str(target),
     ],
     check=True,
 )

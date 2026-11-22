@@ -11,6 +11,12 @@ The public homes are `Dokime`, `Dokime.Operations` and `Dokime.Templates`.
 
 ## Operation Lanes
 
+Integration Only: `prepare:harmos` stages the sibling `harmos` main checkout
+into this repository's `target/` directory. `HARMOS_SOURCE` can select that checkout.
+
+Both handler contexts support `await ctx.Operation("example.measure", new { channel = 1 })`,
+returning a `JsonNode`. The library owns JSON conversion, validation and child admission.
+
 `Dokime.Lane` forwards the library's three lane kinds: `Lane.Serial("instrument")`, `Lane.Concurrent("workers", 4)` and `Lane.Unbounded("independent")`. Register a lane with `plugin.Lane(instrument)` and a handler with `plugin.Operation(new Operation<double, double>("example.measure", lane: instrument), handler)`. The library validates declarations and rejects undeclared lane references. `Describe()` includes lane declarations and each operation's lane reference.
 
 ## Author a Plugin

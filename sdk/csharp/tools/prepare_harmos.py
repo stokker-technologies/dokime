@@ -6,20 +6,15 @@
 #
 # ***
 
-"""Stage the exact unmodified Harmos C# SDK source."""
+"""Stage the Local Library Main Checkout for Integration Only."""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
-import io
 import os
 import shutil
 import subprocess
-import tarfile
-import tomllib
-import urllib.request
-import zipfile
 from pathlib import Path
 
 # Third Party Imports
@@ -46,53 +41,27 @@ parser.add_argument("--configuration", choices=("Debug", "Release"), default="Re
 parser.add_argument("--refresh-lock", action="store_true")
 arguments = parser.parse_args()
 
-manifest = tomllib.loads((Path(__file__).resolve().parents[3] / "Cargo.toml").read_text(encoding="utf-8"))
-revision: str = manifest["workspace"]["dependencies"]["harmos"]["rev"]
-version: str = f"0.1.0-dev.{revision[:12]}"
-root: Path = Path(__file__).resolve().parents[1]
-feed: Path = root / "../../target/cs/feed"
+root = Path(__file__).resolve().parents[1]
+# Integration Only: Stage Current Sources Without Writing in the Library Checkout.
+source = Path(os.environ.get("HARMOS_SOURCE") or root / "../../../harmos").resolve()
+revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+version = f"0.1.0-dev.{revision[:12]}"
+feed = root / "../../target/cs/feed"
 feed.mkdir(parents=True, exist_ok=True)
-output: Path = (root / "../../target/cs/h").resolve()
+output = (root / "../../target/cs/h").resolve()
 output.mkdir(parents=True, exist_ok=True)
-source: str | None = os.environ.get("HARMOS_SOURCE")
-if source:
-    archive: bytes = subprocess.check_output(
-        [
-            "git",
-            "-C",
-            source,
-            "archive",
-            "--format=zip",
-            revision,
-            "sdk/csharp/src/Harmos",
-            "sdk/csharp/tests/Harmos.Conformance",
-            "sdk/csharp/Directory.Build.props",
-            "sdk/tests/fixtures/conformance/proto",
-        ]
-    )
-    files = zipfile.ZipFile(io.BytesIO(archive))
-    try:
-        files.extractall(output)
-    finally:
-        files.close()
-else:
-    url: str = f"https://github.com/stokker-technologies/harmos/archive/{revision}.tar.gz"
-    response = urllib.request.urlopen(url)
-    try:
-        archive = response.read()
-    finally:
-        response.close()
-    with tarfile.open(fileobj=io.BytesIO(archive)) as members:
-        for member in members.getmembers():
-            relative = Path(*Path(member.name).parts[1:])
-            if (
-                relative.as_posix().startswith(
-                    ("sdk/csharp/src/Harmos/", "sdk/csharp/tests/Harmos.Conformance/", "sdk/tests/fixtures/conformance/proto/")
-                )
-                or relative.as_posix() == "sdk/csharp/Directory.Build.props"
-            ):
-                member.name = str(relative)
-                members.extract(member, output, filter="data")
+for relative in (
+    "sdk/csharp/src/Harmos",
+    "sdk/csharp/tests/Harmos.Conformance",
+    "sdk/tests/fixtures/conformance/proto",
+):
+    destination = (output / relative).resolve()
+    if not destination.is_relative_to(output):
+        raise ValueError("Stage Integration Library: Keep Sources Under the SDK Output")
+    if destination.exists():
+        shutil.rmtree(destination)
+    shutil.copytree(source / relative, destination)
+shutil.copyfile(source / "sdk/csharp/Directory.Build.props", output / "sdk/csharp/Directory.Build.props")
 
 shutil.copyfile(root / "tools/Harmos.csproj", output / "Harmos.csproj")
 # The Package Identity Derives From the Revision; Solution Projects Reference This Staged Project.
