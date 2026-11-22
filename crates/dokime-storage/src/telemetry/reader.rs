@@ -34,7 +34,7 @@ use rusqlite::params;
 // Local Imports
 use super::catalog;
 use crate::ipc::BatchIndex;
-use crate::{Error, Result, Sample, SampleWindow, Store, ipc};
+use crate::{Error, ReadCancellation, Result, Sample, SampleWindow, Store, ipc};
 
 /* === Constants === */
 
@@ -63,6 +63,12 @@ pub(crate) struct SampleReads {
 #[derive(Default)]
 struct SampleBlock {
     value: Mutex<Option<Table>>,
+}
+
+/// Pending Arrow Batches and Their Accepted Positions at One Read's Saved Snapshot.
+pub(crate) struct LiveSamples {
+    pub(crate) accepted: BTreeMap<String, u64>,
+    batches: BTreeMap<(String, String), Vec<RecordBatch>>,
 }
 
 /* === Enums === */
@@ -116,6 +122,31 @@ impl SampleReads {
 }
 
 impl Store {
+    /// Capture Saved and Pending Samples Together Without Flushing or Losing Read Cancellation.
+    pub fn live_read_session(&self) -> Result<(Self, ReadCancellation)> {
+        let _connection = self.lock()?;
+        let (mut session, cancellation) = self.read_session()?;
+        // Establish SQLite's Snapshot Before a Flush Can Catalog and Release Its Pending Batches.
+        session.lock()?.query_row("SELECT COUNT(*) FROM executions", [], |_| Ok(()))?;
+        let intake = self.intake()?;
+        session.live_samples = Some(Arc::new(LiveSamples {
+            accepted: intake.accepted.clone(),
+            batches: intake.pending.iter().map(|(key, pending)| (key.clone(), pending.batches.clone())).collect(),
+        }));
+        Ok((session, cancellation))
+    }
+
+    fn pending_batches(&self, execution: &str, stream: &str) -> Result<Vec<RecordBatch>> {
+        let key = (execution.to_owned(), stream.to_owned());
+        if let Some(samples) = &self.live_samples {
+            return Ok(samples.batches.get(&key).cloned().unwrap_or_default());
+        }
+        if self.cancelled.is_some() {
+            return Ok(Vec::new());
+        }
+        Ok(self.intake()?.pending.get(&key).map(|pending| pending.batches.clone()).unwrap_or_default())
+    }
+
     /// Retain Original Source Blocks Through the Library's Bounded Spill Tables for This Request Only.
     pub fn reuse_sample_reads(&mut self) -> Result<()> {
         if self.cancelled.is_none() {
@@ -135,25 +166,13 @@ impl Store {
     pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
         let connection = self.lock()?;
         let (saved,partial):(u64,Option<u64>)=connection.query_row("SELECT COALESCE(MAX(CASE WHEN b.last_position<=?4 THEN b.last_position END),0),MIN(CASE WHEN b.last_position>?4 THEN b.first_position END) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 AND f.stream=?2 AND b.last_position>?3 AND b.first_position<=?4",params![execution,stream,after as i64,through.min(i64::MAX as u64) as i64],|row|Ok((row.get::<_,i64>(0)? as u64,row.get::<_,Option<i64>>(1)?.map(|v|v as u64))))?;
-        let intake = self.intake()?;
-        let pending = if self.cancelled.is_none() {
-            intake
-                .pending
-                .get(&(execution.into(), stream.into()))
-                .map(|pending| {
-                    pending
-                        .batches
-                        .iter()
-                        .flat_map(|batch| positions(batch).values().iter().copied())
-                        .filter(|position| *position > after && *position <= through)
-                        .max()
-                        .unwrap_or(0)
-                })
-                .unwrap_or(0)
-        } else {
-            0
-        };
-        drop(intake);
+        let pending = self.pending_batches(execution, stream)?;
+        let pending = pending
+            .iter()
+            .flat_map(|batch| positions(batch).values().iter().copied())
+            .filter(|position| *position > after && *position <= through)
+            .max()
+            .unwrap_or(0);
         drop(connection);
         let mut frontier = saved.max(pending);
         if let Some(first) = partial {
@@ -213,16 +232,8 @@ impl Store {
             )?
             .collect::<result::Result<Vec<_>, _>>()?;
         drop(query);
-        let tail = if self.cancelled.is_none() {
-            self.intake()?
-                .pending
-                .get(&(selection.execution.into(), selection.stream.into()))
-                .map(|pending| pending.batches.iter().map(|batch| tail(batch, &selection)).collect::<Result<Vec<_>>>())
-                .transpose()?
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
+        let batches = self.pending_batches(selection.execution, selection.stream)?;
+        let tail = batches.iter().map(|batch| tail(batch, &selection)).collect::<Result<Vec<_>>>()?;
         let maximum = telemetry.settings.query_bytes.get();
         drop(telemetry);
         drop(connection);

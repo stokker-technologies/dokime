@@ -433,6 +433,72 @@ fn main() {
     let report_times = reports::Times::default();
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(report_times.clone())).unwrap();
     let mut criterion = Criterion::default().configure_from_args();
+    let mut live_group = criterion.benchmark_group("live_visibility");
+    live_group.sample_size(10);
+    live_group.sampling_mode(SamplingMode::Flat);
+    boundary(
+        "Live Visibility, 128 Streams at 1 kHz",
+        "sixteen rows per stream per simulated render frame; one coalesced notification; admission to captured live frontier; no flush",
+    );
+    live_group.throughput(Throughput::Elements(128 * 16));
+    live_group.bench_function("Live Visibility, 128 Streams at 1 kHz", |benchmark| {
+        benchmark.iter_custom(|iterations| {
+            let fixture = Fixture::new();
+            let mut execution = definition();
+            let mut catalog = Declarations::decode(execution.catalog.as_slice()).unwrap();
+            let declaration = catalog.streams.remove(0);
+            catalog.streams = (0..128)
+                .map(|index| StreamDeclaration {
+                    id: format!("signal.{index}"),
+                    ..declaration.clone()
+                })
+                .collect();
+            execution.identifier = "live".into();
+            execution.catalog = catalog.encode_to_vec();
+            fixture.store.create(&execution).unwrap();
+            let streams = catalog.streams.iter().map(|stream| stream.id.clone()).collect::<Vec<_>>();
+            fixture.store.open_streams("live", &streams).unwrap();
+            let mut changes = fixture.store.subscribe();
+            let mut elapsed = Duration::ZERO;
+            let mut notifications = 0;
+            for frame in 0..iterations {
+                let batches = streams
+                    .iter()
+                    .map(|stream| {
+                        let mut batch = samples(frame as usize * 16, 16);
+                        for sample in &mut batch {
+                            sample.stream = stream.clone();
+                            sample.source_ns = sample.sequence as i64 * 1_000_000;
+                        }
+                        batch
+                    })
+                    .collect::<Vec<_>>();
+                let started = Instant::now();
+                for batch in &batches {
+                    fixture.store.sample_batch("live", batch).unwrap();
+                }
+                if changes.has_changed().unwrap() {
+                    changes.borrow_and_update();
+                    notifications += 1;
+                }
+                let (reader, _cancellation) = fixture.store.live_read_session().unwrap();
+                let through = reader.accepted_frontier("live").unwrap();
+                for stream in &streams {
+                    black_box(reader.sample_frontier("live", stream, 0, through).unwrap());
+                }
+                elapsed += started.elapsed();
+                // Keep Each Measurement Below Flush Pressure Without Charging Cleanup as Latency.
+                fixture.store.flush_samples().unwrap();
+                changes.borrow_and_update();
+            }
+            executor.block_on(fixture.store.shutdown_samples()).unwrap();
+            if env::var_os("DOKIME_BENCH_ONCE").is_some() {
+                println!("Live Notifications | {notifications} | {iterations} frames | {} rows", iterations * 128 * 16);
+            }
+            report(elapsed, iterations)
+        });
+    });
+    live_group.finish();
     let mut group = criterion.benchmark_group("storage");
     group.sample_size(10);
     group.sampling_mode(SamplingMode::Flat);

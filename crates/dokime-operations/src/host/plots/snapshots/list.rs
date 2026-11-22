@@ -162,7 +162,8 @@ pub async fn snapshots_at(
 /* === Private Functions === */
 
 async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
-    let (store, _cancellation) = context.host.store().read_session()?;
+    let live = requests.iter().any(|request| request.window_s.is_some() && request.at.is_none());
+    let (store, _cancellation) = if live { context.host.store().live_read_session()? } else { context.host.store().read_session()? };
     batch(
         &store,
         requests,
@@ -249,6 +250,8 @@ async fn batch(
                 let mut cut = source.cut.clone();
                 if let Some(at) = &request.at {
                     cut.frontier = at.positions[0].sequence;
+                } else if !capturing && request.window_s.is_some() {
+                    cut.frontier = reader.accepted_frontier(&cut.execution.identifier)?;
                 }
                 loop {
                     let envelope = snapshot_prepared(

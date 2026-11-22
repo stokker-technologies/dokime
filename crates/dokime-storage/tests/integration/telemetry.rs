@@ -140,6 +140,39 @@ fn numeric(through: u64) -> NumericWindow<'static> {
 
 /* === Tests === */
 
+#[tokio::test(start_paused = true)]
+async fn live_read_snapshot() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    let mut changes = store.subscribe();
+    store.sample_batch("execution", &fixture::samples(128))?;
+    assert!(changes.has_changed().unwrap());
+    changes.borrow_and_update();
+    assert_eq!(store.metadata("execution")?.frontier, 0);
+
+    let (reader, cancellation) = store.live_read_session()?;
+    let through = reader.accepted_frontier("execution")?;
+    assert_eq!(through, 128);
+    let (finite, _finite_cancellation) = store.read_session()?;
+    assert_eq!(finite.accepted_frontier("execution")?, 0);
+
+    // Flush and Admit Again After Capturing: the Snapshot Retains Each Original Row Exactly Once.
+    store.flush_samples()?;
+    store.sample_batch("execution", &fixture::samples(1))?;
+    assert_eq!(reader.accepted_frontier("execution")?, through);
+    let rows = reader.sample_page("execution", "readings", 0, through, NonZeroUsize::new(256).unwrap())?;
+    assert_eq!(rows.len(), 128);
+    assert_eq!(rows.iter().map(|row| row.position).collect::<Vec<_>>(), (1..=128).collect::<Vec<_>>());
+    assert_eq!(reader.sample_frontier("execution", "readings", 0, through)?, through);
+    assert_eq!(reader.numeric_bounds("execution", "readings", "value", through)?, Some((0, 127)));
+    drop(cancellation);
+    assert!(reader.sample_page("execution", "readings", 0, through, NonZeroUsize::new(256).unwrap()).is_err());
+    store.shutdown_samples().await?;
+    Ok(())
+}
+
 #[test]
 fn cartesian_display_budget_counts_vertices_without_time_bucket_reduction() -> Result<()> {
     let root = tempfile::tempdir()?;

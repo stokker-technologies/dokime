@@ -83,6 +83,7 @@ pub struct Store {
     pub(crate) summaries: Option<Arc<Mutex<SummaryReads>>>,
 
     pub(crate) sample_reads: Option<Arc<telemetry::SampleReads>>,
+    pub(crate) live_samples: Option<Arc<telemetry::LiveSamples>>,
 
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
@@ -273,6 +274,7 @@ impl Store {
             cancelled: None,
             summaries: None,
             sample_reads: None,
+            live_samples: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
@@ -312,6 +314,7 @@ impl Store {
             cancelled: Some(cancelled.clone()),
             summaries: Some(self.summaries.clone().unwrap_or_else(|| Arc::new(Mutex::new(BTreeMap::new())))),
             sample_reads: self.sample_reads.clone(),
+            live_samples: self.live_samples.clone(),
             statistics: self.statistics.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),
