@@ -124,7 +124,7 @@ public class Context
     =>
     throw new InvalidOperationException("Subscribe to Samples: Upgrade the Library to Provide Scoped Sample Demand, Cancellation and Subscription Close");
   internal Task<TResponse> CallAsync<TRequest, TResponse>(Harmos.Plugins.Operation<TRequest, TResponse> operation, TRequest request)
-    where TRequest : Google.Protobuf.IMessage<TRequest>, new() where TResponse : Google.Protobuf.IMessage<TResponse>, new() => Transport.CallAsync(operation, request);
+    where TRequest : Google.Protobuf.IMessage<TRequest>, new() where TResponse : Google.Protobuf.IMessage<TResponse>, new() => Transport.Operation(operation, request);
 }
 
 public interface StreamSubscription<T> : IAsyncEnumerable<SampleRow<T>>, IAsyncDisposable;

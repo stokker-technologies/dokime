@@ -175,7 +175,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         }
         catch (SdkError error)
         {
-          throw new PluginFailureException(error.Failure.ToWire());
+          throw new OperationException(error.Failure.ToWire());
         }
         return new StepsExecuteResponse();
       });
@@ -197,7 +197,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         }
         catch (SdkError error)
         {
-          throw new PluginFailureException(error.Failure.ToWire());
+          throw new OperationException(error.Failure.ToWire());
         }
       });
     }
@@ -232,7 +232,7 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
         raw.Scope();
         throw new ArgumentException($"{definition.Materialize}: Materialization Requires No Execution Scope");
       }
-      catch (PluginFailureException error) when (error.Failure.Code == "scope_required") { }
+      catch (OperationException error) when (error.Failure.Code == "scope_required") { }
       if (request.Template != name)
         throw new ArgumentException($"{definition.Materialize}: Materialization Requires the Named Template and No Execution Scope");
       var result = testCase.Clone();

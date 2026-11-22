@@ -66,7 +66,7 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
       }
       catch (SdkError error)
       {
-        throw new Harmos.PluginFailureException(error.Failure.ToWire());
+        throw new Harmos.OperationException(error.Failure.ToWire());
       }
     });
   }

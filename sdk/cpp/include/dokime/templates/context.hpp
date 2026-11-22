@@ -181,7 +181,7 @@ private:
   template <class Q, class R>
   harmos::plugin::Call<R> call(const harmos::plugin::Operation<Q, R> &operation, const Q &request,
                                std::optional<harmos::OperationPolicy> policy = {}) {
-    return transport_.call(operation, request, std::move(policy));
+    return transport_.operation(operation, request, std::move(policy));
   }
   template <class Q, class R>
   harmos::plugin::Watching<R> watch(const harmos::plugin::Operation<Q, R> &operation, const Q &request, std::size_t max_item_bytes) {

@@ -89,7 +89,7 @@ internal sealed class Wire(CallInvoker calls)
       await call.RequestStream.CompleteAsync();
       var failure = Field<Failure?>(terminal, "failure");
       if (failure is not null)
-        throw new PluginFailureException(failure);
+        throw new OperationException(failure);
       return (T)new T().Descriptor.Parser.ParseFrom(Field<ByteString>(terminal, "payload"));
     }
     throw new InvalidOperationException("Invoke: Missing Unary Operation Response");

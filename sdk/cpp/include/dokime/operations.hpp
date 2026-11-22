@@ -298,7 +298,7 @@ public:
           if (policy)
             selected.policy(std::move(*policy));
           const auto native = selected.native(context.plugin_);
-          const auto result = context.transport_.call(native, templates::detail::pack<Q>(request)).get();
+          const auto result = context.transport_.operation(native, templates::detail::pack<Q>(request)).get();
           return templates::detail::unpack<R>(result);
         }) {}
   R operator()(const Q &request, std::optional<OperationPolicy> policy = {}) {

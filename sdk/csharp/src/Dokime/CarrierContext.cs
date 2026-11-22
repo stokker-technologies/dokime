@@ -15,9 +15,9 @@ internal sealed class Context(Harmos.Plugins.Context transport)
   {
     try
     {
-      return await transport.CallAsync(operation, request, policy, cancellationToken);
+      return await transport.Operation(operation, request, policy, cancellationToken);
     }
-    catch (Harmos.PluginFailureException error)
+    catch (Harmos.OperationException error)
     {
       throw new SdkError(Failure.FromWire(error.Failure), cause: error);
     }

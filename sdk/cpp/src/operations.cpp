@@ -83,7 +83,7 @@ string Context::secret(const string &identifier) {
   SecretsGetRequest request;
   request.set_name(identifier);
   const Operation<SecretsGetRequest, SecretsGetResponse> operation("dokime.host.v1.Secrets/Get", VISIBILITY_PUBLIC);
-  return transport_.call(operation, request).get().secret();
+  return transport_.operation(operation, request).get().secret();
 }
 SettingValue Settings::encode(duration<double> value) {
   SettingValue result;

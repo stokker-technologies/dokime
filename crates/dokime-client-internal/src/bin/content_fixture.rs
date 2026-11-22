@@ -229,7 +229,7 @@ fn main() -> Result<()> {
 
 async fn revisioned_progress(ctx: &Context) -> Result<()> {
     // Establish the Whole Value and Replay Its Original Receipt
-    let Wire(initial) = ctx.call(Wire(ProgressGetRequest::default())).await?;
+    let Wire(initial) = ctx.operation(Wire(ProgressGetRequest::default())).await?;
     let first = ExecutionProgressValue {
         completed: 1,
         total: 2,
@@ -241,14 +241,14 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
         expected_revision: initial.revision.clone(),
         ..Default::default()
     };
-    let Wire(saved) = ctx.call(Wire(request)).await?;
+    let Wire(saved) = ctx.operation(Wire(request)).await?;
     let request = ProgressSetRequest {
         request_id: "first".into(),
         value: Some(first.clone()),
         expected_revision: initial.revision.clone(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0)? != saved {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0)? != saved {
         return Err(Error::Invalid("Set Progress: Replay Lost Its Original Receipt".into()));
     }
     let mut changed = first.clone();
@@ -259,7 +259,7 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
         expected_revision: initial.revision.clone(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0).is_ok() {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0).is_ok() {
         return Err(Error::Invalid("Set Progress: Changed Request Payload Was Accepted".into()));
     }
     let request = ProgressSetRequest {
@@ -268,7 +268,7 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
         expected_revision: initial.revision.clone(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0).is_ok() {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0).is_ok() {
         return Err(Error::Invalid("Set Progress: Stale Revision Was Accepted".into()));
     }
 
@@ -293,8 +293,8 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
         prompt_type: "content.continue".into(),
         ..Default::default()
     };
-    ctx.call(Wire(request)).await?;
-    let Wire(current) = ctx.call(Wire(ProgressGetRequest::default())).await?;
+    ctx.operation(Wire(request)).await?;
+    let Wire(current) = ctx.operation(Wire(ProgressGetRequest::default())).await?;
     let second = ExecutionProgressValue {
         completed: 2,
         total: 2,
@@ -306,14 +306,14 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
         expected_revision: current.revision,
         ..Default::default()
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
     let request = ProgressSetRequest {
         request_id: "first".into(),
         value: Some(first),
         expected_revision: initial.revision,
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0)? != saved {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0)? != saved {
         return Err(Error::Invalid("Set Progress: Later Writes Changed an Earlier Receipt".into()));
     }
     Ok(())
@@ -326,7 +326,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
 
         ..Default::default()
     };
-    let Wire(initial) = ctx.call(Wire(request)).await?;
+    let Wire(initial) = ctx.operation(Wire(request)).await?;
     let first = TraceabilityEntry {
         metadata: Some(Metadata {
             identifier: "serial".into(),
@@ -348,7 +348,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "serial".into(),
         ..Default::default()
     };
-    let Wire(saved) = ctx.call(Wire(request)).await?;
+    let Wire(saved) = ctx.operation(Wire(request)).await?;
     let request = TraceabilitySetRequest {
         request_id: "first".into(),
         value: Some(first.clone()),
@@ -356,7 +356,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "serial".into(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0)? != saved {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0)? != saved {
         return Err(Error::Invalid("Set Traceability: Replay Lost Its Original Receipt".into()));
     }
     let mut changed = first.clone();
@@ -368,7 +368,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "serial".into(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0).is_ok() {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0).is_ok() {
         return Err(Error::Invalid("Set Traceability: Changed Request Payload Was Accepted".into()));
     }
     let request = TraceabilitySetRequest {
@@ -378,7 +378,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "serial".into(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0).is_ok() {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0).is_ok() {
         return Err(Error::Invalid("Set Traceability: Stale Revision Was Accepted".into()));
     }
     let request = TraceabilityGetRequest {
@@ -386,7 +386,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
 
         ..Default::default()
     };
-    let Wire(other) = ctx.call(Wire(request)).await?;
+    let Wire(other) = ctx.operation(Wire(request)).await?;
     let batch = TraceabilityEntry {
         metadata: Some(Metadata {
             identifier: "batch".into(),
@@ -404,13 +404,13 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "batch".into(),
         ..Default::default()
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
     let request = TraceabilityGetRequest {
         entry: Some("serial".into()),
 
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await?.0.revision != saved.revision {
+    if ctx.operation(Wire(request)).await?.0.revision != saved.revision {
         return Err(Error::Invalid("Get Traceability: Another Entry Changed This Revision".into()));
     }
 
@@ -435,7 +435,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         prompt_type: "content.continue".into(),
         ..Default::default()
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
     let second = TraceabilityEntry {
         metadata: Some(Metadata {
             identifier: "serial".into(),
@@ -451,7 +451,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "serial".into(),
         ..Default::default()
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
     let request = TraceabilitySetRequest {
         request_id: "first".into(),
         value: Some(first),
@@ -459,7 +459,7 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
         entry: "serial".into(),
         ..Default::default()
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0)? != saved {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0)? != saved {
         return Err(Error::Invalid("Set Traceability: Later Writes Changed an Earlier Receipt".into()));
     }
     Ok(())
@@ -476,12 +476,12 @@ async fn capture(ctx: &Context) -> Result<()> {
         request_id: "capture/create".into(),
         metadata: Some(metadata.clone()),
     };
-    let Wire(created) = ctx.call(Wire(request)).await?;
+    let Wire(created) = ctx.operation(Wire(request)).await?;
     let request = UploadsCreateRequest {
         request_id: "capture/create".into(),
         metadata: Some(metadata),
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0)? != created {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0)? != created {
         return Err(Error::Invalid("Create Upload: Replay Changed Its Session".into()));
     }
     let upload = created.upload.ok_or_else(|| Error::Invalid("Capture: Missing Upload Writer".into()))?;
@@ -492,14 +492,14 @@ async fn capture(ctx: &Context) -> Result<()> {
         offset: 0,
         data: bytes[..11].to_vec(),
     };
-    let Wire(saved) = ctx.call(Wire(request)).await?;
+    let Wire(saved) = ctx.operation(Wire(request)).await?;
     let request = UploadsAppendRequest {
         request_id: "capture/prefix".into(),
         upload: Some(upload.clone()),
         offset: 0,
         data: bytes[..11].to_vec(),
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0)? != saved {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0)? != saved {
         return Err(Error::Invalid("Append Upload: Replay Changed Its Receipt".into()));
     }
 
@@ -510,21 +510,21 @@ async fn capture(ctx: &Context) -> Result<()> {
         offset: 30,
         data: b"gap".to_vec(),
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0).is_ok() {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0).is_ok() {
         return Err(Error::Invalid("Capture: Offset Gap Was Accepted".into()));
     }
     let request = UploadsResumeRequest {
         request_id: "capture/resume".into(),
         upload: Some(upload.clone()),
     };
-    let Wire(resumed) = ctx.call(Wire(request)).await?;
+    let Wire(resumed) = ctx.operation(Wire(request)).await?;
     let request = UploadsAppendRequest {
         request_id: "capture/stale".into(),
         upload: Some(upload),
         offset: 11,
         data: b"\n".to_vec(),
     };
-    if ctx.call(Wire(request)).await.map(|reply| reply.0).is_ok() {
+    if ctx.operation(Wire(request)).await.map(|reply| reply.0).is_ok() {
         return Err(Error::Invalid("Capture: Stale Writer Was Accepted".into()));
     }
     let upload = resumed.upload.ok_or_else(|| Error::Invalid("Capture: Missing Resumed Writer".into()))?;
@@ -534,7 +534,7 @@ async fn capture(ctx: &Context) -> Result<()> {
         offset: 11,
         data: b"\n".to_vec(),
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
 
     // Publish Verified Content and Attach the Artifact
     let request = UploadsPublishRequest {
@@ -543,7 +543,7 @@ async fn capture(ctx: &Context) -> Result<()> {
         length: bytes.len() as u64,
         sha256: Sha256::digest(bytes).to_vec(),
     };
-    let Wire(published) = ctx.call(Wire(request)).await?;
+    let Wire(published) = ctx.operation(Wire(request)).await?;
     let file = published.upload.ok_or_else(|| Error::Invalid("Capture: Missing Published Content".into()))?;
     let request = ArtifactsCreateRequest {
         request_id: "capture/attach".into(),
@@ -557,7 +557,7 @@ async fn capture(ctx: &Context) -> Result<()> {
         content_type: "text/plain".into(),
         ..Default::default()
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
 
     // Abandon a Separate Upload Without Publishing It
     let metadata = FileMetadata {
@@ -568,13 +568,13 @@ async fn capture(ctx: &Context) -> Result<()> {
         request_id: "abandoned/create".into(),
         metadata: Some(metadata),
     };
-    let Wire(abandoned) = ctx.call(Wire(request)).await?;
+    let Wire(abandoned) = ctx.operation(Wire(request)).await?;
     let upload = abandoned.upload.ok_or_else(|| Error::Invalid("Capture: Missing Abandoned Writer".into()))?;
     let request = UploadsDeleteRequest {
         request_id: "abandoned/delete".into(),
         upload: Some(upload),
     };
-    ctx.call(Wire(request)).await?;
+    ctx.operation(Wire(request)).await?;
     Ok(())
 }
 
