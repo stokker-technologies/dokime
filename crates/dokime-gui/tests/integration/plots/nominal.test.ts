@@ -14,9 +14,11 @@
 import { create } from "@bufbuild/protobuf";
 import {
   ElapsedUnit,
+  EvidenceScopeSchema,
   LineStyle,
   PlotCartesianMode,
   PlotKind,
+  PlotWindowSchema,
   PlotStreamKind,
   Reduction,
   SnapshotsWatchResponseSchema,
@@ -37,12 +39,7 @@ import { onTestFinished, test, vi } from "vitest";
 import { StatsSummaryTable } from "@dokime/plots/components/StatsSummaryTable";
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
-import {
-  mapNativePlotWatchPage,
-  toNativePlotRequest,
-  type NativePlotStreamMessage,
-  type NativePlotStreamUpdate,
-} from "@/lib/api/native-plots";
+import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
 import type { RuntimeThemeFamily, useAppearance } from "@dokime/document/lib/appearance";
 import { ApplicationThemeProvider } from "@dokime/document/lib/application-theme";
@@ -439,7 +436,7 @@ test("Manual All Refresh", async () => {
   await view.choose(6);
   assert.equal(refreshFixture.read.mock.calls.length, 1);
   assert.equal(refreshFixture.read.mock.calls[0][1].length, 2);
-  assert.ok(refreshFixture.read.mock.calls[0][1].every((request: { windowS: number | null }) => request.windowS === null));
+  assert.ok(refreshFixture.read.mock.calls[0][1].every((request: { windowS: number | undefined }) => request.windowS === undefined));
   assert.equal(view.button().disabled, true);
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 1);
@@ -451,7 +448,7 @@ test("Manual All Refresh", async () => {
   const retained = view.states().pulse.payload;
   await act(async () => useSummaryWindowStore.getState().setSummaryWindow("pulse", { from: 0, to: 1 }));
   assert.equal(refreshFixture.read.mock.calls.length, 2);
-  assert.deepEqual(refreshFixture.read.mock.calls[1][1][0].viewport, { from: 0, to: 1 });
+  assert.deepEqual(refreshFixture.read.mock.calls[1][1][0].viewport, create(PlotWindowSchema, { from: 0, to: 1 }));
   assert.equal(view.states().pulse.payload, retained);
   await act(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
@@ -468,7 +465,7 @@ test("Manual All Refresh", async () => {
   assert.equal(view.window().refresh.updatedAt, resizedTime);
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 4);
-  assert.ok(refreshFixture.read.mock.calls[3][1].every((request: { maxPoints: number }) => request.maxPoints === 200));
+  assert.ok(refreshFixture.read.mock.calls[3][1].every((request: { maxPoints: bigint }) => request.maxPoints === 200n));
   await act(async () => complete(snapshotEnvelopes(view.plots)));
   await view.advance();
   assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
@@ -832,17 +829,17 @@ test("Slider Selects Storage Query Range", () => {
   const plots = [plot, { ...plot, plot_id: "current", y: ["current"] }];
   for (const definition of plots) {
     const initial = plotRequestForDocumentPlot(definition, { scope });
-    assert.equal(initial.windowS, null);
+    assert.equal(initial.windowS, undefined);
     for (const option of plotWindowOptions([60, 120])) {
       const request = plotRequestForDocumentPlot(definition, { scope, windowS: option.value });
-      assert.equal(request.windowS, option.value);
+      assert.equal(request.windowS, option.value ?? undefined);
       assert.equal(request.maxPoints, initial.maxPoints);
-      assert.deepEqual(request.scope, scope);
+      assert.deepEqual(request.scope, create(EvidenceScopeSchema, scope));
     }
   }
   const unbounded = { ...plot, display_points: 0 };
   assert.ok((plotRequestForDocumentPlot(unbounded, { scope }).maxPoints ?? 0) > 0);
-  assert.equal(plotRequestForDocumentPlot(unbounded, { scope, windowS: 300 }).maxPoints, 0);
+  assert.equal(plotRequestForDocumentPlot(unbounded, { scope, windowS: 300 }).maxPoints, 0n);
 });
 test("Storage Query Snapshots", () => {
   const recent = hostFrame([100, 101], [[2, 3]], { windowS: 30 });
@@ -1404,10 +1401,7 @@ test("XY Styles Reach the Native Request", () => {
       y: ["northing_m"],
       style,
     } as DocumentViewPlot;
-    const request = plotRequestForDocumentPlot(plot, { scope: null });
-    assert.equal(request.plotType, "xy");
-    assert.equal(request.style, style);
-    const native = toNativePlotRequest(request);
+    const native = plotRequestForDocumentPlot(plot, { scope: null });
     assert.equal(native.plotType, PlotKind.XY);
     assert.equal(
       native.style,
@@ -2178,60 +2172,28 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(absent?.getAttribute("data-valid"), "false");
   assert.equal(absent?.getAttribute("style"), null);
   const field = (name: string) => ({ label: "", kind: { case: "stream" as const, value: { identifier: "readings", field: name } } });
-  const request = toNativePlotRequest({
-    stream: "readings",
-    yKeys: ["value"],
-    plotType: "grid_chart",
-    reduction: "max",
-    grid: {
-      row: field("row"),
-      column: field("column"),
-      frame: field("timestamp"),
-      rows: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.rows : [],
-      columns: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.columns : [],
-      highlights: [],
-      summaryLabel: "Readings",
-    },
-  });
+  const request = plotRequestForDocumentPlot(
+    {
+      ...declaration,
+      stream: "readings",
+      y: ["value"],
+      plot_type: "grid_chart",
+      reduction: "max",
+      grid: {
+        row: field("row"),
+        column: field("column"),
+        frame: field("timestamp"),
+        rows: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.rows : [],
+        columns: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.columns : [],
+        highlights: [],
+        summaryLabel: "Readings",
+      },
+    } as DocumentViewPlot,
+    { scope: null },
+  );
   assert.equal(request.reduction, Reduction.MAX);
   assert.equal(request.grid?.frame?.kind.case, "stream");
   assert.equal(request.grid?.rows[0].key, "sensor");
-});
-
-test("Numeric Expression Maps Preserve Their Wire Order", () => {
-  const request = toNativePlotRequest({
-    stream: "scan",
-    yKeys: [],
-    plotType: "contour",
-    zExpression: {
-      label: "",
-      kind: {
-        case: "transform",
-        value: {
-          kind: { case: "offset", value: -1 },
-          input: {
-            label: "",
-            kind: {
-              case: "transform",
-              value: {
-                kind: { case: "scale", value: 2 },
-                input: { label: "", kind: { case: "stream", value: { identifier: "scan", field: "temperature" } } },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-  const outer = request.zExpression?.kind;
-  assert.ok(outer?.case === "transform");
-  assert.equal(outer.value.kind.case, "offset");
-  assert.equal(outer.value.kind.value, -1);
-  const inner = outer.value.input?.kind;
-  assert.ok(inner?.case === "transform");
-  assert.equal(inner.value.kind.case, "scale");
-  assert.equal(inner.value.kind.value, 2);
-  assert.equal(inner.value.input?.kind.case, "stream");
 });
 
 test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
@@ -2301,10 +2263,10 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
   bars = [...host.querySelectorAll('rect[data-category="a"]')];
   assert.equal(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
   assert.ok(Number(bars[1].getAttribute("x")) >= Number(bars[0].getAttribute("x")) + Number(bars[0].getAttribute("width")) - 1e-9);
-  const request = toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "xy", xyInterval: "sigma" });
+  const request = plotRequestForDocumentPlot({ ...declaration, plot_type: "xy", xy_interval: "sigma" }, { scope: null });
   assert.equal(request.plotType, PlotKind.XY);
   assert.equal(request.xyInterval, XyInterval.SIGMA);
-  assert.equal(toNativePlotRequest({ stream: "values", yKeys: ["value"], plotType: "pie", hole: 0.5 }).hole, 0.5);
+  assert.equal(plotRequestForDocumentPlot({ ...declaration, plot_type: "pie", hole: 0.5 }, { scope: null }).hole, 0.5);
 });
 
 test("Native Columns Reach Trajectory and Categorical Renderers", () => {

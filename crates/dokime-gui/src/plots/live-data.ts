@@ -7,41 +7,49 @@
  * ***
  */
 
-/* === External Imports === */
+/* === Imports === */
 
 import type { EvidenceScope } from "@host/model";
 import { cutKey, type Wire } from "@dokime/plots/lib/rpc/canonical";
 import { failureOf } from "@dokime/plots/lib/notification-details";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 
-/* === Local Imports === */
+import { create } from "@bufbuild/protobuf";
+import { validatedExpression } from "@dokime/plots/expression";
+import { plotType } from "@dokime/plots/lib/api/native-plot-projection";
+import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
+import {
+  AxisScale,
+  FilterOperator,
+  type PlotRequest,
+  BarArrangement,
+  ContourRender,
+  Downsample,
+  FftDetrend,
+  FftWindow,
+  FrequencyLevelUnit,
+  LineStyle,
+  PlotRequestSchema,
+  Reduction,
+  XyInterval,
+} from "@host/model";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { PlotRefreshState } from "@dokime/document/features/cycle/PlotWindowSlider";
-import {
-  fetchNativePlotPayloads,
-  NATIVE_PLOT_MAX_REQUESTS,
-  type NativePlotStream,
-  openNativePlotStream,
-  type PlotPayloadRequestInput,
-} from "@/lib/api/native-plots";
+import { fetchNativePlotPayloads, NATIVE_PLOT_MAX_REQUESTS, type NativePlotStream, openNativePlotStream } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
 import { toast } from "@dokime/plots/lib/notifications";
 import { summaryInFlight } from "@dokime/plots/lib/statistics";
-import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
+import type { DocumentAxisScale, DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
 import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@dokime/plots/live-frames";
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
 
 /* === Constants === */
 
-const GUI_HIDDEN_PLOT_FLUSH_MS = 1_000;
-const GUI_RECONNECT_INITIAL_MS = 1_000;
-const GUI_RECONNECT_MAX_MS = 10_000;
-
-const HIDDEN_PLOT_STREAM_FLUSH_MS = GUI_HIDDEN_PLOT_FLUSH_MS;
-const RECONNECT_INITIAL_MS = GUI_RECONNECT_INITIAL_MS;
-const RECONNECT_MAX_MS = GUI_RECONNECT_MAX_MS;
+const HIDDEN_PLOT_STREAM_FLUSH_MS = 1_000;
+const RECONNECT_INITIAL_MS = 1_000;
+const RECONNECT_MAX_MS = 10_000;
 
 /* === Types === */
 
@@ -229,7 +237,7 @@ export function useLivePlotPayloads({
       return;
     }
 
-    const desired = new Map<string, { plots: DocumentViewPlot[]; requests: PlotPayloadRequestInput[] }>();
+    const desired = new Map<string, { plots: DocumentViewPlot[]; requests: PlotRequest[] }>();
     for (const plots of selectedGroups) {
       const requests = plots.map((plot) => {
         const width = requestedWidths[plot.plot_id]?.[0];
@@ -243,7 +251,7 @@ export function useLivePlotPayloads({
           panelHeight: plot.plot_type === "contour" ? (requestedWidths[plot.plot_id]?.[1] ?? undefined) : undefined,
         });
       });
-      desired.set(JSON.stringify([nativeSession.identity.generation, requests, refreshKey]), { plots, requests });
+      desired.set(cutKey([nativeSession.identity.generation, requests, refreshKey]), { plots, requests });
     }
     for (const [key, dispose] of groupsRef.current) {
       if (desired.has(key)) {
@@ -557,48 +565,100 @@ export function plotRequestForDocumentPlot(
     panelWidth?: number;
     panelHeight?: number;
   },
-): PlotPayloadRequestInput {
-  const maximum = displayPointBudget(plot.display_points);
-  return {
-    plotId: plot.plot_id,
+): PlotRequest {
+  const declared = displayPointBudget(plot.display_points);
+  const maximum = options.windowS == null && declared === 0 ? DEFAULT_PLOT_MAX_POINTS : declared;
+  return create(PlotRequestSchema, {
+    arrangement: plot.arrangement ? (plot.arrangement === "grouped" ? BarArrangement.GROUPED : BarArrangement.STACKED) : undefined,
+    pareto: plot.pareto ?? false,
+    hole: plot.hole ?? undefined,
+    xyInterval: plot.xy_interval ? XyInterval.SIGMA : undefined,
+    render: plot.render === "bands" ? ContourRender.BANDS : ContourRender.CELLS,
+    reduction: plot.reduction ? { mean: Reduction.MEAN, min: Reduction.MIN, max: Reduction.MAX }[plot.reduction] : undefined,
+    grid: plot.grid
+      ? {
+          row: plot.grid.row ? validatedExpression(plot.grid.row) : undefined,
+          column: plot.grid.column ? validatedExpression(plot.grid.column) : undefined,
+          frame: plot.grid.frame ? validatedExpression(plot.grid.frame) : undefined,
+          rows: plot.grid.rows.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
+          columns: plot.grid.columns.map((entry) => ({ ...entry, group: entry.group ?? undefined })),
+          highlights: plot.grid.highlights.map((highlight) => ({
+            row: validatedExpression(highlight.row),
+            column: validatedExpression(highlight.column),
+            label: highlight.label,
+          })),
+          summaryLabel: plot.grid.summaryLabel,
+        }
+      : undefined,
+    panelHeight: options.panelHeight,
+
+    ...(plot.plot_id == null ? {} : { plotId: plot.plot_id }),
+    plotType: plotType(plot.plot_type),
+    style: {
+      line: LineStyle.LINE,
+      points: LineStyle.POINTS,
+      line_points: LineStyle.LINE_POINTS,
+      step: LineStyle.STEP,
+    }[plot.style ?? "line"],
+    xScale: axisScale(plot.x_scale),
+    yScale: axisScale(plot.y_scale),
+    ...(plot.z_expression == null ? {} : { zExpression: validatedExpression(plot.z_expression) }),
+    ...(plot.fft == null
+      ? {}
+      : {
+          fft: {
+            inputSamples: plot.fft.input_samples ?? undefined,
+            sampleRateHz: plot.fft.sample_rate_hz ?? undefined,
+            window: plot.fft.window === "rectangular" ? FftWindow.RECTANGULAR : FftWindow.HANN,
+            detrend: plot.fft.detrend === "none" ? FftDetrend.NONE : FftDetrend.MEAN,
+            levelUnit: {
+              linear: FrequencyLevelUnit.LINEAR,
+              dB: FrequencyLevelUnit.DB,
+              dBu: FrequencyLevelUnit.DBU,
+              dBm: FrequencyLevelUnit.DBM,
+            }[plot.fft.level_unit],
+            includeDc: plot.fft.include_dc,
+            minFrequencyHz: plot.fft.min_frequency_hz ?? undefined,
+            maxFrequencyHz: plot.fft.max_frequency_hz ?? undefined,
+          },
+        }),
+    ...(plot.interval == null
+      ? {}
+      : {
+          interval: {
+            binWidth: plot.interval.bin_width,
+            sigma: plot.interval.sigma,
+            clipToObserved: plot.interval.clip_to_observed,
+          },
+        }),
+    ...(plot.histogram == null
+      ? {}
+      : {
+          histogram: {
+            bins: boundedUint64(plot.histogram.bins, "histogram bins"),
+            unit: plot.histogram.unit ?? undefined,
+          },
+        }),
     stream: plot.stream,
     yKeys: plot.y,
     markerRecordTypes: plot.marker_record_types ?? [],
-    filters: plot.filters ?? [],
-    xKey: plot.x ?? undefined,
-    plotType: plot.plot_type,
-    arrangement: plot.arrangement,
-    pareto: plot.pareto,
-    hole: plot.hole,
-    xyInterval: plot.xy_interval,
-    reduction: plot.reduction,
-    render: plot.render,
-    grid: plot.grid,
-    style: plot.style ?? "line",
-    xScale: plot.x_scale ?? "linear",
-    yScale: plot.y_scale ?? "linear",
-    fft: plot.fft,
-    interval: plot.interval ?? undefined,
-    histogram: plot.histogram ?? undefined,
-    zExpression: plot.z_expression ?? undefined,
-    seriesBy: plot.series_by ?? undefined,
-    xExpression: plot.x_expression ?? undefined,
-    yExpressions: plot.y_expressions ?? [],
-    seriesByExpression: plot.series_by_expression ?? undefined,
-    zStream: plot.z_stream ?? undefined,
-    zField: plot.z_field ?? undefined,
-    unit: plot.unit ?? undefined,
-    // All always has a finite display budget, including declarations asking
-    // for every raw sample. Timed windows keep their declared budget.
-    maxPoints: options.windowS == null && maximum === 0 ? DEFAULT_PLOT_MAX_POINTS : maximum,
-    technique: plot.downsample ?? "auto",
-    windowS: options.windowS ?? null,
-    summaryWindow: options.summaryWindow ?? null,
-    viewport: options.summaryWindow ?? null,
-    panelWidth: options.panelWidth,
-    panelHeight: options.panelHeight,
-    scope: options.scope,
-  };
+    filters: (plot.filters ?? []).map(plotFilter),
+    ...(plot.x == null ? {} : { xKey: plot.x }),
+    ...(plot.series_by == null ? {} : { seriesBy: plot.series_by }),
+    ...(plot.x_expression == null ? {} : { xExpression: validatedExpression(plot.x_expression) }),
+    yExpressions: (plot.y_expressions ?? []).map(validatedExpression),
+    ...(plot.series_by_expression == null ? {} : { seriesByExpression: validatedExpression(plot.series_by_expression) }),
+    ...(plot.z_stream == null ? {} : { zStream: plot.z_stream }),
+    ...(plot.z_field == null ? {} : { zField: plot.z_field }),
+    ...(plot.unit == null ? {} : { unit: plot.unit }),
+    ...(maximum == null ? {} : { maxPoints: boundedPlotPoints(maximum) }),
+    ...(options.windowS == null ? {} : { windowS: boundedWindow(options.windowS) }),
+    ...(options.summaryWindow == null ? {} : { summaryWindow: summaryWindow(options.summaryWindow) }),
+    ...(options.summaryWindow == null ? {} : { viewport: summaryWindow(options.summaryWindow) }),
+    ...(options.panelWidth == null ? {} : { panelWidth: boundedPanelWidth(options.panelWidth) }),
+    scope: options.scope ?? undefined,
+    technique: downsampleTechnique(plot.downsample),
+  });
 }
 
 /** The request budget a plot's declared `display_points` resolves to. */
@@ -612,7 +672,7 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
 /* === Private Functions === */
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
-  return JSON.stringify({ ...plotRequestForDocumentPlot(plot, { scope: null }), maxPoints: displayPointBudget(plot.display_points) });
+  return cutKey({ ...plotRequestForDocumentPlot(plot, { scope: null }), maxPoints: displayPointBudget(plot.display_points) });
 }
 
 function isAbortError(value: unknown): boolean {
@@ -644,4 +704,78 @@ function usePageVisible(): boolean {
   }, []);
 
   return visible;
+}
+
+function plotFilter(value: NonNullable<DocumentViewPlot["filters"]>[number]): Wire<PlotRequest>["filters"][number] {
+  return {
+    expression: validatedExpression(value.expression),
+    operator: filterOperator(value.operator),
+    ...(value.value === undefined ? {} : { value: jsonToNativeValue(value.value) }),
+  };
+}
+
+function downsampleTechnique(value?: DocumentDownsampleTechnique | null): Downsample {
+  return value === "raw" ? Downsample.RAW : value === "min_max" ? Downsample.MIN_MAX : value === "lttb" ? Downsample.LTTB : Downsample.AUTO;
+}
+
+function axisScale(value?: DocumentAxisScale | null): AxisScale {
+  if (value === "log") {
+    return AxisScale.LOG;
+  }
+  if (value === "linear" || value == null) {
+    return AxisScale.LINEAR;
+  }
+  throw new Error(`Unsupported plot axis scale: ${String(value)}`);
+}
+
+function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"]): FilterOperator {
+  const operator = {
+    eq: FilterOperator.EQ,
+    ne: FilterOperator.NE,
+    gt: FilterOperator.GT,
+    gte: FilterOperator.GE,
+    lt: FilterOperator.LT,
+    lte: FilterOperator.LE,
+    contains: FilterOperator.CONTAINS,
+    exists: FilterOperator.EXISTS,
+  }[value];
+  if (operator === undefined) {
+    throw new Error(`Unsupported plot filter operator: ${String(value)}`);
+  }
+  return operator;
+}
+
+function boundedUint64(value: number, label: string): bigint {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new NativeApiLimitError(label, String(value));
+  }
+  return BigInt(value);
+}
+
+function boundedPanelWidth(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 0xffff_ffff) {
+    throw new Error("Native plot panel_width must be a positive 32-bit integer.");
+  }
+  return value;
+}
+
+function boundedPlotPoints(value: number): bigint {
+  if (!Number.isSafeInteger(value) || value < 0 || value > NATIVE_PLOT_MAX_POINTS) {
+    throw new NativeApiLimitError("Plots request", `max_points must be an integer between 0 and ${NATIVE_PLOT_MAX_POINTS}`);
+  }
+  return BigInt(value);
+}
+
+function summaryWindow(window: { from: number; to: number }): { from: number; to: number } {
+  if (!Number.isFinite(window.from) || !Number.isFinite(window.to) || window.from > window.to) {
+    throw new Error("Native plot summary_window must be a finite range with from <= to.");
+  }
+  return { from: window.from, to: window.to };
+}
+
+function boundedWindow(value: number): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error("Native plot window_s must be finite and non-negative.");
+  }
+  return value;
 }

@@ -70,18 +70,25 @@ impl Store {
         if limit == 0 {
             return Err(Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
-        let moments = self.numeric_summary(window)?;
-        let count = moments.count;
-        if count > limit as u64 && technique == Downsample::Lttb && limit < 3 {
+        let boolean = self.boolean_window(window)?;
+        let summary = if boolean {
+            PlotSeriesSummary {
+                count: self.numeric_bins(window)?.iter().map(|bin| bin.count).sum(),
+                ..Default::default()
+            }
+        } else {
+            series_summary(&self.numeric_summary(window)?)?
+        };
+        let count = summary.count;
+        if count > limit as u64 && !boolean && technique == Downsample::Lttb && limit < 3 {
             return Err(Error::Data("supply at least three LTTB vertices or include every selected sample"));
-        }
-        if count > limit as u64 && !matches!(technique, Downsample::Raw | Downsample::Lttb) {
-            return self.time_series_window(window);
         }
         if technique == Downsample::Raw && count > limit as u64 {
             return Err(Error::Data("narrow the raw plot window or select downsampling"));
         }
-        let summary = series_summary(&moments)?;
+        if count > limit as u64 && (boolean || !matches!(technique, Downsample::Raw | Downsample::Lttb)) {
+            return self.time_series_window(window);
+        }
         let schema = Arc::new(Schema::new(vec![
             Field::new("time", DataType::Int64, false),
             Field::new("x", DataType::Float64, false),
@@ -119,6 +126,15 @@ impl Store {
         }
         Ok((column, summary, count))
     }
+    fn boolean_window(&self, window: NumericWindow<'_>) -> Result<bool> {
+        let mut boolean = false;
+        let field = FieldPath::from(format!("values.{}", window.field).as_str());
+        self.evaluated_batches(window, &[window.field.into()], |batch| {
+            boolean = field.field(batch.schema().as_ref())?.data_type() == &DataType::Boolean;
+            Ok(false)
+        })?;
+        Ok(boolean)
+    }
     fn read_numeric_batches(&self, window: NumericWindow<'_>, mut read: impl FnMut(RecordBatch) -> Result<()>) -> Result<()> {
         let mut times = Vec::new();
         let mut values = Vec::new();
@@ -151,6 +167,12 @@ impl Store {
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<Statistics> {
+        if self.boolean_window(*window)? {
+            return Ok(Statistics {
+                count: self.numeric_bins(*window)?.iter().map(|bin| bin.count).sum(),
+                ..Default::default()
+            });
+        }
         let moments = self.numeric_summary(*window)?;
         if moments.count == 0 {
             return Ok(Default::default());
@@ -174,13 +196,25 @@ impl Store {
     #[tracing::instrument(name = "plot.preview", skip_all)]
     pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
-        let moments = self.numeric_summary(window)?;
-        let count = moments.count;
-        let mut points = Vec::with_capacity(bins.len() * 4);
+        let boolean = self.boolean_window(window)?;
+        let summary = if boolean {
+            PlotSeriesSummary {
+                count: bins.iter().map(|bin| bin.count).sum(),
+                ..Default::default()
+            }
+        } else {
+            series_summary(&self.numeric_summary(window)?)?
+        };
+        let count = summary.count;
+        let mut points = Vec::with_capacity(bins.len() * if boolean { 2 } else { 4 });
         for bin in &bins {
             let mut extrema = [(bin.first_ns, bin.first), (bin.min_ns, bin.min), (bin.max_ns, bin.max), (bin.last_ns, bin.last)];
+            if boolean {
+                extrema[1] = extrema[3];
+            }
+            let extrema = if boolean { &mut extrema[..2] } else { &mut extrema[..] };
             extrema.sort_by_key(|point| point.0);
-            for point in extrema {
+            for &point in extrema.iter() {
                 if points.last() != Some(&point) {
                     points.push(point);
                 }
@@ -192,7 +226,6 @@ impl Store {
             y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
-        let summary = series_summary(&moments)?;
         Ok((column, summary, count))
     }
     pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {

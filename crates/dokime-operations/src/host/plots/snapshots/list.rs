@@ -707,6 +707,8 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             let summary_window = NumericWindow { start_ns: from, end_ns: to, ..window };
             let stats = store.numeric_statistics(&summary_window)?;
             payload.summaries.retain(|summary| summary.series_id != field);
+            let std = stats.mean.as_ref().map(|_| stats.stddev);
+            let rms = stats.mean.as_ref().map(|_| store.numeric_rms(&summary_window)).transpose()?;
             payload.summaries.push(PlotSeriesSummary {
                 series_id: field.clone(),
                 count: stats.count,
@@ -714,8 +716,8 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 max: stats.max,
                 mean: stats.mean,
                 median: stats.median,
-                std: (stats.count > 0).then_some(stats.stddev),
-                rms: Some(store.numeric_rms(&summary_window)?),
+                std,
+                rms,
                 window: Some(*request.summary_window.as_ref().unwrap()),
             });
         }
@@ -1108,8 +1110,7 @@ mod tests {
         phase: bool,
     }
 
-    #[tokio::test]
-    async fn xy_display_budget_preserves_samples_and_uses_the_requested_point_count() {
+    fn waveform(period_ns: i64) -> (tempfile::TempDir, Store, Vec<Sample>) {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(root.path()).unwrap();
         let catalog = Declarations {
@@ -1157,10 +1158,10 @@ mod tests {
         let samples = (0..11801)
             .map(|index| Sample {
                 stream: "readings".into(),
-                source_ns: index * 1_000_000,
+                source_ns: index * period_ns,
                 row: Waveform {
                     value: (index as f64 * TAU / 20.0).sin(),
-                    elapsed_s: index as f64 / 1000.0,
+                    elapsed_s: index as f64 * period_ns as f64 / 1e9,
                     phase: index > 1000,
                 }
                 .encode_to_vec(),
@@ -1170,6 +1171,60 @@ mod tests {
             .collect::<Vec<_>>();
         store.sample_batch("execution", &samples).unwrap();
         store.flush_samples().unwrap();
+        (root, store, samples)
+    }
+
+    #[tokio::test]
+    async fn boolean_time_series_reduce_to_states_without_changing_numeric_reduction() {
+        let (_root, store, samples) = waveform(60_000_000_000);
+        let cut = store.cut("execution").unwrap();
+        let (reader, _cancellation) = store.read_session().unwrap();
+        let request = PlotRequest {
+            scope: Some(EvidenceScope {
+                execution_id: Some("execution".into()),
+                ..Default::default()
+            }),
+            stream: "readings".into(),
+            y_keys: vec!["phase".into(), "elapsed_s".into()],
+            plot_type: PlotKind::TimeSeries as i32,
+            max_points: Some(16),
+            summary_window: Some(dokime_protocol::host::plots::PlotWindow { from: 0.0, to: 708000.0 }),
+            ..Default::default()
+        };
+        for technique in [Downsample::Auto, Downsample::MinMax, Downsample::Lttb] {
+            let request = PlotRequest {
+                technique: technique as i32,
+                ..request.clone()
+            };
+            let envelopes = snapshots_at(&reader, &cut, vec![request.clone(), request], 1000, 0, "epoch").await.unwrap();
+            assert_eq!(envelopes[0].payload, envelopes[1].payload);
+            let payload = envelopes[0].payload.as_ref().unwrap();
+            for field in ["phase", "elapsed_s"] {
+                let index = payload.series.iter().position(|series| series.key == field).unwrap();
+                let column = &payload.frame.as_ref().unwrap().series[index];
+                assert!(column.y.len() <= 16);
+                assert_eq!(payload.series[index].raw_points, samples.len() as u64);
+                let summary = payload.summaries.iter().find(|summary| summary.series_id == field).unwrap();
+                assert_eq!(summary.count, samples.len() as u64);
+                if field == "phase" {
+                    assert!(column.y.iter().all(|value| matches!(value.value, Some(0.0 | 1.0))));
+                    assert_eq!(column.y.first().unwrap().value, Some(0.0));
+                    assert_eq!(column.y.last().unwrap().value, Some(1.0));
+                    assert!(summary.mean.is_none());
+                    assert!(summary.rms.is_none());
+                    assert!(summary.std.is_none());
+                } else {
+                    assert_eq!(column.y.first().unwrap().value, Some(0.0));
+                    assert_eq!(column.y.last().unwrap().value, Some(708000.0));
+                    assert_eq!(summary.mean.as_ref().unwrap().kind, Some(value::Kind::Number(354000.0)));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn xy_display_budget_preserves_samples_and_uses_the_requested_point_count() {
+        let (_root, store, samples) = waveform(1_000_000);
         let cut = store.cut("execution").unwrap();
         let (reader, _cancellation) = store.read_session().unwrap();
         for technique in [Downsample::Auto, Downsample::Raw, Downsample::MinMax, Downsample::Lttb] {

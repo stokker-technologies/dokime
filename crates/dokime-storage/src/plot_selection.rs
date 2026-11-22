@@ -86,6 +86,18 @@ impl Store {
         Ok(())
     }
     pub fn plot_selection(&self, cut: &ExecutionCut, request: &PlotRequest) -> Result<PlotSelection> {
+        let mut request = request.clone();
+        if request.stream.is_empty() {
+            request.stream = request
+                .y_expressions
+                .iter()
+                .chain(request.z_expression.iter())
+                .chain(request.x_expression.iter())
+                .filter_map(reference)
+                .find(|(_, record)| !record)
+                .map(|(reference, _)| reference.identifier.clone())
+                .unwrap_or_default();
+        }
         let mut selected = request.clone();
         let grouping = request.series_by_expression.clone().or_else(|| {
             request
