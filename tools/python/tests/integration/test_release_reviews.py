@@ -24,6 +24,7 @@ from unittest.mock import Mock, call, patch
 # isort: split
 
 # Local Imports
+import dokime_tools.ci.review
 from dokime_tools import policy
 from dokime_tools.release import registry, review
 
@@ -127,6 +128,50 @@ class ReleaseReviewsTests(unittest.TestCase):
             merge.side_effect = lambda *args: opened.assert_called_once()
             review.review(directory, settings)
         merge.assert_called_once_with(settings, "release/v0.1.3", "chore(release): prepare v0.1.3")
+
+    def test_pending_success(self) -> None:
+        pending = {"id": 9, "head_sha": "a" * 40, "display_title": "CI / Validation", "status": "in_progress", "conclusion": None}
+        completed = {**pending, "status": "completed", "conclusion": "success"}
+        jobs = [{"name": "Check / CI / Required", "conclusion": "success"}]
+        jobs_for = Mock(return_value=jobs)
+        run_for = Mock(return_value=completed)
+        sleep = Mock()
+        result = dokime_tools.ci.review.github_validation_run([pending], jobs_for, run_for, sleep=sleep, clock=lambda: 0)
+        self.assertEqual(result, (completed, jobs))
+        run_for.assert_called_once_with(9)
+        jobs_for.assert_called_once_with(9)
+        sleep.assert_called_once()
+
+    def test_pending_failure(self) -> None:
+        pending = {"id": 9, "head_sha": "a" * 40, "display_title": "CI / Validation", "status": "in_progress", "conclusion": None}
+        older = {**pending, "id": 8, "status": "completed", "conclusion": "success"}
+        completed = {**pending, "status": "completed", "conclusion": "failure"}
+        jobs_for = Mock()
+        run_for = Mock(return_value=completed)
+        with self.assertRaisesRegex(ValueError, "review run is not green validation"):
+            dokime_tools.ci.review.github_validation_run([older, pending], jobs_for, run_for, sleep=Mock(), clock=lambda: 0)
+        run_for.assert_called_once_with(9)
+        jobs_for.assert_not_called()
+
+    def test_pending_timeout(self) -> None:
+        pending = {"id": 9, "head_sha": "a" * 40, "display_title": "CI / Validation", "status": "queued"}
+        jobs_for, run_for, sleep = Mock(), Mock(), Mock()
+        times = iter([0, 1800])
+        with self.assertRaisesRegex(ValueError, "rerun Release after CI succeeds"):
+            dokime_tools.ci.review.github_validation_run([pending], jobs_for, run_for, sleep=sleep, clock=lambda: next(times))
+        sleep.assert_not_called()
+        run_for.assert_not_called()
+        jobs_for.assert_not_called()
+
+    def test_evidence_identity(self) -> None:
+        pending = {"id": 9, "head_sha": "a" * 40, "display_title": "CI / Validation", "status": "in_progress"}
+        jobs_for = Mock()
+        for changed in ({"id": 10}, {"head_sha": "b" * 40}):
+            with self.subTest(changed=changed), self.assertRaisesRegex(ValueError, "review run identity changed"):
+                dokime_tools.ci.review.github_validation_run(
+                    [pending], jobs_for, Mock(return_value={**pending, **changed}), sleep=Mock(), clock=lambda: 0
+                )
+        jobs_for.assert_not_called()
 
 
 # === Public Functions === #

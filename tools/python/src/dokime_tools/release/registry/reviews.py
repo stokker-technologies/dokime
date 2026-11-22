@@ -64,22 +64,28 @@ def merge(settings: dict, branch: str, title: str) -> None:
 
     # Squash the Release Review
     if settings["provider"] == "github":
-        result = provider.document(
-            settings,
-            f"pulls/{review['number']}/merge",
-            "PUT",
-            {"merge_method": "squash", "commit_title": title, "sha": review["head"]["sha"]},
-        ) or {}
+        result = (
+            provider.document(
+                settings,
+                f"pulls/{review['number']}/merge",
+                "PUT",
+                {"merge_method": "squash", "commit_title": title, "sha": review["head"]["sha"]},
+            )
+            or {}
+        )
         merged = result.get("merged") is True
         sha = result.get("sha")
         endpoint = f"commits/{sha}"
     else:
-        result = provider.document(
-            settings,
-            f"merge_requests/{review['iid']}/merge",
-            "PUT",
-            {"sha": review["sha"], "squash": True, "squash_commit_message": title, "should_remove_source_branch": True},
-        ) or {}
+        result = (
+            provider.document(
+                settings,
+                f"merge_requests/{review['iid']}/merge",
+                "PUT",
+                {"sha": review["sha"], "squash": True, "squash_commit_message": title, "should_remove_source_branch": True},
+            )
+            or {}
+        )
         merged = result.get("state") == "merged"
         sha = result.get("squash_commit_sha")
         endpoint = f"repository/commits/{sha}"
@@ -140,14 +146,17 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
                 raise ValueError("Verify Release Review: review identity or head differs")
             candidates = []
             for candidates_run in runs:
-                if not (dokime_tools.ci.review.github_review_run(candidates_run, pull)):
+                if not dokime_tools.ci.review.github_review_run(candidates_run, pull):
                     continue
                 candidates.append(candidates_run)
 
             def jobs_for(identifier: int) -> list[dict]:
                 return provider.pages(settings, f"actions/runs/{identifier}/jobs?filter=latest", "jobs")
 
-            _, jobs = dokime_tools.ci.review.github_validation_run(candidates, jobs_for)
+            def run_for(identifier: int) -> dict:
+                return provider.document(settings, f"actions/runs/{identifier}")
+
+            _, jobs = dokime_tools.ci.review.github_validation_run(candidates, jobs_for, run_for)
         except (KeyError, TypeError, ValueError) as error:
             raise policy.ToolError(
                 f"Verify Release Review: release PR #{review['number']} head {head} has no green validation: {error}"
@@ -175,6 +184,9 @@ def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
             f"Verify Release Review: release MR !{review['number']} pipeline {pipeline['id']} has no successful {GITLAB_REHEARSAL_JOB} job"
         )
     _same_tree(directory, head, sha)
+
+
+# === Private Functions === #
 
 
 def _same_tree(directory: Path, head: str, merged: str) -> None:
@@ -209,7 +221,5 @@ def _same_tree(directory: Path, head: str, merged: str) -> None:
             "Verify Release Review: the merged tree differs from the rehearsed release review head; update the review and merge again"
         )
 
-
-# === Private Functions === #
 
 # === Entry Point === #
