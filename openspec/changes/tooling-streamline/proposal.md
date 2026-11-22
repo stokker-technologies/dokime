@@ -6,6 +6,21 @@ several tasks serve.
 
 ## Why
 
+## Pinned Protocol Inputs and Bootstrap
+
+The workspace `harmos` dependency revision is the only library pin. Dev and
+nightly generation export `proto` from that git revision with Buf into ignored
+`target/protocol`, alongside freshly staged product inputs. No library proto
+source is tracked by the product. Rust, C#, C++, Python and Buf consume that
+resolved inventory. Check mode compares generated output without rewriting it.
+Pin projection has one owner and precedes lock/tool-environment refresh and
+locked generator execution. SDK installation reuses the profile-aware wheel
+installer, which also owns example-distribution preparation.
+
+Release resolution from the library's published Buf Schema Registry label is
+follow-up work: the owner must provision its organization and token, and the
+library release flow must publish the label. This delivery implements git inputs.
+
 `mise.toml` defines 77 tasks, and `tools/python` holds 77 files and about
 12,650 lines behind them. Ten tasks have no caller. Preparation is spread
 over six tasks, two of which do the same generation. Incremental compilation
