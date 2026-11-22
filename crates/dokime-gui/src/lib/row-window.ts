@@ -23,9 +23,21 @@ export function rowWindow(count: number, pitch: number | null, offset: number, h
   if (!pitch || pitch <= 0) {
     return { after: 0, before: 0, first: 0, last: Math.min(count, UNMEASURED_ROWS) };
   }
-  const first = Math.min(count, Math.max(0, Math.floor(offset / pitch) - OVERSCAN));
-  const last = Math.min(count, Math.max(first, Math.ceil((offset + height) / pitch) + OVERSCAN));
-  return { after: (count - last) * pitch, before: first * pitch, first, last };
+  return fixedRowWindow(count, pitch, offset, height, OVERSCAN);
+}
+
+export function fixedRowWindow(
+  count: number,
+  pitch: number,
+  scrollTop: number,
+  height: number,
+  overscan: number,
+  padding = 0,
+): RowWindow {
+  const offset = Math.max(0, scrollTop - padding);
+  const first = Math.min(count, Math.max(0, Math.floor(offset / pitch) - overscan));
+  const last = Math.min(count, Math.max(first, Math.ceil((offset + height) / pitch) + overscan));
+  return { after: (count - last) * pitch + padding, before: first * pitch + padding, first, last };
 }
 
 /** Measure the row pitch once per layout pass and track the containing scrollport. */

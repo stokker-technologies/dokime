@@ -31,7 +31,8 @@ import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { ConsoleLevel, ConsoleScope, ConsoleState } from "../stores/ui-store";
 import type { ConsoleRecords } from "./console-buffer";
-import { consoleFollowsTail, consoleTailPinned, consoleWindow } from "./console-follow";
+import { fixedRowWindow } from "../lib/row-window";
+import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned } from "./console-follow";
 
 // Local Imports
 
@@ -284,8 +285,9 @@ function RecordWindow({
     if (node && consoleFollowsTail(follow, pinned.current) && tail) node.scrollTop = node.scrollHeight;
   }, [follow, height, tail]);
 
-  const slice = consoleWindow({ count: rows.length, height, overscan: OVERSCAN, rowHeight: ROW_HEIGHT, scrollTop });
+  const slice = fixedRowWindow(rows.length, ROW_HEIGHT, scrollTop, height, OVERSCAN, CONSOLE_LIST_PADDING_PX);
   const visible = rows.slice(slice.first, slice.last);
+  const contentHeight = slice.before + visible.length * ROW_HEIGHT + slice.after;
 
   const onScroll = (event: UIEvent<HTMLDivElement>) => {
     const node = event.currentTarget;
@@ -302,8 +304,8 @@ function RecordWindow({
         {rows.length === 0 ? (
           <p className="px-[var(--shell-inset)] py-2 text-sm text-muted-foreground">{empty}</p>
         ) : (
-          <div className="relative" style={{ height: `${slice.contentHeight}px` }}>
-            <div className="absolute inset-x-0" style={{ top: `${slice.offset}px` }}>
+          <div className="relative" style={{ height: `${contentHeight}px` }}>
+            <div className="absolute inset-x-0" style={{ top: `${slice.before}px` }}>
               {visible.map((record) => (
                 <ConsoleRow key={record.record_id} record={record} />
               ))}

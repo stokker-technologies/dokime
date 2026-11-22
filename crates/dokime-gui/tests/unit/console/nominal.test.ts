@@ -18,6 +18,7 @@ import { afterEach, beforeEach, test, vi } from "vitest";
 // Local Imports
 import type { HubRecord } from "@/lib/types";
 import type { TracePage } from "@/lib/api/native-logs";
+import { fixedRowWindow } from "@/lib/row-window";
 import {
   type ConsoleBuffer,
   type ConsolePage,
@@ -28,7 +29,7 @@ import {
   RETAINED_BUFFERS,
   RETAINED_RECORDS,
 } from "@/shell/console-buffer";
-import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, consoleWindow, FOLLOW_SLACK_PX } from "@/shell/console-follow";
+import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned, FOLLOW_SLACK_PX } from "@/shell/console-follow";
 import { useConsoleRecords } from "@/shell/console-records";
 
 /* === Re-Exports === */
@@ -264,24 +265,23 @@ test("Tail Follow", () => {
   assert.equal(consoleFollowsTail(true, consoleTailPinned(at(BOTTOM))), true);
   assert.equal(consoleFollowsTail(false, true), false);
 
-  // The First and Last Rows Sit Inside the Padding, Never Flush with the Frame
-  const list = { count: 100, height: 200, overscan: 0, rowHeight: 22 };
-  const top = consoleWindow({ ...list, scrollTop: 0 });
-  assert.equal(top.offset, CONSOLE_LIST_PADDING_PX);
-  assert.equal(top.contentHeight, 100 * 22 + 2 * CONSOLE_LIST_PADDING_PX);
+  // The First and Last Rows Are Drawn at the Padded Scroll Limits
+  const top = fixedRowWindow(100, 22, 0, 200, 0, CONSOLE_LIST_PADDING_PX);
+  assert.equal(top.before, CONSOLE_LIST_PADDING_PX);
   assert.deepEqual([top.first, top.last], [0, 10]);
-
-  // Scrolled to the Bottom, the Last Row Is Drawn and Padding Follows It
-  const end = consoleWindow({ ...list, scrollTop: top.contentHeight - 200 });
+  const contentHeight = top.before + (top.last - top.first) * 22 + top.after;
+  assert.equal(contentHeight, 100 * 22 + 2 * CONSOLE_LIST_PADDING_PX);
+  const end = fixedRowWindow(100, 22, contentHeight - 200, 200, 0, CONSOLE_LIST_PADDING_PX);
   assert.equal(end.last, 100);
-  assert.equal(end.offset + (end.last - end.first) * 22 + CONSOLE_LIST_PADDING_PX, end.contentHeight);
+  assert.equal(end.after, CONSOLE_LIST_PADDING_PX);
+  assert.equal(end.before + (end.last - end.first) * 22 + end.after, contentHeight);
 
   // An Empty List Draws Nothing and Keeps Its Padding
-  assert.deepEqual(consoleWindow({ ...list, count: 0, scrollTop: 0 }), {
+  assert.deepEqual(fixedRowWindow(0, 22, 0, 200, 0, CONSOLE_LIST_PADDING_PX), {
     first: 0,
     last: 0,
-    contentHeight: 2 * CONSOLE_LIST_PADDING_PX,
-    offset: CONSOLE_LIST_PADDING_PX,
+    after: CONSOLE_LIST_PADDING_PX,
+    before: CONSOLE_LIST_PADDING_PX,
   });
 });
 

@@ -15,7 +15,6 @@
  * up releases the tail; reaching the bottom again, or "Jump to Latest", takes
  * it back.
  *
- * Pure: no React, no path aliases, so the Node test runner imports it as is.
  */
 
 /* === Imports === */
@@ -39,18 +38,6 @@ export type ScrollMetrics = {
   scrollTop: number;
 };
 
-/** The rows a fixed-pitch list draws for one scroll position. */
-export type ConsoleWindow = {
-  /** First drawn row index, inclusive. */
-  first: number;
-  /** Last drawn row index, exclusive. */
-  last: number;
-  /** The scrolled content height, padding included. */
-  contentHeight: number;
-  /** Where the first drawn row sits inside the content. */
-  offset: number;
-};
-
 /* === Classes === */
 
 /* === Public Functions === */
@@ -68,38 +55,6 @@ export function consoleTailPinned({ clientHeight, scrollHeight, scrollTop }: Scr
  */
 export function consoleFollowsTail(follow: boolean, pinnedAtLastScroll: boolean): boolean {
   return follow && pinnedAtLastScroll;
-}
-
-/**
- * The slice of `count` rows of `rowHeight` a viewport of `height` shows at
- * `scrollTop`, with `overscan` rows on each side. The padding sits inside the
- * scrolled content, so the first and last rows never touch the frame and the
- * row arithmetic stays exact.
- */
-export function consoleWindow({
-  count,
-  height,
-  overscan,
-  padding = CONSOLE_LIST_PADDING_PX,
-  rowHeight,
-  scrollTop,
-}: {
-  count: number;
-  height: number;
-  overscan: number;
-  padding?: number;
-  rowHeight: number;
-  scrollTop: number;
-}): ConsoleWindow {
-  const rowsTop = Math.max(0, scrollTop - padding);
-  const first = Math.max(0, Math.floor(rowsTop / rowHeight) - overscan);
-  const last = Math.min(count, Math.ceil((rowsTop + height) / rowHeight) + overscan);
-  return {
-    first: Math.min(first, count),
-    last: Math.max(Math.min(first, count), last),
-    contentHeight: count * rowHeight + 2 * padding,
-    offset: padding + first * rowHeight,
-  };
 }
 
 /* === Private Functions === */
