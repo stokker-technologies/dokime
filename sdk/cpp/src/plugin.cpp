@@ -459,7 +459,13 @@ harmos::plugin::Plugin Plugin::compose() const {
   registrar.add(Operation<Empty, Empty>(identifier_ + ".initialize", VISIBILITY_PROTECTED,
                                         [plugin = plugin_](harmos::plugin::Context &transport, const Empty &) {
                                           operations::Context context(transport, plugin);
-                                          context.plugin().initialize(context);
+                                          try {
+                                            plugin->activate(context);
+                                            context.plugin().initialize(context);
+                                          } catch (...) {
+                                            plugin->close();
+                                            throw;
+                                          }
                                           return Empty{};
                                         }));
   registrar.add(Operation<Empty, Empty>(identifier_ + ".finalize", VISIBILITY_PROTECTED,
@@ -469,9 +475,11 @@ harmos::plugin::Plugin Plugin::compose() const {
                                             context.plugin().finalize(context);
                                           } catch (...) {
                                             executions->clear();
+                                            plugin->close();
                                             throw;
                                           }
                                           executions->clear();
+                                          plugin->close();
                                           return Empty{};
                                         }));
   if (suites_.suites_size())

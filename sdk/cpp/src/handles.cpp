@@ -318,7 +318,6 @@ void Client::close() {
         registration->listener->close();
         registration->listener.reset();
       }
-      registration->plugin.reset();
     } catch (...) {
       if (!cleanup_failure)
         cleanup_failure = std::current_exception();
@@ -331,6 +330,14 @@ void Client::close() {
         registration->listener.reset();
       }
     }
+    try {
+      if (registration->plugin)
+        registration->plugin->plugin_->close();
+    } catch (...) {
+      if (!cleanup_failure)
+        cleanup_failure = std::current_exception();
+    }
+    registration->plugin.reset();
   }
   state_->closed = true;
   state_->prompt_worker.request_stop();
@@ -909,6 +916,12 @@ RegisteredPlugin Plugins::register_owned(shared_ptr<Plugin> plugin, optional<str
       cleanup_failure = std::current_exception();
     }
     registration->listener.reset();
+    try {
+      registration->plugin->plugin_->close();
+    } catch (...) {
+      if (!cleanup_failure)
+        cleanup_failure = std::current_exception();
+    }
     registration->plugin.reset();
     client_->registrations.erase(identifier);
     if (cleanup_failure)
@@ -997,6 +1010,8 @@ void RegisteredPlugin::unregister() {
       ++binding;
   }
   state_->client->registrations.erase(identifier());
+  if (state_->plugin)
+    state_->plugin->plugin_->close();
   state_->plugin.reset();
   state_->detached = true;
 }
@@ -1006,31 +1021,40 @@ void RegisteredPlugin::wait() {
   state_->listener->wait();
 }
 void Plugin::serve() {
-  if (detail::configuration::environment("HARMOS_HOST_ENDPOINT") || detail::configuration::environment("HARMOS_LAUNCH_TOKEN")) {
-    compose().run();
+  auto serve = [&] {
+    if (detail::configuration::environment("HARMOS_HOST_ENDPOINT") || detail::configuration::environment("HARMOS_LAUNCH_TOKEN")) {
+      compose().run();
+      return;
+    }
+    const auto values = detail::configuration::load();
+    const auto remote =
+        detail::configuration::environment("DOKIME_REMOTE").value_or(values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
+    if (remote.empty()) {
+      compose().run("127.0.0.1:0");
+      return;
+    }
+    ConnectionSettings settings;
+    settings.remote = remote;
+    auto client = connect(settings);
+    // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
+    auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this,
+                                                                         [](Plugin *) {
+                                                                         }),
+                                                      {}, {});
+    registered.wait();
+    client.close();
+  };
+  try {
+    serve();
+  } catch (...) {
+    plugin_->close();
     ShutdownDefaultEventEngine();
-    return;
+    throw;
   }
-  const auto values = detail::configuration::load();
-  const auto remote =
-      detail::configuration::environment("DOKIME_REMOTE").value_or(values.contains("DOKIME_REMOTE") ? values.at("DOKIME_REMOTE") : "");
-  if (remote.empty()) {
-    compose().run("127.0.0.1:0");
-    ShutdownDefaultEventEngine();
-    return;
-  }
-  ConnectionSettings settings;
-  settings.remote = remote;
-  auto client = connect(settings);
-  // The Blocking Entry Borrows Its Author Until the Registered Listener Completes.
-  auto registered = client.plugins().register_owned(shared_ptr<Plugin>(this,
-                                                                       [](Plugin *) {
-                                                                       }),
-                                                    {}, {});
-  registered.wait();
-  client.close();
+  plugin_->close();
   ShutdownDefaultEventEngine();
 }
+
 } // namespace dokime
 
 /* === Private Functions === */

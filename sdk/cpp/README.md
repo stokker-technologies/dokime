@@ -28,6 +28,33 @@ returning a `google::protobuf::Struct`. The library owns JSON conversion, valida
 
 ## Author a Plugin
 
+Declare activation resources with `plugin.resource<RemoteApi>()`, where `RemoteApi`
+derives from `dokime::operations::Resource` and overrides `open(Context &)` and
+`close()`. Handlers call `auto api = ctx.resource<RemoteApi>();` without naming the
+plugin class. The SDK opens each type lazily under a lock once per activation,
+then closes resources in reverse opening order. An unsuccessful `open` owns cleanup
+of its partially initialized state.
+
+Settings use typed classes and synchronous activation snapshots:
+
+```cpp
+class ConnectionSettings : public dokime::operations::Settings {
+public:
+  using Settings::Settings;
+  const std::string api_address = setting<std::string>("api_address", "Remote API Address", "127.0.0.1:30059");
+  const std::chrono::duration<double> dll_timeout = setting<std::chrono::duration<double>>(
+      "dll_timeout", "DLL Host Timeout", std::chrono::seconds(5), std::chrono::seconds(0), std::chrono::seconds(30));
+};
+```
+
+Register with `plugin.settings<ConnectionSettings>()` and read
+`ctx.settings<ConnectionSettings>().dll_timeout`. The inherited constructor loads
+saved values before plugin initialization; Retry or restart refreshes the snapshot.
+Settings use the library's defaults and inclusive bounds. Supported field types are
+`bool`, `std::int64_t`, `double`, `std::string`, and `std::chrono::duration<double>`.
+Choices and required settings await the library contract. Secret declarations and
+`ctx.secret("api_token")` remain independent of resource and settings classes.
+
 ```cpp
 #include <dokime/plugin.hpp>
 

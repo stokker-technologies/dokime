@@ -35,8 +35,11 @@ using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
 using google::protobuf::BoolValue;
 using google::protobuf::Empty;
+using google::protobuf::StringValue;
+using harmos::SettingsDeclarations;
 using harmos::TransportError;
 using harmos::VISIBILITY_PROTECTED;
+using harmos::plugin::SettingsListResponse;
 using std::string;
 
 /* === Macros === */
@@ -72,7 +75,27 @@ TEST_CASE("Failed Initialization Retains Template State for Cleanup and Both Con
       }
     REQUIRE(found);
   }
+  SettingsDeclarations settings;
+  for (const auto &section : description.declarations().sections())
+    if (section.type() == SettingsDeclarations::descriptor()->full_name())
+      REQUIRE(settings.ParseFromString(section.payload()));
+  REQUIRE(settings.values_size() == 2);
+  string saved_address = "127.0.0.1:30059";
+  unsigned reads = 0;
+  host.child = [&](const harmos::plugin::v1::ChildRequest &) {
+    ++reads;
+    SettingsListResponse response;
+    auto &values = *response.mutable_value()->mutable_values();
+    values["api_address"].set_text(saved_address);
+    values["dll_timeout"].mutable_duration()->set_seconds(5);
+    return response.SerializeAsString();
+  };
   host.invoke<Empty>(description.id() + ".initialize", Empty{});
+  REQUIRE(reads == 1);
+  REQUIRE(host.invoke<StringValue>("lifecycle.snapshot", StringValue{}).value() == saved_address);
+  saved_address = "127.0.0.1:30060";
+  REQUIRE(host.invoke<StringValue>("lifecycle.snapshot", StringValue{}).value() == "127.0.0.1:30059");
+  REQUIRE(reads == 1);
   Suites suites;
   for (const auto &section : description.declarations().sections())
     if (section.type() == Suites::descriptor()->full_name())
@@ -110,6 +133,10 @@ TEST_CASE("Failed Initialization Retains Template State for Cleanup and Both Con
   host.invoke<Empty>(description.id() + ".finalize", Empty{});
   const auto finalized = host.invoke<BoolValue>("lifecycle.finalized", BoolValue{});
   REQUIRE(finalized.value());
+  host.invoke<Empty>(description.id() + ".initialize", Empty{});
+  REQUIRE(reads == 2);
+  REQUIRE(host.invoke<StringValue>("lifecycle.snapshot", StringValue{}).value() == saved_address);
+  host.invoke<Empty>(description.id() + ".finalize", Empty{});
   host.stop();
 }
 

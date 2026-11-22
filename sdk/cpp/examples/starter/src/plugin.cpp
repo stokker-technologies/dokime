@@ -27,6 +27,7 @@ using std::string;
 namespace starter_project {
 ExamplePlugin::ExamplePlugin() : Plugin(Plugin::from<ExamplePlugin>("0.1.0")) {
   suite(CaptureSuite::definition());
+  settings<ConnectionSettings>();
   operation(dokime::operations::operation<string, string>("example.echo", Visibility::Public, echo));
 }
 } // namespace starter_project

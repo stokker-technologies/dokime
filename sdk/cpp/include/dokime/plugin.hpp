@@ -83,6 +83,28 @@ public:
   }
   virtual void initialize(operations::Context &) {}
   virtual void finalize(operations::Context &) {}
+  template <class T> Plugin &resource() {
+    static_assert(std::is_base_of_v<operations::Resource, T>, "Declare Resource: Derive From Resource");
+    if (!plugin_->resources.emplace(typeid(T), std::make_shared<detail::ResourceEntry>()).second)
+      throw std::invalid_argument("Declare Resources: List Each Class Once");
+    return *this;
+  }
+  template <class T> Plugin &settings() {
+    static_assert(std::is_base_of_v<operations::Settings, T>, "Declare Settings: Derive From Settings");
+    if (!plugin_->settings
+             .emplace(typeid(T),
+                      [](const harmos::SettingValues &values) {
+                        return std::make_shared<const T>(values);
+                      })
+             .second)
+      throw std::invalid_argument("Declare Settings: List Each Class Once");
+    const T defaults;
+    native_.add([declarations = defaults.declarations()](harmos::plugin::Registrar &registrar) {
+      for (const auto &declaration : declarations)
+        registrar.add(declaration);
+    });
+    return *this;
+  }
   template <class Q, class R> Plugin &operation(const operations::OperationValue<Q, R> &operation) {
     Registrar registrar(native_);
     registrar.add(operation.native(plugin_));
@@ -110,6 +132,8 @@ private:
   friend class operations::Context;
   harmos::Declarations declarations() const;
   friend class Plugins;
+  friend class Client;
+  friend class RegisteredPlugin;
   friend class Cases;
   Plugin &context_operations();
   std::string identifier_;
