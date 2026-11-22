@@ -44,8 +44,11 @@ pub const ID: &str = "dokime.host.v1.evidence.Records/Append";
 
 /* === Public Functions === */
 
-pub async fn handle(resources: &Resources, request: RecordsAppendRequest) -> Result<RecordsAppendResponse> {
+pub async fn handle(resources: &Resources, mut request: RecordsAppendRequest) -> Result<RecordsAppendResponse> {
     if resources.capturing_executions.is_empty() {
+        if request.execution.is_empty() {
+            request.execution = resources.execution.clone();
+        }
         resources.check_action_scope(&request.execution, ID)?;
         return append(resources, request);
     }

@@ -120,6 +120,28 @@ fn observer_records_fan_out_to_two_capturing_executions_only() -> Result<(), Box
                 assert_eq!(record.payload, vec![8, 42]);
             }
         }
+        // Default an Ordinary Operation's Record to Its Trusted Execution Scope.
+        let mut direct = resources.clone();
+        direct.capturing_executions.clear();
+        direct.execution = "unrelated".into();
+        let response = append::handle(
+            &direct,
+            RecordsAppendRequest {
+                kind: "example.direct".into(),
+                request_id: "direct".into(),
+                ..Default::default()
+            },
+        )
+        .await?;
+        assert_eq!(response.ordinal, 1);
+        let selected = RecordsAppendRequest {
+            execution: "first".into(),
+            kind: "example.direct".into(),
+            request_id: "foreign".into(),
+            ..Default::default()
+        };
+        assert!(append::handle(&direct, selected).await.is_err());
+
         host.shutdown().await?;
         Ok(())
     }))
