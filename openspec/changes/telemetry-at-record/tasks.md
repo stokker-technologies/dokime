@@ -3,6 +3,8 @@
 - [x] 2.1 Bind the document expression to Harmos at-or-before time merge for live and sealed evidence; deterministic constructed-stream tests for no qualifying row, exact and duplicate times, record details, aggregates, and existing event filters.
 - [ ] 2.3 Implement and prove nearest-within ties and tolerance edges after the library supplies the capability; keep the Tolerance scenario open.
 - [x] 2.2 Refuse `at` on repeat selectors with the `time_between` diagnostic shape; test.
+- [x] 2.4 Clarify Input A as rows of S WITH field F; filter missing/null F before the library at-or-before merge in its single pass; prove missing-only history and missing measurements after a present value with constructed evidence.
 - [x] 3.1 Harmonized Python, Rust, C# and C++ SDK builders and generated stubs; shipped examples gain event histograms and builder tests.
 - [ ] 3.2 Owner updates authoring skill and product guide examples; worker must not edit docs/.
 - [x] 4.1 Run focused protocol/expression, document and Python tests plus applicable format/lint checks through project tasks after implementation.
+- [x] 4.2 Run focused storage tests, compile storage test targets, format, repository checks and strict validation for the missing-field binding fix.
