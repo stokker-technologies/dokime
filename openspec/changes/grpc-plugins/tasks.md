@@ -5,6 +5,11 @@
 - [x] Wrap Dense Heat Strip Rows at a Minimum Cell Width Without Changing Sparse Rows; Prove Layout and Hover Values and Commit.
 - [x] Pass Focused Host and Plot Tests, Workspace Test-Target Compilation With Desktop Testing, Formatting, Repository and Strict OpenSpec Validation.
 
+## Development Report Freshness
+
+- [x] Watch Report, Plot and Document Sources Through Tauri's Existing Dev Watcher and Regenerate the Embedded Report Before Each Runtime Rebuild.
+- [x] Prove Source-Change Rebuild Ordering and Generation Failure With Fakes; Pass Focused Python Tooling Tests, Formatting and Repository Checks.
+
 ## Heat Strip Live Width and Samples
 
 - [x] Restore Native Live Heat Strip Projection and Prove Cells Draw and Update on a Running Execution Watch.

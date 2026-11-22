@@ -217,6 +217,21 @@ def plugin_paths(arguments: list[str] | None = None) -> list[Path]:
     return plugins
 
 
+def command(environment: Mapping[str, str]) -> list[str]:
+    """Let Tauri Watch Report Sources and Regenerate Their Template Before Each Rust Run."""
+    build: dict[str, object] = {
+        "additionalWatchFolders": [str(ROOT / "packages" / package) for package in ("report", "plots", "document")],
+        # Tauri Prepends `run`; Uv Consumes It Before Invoking the Development Runner.
+        "runner": {
+            "cmd": "uv",
+            "args": ["--no-sync", "--project", str(ROOT / "tools/python"), "python", "-m", "dokime_tools.dev.runtime"],
+        },
+    }
+    if port := environment.get("DOKIME_DEV_PORT"):
+        build["devUrl"] = f"http://127.0.0.1:{int(port)}"
+    return ["node", "node_modules/@tauri-apps/cli/tauri.js", "dev", "--features", "console", "--config", json.dumps({"build": build})]
+
+
 def main(arguments: list[str] | None = None) -> int:
     plugins = plugin_paths(arguments)
     extension = ".exe" if os.name == "nt" else ""
@@ -354,11 +369,8 @@ def main(arguments: list[str] | None = None) -> int:
         owner.processes.remove(server)
 
         # Start Tauri Dev With Vite Live Reload; Closing the Window Ends It
-        command = ["node", "node_modules/@tauri-apps/cli/tauri.js", "dev", "--features", "console"]
-        if port := environment.get("DOKIME_DEV_PORT"):
-            command.extend(["--config", json.dumps({"build": {"devUrl": f"http://127.0.0.1:{int(port)}"}})])
         desktop = owner.start(
-            command,
+            command(environment),
             cwd=GUI,
             env=cargo.compiler_environment("dev", source=environment),
             stdin=sys.stdin,
