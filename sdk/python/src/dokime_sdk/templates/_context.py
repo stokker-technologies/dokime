@@ -11,6 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
+from collections import ChainMap
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from types import MappingProxyType
@@ -20,12 +21,11 @@ from typing import TYPE_CHECKING, cast
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import plugin
 
+# Local Imports
 from .. import operations
 from .._authoring import PromptDeclaration, Record, _Template, prompt
 from .._errors import refused
 from .._evidence import RecordsQuery
-
-# Local Imports
 from .._generated import shared
 from .._generated.shared import (
     Card,
@@ -68,6 +68,7 @@ class Context(operations.Context):
         self._execution = transport.scope()
         self.termination = Termination(termination) if termination is not None else None
         self._template = template
+        self._stream_identities = ChainMap(template._identifiers, owner._streams)
 
     @property
     def execution(self) -> str:

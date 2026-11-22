@@ -14,11 +14,14 @@
 from typing import assert_type
 
 # Third Party Imports
+from google.protobuf.timestamp_pb2 import Timestamp
+from google.protobuf.wrappers_pb2 import Int64Value
+
 # Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
-from dokime_sdk import Case, Client, Cycle, Execution, Outcome, Plugin, Progress, Suite
-from dokime_sdk.operations import Operation, Visibility, declaration, operation
+from dokime_sdk import Case, Client, Cycle, Execution, Gap, Outcome, Plugin, Progress, StreamRow, Suite
+from dokime_sdk.operations import Operation, StreamSubscription, Visibility, declaration, operation
 from dokime_sdk.templates import TestTemplate, criterion, record, step
 
 # Type Checking Imports
@@ -56,6 +59,20 @@ class ExamplePlugin(Plugin):
 
 
 # === Public Functions === #
+
+
+async def subscription_surface(ctx: dokime_sdk.operations.Context, stream: dokime_sdk.templates.Stream[Int64Value]) -> None:
+    subscription = await ctx.subscribe(stream, max_item_bytes=4096)
+    assert_type(subscription, StreamSubscription[Int64Value])
+    async for item in subscription:
+        assert_type(item, StreamRow[Int64Value] | Gap)
+        if isinstance(item, Gap):
+            assert_type(item.missed, int)
+        else:
+            assert_type(item.value, Int64Value)
+            assert_type(item.source, Timestamp)
+            assert_type(item.received, Timestamp)
+    await subscription.close()
 
 
 @operation("example.echo", visibility=Visibility.PUBLIC)

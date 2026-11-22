@@ -184,6 +184,9 @@
 
 - [x] Adopt the Library Typed Subscription Pin and Regenerate All Protocol Projections and Tracked Locks; Repair Forced Rust Callers and Tooling Imports.
 - [ ] Bind Python Typed Live Rows and Explicit Gaps to Library Subscription Demand; Prove Both Timestamps, Independent Close and Scope Cancellation.
+  - [x] Delegate Bound and Explicit Protobuf Streams With the Library Byte Bound; Re-Export Its Live Rows and Gaps and Prove Typed Delivery, Both Timestamps, Window Lag and Independent Close Through the Real Host.
+  - [x] Prove an Explicit Library Context Cancellation Ends the Adapter's Outstanding Read and Iterator.
+  - [ ] Prove Real-Host Scope Cancellation Ends the Iterator; Blocked by Library Revision `9403bbf02`, Whose Python Invocation Teardown Cancels Handler Tasks Without Cancelling Their Context or Waking Outstanding Subscription Reads.
 - [x] Remove the Unused Rust Settings Derive and Migrate Host Duration Reads Directly to the SDK.
 - [x] Complete Pin and Cleanup SDK Units, Integration, Lint, Type and Stub Checks; Focused Rust Proof, Workspace and Consumer Test Compilation, Binding, Supply, Build/Package, Generation Drift, Format, Repository and Strict Change Gates.
 
@@ -198,7 +201,7 @@
   - [x] Bind Explicit Plugin, Suite and TestTemplate Classes, Derived Identities and Labels, Annotated Plain Operations and Separate Contexts; Move Documents, Plots and Parameters to Templates and Delete Replaced Authoring Entry Points.
   - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Initialization With Python-Only Tests.
   - [ ] Complete Typed Stream Subscription and Real-Host Failure/Cancelled Plugin Initialization Finalization, Admission Draining and Repeated Shutdown Proof; the Operation-Encoded Hooks and Their Native Host Invocation Are Implemented.
-  - [ ] Bind Typed Host/Plugin Stream Subscription to the Library's Admitted Demand, Backpressure and Close After Resolving the Live Row Shape and Public Export Ownership.
+  - [x] Bind Typed Host/Plugin Stream Subscription to the Library's Admitted Demand, Backpressure and Close With Native `StreamRow` and `Gap` Root Exports; Real-Host Scope Cancellation Remains in the Locked Python Shape Item.
   - [x] Publish Records From Plugin Observers After the Library Allows Product Call-Context Resources on Scoped Sample Child Calls.
   - [x] Prove Product Failure Classifications, Causes, Identity and Actionable Details From Bound Python Operations.
   - [x] Expose and Prove a Decorated Operation's Immutable Typed Declaration Through `operations.declaration`.
