@@ -441,3 +441,19 @@
 - [x] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
 - [x] Remove the Native C++ Test Freshness Dry Run and Keep Protocol Dependency Handling in CMake; Prove the Native Debug Build and Focused CTest Through the SDK Tasks.
 - [x] Migrate CLI First-Hour and Evidence Export, Desktop Execution-Matrix and Native E2E, and Python Thermal Readback References; Prove Focused CLI, Desktop Acceptance and Runtime Stories.
+
+## Strict Registration Library Adoption
+
+- [x] Pin Cargo and the Python SDK to Library Dev `0217340759d049acff0c62b3ca433fd9470c35a4`; Regenerate Protocol Projections and Refresh Every Tracked Lock Through Generation.
+- [ ] Repair Every Registration Refused by Plugin-Qualified Identifier and Row Schema Validation, Preserving Local Lane and Setting Keys; Python Primitive and Explicit Wrapper Streams Still Declare `google.protobuf` Rows and Need an Owner Decision on Plugin-Owned Schemas.
+- [ ] Prove Focused Runtime Streams and Peer Capture, Python Units and Integration, Host and OBC Plugins, and Four-Language SDK Conformance.
+  - [x] Pass Runtime Stream Units and Peer Stream Capture, Host Plugin Integration, OBC Plugin Tests and C++ Debug SDK Tests.
+  - [x] Pass Installed Python Units and the Two Host-Backed Materialization Cases.
+  - [x] Pass Rust SDK Units and Integration and C# Debug SDK Stories, Builders and Managed/Remote Library Conformance.
+  - [ ] Pass Python Live Subscriptions After Resolving the Rejected Wrapper Row Schema; Keep the Failure Visible.
+  - [ ] Locate or Replace the Requested `streams::burst` Selection; No Such Test Exists in This Checkout or the Pinned Runtime Source.
+- [x] Pass Workspace Test Compilation With Desktop Testing, Generation Drift, Formatting, Repository, Supply, Binding, Unused-Dependency and Strict OpenSpec Gates.
+  - [x] Compile Every Workspace Test Target With Desktop Testing Through `mise run test -- --changed Cargo.toml --no-run`.
+  - [x] Pass Workspace Compiler Checking With Desktop Testing, Generation Drift, Formatting, Repository, Release-Context Binding, Unused-Dependency and Strict OpenSpec Checks.
+  - [x] Repair the Real Supply Failure by Refreshing Both Cargo Locks to `url 2.5.9` and Pass the Supply Gate Without New Exceptions.
+- [x] Reuse the Desktop Execution Matrix's Single Model Module and Prove Its Focused Story in a Separate Commit.

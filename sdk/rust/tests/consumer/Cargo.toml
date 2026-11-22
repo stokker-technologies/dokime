@@ -111,8 +111,8 @@ dokime-protocol = { path = "../../../../crates/dokime-protocol" }
 dokime-runtime = { path = "../../../../crates/dokime-runtime" }
 
 # Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "9403bbf02" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "9403bbf02", default-features = false, features = [
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4", default-features = false, features = [
   "grpc",
 ] }
 
