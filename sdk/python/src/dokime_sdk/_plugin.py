@@ -38,10 +38,11 @@ from dokime_sdk._wire.model.v1.prompts_pb2 import PromptDefinitions
 from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
+from . import _logs
 from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._configuration import load
 from ._connection import connect
-from ._errors import wire_failure
+from ._errors import SdkError, wire_failure
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretsDeclarations, Value
 from ._payloads import message_type, pack
@@ -84,16 +85,23 @@ class Plugin:
     lanes: ClassVar[Sequence[Lane]] = ()
     operations: ClassVar[Sequence[Callable[..., object]]] = ()
     settings: ClassVar[Sequence[dokime_sdk.operations.SettingDeclaration]] = ()
-    secrets: ClassVar[Sequence[dokime_sdk.operations.SecretDeclaration]] = ()
 
     def __init__(self) -> None:
+        _logs.install()
         self.identifier = build_identifier(type(self).__name__, getattr(type(self), "identifier", None), class_name=True)
         self._label = self.label if self.label is not None else build_label(type(self).__name__)
         self._version = self.version if self.version is not None else _distribution_version(type(self))
         self._suites = tuple(bind_suite(item, self.identifier) for item in tuple(self.suites))
         self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
         self._operations = tuple(self.operations)
-        self._secrets = tuple(self.secrets)
+        plugin_methods: dict[str, object] = {}
+        for cls in reversed(type(self).__mro__):
+            plugin_methods.update(vars(cls))
+        self._secrets = tuple(item for item in plugin_methods.values() if isinstance(item, dokime_sdk.operations.Secret))
+        self._resources = tuple(item for item in plugin_methods.values() if isinstance(item, dokime_sdk.operations.Resource))
+        self._resource_locks = {item.identifier: asyncio.Lock() for item in self._resources}
+        self._resource_values: dict[str, object] = {}
+        self._resources_closed = False
         self._settings = tuple(self.settings)
         self._sessions: dict[tuple[str, str], _Session] = {}
         self._ready: dict[tuple[str, str], asyncio.Event] = {}
@@ -111,7 +119,7 @@ class Plugin:
         for index, function in enumerate(self._operations):
             if not isinstance(function, FunctionType) or not hasattr(function, "__dokime_operation__"):
                 raise TypeError("Build Plugin: List Decorated Plain Functions in operations")
-            definition = dokime_sdk.operations.declaration(cast(Any, function))
+            definition = cast(dokime_sdk.operations._Operation, vars(function)["__dokime_operation__"])
             identity = build_identifier(function.__name__, definition.identifier, prefix=self.identifier)
             operation_identities.append(identity)
             methods[f"external_{index}"] = dokime_sdk.operations._bind_operation(function, self, identity)
@@ -132,19 +140,7 @@ class Plugin:
                 if hasattr(method, "__dokime_stream__"):
                     methods[f"stream_{index}_{position}"] = self._stream(template, name, method)
         self._streams: dict[int, str] = {}
-        plugin_methods: dict[str, object] = {}
-        for cls in reversed(type(self).__mro__):
-            plugin_methods.update(vars(cls))
-        handlers = [*self._operations, *plugin_methods.values()]
-        for template in templates:
-            handlers.extend(template._methods.values())
-            handlers.extend(item.handler for item in template.steps)
-            handlers.extend(item.handler for item in template.criteria)
-        owners = [type(self), *(template.instance for template in templates)]
-        requires = (
-            *(host_requirement(item) for item in HostOperation),
-            *dokime_sdk.operations._requirements(handlers, owners, self._operations),
-        )
+        requires = tuple(host_requirement(item) for item in HostOperation)
         for index, (name, method) in enumerate(plugin_methods.items()):
             declaration = getattr(method, "__dokime_stream__", None)
             if not isinstance(declaration, Stream):
@@ -211,6 +207,8 @@ class Plugin:
                 await self._plugin.run()
             except asyncio.CancelledError:
                 pass
+            finally:
+                await self._close_resources()
             return
         values = load()
         remote = os.environ.get("DOKIME_REMOTE", values.get("DOKIME_REMOTE", ""))
@@ -228,10 +226,13 @@ class Plugin:
         except asyncio.CancelledError:
             pass
         finally:
-            if client is not None:
-                await client.close()
-            elif endpoint is not None:
-                await endpoint.stop()
+            try:
+                if client is not None:
+                    await client.close()
+                elif endpoint is not None:
+                    await endpoint.stop()
+            finally:
+                await self._close_resources()
             if termination is not None:
                 await termination
 
@@ -312,21 +313,24 @@ class Plugin:
             function = handler or template._methods.get(kind)
             arguments: dict[str, object] = {}
             if kind in ("step", "criterion"):
-                identity = getattr(request, kind)
-                function, arguments = session.case.bindings[kind, identity]
+                item_identity = getattr(request, kind)
+                function, arguments = session.case.bindings[kind, item_identity]
                 if function is not handler:
                     raise ValueError(f"{kind.title()} Execution: Item Belongs to Another Operation")
             try:
-                result = function(session.instance, context, **arguments) if function is not None else None
-                if inspect.isawaitable(result):
-                    result = await result
+                result = await _logs.run(context, function, session.instance, context, **arguments) if function is not None else None
                 if kind == "criterion":
                     if not isinstance(result, bool):
                         raise TypeError("Evaluate Criterion: Handler Must Return bool")
                     return CriteriaEvaluateResponse(passed=result)
                 return response_type()
-            except dokime_sdk.operations.FailureError as error:
+            except SdkError as error:
                 raise harmos.FailureError(wire_failure(error.failure)) from error
+            except harmos.FailureError:
+                raise
+            except Exception as error:
+                failure_policy = policy or dokime_sdk.operations.OperationPolicy()
+                raise failure_policy._failure(error, identity, self.identifier) from error
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
@@ -354,25 +358,47 @@ class Plugin:
         sampling = cast(Sampling | None, getattr(method, "__dokime_observer__", None))
 
         async def observe(adapter: object, transport: harmos.plugin.Context) -> Message:
-            instance, context = await self._stream_context(template, transport)
-            result = getattr(instance, name)(context)
-            if inspect.isawaitable(result):
-                result = await result
-            return pack(definition.row, result)
+            try:
+                instance, context = await self._stream_context(template, transport)
+                result = await _logs.run(context, getattr(instance, name), context)
+                return pack(definition.row, result)
+            except SdkError as error:
+                raise harmos.FailureError(wire_failure(error.failure)) from error
+            except harmos.FailureError:
+                raise
+            except Exception as error:
+                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
 
         async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
-            instance, context = await self._stream_context(template, transport)
-            result = getattr(instance, name)(context, window)
-            if inspect.isawaitable(result):
-                result = await result
-            columns = cast(type[Message], sampling.columns if sampling else None)
-            return pack(columns, result)
+            try:
+                instance, context = await self._stream_context(template, transport)
+                result = await _logs.run(context, getattr(instance, name), context, window)
+                columns = cast(type[Message], sampling.columns if sampling else None)
+                return pack(columns, result)
+            except SdkError as error:
+                raise harmos.FailureError(wire_failure(error.failure)) from error
+            except harmos.FailureError:
+                raise
+            except Exception as error:
+                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
 
         async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
-            instance, context = await self._stream_context(template, transport)
-            async for result in getattr(instance, name)(context):
-                row = pack(definition.row, result)
-                await publisher.publish(row)
+            try:
+                instance, context = await self._stream_context(template, transport)
+
+                async def produce() -> None:
+                    async for result in getattr(instance, name)(context):
+                        row = pack(definition.row, result)
+                        await _logs.flush()
+                        await publisher.publish(row)
+
+                await _logs.run(context, produce)
+            except SdkError as error:
+                raise harmos.FailureError(wire_failure(error.failure)) from error
+            except harmos.FailureError:
+                raise
+            except Exception as error:
+                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
 
         if sampling:
             nanoseconds = round(sampling.interval_ms * 1_000_000)
@@ -415,17 +441,53 @@ class Plugin:
             context = dokime_sdk.operations.Context(transport, self)
             try:
                 if name == "initialize":
-                    await self.initialize(context)
+                    self._resources_closed = False
+
+                    async def initialize() -> None:
+                        try:
+                            await self.initialize(context)
+                        except BaseException:
+                            await self._close_resources()
+                            raise
+
+                    await _logs.run(context, initialize)
                 else:
-                    await self.finalize(context)
-            except dokime_sdk.operations.FailureError as error:
+
+                    async def finalize() -> None:
+                        try:
+                            await self.finalize(context)
+                        finally:
+                            await self._close_resources()
+
+                    await _logs.run(context, finalize)
+            except SdkError as error:
                 raise harmos.FailureError(wire_failure(error.failure)) from error
+            except harmos.FailureError:
+                raise
+            except Exception as error:
+                identity = f"{self.identifier}.{name}"
+                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
             finally:
                 if name == "finalize":
                     self._sessions.clear()
                     self._ready.clear()
 
         return invoke
+
+    async def _close_resources(self) -> None:
+        self._resources_closed = True
+        failures = []
+        for declaration in reversed(self._resources):
+            async with self._resource_locks[declaration.identifier]:
+                if declaration.identifier not in self._resource_values:
+                    continue
+                value = self._resource_values.pop(declaration.identifier)
+                try:
+                    await declaration.close(value)
+                except Exception as error:
+                    failures.append(error)
+        if failures:
+            raise ExceptionGroup("Close Plugin Resources: Resolve the Release Failures, Then Restart", failures)
 
 
 # === Public Functions === #
@@ -455,10 +517,16 @@ def _distribution_version(plugin: type[Plugin]) -> str:
         if direct_url.get("dir_info", {}).get("editable") is not True:
             continue
         url = urlsplit(direct_url["url"])
-        if url.scheme == "file" and source.is_relative_to(Path(url2pathname(url.path)).resolve()):
-            versions.append(distribution.version)
-    if len(versions) == 1:
-        return versions[0]
+        if url.scheme != "file":
+            continue
+        directory = Path(url2pathname(url.path)).resolve()
+        if source.is_relative_to(directory):
+            versions.append((len(directory.parts), distribution.version))
+    if versions:
+        depth = max(depth for depth, _ in versions)
+        nearest = [value for candidate, value in versions if candidate == depth]
+        if len(nearest) == 1:
+            return nearest[0]
     raise ValueError("Build Plugin: Install Its Owning Distribution or Declare version on the Plugin Class")
 
 

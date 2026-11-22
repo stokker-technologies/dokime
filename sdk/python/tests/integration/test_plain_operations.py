@@ -23,7 +23,7 @@ from google.protobuf.descriptor_pb2 import FieldDescriptorProto, FileDescriptorP
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
-from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int64Value, StringValue
+from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue
 from grpc.aio import insecure_channel
 from harmos import VISIBILITY_PROTECTED
 from harmos._columns import columns_type
@@ -40,7 +40,7 @@ from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 # Local Imports
 import dokime_sdk.operations
 from dokime_sdk import Failure, Plugin, Suite
-from dokime_sdk.operations import FailureError, Operation, SettingValue, Visibility, operation
+from dokime_sdk.operations import FailureError, SettingValue, Visibility, operation
 from dokime_sdk.templates import Context, TestTemplate, Window, criterion, observer, prompt, record, step, stream, window_observer
 
 # Type Checking Imports
@@ -217,74 +217,6 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             finally:
                 call.cancel()
         self.assertEqual(events, ["initialize", "finalize"])
-
-    async def test_operations_use_plain_values_over_the_real_carrier(self) -> None:
-        increment_operation = Operation("example.increment", int, int, Visibility.PRIVATE)
-
-        @operation("example.flag", visibility=Visibility.PUBLIC)
-        async def flag(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
-            self.assertIs(ctx.plugin, plugin)
-            self.assertFalse(hasattr(ctx, "execution"))
-            self.assertFalse(hasattr(ctx, "parameters"))
-            return not request
-
-        @operation("example.text", visibility=Visibility.PUBLIC)
-        async def text(ctx: dokime_sdk.operations.Context, request: str) -> str:
-            return request.upper()
-
-        @operation("example.number", visibility=Visibility.PUBLIC)
-        async def number(ctx: dokime_sdk.operations.Context, request: float) -> float:
-            return request * 2
-
-        @operation("example.integer", visibility=Visibility.PUBLIC)
-        async def integer(ctx: dokime_sdk.operations.Context, request: int) -> int:
-            return await ctx.operation(increment_operation)(request)
-
-        @operation("example.increment", visibility=Visibility.PRIVATE)
-        async def increment(ctx: dokime_sdk.operations.Context, request: int) -> int:
-            return request + 1
-
-        @operation("example.structured", visibility=Visibility.PUBLIC)
-        async def structured(ctx: dokime_sdk.operations.Context, request: BoolValue) -> BoolValue:
-            return BoolValue(value=not request.value)
-
-        class PlainPlugin(Plugin):
-            identifier = "example"
-            version = "1.0.0"
-            operations: ClassVar[list[Callable[..., object]]] = [flag, text, number, integer, increment, structured]
-
-        plugin = PlainPlugin()
-        endpoint = await plugin._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.stop)
-        channel = insecure_channel(endpoint.address)
-        self.addAsyncCleanup(channel.close)
-        invoke = channel.stream_stream(
-            "/harmos.plugin.v1.Instance/Invoke",
-            request_serializer=InstanceInvokeRequest.SerializeToString,
-            response_deserializer=InstanceInvokeResponse.FromString,
-        )
-        cases = [
-            ("flag", BoolValue(value=True), BoolValue(value=False)),
-            ("text", StringValue(value="hello"), StringValue(value="HELLO")),
-            ("number", DoubleValue(value=2.125), DoubleValue(value=4.25)),
-            ("integer", Int64Value(value=2**60), Int64Value(value=2**60 + 1)),
-            ("structured", BoolValue(value=False), BoolValue(value=True)),
-        ]
-        for name, request, expected in cases:
-            call = invoke()
-            try:
-                await call.write(
-                    InstanceInvokeRequest(
-                        request=Request(operation=f"example.{name}", payload=request.SerializeToString(), invocation=name, attempt=1)
-                    )
-                )
-                response = await call.read()
-                assert isinstance(response, InstanceInvokeResponse), "Invoke Operation: Expected a Response Before End of Stream"
-                self.assertFalse(response.response.HasField("failure"), response.response.failure)
-                actual = type(expected).FromString(response.response.payload)
-                self.assertEqual(actual, expected)
-            finally:
-                call.cancel()
 
     async def test_author_failures_keep_classification_and_causes_on_the_carrier(self) -> None:
         @operation("example.failure", visibility=Visibility.PUBLIC)

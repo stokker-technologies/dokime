@@ -25,7 +25,6 @@ from zipfile import ZipFile
 from google.protobuf.message import Message
 from grpc import StatusCode
 from grpc.aio import ServicerContext, server
-from harmos._wire.host.v1 import invocations_pb2, operations_pb2
 from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
@@ -46,13 +45,10 @@ from dokime_sdk._wire.host.v1.executions_pb2_grpc import ExecutionsServicer, add
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
 from dokime_sdk._wire.host.v1.files_pb2_grpc import FilesServicer, add_FilesServicer_to_server
-from dokime_sdk._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
-from dokime_sdk._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
 from dokime_sdk._wire.host.v1.prompts import answers_pb2
 from dokime_sdk._wire.host.v1.prompts.answers_pb2_grpc import AnswersServicer, add_AnswersServicer_to_server
 from dokime_sdk._wire.host.v1.prompts_pb2_grpc import PromptsServicer, add_PromptsServicer_to_server
 from dokime_sdk._wire.host.v1.reports_pb2_grpc import ReportsServicer, add_ReportsServicer_to_server
-from dokime_sdk.operations import Operation, Visibility
 
 # Type Checking Imports
 
@@ -307,27 +303,10 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                     data=data[request.offset : request.offset + request.max_bytes], total_length=len(data), sha256=digest
                 )
 
-        operation = Operation("echo", str, str, Visibility.PUBLIC)._definition()
         self.answered = asyncio.Event()
         self.prompts_released = asyncio.Event()
         answered = self.answered
         released = self.prompts_released
-
-        class Operations(OperationsServicer):
-            async def Get(
-                self, request: operations_pb2.OperationsGetRequest, context: ServicerContext
-            ) -> operations_pb2.OperationsGetResponse:
-                trace.append(request)
-                return operations_pb2.OperationsGetResponse(
-                    operation={"contract": {"fingerprint": operation.fingerprint, "visibility": "VISIBILITY_PUBLIC"}}
-                )
-
-        class Invocations(InvocationsServicer):
-            async def Create(
-                self, request: invocations_pb2.InvocationsCreateRequest, context: ServicerContext
-            ) -> invocations_pb2.InvocationsCreateResponse:
-                trace.append(request)
-                return invocations_pb2.InvocationsCreateResponse(payload=request.payload)
 
         class Prompts(PromptsServicer):
             async def Watch(
@@ -367,8 +346,6 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
             (add_FilesServicer_to_server, Files()),
             (add_ReportsServicer_to_server, Reports()),
             (add_UploadsServicer_to_server, Uploads()),
-            (add_OperationsServicer_to_server, Operations()),
-            (add_InvocationsServicer_to_server, Invocations()),
             (add_PromptsServicer_to_server, Prompts()),
             (add_AnswersServicer_to_server, Answers()),
         ):
@@ -541,15 +518,6 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await execution.evidence(), self.data)
         archive = [item for item in self.trace if isinstance(item, evidence_pb2.EvidenceArchiveRequest)]
         self.assertEqual([item.subject.WhichOneof("kind") for item in archive], ["cycle", "execution"])
-
-    async def test_public_operation_validates_then_invokes_and_decodes_plain_values(self) -> None:
-        operation = Operation("echo", str, str, Visibility.PUBLIC)
-        response = await self.client.operation(operation)("value")
-        self.assertEqual(response, "value")
-        self.assertIsInstance(self.trace[-2], operations_pb2.OperationsGetRequest)
-        request = self.trace[-1]
-        assert isinstance(request, invocations_pb2.InvocationsCreateRequest)
-        self.assertEqual((request.operation, request.fingerprint), ("echo", operation._definition().fingerprint))
 
     async def test_prompt_handler_answers_once_and_close_releases_observation(self) -> None:
         questions: list[str] = []

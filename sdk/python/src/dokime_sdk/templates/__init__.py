@@ -18,9 +18,9 @@
 # Local Imports
 from harmos import plugin
 
-from .. import _authoring, _evidence, _values
+from .. import _authoring, _evidence, _parameters, _values
 from .._generated import shared
-from . import _captures, _context, _documents, _parameters, _plots
+from . import _captures, _context, _documents, _plots
 
 # Type Checking Imports
 
@@ -64,7 +64,6 @@ LineField = _captures.LineField
 LineMarker = _captures.LineMarker
 LineMatcher = _captures.LineMatcher
 MirrorCapture = _captures.MirrorCapture
-Severity = _captures.Severity
 StreamCapture = _captures.StreamCapture
 Termination = _values.Termination
 Context = _context.Context
@@ -106,7 +105,6 @@ xy = _plots.xy
 
 # === Types === #
 
-ParameterDefinition = shared.Parameter
 
 # === Classes === #
 

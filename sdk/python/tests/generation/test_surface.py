@@ -11,7 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
-from typing import assert_type
+from typing import Any, assert_type
 
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -21,7 +21,7 @@ from google.protobuf.wrappers_pb2 import Int64Value
 import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Case, Client, Cycle, Execution, Gap, Outcome, Plugin, Progress, StreamRow, Suite
-from dokime_sdk.operations import Operation, StreamSubscription, Visibility, declaration, operation
+from dokime_sdk.operations import StreamSubscription, Visibility, operation
 from dokime_sdk.templates import TestTemplate, criterion, record, step
 
 # Type Checking Imports
@@ -82,7 +82,6 @@ async def echo(ctx: dokime_sdk.operations.Context, request: str) -> str:
 
 
 async def client_surface(client: Client) -> None:
-    assert_type(declaration(echo), Operation[str, str])
     await client.plugins.register(ExamplePlugin())
     cycle = await client.cycle(label="Capture")
     assert_type(cycle, Cycle)
@@ -97,15 +96,13 @@ async def client_surface(client: Client) -> None:
         assert_type(await execution.evidence(), bytes)
     await cycle.seal()
     assert_type(await cycle.evidence(), bytes)
-    assert_type(
-        await client.operation(dokime_sdk.operations.Operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC))(
-            "value"
-        ),
-        str,
-    )
     await client.close()
 
 
 # === Private Functions === #
 
 # === Entry Point === #
+
+
+async def operation_surface(ctx: dokime_sdk.operations.Context) -> None:
+    assert_type(await ctx.operation("example.measure", {"channel": 1}), dict[str, Any])

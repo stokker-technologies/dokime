@@ -47,19 +47,17 @@ PUBLIC_HOMES = {
     # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
     "operations": frozenset(
         [
-            "BoundOperation",
             "Context",
             "FailureError",
-            "Operation",
             "OperationPolicy",
             "Payload",
             "RetryPolicy",
-            "SecretDeclaration",
+            "Resource",
+            "Secret",
             "SettingDeclaration",
             "SettingValue",
             "StreamSubscription",
             "Visibility",
-            "declaration",
             "operation",
         ]
     ),
@@ -95,7 +93,6 @@ PUBLIC_HOMES = {
             "Materialization",
             "MirrorCapture",
             "Parameter",
-            "ParameterDefinition",
             "Plot",
             "PlotStyle",
             "Prompt",
@@ -109,7 +106,6 @@ PUBLIC_HOMES = {
             "SampleRow",
             "SamplesQuery",
             "Section",
-            "Severity",
             "Statistics",
             "Stream",
             "StreamCapture",

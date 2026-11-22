@@ -23,7 +23,6 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from grpc import StatusCode
 from grpc.aio import Channel, ServicerContext, server
 from harmos import OperationPolicy, plugin
-from harmos._wire.host.v1 import invocations_pb2, operations_pb2
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
@@ -44,9 +43,6 @@ from dokime_sdk._wire.host.v1.executions import schemas_pb2
 from dokime_sdk._wire.host.v1.executions.schemas_pb2_grpc import SchemasServicer, add_SchemasServicer_to_server
 from dokime_sdk._wire.host.v1.files import uploads_pb2
 from dokime_sdk._wire.host.v1.files.uploads_pb2_grpc import UploadsServicer, add_UploadsServicer_to_server
-from dokime_sdk._wire.host.v1.invocations_pb2_grpc import InvocationsServicer, add_InvocationsServicer_to_server
-from dokime_sdk._wire.host.v1.operations_pb2_grpc import OperationsServicer, add_OperationsServicer_to_server
-from dokime_sdk.operations import BoundOperation, Operation, Visibility
 from dokime_sdk.templates import Context, Document, Section, Termination, TestTemplate, observer, record, stream
 
 # Type Checking Imports
@@ -65,21 +61,9 @@ class ScopedCarrier(plugin.Context):
         super().__init__(Request(scope="execution", attempt=1), "plugin", {})
         self.channel = channel
 
-    async def call[Q: Message, R: Message](
+    async def _call[Q: Message, R: Message](
         self, operation: plugin.Operation[Q, R], request: Q, *, policy: OperationPolicy | None = None
     ) -> R:
-        if "/" not in operation.id:
-            invoke = self.channel.unary_unary(
-                "/dokime.host.v1.Invocations/Create",
-                request_serializer=invocations_pb2.InvocationsCreateRequest.SerializeToString,
-                response_deserializer=invocations_pb2.InvocationsCreateResponse.FromString,
-            )
-            response = await invoke(
-                invocations_pb2.InvocationsCreateRequest(
-                    operation=operation.id, fingerprint=operation.fingerprint, payload=request.SerializeToString()
-                )
-            )
-            return operation.response.FromString(response.payload)
         invoke = self.channel.unary_unary(
             f"/{operation.id}",
             request_serializer=operation.request.SerializeToString,
@@ -96,7 +80,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.fail_append = False
         self.fail_attach = False
         owner = self
-        self.operation = Operation("example.echo", bool, bool, Visibility.PUBLIC)
 
         class Uploads(UploadsServicer):
             async def Create(
@@ -198,21 +181,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
                     resolved_at={"positions": [{"sequence": 9}]},
                 )
 
-        class Operations(OperationsServicer):
-            async def Get(
-                self, request: operations_pb2.OperationsGetRequest, context: ServicerContext
-            ) -> operations_pb2.OperationsGetResponse:
-                return operations_pb2.OperationsGetResponse(
-                    operation={"contract": {"fingerprint": owner.operation._definition().fingerprint, "visibility": "VISIBILITY_PUBLIC"}}
-                )
-
-        class Invocations(InvocationsServicer):
-            async def Create(
-                self, request: invocations_pb2.InvocationsCreateRequest, context: ServicerContext
-            ) -> invocations_pb2.InvocationsCreateResponse:
-                owner.requests.append(request)
-                return invocations_pb2.InvocationsCreateResponse(payload=request.payload)
-
         class Evidence(EvidenceServicer):
             async def Statistics(
                 self, request: evidence_pb2.EvidenceStatisticsRequest, context: ServicerContext
@@ -239,8 +207,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         add_UploadsServicer_to_server(Uploads(), host)
         add_EvidenceServicer_to_server(Evidence(), host)
         add_DocumentsServicer_to_server(Documents(), host)
-        add_OperationsServicer_to_server(Operations(), host)
-        add_InvocationsServicer_to_server(Invocations(), host)
         add_RecordsServicer_to_server(Records(), host)
         add_SchemasServicer_to_server(Schemas(), host)
         add_ArtifactsServicer_to_server(Artifacts(), host)
@@ -312,13 +278,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await query.last())
         self.assertIs(context.termination, None)
         self.requests.clear()
-        client_call = self.client.operation(self.operation)
-        scoped_call = context.operation(self.operation)
-        self.assertIs(type(client_call), BoundOperation)
-        self.assertIs(type(scoped_call), BoundOperation)
-        self.assertTrue(await client_call(True))
-        self.assertTrue(await scoped_call(True))
-        self.assertEqual(self.requests[0], self.requests[1])
         statistics = await context.statistics(CaptureTestTemplate.voltage)
         self.assertEqual(
             (statistics.count, statistics.min, statistics.max, statistics.mean, statistics.stddev), (3, 1, 2**64 - 1, Fraction(7, 3), 1.25)

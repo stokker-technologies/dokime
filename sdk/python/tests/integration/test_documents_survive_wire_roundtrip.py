@@ -18,7 +18,7 @@ import dokime_sdk.templates
 
 # Third Party Imports
 # Local Imports
-from dokime_sdk.templates import Document, GridAxisEntry, Parameter, Section, Stream, Summary, plot_card, records_card
+from dokime_sdk.templates import Document, GridAxisEntry, Section, Stream, Summary, plot_card, records_card
 
 # Type Checking Imports
 
@@ -100,22 +100,7 @@ class DocumentStory(unittest.TestCase):
 
         self.assertRaises(TypeError, dokime_sdk.templates.xy(reading).reduce, cast(Any, "mean"))
 
-    def test_parameter_plot_card_shorthands_roundtrip(self) -> None:
-        builder = Parameter.number("voltage", "Voltage").unit("V").default(230.0).range(0.0, 300.0)
-        voltage = builder.build()
-        builder.default(120.0)
-        decoded = type(voltage).FromString(voltage.SerializeToString())
-        self.assertEqual(decoded.expression.literal.number, 230.0)
-        self.assertEqual((decoded.min, decoded.max), (0.0, 300.0))
-        self.assertEqual(Parameter.count("samples", "Samples").default(100).build().expression.literal.unsigned_integer, 100)
-        self.assertEqual(Parameter.count("large", "Large").default(2**64 - 1).build().expression.literal.unsigned_integer, 2**64 - 1)
-        self.assertTrue(Parameter.flag("enabled", "Enabled").default(True).build().expression.literal.boolean)
-        sweep = Parameter.sweep("loads", "Loads", [80.0, 100.0]).build()
-        self.assertTrue(sweep.expansion.cartesian)
-        self.assertEqual([value.literal.number for value in sweep.expression.array.values], [80.0, 100.0])
-        ladder = Parameter.list("ladder", "Ladder", float).default([10.0, 20.0]).items(1, 8).build()
-        self.assertEqual([value.number for value in ladder.expression.literal.list.values], [10.0, 20.0])
-        self.assertEqual((ladder.min_items, ladder.max_items), (1, 8))
+    def test_plot_cards_roundtrip(self) -> None:
         line = dokime_sdk.templates.Plot.line("voltage", "Voltage").unit("V").y(dokime_sdk.templates.field("samples", "voltage"))
         card = plot_card(line, columns=6)
         line.message.y.clear()

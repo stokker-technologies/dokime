@@ -24,50 +24,76 @@ reach shared plugin state through `ctx.plugin`.
 registration below its identifier: `LayoutSuite` / `TrackingTestTemplate.status`
 in `ExamplePlugin` registers `example.layout.tracking.status`. Explicit local
 identifiers follow the same rule; `example.status` stays `example.status`.
-`uses_streams`, typed peer operation references and qualified document queries
+`uses_streams` and qualified document queries
 keep their identifiers as written.
 
-## Public Peer Operations
+## Operation Calls
 
-Create `Operation(identifier, Request, Response, Visibility.PUBLIC)` at module
-scope from the callee's generated message types, or import a typed reference
-published by its package. Make the reference available before constructing the
-plugin. Own and peer operations use the same bound call:
+Call operations by identifier with an optional dict using protobuf's standard JSON
+mapping. The host owns JSON conversion, schema validation, operation admission and
+failure wording. Unknown fields are rejected.
 
 ```python
-from peer_package.operations import increment
-
-
-@step("Increment")
-async def increment_peer(self, ctx):
-    result = await ctx.operation(increment)(41)
+@step("Measure")
+async def measure(self, ctx):
+    reply = await ctx.operation("example.measure", {"channel": 1}, policy=None)
 ```
 
-The SDK freezes requirements automatically from handler references, including
-helpers, closures, referenced module/class members and reference collections.
-Authors declare no requirements. Conflicting contracts fail at construction.
-An operation constructed or supplied only after activation requires rebuilding
-and registering the plugin with its typed reference available beforehand.
-The callee must expose the operation as Public. The host preserves execution
-scope and applies the callee's lane, policy, deadline and cancellation. A bound
-call accepts the existing optional `policy=` override for that call alone.
+An omitted request sends an empty object. Replies are dicts. No peer binding or
+request declaration is required. Catch `dokime_sdk.operations.FailureError` and
+read `error.failure` for the host's classification, operation, field expectation
+and recovery action. The callee's operation policy applies unless the call supplies
+an override.
 
-Catch `dokime_sdk.operations.FailureError` around a bound call and inspect
-`error.failure.classification`, `code`, `message`, `action`, `operation`, `plugin`
-and `cause`. These are product failure values, including cancellation and timeout
-classifications; the library's exception does not escape a bound peer call.
+## Standard Logging
 
-Read a decorated function's public contract with `declaration(increment)` from
-`dokime_sdk.operations`. It returns the immutable `Operation` with its identifier,
-request and response Python types, visibility and policy. Publish that value for
-peer consumers to pass to `ctx.operation(...)`.
+Use `log = logging.getLogger(__name__)` and ordinary synchronous `log.debug(...)`,
+`log.info(...)`, `log.warning(...)` or `log.error(...)` calls. While a handler runs,
+records flush to execution evidence before awaited SDK host calls and on return.
+Outside execution scopes, records are written to plugin stderr for host diagnostics.
 
-## Declaration Builders
+## Secrets and Resources
+
+Declare secrets and resources as plugin attributes. Secret reads return UTF-8 text;
+missing or empty values refuse with an action naming the secret to store before Retry.
+Resources open lazily once per activation, serialize concurrent opens, and close
+when the plugin finalizes, including when its finalizer raises.
 
 ```python
-Parameter.text("serial", "Serial").required().build()
-Parameter.list("channels", "Channels", int).default([1, 2]).items(1, 8).build()
-Parameter.choice("mode", "Mode", ["fast", "slow"]).default("fast").build()
+from dokime_sdk.operations import Context, Resource, Secret
+
+
+async def open_remote(ctx: Context) -> Remote:
+    token = await ctx.secret(ConnectionPlugin.api_token)
+    return await Remote.connect(token)
+
+
+async def close_remote(remote: Remote) -> None:
+    await remote.close()
+
+
+class ConnectionPlugin(Plugin):
+    api_token = Secret("Remote API Token")
+    remote = Resource(open=open_remote, close=close_remote)
+```
+
+Handlers use `remote = await ctx.resource(ConnectionPlugin.remote)`. Each declaration
+gets its identifier from its attribute name. Resource open functions receive the
+current context and can read declared secrets or open other declared resources.
+
+## Declarations
+
+```python
+class ConnectionTestTemplate(TestTemplate):
+    serial = Parameter.text("Serial", required=True)
+    channels = Parameter.list("Channels", int, default=[1, 2], min_items=1, max_items=8)
+    mode = Parameter.text("Mode", choices=("fast", "slow"), default="fast")
+
+    @step("Connect")
+    async def connect(self, ctx):
+        serial = ctx.parameter(ConnectionTestTemplate.serial)
+
+
 reading = record(int, identifier="reading")
 Section("Readings").repeat(reading.field(), order_by=reading.field().max()).traceability()
 time_series(field("measurement.samples", "value")).markers("reading")
@@ -91,6 +117,10 @@ while not ctx.stop_requested:
 ```
 
 Cancel still aborts active work.
+
+Handler exceptions become Permanent failures carrying their identity and exception text.
+`OperationPolicy(transient=lambda error: isinstance(error, ConnectionError))` marks
+selected handler exceptions Transient; existing structured failures keep their classification.
 
 Setting bounds are inclusive and use the default's value type. The library
 validates defaults at host admission and every saved write:

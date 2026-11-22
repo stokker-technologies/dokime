@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import asyncio
+import logging
 from datetime import timedelta
 
 # isort: split
@@ -36,6 +37,8 @@ from thermal_example.models import Counter, CounterColumns, Door, Temperature
 
 # === Constants === #
 
+log = logging.getLogger(__name__)
+
 # === Types === #
 
 # === Classes === #
@@ -44,16 +47,16 @@ from thermal_example.models import Counter, CounterColumns, Door, Temperature
 class ThermalCycleTestTemplate(TestTemplate):
     identifier = "cycle"
     label = "Thermal Cycle"
-    parameters = [Parameter.number("limit", "Limit").default(85.0).build()]
+    limit = Parameter.number("Limit", default=85.0)
 
     door = record(Door, label="Door Check")
 
     async def initialize(self, ctx: Context) -> None:
-        limit = ctx.parameters["limit"]
+        limit = ctx.parameter(ThermalCycleTestTemplate.limit)
         if not isinstance(limit, (float, int)):
             raise TypeError("Initialize Thermal Cycle: Limit Must Be Numeric")
-        self.limit = limit
-        await ctx.log("Initialized")
+        self.target_celsius = limit
+        log.info("Initialized")
 
     @step("Ramp to Target", identifier="ramp", policy=OperationPolicy(retries=RetryPolicy(3, timedelta(milliseconds=100))))
     async def ramp(self, ctx: Context) -> None:
@@ -69,7 +72,7 @@ class ThermalCycleTestTemplate(TestTemplate):
     @stream("Temperature [°C]", row=Temperature)
     @observer(interval_ms=1000)
     def temperature(self, ctx: Context) -> Message:
-        return Temperature(celsius=self.limit - 1.0)
+        return Temperature(celsius=self.target_celsius - 1.0)
 
     # A 1 kHz Stream Answers Each Host Window at Once.
     @stream("Exact Counter", row=Counter)
@@ -85,13 +88,13 @@ class ThermalCycleTestTemplate(TestTemplate):
         return (
             stats.count > 0
             and isinstance(maximum, (int, float))
-            and maximum <= self.limit
+            and maximum <= self.target_celsius
             and door is not None
             and door.SerializeToString() == Door(closed=True).SerializeToString()
         )
 
     async def cleanup(self, ctx: Context) -> None:
-        await ctx.log("Cleaned Up")
+        log.info("Cleaned Up")
 
 
 class ThermalSuite(Suite):

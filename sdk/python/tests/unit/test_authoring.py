@@ -17,7 +17,7 @@ import unittest
 from collections.abc import Callable, Mapping
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import ClassVar
 from unittest.mock import Mock, patch
 
 # Third Party Imports
@@ -26,7 +26,7 @@ import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk._generated import shared
-from dokime_sdk.operations import Operation, OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
+from dokime_sdk.operations import OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
 from dokime_sdk.templates import (
     Document,
     Materialization,
@@ -162,8 +162,6 @@ class AuthoringStory(unittest.TestCase):
         self.assertTrue(all(identifier.startswith("example.") for identifier in registered))
         required = {item.id for item in declarations.requires}
         self.assertTrue({"measure", "example.read"}.isdisjoint(required))
-        self.assertEqual(dokime_sdk.operations.declaration(measure).identifier, "measure")
-        self.assertEqual(dokime_sdk.operations.declaration(read).identifier, "example.read")
 
     def test_setting_bounds(self) -> None:
         for minimum, default, maximum, field, expected in (
@@ -187,35 +185,8 @@ class AuthoringStory(unittest.TestCase):
         self.assertFalse(unbounded.HasField("minimum"))
         self.assertFalse(unbounded.HasField("maximum"))
 
-    def test_scalar_list_elements_and_choices_preserve_wire_kinds(self) -> None:
-        for value, kind, field in (
-            (True, shared.VALUE_TYPE_BOOLEAN, "boolean"),
-            (-2, shared.VALUE_TYPE_INTEGER, "integer"),
-            (1.5, shared.VALUE_TYPE_NUMBER, "number"),
-            ("fast", shared.VALUE_TYPE_TEXT, "text"),
-        ):
-            listed = dokime_sdk.templates.Parameter.list("values", "Values", type(value)).default([value]).build()
-            self.assertEqual(listed.element_type, kind)
-            self.assertEqual(listed.expression.literal.list.values[0].WhichOneof("kind"), field)
-            chosen = dokime_sdk.templates.Parameter.choice("mode", "Mode", [value]).default(value).build()
-            self.assertEqual(chosen.type, kind)
-            self.assertEqual(chosen.choices[0].WhichOneof("kind"), field)
-            self.assertEqual(getattr(chosen.expression.literal, field), value)
-
-    def test_declaration_builders_preserve_parameters_and_document_queries(self) -> None:
+    def test_document_queries_preserve_declaration_binding(self) -> None:
         templates = dokime_sdk.templates
-        parameter = templates.Parameter.text("serial", "Serial").required().build()
-        self.assertTrue(parameter.required)
-        self.assertFalse(parameter.HasField("expression"))
-        values = templates.Parameter.list("channels", "Channels", int).default([1, 2]).items(1, 4).build()
-        self.assertEqual([value.integer for value in values.expression.literal.list.values], [1, 2])
-        choices = templates.Parameter.choice("mode", "Mode", ["fast", "slow"]).default("fast").build()
-        self.assertIn(choices.expression.literal, choices.choices)
-        self.assertRaises(ValueError, templates.Parameter.choice("mode", "Mode", ["fast"]).default("other").build)
-        self.assertRaises(ValueError, templates.Parameter.list("channels", "Channels", int).default(["wrong"]).build)
-        self.assertRaises(ValueError, templates.Parameter.choice, "mode", "Mode", [])
-        self.assertRaises(ValueError, templates.Parameter.choice, "mode", "Mode", [True, 1])
-
         declaration = record(int, identifier="reading")
         reading = declaration.field()
         section = Section("Readings").repeat(reading, order_by=reading.max()).traceability()
@@ -292,6 +263,11 @@ class AuthoringStory(unittest.TestCase):
         distributions = patch("dokime_sdk._plugin.distributions", return_value=[unrelated, owning])
         installed = distributions.start()
         self.addCleanup(distributions.stop)
+        self.assertEqual(InstalledPlugin()._version, "2.3.4")
+        parent = Mock()
+        parent.version = "0.1.0"
+        parent.read_text.return_value = json.dumps({"url": Path(__file__).resolve().parents[2].as_uri(), "dir_info": {"editable": True}})
+        installed.return_value = [parent, unrelated, owning]
         self.assertEqual(InstalledPlugin()._version, "2.3.4")
         installed.return_value = [unrelated]
         self.assertRaises(ValueError, InstalledPlugin)
@@ -411,18 +387,15 @@ class AuthoringStory(unittest.TestCase):
         declaration = next(item for item in TypedPlugin().declarations().operations if item.id == "typed.read_voltage")
         self.assertEqual(declaration.request, "google.protobuf.Int64Value")
         self.assertEqual(declaration.response, "google.protobuf.BoolValue")
-        self.assertRaises(TypeError, Operation, "unsupported", bytes, bool, Visibility.PUBLIC)
 
         async def ambiguous(ctx: dokime_sdk.operations.Context, request: int | str) -> bool:
             return True
 
         self.assertRaises(TypeError, operation(visibility=Visibility.PUBLIC), ambiguous)
-        self.assertRaises(TypeError, Operation, "wrong_visibility", int, int, cast(Any, 2))
 
     def test_policy_has_one_retry_source_and_requires_replay_safety(self) -> None:
         policy = OperationPolicy(retries=RetryPolicy(2, timedelta(milliseconds=100)))
         self.assertRaises(ValueError, step, "Measure", retries=1, policy=policy)
-        self.assertRaises(ValueError, Operation, "read", int, int, Visibility.PUBLIC, policy)
         self.assertRaises(ValueError, RetryPolicy, 0, timedelta())
         self.assertRaises(ValueError, OperationPolicy, timeout=timedelta())
 
@@ -439,7 +412,6 @@ class AuthoringStory(unittest.TestCase):
             error = r"measure:.*retries\.initial"
             self.assertRaisesRegex(ValueError, error, step("Measure", policy=policy), measure)
             self.assertRaisesRegex(ValueError, r"evaluate:.*retries\.initial", criterion("Evaluate", policy=policy), evaluate)
-            self.assertRaisesRegex(ValueError, error, Operation, "measure", int, int, Visibility.PUBLIC, policy, replay_safe=True)
 
     def test_operation_and_template_contexts_are_distinct(self) -> None:
         operations = dokime_sdk.operations.Context
@@ -454,7 +426,6 @@ class AuthoringStory(unittest.TestCase):
             "records",
             "statistics",
             "progress",
-            "log",
             "traceability",
             "document",
             "artifact",

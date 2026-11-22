@@ -28,7 +28,6 @@ from harmos.plugin import Endpoint
 import dokime_sdk._generated.client
 
 from ._authoring import _Template
-from ._context import BoundOperation
 from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
 from ._evidence import RecordsQuery, SamplesQuery
 from ._generated import client_types
@@ -44,7 +43,6 @@ from ._wire.model.v1.metadata_pb2 import Metadata
 if TYPE_CHECKING:
     from ._authoring import Record, Stream, TestTemplate
     from ._plugin import Plugin
-    from .operations import Operation
 
 # === Public Exports === #
 
@@ -94,9 +92,6 @@ class Client:
             "cycles.create", self._transport.cycles.create([], Metadata(label=label), False, "", request_id=identity), identity
         )
         return Cycle._bind(self, reply.cycle)
-
-    def operation[Q: Payload, R: Payload](self, operation: "Operation[Q, R]") -> "BoundOperation[Q, R]":
-        return BoundOperation(self._transport, operation)
 
     def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None:
         if self._close_task is not None:
@@ -220,7 +215,7 @@ class Plugins:
                 ),
                 identity,
             )
-            entry = RegisteredPlugin._bind(self._client, reply.entry, endpoint, label=plugin._label)
+            entry = RegisteredPlugin._bind(self._client, reply.entry, endpoint, label=plugin._label, owner=plugin)
             self._owned[entry.identifier] = entry
             entry._check_failure(identity)
             if entry.state != "Ready":
@@ -283,13 +278,20 @@ class RegisteredPlugin:
     _unregister_id: str
     _detached: bool
     _label: str | None
+    _owner: "Plugin | None"
 
     def __init__(self) -> None:
         raise TypeError("Obtain a Plugin Through client.plugins")
 
     @classmethod
     def _bind(
-        cls, client: Client, entry: client_types.host.PluginEntry, endpoint: Endpoint | None = None, *, label: str | None = None
+        cls,
+        client: Client,
+        entry: client_types.host.PluginEntry,
+        endpoint: Endpoint | None = None,
+        *,
+        label: str | None = None,
+        owner: "Plugin | None" = None,
     ) -> "RegisteredPlugin":
         self = object.__new__(cls)
         self._client = client
@@ -300,6 +302,7 @@ class RegisteredPlugin:
         self._unregister_id = _identity(None)
         self._detached = False
         self._label = label
+        self._owner = owner
 
         return self
 
@@ -347,9 +350,14 @@ class RegisteredPlugin:
         await self._release()
 
     async def _release(self) -> None:
-        if self._endpoint is not None:
-            await self._endpoint.stop()
-            self._endpoint = None
+        try:
+            if self._endpoint is not None:
+                await self._endpoint.stop()
+                self._endpoint = None
+        finally:
+            if self._owner is not None:
+                await self._owner._close_resources()
+                self._owner = None
         self._client.plugins._owned.pop(self.identifier, None)
         for template, bindings in list(self._client.plugins._bindings.items()):
             self._client.plugins._bindings[template] = [binding for binding in bindings if binding[0] != self.identifier]

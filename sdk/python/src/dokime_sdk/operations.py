@@ -15,11 +15,11 @@
 import inspect
 import math
 import re
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import IntEnum
-from types import CodeType, FunctionType, ModuleType
+from types import FunctionType
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast, get_type_hints
 
 # Third Party Imports
@@ -28,7 +28,7 @@ from google.protobuf.message import Message
 from harmos import plugin
 
 # Local Imports
-from . import _context, _errors
+from . import _context, _errors, _logs
 from ._authoring import build_identifier
 from ._generated import shared
 from ._payloads import Payload, message_type, pack, unpack
@@ -41,7 +41,6 @@ if TYPE_CHECKING:
 # === Public Exports === #
 
 Context = _context.Context
-BoundOperation = _context.BoundOperation
 StreamSubscription = _context.StreamSubscription
 FailureError = _errors.FailureError
 
@@ -77,8 +76,11 @@ class OperationPolicy:
     attempt_timeout: timedelta | None = None
     cancellation_timeout: timedelta | None = None
     retries: RetryPolicy | None = None
+    transient: Callable[[Exception], bool] | None = None
 
     def __post_init__(self) -> None:
+        if self.transient is not None and not callable(self.transient):
+            raise TypeError("Declare Operation Policy: Supply a Callable transient Predicate")
         for duration in (self.timeout, self.attempt_timeout, self.cancellation_timeout):
             if duration is not None and (not math.isfinite(duration.total_seconds()) or duration <= timedelta()):
                 raise ValueError("Declare Operation Policy: Supply Positive Finite Durations")
@@ -104,6 +106,18 @@ class OperationPolicy:
                 value.retries.maximum.FromTimedelta(self.retries.maximum)
             value.retries.deterministic_jitter = self.retries.deterministic_jitter
         return value
+
+    def _failure(self, error: Exception, identity: str, owner: str) -> harmos.FailureError:
+        transient = self.transient is not None and self.transient(error)
+        failure = _errors.Failure(
+            "Transient" if transient else "Permanent",
+            "handler_failed",
+            f"{identity}: {error}",
+            "Retry the Operation" if transient else "Correct the Handler or Its Inputs, Then Retry",
+            identity,
+            owner,
+        )
+        return harmos.FailureError(_errors.wire_failure(failure))
 
 
 @dataclass(frozen=True)
@@ -156,18 +170,38 @@ class SettingDeclaration:
         )
 
 
-@dataclass(frozen=True)
-class SecretDeclaration:
-    identifier: str
+@dataclass
+class Secret:
     label: str
-    required: bool = True
+    identifier: str = field(default="", init=False)
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        if self.identifier:
+            raise ValueError("Declare Secret: Use a Separate Declaration for Each Plugin Attribute")
+        self.identifier = name
 
     def _definition(self) -> shared.SecretDeclaration:
-        return shared.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=self.required)
+        return shared.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=True)
+
+
+@dataclass
+class Resource[T]:
+    """A Lazily Opened Value Released When the Plugin Activation Ends."""
+
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
+    open: Callable[[Context], Awaitable[T]]
+    close: Callable[[T], Awaitable[None]]
+    identifier: str = field(default="", init=False)
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        if self.identifier:
+            raise ValueError("Declare Resource: Use a Separate Declaration for Each Plugin Attribute")
+        self.identifier = name
 
 
 @dataclass(frozen=True)
-class Operation[Q: Payload, R: Payload]:
+class _Operation[Q: Payload, R: Payload]:
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
     identifier: str
@@ -228,7 +262,7 @@ def operation[F: Callable[..., object]](
             response = annotations["return"]
         except (KeyError, NameError, TypeError) as error:
             raise TypeError("Declare Operation: Supply Resolvable Request and Result Payload Annotations") from error
-        definition = Operation(
+        definition = _Operation(
             identifier if identifier is not None else build_identifier(handler.__name__),
             request,
             response,
@@ -244,27 +278,22 @@ def operation[F: Callable[..., object]](
     return decorate
 
 
-def declaration[Q: Payload, R: Payload](handler: Callable[[Context, Q], Awaitable[R]]) -> Operation[Q, R]:
-    """Read the Immutable Declaration Attached by the Operation Decorator."""
-    definition = vars(handler).get("__dokime_operation__") if isinstance(handler, FunctionType) else None
-    if not isinstance(definition, Operation):
-        raise TypeError("Read Operation Declaration: Supply a Function Decorated With operation")
-    return cast(Operation[Q, R], definition)
-
-
 def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier: str) -> Callable[..., Awaitable[Message]]:
-    definition = declaration(cast(Callable[[Context, Any], Awaitable[Any]], handler))
+    definition = cast(_Operation, vars(handler)["__dokime_operation__"])
     transport = definition._definition()
 
     async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
         context = Context(transport, owner)
         try:
-            result = handler(context, unpack(definition.request, request))
-            if inspect.isawaitable(result):
-                result = await result
+            result = await _logs.run(context, handler, context, unpack(definition.request, request))
             return pack(definition.response, cast(Payload, result))
         except _errors.SdkError as error:
             raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
+        except harmos.FailureError:
+            raise
+        except Exception as error:
+            policy = definition.policy or OperationPolicy()
+            raise policy._failure(error, identifier, owner.identifier) from error
 
     return plugin.operation(
         identifier,
@@ -279,72 +308,6 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier:
 
 
 # === Private Functions === #
-
-
-def _requirements(
-    handlers: Sequence[object], owners: Sequence[type], registered: Sequence[Callable[..., object]]
-) -> tuple[plugin.Operation[Message, Message], ...]:
-    """Freeze Typed References Reachable From Author Handlers Before Activation."""
-    pending = [(item, frozenset[str]()) for item in handlers]
-    visited: set[tuple[int, frozenset[str]]] = set()
-    required: dict[str, plugin.Operation[Message, Message]] = {}
-    while pending:
-        value, attributes = pending.pop()
-        identity = (id(value), attributes)
-        if identity in visited:
-            continue
-        visited.add(identity)
-        if isinstance(value, Operation):
-            if value.visibility == Visibility.PRIVATE:
-                continue
-            definition = value._definition()
-            previous = required.get(definition.id)
-            if previous is not None and previous.fingerprint != definition.fingerprint:
-                raise ValueError(f"Build Plugin: Import One Matching Contract for {definition.id}")
-            required[definition.id] = definition
-            continue
-        if isinstance(value, (ModuleType, type)):
-            pending.extend(
-                (inspect.getattr_static(value, name), attributes)
-                for name in attributes
-                if inspect.getattr_static(value, name, None) is not None
-            )
-            continue
-        if isinstance(value, (tuple, list, dict)):
-            members = value.values() if isinstance(value, dict) else value
-            pending.extend((item, attributes) for item in members)
-            continue
-        if isinstance(value, (staticmethod, classmethod)):
-            pending.append((value.__func__, attributes))
-            continue
-        if not isinstance(value, FunctionType):
-            continue
-        declaration = vars(value).get("__dokime_operation__")
-        if declaration is not None and value not in registered:
-            pending.append((declaration, frozenset()))
-        if value.__module__.startswith(("dokime_sdk.", "harmos.")):
-            continue
-        names: set[str] = set()
-        code = [value.__code__]
-        while code:
-            current = code.pop()
-            names.update(current.co_names)
-            code.extend(item for item in current.co_consts if isinstance(item, CodeType))
-        references = [value.__globals__[name] for name in names if name in value.__globals__]
-        for cell in value.__closure__ or ():
-            try:
-                references.append(cell.cell_contents)
-            except ValueError:
-                # A Handler May Capture Its Plugin Before Construction Completes.
-                continue
-        references.extend(value.__defaults__ or ())
-        references.extend((value.__kwdefaults__ or {}).values())
-        for owner in owners:
-            references.extend(
-                inspect.getattr_static(owner, name) for name in names if inspect.getattr_static(owner, name, None) is not None
-            )
-        pending.extend((reference, frozenset(names)) for reference in references)
-    return tuple(required[name] for name in sorted(required))
 
 
 # === Entry Point === #

@@ -14,6 +14,7 @@
 
 # Third Party Imports
 from dokime_sdk.operations import Context, Visibility, operation
+from google.protobuf.struct_pb2 import Struct
 
 # Local Imports
 
@@ -31,7 +32,7 @@ from dokime_sdk.operations import Context, Visibility, operation
 
 
 @operation("example.echo", visibility=Visibility.PUBLIC)
-async def echo(ctx: Context, request: str) -> str:
+async def echo(ctx: Context, request: Struct) -> Struct:
     return request
 
 

@@ -11,6 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import logging
 
 # Third Party Imports
 from dokime_sdk.templates import Context, TestTemplate, criterion, observer, record, step, stream
@@ -23,6 +24,8 @@ from dokime_sdk.templates import Context, TestTemplate, criterion, observer, rec
 
 # === Constants === #
 
+log = logging.getLogger(__name__)
+
 # === Types === #
 
 # === Classes === #
@@ -34,7 +37,9 @@ class ConfirmationTestTemplate(TestTemplate):
     @step("Confirm")
     async def confirm(self, ctx: Context) -> None:
         answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
-        await ctx.record(self.confirmation, answer == "Yes")
+        log.info("Operator Answered %s", answer)
+        reply = await ctx.operation("example.echo", {"confirmed": answer == "Yes"})
+        await ctx.record(self.confirmation, reply["confirmed"])
 
     @stream("Temperature [°C]", row=float)
     @observer(interval_ms=100)

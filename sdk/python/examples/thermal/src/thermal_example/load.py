@@ -43,7 +43,7 @@ from thermal_example.models import Counter, CounterColumns
 class ThermalLoadTestTemplate(TestTemplate):
     identifier = "load"
     label = "Thermal Load"
-    parameters = [Parameter.flag("burst", "Burst").default(False).build()]
+    burst_enabled = Parameter.flag("Burst", default=False)
 
     channel_000 = sampling.channel("channel_000")
     channel_001 = sampling.channel("channel_001")
@@ -184,7 +184,7 @@ class ThermalLoadTestTemplate(TestTemplate):
 
     @materialize
     def select(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
-        burst = parameters["burst"]
+        burst = parameters["burst_enabled"]
         retained = [stream for stream in case.message.streams if stream.endswith(".burst") == burst]
         del case.message.streams[:]
         case.message.streams.extend(retained)

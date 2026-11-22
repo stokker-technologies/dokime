@@ -25,8 +25,9 @@ from google.protobuf.message import Message
 
 # Local Imports
 from dokime_sdk._generated import shared
-from dokime_sdk._generated.shared import DataExpression, FileParameter, Parameter, Plot, TestCase, TestCaseTemplate, TransformExpression
+from dokime_sdk._generated.shared import DataExpression, FileParameter, Plot, TestCase, TestCaseTemplate, TransformExpression
 
+from ._parameters import Parameter
 from ._payloads import Payload, message_type
 from ._values import Scalar, encode
 
@@ -120,7 +121,7 @@ class _Template:
     criteria: Sequence[Criterion] = ()
     streams: Sequence[Stream[Any]] = ()
     uses_streams: Sequence[Stream[Any]] = ()
-    parameters: Sequence[Parameter] = ()
+    parameters: Sequence[shared.Parameter] = ()
     documents: Sequence["Document"] = ()
     files: Sequence[FileParameter] = ()
     records: Sequence[Record[Any]] = field(init=False)
@@ -135,6 +136,7 @@ class _Template:
         self._methods = {}
         for cls in reversed(self.instance.__mro__):
             self._methods.update(vars(cls))
+        self.parameters = tuple(member._definition() for member in self._methods.values() if isinstance(member, Parameter))
         self.steps = tuple(self.steps) + tuple(
             method.__dokime_step__ for method in self._methods.values() if hasattr(method, "__dokime_step__")
         )
@@ -279,7 +281,6 @@ class _Template:
 class TestTemplate:
     identifier: ClassVar[str | None] = None
     label: ClassVar[str | None] = None
-    parameters: ClassVar[Sequence[Parameter]] = ()
     files: ClassVar[Sequence[FileParameter]] = ()
     documents: ClassVar[Sequence["Document"]] = ()
     uses_streams: ClassVar[Sequence[Stream]] = ()
@@ -514,7 +515,6 @@ def bind_suite(declaration: type[Suite], prefix: str) -> _Suite:
             item,
             item.label or build_label(item.__name__),
             item.identifier,
-            parameters=tuple(deepcopy(item.parameters)),
             files=tuple(deepcopy(item.files)),
             documents=tuple(item.documents),
             uses_streams=tuple(item.uses_streams),

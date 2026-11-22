@@ -37,14 +37,6 @@ class FileRuleAction(IntEnum):
     EXCLUDE = 2
 
 
-class Severity(IntEnum):
-    UNSPECIFIED = 0
-    DEBUG = 1
-    INFO = 2
-    WARNING = 3
-    FAILURE = 4
-
-
 @dataclass(frozen=True)
 class FtpLocation:
     url: str
