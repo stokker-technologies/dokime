@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Build or Preview One Documentation Entry from the Current Checkout"""
+"""Build One Documentation Entry from the Current Checkout"""
 
 # === Imports === #
 
@@ -30,8 +30,6 @@ from pathlib import Path
 
 # Local Imports
 from .. import policy
-from ..process import spawn_flags
-from . import operations
 
 # Type Checking Imports
 
@@ -39,11 +37,12 @@ from . import operations
 
 # === Constants === #
 
-SITE = "sites/docs"
+SITE = "docs"
+BUILD = "docs/dist"
 OUTPUT = "target/docs"
 ARCHIVE = "dokime-docs.zip"
 STAMP = "docs.json"
-FAVICON = "organization/logos/transparent-on-light.svg"
+FAVICON = "assets/organization/logos/transparent-on-light.svg"
 DEVELOPMENT = "dev"
 # Fixed Member Time Keeps Archives Of The Same Pages Byte-Identical.
 EPOCH = (1980, 1, 1, 0, 0, 0)
@@ -84,10 +83,9 @@ def entry(directory: Path, *, release: bool) -> str:
 
 
 def build(directory: Path, *, release: bool = False, archive: bool = False) -> Path:
-    """Generate References, Build the Entry into target/docs/<entry>/ and Check Its Links."""
+    """Build the Entry into docs/dist/ and Check Its Links."""
     selected = entry(directory, release=release)
-    operations.generate(directory)
-    output = policy.inside(directory, f"{OUTPUT}/{selected}")
+    output = policy.inside(directory, BUILD)
     if output.exists():
         shutil.rmtree(output)
     _astro(directory, selected, "build")
@@ -100,12 +98,6 @@ def build(directory: Path, *, release: bool = False, archive: bool = False) -> P
     if archive:
         pack(output, policy.inside(directory, f"{OUTPUT}/{ARCHIVE}"))
     return output
-
-
-def serve(directory: Path) -> None:
-    """Preview the Development Entry with Live Reload of the Maintained Guides."""
-    operations.generate(directory)
-    _astro(directory, DEVELOPMENT, "dev", "--host", "127.0.0.1")
 
 
 def links(output: Path, base: str) -> list[str]:
@@ -167,17 +159,13 @@ def pack(output: Path, destination: Path) -> None:
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build or Preview the Documentation Site")
-    parser.add_argument("operation", choices=("build", "serve"))
+    parser = argparse.ArgumentParser(description="Build the Documentation Site")
     parser.add_argument("--release", action="store_true", help="Build the Release Line Entry of the Current Version")
     parser.add_argument("--archive", action="store_true", help="Pack the Built Entry Into target/docs/dokime-docs.zip")
     options = parser.parse_args(arguments)
     directory = policy.root()
     try:
-        if options.operation == "serve":
-            serve(directory)
-        else:
-            print(build(directory, release=options.release, archive=options.archive))
+        print(build(directory, release=options.release, archive=options.archive))
     except (policy.ToolError, OSError, ValueError, KeyError) as error:
         print(f"Documentation: {error}", file=sys.stderr)
         return 1
@@ -188,24 +176,17 @@ def main(arguments: list[str] | None = None) -> int:
 
 
 def _astro(directory: Path, selected: str, *arguments: str) -> None:
-    """Run Astro for One Entry; the Site Configuration Writes It to target/docs/<entry>/."""
+    """Run Astro for One Entry; the Site Configuration Writes It to docs/dist/."""
     executable = shutil.which("pnpm")
     if executable is None:
         raise policy.ToolError("Build Documentation: pnpm Is Not Installed; Run mise install")
-    settings = policy.policy(directory, "release")
-    if settings.get("provider") != "github":
-        raise policy.ToolError("Build Documentation: Source Links Support the GitHub Provider Only")
-    version = policy.policy(directory, "version")["value"]
-    reference = _revision(directory) if selected == DEVELOPMENT else f"v{version}"
     environment = {
         **os.environ,
         "ASTRO_TELEMETRY_DISABLED": "1",
         "DOCS_ENTRY": selected,
-        # A Release Line Links To Its Tag; Review Checkouts Are Merge Commits That Do Not Outlive The Review.
-        "DOCS_SOURCE": f"https://github.com/{settings['repository']}/blob/{reference}/",
     }
     command = [executable, "--dir", SITE, "exec", "astro", *arguments]
-    result = subprocess.run(command, cwd=directory, env=environment, check=False, creationflags=spawn_flags())
+    result = subprocess.run(command, cwd=directory, env=environment, check=False)
     if result.returncode:
         raise policy.ToolError(f"Build Documentation: astro {arguments[0]} Failed With Exit Code {result.returncode}")
 

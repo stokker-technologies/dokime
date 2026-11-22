@@ -1,0 +1,26 @@
+{
+  "name": "@dokime/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "dev": "astro dev --host 127.0.0.1",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "typecheck": "astro sync && tsc --noEmit"
+  },
+  "dependencies": {
+    "@astrojs/markdown-satteri": "^0.4.10",
+    "@astrojs/starlight": "0.43.1",
+    "@astrojs/starlight-tailwind": "5.0.0",
+    "@astrojs/svelte": "9.1.6",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "7.4.12",
+    "svelte": "^5.59.1",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "typescript": "^7.0.2"
+  }
+}
