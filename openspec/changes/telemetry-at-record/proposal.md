@@ -1,7 +1,7 @@
 # Telemetry at Record
 
 Status: proposed on 2026-11-09; semantics locked by the owner on 2026-11-09;
-deferred until the owner schedules it.
+scheduled by the owner on 2026-11-22.
 
 ## Why
 

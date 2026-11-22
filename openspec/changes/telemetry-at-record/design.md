@@ -28,6 +28,15 @@ through expression inputs and guard nesting. Keep both pending the owner's
 decision; prefer removing the frontend semantic rules and using the host's
 validation result, while retaining transport decoding at the frontend boundary.
 
+In `crates/dokime-storage/src/expressions.rs`, `collect` adds a `time_between`
+predecessor to the generic attachment loop in `Store::evaluate`, while
+`collect_intervals` drives a second ordered pairing of the current and previous
+record tables in the same evaluator. Both serve document values and projected
+plots; interval-only expressions therefore reread and pair sources unnecessarily.
+Keep this inherited overlap pending the owner's decision. Prefer removing the
+generic attachment for dependencies used only by interval computation, retaining
+the interval pairing and attachments actually needed for selected record fields.
+
 The inherited `time_between` repeat rejection was specified but absent from the
 current implementation. The document validator now refuses both row-local
 transforms with the same section diagnostic. `SectionRepeat` has no filter

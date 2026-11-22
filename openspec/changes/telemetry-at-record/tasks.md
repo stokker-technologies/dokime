@@ -5,4 +5,4 @@
 - [x] 2.2 Refuse `at` on repeat selectors with the `time_between` diagnostic shape; test.
 - [x] 3.1 Harmonized Python, Rust, C# and C++ SDK builders and generated stubs; shipped examples gain event histograms and builder tests.
 - [ ] 3.2 Owner updates authoring skill and product guide examples; worker must not edit docs/.
-- [ ] 4.1 Run focused protocol/expression, document and Python tests plus applicable format/lint checks through project tasks after implementation.
+- [x] 4.1 Run focused protocol/expression, document and Python tests plus applicable format/lint checks through project tasks after implementation.
