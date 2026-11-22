@@ -60,17 +60,14 @@ pub async fn handle(context: &Context, request: FilesDeleteRequest) -> Result<Fi
             id: file.metadata.id,
         };
         let mutation = transfer::mutation(context, ID, &request.request_id).await?;
-        let mut native = DeleteFileRequest {
+        let native = DeleteFileRequest {
             file: Some(file),
-            mutation: Some(mutation),
+            mutation: None,
         };
-        let response = match context.storage::<DeleteFile>(native.clone()).await {
-            Err(source) if transfer::expired(&source) => {
-                native.mutation = Some(transfer::mutation(context, ID, &request.request_id).await?);
-                context.storage::<DeleteFile>(native).await?
-            }
-            response => response?,
-        };
+        let response = transfer::write(context, ID, &request.request_id, mutation, |mutation| {
+            context.storage::<DeleteFile>(DeleteFileRequest { mutation: Some(mutation), ..native.clone() })
+        })
+        .await?;
         Ok(FilesDeleteResponse { receipt: response.receipt })
     })
     .await

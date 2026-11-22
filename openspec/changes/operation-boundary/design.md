@@ -959,6 +959,10 @@ existing libtest harness. This differs from the generic pure-unit layer. Moving
 these stories to an integration target requires the test-composition owner's
 decision; this change adds no public testing API or alternate test harness.
 
+## View Single Owners
+
+Owner decision, 2026-11-22: consolidate mutation-expiry handling in the file transfer owner. Upload Append, Create, Resume, Publish, Delete, Files.Delete and retained-view create/discard use the same policy: retry only the library's mutation-expired failure, fetch the current window, preserve the request key and issue one further storage call. A second failure is returned with the owning action; no third attempt, delay or deadline change is allowed. Retry matches outside the assigned file/view families remain for their owners to migrate.
+
 ## Administration Reader Ownership Review
 
 The scan callers enumerate collections: `content/mod.rs::validate_root` checks legacy

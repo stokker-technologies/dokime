@@ -242,8 +242,8 @@ async fn retain_owned(
     let digest: [u8; 32] = Sha256::digest(payload).into();
     let request_id = Uuid::now_v7().to_string();
     let (maximum, mutation) = transfer::admission(context, "Retain View", &request_id).await?;
-    let created = context
-        .storage::<CreateFileProduction>(CreateFileProductionRequest {
+    let created = transfer::write(context, "Retain View", &request_id, mutation, |mutation| {
+        context.storage::<CreateFileProduction>(CreateFileProductionRequest {
             metadata: Some(storage::FileMetadata {
                 id: Identifier::new(format!("view/{request_id}")).map_err(|source| Error::Invalid(format!("Retain View: {source}")))?,
                 scope: Some(scope.clone()),
@@ -253,7 +253,8 @@ async fn retain_owned(
             }),
             mutation: Some(mutation),
         })
-        .await?;
+    })
+    .await?;
     let upload =
         created.production.map(transfer::upload).ok_or_else(|| Error::Precondition("Retain View: Create Its Native Upload".into()))?;
     let produced = async {
@@ -328,15 +329,14 @@ async fn discard(context: &Context, file: FileReference, request_id: &str) -> Re
     let file = storage::FileReference::try_from(file)
         .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;
     let mutation = transfer::mutation(context, "Discard Unused View", request_id).await?;
-    context
-        .storage::<DeleteFile>(DeleteFileRequest {
-            file: Some(StagedFile {
-                history: file.position.history,
-                id: file.metadata.id,
-            }),
+    let file = StagedFile { history: file.position.history, id: file.metadata.id };
+    transfer::write(context, "Discard Unused View", request_id, mutation, |mutation| {
+        context.storage::<DeleteFile>(DeleteFileRequest {
+            file: Some(file.clone()),
             mutation: Some(mutation),
         })
-        .await?;
+    })
+    .await?;
     Ok(())
 }
 

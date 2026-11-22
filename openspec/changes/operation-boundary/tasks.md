@@ -266,6 +266,16 @@ with `plugin-boundary` and `plugin-lifecycle`.
   - [x] Regenerate the native host dispatch's stale descriptor checksum against the unchanged pinned library; preserve tracked generated output and the generation owner.
   - [x] Pass focused operations/card-query proof, touched-package test compilation, workspace test-target compilation with desktop testing, frontend type/build and generation checks, release-context bindings verification, formatting, repository checks and strict OpenSpec validation. Record documentation impact for the owner; native latency measurement is optional and must use an owned instance.
 
+## View Single Owners
+
+Source inventory: `host/views.rs`, `host/files/transfer.rs`, `host/files/uploads/{append,create,resume,publish,delete}.rs`, `host/files/delete.rs`, `host/reports/create.rs`, desktop `src/features/cycle/server-state.ts`, and this change's design/tasks. No protocol change is planned. Desktop tests and `docs/` remain owner-written.
+
+- [ ] Share mutation-expiry retry for all owned upload/file writes and retained-view creation/discard; prove one refresh and second-expiry refusal.
+- [ ] Reconcile generic view indexes after tracing every reader; delete the unused family or record its distinct required purpose.
+- [ ] Publish reports and views through the transfer owner's bounded publication; remove the report-specific loop and preserve cancellation, failure cleanup and durable ownership.
+- [ ] Keep native document captures in root query data; remove the separate capture map while preserving progressive structure, independent cards and stable unchanged projections.
+- [ ] Run focused operations/frontend proof, package and workspace test-target compilation, frontend type/build, generation check, format, repository check and strict OpenSpec validation. Measure native long tasks only on an owned instance if available.
+
 ## Workflow Follow-Up
 
 - Migrate the native GUI SQL fixture consumers with the coupled 2.3/2.2 replacement: `crates/dokime-gui/src-tauri/tests/support/server.rs::Fixture::new` creates an imported execution directly through Store; `tests/system/host.rs::large_document_and_long_history_frequency_use_bounded_native_reads` creates, samples, closes and seals through Store. The storage worker now owns the necessary native fixture caller migration, including the integration host/storage fixtures and support; TypeScript remains outside its ownership. Replace these fixtures through the canonical native execution/evidence owner without SQL fixture APIs or compatibility shims. The separate SQL access-journal fixture in `tests/integration/host.rs` follows its administration owner's cutover.
