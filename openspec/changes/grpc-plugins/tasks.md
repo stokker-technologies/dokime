@@ -10,6 +10,15 @@
 - [x] Watch Report, Plot and Document Sources Through Tauri's Existing Dev Watcher and Regenerate the Embedded Report Before Each Runtime Rebuild.
 - [x] Prove Source-Change Rebuild Ordering and Generation Failure With Fakes; Pass Focused Python Tooling Tests, Formatting and Repository Checks.
 
+## Plot Card Statistics Follow-Up
+
+- [x] Use the Complete Storage Statistics Owner for Default and Explicit Trace Windows; Delete the Partial Summary Path and Prove Every Statistic From Constructed Rows and Desktop/Report Tables.
+- [x] Render Single and Multiple Histogram Statistics Through the Same Plain Table as Trace Statistics Inside Their Plot Card; Remove the Grid and List Presentations.
+- [x] Preserve the Complete Unit-Bearing Header on Hover in the Shared Plain Table; Repair the Real Report Unit Labels Failure Without Changing Its Assertion.
+- [x] Compare Refresh Failure and Refresh Cancellation on This Branch and a Disposable Origin/Dev Worktree; Both Fail Identically Because Their Immediate-Completion Assertions Precede the Animation-Frame Commit. Owner Must Resolve This Test/Presentation Rework.
+- [ ] Owner: Reconcile the Refresh Tests' Immediate Snapshot-Completion Contract With the Shared Animation-Frame Presentation Commit, Preserving Failure and Cancellation Assertions.
+- [x] Pass Focused Rust, Shared Plot and Desktop TypeScript Tests, Report Integration, Workspace Test Compilation With Desktop Testing, Formatting, Repository Checking and Headless Screenshots.
+
 ## Heat Strip Live Width and Samples
 
 - [x] Restore Native Live Heat Strip Projection and Prove Cells Draw and Update on a Running Execution Watch.

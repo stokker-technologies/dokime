@@ -36,7 +36,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 // Local Imports
-import { StatsSummaryTable } from "@dokime/plots/components/StatsSummaryTable";
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
@@ -48,10 +47,8 @@ import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
-  seriesLegendColumnWidth,
   seriesLegendColumns,
   seriesLegendRows,
-  statsSummaryCells,
   summaryInFlight,
   toggleTrace,
   type SeriesSummary,
@@ -1513,23 +1510,9 @@ test("Series Legend", () => {
       assert.equal(suffix, ["trace", "xCursor", "count"].includes(column.id) ? "" : ` [${unit}]`);
       assert.doesNotMatch(column.header, /[\r\n]/);
     });
-    const html = renderToStaticMarkup(
-      createElement(StatsSummaryTable, {
-        legend: { columns, rows: [], pending: false },
-      }),
-    );
-    const headings = html.match(/<thead\b[\s\S]*?<\/thead>/)?.[0] ?? "";
-    assert.match(headings, /class="[^"]*truncate[^"]*" title="[^"<>]* \[/);
-    assert.doesNotMatch(headings, /whitespace-normal|overflow-wrap:anywhere/);
   }
   assert.equal(formatUnitLabel("fixture", "  "), "fixture");
   assert.equal(formatUnitLabel("fixture", " ms "), "fixture [ms]");
-  // Widths Depend on the Column Alone, So Every Table on a Page Lines up Whatever Its Unit
-  const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
-  assert.deepEqual(widths("dBm"), widths(null));
-  assert.deepEqual(widths("M\u03a9"), widths("V"));
-  assert.deepEqual(widths(null).slice(1), ["w-52", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32"]);
-
   // Rows Follow Trace Order and Read Each Trace's Own Backend Summary
   const rows = seriesLegendRows({ hidden: new Set(), summaries: SUMMARIES, traces: TRACES });
   assert.deepEqual(
@@ -1641,7 +1624,7 @@ test("Series Legend", () => {
   assert.equal(summaryInFlight("ended"), false);
 });
 
-test("Backend Statistics", () => {
+test("Histogram Bins", () => {
   // A Histogram Draws One Bar per Backend Bin with the Backend's Counts
   const bars = histogramBars({
     bins: [
@@ -1656,30 +1639,6 @@ test("Backend Statistics", () => {
     { slot: "1", min: 1.5, max: 3, count: 0 },
     { slot: "2", min: 3, max: 4.5, count: 7 },
   ]);
-
-  // The Summary Grid Prints the Backend's Statistics and Count
-  const cells = statsSummaryCells({
-    label: "Voltage",
-    unit: "V",
-    statistics: { mean: 12.5, median: 12, std: 0.25, rms: 12.6, min: 11, max: 14 },
-    count: 42,
-  });
-  assert.deepEqual(cells, [
-    ["Mean [V]", "12.50"],
-    ["Median [V]", "12.00"],
-    ["Std [V]", "0.25"],
-    ["RMS [V]", "12.60"],
-    ["Min [V]", "11.00"],
-    ["Max [V]", "14.00"],
-    ["Count", "42"],
-  ]);
-
-  // Statistics the Backend Has Not Delivered Print Dashes, Never Browser Numbers
-  const missing = statsSummaryCells({ label: "Voltage", unit: "V", statistics: null, count: 0 });
-  assert.deepEqual(
-    missing.map(([, value]) => value),
-    ["-", "-", "-", "-", "-", "-", "0"],
-  );
 });
 
 test("Plot Placeholders", () => {

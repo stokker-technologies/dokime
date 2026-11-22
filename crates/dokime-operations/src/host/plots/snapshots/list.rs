@@ -35,7 +35,10 @@ use tokio::task::JoinSet;
 use tracing::dispatcher;
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::{
+    Error, Result,
+    host::{self, Context, evidence::selection, paging, projection, views},
+};
 use dokime_protocol::host::plots::PlotAnalysis;
 use dokime_protocol::host::plots::PlotAnalysisResult;
 use dokime_protocol::host::plots::PlotBoxSummaryAnalysis;
@@ -49,7 +52,6 @@ use dokime_protocol::host::plots::PlotPayload;
 use dokime_protocol::host::plots::PlotPayloadDiagnostics;
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::host::plots::PlotSeries;
-use dokime_protocol::host::plots::PlotSeriesSummary;
 use dokime_protocol::host::plots::PlotWindow;
 use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsListResponse;
@@ -106,26 +108,23 @@ struct PlotRead<'a> {
 
 #[tracing::instrument(name = "plot.operation", skip_all)]
 pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<SnapshotsListResponse> {
-    crate::host::complete(ID, context.settings.read_timeout, async {
-        crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
+    host::complete(ID, context.settings.read_timeout, async {
+        views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!(
             "plots/{}",
-            crate::host::views::hex(&crate::host::paging::bytes(&SnapshotsListRequest {
+            views::hex(&paging::bytes(&SnapshotsListRequest {
                 requests: request.requests.clone(),
                 ..Default::default()
             }))
         );
-        let executions = request
-            .requests
-            .iter()
-            .map(|request| crate::host::projection::execution_scope(request.scope.as_ref()))
-            .collect::<Result<BTreeSet<_>>>()?;
+        let executions =
+            request.requests.iter().map(|request| projection::execution_scope(request.scope.as_ref())).collect::<Result<BTreeSet<_>>>()?;
         let scope = if executions.len() == 1 {
             Scope::Execution(executions.first().unwrap()).identifier()?
         } else {
             Scope::Root(&context.host.identity().backend_id).identifier()?
         };
-        let (saved, cut) = crate::host::views::read(context, scope, &key, request.at.as_ref(), async {
+        let (saved, cut) = views::read(context, scope, &key, request.at.as_ref(), async {
             let reply = SnapshotsListResponse {
                 envelopes: query_batch(context, request.requests).await?,
                 ..Default::default()
@@ -133,14 +132,9 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
             Ok(reply)
         })
         .await?;
-        let (envelopes, next_page_token) = crate::host::views::page(
-            saved.envelopes,
-            &cut,
-            request.page.as_ref(),
-            context.settings.page_items,
-            context.settings.message_bytes,
-        )?;
-        crate::host::bounded_reply(
+        let (envelopes, next_page_token) =
+            views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
+        host::bounded_reply(
             context,
             SnapshotsListResponse {
                 envelopes,
@@ -185,7 +179,7 @@ async fn batch(
     let mut work = Vec::new();
     let mut placements = Vec::new();
     for request in &requests {
-        let execution = crate::host::projection::execution_scope(request.scope.as_ref())?;
+        let execution = projection::execution_scope(request.scope.as_ref())?;
         if !sources.contains_key(execution) {
             let cut = match fixed {
                 Some(cut) if cut.execution.identifier == execution => cut.clone(),
@@ -501,7 +495,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         series_by: group.clone(),
         max_points: display as u64,
         window_s: request.window_s,
-        generated_at: crate::host::projection::timestamp(now_ns).to_string(),
+        generated_at: projection::timestamp(now_ns).to_string(),
         bucket_width_s: Some(resolution as f64 / 1e9),
         bucket_window: Some(PlotWindow {
             from: start_ns as f64 / 1e9,
@@ -740,21 +734,11 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 return Err(Error::Invalid("Query Plot Summary: Choose Increasing Source-Time Bounds".into()));
             }
             let summary_window = NumericWindow { start_ns: from, end_ns: to, ..window };
-            let stats = store.numeric_statistics(&summary_window)?;
+            let mut summary = store.series_summary(&summary_window)?;
             payload.summaries.retain(|summary| summary.series_id != field);
-            let std = stats.mean.as_ref().map(|_| stats.stddev);
-            let rms = stats.mean.as_ref().map(|_| store.numeric_rms(&summary_window)).transpose()?;
-            payload.summaries.push(PlotSeriesSummary {
-                series_id: field.clone(),
-                count: stats.count,
-                min: stats.min,
-                max: stats.max,
-                mean: stats.mean,
-                median: stats.median,
-                std,
-                rms,
-                window: Some(*request.summary_window.as_ref().unwrap()),
-            });
+            summary.series_id = field.clone();
+            summary.window = request.summary_window;
+            payload.summaries.push(summary);
         }
         examined += count;
         if let Some(groups) = column_groups {
@@ -837,7 +821,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let Some(kind) = evidence.kind.strip_prefix("record:") else {
                     continue;
                 };
-                if !request.marker_record_types.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, kind))
+                if !request.marker_record_types.iter().any(|pattern| selection::matches(pattern, kind))
                     || evidence.source_ns < start_ns
                     || evidence.source_ns > end_ns
                 {
@@ -1042,10 +1026,11 @@ mod tests {
     use harmos_protocol::model::{Declarations, StreamDeclaration};
     use prost::Message;
     use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
+    use tempfile::TempDir;
 
     use super::{PlotColumn, Value, batch, order_categories, snapshots_at, value};
     use dokime_protocol::host::plots::NullableNumber;
-    use dokime_protocol::host::plots::{PlotRequest, SnapshotsListResponse};
+    use dokime_protocol::host::plots::{PlotRequest, PlotWindow, SnapshotsListResponse};
     use dokime_protocol::model::{Downsample, EvidenceScope, Import, Origin, PlotKind, origin};
     use dokime_storage::{Execution, Sample, Store};
 
@@ -1145,7 +1130,7 @@ mod tests {
         phase: bool,
     }
 
-    fn waveform(period_ns: i64) -> (tempfile::TempDir, Store, Vec<Sample>) {
+    fn waveform(period_ns: i64) -> (TempDir, Store, Vec<Sample>) {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(root.path()).unwrap();
         let catalog = Declarations {
@@ -1210,6 +1195,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn default_window_reports_every_statistic_from_constructed_rows() {
+        let (_root, store, _) = waveform(1_000_000_000);
+        let mut cut = store.cut("execution").unwrap();
+        cut.frontier = 5;
+        let (reader, _cancellation) = store.read_session().unwrap();
+        let request = PlotRequest {
+            scope: Some(EvidenceScope {
+                execution_id: Some("execution".into()),
+                ..Default::default()
+            }),
+            stream: "readings".into(),
+            y_keys: vec!["elapsed_s".into()],
+            plot_type: PlotKind::TimeSeries as i32,
+            max_points: Some(4),
+            ..Default::default()
+        };
+        for technique in [Downsample::Auto, Downsample::MinMax, Downsample::Lttb] {
+            let request = PlotRequest {
+                technique: technique as i32,
+                ..request.clone()
+            };
+            let envelopes = snapshots_at(&reader, &cut, vec![request.clone()], 1000, 0, "epoch").await.unwrap();
+            let summary = &envelopes[0].payload.as_ref().unwrap().summaries[0];
+            assert_eq!(summary.count, 5);
+            for (actual, expected) in [(&summary.min, 0.0), (&summary.max, 4.0), (&summary.mean, 2.0), (&summary.median, 2.0)] {
+                assert_eq!(actual.as_ref().unwrap().kind, Some(value::Kind::Number(expected)));
+            }
+            assert!((summary.std.unwrap() - 2.0_f64.sqrt()).abs() < 1e-12);
+            assert!((summary.rms.unwrap() - 6.0_f64.sqrt()).abs() < 1e-12);
+            let explicit = PlotRequest {
+                summary_window: Some(PlotWindow { from: 0.0, to: 4.0 }),
+                ..request
+            };
+            let explicit = snapshots_at(&reader, &cut, vec![explicit], 1000, 0, "epoch").await.unwrap();
+            assert_eq!(summary, &explicit[0].payload.as_ref().unwrap().summaries[0]);
+        }
+    }
+
+    #[tokio::test]
     async fn boolean_time_series_reduce_to_states_without_changing_numeric_reduction() {
         let (_root, store, samples) = waveform(60_000_000_000);
         let cut = store.cut("execution").unwrap();
@@ -1223,7 +1247,7 @@ mod tests {
             y_keys: vec!["phase".into(), "elapsed_s".into()],
             plot_type: PlotKind::TimeSeries as i32,
             max_points: Some(16),
-            summary_window: Some(dokime_protocol::host::plots::PlotWindow { from: 0.0, to: 708000.0 }),
+            summary_window: Some(PlotWindow { from: 0.0, to: 708000.0 }),
             ..Default::default()
         };
         for technique in [Downsample::Auto, Downsample::MinMax, Downsample::Lttb] {

@@ -32,7 +32,7 @@ use prost_types::Timestamp;
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
-use crate::telemetry::aggregates::{self, NumericSummary};
+use crate::telemetry::aggregates;
 use crate::{Error, NumericWindow, Result, Store};
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::Value;
@@ -71,14 +71,7 @@ impl Store {
             return Err(Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
         let boolean = self.boolean_window(window)?;
-        let summary = if boolean {
-            PlotSeriesSummary {
-                count: self.numeric_bins(window)?.iter().map(|bin| bin.count).sum(),
-                ..Default::default()
-            }
-        } else {
-            series_summary(&self.numeric_summary(window)?)?
-        };
+        let summary = self.series_summary(&window)?;
         let count = summary.count;
         if count > limit as u64 && !boolean && technique == Downsample::Lttb && limit < 3 {
             return Err(Error::Data("supply at least three LTTB vertices or include every selected sample"));
@@ -165,6 +158,21 @@ impl Store {
     pub fn numeric_rms(&self, window: &NumericWindow<'_>) -> Result<f64> {
         Ok(self.numeric_summary(*window)?.rms)
     }
+    pub fn series_summary(&self, window: &NumericWindow<'_>) -> Result<PlotSeriesSummary> {
+        let stats = self.numeric_statistics(window)?;
+        let std = stats.mean.as_ref().map(|_| stats.stddev);
+        let rms = stats.mean.as_ref().map(|_| self.numeric_rms(window)).transpose()?;
+        Ok(PlotSeriesSummary {
+            count: stats.count,
+            min: stats.min,
+            max: stats.max,
+            mean: stats.mean,
+            median: stats.median,
+            std,
+            rms,
+            ..Default::default()
+        })
+    }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<Statistics> {
         if self.boolean_window(*window)? {
@@ -197,14 +205,7 @@ impl Store {
     pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
         let boolean = self.boolean_window(window)?;
-        let summary = if boolean {
-            PlotSeriesSummary {
-                count: bins.iter().map(|bin| bin.count).sum(),
-                ..Default::default()
-            }
-        } else {
-            series_summary(&self.numeric_summary(window)?)?
-        };
+        let summary = self.series_summary(&window)?;
         let count = summary.count;
         let mut points = Vec::with_capacity(bins.len() * if boolean { 2 } else { 4 });
         for bin in &bins {
@@ -350,19 +351,6 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn series_summary(moments: &NumericSummary) -> Result<PlotSeriesSummary> {
-    let count = moments.count;
-    let mean = if count == 0 { None } else { Some(scalar::wire(&moments.average)?) };
-    Ok(PlotSeriesSummary {
-        count,
-        min: (count > 0).then(|| scalar::wire(&moments.min)).transpose()?,
-        max: (count > 0).then(|| scalar::wire(&moments.max)).transpose()?,
-        mean,
-        rms: (count > 0).then_some(moments.rms),
-        ..Default::default()
-    })
-}
 
 fn number(value: f64) -> Value {
     Value { kind: Some(value::Kind::Number(value)) }

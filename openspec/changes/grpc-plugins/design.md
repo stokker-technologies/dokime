@@ -3339,7 +3339,27 @@ retained as unavailable.
 
 ## Desktop Tables and Native Settings
 
-Every desktop table uses `src/components/data-table/DataTable.tsx` under
+The plot-card owner decision supersedes the statistics rows in the inventory
+below: trace and histogram statistics use one plain `StatsSummaryTable` inside
+their plot card, below its description, without a separate frame, title, search
+or pagination. Histogram charts share that card and one table for every series.
+Default and explicit trace windows both use storage's complete
+`series_summary` mapping over `numeric_statistics`; the partial default mapping
+is deleted. Median and standard deviation therefore arrive for default windows.
+Each plain table header retains its complete unit-bearing label in `title`,
+preserving the existing report unit-label contract.
+
+The refresh tests in `crates/dokime-gui/tests/integration/plots/nominal.test.ts`
+assume snapshot completion immediately after changing the selected window.
+`crates/dokime-gui/src/plots/live-data.ts` commits the queued snapshot and its
+refresh timestamp on the next animation frame. Refresh Failure captures a null
+timestamp before that commit; Refresh Cancellation checks a disabled button
+before the commit. Both failures reproduce on the unmodified base. This is
+test/presentation REWORK awaiting the owner's decision; neither test is weakened.
+The clean shape has one completion boundary for snapshots and watches, with
+deterministic tests driven to that boundary rather than Promise resolution.
+
+Every other desktop table uses `src/components/data-table/DataTable.tsx` under
 `crates/dokime-gui/`. It owns the frame, title and one-line description,
 right-aligned filter/action band, column controls, fixed-height empty/loading
 row, full-width failure slot and always-visible pagination footer. Controls
@@ -3366,8 +3386,8 @@ density, sort controls, empty state and footer remain component-owned.
 | Saved Backends | `features/settings/BackendsTable.tsx:135` | Remove the separate card and external loading/failure band; keep pairing import in the action band. |
 | Suite Templates | `features/library/LibrarySurface.tsx:156` | Name each table in its frame; the empty/loading/failure case also renders through DataTable. |
 | Document Values | `components/document/DocumentSurfaceView.tsx:255` | Add title/description; infer numeric alignment from recorded values. |
-| Metric Statistics | `components/StatsSummaryTable.tsx:153` | Add title/description; preserve exact right-aligned values and each metric's unit-bearing label. |
-| Trace Statistics | `components/StatsSummaryTable.tsx:168` | Add title/description; retain row activation for trace visibility and exact right-aligned values. |
+| Metric Statistics | `packages/plots/src/components/StatsSummaryTable.tsx` | Plain table inside the plot card; preserve exact right-aligned values and units in numeric headers. |
+| Trace Statistics | `packages/plots/src/components/StatsSummaryTable.tsx` | The same plain table; retain trace visibility activation and exact right-aligned values. |
 | Grid Plot | `plots/catalog/GridChartPlot.tsx:105` | Replace raw Table markup with DataTable while preserving validity, cell colors, highlights and independent playback; put units in numeric column headers. |
 
 Native desktop stream settings, remembered parameter values and update selection
@@ -3387,18 +3407,13 @@ Paths below are relative to `crates/dokime-gui/`.
 | Both Locations | Current Callers and Responsibility | Recommended Deletion |
 | --- | --- | --- |
 | `src/stores/ui-store.ts:218` and `src-tauri/src/settings.rs:156` | Shell controls persist sidebar/console geometry and active-cycle state in WebView localStorage; native Engine, parameter and updater callers persist their settings through Store. Desktop-local persistence therefore has two owners, although their saved keys differ. | Fold the desktop-only UI state into Store, then delete the Tauri localStorage writer; retain the UI state API and host-owned appearance preferences. |
-| `src/components/StatsSummaryTable.tsx:136` and `:199` | StatsSummaryTable routes multiple metrics to DataTable but one metric to StatsSummaryGrid; plot/document callers therefore get two statistics presentations. | Delete the single-metric grid branch and component if the owner chooses one statistics presentation; preserve exact values and metric units. |
 | `src/features/explore/ExploreSurface.tsx:124` and `src/components/data-table/DataTable.tsx:309` | History's Load More control appends bounded server pages; the shared footer pages the rows already loaded. History operators encounter two paging controls. | Let the shared footer own bounded server paging, then delete Load More; first settle continuation, row-count and page-indicator behavior rather than fetching all history or inventing a second paging contract. |
 | `src/features/library/LibrarySurface.tsx:144` and `src/components/data-table/DataTable.tsx:204` | Library's catalog filter selects suites and templates; every suite table also has the shared component's local row filter. Library callers can therefore narrow the same templates through two inputs. | Keep the catalog filtering owner and delete the per-suite local filtering path after the owner chooses a persistent placement inside the shared presentation; preserve suite grouping and keyboard focus when a group stops matching. |
 
-The compiler task also has overlapping feature inference in the repository-root
-`tools/python/src/dokime_tools/test/focused.py:167` (`selections`) and `:55`
-(`run`). The changed-path workflow calls both: selections builds required target
-features, then run reads the same target metadata and appends those features
-again. The workspace no-run command therefore repeats `dokime-gui/testing`.
-Keep required-feature policy in run and delete the selection-side copy after the
-tooling owner settles the shared handling of explicit test targets and `--tests`;
-this worker does not change tooling or its compiler selectors.
+Required test features have one owner in `tools/python/src/dokime_tools/test/focused.py`:
+`run` infers them from the selected target metadata. `selections` chooses packages
+and targets without inferring features; the former duplicate-inference finding
+is resolved. This worker does not change tooling or its compiler selectors.
 
 The inherited updater in `crates/dokime-gui/src-tauri/src/app/updates/mod.rs:63`
 also gates fields and methods directly. The `stkr-rust` module-only gating rule

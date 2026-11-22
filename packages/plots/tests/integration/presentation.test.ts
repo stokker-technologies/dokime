@@ -22,10 +22,12 @@ import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { XyPlot } from "@dokime/plots/catalog/XyPlot";
+import { TimeSeriesPlot } from "@dokime/plots/catalog/TimeSeriesPlot";
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { documentPlotSpec } from "@dokime/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@dokime/plots/lib/types";
 import { failureOf } from "@dokime/plots/lib/notification-details";
+import { NativeIntegerValue } from "@dokime/plots/lib/api/native-values";
 import { emptyLivePlotState } from "@dokime/plots/live-frames";
 import { PlotPlaceholder } from "../../src/PlotPlaceholder";
 
@@ -213,4 +215,123 @@ test("Plot Placeholder Failures Retain Their Title and Settings Action", () => {
   assert.equal(host.querySelector(".plot-card strong")?.textContent, descriptor.title);
   assert.ok(host.querySelector(".plot-card button[aria-label]"));
   assert.ok(host.querySelector('.plot-card [role="alert"]'));
+});
+
+test("Live and Frozen Plots Keep All Traces in One Card Below the Description", async () => {
+  const { host, root } = mountPlot();
+  const series = Array.from({ length: 12 }, (_, index) => ({
+    key: `trace-${index}`,
+    label: `Trace ${index + 1}`,
+    raw_points: 3,
+    downsampled: false,
+    points: [],
+  }));
+  const plot = documentPlotSpec({
+    plot: { ...descriptor, plot_type: "time_series", description: "Signal over the shown window." },
+    payload: {
+      ...payload,
+      series,
+      cartesian: { ...payload.cartesian!, point_count: 36, series: series.map(() => payload.cartesian!.series[0]) },
+      summaries: series.map((trace) => ({ series_id: trace.key, count: 3, min: 1000, max: 1000.5, mean: 1000.25 })),
+    },
+  });
+  for (const viewportMode of ["live", "fit"] as const) {
+    await act(async () =>
+      root.render(
+        createElement(TimeSeriesPlot, {
+          plot,
+          viewportMode,
+          actions: createElement("button", { type: "button", "aria-label": "Plot Settings" }),
+        }),
+      ),
+    );
+    const card = host.querySelector("article.plot-card")!;
+    assert.equal(host.querySelectorAll("article").length, 1);
+    assert.ok(card.classList.contains("border"));
+    const [header, chart, description, statistics] = Array.from(card.children);
+    assert.ok(header.querySelector('button[aria-label="Plot Settings"]'));
+    assert.ok(header.querySelector("button[aria-pressed]"));
+    assert.ok(chart.querySelector(".min-h-60"));
+    assert.equal(description.tagName, "P");
+    assert.equal(description.textContent, plot.description);
+    const table = statistics.querySelector('table[aria-label="Trace Statistics"]')!;
+    assert.equal(table.querySelectorAll("tbody tr").length, 12);
+    assert.equal(card.querySelectorAll('[data-slot="data-table"], input, select, tfoot').length, 0);
+    assert.equal(statistics.querySelectorAll("h1, h2, h3, h4, h5, h6, .border").length, 0);
+    const toggle = table.querySelector("tbody button")!;
+    await act(async () => toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    assert.equal(toggle.getAttribute("aria-pressed"), "false");
+    assert.ok(toggle.querySelector('[data-trace-hidden="true"]'));
+    await act(async () => toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    assert.equal(toggle.getAttribute("aria-pressed"), "true");
+    assert.equal(table.querySelectorAll("tbody tr").length, 12);
+  }
+});
+
+test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside Their Card", async () => {
+  const { host, root } = mountPlot();
+  vi.stubGlobal("IntersectionObserver", undefined);
+  const exact = new NativeIntegerValue(1152921504606847975n, true);
+  for (const count of [1, 12]) {
+    const series = Array.from({ length: count }, (_, index) => ({
+      key: `metric-${index + 1}`,
+      label: `Metric ${index + 1}`,
+      raw_points: 42,
+      downsampled: false,
+      points: [],
+    }));
+    const plot = { ...descriptor, plot_type: "histogram", unit: "V", description: "Recorded distribution." } as DocumentViewPlot;
+    const state = {
+      ...emptyLivePlotState(),
+      status: "live" as const,
+      payload: {
+        ...payload,
+        series,
+        analysis: {
+          kind: "histogram" as const,
+          series: series.map((item, index) => ({
+            key: item.key,
+            count: 42,
+            bins: [{ lower: 11, upper: 14, count: 42 }],
+            statistics: index === count - 1 && count > 1 ? undefined : { mean: exact, median: 12, std: 0.25, rms: 12.6, min: 11, max: 14 },
+          })),
+        },
+      },
+    };
+    for (const viewportMode of ["live", "fit"] as const) {
+      await act(async () =>
+        root.render(
+          createElement(LivePlotGroupGrid, {
+            title: "Distributions",
+            documentPlots: [plot],
+            liveStates: { [plot.plot_id]: state },
+            viewportMode,
+          }),
+        ),
+      );
+      const card = host.querySelector("article.plot-card")!;
+      assert.ok(card.classList.contains("border"));
+      const table = card.querySelector('table[aria-label="Histogram Statistics"]')!;
+      assert.equal(host.querySelectorAll("article").length, 1);
+      assert.equal(host.querySelectorAll("table").length, 1);
+      assert.equal(table.querySelectorAll("tbody tr").length, count);
+      assert.equal(card.querySelectorAll('[data-slot="data-table"], input, select, tfoot, dl, section.rounded-lg').length, 0);
+      assert.equal(card.children[card.children.length - 2].textContent, plot.description);
+      assert.deepEqual(
+        [...table.querySelectorAll("thead th")].map((cell) => cell.textContent),
+        ["Metric", "Count", "Min [V]", "Max [V]", "Mean [V]", "Median [V]", "Std [V]", "Rms [V]"],
+      );
+      assert.deepEqual(
+        [...table.querySelectorAll("tbody tr:first-child td")].map((cell) => cell.textContent),
+        [count === 1 ? plot.title : "Metric 1", "42", "11.00", "14.00", "1.15292e+18", "12.00", "0.25", "12.60"],
+      );
+      assert.equal(table.querySelector('tbody [data-exact-value="1152921504606847975"]')?.getAttribute("title"), exact.decimal);
+      if (count > 1) {
+        assert.deepEqual(
+          [...table.querySelectorAll("tbody tr:last-child td")].map((cell) => cell.textContent),
+          ["Metric 12", "42", "-", "-", "-", "-", "-", "-"],
+        );
+      }
+    }
+  }
 });

@@ -9,17 +9,17 @@
 
 /* === External Imports === */
 
+import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import type uPlot from "uplot";
+
+/* === Local Imports === */
+
 import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "./lib/rpc/canonical";
 import { Button } from "./components/ui/button";
 import { ErrorCard } from "./components/ErrorCard";
 import type { NotificationFailure } from "./lib/notification-details";
 import { failureOf } from "./lib/notification-details";
-import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import type uPlot from "uplot";
-
-/* === Local Imports === */
-
 import { StatsSummaryTable } from "./components/StatsSummaryTable";
 import { formatNumber, formatTime, formatUnitLabel, type TimeFormatOrigin } from "./lib/format";
 import { nearestDrawnPoint, type SeriesSummary, seriesLegendColumns, seriesLegendRows, toggleTrace } from "./lib/statistics";
@@ -891,15 +891,11 @@ export const CartesianPlot = memo(function CartesianPlot({
 
   // Keep the Settings Action Mounted as Samples Arrive or Disappear
   return (
-    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
+    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2 rounded-lg border bg-card p-4 text-card-foreground">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <strong className={!placeholder && titleRepeated && !unit ? "sr-only" : "block truncate"} title={formatUnitLabel(title, unit)}>
-            {formatUnitLabel(title, unit)}
-          </strong>
-          {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
-          {contextSummary ? <p className="mt-1 text-xs text-muted-foreground">{contextSummary}</p> : null}
-        </div>
+        <strong className={!placeholder && titleRepeated && !unit ? "sr-only" : "min-w-0 truncate"} title={formatUnitLabel(title, unit)}>
+          {formatUnitLabel(title, unit)}
+        </strong>
         <div className="flex items-center gap-2">
           {actions}
           {!placeholder ? (
@@ -954,6 +950,8 @@ export const CartesianPlot = memo(function CartesianPlot({
           ) : null}
         </div>
       )}
+      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      {contextSummary ? <p className="text-xs text-muted-foreground">{contextSummary}</p> : null}
       {!placeholder && legendRows ? (
         <StatsSummaryTable
           legend={{
