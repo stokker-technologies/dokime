@@ -41,11 +41,11 @@ export function HeatStripPlot({ plot }: { plot: PlotCardSpec }) {
   return (
     <article className="plot-card grid min-w-0 gap-3 rounded-lg bg-muted/20 p-3" data-testid="heat-strip-plot">
       {!plot.titleRepeated && <strong>{formatUnitLabel(plot.title, plot.unit)}</strong>}
-      <div className="grid gap-2 overflow-x-auto">
+      <div className="grid min-w-0 gap-2">
         {plot.series.map((series) => (
           <div key={series.key} className="grid gap-1" data-facet={series.key}>
             {series.label && <span className="text-sm">{series.label}</span>}
-            <div className="flex w-max gap-1">
+            <div className="grid w-full min-w-0 gap-1" style={{ gridTemplateColumns: `repeat(${series.points.length}, minmax(0, 1fr))` }}>
               {series.points.map((point) => {
                 const valid = point.y !== null && Number.isFinite(point.y);
                 const label = String(point.x ?? "");
@@ -58,10 +58,9 @@ export function HeatStripPlot({ plot }: { plot: PlotCardSpec }) {
                     data-cell={label}
                     data-valid={valid}
                     title={title}
-                    className="grid shrink-0 place-items-center rounded border break-all text-center text-xs tabular-nums"
+                    className="grid min-w-0 place-items-center rounded border px-1 break-all text-center text-xs tabular-nums"
                     style={{
-                      width: "3rem",
-                      height: "3rem",
+                      minHeight: "3rem",
                       backgroundColor: valid && point.y !== null ? color(point.y) : undefined,
                       color: valid
                         ? max > min && point.y !== null && (point.y - min) / (max - min) > 0.72

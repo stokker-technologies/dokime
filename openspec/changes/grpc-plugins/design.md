@@ -6,6 +6,12 @@ The desktop request-kind map identifies Heat Strip before projecting native
 watch and snapshot columns. Desktop and reports use the shared plot projection
 and `HeatStripPlot`; live revisions replace the rendered cells.
 
+Each facet contains only its observed typed categories, sorted by the existing
+numeric/lexical comparator. A full-width CSS grid shares that row's width evenly
+and uses the same minimum cell height and wrapping labels on both surfaces.
+Absent values remain uncoloured; absence of a category in another facet no
+longer creates a slot. One legend spans every facet's values.
+
 ## Stop Ends Execution Waits
 
 Locked owner decision: Stop ends every execution-scoped host sleep and condition

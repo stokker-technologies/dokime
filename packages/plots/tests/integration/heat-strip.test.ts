@@ -43,7 +43,7 @@ import type { DocumentViewPlot, PlotPayload } from "@dokime/plots/lib/types";
 
 /* === Entry Point === */
 
-test("Heat Strip Renders Aligned Facets Equal Squares One Scale and Empty Cells", () => {
+test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", () => {
   const payload: PlotPayload = {
     stream: "samples",
     x_key: "cell",
@@ -56,7 +56,7 @@ test("Heat Strip Renders Aligned Facets Equal Squares One Scale and Empty Cells"
       downsampled: false,
       points: [
         { x: 2, y: index ? 4 : 1, instant: "1970-01-01T00:00:01Z" },
-        { x: 10, y: 4, instant: "1970-01-01T00:00:02Z" },
+        { x: index ? 36 : 10, y: 4, instant: "1970-01-01T00:00:02Z" },
         { x: "empty", y: null, instant: null },
       ],
     })),
@@ -76,13 +76,18 @@ test("Heat Strip Renders Aligned Facets Equal Squares One Scale and Empty Cells"
   assert.ok(routed.includes('data-testid="heat-strip-plot"'));
   const strips = container.querySelectorAll("[data-facet]");
   assert.equal(strips.length, 2);
-  for (const strip of strips) {
+  for (const [index, strip] of Array.from(strips).entries()) {
     const cells = strip.querySelectorAll<HTMLElement>("[data-cell]");
     assert.deepEqual(
       Array.from(cells, (cell) => cell.dataset.cell),
-      ["2", "10", "empty"],
+      ["2", index ? "36" : "10", "empty"],
     );
-    for (const cell of cells) assert.equal(cell.style.width, cell.style.height);
+    assert.equal(cells[0].parentElement?.style.gridTemplateColumns, "repeat(3, minmax(0, 1fr))");
+    assert.ok(cells[0].parentElement?.classList.contains("w-full"));
+    for (const cell of cells) {
+      assert.equal(cell.style.width, "");
+      assert.equal(cell.style.minHeight, "3rem");
+    }
     assert.equal(cells[2].dataset.valid, "false");
     assert.equal(cells[2].style.backgroundColor, "");
   }
@@ -90,7 +95,7 @@ test("Heat Strip Renders Aligned Facets Equal Squares One Scale and Empty Cells"
   assert.equal(legend.length, 1);
   assert.equal(legend[0].dataset.min, "1");
   assert.equal(legend[0].dataset.max, "4");
-  const colored = container.querySelectorAll<HTMLElement>('[data-cell="10"]');
+  const colored = container.querySelectorAll<HTMLElement>('[data-cell="10"], [data-cell="36"]');
   assert.equal(colored[0].style.backgroundColor, colored[1].style.backgroundColor);
   assert.ok(colored[0].title.includes("1970-01-01T00:00:02Z"));
   for (const series of plot.series) for (const point of series.points) point.y = 4;

@@ -212,7 +212,7 @@ impl Store {
         cells.sort_by(|a, b| compare_cells(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
         let mut facets = facets.into_iter().collect::<Vec<_>>();
         facets.sort_by(|a, b| compare_cells(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
-        let points = cells.len().checked_mul(facets.len()).ok_or(Error::Data("Read Heat Strip: Select Fewer Cells and Facets"))?;
+        let points = groups.len();
         if points > request.limit || bytes.saturating_add(points.saturating_mul(256)) > budget {
             return Err(Error::Data("Read Heat Strip: Narrow the Window or Select Fewer Cells and Facets"));
         }
@@ -227,23 +227,18 @@ impl Store {
             let mut column = PlotColumn::default();
             let mut raw = 0;
             for (cell, identity) in &cells {
+                let Some(group) = groups.remove(&(facet.clone(), cell.clone())) else {
+                    continue;
+                };
                 column.x.push(value(identity.clone()));
-                let group = groups.remove(&(facet.clone(), cell.clone()));
-                let (total, at) = match group {
-                    Some(group) => {
-                        raw += group.count;
-                        match group.latest {
-                            Some(latest) => {
-                                let total = match group.accumulator {
-                                    Some(accumulator) => {
-                                        accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?
-                                    }
-                                    None => latest.scalar,
-                                };
-                                (total, instant(latest.time))
-                            }
-                            None => (ScalarValue::Null, String::new()),
-                        }
+                raw += group.count;
+                let (total, at) = match group.latest {
+                    Some(latest) => {
+                        let total = match group.accumulator {
+                            Some(accumulator) => accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?,
+                            None => latest.scalar,
+                        };
+                        (total, instant(latest.time))
                     }
                     None => (ScalarValue::Null, String::new()),
                 };

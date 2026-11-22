@@ -1451,7 +1451,7 @@ fn heat_strip_reduces_typed_cells_facets_absence_and_windows() -> Result<()> {
         let (frame, count, groups) = store.heat_strip_window(binding(), reducer)?;
         assert_eq!(count, 7);
         assert_eq!(groups, vec![("a".into(), 7), ("b".into(), 0)]);
-        assert_eq!(frame.point_count, 8);
+        assert_eq!(frame.point_count, 5);
         assert_eq!(
             frame.series[0]
                 .x
@@ -1467,8 +1467,14 @@ fn heat_strip_reduces_typed_cells_facets_absence_and_windows() -> Result<()> {
         assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: at, nanos: 0 }.to_string());
         assert!(frame.series[1].y.iter().all(|v| v.value.is_none()));
         assert!(frame.series[1].instants.iter().all(String::is_empty));
+        assert_eq!(
+            frame.series[1].x,
+            vec![model::Value {
+                kind: Some(value::Kind::UnsignedInteger(10))
+            }]
+        );
     }
-    assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last).is_err());
+    assert!(store.heat_strip_window(KindWindow { limit: 4, ..binding() }, Reduction::Last).is_err());
     let (frame, count, _) = store.heat_strip_window(
         KindWindow {
             window: NumericWindow {
