@@ -174,7 +174,11 @@ pub(crate) async fn attach(bundle: &Path, endpoint: Option<String>, settings: &S
     let entry = value.entry.take().ok_or("Install Plugin: Missing Registered Entry")?;
     value.entry = Some(super::await_ready(&client, entry, settings, "Install Plugin").await?);
     if let Some(json) = output {
-        output::print(&value, json)?;
+        if json {
+            output::print(&value, true)?;
+        } else {
+            println!("{}", super::list::summary(value.entry.as_ref().unwrap()));
+        }
     }
     Ok(())
 }

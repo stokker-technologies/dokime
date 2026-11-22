@@ -63,7 +63,11 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     // Use the Protocol Descriptor to Bind Describe Without a Second Wire Model
     let url = args.url.ok_or("Inspect Plugin: Supply --bundle or --url")?;
     let description = dokime_runtime::describe_plugin(&url, &settings.placement()).await?;
-    crate::output::print(&description, args.json)
+    if args.json {
+        return crate::output::print(&description, true);
+    }
+    println!("{}\t{}", description.id, description.version);
+    Ok(())
 }
 
 /* === Private Functions === */

@@ -114,7 +114,13 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         return Err(crate::error::Error::Capacity("Materialize Cases: Increase retained_bytes or Select Fewer Cases".into()));
     }
     std::fs::write(args.out, bytes)?;
-    crate::output::print(&value, args.json)
+    if args.json {
+        return crate::output::print(&value, true);
+    }
+    for case in value.cases {
+        println!("{}\t{}\t{}", case.case_id, case.suite_id, case.template_id);
+    }
+    Ok(())
 }
 
 /* === Private Functions === */

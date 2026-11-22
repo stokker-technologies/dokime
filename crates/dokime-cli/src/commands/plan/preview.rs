@@ -89,7 +89,13 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         }
         std::fs::write(path, bytes)?;
     }
-    crate::output::print(&reply, args.json)
+    if args.json {
+        return crate::output::print(&reply, true);
+    }
+    for case in reply.cases {
+        println!("{}\t{}\t{}", case.case_id, case.suite_id, case.template_id);
+    }
+    Ok(())
 }
 
 /* === Private Functions === */
