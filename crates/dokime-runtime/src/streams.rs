@@ -11,6 +11,9 @@
 
 /* === Modules === */
 
+#[cfg(test)]
+mod burst;
+
 /* === Re-Exports === */
 
 /* === Imports === */
