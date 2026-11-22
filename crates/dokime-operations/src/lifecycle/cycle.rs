@@ -29,8 +29,13 @@ use prost::Message;
 use super::io::{self, Version};
 use super::{mutations, rows};
 use crate::{Error, Result};
-use dokime_storage::persisted::{Scope, bindings::Protobuf, records::CycleEvent, shapes::{Cycle, Execution, Outcomes, State}};
 use dokime_protocol::host::{ExecutionOutcome, ResultStatus, execution_outcome::Attribution};
+use dokime_storage::persisted::{
+    Scope,
+    bindings::Protobuf,
+    records::CycleEvent,
+    shapes::{Cycle, Execution, Outcomes, State},
+};
 
 /* === Constants === */
 
@@ -61,11 +66,12 @@ pub async fn create(
         return Err(Error::Invalid("Create Cycle: Select Its Exact Scope With an Open, Empty Lifecycle".into()));
     }
     cycle.metadata.decode(bytes)?;
-    let event = CycleEvent { execution: String::new(), kind: "created".into(), receipt_ns };
-    let items = vec![
-        MutationItem::Create(io::encode(&cycle, bytes)?),
-        mutations::event(&mutation, "cycle", cycle.scope, &event, bytes)?,
-    ];
+    let event = CycleEvent {
+        execution: String::new(),
+        kind: "created".into(),
+        receipt_ns,
+    };
+    let items = vec![MutationItem::Create(io::encode(&cycle, bytes)?), mutations::event(&mutation, "cycle", cycle.scope, &event, bytes)?];
     mutations::mutate(operations, MutateRequest { mutation: Some(mutation), items }, bytes).await
 }
 
@@ -77,9 +83,16 @@ pub async fn set_metadata(
     }
     metadata.decode(bytes)?;
     let value = Cycle { metadata, ..cycle.value };
-    let event = CycleEvent { execution: String::new(), kind: "metadata".into(), receipt_ns };
+    let event = CycleEvent {
+        execution: String::new(),
+        kind: "metadata".into(),
+        receipt_ns,
+    };
     let items = vec![
-        MutationItem::Set { expected: cycle.revision, value: io::encode(&value, bytes)? },
+        MutationItem::Set {
+            expected: cycle.revision,
+            value: io::encode(&value, bytes)?,
+        },
         mutations::event(&mutation, "cycle", value.scope, &event, bytes)?,
     ];
     mutations::mutate(operations, MutateRequest { mutation: Some(mutation), items }, bytes).await
@@ -93,9 +106,18 @@ pub async fn image(
     let mut settled = true;
     let mut token = String::new();
     loop {
-        let page = rows::list::<Execution>(operations, None, ObjectVersions::Latest, at, PageRequest {
-            page_size: rows.get() as u32, page_token: token, ..Default::default()
-        }).await?;
+        let page = rows::list::<Execution>(
+            operations,
+            None,
+            ObjectVersions::Latest,
+            at,
+            PageRequest {
+                page_size: rows.get() as u32,
+                page_token: token,
+                ..Default::default()
+            },
+        )
+        .await?;
         at = page.resolved_at.clone();
         for execution in rows::decode::<Execution>(&page, bytes)? {
             if execution.cycle != cycle {
@@ -105,7 +127,9 @@ pub async fn image(
                 settled = false;
                 continue;
             }
-            let outcome = execution.outcome.ok_or_else(|| Error::Precondition("Read Cycle Outcomes: Restore Every Sealed Execution's Attribution".into()))?;
+            let outcome = execution
+                .outcome
+                .ok_or_else(|| Error::Precondition("Read Cycle Outcomes: Restore Every Sealed Execution's Attribution".into()))?;
             outcomes = attribute(&outcomes, &outcome)?;
         }
         token = page.next_page_token;
@@ -127,10 +151,21 @@ pub async fn finish(
     if !image.settled {
         return Err(Error::Precondition("Seal Cycle: Settle and Seal Every Surviving Execution First".into()));
     }
-    let value = Cycle { sealed: true, outcomes: image.outcomes, ..cycle.value };
-    let event = CycleEvent { execution: String::new(), kind: "sealed".into(), receipt_ns };
+    let value = Cycle {
+        sealed: true,
+        outcomes: image.outcomes,
+        ..cycle.value
+    };
+    let event = CycleEvent {
+        execution: String::new(),
+        kind: "sealed".into(),
+        receipt_ns,
+    };
     let items = vec![
-        MutationItem::Set { expected: cycle.revision, value: io::encode(&value, bytes)? },
+        MutationItem::Set {
+            expected: cycle.revision,
+            value: io::encode(&value, bytes)?,
+        },
         mutations::event(&mutation, "cycle", value.scope, &event, bytes)?,
     ];
     mutations::mutate(operations, MutateRequest { mutation: Some(mutation), items }, bytes).await
@@ -156,9 +191,10 @@ pub(super) fn attribute(counts: &Outcomes, saved: &Protobuf) -> Result<Outcomes>
         },
         None => return Err(Error::Invalid("Seal Execution: Attribute Its Outcome Before Sealing".into())),
     };
-    *count = count.checked_add(1).ok_or_else(|| Error::Bound("Seal Execution: Start a New Cycle Before Its Outcome Counter Overflows".into()))?;
+    *count = count
+        .checked_add(1)
+        .ok_or_else(|| Error::Bound("Seal Execution: Start a New Cycle Before Its Outcome Counter Overflows".into()))?;
     Ok(counts)
 }
-
 
 /* === Tests === */

@@ -21,9 +21,9 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos_operations::storage::{CompoundOutcome, Mutate, MutateRequest, MutationId, MutationItem, StorageCursor};
 use harmos_protocol::model::Receipt;
-use harmos_runtime::{Identified, Identifier, MemorySize, Message, schema::Described};
 use harmos_runtime::operations::OperationManager;
 use harmos_runtime::storage::RecordInput;
+use harmos_runtime::{Identified, Identifier, MemorySize, Message, schema::Described};
 
 // Local Imports
 use super::io;
@@ -71,7 +71,14 @@ pub(super) fn event<T: Identified + Described + Message>(
     }
     let item = Identifier::new(format!("{}/{kind}", mutation.key))
         .map_err(|source| Error::Invalid(format!("Append Lifecycle Event: Select a Valid Mutation Identity: {source}")))?;
-    Ok(MutationItem::Append(RecordInput { schema, scope: Some(scope), item, source: None, source_time: None, payload }))
+    Ok(MutationItem::Append(RecordInput {
+        schema,
+        scope: Some(scope),
+        item,
+        source: None,
+        source_time: None,
+        payload,
+    }))
 }
 
 pub(super) fn bound_preview_deletions(items: &[MutationItem], bytes: NonZeroUsize) -> Result<()> {

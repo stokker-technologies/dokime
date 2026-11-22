@@ -25,10 +25,18 @@ use prost::Message;
 
 // Local Imports
 use super::{Fixture, Proof, Reading};
-use crate::lifecycle::{self, admission::{Closed, DrainedIntake, Gate}, cycle, io, seal};
+use crate::lifecycle::{
+    self,
+    admission::{Closed, DrainedIntake, Gate},
+    cycle, io, seal,
+};
 use dokime_protocol::host::{EvaluatedOutcome, ExecutionOutcome, ResultStatus, execution_outcome::Attribution};
 use dokime_protocol::model::{Metadata, Termination};
-use dokime_storage::persisted::{Scope, bindings::{self, Binding, Protobuf}, shapes::{Cycle, Execution, Preview, State}};
+use dokime_storage::persisted::{
+    Scope,
+    bindings::{self, Binding, Protobuf},
+    shapes::{Cycle, Execution, Preview, State},
+};
 
 /* === Constants === */
 
@@ -52,20 +60,48 @@ impl Fixture {
         let gate = Gate::new(&execution.value)?;
         let permit = gate.enter().await?;
         for key in previews {
-            let value = Preview { key, scope: Scope::Execution(name).identifier()?, source_cut: Vec::new(), kind: "envelope".into(), selection: Vec::new(), payload: vec![7] };
-            let response = io::call::<Mutate>(operations, MutateRequest {
-                mutation: Some(self.mutation(&format!("preview/{}", value.key)).await?), items: vec![MutationItem::Create(io::encode(&value, self.bytes)?)],
-            }).await?;
+            let value = Preview {
+                key,
+                scope: Scope::Execution(name).identifier()?,
+                source_cut: Vec::new(),
+                kind: "envelope".into(),
+                selection: Vec::new(),
+                payload: vec![7],
+            };
+            let response = io::call::<Mutate>(
+                operations,
+                MutateRequest {
+                    mutation: Some(self.mutation(&format!("preview/{}", value.key)).await?),
+                    items: vec![MutationItem::Create(io::encode(&value, self.bytes)?)],
+                },
+            )
+            .await?;
             receipt = response.receipt.ok_or("Return Preview Durability")?;
         }
         drop(permit);
         let closed = gate.close().await;
         assert!(gate.enter().await.is_err());
-        let outcome = ExecutionOutcome { attribution: Some(Attribution::Evaluated(EvaluatedOutcome { status: ResultStatus::Passed as i32, ..Default::default() })) };
+        let outcome = ExecutionOutcome {
+            attribution: Some(Attribution::Evaluated(EvaluatedOutcome {
+                status: ResultStatus::Passed as i32,
+                ..Default::default()
+            })),
+        };
         let outcome = Protobuf::product("dokime.host.v1.ExecutionOutcome", &outcome, self.bytes)?;
         let execution = lifecycle::read::<Execution>(operations, name, None, self.bytes).await?.ok_or("Read Execution for Closing")?;
-        seal::close(operations, self.mutation(&format!("close/{name}")).await?, &closed, DrainedIntake { execution: name.into(), receipt },
-            execution, outcome, Termination::Completed as i32, 0, NonZeroUsize::new(1).unwrap(), self.bytes).await?;
+        seal::close(
+            operations,
+            self.mutation(&format!("close/{name}")).await?,
+            &closed,
+            DrainedIntake { execution: name.into(), receipt },
+            execution,
+            outcome,
+            Termination::Completed as i32,
+            0,
+            NonZeroUsize::new(1).unwrap(),
+            self.bytes,
+        )
+        .await?;
         Ok((gate, closed))
     }
 }
@@ -81,8 +117,17 @@ async fn frozen_schemas_survive_reopen_and_refuse_changed_graphs() -> Proof {
     // Freeze a Plugin Binding Through the Library Schema Operation.
     let fixture = Fixture::open().await?;
     let (key, graph) = bindings::schema::<Reading>()?;
-    let value = Protobuf::product("dokime.model.v1.ExecutionProgressValue", &dokime_protocol::model::ExecutionProgressValue::default(), fixture.bytes)?;
-    let binding = Binding { key, graph, message: value.message, descriptors: value.descriptors };
+    let value = Protobuf::product(
+        "dokime.model.v1.ExecutionProgressValue",
+        &dokime_protocol::model::ExecutionProgressValue::default(),
+        fixture.bytes,
+    )?;
+    let binding = Binding {
+        key,
+        graph,
+        message: value.message,
+        descriptors: value.descriptors,
+    };
     lifecycle::register(&fixture.runtime.operations, &fixture.mutation("schemas").await?).await?;
     lifecycle::register_binding(&fixture.runtime.operations, &fixture.mutation("plugin-schema").await?, &binding, fixture.bytes).await?;
     let fixture = fixture.reopen().await?;
@@ -92,7 +137,11 @@ async fn frozen_schemas_survive_reopen_and_refuse_changed_graphs() -> Proof {
     lifecycle::register_binding(&fixture.runtime.operations, &fixture.mutation("reopened-plugin").await?, &binding, fixture.bytes).await?;
     let mut changed = binding;
     changed.graph.definitions[changed.graph.root][0].name = "changed".into();
-    assert!(lifecycle::register_binding(&fixture.runtime.operations, &fixture.mutation("changed-plugin").await?, &changed, fixture.bytes).await.is_err());
+    assert!(
+        lifecycle::register_binding(&fixture.runtime.operations, &fixture.mutation("changed-plugin").await?, &changed, fixture.bytes)
+            .await
+            .is_err()
+    );
     fixture.runtime.stop().await?;
     Ok(())
 }
@@ -106,7 +155,17 @@ async fn publication_uses_receipt_s_and_retains_c_through_restart() -> Proof {
     fixture.native_cycle("cycle").await?;
     let (gate, closed) = fixture.native_closed("first", "cycle", vec!["first/envelope".into(), "first/grid".into()]).await?;
     let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read Closed Execution")?;
-    let plan = seal::prepare(operations, fixture.mutation("seal").await?, &closed, execution, &[], 0, NonZeroUsize::new(1).unwrap(), fixture.bytes).await?;
+    let plan = seal::prepare(
+        operations,
+        fixture.mutation("seal").await?,
+        &closed,
+        execution,
+        &[],
+        0,
+        NonZeroUsize::new(1).unwrap(),
+        fixture.bytes,
+    )
+    .await?;
     let evidence_cut = plan.evidence_cut.clone();
     let reader = io::call::<CreateSnapshot>(operations, CreateSnapshotRequest { at: Some(evidence_cut.clone()) }).await?;
     let reader_cut = reader.resolved_at.ok_or("Retain an Independent Reader")?;
@@ -129,7 +188,9 @@ async fn publication_uses_receipt_s_and_retains_c_through_restart() -> Proof {
     drop(closed);
     let fixture = fixture.reopen().await?;
     for at in [evidence_cut, reader_cut] {
-        let saved = lifecycle::read::<Execution>(&fixture.runtime.operations, "first", Some(at), fixture.bytes).await?.ok_or("Reopen Retained Execution Evidence")?;
+        let saved = lifecycle::read::<Execution>(&fixture.runtime.operations, "first", Some(at), fixture.bytes)
+            .await?
+            .ok_or("Reopen Retained Execution Evidence")?;
         assert_eq!(saved.value.state, State::Closed);
     }
     fixture.runtime.stop().await?;
@@ -145,9 +206,26 @@ async fn a_late_cycle_conflict_preserves_execution_and_every_preview() -> Proof 
     fixture.native_cycle("cycle").await?;
     let (_, closed) = fixture.native_closed("first", "cycle", vec!["first/envelope".into()]).await?;
     let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read Closed Execution")?;
-    let plan = seal::prepare(operations, fixture.mutation("seal").await?, &closed, execution, &[], 0, NonZeroUsize::new(1).unwrap(), fixture.bytes).await?;
+    let plan = seal::prepare(
+        operations,
+        fixture.mutation("seal").await?,
+        &closed,
+        execution,
+        &[],
+        0,
+        NonZeroUsize::new(1).unwrap(),
+        fixture.bytes,
+    )
+    .await?;
     let cycle = lifecycle::read::<Cycle>(operations, "cycle", None, fixture.bytes).await?.ok_or("Read Cycle")?;
-    let metadata = Protobuf::product("dokime.model.v1.Metadata", &Metadata { label: "Changed Cycle".into(), ..Default::default() }, fixture.bytes)?;
+    let metadata = Protobuf::product(
+        "dokime.model.v1.Metadata",
+        &Metadata {
+            label: "Changed Cycle".into(),
+            ..Default::default()
+        },
+        fixture.bytes,
+    )?;
     cycle::set_metadata(operations, fixture.mutation("metadata").await?, cycle, metadata, 0, fixture.bytes).await?;
 
     // A Refused Compound Mutation Publishes Neither the Seal Nor Preview Deletions.

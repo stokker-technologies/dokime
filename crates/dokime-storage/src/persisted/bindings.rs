@@ -16,11 +16,20 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{borrow::Cow, collections::BTreeMap, fmt::Display, num::{NonZeroU32, NonZeroUsize}};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    fmt::Display,
+    num::{NonZeroU32, NonZeroUsize},
+};
 
 // Third Party Imports
 use arrow_array::StructArray;
-use harmos_domain::schema::{Cardinality, Described, identity, graph::{Field, Kind, Schema}};
+use harmos_domain::schema::{
+    Cardinality, Described,
+    graph::{Field, Kind, Schema},
+    identity,
+};
 use harmos_domain::{Identified, Identifier};
 use harmos_storage::{PayloadEncoding, SchemaKey};
 use prost::Message;
@@ -28,8 +37,8 @@ use prost_reflect::{DescriptorPool, DynamicMessage};
 use prost_types::FileDescriptorSet;
 
 // Local Imports
-use crate::{Error, Result};
 use super::records::Record;
+use crate::{Error, Result};
 
 /* === Constants === */
 
@@ -81,7 +90,8 @@ impl Protobuf {
     }
 
     pub fn product<M: Message>(message: &str, value: &M, bytes: NonZeroUsize) -> Result<Self> {
-        let descriptor = dokime_protocol::descriptor_pool().get_message_by_name(message)
+        let descriptor = dokime_protocol::descriptor_pool()
+            .get_message_by_name(message)
             .ok_or_else(|| Error::Invalid("Freeze Product Value: Select a Declared Message".into()))?;
         let mut pending = vec![descriptor.parent_file()];
         let mut files = BTreeMap::new();
@@ -119,25 +129,43 @@ impl Binding {
         let mut graph = Schema::from_declaration(Record::DEFINITION, &Default::default()).map_err(invalid)?;
         let offset = graph.definitions.len();
         for definition in &self.graph.definitions {
-            let fields = definition.iter().cloned().map(|mut field| {
-                if let Kind::Message { definition } = &mut field.kind {
-                    *definition += offset;
-                }
-                field
-            }).collect();
+            let fields = definition
+                .iter()
+                .cloned()
+                .map(|mut field| {
+                    if let Kind::Message { definition } = &mut field.kind {
+                        *definition += offset;
+                    }
+                    field
+                })
+                .collect();
             graph.definitions.push(fields);
         }
-        graph.representations.extend(self.graph.representations.iter().map(|(index, representation)| (index + offset, representation.clone())));
-        let tag = graph.definitions[graph.root].iter().map(|field| field.tag).max().unwrap_or(0)
-            .checked_add(1).ok_or_else(|| Error::Invalid("Declare Typed Record: Reserve a Value Field Tag".into()))?;
+        graph
+            .representations
+            .extend(self.graph.representations.iter().map(|(index, representation)| (index + offset, representation.clone())));
+        let tag = graph.definitions[graph.root]
+            .iter()
+            .map(|field| field.tag)
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| Error::Invalid("Declare Typed Record: Reserve a Value Field Tag".into()))?;
         graph.definitions[graph.root].push(Field {
-            name: Cow::Borrowed("value"), tag, kind: Kind::Message { definition: self.graph.root + offset }, cardinality: Cardinality::Required,
+            name: Cow::Borrowed("value"),
+            tag,
+            kind: Kind::Message { definition: self.graph.root + offset },
+            cardinality: Cardinality::Required,
         });
         graph.prepare(&Default::default()).map_err(invalid)?;
         let digest = identity::fingerprint(graph.root().map_err(invalid)?, "postcard.v1").map_err(invalid)?;
         let id = Identifier::new(format!("dokime.record/{}/{digest}", self.key.id)).map_err(invalid)?;
         let version = NonZeroU32::new(1).unwrap();
-        let key = SchemaKey { id, version, payload_encoding: PayloadEncoding::PostcardV1 };
+        let key = SchemaKey {
+            id,
+            version,
+            payload_encoding: PayloadEncoding::PostcardV1,
+        };
         Ok(Self { key, graph, ..self.clone() })
     }
 

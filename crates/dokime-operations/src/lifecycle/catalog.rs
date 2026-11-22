@@ -20,13 +20,17 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_operations::storage::{GetSchema, GetSchemaRequest, MutationId, SchemaInput, SetSchema, SetSchemaRequest};
-use harmos_runtime::operations::OperationManager;
 use harmos_runtime::Identifier;
+use harmos_runtime::operations::OperationManager;
 
 // Local Imports
 use super::io::call;
 use crate::{Error, Result};
-use dokime_storage::persisted::{self, bindings::{self, Binding}, records};
+use dokime_storage::persisted::{
+    self,
+    bindings::{self, Binding},
+    records,
+};
 
 /* === Constants === */
 
@@ -72,11 +76,12 @@ pub async fn register(operations: &OperationManager, mutation: &MutationId) -> R
 }
 
 /// Plugin Record/Stream IDs and Shape Versions Stay Owned by the Frozen Declaration.
-pub async fn register_binding(
-    operations: &OperationManager, mutation: &MutationId, binding: &Binding, bytes: NonZeroUsize,
-) -> Result<()> {
+pub async fn register_binding(operations: &OperationManager, mutation: &MutationId, binding: &Binding, bytes: NonZeroUsize) -> Result<()> {
     binding.validate(bytes)?;
-    let schema = SchemaInput { key: Some(binding.key.clone()), graph: Some(binding.graph.clone()) };
+    let schema = SchemaInput {
+        key: Some(binding.key.clone()),
+        graph: Some(binding.graph.clone()),
+    };
     set(operations, mutation, binding.key.id.as_str(), schema).await
 }
 
@@ -93,9 +98,16 @@ async fn set(operations: &OperationManager, mutation: &MutationId, identity: &st
     let key = Identifier::new(format!("{}/{identity}", mutation.key))
         .map_err(|source| Error::Invalid(format!("Register Product Schema: Select a Valid Mutation Identity: {source}")))?;
     let mutation = MutationId { window: mutation.window.clone(), key };
-    call::<SetSchema>(operations, SetSchemaRequest {
-        mutation: Some(mutation), schema: Some(schema), expected_revision: Vec::new(), create_if_absent: true,
-    }).await?;
+    call::<SetSchema>(
+        operations,
+        SetSchemaRequest {
+            mutation: Some(mutation),
+            schema: Some(schema),
+            expected_revision: Vec::new(),
+            create_if_absent: true,
+        },
+    )
+    .await?;
     Ok(())
 }
 

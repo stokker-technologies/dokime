@@ -30,7 +30,12 @@ use super::io::{self, Version};
 use super::{cycle, mutations};
 use crate::{Error, Result};
 use dokime_protocol::model::Termination;
-use dokime_storage::persisted::{Case, bindings::Protobuf, records::{CycleEvent, ExecutionEvent}, shapes::{Cycle, Execution, Parameters, Preview, Progress, State, Steps, Stream}};
+use dokime_storage::persisted::{
+    Case,
+    bindings::Protobuf,
+    records::{CycleEvent, ExecutionEvent},
+    shapes::{Cycle, Execution, Parameters, Preview, Progress, State, Steps, Stream},
+};
 
 /* === Constants === */
 
@@ -68,9 +73,7 @@ impl Plan {
 
 /* === Public Functions === */
 
-pub async fn prepare(
-    operations: &OperationManager, mutation: MutationId, admission: Admission, bytes: NonZeroUsize,
-) -> Result<Plan> {
+pub async fn prepare(operations: &OperationManager, mutation: MutationId, admission: Admission, bytes: NonZeroUsize) -> Result<Plan> {
     let value = &admission.execution;
     value.validate().map_err(|source| Error::Invalid(format!("Admit Execution: {source}")))?;
     if value.state != State::Open || value.seal.is_some() || value.outcome.is_some() || value.termination != 0 {
@@ -85,19 +88,29 @@ pub async fn prepare(
     let mut deletes = Vec::new();
     for key in &value.previews {
         let item = ObjectKey::new(key, bytes).map_err(|source| Error::Invalid(format!("Admit Execution: {source}")))?;
-        deletes.push(MutationItem::Delete { schema: schema.id.clone(), item, expected: None });
+        deletes.push(MutationItem::Delete {
+            schema: schema.id.clone(),
+            item,
+            expected: None,
+        });
     }
     mutations::bound_preview_deletions(&deletes, bytes)?;
 
-    let case = io::read::<Case>(operations, &value.case, None, bytes).await?
+    let case = io::read::<Case>(operations, &value.case, None, bytes)
+        .await?
         .ok_or_else(|| Error::NotFound("Admit Execution: Select a Registered Case".into()))?;
     if !case.value.cycle.is_empty() && case.value.cycle != value.cycle {
         return Err(Error::Invalid("Admit Execution: Select the Case's Registered Cycle".into()));
     }
     let scope = &value.scope;
-    if admission.parameters.key != value.key || admission.steps.key != value.key || admission.progress.key != value.key
-        || admission.parameters.scope != *scope || admission.steps.scope != *scope || admission.progress.scope != *scope
-        || admission.streams.iter().any(|stream| stream.scope != *scope || stream.closed) {
+    if admission.parameters.key != value.key
+        || admission.steps.key != value.key
+        || admission.progress.key != value.key
+        || admission.parameters.scope != *scope
+        || admission.steps.scope != *scope
+        || admission.progress.scope != *scope
+        || admission.streams.iter().any(|stream| stream.scope != *scope || stream.closed)
+    {
         return Err(Error::Invalid("Admit Execution: Freeze Every Initial Object Under Its Execution Owner".into()));
     }
     value.origin.decode(bytes)?;
@@ -106,7 +119,10 @@ pub async fn prepare(
     admission.progress.value.decode(bytes)?;
     let mut items = vec![
         // The Case Guard Also Refuses an Admission Racing Its Unexecuted-Only Deletion.
-        MutationItem::Set { expected: case.revision, value: io::encode(&case.value, bytes)? },
+        MutationItem::Set {
+            expected: case.revision,
+            value: io::encode(&case.value, bytes)?,
+        },
         MutationItem::Create(io::encode(value, bytes)?),
         MutationItem::Create(io::encode(&admission.parameters, bytes)?),
         MutationItem::Create(io::encode(&admission.steps, bytes)?),
@@ -115,16 +131,31 @@ pub async fn prepare(
     for stream in &admission.streams {
         items.push(MutationItem::Create(io::encode(stream, bytes)?));
     }
-    let event = ExecutionEvent { state: State::Open, kind: "admitted".into(), step: String::new(), operation: String::new(), attempt: 0, receipt_ns: admission.receipt_ns };
+    let event = ExecutionEvent {
+        state: State::Open,
+        kind: "admitted".into(),
+        step: String::new(),
+        operation: String::new(),
+        attempt: 0,
+        receipt_ns: admission.receipt_ns,
+    };
     items.push(mutations::event(&mutation, "execution", value.scope.clone(), &event, bytes)?);
     if !value.cycle.is_empty() {
-        let cycle = io::read::<Cycle>(operations, &value.cycle, None, bytes).await?
+        let cycle = io::read::<Cycle>(operations, &value.cycle, None, bytes)
+            .await?
             .ok_or_else(|| Error::NotFound("Admit Execution: Select an Existing Cycle".into()))?;
         if cycle.value.sealed {
             return Err(Error::Precondition("Admit Execution: Select an Unsealed Cycle".into()));
         }
-        let event = CycleEvent { execution: value.key.clone(), kind: "execution-admitted".into(), receipt_ns: admission.receipt_ns };
-        items.push(MutationItem::Set { expected: cycle.revision, value: io::encode(&cycle.value, bytes)? });
+        let event = CycleEvent {
+            execution: value.key.clone(),
+            kind: "execution-admitted".into(),
+            receipt_ns: admission.receipt_ns,
+        };
+        items.push(MutationItem::Set {
+            expected: cycle.revision,
+            value: io::encode(&cycle.value, bytes)?,
+        });
         items.push(mutations::event(&mutation, "cycle", cycle.value.scope, &event, bytes)?);
     }
     let request = MutateRequest { mutation: Some(mutation), items };
@@ -136,8 +167,8 @@ pub async fn admit(operations: &OperationManager, plan: &Plan, bytes: NonZeroUsi
 }
 
 pub(super) async fn close(
-    operations: &OperationManager, mutation: MutationId, execution: Version<Execution>, outcome: Protobuf,
-    termination: i32, streams: Vec<Version<Stream>>, receipt_ns: i64, bytes: NonZeroUsize,
+    operations: &OperationManager, mutation: MutationId, execution: Version<Execution>, outcome: Protobuf, termination: i32,
+    streams: Vec<Version<Stream>>, receipt_ns: i64, bytes: NonZeroUsize,
 ) -> Result<Receipt> {
     if execution.value.state != State::Open {
         return Err(Error::Precondition("Close Execution: Select an Open Execution After Settling Its Intake".into()));
@@ -147,10 +178,25 @@ pub(super) async fn close(
     if Termination::try_from(termination).ok().is_none_or(|termination| termination == Termination::Unspecified) {
         return Err(Error::Invalid("Close Execution: Select a Recorded Termination".into()));
     }
-    let value = Execution { state: State::Closed, outcome: Some(outcome), termination, ..execution.value };
-    let event = ExecutionEvent { state: State::Closed, kind: "closed".into(), step: String::new(), operation: String::new(), attempt: 0, receipt_ns };
+    let value = Execution {
+        state: State::Closed,
+        outcome: Some(outcome),
+        termination,
+        ..execution.value
+    };
+    let event = ExecutionEvent {
+        state: State::Closed,
+        kind: "closed".into(),
+        step: String::new(),
+        operation: String::new(),
+        attempt: 0,
+        receipt_ns,
+    };
     let mut items = vec![
-        MutationItem::Set { expected: execution.revision, value: io::encode(&value, bytes)? },
+        MutationItem::Set {
+            expected: execution.revision,
+            value: io::encode(&value, bytes)?,
+        },
         mutations::event(&mutation, "execution", value.scope.clone(), &event, bytes)?,
     ];
     for stream in streams {
@@ -158,7 +204,10 @@ pub(super) async fn close(
             return Err(Error::Permission("Close Execution: Settle Only Its Own Stream Bindings".into()));
         }
         let stream_value = Stream { closed: true, ..stream.value };
-        items.push(MutationItem::Set { expected: stream.revision, value: io::encode(&stream_value, bytes)? });
+        items.push(MutationItem::Set {
+            expected: stream.revision,
+            value: io::encode(&stream_value, bytes)?,
+        });
     }
     mutations::mutate(operations, MutateRequest { mutation: Some(mutation), items }, bytes).await
 }
@@ -191,14 +240,18 @@ pub async fn set_steps(
 }
 
 pub async fn append_transition(
-    operations: &OperationManager, mutation: MutationId, permit: &Permit, execution: Version<Execution>, event: ExecutionEvent, bytes: NonZeroUsize,
+    operations: &OperationManager, mutation: MutationId, permit: &Permit, execution: Version<Execution>, event: ExecutionEvent,
+    bytes: NonZeroUsize,
 ) -> Result<Receipt> {
     permit.require(&execution.value)?;
     if execution.value.state != State::Open || event.state != State::Open {
         return Err(Error::Precondition("Append Execution Transition: Select an Open Execution".into()));
     }
     let items = vec![
-        MutationItem::Set { expected: execution.revision, value: io::encode(&execution.value, bytes)? },
+        MutationItem::Set {
+            expected: execution.revision,
+            value: io::encode(&execution.value, bytes)?,
+        },
         mutations::event(&mutation, "execution", execution.value.scope, &event, bytes)?,
     ];
     mutations::mutate(operations, MutateRequest { mutation: Some(mutation), items }, bytes).await
@@ -214,10 +267,23 @@ async fn revise<T: StoredObject<Key = str>>(
     if execution.value.state != State::Open || value.scope() != Some(&execution.value.scope) || value.key() != execution.value.key {
         return Err(Error::Precondition("Revise Execution: Select an Open Execution and Its Own Resource Revision".into()));
     }
-    let event = ExecutionEvent { state: State::Open, kind: kind.into(), step: String::new(), operation: String::new(), attempt: 0, receipt_ns };
+    let event = ExecutionEvent {
+        state: State::Open,
+        kind: kind.into(),
+        step: String::new(),
+        operation: String::new(),
+        attempt: 0,
+        receipt_ns,
+    };
     let items = vec![
-        MutationItem::Set { expected: execution.revision, value: io::encode(&execution.value, bytes)? },
-        MutationItem::Set { expected, value: io::encode(&value, bytes)? },
+        MutationItem::Set {
+            expected: execution.revision,
+            value: io::encode(&execution.value, bytes)?,
+        },
+        MutationItem::Set {
+            expected,
+            value: io::encode(&value, bytes)?,
+        },
         mutations::event(&mutation, "execution", execution.value.scope, &event, bytes)?,
     ];
     mutations::mutate(operations, MutateRequest { mutation: Some(mutation), items }, bytes).await

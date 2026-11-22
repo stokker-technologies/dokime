@@ -16,7 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 // Third Party Imports
 use harmos_protocol::model::Receipt;
@@ -69,7 +72,11 @@ pub struct DrainedIntake {
 impl Gate {
     pub fn new(execution: &Execution) -> Result<Self> {
         execution.validate().map_err(|source| Error::Invalid(format!("Admit Execution Writers: {source}")))?;
-        Ok(Self { execution: execution.key.clone(), closed: Arc::new(AtomicBool::new(execution.state != State::Open)), writers: Arc::new(RwLock::new(())) })
+        Ok(Self {
+            execution: execution.key.clone(),
+            closed: Arc::new(AtomicBool::new(execution.state != State::Open)),
+            writers: Arc::new(RwLock::new(())),
+        })
     }
 
     /// Retain the Permit Until the Accepted Write Reaches Its Durable Completion.
@@ -81,14 +88,20 @@ impl Gate {
         if self.closed.load(Ordering::Acquire) {
             return Err(Error::Precondition("Append Execution Evidence: Select an Open Execution".into()));
         }
-        Ok(Permit { _guard: guard, execution: self.execution.clone() })
+        Ok(Permit {
+            _guard: guard,
+            execution: self.execution.clone(),
+        })
     }
 
     /// Close Admission and Join Every Writer Already Holding a Permit.
     pub async fn close(&self) -> Closed {
         self.closed.store(true, Ordering::Release);
         let guard = self.writers.clone().write_owned().await;
-        Closed { execution: self.execution.clone(), _guard: guard }
+        Closed {
+            execution: self.execution.clone(),
+            _guard: guard,
+        }
     }
 }
 

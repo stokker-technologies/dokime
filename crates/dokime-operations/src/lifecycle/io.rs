@@ -56,7 +56,15 @@ pub async fn read<T: StoredObject>(
     operations: &OperationManager, key: &str, at: Option<ReadCut>, bytes: NonZeroUsize,
 ) -> Result<Option<Version<T>>> {
     let schema = ObjectDefinition::of::<T>().schema().map_err(|source| invalid("Read Lifecycle", source))?;
-    let response = call::<GetObject>(operations, GetObjectRequest { schema: Some(schema), item: key.into(), at }).await?;
+    let response = call::<GetObject>(
+        operations,
+        GetObjectRequest {
+            schema: Some(schema),
+            item: key.into(),
+            at,
+        },
+    )
+    .await?;
     let Some(value) = response.value else { return Ok(None) };
     let value = persisted::catalog().decode::<T>(&value, bytes).map_err(|source| invalid("Read Lifecycle", source))?;
     if response.revision.len() > bytes.get() {

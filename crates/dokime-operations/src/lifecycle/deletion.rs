@@ -26,7 +26,10 @@ use harmos_runtime::operations::OperationManager;
 // Local Imports
 use super::{admission::Closed, io::Version, mutations, seal};
 use crate::{Error, Result};
-use dokime_storage::persisted::{Scope, shapes::{Execution, Seal, State}};
+use dokime_storage::persisted::{
+    Scope,
+    shapes::{Execution, Seal, State},
+};
 
 /* === Constants === */
 
@@ -70,7 +73,10 @@ pub async fn prepare(
     seal::require_finished_files(operations, &value, rows).await?;
     // Scope Deletion Releases Its Retained C Owner in the Same Backend Transaction.
     // Independent Reader Leases Remain Owned by Their Readers.
-    let request = MutateRequest { mutation: Some(mutation), items: vec![MutationItem::DeleteScope(scope)] };
+    let request = MutateRequest {
+        mutation: Some(mutation),
+        items: vec![MutationItem::DeleteScope(scope)],
+    };
     Ok(Plan { request })
 }
 
