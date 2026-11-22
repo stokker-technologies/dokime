@@ -55,7 +55,7 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
     // The Host Refuses a Change Whose Catalog Generation Is Stale.
     if (
       (path.endsWith("/Set") || path.endsWith("/Delete")) &&
-      toHex((value as { expectedRevision: Uint8Array }).expectedRevision) !== toHex(revision)
+      toHex((value as unknown as { expectedRevision: Uint8Array }).expectedRevision) !== toHex(revision)
     )
       throw new Error("conflict");
     const reply =
