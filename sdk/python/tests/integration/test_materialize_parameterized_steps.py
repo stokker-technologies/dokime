@@ -25,6 +25,7 @@ from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
 import dokime_sdk.operations
+import dokime_sdk.templates
 from dokime_sdk import Client, Failure, Plugin, ResultStatus, Scalar, Suite
 from dokime_sdk.operations import OperationPolicy, RetryPolicy
 from dokime_sdk.templates import (
@@ -196,6 +197,32 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
 
 
 class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
+    async def test_counts_keep_the_host_resolved_values_through_materialization(self) -> None:
+        class DurationTestTemplate(TestTemplate):
+            parameters: ClassVar[list[ParameterDefinition]] = [
+                dokime_sdk.templates.Parameter.count("duration_min", "Duration").unit("min").default(240).range(1).build()
+            ]
+
+            @step("Wait")
+            async def wait(self, ctx: Context) -> None:
+                pass
+
+        class DurationSuite(Suite):
+            templates: ClassVar[list[type[TestTemplate]]] = [DurationTestTemplate]
+
+        class DurationPlugin(Plugin):
+            version = "1.0.0"
+            suites: ClassVar[list[type[Suite]]] = [DurationSuite]
+
+        mechanical = Path(__file__).resolve().parents[2] / "tests/support/host.py"
+        host = await runpy.run_path(str(mechanical))["Host"].start(self)
+        client = cast(Client, host.client)
+        registered = await client.plugins.register(DurationPlugin())
+        defaulted = await client.cases.materialize(DurationTestTemplate)
+        chosen = await client.cases.materialize(DurationTestTemplate, parameters={"duration_min": [5]})
+        self.assertEqual([len(defaulted), len(chosen)], [1, 1])
+        await registered.unregister()
+
     async def test_class_template_materialization_retry_and_artifacts_through_host(self) -> None:
         instances: list[list[int]] = []
         attempts: list[tuple[int, int]] = []
