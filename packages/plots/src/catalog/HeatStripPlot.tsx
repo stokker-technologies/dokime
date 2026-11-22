@@ -14,10 +14,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { scaleSequential } from "d3-scale";
-import { interpolateYlOrRd } from "d3-scale-chromatic";
 
 // Local Imports
+import { sequentialColorScale } from "../colors";
 import { cutKey } from "../lib/rpc/canonical";
 import { formatUnitLabel } from "../lib/format";
 import { PlotPlaceholder } from "../PlotPlaceholder";
@@ -38,17 +37,7 @@ export function HeatStripPlot({ plot }: { plot: PlotCardSpec }) {
   if (!plot.series.some((series) => series.points.length)) {
     return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
   }
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-  for (const series of plot.series) {
-    for (const point of series.points) {
-      if (point.y === null || !Number.isFinite(point.y)) continue;
-      min = Math.min(min, point.y);
-      max = Math.max(max, point.y);
-    }
-  }
-  const present = Number.isFinite(min);
-  const color = scaleSequential(interpolateYlOrRd).domain(present ? (min === max ? [min - 1, max + 1] : [min, max]) : [0, 1]);
+  const { min, max, present, color } = sequentialColorScale(plot.series.flatMap((series) => series.points.map((point) => point.y)));
   return (
     <article className="plot-card grid min-w-0 gap-3 rounded-lg bg-muted/20 p-3" data-testid="heat-strip-plot">
       {!plot.titleRepeated && <strong>{formatUnitLabel(plot.title, plot.unit)}</strong>}

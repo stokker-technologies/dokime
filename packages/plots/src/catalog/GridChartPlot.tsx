@@ -10,14 +10,13 @@
 /* === External Imports === */
 
 import { useMemo } from "react";
-import { scaleSequential } from "d3-scale";
-import { interpolateYlOrRd } from "d3-scale-chromatic";
 
 /* === Local Imports === */
 
 import type { GridAxisEntry } from "@host/model";
 import { DataTable } from "../components/data-table/DataTable";
 import { dataTableColumns } from "../components/data-table/data-table-model";
+import { sequentialColorScale } from "../colors";
 import { formatNumber, formatUnitLabel } from "../lib/format";
 import type { Wire } from "../lib/rpc/canonical";
 import { PlotPlaceholder } from "../PlotPlaceholder";
@@ -47,13 +46,7 @@ export function GridChartPlot({ plot }: { plot: PlotCardSpec }) {
       </div>
     );
   const values = frame.values.filter((value, index) => frame.valid[index] && Number.isFinite(value));
-  let min = values.length ? Number.POSITIVE_INFINITY : 0;
-  let max = values.length ? Number.NEGATIVE_INFINITY : 1;
-  for (const value of values) {
-    min = Math.min(min, value);
-    max = Math.max(max, value);
-  }
-  const color = scaleSequential(interpolateYlOrRd).domain(min === max ? [min - 1, max + 1] : [min, max]);
+  const { min, max, color } = sequentialColorScale(values);
   const column = dataTableColumns<GridRow>();
   const columns = column.columns([
     column.accessor("label", {
