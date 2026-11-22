@@ -22,7 +22,7 @@ pub use ::harmos::plugin::StateHandle;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 // Third Party Imports
-use ::harmos::plugin;
+use ::harmos::{OperationCall, plugin};
 use prost_types::Timestamp;
 
 // Local Imports
@@ -75,6 +75,9 @@ impl Context {
     }
     pub fn stop_requested(&self) -> bool {
         self.inner.stop_requested()
+    }
+    pub async fn operation<Q: OperationCall>(&self, request: Q) -> Result<Q::Response> {
+        self.inner.operation(request).await
     }
     pub async fn sleep(&self, duration: Duration) -> Result<()> {
         self.inner.sleep(duration).await

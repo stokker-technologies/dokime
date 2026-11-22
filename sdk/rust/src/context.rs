@@ -29,7 +29,7 @@ use std::{
 };
 
 // Third Party Imports
-use ::harmos::plugin;
+use ::harmos::{OperationCall, plugin};
 use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
 
@@ -65,6 +65,7 @@ use crate::{Payload, authoring::build_identifier, payload};
 /* === Type Aliases === */
 
 type Resources = Mutex<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>;
+
 /* === Structs === */
 
 #[derive(Clone)]
@@ -343,11 +344,22 @@ impl Context {
 
     pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
         match &self.transport {
-            Transport::Harmos(transport) => Ok(transport.call_with(Wire(request), policy).await?.0),
+            Transport::Harmos(transport) => Ok(transport.operation_with(Wire(request), policy).await?.0),
             Transport::Local(local) => {
                 let reply = local.host.call(Q::ID, prost::Message::encode_to_vec(&request)).await?;
                 <Q::Response as prost::Message>::decode(reply.as_slice()).map_err(|error| Error::Invalid(format!("{}: {error}", Q::ID)))
             }
+        }
+    }
+    pub async fn operation<Q: OperationCall>(&self, request: Q) -> Result<Q::Response> {
+        match &self.transport {
+            Transport::Harmos(transport) => Ok(transport.operation(request).await?),
+            Transport::Local(_) => Err(Error::failure(
+                ::harmos::Classification::Refused,
+                "testing_host_unsupported",
+                "Testing Host: Operation Invocation Is Not Simulated",
+                "Exercise This Operation Against a Real Host",
+            )),
         }
     }
     pub(crate) async fn watch<Q: host::Request>(&self, request: Q, max_item_bytes: NonZeroUsize) -> Result<Watching<Q::Response>> {
@@ -854,6 +866,27 @@ mod tests {
                 Ok(response)
             })
         }
+    }
+
+    #[tokio::test]
+    async fn peer_operations_require_a_real_host_instead_of_a_simulated_response() {
+        let host = Arc::new(Host::default());
+        let context = Context::local(
+            Local {
+                host: host.clone(),
+                scope: "execution".into(),
+                attempt: 1,
+            },
+            Execution::new(TestCase::default(), Origin::default()),
+            Arc::new(()),
+        );
+        let error = context.operation(crate::untyped("example.measure", serde_json::json!({"channel": 1}))).await.unwrap_err();
+        let Error::Harmos(::harmos::Error::Failure(failure)) = error else {
+            panic!("Expected a Structured Refusal");
+        };
+        assert_eq!(failure.code, "testing_host_unsupported");
+        assert_eq!(failure.action, "Exercise This Operation Against a Real Host");
+        assert!(host.0.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

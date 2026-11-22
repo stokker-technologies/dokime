@@ -14,6 +14,20 @@ Plugin::of::<ExamplePlugin>("0.1.0")
 The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
 with empty payloads. Hooks share plugin-owned state with other operations.
 
+Operation and template contexts accept the library's typed requests and untyped
+JSON calls through the same method:
+
+```rust
+use dokime::untyped;
+use serde_json::json;
+
+let reply = ctx.operation(untyped("example.measure", json!({"channel": 1}))).await?;
+```
+
+The host converts protobuf JSON, validates every field, and returns its structured
+failure unchanged. An in-process testing host does not simulate operation calls;
+exercise these calls against a real host.
+
 `Plugin::run()` and `Plugin::run_with(address)` register with the host selected by `DOKIME_REMOTE` in the process
 environment or working-directory `.env`. Managed launches take precedence.
 Registration sends the SDK version and uses the plugin identifier as its stable
