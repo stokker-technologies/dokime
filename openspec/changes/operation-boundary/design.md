@@ -432,6 +432,14 @@ live orchestration, explicit report publication and one physical transaction own
 One authoritative Harmos history replaces the product execution ledger together with
 its writers, readers and cut issuance; an append-only migration would split that history.
 
+Phase A prepares complete native units without wiring production consumers or deleting
+the SQL paths. Phase B switches their consumers and removes the superseded ledger
+together on the combined integration branch. Phase A preparation does not close a
+coupled cutover task. The owner still decides whether NoteEvent/TraceabilityEvent
+exist, whether report publication joins sealing, and whether SQL payload copies are
+removed. Native preparation excludes those decisions and accepts a typed durable
+intake settlement from the later 3.3/3.4 owner; it does not invent another intake feed.
+
 #### Scopes and Identities
 
 `R=root/<backend_id>`, `C=case/<case_id>`, `Y=cycle/<cycle_id>` and
