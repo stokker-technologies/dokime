@@ -19,6 +19,7 @@ import { act, createElement, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
+import { cleanup, render } from "@testing-library/svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
@@ -70,8 +71,8 @@ import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { ContourPlot } from "@/plots/catalog/ContourPlot";
-import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
-import { PiePlot } from "@/plots/catalog/PiePlot";
+import GridChartPlot from "@/plots/catalog/GridChartPlot.svelte";
+import PiePlot from "@/plots/catalog/PiePlot.svelte";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
@@ -2118,6 +2119,7 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
 });
 
 test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", () => {
+  onTestFinished(cleanup);
   const declaration = {
     plot_id: "surface",
     title: "Sensor Values",
@@ -2181,9 +2183,9 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     },
   };
   const cellPlot = documentPlotSpec({ plot: { ...declaration, plot_type: "grid_chart" }, payload: grid });
-  host.innerHTML = renderToStaticMarkup(createElement(GridChartPlot, { plot: cellPlot }));
-  const populated = host.querySelector('[data-cell="sensor/left"]');
-  const absent = host.querySelector('[data-cell="sensor/right"]');
+  const { container } = render(GridChartPlot, { plot: cellPlot });
+  const populated = container.querySelector('[data-cell="sensor/left"]');
+  const absent = container.querySelector('[data-cell="sensor/right"]');
   assert.equal(populated?.textContent, "0");
   assert.equal(populated?.getAttribute("data-valid"), "true");
   assert.equal(populated?.getAttribute("data-highlight"), "true");
@@ -2215,7 +2217,8 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(request.grid?.rows[0].key, "sensor");
 });
 
-test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
+test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", async () => {
+  onTestFinished(cleanup);
   const declaration = { plot_id: "totals", title: "Totals", stream: "values", plot_type: "bar", y: ["value"] } as DocumentViewPlot;
   const payload: PlotPayload = {
     stream: "values",
@@ -2254,11 +2257,11 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
   host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...zero, pareto: true } }));
   assert.equal(host.querySelectorAll("rect[data-category]").length, 3);
   assert.equal(host.querySelector("[data-cumulative]"), null);
-  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...zero, plotType: "pie" } }));
-  assert.equal(host.querySelectorAll("path").length, 0);
-  assert.ok(host.querySelector('[data-testid="plot-placeholder"]'));
-  host.innerHTML = renderToStaticMarkup(createElement(PiePlot, { plot: { ...plot, plotType: "pie", hole: 0.5 } }));
-  assert.equal(host.querySelectorAll("path[data-category]").length, 3);
+  const pie = render(PiePlot, { plot: { ...zero, plotType: "pie" } });
+  assert.equal(pie.container.querySelectorAll("path").length, 0);
+  assert.ok(pie.container.querySelector('[data-testid="plot-placeholder"]'));
+  await pie.rerender({ plot: { ...plot, plotType: "pie", hole: 0.5 } });
+  assert.equal(pie.container.querySelectorAll("path[data-category]").length, 3);
   const grouped = {
     ...plot,
     series: [
@@ -2289,6 +2292,7 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", () => {
 });
 
 test("Native Columns Reach Trajectory and Categorical Renderers", () => {
+  onTestFinished(cleanup);
   const instants = ["2026-01-01T00:00:00.000000001Z", "2026-01-01T00:00:04Z"];
   for (const kind of ["trajectory", "bar", "pie"] as const) {
     for (const categories of [
@@ -2345,18 +2349,16 @@ test("Native Columns Reach Trajectory and Categorical Renderers", () => {
         },
         payload: update.payload,
       });
-      const host = document.createElement("div");
-      host.innerHTML = renderToStaticMarkup(
-        createElement(
-          PlotInteractionProvider,
-          { zoom: false },
-          kind === "trajectory"
-            ? createElement(TrajectoryPlot, { plot })
-            : kind === "bar"
-              ? createElement(BarPlot, { plot })
-              : createElement(PiePlot, { plot }),
-        ),
-      );
+      const host = kind === "pie" ? render(PiePlot, { plot }).container : document.createElement("div");
+      if (kind !== "pie") {
+        host.innerHTML = renderToStaticMarkup(
+          createElement(
+            PlotInteractionProvider,
+            { zoom: false },
+            kind === "trajectory" ? createElement(TrajectoryPlot, { plot }) : createElement(BarPlot, { plot }),
+          ),
+        );
+      }
       assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
       if (kind === "trajectory") {
         assert.equal(host.querySelector("[data-trajectory-instant]")?.getAttribute("data-trajectory-instant"), instants[1]);

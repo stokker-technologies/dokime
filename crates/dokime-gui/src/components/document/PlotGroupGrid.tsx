@@ -17,7 +17,7 @@ import { ErrorCard } from "../ErrorCard";
 import { failureOf } from "../../lib/notification-details";
 import { documentPlotGroupDescription, documentPlotSpec, groupRepeatsPlotTitle } from "../../plots/grouping";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "../../lib/types";
-import { PiePlot } from "../../plots/catalog/PiePlot";
+import PiePlot from "../../plots/catalog/PiePlot.svelte";
 import { BarPlot } from "../../plots/catalog/BarPlot";
 import { BoxPlot } from "../../plots/catalog/BoxPlot";
 import { FrequencySeriesPlot } from "../../plots/catalog/FrequencySeriesPlot";
@@ -27,7 +27,7 @@ import { TimeSeriesPlot } from "../../plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "../../plots/catalog/TrajectoryPlot";
 import HeatStripPlot from "../../plots/catalog/HeatStripPlot.svelte";
 import { SvelteMount } from "../SvelteMount";
-import { GridChartPlot } from "../../plots/catalog/GridChartPlot";
+import GridChartPlot from "../../plots/catalog/GridChartPlot.svelte";
 import { XyIntervalPlot } from "../../plots/catalog/XyIntervalPlot";
 import { XyPlot } from "../../plots/catalog/XyPlot";
 import { PlotInteractionProvider, usePlotInteraction, usePlotMeasurements } from "@/plots/interaction";
@@ -312,13 +312,13 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <SvelteMount key={resetKey ?? plot.key} component={HeatStripPlot} props={{ plot }} />;
   }
   if (plot.plotType === "grid_chart") {
-    return <GridChartPlot key={plot.key} plot={plot} />;
+    return <SvelteMount key={plot.key} component={GridChartPlot} props={{ plot }} />;
   }
   if (plot.plotType === "contour") {
     return <ContourPlot plot={plot} />;
   }
   if (plot.plotType === "pie") {
-    return <PiePlot plot={plot} />;
+    return <SvelteMount component={PiePlot} props={{ plot }} />;
   }
   if (plot.plotType === "bar") {
     return <BarPlot plot={plot} />;

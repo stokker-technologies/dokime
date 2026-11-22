@@ -20,11 +20,12 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 // Local Imports
+import { SvelteMount } from "@/components/SvelteMount";
 import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { HistogramChart } from "@/plots/HistogramChart";
-import { PiePlot } from "@/plots/catalog/PiePlot";
+import PiePlot from "@/plots/catalog/PiePlot.svelte";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxPlot } from "@/plots/catalog/BoxPlot";
 import { ContourPlot } from "@/plots/catalog/ContourPlot";
@@ -32,7 +33,7 @@ import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { documentPlotSpec } from "@/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
-import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
+import GridChartPlot from "@/plots/catalog/GridChartPlot.svelte";
 import type { PlotCardSpec } from "@/plots/types";
 import "../../../src/desktop.css";
 
@@ -158,7 +159,7 @@ function startCanvasFixture() {
             "div",
             null,
             createElement(TrajectoryPlot, { key: `trajectory:${frozen}`, plot: trajectory }),
-            createElement(GridChartPlot, { key: `grid:${frozen}`, plot: grid }),
+            createElement(SvelteMount<{ plot: PlotCardSpec }>, { component: GridChartPlot, key: `grid:${frozen}`, props: { plot: grid } }),
           ),
         ),
       );
@@ -212,19 +213,22 @@ function startCanvasFixture() {
           createElement(
             "div",
             { "data-plot-kind": "grid" },
-            createElement(GridChartPlot, {
-              plot: {
-                ...plot,
-                analysis: {
-                  kind: "grid_chart",
-                  data: {
-                    rows: [{ key: "sensor", label: "Sensor", order: 0 }],
-                    columns: [
-                      { key: "left", label: "Left", order: 0 },
-                      { key: "right", label: "Right", order: 1 },
-                    ],
-                    frames: [{ instant: "2026-01-01T00:00:00Z", values: [2, 3], valid: [true, true], highlights: [] }],
-                    summaryLabel: "Readings",
+            createElement(SvelteMount<{ plot: PlotCardSpec }>, {
+              component: GridChartPlot,
+              props: {
+                plot: {
+                  ...plot,
+                  analysis: {
+                    kind: "grid_chart",
+                    data: {
+                      rows: [{ key: "sensor", label: "Sensor", order: 0 }],
+                      columns: [
+                        { key: "left", label: "Left", order: 0 },
+                        { key: "right", label: "Right", order: 1 },
+                      ],
+                      frames: [{ instant: "2026-01-01T00:00:00Z", values: [2, 3], valid: [true, true], highlights: [] }],
+                      summaryLabel: "Readings",
+                    },
                   },
                 },
               },
@@ -313,25 +317,28 @@ function startCanvasFixture() {
             createElement(
               "div",
               { "data-pie-hole": hole },
-              createElement(PiePlot, {
-                plot: {
-                  ...plot,
-                  plotType: "pie",
-                  hole,
-                  analysis: null,
-                  series: [
-                    {
-                      key: "total",
-                      label: "Total",
-                      raw_points: 3,
-                      downsampled: false,
-                      points: [
-                        { x: "a", y: 2 },
-                        { x: "b", y: 3 },
-                        { x: "c", y: 3 },
-                      ],
-                    },
-                  ],
+              createElement(SvelteMount<{ plot: PlotCardSpec }>, {
+                component: PiePlot,
+                props: {
+                  plot: {
+                    ...plot,
+                    plotType: "pie",
+                    hole,
+                    analysis: null,
+                    series: [
+                      {
+                        key: "total",
+                        label: "Total",
+                        raw_points: 3,
+                        downsampled: false,
+                        points: [
+                          { x: "a", y: 2 },
+                          { x: "b", y: 3 },
+                          { x: "c", y: 3 },
+                        ],
+                      },
+                    ],
+                  },
                 },
               }),
             ),
