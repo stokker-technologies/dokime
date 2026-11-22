@@ -18,6 +18,7 @@ pub mod execution;
 mod io;
 mod mutations;
 pub mod rows;
+pub mod seal;
 #[cfg(test)]
 mod tests;
 

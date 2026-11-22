@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod transitions;
+mod sealing;
 
 /* === Re-Exports === */
 
@@ -92,6 +93,10 @@ impl Fixture {
         let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
         fs::create_dir_all(&target)?;
         let root = tempfile::tempdir_in(target)?;
+        Self::at(root).await
+    }
+
+    async fn at(root: tempfile::TempDir) -> Proof<Self> {
         let store = Store::open(root.path())?;
         let catalog = persisted::catalog();
         let (backends, lease) = Backend::open_with_execution(&store, catalog.clone(), Default::default())?;
@@ -114,6 +119,15 @@ impl Fixture {
         }).await?;
         runtime.operations.register_catalog(harmos_operations::storage::storage_catalog(), Lane::default()).await?;
         Ok(Self { runtime, _lease: lease, _store: store, _root: root, bytes })
+    }
+
+    async fn reopen(self) -> Proof<Self> {
+        self.runtime.stop().await?;
+        drop(self.runtime);
+        self._lease.close()?;
+        drop(self._lease);
+        drop(self._store);
+        Self::at(self._root).await
     }
 
     async fn mutation(&self, key: &str) -> Proof<MutationId> {

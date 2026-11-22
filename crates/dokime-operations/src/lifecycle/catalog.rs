@@ -19,7 +19,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_operations::storage::{MutationId, SchemaInput, SetSchema, SetSchemaRequest};
+use harmos_operations::storage::{GetSchema, GetSchemaRequest, MutationId, SchemaInput, SetSchema, SetSchemaRequest};
 use harmos_runtime::operations::OperationManager;
 use harmos_runtime::Identifier;
 
@@ -83,6 +83,13 @@ pub async fn register_binding(
 /* === Private Functions === */
 
 async fn set(operations: &OperationManager, mutation: &MutationId, identity: &str, schema: SchemaInput) -> Result<()> {
+    let existing = call::<GetSchema>(operations, GetSchemaRequest { key: schema.key.clone(), at: None }).await?;
+    if existing.exists {
+        if existing.schema != Some(schema) {
+            return Err(Error::Conflict("Register Product Schema: Use a New Shape Version for the Changed Frozen Graph".into()));
+        }
+        return Ok(());
+    }
     let key = Identifier::new(format!("{}/{identity}", mutation.key))
         .map_err(|source| Error::Invalid(format!("Register Product Schema: Select a Valid Mutation Identity: {source}")))?;
     let mutation = MutationId { window: mutation.window.clone(), key };

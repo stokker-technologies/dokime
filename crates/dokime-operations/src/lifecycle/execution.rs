@@ -27,8 +27,9 @@ use harmos_runtime::storage::{ObjectDefinition, ObjectKey, ObjectVersionToken, S
 // Local Imports
 use super::admission::Permit;
 use super::io::{self, Version};
-use super::mutations;
+use super::{cycle, mutations};
 use crate::{Error, Result};
+use dokime_protocol::model::Termination;
 use dokime_storage::persisted::{Case, bindings::Protobuf, records::{CycleEvent, ExecutionEvent}, shapes::{Cycle, Execution, Parameters, Preview, Progress, State, Steps, Stream}};
 
 /* === Constants === */
@@ -134,7 +135,7 @@ pub async fn admit(operations: &OperationManager, plan: &Plan, bytes: NonZeroUsi
     mutations::mutate(operations, plan.request.clone(), bytes).await
 }
 
-pub async fn close(
+pub(super) async fn close(
     operations: &OperationManager, mutation: MutationId, execution: Version<Execution>, outcome: Protobuf,
     termination: i32, streams: Vec<Version<Stream>>, receipt_ns: i64, bytes: NonZeroUsize,
 ) -> Result<Receipt> {
@@ -142,6 +143,10 @@ pub async fn close(
         return Err(Error::Precondition("Close Execution: Select an Open Execution After Settling Its Intake".into()));
     }
     outcome.decode(bytes)?;
+    cycle::attribute(&Default::default(), &outcome)?;
+    if Termination::try_from(termination).ok().is_none_or(|termination| termination == Termination::Unspecified) {
+        return Err(Error::Invalid("Close Execution: Select a Recorded Termination".into()));
+    }
     let value = Execution { state: State::Closed, outcome: Some(outcome), termination, ..execution.value };
     let event = ExecutionEvent { state: State::Closed, kind: "closed".into(), step: String::new(), operation: String::new(), attempt: 0, receipt_ns };
     let mut items = vec![
