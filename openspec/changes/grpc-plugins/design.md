@@ -3356,6 +3356,8 @@ refresh timestamp on the next animation frame. Refresh Failure captures a null
 timestamp before that commit; Refresh Cancellation checks a disabled button
 before the commit. Both failures reproduce on the unmodified base. This is
 test/presentation REWORK awaiting the owner's decision; neither test is weakened.
+The clean shape has one completion boundary for snapshots and watches, with
+deterministic tests driven to that boundary rather than Promise resolution.
 
 Every other desktop table uses `src/components/data-table/DataTable.tsx` under
 `crates/dokime-gui/`. It owns the frame, title and one-line description,
@@ -3408,14 +3410,10 @@ Paths below are relative to `crates/dokime-gui/`.
 | `src/features/explore/ExploreSurface.tsx:124` and `src/components/data-table/DataTable.tsx:309` | History's Load More control appends bounded server pages; the shared footer pages the rows already loaded. History operators encounter two paging controls. | Let the shared footer own bounded server paging, then delete Load More; first settle continuation, row-count and page-indicator behavior rather than fetching all history or inventing a second paging contract. |
 | `src/features/library/LibrarySurface.tsx:144` and `src/components/data-table/DataTable.tsx:204` | Library's catalog filter selects suites and templates; every suite table also has the shared component's local row filter. Library callers can therefore narrow the same templates through two inputs. | Keep the catalog filtering owner and delete the per-suite local filtering path after the owner chooses a persistent placement inside the shared presentation; preserve suite grouping and keyboard focus when a group stops matching. |
 
-The compiler task also has overlapping feature inference in the repository-root
-`tools/python/src/dokime_tools/test/focused.py:167` (`selections`) and `:55`
-(`run`). The changed-path workflow calls both: selections builds required target
-features, then run reads the same target metadata and appends those features
-again. The workspace no-run command therefore repeats `dokime-gui/testing`.
-Keep required-feature policy in run and delete the selection-side copy after the
-tooling owner settles the shared handling of explicit test targets and `--tests`;
-this worker does not change tooling or its compiler selectors.
+Required test features have one owner in `tools/python/src/dokime_tools/test/focused.py`:
+`run` infers them from the selected target metadata. `selections` chooses packages
+and targets without inferring features; the former duplicate-inference finding
+is resolved. This worker does not change tooling or its compiler selectors.
 
 The inherited updater in `crates/dokime-gui/src-tauri/src/app/updates/mod.rs:63`
 also gates fields and methods directly. The `stkr-rust` module-only gating rule
