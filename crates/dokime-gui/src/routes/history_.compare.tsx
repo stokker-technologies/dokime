@@ -31,10 +31,6 @@ function HistoryCompareRoute() {
   const navigate = useNavigate();
   const selectedIds = selectedIdsFromSearch(search);
 
-  const back = useCallback(() => {
-    void navigate({ search: searchFromSelectedIds(selectedIdsFromSearch(search)), to: "/history" });
-  }, [navigate, search]);
-
   const toggleSelected = useCallback(
     (cycleId: string) => {
       void navigate({
@@ -49,7 +45,6 @@ function HistoryCompareRoute() {
   return (
     <ExploreSurface
       comparing
-      onBack={back}
       onCompare={() => undefined}
       onOpenEntry={() => undefined}
       onToggleSelected={toggleSelected}

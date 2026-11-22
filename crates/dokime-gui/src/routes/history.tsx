@@ -76,7 +76,6 @@ function HistoryRoute() {
   return (
     <ExploreSurface
       comparing={false}
-      onBack={() => undefined}
       onCompare={openCompare}
       onOpenEntry={openEntry}
       onToggleSelected={toggleSelected}

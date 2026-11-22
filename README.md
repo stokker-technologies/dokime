@@ -43,7 +43,7 @@ The desktop and report build entries live in `crates/dokime-gui` and share Svelt
 Captured document tables show all rows. The connected desktop provides plot settings and live viewport measurements.
 The Svelte report entry renders captured data locally and can open without a backend connection.
 
-The desktop uses plain Svelte tables for cycle lists and saved backends. Each list keeps its sort controls and displays all loaded rows.
+The desktop uses plain Svelte tables for cycle lists, saved backends, and history comparisons. The lists keep their sort controls and display all loaded rows.
 See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples

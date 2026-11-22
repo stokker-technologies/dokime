@@ -18,9 +18,10 @@ import { toast } from "@/lib/notifications";
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
+import { SvelteMount } from "@/components/SvelteMount";
 import { Button } from "@/components/ui/button";
 import { exploreQueryKeys, useExploreHistoryQuery } from "@/features/explore/explore-queries";
-import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView";
+import HistoryComparisonView from "@/features/explore/HistoryComparisonView.svelte";
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
 import { setNativeCycleArchived, setNativeExecutionArchived } from "@/lib/api/native-execution";
 import type { ExecutionBrowsePage } from "@/lib/types/browse";
@@ -33,7 +34,6 @@ const GUI_FILTER_DEBOUNCE_MS = 250;
 
 type ExploreSurfaceProps = {
   comparing: boolean;
-  onBack: () => void;
   onCompare: () => void;
   onOpenEntry: (target: ExploreTarget) => void;
   onToggleSelected: (entryKey: string) => void;
@@ -48,7 +48,7 @@ type ExploreSurfaceProps = {
  * only and publishes its title through the page chrome. Selection is owned by
  * the route's URL search state, so it survives navigation.
  */
-export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onToggleSelected, selectedIds }: ExploreSurfaceProps) {
+export function ExploreSurface({ comparing, onCompare, onOpenEntry, onToggleSelected, selectedIds }: ExploreSurfaceProps) {
   const [query, setQuery] = useState("");
   /* The box types faster than a round trip; the read follows the operator
      rather than every keystroke, and the box itself never lags. */
@@ -102,7 +102,7 @@ export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onTo
         <IncompleteHistoryNotice coverage={cyclesQuery.coverage} />
       ) : null}
       {comparing ? (
-        <HistoryComparisonView cycles={selectedCycles} onBack={onBack} />
+        <SvelteMount component={HistoryComparisonView} props={{ cycles: selectedCycles }} />
       ) : (
         <div aria-busy={cyclesQuery.isPending} className="min-w-0">
           <HistoryLibrary
