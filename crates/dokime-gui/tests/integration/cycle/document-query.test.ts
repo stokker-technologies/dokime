@@ -24,7 +24,7 @@ import { createRoot } from "react-dom/client";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { invalidateRuntimeDocuments, useExecutionDocumentQuery } from "@/features/cycle/server-state";
+import { invalidateRuntimeDocuments, useScopedDocumentQuery } from "@/features/cycle/server-state";
 import { documentCard, documentView } from "@/lib/document-presentation";
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 
@@ -102,7 +102,7 @@ test("Card Queries Refresh Independently", async () => {
   let fastReads = 0;
   let slowReads = 0;
   let cancelled = 0;
-  let latest: ReturnType<typeof useExecutionDocumentQuery> | undefined;
+  let latest: ReturnType<typeof useScopedDocumentQuery> | undefined;
   backend.fetch.mockImplementation(async (_session, request, signal, _previous, publish) => {
     const input = request as { structureOnly?: boolean; cardIds?: string[] };
     if (input.structureOnly) {
@@ -142,7 +142,7 @@ test("Card Queries Refresh Independently", async () => {
     return { card: card("fast", fastReads) };
   });
   function Probe() {
-    latest = useExecutionDocumentQuery({ cycleId: "fixture.cycle", executionId: "fixture.execution" });
+    latest = useScopedDocumentQuery({ cycleId: "fixture.cycle", executionId: "fixture.execution" }, true);
     return null;
   }
   try {
@@ -193,7 +193,7 @@ test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
   const second = deferred<void>();
   const requests: { id: string; page?: string }[] = [];
   let refreshed: ReturnType<typeof deferred<void>> | undefined;
-  let latest: ReturnType<typeof useExecutionDocumentQuery> | undefined;
+  let latest: ReturnType<typeof useScopedDocumentQuery> | undefined;
   backend.fetch.mockImplementation(async (_session, input, _signal, _previous, publish) => {
     const request = input as { structureOnly?: boolean; cardIds?: string[]; page?: string };
     const later = request.page === "fixture.second";
@@ -217,7 +217,7 @@ test("Repeat Pages Query Their Own Cards and Return to Live", async () => {
     return { card: card(id, requests.length) };
   });
   function Probe() {
-    latest = useExecutionDocumentQuery({ cycleId: "fixture.paging", executionId: "fixture.execution" });
+    latest = useScopedDocumentQuery({ cycleId: "fixture.paging", executionId: "fixture.execution" }, true);
     return null;
   }
   try {

@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
+import type { SessionIdentity } from "@/lib/rpc/transport";
 import { deliverNativeArtifact } from "@/lib/api/native-delivery";
 import {
   appendNativeCaseAttempt,
@@ -64,13 +65,25 @@ function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
 
 /* === Query Hooks === */
 
-/** The cycle's cases and every attempt of each, read to completion. */
+/** The Cycle's Cases and Every Attempt, Read to Completion. */
+export function cycleDetailQueryOptions(identity: SessionIdentity | undefined, cycleId: string) {
+  return {
+    queryFn: () => {
+      if (!identity) {
+        throw new Error("Connect to a backend before reading cycle details.");
+      }
+      return fetchNativeTestCycleDetail(identity, cycleId);
+    },
+    queryKey: [...workflowQueryKeys.cycleDetail(cycleId), identity?.generation ?? "disconnected"],
+    staleTime: Number.POSITIVE_INFINITY,
+  };
+}
+
 export function useCycleDetailQuery(cycleId: string, enabled = true) {
   const session = useNativeSessionOptional();
   return useQuery({
+    ...cycleDetailQueryOptions(session?.identity, cycleId),
     enabled: enabled && session !== null,
-    queryFn: () => fetchNativeTestCycleDetail(identityOf(session), cycleId),
-    queryKey: [...workflowQueryKeys.cycleDetail(cycleId), generationOf(session)],
   });
 }
 

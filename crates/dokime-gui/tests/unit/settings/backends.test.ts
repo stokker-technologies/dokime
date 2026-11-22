@@ -310,7 +310,7 @@ test("Occupied Local Remains Usable", async () => {
 
   const screen = render(ConnectionScreen, { owner: disconnected, launch, launchError: failure, onSettings: () => {} });
   const alert = screen.getByRole("alert");
-  assert.equal(alert.closest("table"), screen.getByRole("table"));
+  assert.equal(alert.closest("table"), null);
   await fireEvent.click(screen.getByRole("button", { name: "Reload" }));
   assert.deepEqual(fixture.select.mock.calls, [[{ kind: "owned_local" }]]);
   assert.ok(screen.getByRole("button", { name: "Settings" }));
@@ -355,25 +355,17 @@ test("Readiness Separates Status History from the Product Execution Epoch", asyn
   assert.equal(owner.snapshot().phase, "failed");
 });
 
-test("Backend Failure Retains Its Record in the Shared Content Slot", () => {
-  const error = new Error("bench_connection");
-  const table = render(BackendsTable, { owner: disconnected, failure: error });
-  const region = table.getByRole("table");
-  const alerts = table.getAllByRole("alert");
-  assert.equal(region.getAttribute("aria-busy"), "false");
-  assert.equal(alerts.length, 1);
-  assert.equal(alerts[0].closest("table"), region);
-  assert.ok(alerts[0].textContent?.includes(error.message));
-  assert.equal(table.queryByRole("status"), null);
-  table.unmount();
-});
-
 test("Failed Backend Retains Its Endpoint Beside the Failure", () => {
   const endpoint = "http://127.0.0.1:8765";
-  const table = render(BackendsTable, { owner: disconnected, failure: new Error("fixture-connect"), endpoint });
-  const alert = table.getByRole("alert");
+  const screen = render(ConnectionScreen, {
+    owner: disconnected,
+    launch: { ...launch, target: { kind: "local", endpoint } },
+    launchError: new Error("fixture-connect"),
+    onSettings: () => {},
+  });
+  const alert = screen.getByRole("alert");
   assert.equal(alert.nextElementSibling?.textContent, endpoint);
-  table.unmount();
+  screen.unmount();
 });
 
 test("Startup Recovery Feedback", async () => {

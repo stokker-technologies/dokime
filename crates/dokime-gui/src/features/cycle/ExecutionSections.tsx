@@ -50,7 +50,7 @@ import { NodeActionCluster } from "./NodeActionCluster";
 import type { ExecutionMenu } from "./NodeMenu";
 import { usePlotWindow } from "@/features/cycle/use-plot-window";
 import PromptQueue from "./PromptQueue.svelte";
-import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
+import { useExecutionDetailQuery, useScopedDocumentQuery } from "./server-state";
 
 /* === Types === */
 
@@ -110,10 +110,13 @@ export function ExecutionSections({
   // Read the Execution and Its Document
   const detailQuery = useExecutionDetailQuery(started?.test_execution_id ?? null, Boolean(started));
   const execution: TestExecution | null = detailQuery.data ?? started ?? null;
-  const documentQuery = useExecutionDocumentQuery({
-    cycleId: started ? cycleId : null,
-    executionId: started?.test_execution_id ?? null,
-  });
+  const documentQuery = useScopedDocumentQuery(
+    {
+      cycleId: started ? cycleId : null,
+      executionId: started?.test_execution_id ?? null,
+    },
+    Boolean(started),
+  );
   const document = started ? (documentQuery.data ?? null) : null;
   const surface = useDocumentSurface({
     document,

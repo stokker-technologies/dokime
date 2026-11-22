@@ -52,6 +52,7 @@
   let archivedBytes = $state<number | null>(null);
   let failedEndpoint = $state<string | null>(null);
   let localAttempt = $state(false);
+  let selectedProfile = $state<string | null>(null);
   let statusRevision = -1;
   const recoverable = $derived(storageRecoveryAvailable(error, localAttempt, launch?.localBackendAvailable ?? false));
   const phases = $derived(
@@ -99,6 +100,7 @@
   });
 
   $effect(() => {
+    failedEndpoint = null;
     if (!error || diagnostics) {
       return;
     }
@@ -121,13 +123,13 @@
     void owner.select({ kind: "owned_local" });
   }
 
-  function retry(profile: string | null) {
+  function retry() {
     if (localAttempt || diagnostics) {
       void owner.select({ kind: "owned_local" });
       return;
     }
-    if (profile) {
-      void owner.select({ kind: "profile", identifier: profile });
+    if (selectedProfile) {
+      void owner.select({ kind: "profile", identifier: selectedProfile });
       return;
     }
     if (launch?.target) {
@@ -224,22 +226,25 @@
         </div>
         <BackendsTable
           {owner}
-          {retry}
-          failure={error && !diagnostics ? error : undefined}
-          endpoint={failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : null)}
-          onConnect={() => (localAttempt = false)}
+          onConnect={(profile) => {
+            localAttempt = false;
+            selectedProfile = profile;
+          }}
         />
       {/if}
     </div>
-    {#if !busy && diagnostics}
+    {#if !busy && error}
+      {@const endpoint = failedEndpoint ?? (launch?.target?.kind === "local" ? launch.target.endpoint : null)}
       <div class="grid gap-3 text-left text-sm">
         <ErrorCard
-          notificationContext="background"
-          failure={failureOf(error, "Backend Could Not Start")}
-          onRetry={() => void owner.select({ kind: "owned_local" })}
+          notificationContext={selectedProfile ? "action" : "background"}
+          failure={failureOf(error, diagnostics ? "Backend Could Not Start" : "Backend Connection Failed")}
+          onRetry={retry}
         />
-        {#if diagnostics.log}
+        {#if diagnostics?.log}
           <PathPill value={diagnostics.log} />
+        {:else if endpoint}
+          <p class="break-all font-mono text-xs">{endpoint}</p>
         {/if}
       </div>
     {/if}

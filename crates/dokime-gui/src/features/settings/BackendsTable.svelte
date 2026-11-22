@@ -18,21 +18,8 @@
   import { failureOf } from "../../lib/notification-details";
   import { toast } from "../../lib/notifications";
 
-  let {
-    owner,
-    failure,
-    endpoint,
-    retry,
-    onConnect,
-  }: {
-    owner: SessionOwner;
-    failure?: unknown;
-    endpoint?: string | null;
-    retry?: (profile: string | null) => void;
-    onConnect?: () => void;
-  } = $props();
+  let { owner, onConnect }: { owner: SessionOwner; onConnect?: (profile: string | null) => void } = $props();
   const latestConnection = sessionState(() => owner);
-  let lastSelected = $state<string | null>(null);
   let importButton = $state<HTMLButtonElement>();
   let deleteButton = $state<HTMLButtonElement>();
   let registry = $state.raw<Document | null>(null);
@@ -50,10 +37,7 @@
   const deletingProfile = $derived(registry?.profiles.find((profile) => profile.identifier === deleting));
   const connection = $derived(latestConnection());
   const busy = $derived(mutating || connection.phase === "connecting");
-  const connectionFailure = $derived(failure ?? (connection.phase === "failed" ? connection.error : null));
-  const failedProfile = $derived(registry?.profiles.find((profile) => profile.identifier === lastSelected));
-  const failedEndpoint = $derived(endpoint || failedProfile?.endpoint);
-  const loading = $derived(!registry && !error && !connectionFailure);
+  const loading = $derived(!registry && !error);
   const cell = "px-2 first:pl-4 last:pr-4";
 
   onMount(() => {
@@ -73,19 +57,8 @@
     if (busy) {
       return;
     }
-    onConnect?.();
-    lastSelected = identifier;
+    onConnect?.(identifier);
     void owner.select({ kind: "profile", identifier });
-  }
-
-  function retryConnection() {
-    if (!connectionFailure) {
-      void loadRegistry();
-    } else if (retry) {
-      retry(lastSelected);
-    } else if (lastSelected) {
-      connect(lastSelected);
-    }
   }
 
   async function importRemote() {
@@ -95,7 +68,7 @@
       const imported = await preferencesCommands.desktopBackendImportPairing(null);
       if (imported) {
         registry = imported;
-        onConnect?.();
+        onConnect?.(null);
       }
     } catch (failure) {
       toast.error(failureOf(failure, "Backend Could Not Be Imported"));
@@ -153,20 +126,10 @@
       </tr>
     </thead>
     <tbody class="divide-y">
-      {#if connectionFailure || (error && !deleting)}
+      {#if error && !deleting}
         <tr>
           <td colspan={4} class="px-4 py-3">
-            <div class="grid gap-3 text-sm">
-              <ErrorCard
-                notificationContext={connectionFailure && lastSelected ? "action" : undefined}
-                failure={failureOf(connectionFailure ?? error, connectionFailure ? "Backend Connection Failed" : "Backend Registry Failed")}
-                onRetry={retryConnection}
-                retryDisabled={busy}
-              />
-              {#if connectionFailure && failedEndpoint}
-                <p class="break-all font-mono text-xs">{failedEndpoint}</p>
-              {/if}
-            </div>
+            <ErrorCard failure={failureOf(error, "Backend Registry Failed")} onRetry={loadRegistry} retryDisabled={busy} />
           </td>
         </tr>
       {/if}
@@ -205,7 +168,7 @@
           </td>
         </tr>
       {:else}
-        {#if !connectionFailure && !error}
+        {#if !error}
           <tr>
             <td colspan={4} class="h-24 px-4 text-center text-muted-foreground">
               <span role={loading ? "status" : undefined}>{loading ? "Loading Rows…" : "No Saved Backends"}</span>

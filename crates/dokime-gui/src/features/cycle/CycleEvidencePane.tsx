@@ -37,7 +37,7 @@ import DocumentPagination from "./DocumentPagination.svelte";
 import { evidencePaneState } from "@/features/cycle/document-query-model";
 import { usePlotWindow } from "@/features/cycle/use-plot-window";
 import PromptQueue from "./PromptQueue.svelte";
-import { useCycleDocumentQuery } from "./server-state";
+import { useScopedDocumentQuery } from "./server-state";
 
 /* === Types === */
 
@@ -62,7 +62,7 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
   const session = useNativeSessionOptional();
   const plotWindow = usePlotWindow();
   const scope = useMemo<Wire<EvidenceScope>>(() => ({ cycleId: cycleId }), [cycleId]);
-  const documentQuery = useCycleDocumentQuery(cycleId, true);
+  const documentQuery = useScopedDocumentQuery({ cycleId, executionId: null }, true);
   const document = documentQuery.data ?? null;
   const surface = useDocumentSurface({
     document,

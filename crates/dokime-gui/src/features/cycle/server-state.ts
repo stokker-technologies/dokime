@@ -165,61 +165,19 @@ export function useExecutionFilesQuery(executionId: string | null, enabled: bool
   });
 }
 
-export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
+/** Read the host-composed document for a cycle or one of its executions. */
+export function useScopedDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }, enabled: boolean) {
   const queryClient = useQueryClient();
   const session = useNativeSessionOptional();
   const cardKey = [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)];
   const navigation = useDocumentNavigation(JSON.stringify(cardKey));
   const captureKey = [...cardKey, "pages", navigation.token ?? ""];
-  const query = useQuery({
-    enabled: Boolean(cycleId && executionId) && session !== null,
-    queryFn: ({ queryKey, signal }) =>
-      capturedDocument(queryClient, queryKey, (previous, publish) =>
-        fetchNativeDocument(
-          nativeDocumentSession(requireSession(session)),
-          {
-            cycleId: cycleId ?? "",
-            documentId: "default",
-            executionId: executionId ?? "",
-            epoch: nativeEpoch(requireSession(session)),
-            structureOnly: true,
-            page: navigation.token,
-          },
-          signal,
-          previous,
-          publish,
-        ),
-      ),
-    select: selectDocument,
-    structuralSharing: false,
-    queryKey: captureKey,
-    gcTime: GUI_EVIDENCE_GC_MS,
-    retry: documentRetry,
-    retryDelay: documentRetryDelay,
-  });
-  const cards = useDocumentCards({
-    document: query.data,
-    cardKey: [...cardKey, "view", navigation.revision],
-    queryKey: captureKey,
-    request: { cycleId: cycleId ?? "", executionId: executionId ?? "", documentId: "default", epoch: session ? nativeEpoch(session) : "" },
-    session: session ? nativeDocumentSession(session) : null,
-    retryRoot: () => query.refetch(),
-    enabled: Boolean(cycleId && executionId),
-  });
-  return { ...query, data: cards.data, retryCard: cards.retryCard, navigation: navigation.controls(cards.page, query.isFetching) };
-}
-
-/**
- * The cycle's own document: the host-composed records, artifacts, media and
- * cycle-level plots, read through the same document route with no execution
- * in its scope.
- */
-export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) {
-  const queryClient = useQueryClient();
-  const session = useNativeSessionOptional();
-  const cardKey = [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)];
-  const navigation = useDocumentNavigation(JSON.stringify(cardKey));
-  const captureKey = [...cardKey, "pages", navigation.token ?? ""];
+  const request = {
+    cycleId: cycleId ?? "",
+    executionId: executionId ?? "",
+    documentId: "default",
+    epoch: session ? nativeEpoch(session) : "",
+  };
   const query = useQuery({
     enabled: Boolean(cycleId) && enabled && session !== null,
     queryFn: ({ queryKey, signal }) =>
@@ -227,10 +185,7 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
         fetchNativeDocument(
           nativeDocumentSession(requireSession(session)),
           {
-            cycleId: cycleId ?? "",
-            documentId: "default",
-            executionId: "",
-            epoch: nativeEpoch(requireSession(session)),
+            ...request,
             structureOnly: true,
             page: navigation.token,
           },
@@ -250,7 +205,7 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
     document: query.data,
     cardKey: [...cardKey, "view", navigation.revision],
     queryKey: captureKey,
-    request: { cycleId: cycleId ?? "", executionId: "", documentId: "default", epoch: session ? nativeEpoch(session) : "" },
+    request,
     session: session ? nativeDocumentSession(session) : null,
     retryRoot: () => query.refetch(),
     enabled: Boolean(cycleId) && enabled,

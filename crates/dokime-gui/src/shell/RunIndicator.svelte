@@ -4,10 +4,11 @@
   import { LoaderCircle } from "lucide-svelte";
   import type { ConnectedSession } from "../app/native-session/session";
   import Button from "../components/ui/Button.svelte";
+  import { cycleDetailQueryOptions } from "../features/cycle/cycle-queries";
   import { observeElapsedSeconds } from "../features/cycle/elapsed";
   import { workflowQueryKeys } from "../features/cycle/workflow-query-keys";
   import { cyclesQueryOptions, pendingPromptsQueryOptions } from "../features/cycles-home/cycles-query-options";
-  import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "../lib/api/native-execution";
+  import { fetchNativeTestExecutionDetail } from "../lib/api/native-execution";
   import { isNativeCycleLive } from "../lib/api/native-planning-projection";
   import { cn } from "../lib/utils";
   import { activeRunFocus, runDestination, runElapsed } from "./run-focus";
@@ -18,16 +19,12 @@
   const cycles = createQuery(() => cyclesQueryOptions(session.identity), client);
   const prompts = createQuery(() => pendingPromptsQueryOptions(session.identity), client);
   const activeCycles = $derived((cycles.data ?? []).filter((cycle) => isNativeCycleLive(cycle.status)));
-  const details = createQueries(() => {
-    const identity = session.identity;
-    return {
-      queries: activeCycles.map((cycle) => ({
-        queryKey: [...workflowQueryKeys.cycleDetail(cycle.cycleId), identity.generation],
-        queryFn: () => fetchNativeTestCycleDetail(identity, cycle.cycleId),
-        staleTime: Number.POSITIVE_INFINITY,
-      })),
-    };
-  }, client);
+  const details = createQueries(
+    () => ({
+      queries: activeCycles.map((cycle) => cycleDetailQueryOptions(session.identity, cycle.cycleId)),
+    }),
+    client,
+  );
   const cycleDetails = $derived(details.flatMap((detail) => (detail.data ? [detail.data] : [])));
   const candidates = $derived(activeRunFocus(cycleDetails));
   const executions = createQueries(() => {

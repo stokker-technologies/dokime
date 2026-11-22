@@ -63,7 +63,7 @@ test("Backend Action Menus Survive Owner Renders", async () => {
   const trigger = await table.findByRole("button", { name: "Actions for lab" });
   await fireEvent.pointerDown(trigger, { button: 0 });
   assert.ok(await table.findByRole("menu"));
-  await table.rerender({ owner, endpoint: "http://127.0.0.1:8765" });
+  await table.rerender({ owner, onConnect: vi.fn() });
   assert.ok(table.getByRole("menu"));
   await fireEvent.click(table.getByRole("menuitem"));
   assert.ok(await table.findByRole("dialog"));
