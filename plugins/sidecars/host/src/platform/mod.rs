@@ -21,8 +21,12 @@ pub mod windows;
 
 #[cfg(unix)]
 pub use unix::Lease;
+#[cfg(unix)]
+pub use unix::wifi;
 #[cfg(target_os = "windows")]
 pub use windows::apartment::Lease;
+#[cfg(target_os = "windows")]
+pub use windows::wifi;
 
 /* === Imports === */
 
@@ -49,11 +53,28 @@ pub struct ScannedNetwork {
     pub signal_percent: Option<f64>,
     pub rssi_dbm: Option<f64>,
     pub channel: Option<u32>,
+    pub channel_width_mhz: Option<u32>,
+    pub center_channel: Option<u32>,
     pub security: Option<String>,
     pub associated: bool,
 }
 
+/// Adapter Bands and Whether Its Regulatory Domain Allows Channel 14.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WifiCapabilities {
+    pub bands: Vec<WifiBand>,
+    pub channel_14_allowed: bool,
+}
+
 /* === Enums === */
+
+/// Frequency Bands Kept Separate Even Where Their Display Channels Coincide.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WifiBand {
+    Ghz24,
+    Ghz5,
+    Ghz6,
+}
 
 /* === Traits === */
 

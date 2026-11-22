@@ -53,7 +53,10 @@ use windows::{
 };
 
 // Local Imports
-use crate::platform::ScannedNetwork;
+use crate::collectors::wifi::{LatencyOptions, LinkOptions, ScanOptions, ScanReport, band, channel_from_frequency};
+use crate::domain::readings;
+use crate::platform::windows::echo;
+use crate::platform::{ScannedNetwork, WifiCapabilities};
 
 /* === Constants === */
 
@@ -434,6 +437,50 @@ impl WlanClient {
 
 /* === Public Functions === */
 
+pub fn read_link(options: &LinkOptions, row: &mut readings::WifiLink) -> Option<String> {
+    match active_link(options.adapter.as_deref()) {
+        Ok(Some(link)) => {
+            row.probe_status = Some(if link.probe_error.is_some() { "partial" } else { "ok" }.into());
+            row.associated = link.associated();
+            row.probe_error = link.probe_error;
+            row.wifi_adapter = link.adapter.clone();
+            row.wifi_state = link.state.map(|value| value.as_str().into_owned());
+            row.wifi_ssid = link.ssid;
+            row.wifi_bssid = link.bssid;
+            row.wifi_profile = link.profile;
+            row.wifi_radio = link.radio.map(|value| value.as_str().into_owned());
+            row.wifi_auth = link.auth.map(|value| value.as_str().into_owned());
+            row.wifi_cipher = link.cipher.map(|value| value.as_str().into_owned());
+            row.wifi_channel = link.channel.map(i64::from);
+            row.wifi_band = link.channel.and_then(band);
+            row.wifi_signal_percent = link.signal_percent;
+            row.wifi_rssi_dbm = link.rssi_dbm;
+            row.wifi_rx_phy_mbps = link.rx_phy_mbps;
+            row.wifi_tx_phy_mbps = link.tx_phy_mbps;
+            link.adapter
+        }
+        Ok(None) => {
+            row.probe_status = Some("unavailable".into());
+            row.associated = Some(false);
+            None
+        }
+        Err(error) => {
+            row.probe_status = Some("error".into());
+            row.probe_error = Some(error);
+            None
+        }
+    }
+}
+
+pub fn scan(options: &ScanOptions, active: bool) -> Result<ScanReport, String> {
+    let window = active.then_some(options.window);
+    scan_networks(options.adapter.as_deref(), window)
+}
+
+pub fn round_trip_ms(options: &LatencyOptions) -> Result<Option<f64>, String> {
+    echo::round_trip_ms(&options.host, options.reply_timeout, options.payload_bytes)
+}
+
 /// The Current Connection of the Selected Interface, or None Without a WLAN Interface.
 pub fn active_link(adapter: Option<&str>) -> Result<Option<WifiLink>, String> {
     let client = WlanClient::open()?;
@@ -450,11 +497,14 @@ pub fn active_link(adapter: Option<&str>) -> Result<Option<WifiLink>, String> {
 }
 
 /// Every BSS the Driver Reports; With a Window, After an Active Scan That Completes Within It.
-pub fn scan_networks(adapter: Option<&str>, scan_window: Option<Duration>) -> Result<Vec<ScannedNetwork>, String> {
+pub fn scan_networks(adapter: Option<&str>, scan_window: Option<Duration>) -> Result<ScanReport, String> {
     let mut client = WlanClient::open()?;
     let interfaces = client.interfaces()?;
     let Some(interface) = select_interface(&interfaces, adapter) else {
-        return Ok(Vec::new());
+        return Ok(ScanReport {
+            capabilities: Some(WifiCapabilities::default()),
+            ..ScanReport::default()
+        });
     };
     if let Some(window) = scan_window {
         client.scan(&interface, window)?;
@@ -466,7 +516,11 @@ pub fn scan_networks(adapter: Option<&str>, scan_window: Option<Duration>) -> Re
     let associated = attributes.map(|attributes| attributes.wlanAssociationAttributes.dot11Bssid);
     let security = client.security(&interface);
     let scanned = |entry: &WLAN_BSS_ENTRY| scanned_network(entry, &interface, &security, associated);
-    Ok(entries.iter().map(scanned).collect())
+    Ok(ScanReport {
+        networks: entries.iter().map(scanned).collect(),
+        active: scan_window.is_some(),
+        ..ScanReport::default()
+    })
 }
 
 /* === Private Functions === */
@@ -548,6 +602,8 @@ fn scanned_network(
         signal_percent: Some(f64::from(entry.uLinkQuality)),
         rssi_dbm: RSSI_RANGE_DBM.contains(&rssi_dbm).then_some(rssi_dbm),
         channel: channel_from_frequency(entry.ulChCenterFrequency),
+        channel_width_mhz: None,
+        center_channel: None,
         security: ssid.and_then(|ssid| security.get(ssid).cloned()),
         associated: associated == Some(entry.dot11Bssid),
     }
@@ -594,17 +650,6 @@ fn ssid_string(value: &DOT11_SSID) -> Option<String> {
 
 fn mac_string(value: &[u8; 6]) -> String {
     format!("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", value[0], value[1], value[2], value[3], value[4], value[5])
-}
-
-fn channel_from_frequency(value: u32) -> Option<u32> {
-    let mhz = if value > 10_000 { value / 1_000 } else { value };
-    match mhz {
-        2_412..=2_472 => Some((mhz - 2_407) / 5),
-        2_484 => Some(14),
-        5_005..=5_895 => Some((mhz - 5_000) / 5),
-        5_955..=7_115 => Some(1_000 + (mhz - 5_950) / 5),
-        _ => None,
-    }
 }
 
 // Only A Finished Or Failed Scan On The Waited Interface Ends The Wait.

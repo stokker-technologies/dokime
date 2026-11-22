@@ -1,3 +1,10 @@
+## Full Wi-Fi Channel Plan and Dense Heat Strips
+
+- [x] Record the Channel Stream and Dense Layout Decisions With Collector, Platform, Stream, Plot and Test Ownership.
+- [x] Publish `host.wifi_channels` From the Existing Scan Collection With Full Supported Band Plans, Zero Occupancy, Primary Counts and the Shared Overlap Model; Prove With Fake Reports and Commit.
+- [ ] Wrap Dense Heat Strip Rows at a Minimum Cell Width Without Changing Sparse Rows; Prove Layout and Hover Values and Commit.
+- [ ] Pass Focused Host and Plot Tests, Workspace Test-Target Compilation With Desktop Testing, Formatting, Repository and Strict OpenSpec Validation.
+
 ## Heat Strip Live Width and Samples
 
 - [x] Restore Native Live Heat Strip Projection and Prove Cells Draw and Update on a Running Execution Watch.
