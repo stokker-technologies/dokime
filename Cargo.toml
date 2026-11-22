@@ -64,14 +64,14 @@ dokime-test-support = { path = "crates/dokime-test-support" }
 
 # Git
 # Edit This Pin, Then Run mise run generate -- --protocol and mise run prepare:locks.
-harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
-harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "0217340759d049acff0c62b3ca433fd9470c35a4" }
+harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-operations = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-packaging = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
+harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "d9af0b8e1464881a445b4e507076ccd8b1fa1d4a" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
