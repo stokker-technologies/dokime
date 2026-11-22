@@ -32,6 +32,21 @@ from dokime_sdk.templates import Document, GridAxisEntry, Parameter, Section, St
 
 
 class DocumentStory(unittest.TestCase):
+    def test_telemetry_at_record_histograms_roundtrip(self) -> None:
+        sampled = dokime_sdk.templates.field("readings", "value").at("status")
+        section = Section("Connection Events")
+        for event in ("disconnected", "connected"):
+            plot = dokime_sdk.templates.histogram(sampled).filter(sampled.detail("event"), dokime_sdk.templates.FilterOperator.EQ, event)
+            section.plot(plot)
+        document = Document("Tracking").section(section).message
+        reopened = type(document).FromString(document.SerializeToString())
+        for card, event in zip(reopened.sections[0].cards, ("disconnected", "connected"), strict=True):
+            self.assertEqual(card.plot.x.transform.at.record_type, "status")
+            self.assertFalse(card.plot.x.transform.at.HasField("within_s"))
+            self.assertEqual(card.plot.filters[0].expression.transform.input, sampled.message)
+            self.assertEqual(card.plot.filters[0].expression.transform.detail, "event")
+            self.assertEqual(card.plot.filters[0].value.text, event)
+
     def test_heat_strip_document_roundtrips_every_reducer(self) -> None:
         samples = Stream("example.samples")
         for reduction in (

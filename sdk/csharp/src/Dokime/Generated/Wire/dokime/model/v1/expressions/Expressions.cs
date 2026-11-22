@@ -41,35 +41,39 @@ namespace Dokime;
             "bhI1CgVpbnB1dBgBIAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVz",
             "c2lvblIFaW5wdXQSLgoEa2luZBgCIAEoDjIaLmRva2ltZS5tb2RlbC52MS5B",
             "Z2dyZWdhdGVSBGtpbmQSHgoKcGVyY2VudGlsZRgDIAEoAVIKcGVyY2VudGls",
-            "ZSLiAQoTVHJhbnNmb3JtRXhwcmVzc2lvbhI1CgVpbnB1dBgBIAEoCzIfLmRv",
+            "ZSKTAgoTVHJhbnNmb3JtRXhwcmVzc2lvbhI1CgVpbnB1dBgBIAEoCzIfLmRv",
             "a2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIFaW5wdXQSGAoGZGV0YWls",
             "GAIgASgJSABSBmRldGFpbBIjCgx0aW1lX2JldHdlZW4YAyABKAlIAFILdGlt",
             "ZUJldHdlZW4SGwoIcGVyX2Nhc2UYBCABKAhIAFIHcGVyQ2FzZRIWCgVzY2Fs",
-            "ZRgFIAEoAUgAUgVzY2FsZRIYCgZvZmZzZXQYBiABKAFIAFIGb2Zmc2V0QgYK",
-            "BGtpbmQivAEKDkRvY3VtZW50RmlsdGVyEj8KCmV4cHJlc3Npb24YASABKAsy",
-            "Hy5kb2tpbWUubW9kZWwudjEuRGF0YUV4cHJlc3Npb25SCmV4cHJlc3Npb24S",
-            "OwoIb3BlcmF0b3IYAiABKA4yHy5kb2tpbWUubW9kZWwudjEuRmlsdGVyT3Bl",
-            "cmF0b3JSCG9wZXJhdG9yEiwKBXZhbHVlGAMgASgLMhYuZG9raW1lLm1vZGVs",
-            "LnYxLlZhbHVlUgV2YWx1ZSqKAgoJQWdncmVnYXRlEhkKFUFHR1JFR0FURV9V",
-            "TlNQRUNJRklFRBAAEhMKD0FHR1JFR0FURV9DT1VOVBABEhEKDUFHR1JFR0FU",
-            "RV9TVU0QAhIRCg1BR0dSRUdBVEVfTUlOEAMSEQoNQUdHUkVHQVRFX01BWBAE",
-            "EhIKDkFHR1JFR0FURV9NRUFOEAUSFAoQQUdHUkVHQVRFX1NURERFVhAGEhQK",
-            "EEFHR1JFR0FURV9NRURJQU4QBxIYChRBR0dSRUdBVEVfUEVSQ0VOVElMRRAI",
-            "EhMKD0FHR1JFR0FURV9GSVJTVBAJEhIKDkFHR1JFR0FURV9MQVNUEAoSEQoN",
-            "QUdHUkVHQVRFX1JNUxALKvsBCg5GaWx0ZXJPcGVyYXRvchIfChtGSUxURVJf",
-            "T1BFUkFUT1JfVU5TUEVDSUZJRUQQABIWChJGSUxURVJfT1BFUkFUT1JfRVEQ",
-            "ARIWChJGSUxURVJfT1BFUkFUT1JfTkUQAhIWChJGSUxURVJfT1BFUkFUT1Jf",
-            "R1QQAxIWChJGSUxURVJfT1BFUkFUT1JfR0UQBBIWChJGSUxURVJfT1BFUkFU",
-            "T1JfTFQQBRIWChJGSUxURVJfT1BFUkFUT1JfTEUQBhIcChhGSUxURVJfT1BF",
-            "UkFUT1JfQ09OVEFJTlMQBxIaChZGSUxURVJfT1BFUkFUT1JfRVhJU1RTEAhC",
-            "CaoCBkRva2ltZWIGcHJvdG8z"));
+            "ZRgFIAEoAUgAUgVzY2FsZRIYCgZvZmZzZXQYBiABKAFIAFIGb2Zmc2V0Ei8K",
+            "AmF0GAcgASgLMh0uZG9raW1lLm1vZGVsLnYxLkF0RXhwcmVzc2lvbkgAUgJh",
+            "dEIGCgRraW5kIlwKDEF0RXhwcmVzc2lvbhIfCgtyZWNvcmRfdHlwZRgBIAEo",
+            "CVIKcmVjb3JkVHlwZRIeCgh3aXRoaW5fcxgCIAEoAUgAUgd3aXRoaW5TiAEB",
+            "QgsKCV93aXRoaW5fcyK8AQoORG9jdW1lbnRGaWx0ZXISPwoKZXhwcmVzc2lv",
+            "bhgBIAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIKZXhw",
+            "cmVzc2lvbhI7CghvcGVyYXRvchgCIAEoDjIfLmRva2ltZS5tb2RlbC52MS5G",
+            "aWx0ZXJPcGVyYXRvclIIb3BlcmF0b3ISLAoFdmFsdWUYAyABKAsyFi5kb2tp",
+            "bWUubW9kZWwudjEuVmFsdWVSBXZhbHVlKooCCglBZ2dyZWdhdGUSGQoVQUdH",
+            "UkVHQVRFX1VOU1BFQ0lGSUVEEAASEwoPQUdHUkVHQVRFX0NPVU5UEAESEQoN",
+            "QUdHUkVHQVRFX1NVTRACEhEKDUFHR1JFR0FURV9NSU4QAxIRCg1BR0dSRUdB",
+            "VEVfTUFYEAQSEgoOQUdHUkVHQVRFX01FQU4QBRIUChBBR0dSRUdBVEVfU1RE",
+            "REVWEAYSFAoQQUdHUkVHQVRFX01FRElBThAHEhgKFEFHR1JFR0FURV9QRVJD",
+            "RU5USUxFEAgSEwoPQUdHUkVHQVRFX0ZJUlNUEAkSEgoOQUdHUkVHQVRFX0xB",
+            "U1QQChIRCg1BR0dSRUdBVEVfUk1TEAsq+wEKDkZpbHRlck9wZXJhdG9yEh8K",
+            "G0ZJTFRFUl9PUEVSQVRPUl9VTlNQRUNJRklFRBAAEhYKEkZJTFRFUl9PUEVS",
+            "QVRPUl9FURABEhYKEkZJTFRFUl9PUEVSQVRPUl9ORRACEhYKEkZJTFRFUl9P",
+            "UEVSQVRPUl9HVBADEhYKEkZJTFRFUl9PUEVSQVRPUl9HRRAEEhYKEkZJTFRF",
+            "Ul9PUEVSQVRPUl9MVBAFEhYKEkZJTFRFUl9PUEVSQVRPUl9MRRAGEhwKGEZJ",
+            "TFRFUl9PUEVSQVRPUl9DT05UQUlOUxAHEhoKFkZJTFRFUl9PUEVSQVRPUl9F",
+            "WElTVFMQCEIJqgIGRG9raW1lYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.ScalarReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Aggregate), typeof(global::Dokime.FilterOperator), }, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.DataExpression), global::Dokime.DataExpression.Parser, new[]{ "Label", "Stream", "Record", "Parameter", "Dimension", "Artifact", "Aggregate", "Transform", "Literal" }, new[]{ "Kind" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.FieldReference), global::Dokime.FieldReference.Parser, new[]{ "Identifier", "Field" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.AggregateExpression), global::Dokime.AggregateExpression.Parser, new[]{ "Input", "Kind", "Percentile" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.TransformExpression), global::Dokime.TransformExpression.Parser, new[]{ "Input", "Detail", "TimeBetween", "PerCase", "Scale", "Offset" }, new[]{ "Kind" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.TransformExpression), global::Dokime.TransformExpression.Parser, new[]{ "Input", "Detail", "TimeBetween", "PerCase", "Scale", "Offset", "At" }, new[]{ "Kind" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.AtExpression), global::Dokime.AtExpression.Parser, new[]{ "RecordType", "WithinS" }, new[]{ "WithinS" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.DocumentFilter), global::Dokime.DocumentFilter.Parser, new[]{ "Expression", "Operator", "Value" }, null, null, null, null)
           }));
     }
@@ -1327,6 +1331,9 @@ namespace Dokime;
         case KindOneofCase.Offset:
           Offset = other.Offset;
           break;
+        case KindOneofCase.At:
+          At = other.At.Clone();
+          break;
       }
 
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
@@ -1480,6 +1487,18 @@ namespace Dokime;
       }
     }
 
+    /// <summary>Field number for the "at" field.</summary>
+    public const int AtFieldNumber = 7;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.AtExpression At {
+      get { return kindCase_ == KindOneofCase.At ? (global::Dokime.AtExpression) kind_ : null; }
+      set {
+        kind_ = value;
+        kindCase_ = value == null ? KindOneofCase.None : KindOneofCase.At;
+      }
+    }
+
     private object kind_;
     /// <summary>Enum of possible cases for the "kind" oneof.</summary>
     public enum KindOneofCase {
@@ -1489,6 +1508,7 @@ namespace Dokime;
       PerCase = 4,
       Scale = 5,
       Offset = 6,
+      At = 7,
     }
     private KindOneofCase kindCase_ = KindOneofCase.None;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1525,6 +1545,7 @@ namespace Dokime;
       if (PerCase != other.PerCase) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Scale, other.Scale)) return false;
       if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(Offset, other.Offset)) return false;
+      if (!object.Equals(At, other.At)) return false;
       if (KindCase != other.KindCase) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
@@ -1539,6 +1560,7 @@ namespace Dokime;
       if (HasPerCase) hash ^= PerCase.GetHashCode();
       if (HasScale) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Scale);
       if (HasOffset) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(Offset);
+      if (kindCase_ == KindOneofCase.At) hash ^= At.GetHashCode();
       hash ^= (int) kindCase_;
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
@@ -1582,6 +1604,10 @@ namespace Dokime;
         output.WriteRawTag(49);
         output.WriteDouble(Offset);
       }
+      if (kindCase_ == KindOneofCase.At) {
+        output.WriteRawTag(58);
+        output.WriteMessage(At);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -1616,6 +1642,10 @@ namespace Dokime;
         output.WriteRawTag(49);
         output.WriteDouble(Offset);
       }
+      if (kindCase_ == KindOneofCase.At) {
+        output.WriteRawTag(58);
+        output.WriteMessage(At);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -1643,6 +1673,9 @@ namespace Dokime;
       }
       if (HasOffset) {
         size += 1 + 8;
+      }
+      if (kindCase_ == KindOneofCase.At) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(At);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -1677,6 +1710,12 @@ namespace Dokime;
           break;
         case KindOneofCase.Offset:
           Offset = other.Offset;
+          break;
+        case KindOneofCase.At:
+          if (At == null) {
+            At = new global::Dokime.AtExpression();
+          }
+          At.MergeFrom(other.At);
           break;
       }
 
@@ -1726,6 +1765,15 @@ namespace Dokime;
             Offset = input.ReadDouble();
             break;
           }
+          case 58: {
+            global::Dokime.AtExpression subBuilder = new global::Dokime.AtExpression();
+            if (kindCase_ == KindOneofCase.At) {
+              subBuilder.MergeFrom(At);
+            }
+            input.ReadMessage(subBuilder);
+            At = subBuilder;
+            break;
+          }
         }
       }
     #endif
@@ -1772,6 +1820,267 @@ namespace Dokime;
             Offset = input.ReadDouble();
             break;
           }
+          case 58: {
+            global::Dokime.AtExpression subBuilder = new global::Dokime.AtExpression();
+            if (kindCase_ == KindOneofCase.At) {
+              subBuilder.MergeFrom(At);
+            }
+            input.ReadMessage(subBuilder);
+            At = subBuilder;
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class AtExpression : pb::IMessage<AtExpression>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<AtExpression> _parser = new pb::MessageParser<AtExpression>(() => new AtExpression());
+    private pb::UnknownFieldSet _unknownFields;
+    private int _hasBits0;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<AtExpression> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Dokime.ExpressionsReflection.Descriptor.MessageTypes[4]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public AtExpression() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public AtExpression(AtExpression other) : this() {
+      _hasBits0 = other._hasBits0;
+      recordType_ = other.recordType_;
+      withinS_ = other.withinS_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public AtExpression Clone() {
+      return new AtExpression(this);
+    }
+
+    /// <summary>Field number for the "record_type" field.</summary>
+    public const int RecordTypeFieldNumber = 1;
+    private string recordType_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string RecordType {
+      get { return recordType_; }
+      set {
+        recordType_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "within_s" field.</summary>
+    public const int WithinSFieldNumber = 2;
+    private readonly static double WithinSDefaultValue = 0D;
+
+    private double withinS_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public double WithinS {
+      get { if ((_hasBits0 & 1) != 0) { return withinS_; } else { return WithinSDefaultValue; } }
+      set {
+        _hasBits0 |= 1;
+        withinS_ = value;
+      }
+    }
+    /// <summary>Gets whether the "within_s" field is set</summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool HasWithinS {
+      get { return (_hasBits0 & 1) != 0; }
+    }
+    /// <summary>Clears the value of the "within_s" field</summary>
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void ClearWithinS() {
+      _hasBits0 &= ~1;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as AtExpression);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(AtExpression other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (RecordType != other.RecordType) return false;
+      if (!pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.Equals(WithinS, other.WithinS)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (RecordType.Length != 0) hash ^= RecordType.GetHashCode();
+      if (HasWithinS) hash ^= pbc::ProtobufEqualityComparers.BitwiseDoubleEqualityComparer.GetHashCode(WithinS);
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (RecordType.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(RecordType);
+      }
+      if (HasWithinS) {
+        output.WriteRawTag(17);
+        output.WriteDouble(WithinS);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (RecordType.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(RecordType);
+      }
+      if (HasWithinS) {
+        output.WriteRawTag(17);
+        output.WriteDouble(WithinS);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (RecordType.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(RecordType);
+      }
+      if (HasWithinS) {
+        size += 1 + 8;
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(AtExpression other) {
+      if (other == null) {
+        return;
+      }
+      if (other.RecordType.Length != 0) {
+        RecordType = other.RecordType;
+      }
+      if (other.HasWithinS) {
+        WithinS = other.WithinS;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            RecordType = input.ReadString();
+            break;
+          }
+          case 17: {
+            WithinS = input.ReadDouble();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            RecordType = input.ReadString();
+            break;
+          }
+          case 17: {
+            WithinS = input.ReadDouble();
+            break;
+          }
         }
       }
     }
@@ -1794,7 +2103,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.ExpressionsReflection.Descriptor.MessageTypes[4]; }
+      get { return global::Dokime.ExpressionsReflection.Descriptor.MessageTypes[5]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]

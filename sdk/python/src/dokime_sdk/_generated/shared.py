@@ -194,6 +194,7 @@ from dokime_sdk._wire.model.v1.expressions_pb2 import (
     FILTER_OPERATOR_UNSPECIFIED,
     Aggregate,
     AggregateExpression,
+    AtExpression,
     DataExpression,
     DocumentFilter,
     FieldReference,
@@ -503,6 +504,8 @@ TestCase.__module__ = "dokime_sdk"
 TestCase.__qualname__ = "TestCase"
 AggregateExpression.__module__ = "dokime_sdk"
 AggregateExpression.__qualname__ = "AggregateExpression"
+AtExpression.__module__ = "dokime_sdk"
+AtExpression.__qualname__ = "AtExpression"
 DataExpression.__module__ = "dokime_sdk"
 DataExpression.__qualname__ = "DataExpression"
 DocumentFilter.__module__ = "dokime_sdk"
@@ -825,6 +828,7 @@ __all__ = [
     "ArtifactScope",
     "ArtifactState",
     "ArtifactsCreateResponse",
+    "AtExpression",
     "AxisScale",
     "BarArrangement",
     "Callers",

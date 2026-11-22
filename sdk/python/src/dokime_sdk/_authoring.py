@@ -207,6 +207,8 @@ class _Template:
                     value.record.identifier = record_ids.get(value.record.identifier, value.record.identifier)
                 if isinstance(value, TransformExpression) and value.WhichOneof("kind") == "time_between":
                     value.time_between = record_ids.get(value.time_between, value.time_between)
+                if isinstance(value, TransformExpression) and value.WhichOneof("kind") == "at":
+                    value.at.record_type = record_ids.get(value.at.record_type, value.at.record_type)
                 if isinstance(value, Plot):
                     markers = [record_ids.get(identifier, identifier) for identifier in value.marker_records]
                     del value.marker_records[:]

@@ -18,9 +18,9 @@ run = "uv run --no-sync --project tools/python python -m dokime_tools.build.carg
 
 [tasks."test"]
 description = "Run Focused Rust SDK Journeys"
-usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integration" }'
+usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integration" }; flag "--select <select>" help="Run Matching SDK Tests"'
 dir = "../.."
-run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused test --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}"
+run = "uv run --no-sync --project tools/python python -m dokime_tools.build.cargo focused test --locked --manifest-path sdk/rust/tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib{% else %}--package dokime-rust-stories --test integration --test capture{% endif %}{% if usage.select %} {{usage.select}}{% endif %}"
 
 [tasks."test:created"]
 description = "Run the Created Rust Project Against Prepared Product Bytes"

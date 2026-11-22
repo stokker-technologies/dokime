@@ -27,15 +27,15 @@ use sha2::{Digest, Sha256};
 
 use dokime_protocol::host::DocumentRepeatInstance;
 use dokime_protocol::host::DocumentRepeatSelection;
-use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
+use dokime_protocol::host::document_frame_frame;
 use dokime_protocol::model::Document;
 use dokime_protocol::model::DocumentFilter;
 use dokime_protocol::model::FilterOperator;
 use dokime_protocol::model::PlotFilter;
 use dokime_protocol::model::Section;
 use dokime_protocol::model::Value;
-use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -47,7 +47,7 @@ use dokime_protocol::model::value::Kind as ValueKind;
 
 pub struct Expansion {
     pub document: Document,
-    pub frames: Vec<DocumentFrameFrameKind>,
+    pub frames: Vec<document_frame_frame::Kind>,
     pub next: Option<usize>,
 }
 struct Reader<'a> {
@@ -58,7 +58,7 @@ struct Reader<'a> {
     remaining: usize,
     visited: usize,
     more: bool,
-    frames: Vec<DocumentFrameFrameKind>,
+    frames: Vec<document_frame_frame::Kind>,
 }
 
 /* === Enums === */
@@ -86,7 +86,7 @@ impl Reader<'_> {
                 let (values, total) =
                     self.store.document_distinct(self.cut, expression, repeat.order_by.as_ref(), filters, offset, self.page_size)?;
                 if offset == 0 {
-                    selection_frame = Some(DocumentFrameFrameKind::RepeatSelection(DocumentRepeatSelection {
+                    selection_frame = Some(document_frame_frame::Kind::RepeatSelection(DocumentRepeatSelection {
                         node_id: selection.clone(),
                         instance_count: total,
                         pending: false,
@@ -112,10 +112,10 @@ impl Reader<'_> {
                     let label = display(&value);
                     metadata.label = repeat.label_template.replace("{value}", &label);
                     let field = match expression.kind.as_ref() {
-                        Some(DataExpressionKind::Stream(reference) | DataExpressionKind::Record(reference)) => {
+                        Some(data_expression::Kind::Stream(reference) | data_expression::Kind::Record(reference)) => {
                             Some(reference.field.as_str())
                         }
-                        Some(DataExpressionKind::Parameter(key) | DataExpressionKind::Dimension(key)) => Some(key.as_str()),
+                        Some(data_expression::Kind::Parameter(key) | data_expression::Kind::Dimension(key)) => Some(key.as_str()),
                         _ => None,
                     };
                     if let Some(field) = field {
@@ -124,7 +124,7 @@ impl Reader<'_> {
                     instance.metadata = Some(metadata);
                     let sections = self.section(&instance, &inherited, path, &next_suffix, depth + 1)?;
                     if !sections.is_empty() {
-                        self.frames.push(DocumentFrameFrameKind::RepeatInstance(DocumentRepeatInstance {
+                        self.frames.push(document_frame_frame::Kind::RepeatInstance(DocumentRepeatInstance {
                             selection_id: selection.clone(),
                             ordinal: offset as u64,
                             suffix: next_suffix.trim_start_matches('.').into(),
@@ -197,6 +197,7 @@ impl Reader<'_> {
 /* === Public Functions === */
 
 pub fn expand(store: &Store, cut: &ExecutionCut, document: &Document, offset: usize, page_size: usize) -> Result<Expansion> {
+    document.validate().map_err(Error::Invalid)?;
     let mut reader = Reader {
         store,
         cut,
@@ -231,11 +232,11 @@ pub fn expand(store: &Store, cut: &ExecutionCut, document: &Document, offset: us
 
 fn display(value: &Value) -> String {
     match &value.kind {
-        Some(ValueKind::Number(value)) => value.to_string(),
-        Some(ValueKind::Integer(value)) => value.to_string(),
-        Some(ValueKind::UnsignedInteger(value)) => value.to_string(),
-        Some(ValueKind::Text(value)) => value.clone(),
-        Some(ValueKind::Boolean(value)) => value.to_string(),
+        Some(value::Kind::Number(value)) => value.to_string(),
+        Some(value::Kind::Integer(value)) => value.to_string(),
+        Some(value::Kind::UnsignedInteger(value)) => value.to_string(),
+        Some(value::Kind::Text(value)) => value.clone(),
+        Some(value::Kind::Boolean(value)) => value.to_string(),
         _ => String::new(),
     }
 }

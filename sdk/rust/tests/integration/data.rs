@@ -25,7 +25,9 @@ use dokime::ValueType;
 use dokime::operations;
 use dokime::prelude::*;
 use dokime::templates::Context;
-use dokime::{ExactNumber, FromValue, SettingDeclaration, SettingValue, Value, encoding, setting_value, value};
+use dokime::{
+    DataExpression, ExactNumber, FieldReference, FromValue, SettingDeclaration, SettingValue, Value, encoding, setting_value, value,
+};
 
 /* === Constants === */
 
@@ -59,6 +61,19 @@ struct Payload {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[test]
+fn telemetry_at_records_preserves_owned_operands_and_optional_tolerance() -> Result<()> {
+    let input = FieldReference::new("readings").field("value");
+    let sampled = input.at("status");
+    let bounded = sampled.clone().within_s(0.5);
+    let bytes = encoding::Message::encode_to_vec(&bounded);
+    let decoded = <DataExpression as encoding::Message>::decode(bytes.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
+    assert_eq!(decoded.at_record().unwrap().record_type, "status");
+    assert_eq!(decoded.at_record().unwrap().within_s, Some(0.5));
+    assert_eq!(sampled.at_record().unwrap().within_s, None);
+    Ok(())
+}
 
 #[test]
 fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()> {

@@ -156,9 +156,11 @@ mod tests {
     use crate::host::plots::snapshots::list::snapshots_at;
     use dokime_protocol::host::evidence::RecordsAppendRequest;
     use dokime_protocol::host::plots::plot_analysis_result;
+    use dokime_protocol::host::{ExecutionOutcome, UnevaluatedOutcome, execution_outcome};
     use dokime_protocol::model::{
-        Aggregate, AggregateExpression, DataExpression, EvidenceScope, FieldReference, Import, Metadata, Origin, Plot, PlotKind,
-        RecordContract, RecordContracts, TransformExpression, Value, data_expression, origin, transform_expression, value,
+        Aggregate, AggregateExpression, DataExpression, DocumentFilter, EvidenceScope, FieldReference, FilterOperator, Import, Metadata,
+        Origin, Plot, PlotFilter, PlotKind, RecordContract, RecordContracts, Termination, TransformExpression, Value, data_expression,
+        origin, transform_expression, value,
     };
     use dokime_storage::{Evidence, Execution, Sample, Store};
     use harmos_protocol::model::{Declarations, StreamDeclaration};
@@ -169,6 +171,12 @@ mod tests {
     struct Row {
         #[prost(uint64, tag = "1")]
         value: u64,
+    }
+
+    #[derive(Clone, PartialEq, Message)]
+    struct Status {
+        #[prost(string, tag = "1")]
+        event: String,
     }
 
     fn fixture() -> (tempfile::TempDir, Store, DataExpression) {
@@ -262,6 +270,143 @@ mod tests {
             ..Default::default()
         };
         (root, store, expression)
+    }
+
+    #[tokio::test]
+    async fn telemetry_at_status_filters_preserve_record_rows_live_and_sealed() {
+        let (_root, store, _) = fixture();
+        let mut execution = store.cut("execution").unwrap().execution;
+        execution.identifier = "sampled-execution".into();
+        let mut catalog = Declarations::decode(execution.catalog.as_slice()).unwrap();
+        catalog.types.as_mut().unwrap().file[0].message_type.push(DescriptorProto {
+            name: Some("Status".into()),
+            field: vec![FieldDescriptorProto {
+                name: Some("event".into()),
+                number: Some(1),
+                r#type: Some(Type::String as i32),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let contracts = RecordContracts {
+            records: vec![RecordContract {
+                metadata: Some(Metadata {
+                    identifier: "status".into(),
+                    ..Default::default()
+                }),
+                message: "plots.Status".into(),
+            }],
+        };
+        catalog.sections[0].payload = contracts.encode_to_vec();
+        catalog.streams.push(StreamDeclaration {
+            id: "readings".into(),
+            row: "plots.Row".into(),
+            ..Default::default()
+        });
+        execution.catalog = catalog.encode_to_vec();
+        store.create(&execution).unwrap();
+        store.open_stream("sampled-execution", "readings").unwrap();
+        for (seconds, value) in [(1, 10), (2, 20), (2, 25), (3, 30)] {
+            store
+                .sample(
+                    "sampled-execution",
+                    Sample {
+                        stream: "readings".into(),
+                        source_ns: seconds * 1_000_000_000,
+                        row: Row { value }.encode_to_vec(),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+        }
+        store.flush_samples().unwrap();
+        for (seconds, event) in
+            [(0, "disconnected"), (1, "connected"), (2, "disconnected"), (2, "connected"), (4, "disconnected"), (5, "connected")]
+        {
+            store
+                .append(
+                    "sampled-execution",
+                    Evidence {
+                        kind: "record:status".into(),
+                        source_ns: seconds * 1_000_000_000,
+                        payload: RecordsAppendRequest {
+                            payload: Status { event: event.into() }.encode_to_vec(),
+                            ..Default::default()
+                        }
+                        .encode_to_vec(),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+        }
+        let sampled = FieldReference::new("readings").field("value").at("status");
+        for sealed in [false, true] {
+            if sealed {
+                store.close_streams("sampled-execution").unwrap();
+                store
+                    .close(
+                        "sampled-execution",
+                        Termination::Completed,
+                        ExecutionOutcome {
+                            attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
+                        },
+                    )
+                    .unwrap();
+                store.seal("sampled-execution", Default::default()).unwrap();
+            }
+            let cut = store.cut("sampled-execution").unwrap();
+            let details = store.document_value(&cut, &sampled.clone().detail("event").count()).unwrap();
+            assert_eq!(details.kind, Some(value::Kind::Integer(5)));
+            for (event, distances) in [("disconnected", vec![25.0, 30.0]), ("connected", vec![10.0, 25.0, 30.0])] {
+                let filter = DocumentFilter {
+                    expression: Some(sampled.clone().detail("event")),
+                    operator: FilterOperator::Eq as i32,
+                    value: Some(Value {
+                        kind: Some(value::Kind::Text(event.into())),
+                    }),
+                };
+                let plot = Plot {
+                    kind: PlotKind::Histogram as i32,
+                    x: Some(sampled.clone()),
+                    histogram_bins: Some(2),
+                    filters: vec![filter.clone()],
+                    ..Default::default()
+                };
+                let scope = EvidenceScope {
+                    execution_id: Some("sampled-execution".into()),
+                    ..Default::default()
+                };
+                let envelopes = snapshots_at(&store, &cut, vec![request(&plot, scope).unwrap()], 128, 0, "epoch").await.unwrap();
+                let Some(plot_analysis_result::Kind::Histogram(histogram)) =
+                    envelopes[0].payload.as_ref().unwrap().analysis.as_ref().and_then(|a| a.result.as_ref()).and_then(|r| r.kind.as_ref())
+                else {
+                    panic!("Missing Histogram")
+                };
+                assert_eq!(histogram.series[0].count, distances.len() as u64);
+                assert_eq!(histogram.series[0].bins.iter().map(|bin| bin.count).sum::<u64>(), distances.len() as u64);
+                let filtered = [PlotFilter {
+                    expression: filter.expression,
+                    operator: filter.operator,
+                    value: filter.value,
+                }];
+                let sum = store.document_value_filtered(&cut, &sampled.clone().sum(), &filtered).unwrap();
+                assert_eq!(sum.kind, Some(value::Kind::UnsignedInteger(distances.iter().sum::<f64>() as u64)));
+                let plot = Plot {
+                    kind: PlotKind::TimeSeries as i32,
+                    y: vec![sampled.clone().per_case()],
+                    filters: plot.filters,
+                    ..Default::default()
+                };
+                let scope = EvidenceScope {
+                    execution_id: Some("sampled-execution".into()),
+                    ..Default::default()
+                };
+                let envelopes = snapshots_at(&store, &cut, vec![request(&plot, scope).unwrap()], 128, 0, "epoch").await.unwrap();
+                let frame = envelopes[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+                let values = frame.series[0].y.iter().filter_map(|value| value.value).collect::<Vec<_>>();
+                assert_eq!(values, distances);
+            }
+        }
     }
 
     #[tokio::test]

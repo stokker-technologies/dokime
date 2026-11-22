@@ -75,6 +75,33 @@ class ExamplePlugin(Plugin):
 
 
 class AuthoringStory(unittest.TestCase):
+    def test_at_builders_and_record_binding(self) -> None:
+        templates = dokime_sdk.templates
+        sampled = templates.field("readings", "value").label("Distance").at("reading")
+        bounded = sampled.within_s(0.5)
+        self.assertFalse(sampled.message.transform.at.HasField("within_s"))
+        self.assertEqual(bounded.message.transform.at.within_s, 0.5)
+        self.assertEqual(bounded.message.label, "Distance")
+        self.assertRaises(ValueError, templates.field("readings", "value").within_s, 0.5)
+        plot = templates.histogram(sampled).filter(sampled.detail("event"), templates.FilterOperator.EQ, "disconnected")
+        document = Document("Tracking").section(Section("Events").plot(plot))
+
+        class ReadingsTestTemplate(TestTemplate):
+            reading = record(str, identifier="reading")
+            documents = (document,)
+
+        class ReadingsSuite(Suite):
+            templates = (ReadingsTestTemplate,)
+
+        class ReadingsPlugin(Plugin):
+            version = "1.0.0"
+            suites = (ReadingsSuite,)
+
+        bound = ReadingsPlugin()._suites[0].templates[0].documents[0].message.sections[0].cards[0].plot
+        self.assertEqual(bound.x.transform.at.record_type, "readings.readings.readings.reading")
+        self.assertEqual(bound.filters[0].expression.transform.input.transform.at.record_type, bound.x.transform.at.record_type)
+        self.assertEqual(sampled.message.transform.at.record_type, "reading")
+
     def test_plugin_root_qualifies_explicit_and_derived_members_once(self) -> None:
         @operation("measure")
         async def measure(ctx: dokime_sdk.operations.Context, request: int) -> int:

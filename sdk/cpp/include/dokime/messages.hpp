@@ -18,6 +18,7 @@ using ::dokime::detail::payloads::AGGREGATE_UNSPECIFIED;
 using ::dokime::detail::payloads::AggregateExpression;
 using ::dokime::detail::payloads::ArtifactMetadata;
 using ::dokime::detail::payloads::ArtifactScope;
+using ::dokime::detail::payloads::AtExpression;
 using ::dokime::detail::payloads::DataExpression;
 using ::dokime::detail::payloads::DocumentFilter;
 using ::dokime::detail::payloads::EvidenceCondition;

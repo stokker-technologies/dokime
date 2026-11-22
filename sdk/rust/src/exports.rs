@@ -41,6 +41,7 @@ pub use crate::wire::model::AnswerRule;
 pub use crate::wire::model::ArtifactMetadata;
 pub use crate::wire::model::ArtifactScope;
 pub use crate::wire::model::ArtifactState;
+pub use crate::wire::model::AtExpression;
 pub use crate::wire::model::AxisScale;
 pub use crate::wire::model::BarArrangement;
 pub use crate::wire::model::CaptureGap;

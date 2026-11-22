@@ -34,6 +34,16 @@ public static class Expressions
   public static DataExpression Field(string stream, string field) => new() { Stream = new FieldReference { Identifier = stream, Field = field } };
   public static DataExpression Scale(this DataExpression input, double factor) => new() { Label = input.Label, Transform = new TransformExpression { Input = input.Clone(), Scale = factor } };
   public static DataExpression Offset(this DataExpression input, double offset) => new() { Label = input.Label, Transform = new TransformExpression { Input = input.Clone(), Offset = offset } };
+  public static DataExpression At(this DataExpression input, string recordType) => new() { Label = input.Label, Transform = new TransformExpression { Input = input.Clone(), At = new AtExpression { RecordType = recordType } } };
+  public static DataExpression WithinS(this DataExpression input, double toleranceS)
+  {
+    if (input.Transform?.KindCase != TransformExpression.KindOneofCase.At)
+      throw new ArgumentException("Set Within Seconds: Apply At Before WithinS", nameof(input));
+    var value = input.Clone();
+    value.Transform.At.WithinS = toleranceS;
+    return value;
+  }
+  public static DataExpression Detail(this DataExpression input, string name) => new() { Label = input.Label, Transform = new TransformExpression { Input = input.Clone(), Detail = name } };
   public static DataExpression Reduce(this DataExpression input, Aggregate kind) => new() { Label = input.Label, Aggregate = new AggregateExpression { Input = input.Clone(), Kind = kind } };
   public static DataExpression Mean(this DataExpression input) => input.Reduce(Aggregate.Mean);
   public static DataExpression Std(this DataExpression input) => input.Reduce(Aggregate.Stddev);

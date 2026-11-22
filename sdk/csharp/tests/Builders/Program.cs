@@ -12,6 +12,12 @@ using Dokime;
 using Google.Protobuf;
 
 var input = Expressions.Field("scan", "temperature");
+var sampled = input.At("status");
+var bounded = sampled.WithinS(0.5);
+var sampledRoundtrip = DataExpression.Parser.ParseFrom(bounded.ToByteArray());
+if (sampled.Transform.At.HasWithinS || sampledRoundtrip.Transform.At.WithinS != 0.5 ||
+    sampledRoundtrip.Transform.At.RecordType != "status" || !sampled.Detail("event").Transform.Input.Equals(sampled))
+  throw new InvalidOperationException("Telemetry at Record: Preserve the Record and Optional Tolerance");
 var surface = Dokime.Templates.Plots.Contour(input.Scale(2).Offset(-1))
     .WithX(Expressions.Field("scan", "position_x"))
     .WithY(Expressions.Field("scan", "position_y"))
@@ -74,4 +80,4 @@ foreach (var reduction in new[] { Reduction.Last, Reduction.Max, Reduction.Mean,
     throw new InvalidOperationException("Heat Strip: Preserve the Serialized Bindings and Reducer");
 }
 
-Console.WriteLine("5 builder tests passed");
+Console.WriteLine("6 builder tests passed");

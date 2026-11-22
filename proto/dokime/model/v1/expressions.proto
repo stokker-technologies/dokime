@@ -58,7 +58,15 @@ message TransformExpression {
     bool per_case = 4;
     double scale = 5;
     double offset = 6;
+    .dokime.model.v1.AtExpression at = 7;
   }
+}
+
+// Samples telemetry at each occurrence of the named record type.
+message AtExpression {
+  string record_type = 1;
+  // Select the nearest row within this tolerance instead of the last preceding row.
+  optional double within_s = 2;
 }
 
 // DocumentFilter value owned by this resource.

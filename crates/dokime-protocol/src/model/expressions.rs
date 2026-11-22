@@ -21,7 +21,8 @@
 
 // Local Imports
 use crate::model::{
-    Aggregate, AggregateExpression, DataExpression, FieldReference, TransformExpression, data_expression, transform_expression,
+    Aggregate, AggregateExpression, AtExpression, DataExpression, FieldReference, TransformExpression, data_expression,
+    transform_expression,
 };
 
 /* === Constants === */
@@ -78,6 +79,87 @@ impl DataExpression {
 
     pub fn time_between(self, record: impl Into<String>) -> Self {
         self.transform(transform_expression::Kind::TimeBetween(record.into()))
+    }
+
+    pub fn at(self, record_type: impl Into<String>) -> Self {
+        self.transform(transform_expression::Kind::At(AtExpression {
+            record_type: record_type.into(),
+            within_s: None,
+        }))
+    }
+
+    pub fn within_s(mut self, tolerance_s: f64) -> Self {
+        let Some(data_expression::Kind::Transform(transform)) = self.kind.as_mut() else {
+            panic!("Set Within Seconds: Apply at Before within_s");
+        };
+        let Some(transform_expression::Kind::At(at)) = transform.kind.as_mut() else {
+            panic!("Set Within Seconds: Apply at Before within_s");
+        };
+        at.within_s = Some(tolerance_s);
+        self
+    }
+
+    pub fn at_record(&self) -> Option<&AtExpression> {
+        match self.kind.as_ref()? {
+            data_expression::Kind::Transform(transform) => match transform.kind.as_ref()? {
+                transform_expression::Kind::At(at) => Some(at),
+                _ => transform.input.as_deref()?.at_record(),
+            },
+            data_expression::Kind::Aggregate(aggregate) => aggregate.input.as_deref()?.at_record(),
+            _ => None,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        self.validate_at(0)
+    }
+
+    fn validate_at(&self, depth: usize) -> Result<(), String> {
+        let name = if self.label.is_empty() { "at" } else { &self.label };
+        let invalid = |action: &str| format!("Validate Expression '{name}': {action}");
+        if depth > 32 {
+            return Err(invalid("Reduce Nesting to 32 Levels"));
+        }
+        match self.kind.as_ref() {
+            Some(data_expression::Kind::Transform(transform)) => {
+                let input = transform.input.as_deref().ok_or_else(|| invalid("Supply the Transform Input"))?;
+                if let Some(transform_expression::Kind::At(at)) = &transform.kind {
+                    if !input.is_telemetry() {
+                        return Err(invalid("Apply at to a Telemetry Source"));
+                    }
+                    if at.record_type.is_empty() {
+                        return Err(invalid("Name the Record Type for at"));
+                    }
+                    if at.within_s.is_some() {
+                        return Err(invalid("Remove within_s Until the Pinned Library Supports Nearest-Within Merging"));
+                    }
+                }
+                input.validate_at(depth + 1)
+            }
+            Some(data_expression::Kind::Aggregate(aggregate)) => {
+                aggregate.input.as_deref().ok_or_else(|| invalid("Supply the Aggregate Input"))?.validate_at(depth + 1)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn is_telemetry(&self) -> bool {
+        match self.kind.as_ref() {
+            Some(data_expression::Kind::Stream(_)) => true,
+            Some(data_expression::Kind::Transform(transform))
+                if matches!(
+                    transform.kind,
+                    Some(
+                        transform_expression::Kind::Scale(_)
+                            | transform_expression::Kind::Offset(_)
+                            | transform_expression::Kind::Detail(_)
+                    )
+                ) =>
+            {
+                transform.input.as_deref().is_some_and(Self::is_telemetry)
+            }
+            _ => false,
+        }
     }
 
     pub fn per_case(self) -> Self {
@@ -155,3 +237,46 @@ impl DataExpression {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prost::Message;
+
+    #[test]
+    fn at_wire_preserves_optional_tolerance_and_owned_operands() {
+        let input = FieldReference::new("readings").field("value").label("Distance");
+        let sampled = input.clone().at("status");
+        assert_eq!(sampled.at_record().unwrap().within_s, None);
+        let bounded = sampled.clone().within_s(0.5);
+        let decoded = DataExpression::decode(bounded.encode_to_vec().as_slice()).unwrap();
+        assert_eq!(decoded.at_record().unwrap().within_s, Some(0.5));
+        assert_eq!(decoded.at_record().unwrap().record_type, "status");
+        assert_eq!(decoded.label, "Distance");
+        assert_eq!(sampled.at_record().unwrap().within_s, None);
+        assert!(input.at_record().is_none());
+        assert!(sampled.validate().is_ok());
+        assert!(bounded.validate().unwrap_err().contains("Pinned Library"));
+    }
+
+    #[test]
+    fn at_refuses_non_telemetry_sources_and_nested_sampling() {
+        let sources = [
+            data_expression::Kind::Record(FieldReference::new("status")),
+            data_expression::Kind::Parameter("limit".into()),
+            data_expression::Kind::Dimension("case".into()),
+            data_expression::Kind::Artifact("capture".into()),
+        ];
+        for source in sources {
+            let expression = DataExpression {
+                label: "Invalid Sample".into(),
+                kind: Some(source),
+            }
+            .at("status");
+            let error = expression.validate().unwrap_err();
+            assert!(error.contains("Invalid Sample"));
+            assert!(error.contains("Telemetry Source"));
+        }
+        assert!(FieldReference::new("readings").field("value").at("status").at("status").validate().is_err());
+    }
+}

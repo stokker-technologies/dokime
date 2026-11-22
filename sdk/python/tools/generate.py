@@ -85,6 +85,7 @@ PUBLIC_HOMES = {
             "FileRuleAction",
             "FileSelection",
             "FileSource",
+            "FilterOperator",
             "FtpLocation",
             "GridAxisEntry",
             "GridHighlight",
