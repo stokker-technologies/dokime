@@ -113,6 +113,7 @@ export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, cha
   return {
     change(value: T) {
       clearTimeout(timer);
+      failed = false;
       pending = { value };
       ready = false;
       changed({ kind: "saving" });

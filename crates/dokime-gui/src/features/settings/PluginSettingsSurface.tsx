@@ -122,8 +122,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 {reload.isError ? <ErrorCard notificationContext="action" failure={failureOf(reload.error, "Operation Failed")} /> : null}
               </SettingsRow>
             </SettingsCard>
-            {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
-            {installation ? <PluginDetailCard pluginId={installation.name} /> : null}
+            {pluginId ? <PluginDetailCard key={`${generation}:${pluginId}`} pluginId={pluginId} /> : null}
+            {installation ? <PluginDetailCard key={`${generation}:${installation.name}`} pluginId={installation.name} /> : null}
             {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />

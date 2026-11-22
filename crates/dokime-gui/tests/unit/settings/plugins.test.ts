@@ -37,7 +37,7 @@ import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
-import { FailureSchema, PluginEntrySchema, PluginState } from "@host/model";
+import { FailureSchema, PluginEntrySchema, PluginState, SettingDeclarationSchema } from "@host/model";
 
 /* === Re-Exports === */
 
@@ -107,7 +107,10 @@ vi.mock("@/features/settings/plugins/PluginTable", () => ({
   },
 }));
 vi.mock("@/lib/api/native-plugins", () => ({ listNativeAdmittedPlugins: fixture.admitted, listNativePlugins: fixture.installed }));
-vi.mock("@/lib/api/native-settings", () => ({ getNativePluginSettings: fixture.settings }));
+vi.mock("@/lib/api/native-settings", async (original) => ({
+  ...(await original<typeof import("@/lib/api/native-settings")>()),
+  getNativePluginSettings: fixture.settings,
+}));
 vi.mock("@/lib/api/native-secrets", () => ({ readSecrets: vi.fn(), putSecret: vi.fn(), removeSecret: vi.fn() }));
 vi.mock("@/features/settings/sections/SecretTransfer", () => ({ SecretTransfer: () => null }));
 vi.mock("@/app/native-session/context", () => ({ useNativeSessionOptional: () => ({ identity: session }) }));
@@ -166,7 +169,7 @@ beforeEach(() => {
       runtime: "code",
       status: "failed",
       error: null,
-      settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
+      settings: { contributions: [{ kind: "setting", declaration: create(SettingDeclarationSchema, { name: "address", title: "Address", default: { value: { case: "text", value: "" } } }) }] },
       values: { address: "corrected" },
       secrets: [],
     },
@@ -204,7 +207,7 @@ test("Failed Forms Keep Their Controls Editable", () => {
       runtime: "code",
       status: "failed",
       error: null,
-      settings: { contributions: [{ kind: "text_area", id: "address", title: "Address", default: "", required: false }] },
+      settings: { contributions: [{ kind: "setting", declaration: create(SettingDeclarationSchema, { name: "address", title: "Address", default: { value: { case: "text", value: "" } } }) }] },
       values: { address: "corrected" },
       secrets: [],
     },

@@ -1,73 +1,42 @@
-/* ***
- *
- * Dokime
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * ***
- */
+// Dokime — SPDX-License-Identifier: Apache-2.0
 
-/* Native settings adapters for the original settings surfaces. */
+/* === Imports === */
 
-/* === External Imports === */
-
-/* === Local Imports === */
-
-import type { SettingValue } from "@host/model";
-import { NativeIntegerValue } from "@dokime/plots/lib/api/native-values";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { SettingDeclaration, SettingValue } from "@host/model";
+import type { RuntimePluginSettings, SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { SettingsEntry } from "@dokime/plots/lib/types/settings";
-import type * as settingsPresentation from "@dokime/plots/lib/types/settings";
+import { required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { failureOf } from "@dokime/plots/lib/notification-details";
 
-/* === Types === */
-
-import { required } from "@dokime/plots/lib/rpc/canonical";
-
-type RuntimePluginSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>;
-type SettingContribution = RuntimePluginSettings["declarations"][number];
-type SettingValues = settingsPresentation.RuntimePluginSettings["values"];
-
-/* === Settings frame === */
+/* === Public Functions === */
 
 export async function fetchNativeSettingsFrame(session: SessionIdentity) {
   const response = await rpc.settingsSchema(session, {});
   return required(response.schema, "Get Settings Schema");
 }
 
-/* === Plugin Settings === */
-
 export function mapNativeRuntimePluginSettings(
-  settings: RuntimePluginSettings,
+  settings: Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>,
   requirements: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
-): settingsPresentation.RuntimePluginSettings {
-  const secrets = requirements.secrets.map((requirement) => {
-    const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
-    return {
-      identifier: required(declaration.metadata, "List Plugin Secret Metadata").identifier,
-      available: requirement.available,
-    };
-  });
+): RuntimePluginSettings {
   return {
     settings: {
       contributions: [
-        ...settings.declarations.map(mapSettingContribution),
-        ...requirements.secrets.map((requirement): SettingsEntry => {
+        ...settings.declarations.map((declaration) => ({ kind: "setting" as const, declaration })),
+        ...requirements.secrets.map((requirement) => {
           const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
           const metadata = required(declaration.metadata, "List Plugin Secret Metadata");
-          return {
-            kind: "secret",
-            id: metadata.identifier,
-            title: metadata.label,
-            description: metadata.description ?? null,
-            required: declaration.required,
-          };
+          return { kind: "secret" as const, id: metadata.identifier, title: metadata.label, description: metadata.description, required: declaration.required };
         }),
       ],
     },
-    values: Object.fromEntries(Object.entries(settings.value?.values ?? {}).map(([name, value]) => [name, settingValue(value)])),
-    secrets,
+    values: Object.fromEntries(Object.entries(settings.value?.values ?? {}).map(([name, value]) => [name, readPluginSetting(value)])),
+    secrets: requirements.secrets.map((requirement) => {
+      const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
+      const metadata = required(declaration.metadata, "List Plugin Secret Metadata");
+      return { identifier: metadata.identifier, available: requirement.available };
+    }),
   };
 }
 
@@ -79,23 +48,33 @@ export async function getNativePluginSettings(session: SessionIdentity, pluginId
   return mapNativeRuntimePluginSettings(settings, requirements);
 }
 
+/** Merge Only Edited Fields Into the Latest Complete Value at Its Issued Revision. */
 export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {
-  const current = await rpc.pluginsSettingsList(session, { name: pluginId });
-  const entries = current.declarations.map((declaration) => {
-    const defaultValue = required(declaration.default, "Set Plugin Setting Default");
-    const value = values[declaration.name];
-    return [declaration.name, writeSetting(defaultValue, value)] as const;
-  });
-  await rpc.pluginsSettingsSet(session, {
-    name: pluginId,
-    expectedRevision: current.revision,
-    requestId: crypto.randomUUID(),
-    value: { values: Object.fromEntries(entries) },
-  });
-  return getNativePluginSettings(session, pluginId);
+  try {
+    requireCurrentSession(session);
+    const current = await rpc.pluginsSettingsList(session, { name: pluginId });
+    requireCurrentSession(session);
+    const entries = current.declarations.map((declaration) => {
+      const value = Object.hasOwn(values, declaration.name)
+        ? values[declaration.name]
+        : readPluginSetting(current.value?.values[declaration.name] ?? required(declaration.default, "Read Plugin Setting Default"));
+      return [declaration.name, parsePluginSetting(declaration, value)] as const;
+    });
+    await rpc.pluginsSettingsSet(session, {
+      name: pluginId,
+      expectedRevision: current.revision,
+      requestId: crypto.randomUUID(),
+      value: { values: Object.fromEntries(entries) },
+    });
+    requireCurrentSession(session);
+    return getNativePluginSettings(session, pluginId);
+  } catch (error) {
+    const failure = failureOf(error, "Settings Could Not Be Saved");
+    throw { ...failure, action: failure.action || "Reload Plugin Settings, Review the Values and Save Again" };
+  }
 }
 
-function settingValue(setting: Wire<SettingValue>): SettingValues[string] {
+export function readPluginSetting(setting: Wire<SettingValue>): boolean | number | string {
   const value = setting.value;
   switch (value.case) {
     case "integer":
@@ -107,36 +86,75 @@ function settingValue(setting: Wire<SettingValue>): SettingValues[string] {
     case "duration": {
       const nanoseconds = value.value.seconds * 1_000_000_000n + BigInt(value.value.nanos);
       const absolute = nanoseconds < 0n ? -nanoseconds : nanoseconds;
-      return `${nanoseconds < 0n ? "-" : ""}${absolute / 1_000_000_000n}.${String(absolute % 1_000_000_000n).padStart(9, "0")}`;
+      const fraction = String(absolute % 1_000_000_000n).padStart(9, "0").replace(/0+$/, "");
+      return `${nanoseconds < 0n ? "-" : ""}${absolute / 1_000_000_000n}${fraction ? `.${fraction}` : ""}`;
     }
     default:
-      throw new Error("Read Plugin Setting: Missing Typed Value");
+      throw new Error("Read Plugin Setting: Reload the Plugin to Obtain Its Declared Value");
   }
 }
 
-function writeSetting(defaultValue: Wire<SettingValue>, value: unknown): Wire<SettingValue> {
-  switch (defaultValue.value.case) {
+/** Parse and Validate With the Same Declaration Used to Render the Field. */
+export function parsePluginSetting(declaration: Wire<SettingDeclaration>, value: unknown): Wire<SettingValue> {
+  const kind = required(declaration.default, "Read Plugin Setting Default").value.case;
+  const parsed = writeSetting(kind, value);
+  for (const [bound, direction] of [[declaration.minimum, "minimum"], [declaration.maximum, "maximum"]] as const) {
+    if (!bound) continue;
+    const current = comparableSetting(parsed);
+    const limit = comparableSetting(bound);
+    if (bound.value.case !== kind || current === undefined || limit === undefined) {
+      throw new Error("Validate Plugin Setting: Reload the Plugin to Obtain Valid Bounds");
+    }
+    if (direction === "minimum" ? current < limit : current > limit) {
+      throw new Error(`Enter ${declaration.title || declaration.name} ${direction === "minimum" ? "at least" : "at most"} ${readPluginSetting(bound)}${kind === "duration" ? " s" : ""}.`);
+    }
+  }
+  return parsed;
+}
+
+/* === Private Functions === */
+
+function requireCurrentSession(session: SessionIdentity) {
+  if (!session.isCurrent()) throw new Error("The Connection Changed. Reopen Plugin Settings on the Current Host Before Saving.");
+}
+
+function comparableSetting(setting: Wire<SettingValue>) {
+  const value = setting.value;
+  switch (value.case) {
+    case "integer":
+    case "number":
+      return value.value;
+    case "duration":
+      return value.value.seconds * 1_000_000_000n + BigInt(value.value.nanos);
+    default:
+      return undefined;
+  }
+}
+
+function writeSetting(kind: Wire<SettingValue>["value"]["case"], value: unknown): Wire<SettingValue> {
+  switch (kind) {
     case "flag":
-      if (typeof value === "boolean") return { value: { case: "flag", value } };
+      if (typeof value === "boolean") {
+        return { value: { case: "flag", value } };
+      }
       break;
     case "text":
-      if (typeof value === "string") return { value: { case: "text", value } };
+      if (typeof value === "string") {
+        return { value: { case: "text", value } };
+      }
       break;
-    case "number":
-      if (typeof value === "number" && Number.isFinite(value)) return { value: { case: "number", value } };
+    case "number": {
+      const number = typeof value === "string" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) ? Number(value) : value;
+      if (typeof number === "number" && Number.isFinite(number)) {
+        return { value: { case: "number", value: number } };
+      }
       break;
+    }
     case "integer": {
-      const decimal =
-        value instanceof NativeIntegerValue
-          ? value.decimal
-          : typeof value === "number" && Number.isSafeInteger(value)
-            ? String(value)
-            : typeof value === "string"
-              ? value
-              : "";
-      if (/^-?\d+$/.test(decimal)) {
-        const integer = BigInt(decimal);
-        if (integer >= -(1n << 63n) && integer < 1n << 63n) return { value: { case: "integer", value: integer } };
+      if (typeof value !== "string" || !/^-?\d+$/.test(value)) break;
+      const integer = BigInt(value);
+      if (integer >= -(1n << 63n) && integer < 1n << 63n) {
+        return { value: { case: "integer", value: integer } };
       }
       break;
     }
@@ -147,31 +165,13 @@ function writeSetting(defaultValue: Wire<SettingValue>, value: unknown): Wire<Se
       const sign = match[1] ? -1n : 1n;
       const seconds = sign * BigInt(match[2]);
       const nanos = Number(sign * BigInt((match[3] ?? "").padEnd(9, "0")));
-      return { value: { case: "duration", value: { seconds, nanos } } };
+      if (seconds >= -315_576_000_000n && seconds <= 315_576_000_000n) {
+        return { value: { case: "duration", value: { seconds, nanos } } };
+      }
+      break;
     }
     default:
       break;
   }
-  throw new Error("Set Plugin Setting: Value Does Not Match Its Declared Type");
-}
-
-/* === Mapping === */
-
-function mapSettingContribution(contribution: SettingContribution): SettingsEntry {
-  const common = { id: contribution.name, title: contribution.title, description: contribution.description || null };
-  const value = required(contribution.default, "Read Plugin Setting Default");
-  switch (value.value.case) {
-    case "flag":
-      return { ...common, kind: "boolean", default: value.value.value };
-    case "text":
-      return { ...common, kind: "text_area", default: value.value.value, required: false };
-    case "number":
-      return { ...common, kind: "number", default: value.value.value, min: null, max: null, step: null };
-    case "integer":
-      return { ...common, kind: "text_area", default: value.value.value.toString(), required: true };
-    case "duration":
-      return { ...common, kind: "text_area", default: String(settingValue(value)), required: true };
-    default:
-      throw new Error("Read Plugin Setting: Missing Typed Default");
-  }
+  throw new Error(`Enter a Valid ${kind === "duration" ? "Duration in Seconds" : kind === "integer" ? "64-Bit Integer" : kind || "Setting Value"}.`);
 }
