@@ -460,9 +460,9 @@
 
 ## Interval Lag Recovery Library Adoption
 
-- [x] Pin Cargo and the Python SDK to Library Dev `8e2baf73a21381d0eaac8a2cf9c5ca84b89ce2a1`; Regenerate Projections and Refresh Every Tracked Lock Through Generation.
+- [x] Pin Cargo and the Python SDK to Library Dev `6ced46a49eba9ab101e90bbf41be196f98e388fc`; Regenerate Projections and Refresh Every Tracked Lock Through Generation.
 - [x] Supply Three Consecutive Lagging Wakes to the Library Policy and Preserve the Consecutive Count in Actionable Execution Failures.
 - [x] Remove the Superseded Single-Wake Interruption Story.
-- [ ] Preserve Explicit Interval Gaps Without Treating Them as Evicted Rows and Prove Publication Recovery: the Pinned Library's `Batch::incomplete()` Combines Both Causes, So It Must Expose Them Separately Before Product Adoption Can Finish.
+- [x] Preserve Explicit Interval Gaps as Scoped `streams:gap` Evidence Without Treating Them as Evicted Rows; Prove Publication Recovery, Gap Extents and Persistence After Settlement.
 - [x] Pass Focused Runtime Streams, Peer Capture, Burst Ingest and OBC Plugin Tests and Installed Python SDK Unit and Integration Tests.
 - [x] Pass Workspace Test-Target Compilation With Desktop Testing, Generation Drift, Formatting, Repository, Supply, Binding and Unused-Dependency Gates.
