@@ -432,7 +432,7 @@ impl RegisteredPlugin {
         self.client.ensure_open()?;
         let value = match self.client.plugins().get(self.identifier()).await {
             Ok(value) => value,
-            Err(Error::Harmos(::harmos::Error::Transport(status))) if status.code() == Code::NotFound => {
+            Err(Error::Transport(status)) if status.code() == Code::NotFound => {
                 self.detached.store(true, Ordering::Release);
                 return self.release().await;
             }

@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, cast, overload
 # Third Party Imports
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
-from harmos import FailureError, OperationPolicy, plugin
+from harmos import OperationError, OperationPolicy, plugin
 
 # Local Imports
 from ._generated import shared
@@ -131,7 +131,7 @@ async def run[R](context: "Context", handler: Callable[..., R], *arguments: obje
 async def run[R](context: "Context", handler: Callable[..., R | Awaitable[R]], *arguments: object, **keywords: object) -> R:
     try:
         execution = context._transport.scope()
-    except FailureError as error:
+    except OperationError as error:
         if error.value.code != "scope_required":
             raise
         execution = ""

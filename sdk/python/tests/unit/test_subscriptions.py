@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, Mock
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import Int64Value
-from harmos import FailureError, plugin
+from harmos import OperationError, plugin
 from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 from harmos._wire.plugin.v1.subscriptions_pb2 import SubscriptionsSubscribeRequest, SubscriptionsSubscribeResponse
 
@@ -90,7 +90,7 @@ class SubscriptionTests(IsolatedAsyncioTestCase):
         await output.get()
         await transport._cancel("Scope Ended")
         self.assertEqual((await output.get()).child_cancel.call, child.call)
-        with self.assertRaises(FailureError) as cancelled:
+        with self.assertRaises(OperationError) as cancelled:
             await reading
         self.assertEqual(cancelled.exception.value.code, "cancelled")
         with self.assertRaises(StopAsyncIteration):

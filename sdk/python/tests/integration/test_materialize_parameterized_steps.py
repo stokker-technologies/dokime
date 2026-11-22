@@ -259,9 +259,7 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             async def measure(self, ctx: Context, *, channel: int) -> None:
                 attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
-                    raise dokime_sdk.operations.FailureError(
-                        Failure("Transient", "retry_measurement", "Measurement Requires Another Attempt", "Retry Measurement")
-                    )
+                    raise dokime_sdk.operations.OperationError("transient", code="retry_measurement", message="Measurement Requires Another Attempt", action="Retry Measurement")
                 measured = channel * channel
                 await ctx.artifact(f"channel_{channel}.bin", measured.to_bytes(4, "big"))
                 self.measured_channels.append(measured)

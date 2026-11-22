@@ -13,14 +13,7 @@ internal sealed class Context(Harmos.Plugins.Context transport)
     OperationPolicy? policy = null, CancellationToken cancellationToken = default)
     where TRequest : IMessage<TRequest>, new() where TResponse : IMessage<TResponse>, new()
   {
-    try
-    {
-      return await transport.Operation(operation, request, policy, cancellationToken);
-    }
-    catch (Harmos.OperationException error)
-    {
-      throw new SdkError(Failure.FromWire(error.Failure), cause: error);
-    }
+    return await transport.Operation(operation, request, policy, cancellationToken);
   }
   internal IAsyncEnumerable<TResponse> WatchAsync<TRequest, TResponse>(Harmos.Plugins.Operation<TRequest, TResponse> operation, TRequest request,
     ulong maxItemBytes, CancellationToken cancellationToken = default)

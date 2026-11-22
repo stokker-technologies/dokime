@@ -59,10 +59,6 @@ class SdkError(Exception):
         self.request_id = request_id
 
 
-class FailureError(SdkError):
-    pass
-
-
 # === Public Functions === #
 
 

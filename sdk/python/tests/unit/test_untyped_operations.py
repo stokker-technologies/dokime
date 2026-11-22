@@ -18,7 +18,7 @@ from harmos._wire.plugin.v1.invocation_pb2 import Request
 # Local Imports
 import dokime_sdk.operations
 from dokime_sdk import Plugin
-from dokime_sdk.operations import Context, FailureError, OperationPolicy
+from dokime_sdk.operations import Context, OperationError, OperationPolicy
 
 # Type Checking Imports
 
@@ -69,14 +69,14 @@ class UntypedOperationTests(IsolatedAsyncioTestCase):
                 action="Supply an Integer for channel, Then Retry",
                 cause=Failure(code="schema", message="Unknown Field"),
             )
-            transport.operation = AsyncMock(side_effect=harmos.FailureError(failure))
-            with self.assertRaises(FailureError) as raised:
+            transport.operation = AsyncMock(side_effect=harmos.OperationError(failure))
+            with self.assertRaises(OperationError) as raised:
                 await Context(transport, owner).operation("example.measure", {"channel": "wrong"})
-            self.assertEqual(raised.exception.failure.message, failure.message)
-            self.assertEqual(raised.exception.failure.action, failure.action)
-            self.assertEqual(raised.exception.failure.operation, failure.operation)
-            self.assertEqual(raised.exception.failure.classification, expected)
-            cause = raised.exception.failure.cause
+            self.assertEqual(raised.exception.value.message, failure.message)
+            self.assertEqual(raised.exception.value.action, failure.action)
+            self.assertEqual(raised.exception.value.operation, failure.operation)
+            self.assertEqual(raised.exception.value.classification, classification)
+            cause = raised.exception.value.cause
             assert cause is not None
             self.assertEqual(cause.code, "schema")
 

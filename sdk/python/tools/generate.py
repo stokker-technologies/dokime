@@ -47,7 +47,7 @@ PUBLIC_HOMES = {
     "operations": frozenset(
         [
             "Context",
-            "FailureError",
+            "OperationError",
             "OperationPolicy",
             "Payload",
             "RetryPolicy",

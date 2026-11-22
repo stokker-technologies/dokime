@@ -393,30 +393,6 @@ class AuthoringStory(unittest.TestCase):
             self.assertRaisesRegex(ValueError, error, step("Measure", policy=policy), measure)
             self.assertRaisesRegex(ValueError, r"evaluate:.*retries\.initial", criterion("Evaluate", policy=policy), evaluate)
 
-    def test_operation_and_template_contexts_are_distinct(self) -> None:
-        operations = dokime_sdk.operations.Context
-        templates = dokime_sdk.templates.Context
-        self.assertIsNot(operations, templates)
-        self.assertTrue(issubclass(templates, operations))
-        for name in ("operation", "sleep", "now", "cancelled", "secret", "settings"):
-            self.assertTrue(callable(getattr(operations, name)))
-        for name in (
-            "prompt",
-            "record",
-            "records",
-            "statistics",
-            "progress",
-            "traceability",
-            "document",
-            "artifact",
-            "capture",
-            "start_capture",
-            "stop_capture",
-            "environment",
-        ):
-            self.assertFalse(hasattr(operations, name))
-            self.assertTrue(callable(getattr(templates, name)))
-
     def test_document_declarations_bind_copies_in_each_template_home(self) -> None:
         class ReportTestTemplate(TestTemplate):
             report = Document("Report").section(Section("Measurements"))

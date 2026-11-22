@@ -38,7 +38,8 @@ from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 # Local Imports
 import dokime_sdk.operations
 from dokime_sdk import Failure, Plugin, Suite
-from dokime_sdk.operations import FailureError, Visibility, operation
+from dokime_sdk._errors import wire_failure
+from dokime_sdk.operations import OperationError, Visibility, operation
 from dokime_sdk.templates import Context, TestTemplate, Window, criterion, observer, prompt, record, step, stream, window_observer
 
 # Type Checking Imports
@@ -158,7 +159,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
     async def test_author_failures_keep_classification_and_causes_on_the_carrier(self) -> None:
         @operation("example.failure", visibility=Visibility.PUBLIC)
         async def fail(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
-            raise FailureError(
+            raise OperationError(wire_failure(
                 Failure(
                     "Transient",
                     "outer_failure",
@@ -168,7 +169,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     details={"device": "42"},
                     diagnostics="trace_42",
                 )
-            )
+            ))
 
         class FailurePlugin(Plugin):
             identifier = "example"

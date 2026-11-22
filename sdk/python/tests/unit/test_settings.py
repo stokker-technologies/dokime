@@ -119,7 +119,7 @@ class SettingsTests(IsolatedAsyncioTestCase):
         owner = ConnectionPlugin()
         transport = plugin.Context(Request(attempt=1), owner.identifier, {})
         transport.settings = AsyncMock(return_value=SettingsListResponse())
-        with self.assertRaises(harmos.FailureError) as raised:
+        with self.assertRaises(harmos.OperationError) as raised:
             await owner._lifecycle("initialize")(object(), transport)
         self.assertIn("Configure api_address", raised.exception.value.message)
         initialized.assert_not_awaited()
@@ -127,7 +127,7 @@ class SettingsTests(IsolatedAsyncioTestCase):
         values = harmos.SettingValues(values={name: field.default for name, field in ConnectionSettings._fields().items()})
         values.values["count"].text = "wrong"
         transport.settings.return_value = SettingsListResponse(value=values)
-        with self.assertRaises(harmos.FailureError) as raised:
+        with self.assertRaises(harmos.OperationError) as raised:
             await owner._lifecycle("initialize")(object(), transport)
         self.assertIn("Save the Declared Type for count", raised.exception.value.message)
         self.assertFalse(owner._settings_values)

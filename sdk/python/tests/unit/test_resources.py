@@ -54,14 +54,14 @@ class ResourceTests(IsolatedAsyncioTestCase):
             self.assertIn("then Retry", raised.exception.failure.action)
 
         missing = Failure(code="NOT_FOUND", classification=harmos.CLASSIFICATION_REFUSED)
-        transport._call.side_effect = harmos.FailureError(Failure(cause=missing))
+        transport._call.side_effect = harmos.OperationError(Failure(cause=missing))
         with self.assertRaises(SdkError) as raised:
             await context.secret("api_token")
         self.assertEqual(raised.exception.failure.action, "Store the Remote API Token secret for this plugin, then Retry")
 
         failure = Failure(code="denied", classification=harmos.CLASSIFICATION_REFUSED, action="Request Access")
-        transport._call.side_effect = harmos.FailureError(failure)
-        with self.assertRaises(harmos.FailureError) as raised_host:
+        transport._call.side_effect = harmos.OperationError(failure)
+        with self.assertRaises(harmos.OperationError) as raised_host:
             await context.secret("api_token")
         self.assertEqual(raised_host.exception.value, failure)
         with self.assertRaises(ValueError):
@@ -136,7 +136,7 @@ class ResourceTests(IsolatedAsyncioTestCase):
         context = Context(transport, owner)
         api = await context.resource(RemoteApi)
         self.assertIs(api.transport, await context.resource(Transport))
-        with self.assertRaises(harmos.FailureError) as raised:
+        with self.assertRaises(harmos.OperationError) as raised:
             await owner._lifecycle("finalize")(object(), transport)
         self.assertEqual(raised.exception.value.classification, harmos.CLASSIFICATION_PERMANENT)
         self.assertEqual(raised.exception.value.operation, "connection.finalize")
@@ -182,7 +182,7 @@ class ResourceTests(IsolatedAsyncioTestCase):
 
         owner = ConnectionPlugin()
         transport = plugin.Context(Request(attempt=1), owner.identifier, {})
-        with self.assertRaises(harmos.FailureError):
+        with self.assertRaises(harmos.OperationError):
             await owner._lifecycle("initialize")(object(), transport)
         closed.assert_awaited_once_with()
         self.assertFalse(owner._resource_values)

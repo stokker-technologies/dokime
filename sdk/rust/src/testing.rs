@@ -351,7 +351,7 @@ impl Harness {
         }
         let mut termination = match &failure {
             None => Termination::Completed,
-            Some(Error::Harmos(::harmos::Error::Failure(failure))) if failure.classification == Classification::Cancelled as i32 => {
+            Some(Error::Failure(failure)) if failure.classification == Classification::Cancelled as i32 => {
                 Termination::Cancelled
             }
             Some(_) => Termination::Failed,
