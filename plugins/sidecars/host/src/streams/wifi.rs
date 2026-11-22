@@ -22,11 +22,11 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Host;
-use crate::collectors::wifi::{LatencyOptions, LinkOptions, ScanOptions};
+use crate::collectors::wifi::{LatencyOptions, LinkOptions, ScanOptions, ScanReadings};
 use crate::domain::readings;
 use crate::domain::telemetry::{
-    WIFI_LATENCY_PROBE, WIFI_LINK_PROBE, WIFI_SCAN_PROBE, WifiAdapter, WifiCipher, WifiCongestion, WifiLatency, WifiLink, WifiLoss,
-    WifiNetwork, WifiNetworkName, WifiNetworkRssi, WifiPhyRate, WifiProfile, WifiRssi, WifiSecurity, WifiSignal, WifiThroughput,
+    WIFI_LATENCY_PROBE, WIFI_LINK_PROBE, WIFI_SCAN_PROBE, WifiAdapter, WifiChannels, WifiCipher, WifiCongestion, WifiLatency, WifiLink,
+    WifiLoss, WifiNetwork, WifiNetworkName, WifiNetworkRssi, WifiPhyRate, WifiProfile, WifiRssi, WifiSecurity, WifiSignal, WifiThroughput,
 };
 use crate::settings;
 use crate::streams;
@@ -91,6 +91,7 @@ pub fn catalog(plugin: Plugin, host: Arc<Host>) -> Result<Plugin> {
     })
     .stream(streams::probe(WIFI_SCAN_PROBE))
     .stream(Stream::<WifiNetwork>::new(WifiNetwork::STREAM).description(WifiNetwork::LABEL))
+    .stream(Stream::<WifiChannels>::new(WifiChannels::STREAM).description(WifiChannels::LABEL))
     .stream(Stream::<WifiNetworkName>::new(WifiNetworkName::STREAM).description(WifiNetworkName::LABEL))
     .stream(Stream::<WifiNetworkRssi>::new(WifiNetworkRssi::STREAM).description(WifiNetworkRssi::LABEL))
     .stream(Stream::<WifiCongestion>::new(WifiCongestion::STREAM).description(WifiCongestion::LABEL))
@@ -159,7 +160,11 @@ pub fn publish_link(reading: readings::WifiLink, rows: &CollectionOutput) {
 }
 
 /// Publish One Outcome and Congestion Row per Scan, and Each Network's Available Measurements.
-pub fn publish_scan(readings: Vec<readings::WifiScan>, rows: &CollectionOutput) {
+pub fn publish_scan(readings: ScanReadings, rows: &CollectionOutput) {
+    for channel in readings.channels {
+        rows.publish(&Stream::new(WifiChannels::STREAM), channel);
+    }
+    let readings = readings.networks;
     let mut first = readings.first().cloned().unwrap_or_default();
     streams::outcome(rows, WIFI_SCAN_PROBE, first.scan_status.take(), first.scan_error.take());
     let congestion = WifiCongestion::from(first);

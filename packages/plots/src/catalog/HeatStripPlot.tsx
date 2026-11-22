@@ -54,7 +54,15 @@ export function HeatStripPlot({ plot }: { plot: PlotCardSpec }) {
         {series.map((series) => (
           <div key={series.key} className="grid gap-1" data-facet={series.key}>
             {series.label && <span className="text-sm">{series.label}</span>}
-            <div className="grid w-full min-w-0 gap-1" style={{ gridTemplateColumns: `repeat(${series.points.length}, minmax(0, 1fr))` }}>
+            <div
+              className="grid w-full min-w-0 gap-1"
+              style={{
+                gridTemplateColumns:
+                  series.points.length > 16
+                    ? "repeat(auto-fit, minmax(min(100%, 2.5rem), 1fr))"
+                    : `repeat(${series.points.length}, minmax(0, 1fr))`,
+              }}
+            >
               {series.points.map((point) => {
                 const valid = point.y !== null && Number.isFinite(point.y);
                 const label = String(point.x ?? "");

@@ -27,7 +27,8 @@ use sysinfo::Networks;
 
 // Local Imports
 use crate::domain::readings::{WifiLatency, WifiLink, WifiScan};
-use crate::platform::ScannedNetwork;
+use crate::domain::telemetry::WifiChannels;
+use crate::platform::{ScannedNetwork, WifiBand, WifiCapabilities, wifi};
 use dokime::{Error, Result};
 
 /* === Constants === */
@@ -82,8 +83,21 @@ pub struct LatencyOptions {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ScanReport {
     pub networks: Vec<ScannedNetwork>,
+    pub capabilities: Option<WifiCapabilities>,
     pub active: bool,
     pub error: Option<String>,
+}
+
+/// Both Projections of One Scan, Published by the Same Collection Tick.
+pub struct ScanReadings {
+    pub networks: Vec<WifiScan>,
+    pub channels: Vec<WifiChannels>,
+}
+
+/// The Channel Plan Remembers Observed 6 GHz Support Until Collection Stop.
+#[derive(Default)]
+pub struct ChannelPlan {
+    saw_6ghz: bool,
 }
 
 /// The Congestion Score of the Associated Channel and the Model That Weighed It.
@@ -110,6 +124,7 @@ struct Link {
 struct Scan {
     sample_index: u64,
     last_active_scan: Option<Instant>,
+    channel_plan: ChannelPlan,
 }
 
 /* === Enums === */
@@ -138,7 +153,7 @@ impl Collector {
                 probe_status: Some("unsupported".into()),
                 ..WifiLink::default()
             };
-            let adapter = read_link(&options, &mut row);
+            let adapter = wifi::read_link(&options, &mut row);
             let now = Instant::now();
             let (networks, last) =
                 state.networks.as_mut().ok_or_else(|| Error::Invalid("Collect Wi-Fi Link: Start the Collection Before Reading".into()))?;
@@ -163,18 +178,19 @@ impl Collector {
     }
 
     /// One Row per Observed Network; an Empty or Failed Scan Is One Status Row.
-    pub async fn scan(&self, options: ScanOptions) -> Result<Vec<WifiScan>> {
+    pub async fn scan(&self, options: ScanOptions) -> Result<ScanReadings> {
         let state = Arc::clone(&self.scan);
         blocking(move || {
             let mut state = state.lock().map_err(|_| poisoned())?;
             state.sample_index += 1;
             let now = Instant::now();
             let active = scan_due(state.last_active_scan, now, options.minimum_interval);
-            let report = scan(&options, active);
+            let report = wifi::scan(&options, active);
             if report.as_ref().is_ok_and(|report| report.active) {
                 state.last_active_scan = Some(now);
             }
-            Ok(scan_rows(state.sample_index, report, options.congestion_weight))
+            let sample_index = state.sample_index;
+            Ok(scan_readings(sample_index, report, options.congestion_weight, &mut state.channel_plan))
         })
         .await
     }
@@ -185,7 +201,7 @@ impl Collector {
         blocking(move || {
             let mut sample_index = state.lock().map_err(|_| poisoned())?;
             *sample_index += 1;
-            Ok(latency_row(*sample_index, &options.host, round_trip_ms(&options)))
+            Ok(latency_row(*sample_index, &options.host, wifi::round_trip_ms(&options)))
         })
         .await
     }
@@ -203,6 +219,41 @@ impl Collector {
     }
 }
 
+impl ChannelPlan {
+    /// Every Channel Once per Successful Scan, With Primary Counts and Weighted Occupancy.
+    pub fn rows(&mut self, sample_index: u64, report: &ScanReport) -> Vec<WifiChannels> {
+        self.saw_6ghz |= report.networks.iter().any(|network| network.channel.is_some_and(is_encoded_6ghz_channel));
+        let fallback = [WifiBand::Ghz24, WifiBand::Ghz5, WifiBand::Ghz6];
+        let fallback = if self.saw_6ghz { &fallback[..] } else { &fallback[..2] };
+        let bands = report.capabilities.as_ref().map(|capabilities| capabilities.bands.as_slice()).unwrap_or(fallback);
+        let channel_14_allowed = report.capabilities.as_ref().is_some_and(|capabilities| capabilities.channel_14_allowed);
+        let per_channel = channel_counts(&report.networks);
+        let mut rows = Vec::new();
+        for frequency_band in [WifiBand::Ghz24, WifiBand::Ghz5, WifiBand::Ghz6] {
+            if !bands.contains(&frequency_band) {
+                continue;
+            }
+            let channels: Vec<u32> = match frequency_band {
+                WifiBand::Ghz24 => (1..=if channel_14_allowed { 14 } else { 13 }).collect(),
+                WifiBand::Ghz5 => (36..=64).step_by(4).chain((100..=144).step_by(4)).chain((149..=177).step_by(4)).collect(),
+                WifiBand::Ghz6 => (1_001..=1_233).step_by(4).collect(),
+            };
+            for channel in channels {
+                let network_count = per_channel.get(&channel).copied().unwrap_or_default();
+                let occupancy = report.networks.iter().map(|network| channel_overlap(channel, network)).sum();
+                rows.push(WifiChannels {
+                    sample_index: index(sample_index),
+                    wifi_band: band(channel).expect("Channel Plan Contains Known Bands"),
+                    wifi_channel: i64::from(if frequency_band == WifiBand::Ghz6 { channel - 1_000 } else { channel }),
+                    network_count: i64::from(network_count),
+                    occupancy,
+                });
+            }
+        }
+        rows
+    }
+}
+
 /* === Public Functions === */
 
 /// The Band of a Channel; 6 GHz Channels Are Encoded as 1000 Plus Their Display Channel.
@@ -211,6 +262,18 @@ pub fn band(channel: u32) -> Option<String> {
         1..=14 => Some("2.4GHz".to_owned()),
         32..=177 => Some("5GHz".to_owned()),
         _ if is_encoded_6ghz_channel(channel) => Some("6GHz".to_owned()),
+        _ => None,
+    }
+}
+
+/// Convert a Platform Frequency in MHz or kHz to the Shared Encoded Channel.
+pub fn channel_from_frequency(value: u32) -> Option<u32> {
+    let mhz = if value > 10_000 { value / 1_000 } else { value };
+    match mhz {
+        2_412..=2_472 => Some((mhz - 2_407) / 5),
+        2_484 => Some(14),
+        5_005..=5_895 => Some((mhz - 5_000) / 5),
+        5_955..=7_115 => Some(1_000 + (mhz - 5_950) / 5),
         _ => None,
     }
 }
@@ -251,10 +314,7 @@ pub fn scan_rows(sample_index: u64, report: result::Result<ScanReport, String>, 
         return vec![status_row(status, report.error)];
     }
     let status = if report.active { "ok" } else { "cached" };
-    let mut per_channel = BTreeMap::<u32, u32>::new();
-    for channel in report.networks.iter().filter_map(|network| network.channel) {
-        *per_channel.entry(channel).or_default() += 1;
-    }
+    let per_channel = channel_counts(&report.networks);
     let associated = report.networks.iter().find(|network| network.associated);
     let active_channel = associated.and_then(|network| network.channel);
     let active_ssid = associated.and_then(|network| network.ssid.clone());
@@ -285,6 +345,20 @@ pub fn scan_rows(sample_index: u64, report: result::Result<ScanReport, String>, 
             congestion_model: congestion.model.map(str::to_owned),
         })
         .collect()
+}
+
+/// Project One Native Report Into Both Streams Without Scanning Again.
+pub fn scan_readings(
+    sample_index: u64, report: result::Result<ScanReport, String>, network_weight: f64, plan: &mut ChannelPlan,
+) -> ScanReadings {
+    let channels = report
+        .as_ref()
+        .ok()
+        .filter(|report| report.error.is_none() || !report.networks.is_empty())
+        .map(|report| plan.rows(sample_index, report))
+        .unwrap_or_default();
+    let networks = scan_rows(sample_index, report, network_weight);
+    ScanReadings { networks, channels }
 }
 
 /// The Latency Row of One Echo: a Reply, a Loss or a Probe That Could Not Run.
@@ -364,121 +438,27 @@ fn overlap_weight(active_channel: u32, scanned_channel: u32) -> f64 {
     }
 }
 
-// The Current Connection Through WlanQueryInterface; Answers the Adapter for Throughput.
-#[cfg(windows)]
-fn read_link(options: &LinkOptions, row: &mut WifiLink) -> Option<String> {
-    match crate::platform::windows::wifi::active_link(options.adapter.as_deref()) {
-        Ok(Some(link)) => {
-            row.probe_status = Some(if link.probe_error.is_some() { "partial" } else { "ok" }.into());
-            row.associated = link.associated();
-            row.probe_error = link.probe_error;
-            row.wifi_adapter = link.adapter.clone();
-            row.wifi_state = link.state.map(|value| value.as_str().into_owned());
-            row.wifi_ssid = link.ssid;
-            row.wifi_bssid = link.bssid;
-            row.wifi_profile = link.profile;
-            row.wifi_radio = link.radio.map(|value| value.as_str().into_owned());
-            row.wifi_auth = link.auth.map(|value| value.as_str().into_owned());
-            row.wifi_cipher = link.cipher.map(|value| value.as_str().into_owned());
-            row.wifi_channel = link.channel.map(i64::from);
-            row.wifi_band = link.channel.and_then(band);
-            row.wifi_signal_percent = link.signal_percent;
-            row.wifi_rssi_dbm = link.rssi_dbm;
-            row.wifi_rx_phy_mbps = link.rx_phy_mbps;
-            row.wifi_tx_phy_mbps = link.tx_phy_mbps;
-            link.adapter
-        }
-        Ok(None) => {
-            row.probe_status = Some("unavailable".into());
-            row.associated = Some(false);
-            None
-        }
-        Err(error) => {
-            row.probe_status = Some("error".into());
-            row.probe_error = Some(error);
-            None
-        }
+fn channel_counts(networks: &[ScannedNetwork]) -> BTreeMap<u32, u32> {
+    let mut per_channel = BTreeMap::new();
+    for channel in networks.iter().filter_map(|network| network.channel) {
+        *per_channel.entry(channel).or_default() += 1;
     }
+    per_channel
 }
 
-// The Active NetworkManager Row Plus the Kernel Link; Answers the Adapter for Throughput.
-#[cfg(unix)]
-fn read_link(options: &LinkOptions, row: &mut WifiLink) -> Option<String> {
-    use crate::platform::unix::wifi::{adapter_matches, nmcli_wifi_rows, wireless_link};
-    let rows = match nmcli_wifi_rows(false, options.probe_timeout) {
-        Ok(rows) => rows,
-        Err(error) => {
-            row.probe_status = Some("error".into());
-            row.probe_error = Some(error);
-            return None;
-        }
+fn channel_overlap(channel: u32, network: &ScannedNetwork) -> f64 {
+    let Some(primary) = network.channel else {
+        return 0.0;
     };
-    let filter = options.adapter.as_deref();
-    let Some(link) = rows.into_iter().find(|candidate| candidate.active && adapter_matches(candidate.device.as_deref(), filter)) else {
-        row.probe_status = Some("unavailable".into());
-        row.associated = Some(false);
-        return None;
-    };
-    row.probe_status = Some("ok".into());
-    row.wifi_state = Some("connected".into());
-    row.associated = Some(true);
-    row.wifi_adapter = link.device.clone();
-    row.wifi_ssid = link.ssid;
-    row.wifi_bssid = link.bssid;
-    row.wifi_auth = link.security;
-    row.wifi_channel = link.channel.map(i64::from);
-    row.wifi_band = link.channel.and_then(band);
-    row.wifi_signal_percent = link.signal_percent;
-    let wireless = link.device.as_deref().and_then(|interface| wireless_link(interface, options.probe_timeout)).unwrap_or_default();
-    row.wifi_rssi_dbm = wireless.rssi_dbm;
-    row.wifi_rx_phy_mbps = wireless.rx_phy_mbps;
-    row.wifi_tx_phy_mbps = wireless.tx_phy_mbps;
-    link.device
-}
-
-// WlanScan Only When an Active Scan Is Due; Otherwise the Driver's Cached BSS List.
-#[cfg(windows)]
-fn scan(options: &ScanOptions, active: bool) -> result::Result<ScanReport, String> {
-    let window = active.then_some(options.window);
-    let networks = crate::platform::windows::wifi::scan_networks(options.adapter.as_deref(), window)?;
-    Ok(ScanReport { networks, active, error: None })
-}
-
-// NetworkManager Rescans Only When an Active Scan Is Due; a Refused Rescan Falls Back to Its Cached List.
-#[cfg(unix)]
-fn scan(options: &ScanOptions, active: bool) -> result::Result<ScanReport, String> {
-    use crate::platform::unix::wifi::{adapter_matches, nmcli_wifi_rows};
-    let (rows, active, error) = match nmcli_wifi_rows(active, options.probe_timeout) {
-        Ok(rows) => (rows, active, None),
-        Err(error) if active => (nmcli_wifi_rows(false, options.probe_timeout).map_err(|_| error.clone())?, false, Some(error)),
-        Err(error) => return Err(error),
-    };
-    let filter = options.adapter.as_deref();
-    let networks = rows
-        .into_iter()
-        .filter(|row| adapter_matches(row.device.as_deref(), filter))
-        .map(|row| ScannedNetwork {
-            adapter: row.device,
-            ssid: row.ssid,
-            bssid: row.bssid,
-            signal_percent: row.signal_percent,
-            rssi_dbm: None,
-            channel: row.channel,
-            security: row.security,
-            associated: row.active,
-        })
-        .collect();
-    Ok(ScanReport { networks, active, error })
-}
-
-#[cfg(windows)]
-fn round_trip_ms(options: &LatencyOptions) -> result::Result<Option<f64>, String> {
-    crate::platform::windows::echo::round_trip_ms(&options.host, options.reply_timeout, options.payload_bytes)
-}
-
-#[cfg(unix)]
-fn round_trip_ms(options: &LatencyOptions) -> result::Result<Option<f64>, String> {
-    crate::platform::unix::echo::round_trip_ms(&options.host, options.reply_timeout, options.payload_bytes, options.process_timeout)
+    if matches!(channel, 1..=14) || band(channel) != band(primary) {
+        return overlap_weight(channel, primary);
+    }
+    if let (Some(width), Some(center)) = (network.channel_width_mhz, network.center_channel) {
+        // Channel Numbers Are Spaced 5 MHz; a Bonded Span Covers Its 20 MHz Cell Centers.
+        let distance_mhz = channel.abs_diff(center) * 5;
+        return if width >= 20 && distance_mhz < width / 2 { 1.0 } else { 0.0 };
+    }
+    overlap_weight(channel, primary)
 }
 
 /* === Tests === */

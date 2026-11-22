@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
 // Third Party Imports
@@ -24,11 +24,11 @@ use std::time::{Duration, Instant};
 // Local Imports
 use dokime::encoding::Message;
 use plugin_host::collectors::wifi::{
-    CONGESTION_MODEL_24_GHZ, CONGESTION_MODEL_SAME_CHANNEL, Counters, ScanReport, band, congestion, latency_row, scan_due, scan_rows,
-    throughput,
+    CONGESTION_MODEL_24_GHZ, CONGESTION_MODEL_SAME_CHANNEL, ChannelPlan, Counters, ScanReport, band, channel_from_frequency, congestion,
+    latency_row, scan_due, scan_readings, scan_rows, throughput,
 };
-use plugin_host::domain::telemetry::WifiCongestion;
-use plugin_host::platform::ScannedNetwork;
+use plugin_host::domain::telemetry::{WifiChannels, WifiCongestion};
+use plugin_host::platform::{ScannedNetwork, WifiBand, WifiCapabilities};
 
 /* === Constants === */
 
@@ -64,6 +64,161 @@ fn network(bssid: &str, channel: u32, associated: bool) -> ScannedNetwork {
 /* === Tests === */
 
 #[test]
+fn wifi_channels_include_the_full_empty_fallback_plan_once_per_scan() {
+    let mut plan = ChannelPlan::default();
+    for sample_index in [1, 2] {
+        let rows = plan.rows(sample_index, &ScanReport::default());
+        assert_eq!(rows.len(), 41);
+        let cells = rows.iter().map(|row| (&row.wifi_band, row.wifi_channel)).collect::<BTreeSet<_>>();
+        assert_eq!(cells.len(), rows.len());
+        assert!(rows.iter().all(|row| row.sample_index == sample_index as i64 && row.network_count == 0 && row.occupancy == 0.0));
+        let channels = |band| rows.iter().filter(|row| row.wifi_band == band).map(|row| row.wifi_channel).collect::<Vec<_>>();
+        assert_eq!(channels("2.4GHz"), (1..=13).collect::<Vec<_>>());
+        assert_eq!(
+            channels("5GHz"),
+            vec![
+                36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169,
+                173, 177
+            ]
+        );
+        assert!(channels("6GHz").is_empty());
+    }
+}
+
+#[test]
+fn wifi_channels_use_explicit_adapter_bands_and_regulatory_channel_14() {
+    let mut plan = ChannelPlan::default();
+    let report = ScanReport {
+        capabilities: Some(WifiCapabilities {
+            bands: vec![WifiBand::Ghz24, WifiBand::Ghz6, WifiBand::Ghz6],
+            channel_14_allowed: true,
+        }),
+        ..ScanReport::default()
+    };
+    let rows = plan.rows(3, &report);
+    assert_eq!(rows.len(), 73);
+    assert!(rows.iter().all(|row| row.wifi_band != "5GHz" && row.occupancy == 0.0));
+    assert!(rows.iter().any(|row| row.wifi_band == "2.4GHz" && row.wifi_channel == 14));
+    assert_eq!(
+        rows.iter().filter(|row| row.wifi_band == "6GHz").map(|row| row.wifi_channel).collect::<Vec<_>>(),
+        (1..=233).step_by(4).collect::<Vec<_>>()
+    );
+    let unsupported = ScanReport {
+        capabilities: Some(WifiCapabilities::default()),
+        ..ScanReport::default()
+    };
+    assert!(plan.rows(4, &unsupported).is_empty());
+}
+
+#[test]
+fn wifi_channels_keep_observed_6ghz_until_collection_stop() {
+    let mut plan = ChannelPlan::default();
+    let report = ScanReport {
+        networks: vec![network("a", 1_005, false)],
+        ..ScanReport::default()
+    };
+    let observed = plan.rows(1, &report);
+    assert_eq!(observed.len(), 100);
+    let row = observed.iter().find(|row| row.wifi_band == "6GHz" && row.wifi_channel == 5).unwrap();
+    assert_eq!((row.network_count, row.occupancy), (1, 1.0));
+    assert_eq!(plan.rows(2, &ScanReport::default()).len(), 100);
+    assert_eq!(ChannelPlan::default().rows(3, &ScanReport::default()).len(), 41);
+    let known = ScanReport {
+        capabilities: Some(WifiCapabilities {
+            bands: vec![WifiBand::Ghz5],
+            channel_14_allowed: false,
+        }),
+        ..report
+    };
+    assert_eq!(plan.rows(4, &known).len(), 28);
+}
+
+#[test]
+fn wifi_channels_share_adjacent_overlap_without_scaling_or_clamping() {
+    let report = ScanReport {
+        networks: vec![network("a", 6, true), network("b", 6, false), network("c", 8, false), network("d", 36, false)],
+        active: true,
+        ..ScanReport::default()
+    };
+    let rows = ChannelPlan::default().rows(7, &report);
+    let row = |band, channel| rows.iter().find(|row| row.wifi_band == band && row.wifi_channel == channel).unwrap();
+    assert_eq!(row("2.4GHz", 6).network_count, 2);
+    assert!((row("2.4GHz", 6).occupancy - 2.6).abs() < 1e-9);
+    assert!((row("2.4GHz", 7).occupancy - 2.4).abs() < 1e-9);
+    assert_eq!(row("2.4GHz", 1).occupancy, 0.0);
+    assert_eq!(row("5GHz", 36).occupancy, 1.0);
+    assert_eq!(row("5GHz", 40).occupancy, 0.0);
+    let network_rows = scan_rows(7, Ok(report), WEIGHT);
+    assert_eq!(network_rows.len(), 4);
+    assert_eq!(network_rows[0].sample_index, Some(row("2.4GHz", 6).sample_index));
+    assert_eq!(network_rows[0].network_count, Some(row("2.4GHz", 6).network_count));
+    assert!((network_rows[0].wifi_network_congestion_score.unwrap() / WEIGHT - row("2.4GHz", 6).occupancy).abs() < 1e-9);
+    let encoded = row("2.4GHz", 6).encode_to_vec();
+    assert_eq!(WifiChannels::decode(encoded.as_slice()).unwrap(), *row("2.4GHz", 6));
+}
+
+#[test]
+fn wifi_channels_count_bonded_spans_without_changing_primary_counts() {
+    let mut five = network("a", 36, false);
+    five.channel_width_mhz = Some(80);
+    five.center_channel = Some(42);
+    let mut six = network("b", 1_001, false);
+    six.channel_width_mhz = Some(160);
+    six.center_channel = Some(1_015);
+    let report = ScanReport {
+        networks: vec![five, six],
+        ..ScanReport::default()
+    };
+    let rows = ChannelPlan::default().rows(8, &report);
+    for row in rows {
+        let expected = match row.wifi_band.as_str() {
+            "5GHz" if (36..=48).contains(&row.wifi_channel) => 1.0,
+            "6GHz" if (1..=29).contains(&row.wifi_channel) => 1.0,
+            _ => 0.0,
+        };
+        assert_eq!(row.occupancy, expected, "{} Channel {}", row.wifi_band, row.wifi_channel);
+        let primary = (row.wifi_band == "5GHz" && row.wifi_channel == 36) || (row.wifi_band == "6GHz" && row.wifi_channel == 1);
+        assert_eq!(row.network_count, i64::from(primary));
+    }
+}
+
+#[test]
+fn platform_frequencies_keep_overlapping_band_channel_numbers_distinct() {
+    assert_eq!(channel_from_frequency(2_412), Some(1));
+    assert_eq!(channel_from_frequency(2_484_000), Some(14));
+    assert_eq!(channel_from_frequency(5_180_000), Some(36));
+    assert_eq!(channel_from_frequency(5_955), Some(1_001));
+    assert_eq!(channel_from_frequency(7_115), Some(1_233));
+    assert_eq!(channel_from_frequency(60_000_000), None);
+}
+
+#[test]
+fn wifi_channels_and_networks_are_projections_of_one_report_and_failed_scans_have_no_channels() {
+    let mut plan = ChannelPlan::default();
+    let report = ScanReport {
+        networks: vec![network("a", 1_001, false)],
+        active: false,
+        error: Some("Scan Refused; Enable Wi-Fi Scanning".into()),
+        ..ScanReport::default()
+    };
+    let readings = scan_readings(9, Ok(report), WEIGHT, &mut plan);
+    assert_eq!(readings.networks.len(), 1);
+    assert_eq!(readings.networks[0].scan_status.as_deref(), Some("cached"));
+    assert_eq!(readings.networks[0].sample_index, Some(9));
+    assert_eq!(readings.channels.len(), 100);
+    assert!(readings.channels.iter().all(|row| row.sample_index == 9));
+    let failed = scan_readings(10, Err("Scan Refused; Enable Wi-Fi Scanning".into()), WEIGHT, &mut plan);
+    assert!(failed.channels.is_empty());
+    assert_eq!(failed.networks[0].scan_status.as_deref(), Some("error"));
+    let refused = ScanReport {
+        error: Some("Scan Refused; Enable Wi-Fi Scanning".into()),
+        ..ScanReport::default()
+    };
+    assert!(scan_readings(10, Ok(refused), WEIGHT, &mut plan).channels.is_empty());
+    assert_eq!(scan_readings(11, Ok(ScanReport::default()), WEIGHT, &mut plan).channels.len(), 100);
+}
+
+#[test]
 fn scan_congestion_preserves_missing_association_and_hidden_ssid() {
     let mut hidden = network("a", 6, true);
     hidden.ssid = None;
@@ -72,11 +227,13 @@ fn scan_congestion_preserves_missing_association_and_hidden_ssid() {
             networks: vec![hidden, network("b", 6, false)],
             active: true,
             error: None,
+            ..ScanReport::default()
         }),
         Ok(ScanReport {
             networks: vec![network("b", 6, false)],
             active: true,
             error: None,
+            ..ScanReport::default()
         }),
         Ok(ScanReport::default()),
         Err("scan refused".into()),
@@ -138,6 +295,7 @@ fn a_scan_is_one_row_per_network_sharing_its_collection() {
         networks: vec![network("a", 6, true), network("b", 6, false), network("c", 36, false)],
         active: true,
         error: None,
+        ..ScanReport::default()
     };
     let rows = scan_rows(3, Ok(report), WEIGHT);
     assert_eq!(rows.len(), 3);
@@ -163,6 +321,7 @@ fn a_cached_scan_keeps_its_rescan_error() {
         networks: vec![network("a", 11, false)],
         active: false,
         error: Some("rescan refused".into()),
+        ..ScanReport::default()
     };
     let rows = scan_rows(1, Ok(report), WEIGHT);
     assert_eq!(rows[0].scan_status.as_deref(), Some("cached"));
@@ -247,8 +406,9 @@ fn throughput_matches_the_adapter_exactly_or_by_containment() {
 
 #[cfg(unix)]
 mod unix {
+    use plugin_host::platform::WifiBand;
     use plugin_host::platform::unix::echo::parse_ping_latency_ms;
-    use plugin_host::platform::unix::wifi::{NmcliWifiRow, WifiLinkReport, adapter_matches, parse_iw_interfaces};
+    use plugin_host::platform::unix::wifi::{NmcliWifiRow, WifiLinkReport, adapter_matches, parse_iw_capabilities, parse_iw_interfaces};
 
     const HE_160_LINK: &str = "Connected to a4:ce:da:c0:83:f0 (on wlp5s0)
 \tSSID: Arcadia
@@ -294,8 +454,23 @@ wlp5s0: 0000   70.  -40.  -256        0      0      0      0      0        0
     }
 
     #[test]
+    fn iw_capabilities_keep_unobserved_bands_and_regulatory_channel_14() {
+        let report = parse_iw_capabilities("Frequencies:\n * 2412 MHz [1] (20.0 dBm)\n * 2484 MHz [14] (disabled)\n * 5180 MHz [36] (20.0 dBm)\n * 5955 MHz [1] (disabled)\n").unwrap();
+        assert_eq!(report.bands, vec![WifiBand::Ghz24, WifiBand::Ghz5, WifiBand::Ghz6]);
+        assert!(!report.channel_14_allowed);
+        assert!(parse_iw_capabilities("* 2484 MHz [14] (20.0 dBm)").unwrap().channel_14_allowed);
+        assert!(parse_iw_capabilities("no frequencies").is_none());
+    }
+
+    #[test]
+    fn nmcli_frequency_disambiguates_6ghz() {
+        let row = NmcliWifiRow::parse("no:Network:A4\\:CE\\:DA\\:C0\\:83\\:F0:5955 MHz:99:WPA3:wlp5s0").unwrap();
+        assert_eq!(row.channel, Some(1_001));
+    }
+
+    #[test]
     fn nmcli_row_fields() {
-        let row = NmcliWifiRow::parse("yes:Arcadia:A4\\:CE\\:DA\\:C0\\:83\\:F0:108:99:WPA2:wlp5s0").unwrap();
+        let row = NmcliWifiRow::parse("yes:Arcadia:A4\\:CE\\:DA\\:C0\\:83\\:F0:5540 MHz:99:WPA2:wlp5s0").unwrap();
         assert!(row.active);
         assert_eq!(row.bssid.as_deref(), Some("A4:CE:DA:C0:83:F0"));
         assert_eq!(row.channel, Some(108));

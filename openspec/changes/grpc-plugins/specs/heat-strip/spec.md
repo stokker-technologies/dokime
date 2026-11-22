@@ -18,7 +18,10 @@ Heat Strip SHALL fill the available plot width with equal-width labelled cells
 in each facet row. Each row SHALL contain only its observed categories in numeric
 order for numeric identities and lexical order for text identities, preserving
 exact typed identities. All rows SHALL share a colour scale, legend, minimum
-cell height and wrapping labels on live and report surfaces. Absent values SHALL
+cell height and wrapping labels on live and report surfaces. Dense rows with more
+than 16 cells SHALL preserve readable cell widths by wrapping at a minimum of
+2.5 rem, bounded by the available container width; sparse rows SHALL retain
+their equal-width single-row layout. Absent values SHALL
 remain uncoloured. Unit labels SHALL use `Name [unit]`.
 
 #### Scenario: Facets and Empty Slots
@@ -29,6 +32,12 @@ remain uncoloured. Unit labels SHALL use `Name [unit]`.
 #### Scenario: Constant or Empty Values
 - **WHEN** an observed category has no finite value and other facets contain equal finite values
 - **THEN** that category remains uncoloured and equal values use the same colour across facets
+
+#### Scenario: Dense Channel Plan
+- **WHEN** a facet contains all 59 primary 6 GHz channels at a desktop plot width
+- **THEN** its cells wrap into readable rows while preserving every channel label
+- **AND** hover exposes each cell's occupancy, including zero, and source instant
+- **AND** a 13-cell facet retains its equal-width single-row layout
 
 #### Scenario: Numeric and Textual Ordering
 - **WHEN** numeric categories arrive as 10, 2, 1 or text categories as c, a, b

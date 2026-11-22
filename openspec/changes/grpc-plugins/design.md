@@ -1,5 +1,49 @@
 # gRPC Plugins Design
 
+## Full Wi-Fi Channel Plans and Dense Heat Strips
+
+The Wi-Fi scan collection owns one platform scan report per tick and publishes
+both the existing per-network `host.wifi_network` and the new per-channel
+`host.wifi_channels`. No extra scan or collection is introduced. The collector
+owns the channel plan and reuses `overlap_weight` for adjacent 2.4 GHz channels.
+Primary-channel counts are integers; occupancy is the sum of overlap weights,
+without the congestion setting's scaling or 100-point cap. A reported bonded
+width and center cover each 20 MHz cell in the span for 5 and 6 GHz.
+
+The new row shape is `{ sample_index: 3, wifi_band: "6GHz", wifi_channel: 1,
+network_count: 0, occupancy: 0.0 }`. The channel number is the display channel;
+internal 6 GHz encoding remains confined to native readings. Consumers use
+`wifi_channel` for cells, `wifi_band` for facets and `occupancy` with LAST.
+Every successful or cached scan includes every planned channel exactly once,
+including zero occupancy. Failed scans publish their existing outcome without
+fabricating empty channel measurements.
+
+The full plans are 2.4 GHz 1–13 (14 only with explicit regulatory capability),
+5 GHz 36–64 and 100–144 in steps of 4 plus 149–177 in steps of 4, and 6 GHz
+1–233 in steps of 4. Explicit adapter capabilities select bands even on an empty
+scan. Without a readable capability, use 2.4 + 5 GHz and retain 6 GHz after any
+6 GHz observation until collection stop. Windows uses this fallback: Native
+WLAN's [interface capability](https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_interface_capability)
+reports PHY types rather than a complete supported band/channel list. Unix reads
+adapter PHY frequencies through iw where available.
+Neither current scan source supplies bonded width/center, so these reports use
+same-channel occupancy in 5/6 GHz; supplied width/center are honored by the model.
+
+The host plugin owns no channel-occupancy starter or template. The consuming
+plugin will repoint its plot separately. Host ownership is collector/platform
+reads, telemetry row, stream registration and fake-data tests under
+`plugins/sidecars/host/`. Dense-row ownership is `HeatStripPlot.tsx` and its
+tests: more than 16 cells use wrapping columns with a 2.5 rem minimum; sparse
+rows keep equal-width columns. Every cell keeps its label and value on hover.
+Documentation under `docs/` remains owner-managed.
+
+The existing `WifiNetwork.network_count` and new `WifiChannels.network_count`
+in `src/domain/telemetry.rs` both expose primary-channel counts through
+`streams::wifi::publish_scan`, respectively to network and channel consumers.
+Both use the collector's single count aggregation function. Removing the
+per-network count would leave channel counts with one public owner; that
+additional schema removal is held for an owner decision.
+
 ## Heat Strip Live Projection
 
 The desktop request-kind map identifies Heat Strip before projecting native
