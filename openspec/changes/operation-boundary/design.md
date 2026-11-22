@@ -432,6 +432,14 @@ live orchestration, explicit report publication and one physical transaction own
 One authoritative Harmos history replaces the product execution ledger together with
 its writers, readers and cut issuance; an append-only migration would split that history.
 
+Phase A prepares complete native units without wiring production consumers or deleting
+the SQL paths. Phase B switches their consumers and removes the superseded ledger
+together on the combined integration branch. Phase A preparation does not close a
+coupled cutover task. The owner still decides whether NoteEvent/TraceabilityEvent
+exist, whether report publication joins sealing, and whether SQL payload copies are
+removed. Native preparation excludes those decisions and accepts a typed durable
+intake settlement from the later 3.3/3.4 owner; it does not invent another intake feed.
+
 #### Scopes and Identities
 
 `R=root/<backend_id>`, `C=case/<case_id>`, `Y=cycle/<cycle_id>` and
@@ -492,6 +500,11 @@ Cycle items apply only to cycle-bound executions. The durable receipt supplies
 publication cut **S**; C is the frozen evidence image and S publishes its seal.
 Never predict S or embed a self-referential seal. Bound and enumerate preview keys
 before admitting the execution so seal/clear fits one mutation; never split it.
+
+Preview clearing resolves each frozen key at the execution-scoped C and deletes
+only an existing owned revision with its native CAS token. An absent key causes
+no global-key deletion. Each frozen plugin source is digested in full, without
+item, time or alternate-sequence filters.
 
 Open/Closed reads without `at` select latest durable data without flushing; supplied
 issued cuts remain fixed. Sealed evidence, documents, plots and later reports source

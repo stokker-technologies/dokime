@@ -11,6 +11,10 @@
 
 /* === Modules === */
 
+pub mod bindings;
+pub mod records;
+pub mod shapes;
+
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -180,6 +184,7 @@ pub fn catalog() -> ObjectCatalog {
         .entry(ObjectDefinition::of::<Case>())
         .entry(ObjectDefinition::of::<Plan>())
         .entry(ObjectDefinition::of::<Command>())
+        .extend(shapes::catalog())
 }
 
 /* === Private Functions === */
