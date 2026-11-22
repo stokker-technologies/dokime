@@ -512,8 +512,9 @@ impl Template {
                     step.handler.execute(&context).await?;
                     Ok(Wire(StepsExecuteResponse {}))
                 },
-            )
-            .policy(step.policy);
+            );
+            let handler =
+                if step.policy.timeout.is_some() || step.policy.retries.is_some() { handler.policy(step.policy) } else { handler };
             let handler = if step.replay_safe { handler.replay_safe() } else { handler };
             plugin = plugin.register(|registrar| registrar.register(handler))?;
         }
