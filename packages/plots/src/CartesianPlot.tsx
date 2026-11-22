@@ -280,7 +280,10 @@ export const CartesianPlot = memo(function CartesianPlot({
   const [laidOut, setLaidOut] = useState(false);
   const renderedSeries = useMemo(() => limitRenderedSeries(series, cartesian), [series, cartesian]);
   const backendCartesian = useMemo(() => usableCartesianFrame(cartesian, renderedSeries, series), [cartesian, renderedSeries, series]);
-  const chartFrame = useMemo(() => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null), [backendCartesian]);
+  const chartFrame = useMemo(
+    () => (backendCartesian ? chartFrameFromCartesian(backendCartesian, xScale, yScale) : null),
+    [backendCartesian, xScale, yScale],
+  );
   const seriesKey = useMemo(
     () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}:${item.downsampled ? 1 : 0}`).join("|"),
     [renderedSeries, series],
@@ -554,7 +557,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           font: plotFont,
           labelFont: plotFont,
           // Subsecond Clock Labels Must Fit At The Selected Density.
-          space: timeAxis && !xElapsedUnit ? measureTextWidth("00:00:00.000", plotFont) + 12 : undefined,
+          ...(timeAxis && !xElapsedUnit ? { space: measureTextWidth("00:00:00.000", plotFont) + 12 } : {}),
           grid: { stroke: themeColors.border, width: 1 },
           size: (_plot, values) => xAxisGutter(values, plotFont),
           values: xAxisValues,
@@ -891,7 +894,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <strong className={titleRepeated && !unit ? "sr-only" : "block truncate"} title={formatUnitLabel(title, unit)}>
+          <strong className={!placeholder && titleRepeated && !unit ? "sr-only" : "block truncate"} title={formatUnitLabel(title, unit)}>
             {formatUnitLabel(title, unit)}
           </strong>
           {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
@@ -1005,7 +1008,7 @@ function fontSizePx(size: string, root: Element): number {
   return Math.round(value);
 }
 
-/* === Axis gutter === */
+/* === Axis Gutter === */
 
 /** Measures text at `font`, reusing one offscreen canvas for every call. */
 let gutterContext: CanvasRenderingContext2D | null = null;
@@ -1096,14 +1099,26 @@ export function usableCartesianFrame(
   };
 }
 
-function chartFrameFromCartesian(cartesian: PlotCartesianFrame): ChartFrame {
+function chartFrameFromCartesian(cartesian: PlotCartesianFrame, xScale: DocumentAxisScale, yScale: DocumentAxisScale): ChartFrame {
+  let pointCount = 0;
+  for (const series of cartesian.series) {
+    for (let index = 0; index < series.x.length; index += 1) {
+      const x = series.x[index];
+      const y = series.y[index];
+      const finitePair = Number.isFinite(x) && isNumber(y);
+      const withinScales = (xScale !== "log" || x > 0) && (yScale !== "log" || (y !== null && y > 0));
+      if (finitePair && withinScales) {
+        pointCount += 1;
+      }
+    }
+  }
   return {
     data:
       cartesian.mode === "faceted"
         ? ([null, ...cartesian.series.map((series) => [series.x, series.y])] as unknown as uPlot.AlignedData)
         : ([cartesian.series[0]?.x ?? [], ...cartesian.series.map((series) => series.y)] as uPlot.AlignedData),
     mode: cartesian.mode,
-    pointCount: cartesian.point_count,
+    pointCount,
     signature: cartesian.signature,
   };
 }
@@ -1175,7 +1190,9 @@ function applyHeldViewport(plot: uPlot, held: HeldViewport, data: uPlot.AlignedD
   plot.setData(data, true);
   if (held.x) {
     plot.setScale("x", held.x);
-  } else followX();
+  } else {
+    followX();
+  }
   if (held.y) {
     plot.setScale("y", held.y);
   }

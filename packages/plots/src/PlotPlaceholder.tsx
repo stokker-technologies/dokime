@@ -32,13 +32,23 @@ type PlotPlaceholderProps = PlotPlaceholderText & {
  * failed plot delegates its normalized record to ErrorCard.
  */
 export function PlotPlaceholder({ actions, description, detail, label, title, tone }: PlotPlaceholderProps) {
-  if (tone === "error")
+  if (tone === "error") {
     return (
-      <div className="grid gap-2">
-        {actions}
+      <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
+        {title || actions ? (
+          <div className="flex items-center justify-between gap-3">
+            {title ? (
+              <strong className="min-w-0 truncate" title={title}>
+                {title}
+              </strong>
+            ) : null}
+            {actions}
+          </div>
+        ) : null}
         <ErrorCard failure={failureOf(detail, title ?? label, [title, label, detail].join(":"))} />
-      </div>
+      </article>
     );
+  }
   return (
     <div
       className="plot-empty relative grid min-h-44 place-content-center justify-items-center gap-2 rounded-lg bg-muted/20 p-4 text-center text-muted-foreground"
