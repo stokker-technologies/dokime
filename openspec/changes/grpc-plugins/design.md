@@ -1595,31 +1595,25 @@ still settle on cancellation under their operation policies.
 ### Python Authoring Capability Dependencies
 
 - Typed stream subscription remains blocked at library revision
-  `324ad01b0892b1ca6a3bce4bb9525b22974f606b`: Python `plugin.Context` exposes operation
+  `3cc1166fa`: Python `plugin.Context` exposes operation
   `watch`, but no admitted stream-sample demand API. Rust `operations::Context`
   likewise has no subscription surface. The library must provide typed stream
   demand in inherited scope, bounded/backpressured row delivery with source and
   receipt timestamps, cancellation and explicit close releasing demand without
   stopping the provider. Product code must consume that API, not poll stored samples.
-- Optional observer fields remain blocked by library Python `_columns.columns_type`
-  rejecting proto3 optional fields as oneofs and `_columns.append` reading scalar
-  defaults without presence; Rust `crates/harmos-protocol/src/columns.rs::derive`
-  also rejects proto3 optional oneofs. The library must preserve per-row presence through
-  observer/window batching and Rust/Python decoding, distinguishing absent, zero
-  and nonzero values without NaN sentinels. The product interval storage consumer
-  must adopt that library encoding before this capability is closed.
-- Plugin observer record publication is blocked by the library's scoped binding:
-  `Runtime::bind_grpc` and `ScopedBinding::start_samples` cannot accept product
-  call-context resources. `Dispatch::invoke` installs `Resources` for operations,
-  but sample child calls use the binding's original context; host admission then
-  refuses them. The library must accept an inherited call context when creating
-  the scoped binding and carry it through observer child calls. The product can
-  then supply its execution resources once before starting samples and expose
-  record publication on the operation context without a second scope registry.
-- Setting bounds require library `model/v1/setting.proto` `SettingDeclaration`
-  to carry optional typed minimum/maximum values and validate both defaults and
-  settings writes against them in every SDK. That declaration currently contains
-  only name, title, description and default; no product-side bounds mechanism is added.
+- Library revision `3cc1166fa` supports proto3 optional observer fields with per-row
+  presence in Rust and Python. The SDK preserves message presence through authoring
+  and decoding, distinguishing absent, zero and nonzero values without NaN sentinels.
+  The product interval storage consumer still needs to adopt the optional column
+  encoding before the through-storage capability is closed.
+- Scoped bindings at library revision `3cc1166fa` accept an inherited call context
+  and carry it through observer child calls. Execution binding supplies its
+  `Resources` and execution time before starting samples. `Dispatch::invoke`
+  replaces those inherited values with the current operation's execution time and
+  resources, preserving observer child admission under the execution scope.
+- `operations.SettingDeclaration` exposes optional typed `minimum` and `maximum`
+  values at library revision `3cc1166fa`. The SDK forwards both values unchanged;
+  library declaration validation and settings writes own inclusive bound checks.
 - Stop-completes-run has no Rust SDK or product wire counterpart in this candidate.
   Its declaration, stop outcome and durable sealing behavior need one product
   contract spanning the runtime and storage owners before implementation.
