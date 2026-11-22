@@ -11,8 +11,13 @@
 
 /* === Modules === */
 
+pub mod admission;
 mod catalog;
+pub mod cycle;
+pub mod execution;
 mod io;
+mod mutations;
+pub mod rows;
 #[cfg(test)]
 mod tests;
 
