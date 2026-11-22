@@ -24,9 +24,9 @@ from grpc import StatusCode
 from grpc.aio import AioRpcError
 from harmos.plugin import Endpoint
 
+# Local Imports
 import dokime_sdk._generated.client
 
-# Local Imports
 from ._authoring import _Template
 from ._context import BoundOperation
 from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
@@ -322,7 +322,7 @@ class RegisteredPlugin:
     def _check_failure(self, request_id: str) -> None:
         if self._entry.HasField("failure"):
             raise SdkError(project_failure(self._entry.failure), request_id=request_id)
-        if self.state in ("Unavailable", "Stopped", "Stopping"):
+        if self.state in ("Unavailable", "Offline", "Stopped", "Stopping"):
             raise refused(
                 "plugins.register",
                 "The Host Refused Plugin Readiness",

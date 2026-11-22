@@ -46,6 +46,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.observing = asyncio.Event()
         self.ready = asyncio.Event()
         self.fail_ready = False
+        self.offline = False
         owner = self
 
         class Plugins(PluginsServicer):
@@ -72,7 +73,9 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
                 owner.observing.set()
                 await owner.ready.wait()
                 entry = owner.entries[request.name]
-                if owner.fail_ready:
+                if owner.offline:
+                    entry.state = plugins_pb2.PLUGIN_STATE_OFFLINE
+                elif owner.fail_ready:
                     entry.state = plugins_pb2.PLUGIN_STATE_UNAVAILABLE
                     entry.failure.CopyFrom(
                         type(entry.failure)(
@@ -182,6 +185,19 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         assert cause is not None
         self.assertEqual(cause.details, {"port": "1"})
         self.assertEqual(list(self.entries), ["failing"])
+        self.assertNotIn("Delete", self.trace)
+
+    async def test_offline_readiness_is_refused_and_the_listener_is_released(self) -> None:
+        class WaitingPlugin(Plugin):
+            identifier = "waiting"
+            version = "1.0.0"
+
+        self.offline = True
+        self.ready.set()
+        with self.assertRaises(SdkError):
+            await self.client.plugins.register(WaitingPlugin(), address="127.0.0.1:0")
+        self.assertEqual(list(self.entries), ["waiting"])
+        self.assertEqual(self.client.plugins._owned, {})
         self.assertNotIn("Delete", self.trace)
 
     async def test_cancelling_registration_releases_its_sidecar_and_keeps_the_entry(self) -> None:

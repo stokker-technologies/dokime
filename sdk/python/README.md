@@ -72,12 +72,12 @@ Import these authoring values from `dokime_sdk.templates`. Document record field
 require an explicit record identifier; template binding qualifies local record
 references and markers. Observer and window payloads preserve proto3 optional
 field presence, including explicit zero values; interval storage adoption remains
-pending. Execution observer record publication still needs the runtime's
-per-operation context migration. Typed stream subscription remains unavailable
+pending. Execution observers inherit execution resources for admitted child calls,
+including record publication. Typed stream subscription remains unavailable
 at the current library pin. Stop-completes-run has no current product declaration.
 
 Setting bounds are inclusive and use the default's value type. The library
-validates defaults and every saved write:
+validates defaults at host admission and every saved write:
 
 ```python
 from dokime_sdk.operations import SettingDeclaration, SettingValue
@@ -156,6 +156,7 @@ finally:
 
 `execution.start()` and `execution.watch()` also remain available separately.
 Closing a client stops its listeners, retains their host entries and closes its connection.
+Registration waits for Ready and refuses unavailable or offline entries while releasing its listener.
 Execution sealing and sealed progress require the corresponding host contract;
 the SDK reports unsupported contracts explicitly.
 

@@ -1613,7 +1613,7 @@ still settle on cancellation under their operation policies.
   resources, preserving observer child admission under the execution scope.
 - `operations.SettingDeclaration` exposes optional typed `minimum` and `maximum`
   values at library revision `3cc1166fa`. The SDK forwards both values unchanged;
-  library declaration validation and settings writes own inclusive bound checks.
+  library host admission and settings writes own inclusive bound checks.
 - Stop-completes-run has no Rust SDK or product wire counterpart in this candidate.
   Its declaration, stop outcome and durable sealing behavior need one product
   contract spanning the runtime and storage owners before implementation.
