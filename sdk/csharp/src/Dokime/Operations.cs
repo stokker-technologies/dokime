@@ -8,6 +8,7 @@
  */
 
 using System.Reflection;
+using Google.Protobuf;
 using System.Text.Json.Nodes;
 using Dokime.Plugins;
 using Google.Protobuf.WellKnownTypes;
@@ -22,58 +23,6 @@ public sealed class OperationAttribute(string identifier) : PolicyAttribute
 }
 
 public sealed record SecretDeclaration(string Identifier, string Label, bool Required = true);
-public sealed record SettingDeclaration(string Identifier, SettingValue Value, string Label = "", string Description = "");
-
-public sealed record SettingValue
-{
-  public bool? Flag
-  {
-    get; init;
-  }
-  public long? Integer
-  {
-    get; init;
-  }
-  public double? Number
-  {
-    get; init;
-  }
-  public string? Text
-  {
-    get; init;
-  }
-  public TimeSpan? Duration
-  {
-    get; init;
-  }
-
-  internal Harmos.SettingValue ToWire()
-  {
-    var supplied = new object?[] { Flag, Integer, Number, Text, Duration }.Count(value => value is not null);
-    if (supplied != 1)
-      throw new ArgumentException("Declare Setting: Supply Exactly One Typed Value");
-    if (Flag is { } flag)
-      return new Harmos.SettingValue { Flag = flag };
-    if (Integer is { } integer)
-      return new Harmos.SettingValue { Integer = integer };
-    if (Number is { } number)
-      return new Harmos.SettingValue { Number = number };
-    if (Text is { } text)
-      return new Harmos.SettingValue { Text = text };
-    return new Harmos.SettingValue { Duration = Google.Protobuf.WellKnownTypes.Duration.FromTimeSpan(Duration!.Value) };
-  }
-
-  internal static SettingValue FromWire(Harmos.SettingValue value) => value.ValueCase switch
-  {
-    Harmos.SettingValue.ValueOneofCase.Flag => new() { Flag = value.Flag },
-    Harmos.SettingValue.ValueOneofCase.Integer => new() { Integer = value.Integer },
-    Harmos.SettingValue.ValueOneofCase.Number => new() { Number = value.Number },
-    Harmos.SettingValue.ValueOneofCase.Text => new() { Text = value.Text },
-    Harmos.SettingValue.ValueOneofCase.Duration => new() { Duration = value.Duration.ToTimeSpan() },
-    _ => throw new InvalidDataException("Read Setting: Select a Typed Saved Value")
-  };
-}
-
 public class Context
 {
   internal Context(Dokime.Plugin plugin, Harmos.Plugins.Context transport)
@@ -112,11 +61,16 @@ public class Context
     var reply = await Host.Secrets.Get(identifier, cancellationToken: cancellationToken);
     return reply.Secret.ToByteArray();
   }
-  public async Task<IReadOnlyDictionary<string, SettingValue>> SettingsAsync(CancellationToken cancellationToken = default)
+  public async Task<ulong> RecordAsync<T>(Dokime.Templates.Record<T> record, T value, CancellationToken cancellationToken = default)
   {
-    var reply = await Host.Plugins.Settings.List(Plugin.Identifier, cancellationToken: cancellationToken);
-    return reply.Value.Values.ToDictionary(item => item.Key, item => SettingValue.FromWire(item.Value));
+    var identity = Plugin.Adapter.RecordIdentity(record)
+      ?? throw new ArgumentException("Write Plugin Record: Declare the Record on This Plugin");
+    var at = await new Harmos.Plugins.HostRoot(Transport).Time.Get(cancellationToken: cancellationToken);
+    var reply = await Host.Evidence.Records.Append("", identity, Payload<T>.Pack(value).ToByteString(), at, Client.Identity(null), cancellationToken: cancellationToken);
+    return reply.Ordinal;
   }
+  public Task<T> Resource<T>() where T : Resource, new() => Plugin.Adapter.Resource<T>(this);
+  public T Settings<T>() where T : Settings => Plugin.Adapter.Settings<T>();
   public BoundOperation<TRequest, TResponse> Operation<TRequest, TResponse>(Operation<TRequest, TResponse> operation) => new(this, operation);
   public Task<JsonNode?> Operation(string identifier, object? payload = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default) =>
     Transport.Operation(identifier, payload, policy?.ToWire(), cancellationToken);

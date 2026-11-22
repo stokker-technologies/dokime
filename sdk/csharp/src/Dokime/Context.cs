@@ -58,7 +58,7 @@ public sealed partial class Context : Dokime.Operations.Context
   internal async Task<Statistics> StatisticsAsync(IStream stream, string field, Step step) =>
       Statistics.FromWire((await Host.Evidence.Statistics(Resolve(stream), [], new Dokime.Window(), [], field, Resolve(step))).Statistics);
 
-  internal string Resolve(object declaration) => template?.Resolve(declaration, Instance)
+  internal string Resolve(object declaration) => (declaration is IRecord record ? Plugin.Adapter.RecordIdentity(record) : null) ?? template?.Resolve(declaration, Instance)
       ?? throw new ArgumentException("Resolve Declaration: Call From a Template Operation");
 
   public Task<string> PromptAsync(string text, string[]? choices = null, CancellationToken cancellationToken = default) => AskAsync(new PromptDeclaration(text, choices), false, cancellationToken);

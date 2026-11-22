@@ -15,9 +15,75 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
   private readonly Harmos.Plugins.Plugin transport = new(identifier, version);
   private readonly ConcurrentDictionary<string, Lazy<Task<ExecutionResource>>> resources = new();
   private readonly RecordContracts records = new();
+  private readonly Dictionary<IRecord, string> recordIdentities = new();
+  internal string? RecordIdentity(IRecord record) => recordIdentities.GetValueOrDefault(record);
   private readonly SecretsDeclarations secrets = new();
   private readonly PromptDefinitions prompts = new();
   private bool built;
+  private readonly Dictionary<System.Type, Dokime.Operations.Settings> settings = new();
+  private Dictionary<System.Type, Dokime.Operations.Settings> snapshots = new();
+  private readonly object activationGate = new();
+  private readonly Dictionary<System.Type, Lazy<Task<Dokime.Operations.Resource>>> activationResources = new();
+  private bool resourcesClosed;
+
+  internal async Task<T> Resource<T>(Dokime.Operations.Context context) where T : Dokime.Operations.Resource, new()
+  {
+    Lazy<Task<Dokime.Operations.Resource>> pending;
+    lock (activationGate)
+    {
+      if (resourcesClosed || !author.Resources.Contains(typeof(T)))
+        throw new ArgumentException("Open Resource: Declare the Resource Class and Activate the Plugin");
+      if (!activationResources.TryGetValue(typeof(T), out pending!))
+      {
+        pending = new Lazy<Task<Dokime.Operations.Resource>>(async () =>
+        {
+          var value = new T();
+          await value.OpenAsync(context);
+          return value;
+        });
+        activationResources.Add(typeof(T), pending);
+      }
+    }
+    try
+    {
+      return (T)await pending.Value;
+    }
+    catch
+    {
+      lock (activationGate)
+      {
+        if (activationResources.GetValueOrDefault(typeof(T)) == pending)
+          activationResources.Remove(typeof(T));
+      }
+      throw;
+    }
+  }
+
+  private async Task CloseActivationResourcesAsync()
+  {
+    Lazy<Task<Dokime.Operations.Resource>>[] pending;
+    lock (activationGate)
+    {
+      resourcesClosed = true;
+      pending = activationResources.Values.Reverse().ToArray();
+      activationResources.Clear();
+    }
+    var failures = new List<Exception>();
+    foreach (var resource in pending)
+    {
+      try
+      {
+        var value = await resource.Value;
+        await value.CloseAsync();
+      }
+      catch (Exception error)
+      {
+        failures.Add(error);
+      }
+    }
+    if (failures.Count > 0)
+      throw new AggregateException("Close Plugin Resources: Resolve the Release Failures, Then Restart", failures);
+  }
   public IReadOnlyList<SuiteBinding> Suites { get; } = BindSuites(suites);
 
   private static IReadOnlyList<SuiteBinding> BindSuites(SuiteBinding[] suites)
@@ -45,13 +111,24 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     return this;
   }
 
-  public Plugin Setting(string name, SettingValue defaultValue, string title = "", string description = "")
+  public Plugin Setting(System.Type type)
   {
-    if (built)
-      throw new InvalidOperationException("Declare Setting: Plugin Is Already Built");
-    transport.Register(registrar => registrar.Register(name, defaultValue, title, description));
+    if (built || !typeof(Dokime.Operations.Settings).IsAssignableFrom(type) || settings.ContainsKey(type))
+      throw new ArgumentException("Declare Settings: List Each Settings Class Once Before Building the Plugin");
+    var value = (Dokime.Operations.Settings)(Activator.CreateInstance(type)
+      ?? throw new ArgumentException("Declare Settings: Supply a Public Default Constructor"));
+    settings.Add(type, value);
+    transport.Register(registrar =>
+    {
+      foreach (var declaration in value.Declarations)
+        registrar.Register(declaration);
+    });
     return this;
   }
+
+  public T Settings<T>() where T : Dokime.Operations.Settings =>
+    snapshots.TryGetValue(typeof(T), out var value) ? (T)value
+      : throw new ArgumentException("Read Settings: Declare the Settings Class on the Plugin");
 
   public Plugin Secret(string name, string label, bool required = true)
   {
@@ -89,6 +166,8 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
   {
     if (built)
       return transport;
+    if (author.Failure is { } failure)
+      transport.FailureMapper(failure);
     transport.Register(Register);
     built = true;
     return transport;
@@ -104,6 +183,15 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
     foreach (var operation in System.Enum.GetValues<HostOperation>())
       this.Requires(operation);
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
+    foreach (var record in author.Records)
+    {
+      if (string.IsNullOrEmpty(record.Identifier))
+        throw new ArgumentException("Declare Plugin Record: Supply an Identifier");
+      var identity = Identifiers.Build("", record.Identifier, identifier);
+      Unique(identifiers, identity);
+      recordIdentities.Add(record, identity);
+      record.Register(registrar, records, identity);
+    }
     var section = new Suites();
     foreach (var suite in Suites)
     {
@@ -126,7 +214,29 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       registrar.Register(secrets);
     registrar.Register(new Operation<Empty, Empty>($"{identifier}.initialize", Visibility.Protected), async (raw, request) =>
     {
-      await author.InitializeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
+      resourcesClosed = false;
+      if (settings.Count > 0)
+      {
+        var snapshot = await new Harmos.Plugins.HostRoot(raw).Plugins.Settings.List(cancellationToken: raw.CancellationToken);
+        var loaded = new Dictionary<System.Type, Dokime.Operations.Settings>();
+        foreach (var type in settings.Keys)
+        {
+          var value = (Dokime.Operations.Settings)Activator.CreateInstance(type)!;
+          value.Load(snapshot.Value);
+          loaded.Add(type, value);
+        }
+        snapshots = loaded;
+      }
+      try
+      {
+        await author.InitializeAsync(new Dokime.Operations.Context(author, raw), raw.CancellationToken);
+      }
+      catch
+      {
+        await CloseActivationResourcesAsync();
+        snapshots.Clear();
+        throw;
+      }
       return new Empty();
     });
     registrar.Register(new Operation<Empty, Empty>($"{identifier}.finalize", Visibility.Protected), async (raw, request) =>
@@ -138,7 +248,15 @@ internal sealed partial class Plugin(Dokime.Plugin author, string identifier, st
       }
       finally
       {
-        await DisposeResourcesAsync();
+        try
+        {
+          await CloseActivationResourcesAsync();
+        }
+        finally
+        {
+          snapshots.Clear();
+          await DisposeResourcesAsync();
+        }
       }
     });
   }

@@ -79,7 +79,6 @@ public class SdkError : Exception
   }
 }
 
-public sealed class FailureError(Failure failure) : SdkError(failure);
 
 internal sealed class FailureInvoker(CallInvoker transport) : CallInvoker
 {

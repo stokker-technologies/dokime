@@ -34,9 +34,12 @@ public abstract class Plugin
     ?? throw new ArgumentException("Describe Plugin: Set the Plugin Project Version");
   public virtual Task InitializeAsync(Dokime.Operations.Context context, CancellationToken cancellationToken = default) => Task.CompletedTask;
   public virtual Task FinalizeAsync(Dokime.Operations.Context context, CancellationToken cancellationToken = default) => Task.CompletedTask;
+  public virtual Func<Exception, Harmos.OperationException?>? Failure => null;
   public virtual IReadOnlyList<Type> Suites => [];
   public virtual IReadOnlyList<Delegate> Operations => [];
-  public virtual IReadOnlyList<Dokime.Operations.SettingDeclaration> Settings => [];
+  public virtual IReadOnlyList<Type> Settings => [];
+  public virtual IReadOnlyList<Type> Resources => [];
+  public virtual IReadOnlyList<IRecord> Records => [];
   public virtual IReadOnlyList<Dokime.Operations.SecretDeclaration> Secrets => [];
 
   internal Plugins.Plugin Adapter
@@ -62,7 +65,7 @@ public abstract class Plugin
       }
       var value = new Plugins.Plugin(this, Identifier, Version, suites.ToArray());
       foreach (var setting in Settings)
-        value.Setting(setting.Identifier, setting.Value.ToWire(), setting.Label, setting.Description);
+        value.Setting(setting);
       foreach (var secret in Secrets)
         value.Secret(secret.Identifier, secret.Label, secret.Required);
       foreach (var handler in Operations)

@@ -108,7 +108,7 @@ public sealed class Operation<TRequest, TResponse> : IOperationReference
   private async Task<TResponse> CallWireAsync<TWireRequest, TWireResponse>(Context context, TRequest request, OperationPolicy? policy, CancellationToken cancellationToken)
       where TWireRequest : IMessage<TWireRequest>, new() where TWireResponse : IMessage<TWireResponse>, new()
   {
-    var reply = await context.Carrier.CallAsync(Wire<TWireRequest, TWireResponse>(), (TWireRequest)Payload<TRequest>.Pack(request), policy?.ToWire(), cancellationToken);
+    var reply = await context.Carrier.Operation(Wire<TWireRequest, TWireResponse>(), (TWireRequest)Payload<TRequest>.Pack(request), policy?.ToWire(), cancellationToken);
     return Payload<TResponse>.Unpack(reply.ToByteString());
   }
 }
