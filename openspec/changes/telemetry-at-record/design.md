@@ -1,6 +1,38 @@
 # Telemetry at Record Design
 
-Status: proposed on 2026-11-09; semantics locked; deferred until scheduled.
+Status: scheduled on 2026-11-22; semantics locked.
+
+## Delivery Decisions
+
+The pinned library exposes `TimeMergeMode::AtOrBefore` but no nearest-within
+mode. Ship the at-or-before binding; retain the tolerance wire field and builders
+but reject its evaluation with an actionable diagnostic. Nearest-within tasks
+and the tolerance scenario remain open until the library supplies that mode.
+
+The existing storage expression evaluator owns the binding. Its record source
+is the primary input of the library merge, preserving record position and time.
+Existing plot filters evaluate on those same rows: `at(...).detail("event")`
+reads that primary record, without a second filter concept. Histograms for
+connected and disconnected values share the one status record type.
+
+The worker leaves `docs/` unchanged. The requested architecture document is
+absent from this checkout; authoring examples ship with the SDKs instead.
+
+## Ownership Follow-Up
+
+`packages/plots/src/expression.ts::validatedExpression` validates expression
+shape for `crates/dokime-gui/src/plots/live-data.ts`. The protocol's
+`src/model/expressions.rs::DataExpression::validate` validates transform inputs
+and capabilities for document expansion and storage evaluation. Both recurse
+through expression inputs and guard nesting. Keep both pending the owner's
+decision; prefer removing the frontend semantic rules and using the host's
+validation result, while retaining transport decoding at the frontend boundary.
+
+The inherited `time_between` repeat rejection was specified but absent from the
+current implementation. The document validator now refuses both row-local
+transforms with the same section diagnostic. `SectionRepeat` has no filter
+field; the check covers the repeated section's card filters as well as its
+value and ordering. Plot filters remain row-aligned inside plot evaluation.
 
 ## Semantics
 

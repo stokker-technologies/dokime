@@ -34,6 +34,7 @@ use dokime_protocol::model::DataExpression;
 use dokime_protocol::model::FieldReference;
 
 use dokime_protocol::model::data_expression;
+use dokime_protocol::model::transform_expression;
 
 /* === Constants === */
 
@@ -163,7 +164,17 @@ impl Store {
     }
     pub fn plot_selection(&self, cut: &ExecutionCut, request: &PlotRequest) -> Result<PlotSelection> {
         let mut request = request.clone();
-        if request.stream.is_empty() {
+        let sampled = request
+            .y_expressions
+            .iter()
+            .chain(request.x_expression.iter())
+            .chain(request.z_expression.iter())
+            .chain(request.cell_expression.iter())
+            .chain(request.facet_expression.iter())
+            .any(|expression| expression.at_record().is_some());
+        if sampled {
+            request.stream.clear();
+        } else if request.stream.is_empty() {
             request.stream = request
                 .y_expressions
                 .iter()
@@ -262,9 +273,21 @@ pub(crate) fn reference(expression: &DataExpression) -> Option<(&FieldReference,
         data_expression::Kind::Stream(reference) => Some((reference, false)),
         data_expression::Kind::Record(reference) => Some((reference, true)),
         data_expression::Kind::Aggregate(aggregate) => reference(aggregate.input.as_deref()?),
-        data_expression::Kind::Transform(transform) => reference(transform.input.as_deref()?),
+        data_expression::Kind::Transform(transform) => {
+            if matches!(transform.kind, Some(transform_expression::Kind::At(_))) {
+                return None;
+            }
+            reference(transform.input.as_deref()?)
+        }
         _ => None,
     }
+}
+
+pub(crate) fn source(expression: &DataExpression) -> Option<(bool, String)> {
+    if let Some(at) = expression.at_record() {
+        return Some((true, at.record_type.clone()));
+    }
+    reference(expression).map(|(reference, record)| (record, reference.identifier.clone()))
 }
 
 /* === Tests === */

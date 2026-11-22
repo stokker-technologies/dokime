@@ -203,7 +203,7 @@ impl Store {
         &self, cut: &ExecutionCut, expression: &DataExpression, order: Option<&DataExpression>, filters: &[PlotFilter],
         mut read: impl FnMut(u64, i64, ScalarValue, Option<ScalarValue>) -> Result<()>,
     ) -> Result<()> {
-        let source = plot_selection::reference(expression).map(|(r, record)| (record, r.identifier.clone()));
+        let source = plot_selection::source(expression);
         let expressions = iter::once(expression.clone())
             .chain(order.cloned())
             .chain(filters.iter().filter_map(|f| f.expression.clone()))

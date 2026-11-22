@@ -1,6 +1,6 @@
 - [x] 1.1 Add the `at` transform (`record_type`, optional `within_s`) to `protocol TransformExpression` and the `DataExpression` builders `at` and `within_s`; reject non-telemetry sources at validation; unit tests for the wire form.
 - [ ] 1.2 Bind `within_s` to a library nearest-within capability when supplied; currently blocked by the pinned library's missing mode.
-- [ ] 2.1 Bind the document expression to Harmos at-or-before time merge for live and sealed evidence; deterministic constructed-stream tests for no qualifying row, exact and duplicate times, record details, aggregates, and existing event filters.
+- [x] 2.1 Bind the document expression to Harmos at-or-before time merge for live and sealed evidence; deterministic constructed-stream tests for no qualifying row, exact and duplicate times, record details, aggregates, and existing event filters.
 - [ ] 2.3 Implement and prove nearest-within ties and tolerance edges after the library supplies the capability; keep the Tolerance scenario open.
 - [x] 2.2 Refuse `at` on repeat selectors with the `time_between` diagnostic shape; test.
 - [ ] 3.1 Harmonized Python, Rust, C# and C++ SDK builders and generated stubs; shipped examples gain event histograms and builder tests.

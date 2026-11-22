@@ -1123,6 +1123,76 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
 }
 
 #[test]
+fn telemetry_at_records_matches_live_and_sealed_over_a_million_rows() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let mut execution = fixture::execution();
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+    let contracts = RecordContracts {
+        records: vec![RecordContract {
+            metadata: Some(Metadata {
+                identifier: "status".into(),
+                ..Default::default()
+            }),
+            message: "fixture.Row".into(),
+        }],
+    };
+    catalog.sections.push(Default::default());
+    let section = catalog.sections.last_mut().unwrap();
+    section.r#type = "dokime.model.v1.RecordContracts".into();
+    section.payload = contracts.encode_to_vec();
+    execution.catalog = catalog.encode_to_vec();
+    store.create(&execution)?;
+    store.open_stream("execution", "readings")?;
+    for start in (0..1_000_000).step_by(8192) {
+        let samples = (start..(start + 8192).min(1_000_000))
+            .map(|index| Sample {
+                stream: "readings".into(),
+                source_ns: index,
+                sequence: index as u64,
+                row: Row {
+                    value: index as u64,
+                    label: String::new(),
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("execution", &samples)?;
+    }
+    store.flush_samples()?;
+    for source_ns in [0, 499_999, 999_999, 1_000_000] {
+        store.append(
+            "execution",
+            Evidence {
+                kind: "record:status".into(),
+                source_ns,
+                payload: RecordsAppendRequest {
+                    payload: Row { value: 0, label: "connected".into() }.encode_to_vec(),
+                    ..Default::default()
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            },
+        )?;
+    }
+    let expression = FieldReference::new("readings").field("value").at("status").sum();
+    let live = store.document_value(&store.cut("execution")?, &expression)?;
+    assert_eq!(live.kind, Some(value::Kind::UnsignedInteger(2_499_997)));
+    store.close_streams("execution")?;
+    store.close(
+        "execution",
+        Termination::Completed,
+        ExecutionOutcome {
+            attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
+        },
+    )?;
+    store.seal("execution", Default::default())?;
+    assert_eq!(store.document_value(&store.cut("execution")?, &expression)?, live);
+    Ok(())
+}
+
+#[test]
 fn typed_map_and_list_columns_survive_finalization_and_restart() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;

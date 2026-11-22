@@ -116,8 +116,7 @@ impl Projection {
             .values()
             .chain(self.grouping.iter())
             .chain(self.filters.iter().filter_map(|filter| filter.expression.as_ref()))
-            .find_map(plot_selection::reference)
-            .map(|(reference, record)| (record, reference.identifier.clone()))
+            .find_map(plot_selection::source)
             .ok_or(Error::Data("Render Plot: Bind at Least One Stored Stream or Record Expression"))
     }
 }
@@ -186,6 +185,7 @@ impl Store {
         let mut sources = BTreeMap::<Source, BTreeSet<String>>::new();
         sources.entry(source.clone()).or_default();
         for expression in expressions {
+            expression.validate().map_err(Error::Invalid)?;
             collect(expression, &mut sources, 0)?;
         }
         let fields = sources.remove(&source).unwrap_or_default().into_iter().collect::<Vec<_>>();
@@ -431,6 +431,21 @@ impl Evaluation<'_> {
                 let input = transform.input.as_deref().ok_or(Error::Data("supply the transform input"))?;
                 match transform.kind.as_ref() {
                     Some(transform_expression::Kind::Detail(field)) => {
+                        if let Some(at) = input.at_record() {
+                            let sampled = self.value(input, batch, row, depth + 1)?;
+                            if matches!(sampled, ScalarValue::Missing | ScalarValue::Null) {
+                                return Ok(sampled);
+                            }
+                            return self.field(
+                                &FieldReference {
+                                    identifier: at.record_type.clone(),
+                                    field: field.clone(),
+                                },
+                                true,
+                                batch,
+                                row,
+                            );
+                        }
                         let mut input = input.clone();
                         let reference = match input.kind.as_mut() {
                             Some(Kind::Stream(r) | Kind::Record(r)) => r,
@@ -439,13 +454,20 @@ impl Evaluation<'_> {
                         reference.field = if reference.field.is_empty() { field.clone() } else { format!("{}.{}", reference.field, field) };
                         self.value(&input, batch, row, depth + 1)?
                     }
-                    Some(transform_expression::Kind::Scale(factor)) => ScalarValue::Float(
-                        scalar::number(&self.value(input, batch, row, depth + 1)?).ok_or(Error::Data("scale a numeric value"))? * factor,
-                    ),
-                    Some(transform_expression::Kind::Offset(offset)) => ScalarValue::Float(
-                        scalar::number(&self.value(input, batch, row, depth + 1)?).ok_or(Error::Data("offset a numeric value"))? + offset,
-                    ),
+                    Some(transform_expression::Kind::Scale(_) | transform_expression::Kind::Offset(_)) => {
+                        let value = self.value(input, batch, row, depth + 1)?;
+                        if matches!(value, ScalarValue::Missing | ScalarValue::Null) {
+                            return Ok(value);
+                        }
+                        let number = scalar::number(&value).ok_or(Error::Data("Transform Expression: Select a Numeric Value"))?;
+                        match transform.kind.as_ref() {
+                            Some(transform_expression::Kind::Scale(factor)) => ScalarValue::Float(number * factor),
+                            Some(transform_expression::Kind::Offset(offset)) => ScalarValue::Float(number + offset),
+                            _ => unreachable!(),
+                        }
+                    }
                     Some(transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
+                    Some(transform_expression::Kind::At(_)) => self.value(input, batch, row, depth + 1)?,
                     Some(transform_expression::Kind::TimeBetween(previous)) => {
                         let Some(Kind::Record(current)) = input.kind.as_ref() else {
                             return Err(Error::Data("select record occurrences for time between"));
@@ -670,6 +692,14 @@ fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<
             sources.entry((true, r.identifier.clone())).or_default().insert(r.field.clone());
         }
         Some(Kind::Transform(t)) => {
+            if let Some(transform_expression::Kind::At(at)) = &t.kind {
+                sources.entry((true, at.record_type.clone())).or_default();
+            }
+            if let (Some(transform_expression::Kind::Detail(field)), Some(at)) =
+                (&t.kind, t.input.as_deref().and_then(DataExpression::at_record))
+            {
+                sources.entry((true, at.record_type.clone())).or_default().insert(field.clone());
+            }
             if let Some(transform_expression::Kind::TimeBetween(previous)) = &t.kind {
                 sources.entry((true, previous.clone())).or_default();
             }
