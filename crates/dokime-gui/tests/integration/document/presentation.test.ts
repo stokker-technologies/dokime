@@ -14,15 +14,13 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { createElement } from "react";
 import { render } from "@testing-library/svelte";
-import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 
 // Local Imports
 import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import DocumentLayoutFixture from "./DocumentLayoutFixture.svelte";
-import { ExecutionSectionCard } from "../../../src/features/cycle/ExecutionSectionCard";
+import ExecutionSectionCard from "../../../src/features/cycle/ExecutionSectionCard.svelte";
 
 /* === Re-Exports === */
 
@@ -83,7 +81,6 @@ test("Document Sections Share One Heading Scale Across Every Chrome", async () =
 });
 
 test("Execution Sections Use the Document Heading Scale", () => {
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(ExecutionSectionCard, { title: "Report" }));
+  const { container: host } = render(ExecutionSectionCard, { title: "Report" });
   assert.ok(host.querySelector("section[aria-labelledby] > header > h2.document-section-title"));
 });

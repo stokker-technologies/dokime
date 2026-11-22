@@ -10,13 +10,13 @@
 /* === Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { DocumentWorkspaceView } from "@/components/document/DocumentWorkspaceView";
-import { DocumentViewPresentation, type DocumentViewProps } from "@/features/cycle/DocumentViewPresentation";
 import { type DocumentSurfaceOptions, documentSurface } from "@/features/cycle/document-view-model";
+import { documentWorkspace, type DocumentViewProps } from "./document-workspace";
 import { useDocumentView } from "./use-document-view";
 
 /* === Components === */
 export function DocumentView(props: DocumentViewProps) {
-  return <DocumentViewPresentation {...props} workspace={DocumentWorkspaceView} />;
+  return <DocumentWorkspaceView {...documentWorkspace(props)} />;
 }
 
 /* === Hooks === */

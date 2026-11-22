@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { usePageChrome } from "./page-chrome";
+import { pageContentClass } from "./page-layout";
 
 /* === Re-Exports === */
 
@@ -52,7 +53,7 @@ type PageNoticeProps = {
 export function PageShell({ actions, children, className, trail, ...props }: PageShellProps) {
   usePageChrome({ actions, title: pageTitle(trail) });
   return (
-    <div className={cn("grid grid-cols-12 min-w-0 content-start gap-4 p-4 [&>*]:col-span-12", className)} {...props}>
+    <div className={cn(pageContentClass, className)} {...props}>
       {children}
     </div>
   );
@@ -89,14 +90,17 @@ export function PanelHeader({
   onBack?: () => void;
 }) {
   useEffect(() => {
-    if (!onBack) return;
+    if (!onBack) {
+      return;
+    }
     const back = (event: KeyboardEvent) => {
       const target = event.target as Element | null;
       if (
         event.defaultPrevented ||
         target?.closest("[role=dialog], [role=menu], [role=listbox], [data-state=open][data-slot=popover-content]")
-      )
+      ) {
         return;
+      }
       if (event.key === "Escape" || (event.altKey && event.key === "ArrowLeft")) {
         event.preventDefault();
         onBack();

@@ -8,7 +8,7 @@
  */
 
 /**
- * Shared Live And Frozen Console Presentation; Reads Arrive From Its Owner.
+ * Live Console Presentation; The Desktop Shell Owns Reads.
  */
 
 /* === Imports === */
@@ -18,36 +18,24 @@
 // Third Party Imports
 import { ErrorCard } from "@/components/ErrorCard";
 import { Eraser, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SelectField from "../components/ui/SelectField.svelte";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
-import { recordLevelLabel } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
-import type { ConsoleLevel, ConsoleScope, ConsoleState } from "../stores/ui-store";
+import type { ConsoleScope, ConsoleState } from "../stores/ui-store";
 import type { ConsoleRecords } from "./console-buffer";
 import { SvelteMount } from "../components/SvelteMount";
 import ConsoleRecordList from "./ConsoleRecordList.svelte";
-
-// Local Imports
+import { type ConsoleLevel, consoleLevelOptions, visibleConsoleRecords } from "./console-view-model";
 
 /* === Re-Exports === */
 
 /* === Constants === */
-
-const LEVEL_ORDER: Record<ConsoleLevel, number> = {
-  trace: 0,
-  debug: 1,
-  info: 2,
-  warning: 3,
-  error: 4,
-};
-
-const LEVELS: ConsoleLevel[] = ["trace", "debug", "info", "warning", "error"];
 
 const SCOPE_LABEL: Record<ConsoleScope, string> = {
   cycle: "Cycle",
@@ -123,18 +111,17 @@ export function LiveConsoleView({
           ))}
         </ToggleGroup>
 
-        <Select onValueChange={(next) => setConsoleState({ level: next as ConsoleLevel })} value={drawer.level}>
-          <SelectTrigger className="w-32" size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LEVELS.map((level) => (
-              <SelectItem key={level} value={level}>
-                {recordLevelLabel(level)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SvelteMount
+          component={SelectField<ConsoleLevel>}
+          props={{
+            label: "Console Level",
+            class: "w-32",
+            size: "sm",
+            value: drawer.level,
+            options: consoleLevelOptions,
+            onChange: (level) => setConsoleState({ level }),
+          }}
+        />
 
         <Input
           aria-label="Filter Records"
@@ -182,44 +169,6 @@ export function LiveConsoleView({
             onFollowChange: (follow: boolean) => setConsoleState({ follow }),
             rows,
           }}
-        />
-      </div>
-    </section>
-  );
-}
-
-/**
- * The same rows, frozen: no scope, no follow, no clear, no stream. The level
- * threshold stays because it is a way of reading, not a control over a run.
- * The window is the live one, bounded, so a long attempt scrolls in place
- * instead of pushing the rest of the case past the page.
- */
-export function FrozenConsole({ records }: { records: HubRecord[] }) {
-  const [level, setLevel] = useState<ConsoleLevel>("info");
-  const [follow, setFollow] = useState(true);
-  const rows = useMemo(() => visibleConsoleRecords(records, level, ""), [level, records]);
-
-  return (
-    <section aria-label="Console" className="grid gap-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <h3 className="font-sans text-sm leading-6 font-semibold tracking-wide uppercase">Console</h3>
-        <Select onValueChange={(next) => setLevel(next as ConsoleLevel)} value={level}>
-          <SelectTrigger className="w-32" size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LEVELS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {recordLevelLabel(option)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="rounded-lg border">
-        <SvelteMount
-          component={ConsoleRecordList}
-          props={{ class: "h-96", empty: "No records at this level.", follow, onFollowChange: setFollow, rows }}
         />
       </div>
     </section>
@@ -284,20 +233,6 @@ function scopeDisabled(scope: ConsoleScope, cycleId: string | null, executionId:
 /* === Hooks === */
 
 /* === Public Functions === */
-export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel, filter: string): HubRecord[] {
-  const threshold = LEVEL_ORDER[level];
-  const needle = filter.trim().toLowerCase();
-  return records.filter((record) => {
-    if (LEVEL_ORDER[record.level] < threshold) {
-      return false;
-    }
-    if (!needle) {
-      return true;
-    }
-    return `${record.source} ${record.message ?? ""}`.toLowerCase().includes(needle);
-  });
-}
-
 /** Warnings and errors that arrived after the drawer was last opened. */
 export function consoleAttentionCount(records: HubRecord[], since: number): number {
   return records.filter((record) => {

@@ -17,16 +17,9 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import { isTauriDesktop } from "../lib/surface-environment";
 import type { DensityPreference } from "../lib/theme";
+import type { ConsoleLevel } from "../shell/console-view-model";
 
 /* === Types === */
-
-/**
- * The console drawer's own state.
- *
- * `Trace` is a threshold, not a severity the backend emits: the projection
- * carries four levels, and asking for Trace means "hold nothing back".
- */
-export type ConsoleLevel = "trace" | "debug" | "info" | "warning" | "error";
 
 export type ConsoleScope = "instance" | "cycle" | "execution";
 
