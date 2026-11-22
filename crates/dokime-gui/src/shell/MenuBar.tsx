@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { SvelteMount } from "@/components/SvelteMount";
-import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
+import NewCycleDialog from "@/features/cycles-home/NewCycleDialog.svelte";
 import { useAppearance } from "@/lib/appearance";
 import { useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import { useApplicationTheme } from "@/lib/application-theme";
@@ -72,10 +72,14 @@ export function MenuBar() {
         }}
       />
       {session ? (
-        <NewCycleDialog
-          onCreated={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
-          onOpenChange={setCreating}
-          open={creating}
+        <SvelteMount
+          component={NewCycleDialog}
+          props={{
+            onCreated: (cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" }),
+            onOpenChange: setCreating,
+            open: creating,
+            session,
+          }}
         />
       ) : null}
     </>

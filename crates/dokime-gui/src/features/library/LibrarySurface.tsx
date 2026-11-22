@@ -16,6 +16,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
+import { SvelteMount } from "@/components/SvelteMount";
+import { useNativeSession } from "@/app/native-session/context";
 import { DataTable } from "@/components/data-table/DataTable";
 import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
@@ -23,7 +25,7 @@ import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
+import NewCycleDialog from "@/features/cycles-home/NewCycleDialog.svelte";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
@@ -55,6 +57,7 @@ type OpenTemplate = {
  * Cycle when there is no cycle to add to.
  */
 export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
+  const session = useNativeSession();
   const brand = useBrand();
   const navigate = useNavigate();
   const suitesQuery = useTestSuitesQuery();
@@ -66,7 +69,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
      arrival applies once, so a later pick is never reverted by a refetch. */
   const applied = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!appendTo || applied.current === appendTo || !openCycles.some((cycle) => cycle.cycleId === appendTo)) return;
+    if (!appendTo || applied.current === appendTo || !openCycles.some((cycle) => cycle.cycleId === appendTo)) {
+      return;
+    }
     applied.current = appendTo;
     choose(appendTo);
   }, [appendTo, choose, openCycles]);
@@ -218,13 +223,17 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
       {/* A cycle created here becomes the active one: the Library stays put,
           and an open template dialog can add to it at once. */}
-      <NewCycleDialog
-        onCreated={(cycleId) => {
-          choose(cycleId);
-          void navigate({ search: { appendTo: cycleId }, to: "/library" });
+      <SvelteMount
+        component={NewCycleDialog}
+        props={{
+          onCreated: (cycleId) => {
+            choose(cycleId);
+            void navigate({ search: { appendTo: cycleId }, to: "/library" });
+          },
+          onOpenChange: setCreating,
+          open: creating,
+          session,
         }}
-        onOpenChange={setCreating}
-        open={creating}
       />
     </PageShell>
   );

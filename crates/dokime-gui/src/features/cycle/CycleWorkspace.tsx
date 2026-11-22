@@ -78,7 +78,9 @@ import { NodeActionCluster } from "./NodeActionCluster";
 import type { ArchiveAction, CycleMenu, ExecutionMenu } from "./NodeMenu";
 import { NodeSummary } from "@/features/cycle/NodeSummary";
 import { answerablePrompts } from "@/features/cycle/prompt-banner-model";
-import { cycleSettingsReadOnly, SettingsDialog } from "./SettingsForm";
+import { SvelteMount } from "@/components/SvelteMount";
+import { cycleSettingsReadOnly } from "./settings-fields";
+import SettingsDialog from "./SettingsDialog.svelte";
 
 /* === Types === */
 
@@ -317,19 +319,23 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
           </DialogContent>
         </Dialog>
         {live && execution ? (
-          <SettingsDialog
-            description="The execution's own settings. Its title is its case's label; a sealed attempt keeps the label its report froze."
-            onOpenChange={setSettingsOpen}
-            onSubmit={async (values) => {
-              if (values.title !== selectedRow.case.label) {
-                await commands.renameExecution.mutateAsync({ executionId: execution.test_execution_id, label: values.title });
-              }
-              toast.success("Execution Settings Saved");
+          <SvelteMount
+            component={SettingsDialog}
+            props={{
+              description:
+                "The execution's own settings. Its title is its case's label; a sealed attempt keeps the label its report froze.",
+              onOpenChange: setSettingsOpen,
+              onSubmit: async (values) => {
+                if (values.title !== selectedRow.case.label) {
+                  await commands.renameExecution.mutateAsync({ executionId: execution.test_execution_id, label: values.title });
+                }
+                toast.success("Execution Settings Saved");
+              },
+              open: settingsOpen,
+              readOnly: executionSealed ? { title: "Sealed: the report froze this label." } : {},
+              title: "Execution Settings",
+              values: { title: selectedRow.case.label },
             }}
-            open={settingsOpen}
-            readOnly={executionSealed ? { title: "Sealed: the report froze this label." } : {}}
-            title="Execution Settings"
-            values={{ title: selectedRow.case.label }}
           />
         ) : null}
         <ExecutionSections
@@ -501,25 +507,29 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
       />
 
       {live ? (
-        <SettingsDialog
-          description="The cycle's own settings. Continuation starts the next unstarted execution after one completes, whatever its verdict."
-          onOpenChange={setSettingsOpen}
-          onSubmit={async (values) => {
-            if (values.title !== plan.test_cycle.title) {
-              await commands.renameCycle.mutateAsync(values.title);
-            }
-            if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
-              await commands.updatePolicy.mutateAsync({ continueAutomatically: values.continueAutomatically });
-            }
-            toast.success("Cycle Settings Saved");
-          }}
-          open={settingsOpen}
-          readOnly={cycleSettingsReadOnly(phase, Boolean(plan.test_cycle.archived))}
-          title="Cycle Settings"
-          values={{
-            continueAutomatically: plan.test_cycle.continue_automatically,
-            description: typeof plan.test_cycle.metadata.description === "string" ? plan.test_cycle.metadata.description : "",
-            title: plan.test_cycle.title,
+        <SvelteMount
+          component={SettingsDialog}
+          props={{
+            description:
+              "The cycle's own settings. Continuation starts the next unstarted execution after one completes, whatever its verdict.",
+            onOpenChange: setSettingsOpen,
+            onSubmit: async (values) => {
+              if (values.title !== plan.test_cycle.title) {
+                await commands.renameCycle.mutateAsync(values.title);
+              }
+              if (values.continueAutomatically !== undefined && values.continueAutomatically !== plan.test_cycle.continue_automatically) {
+                await commands.updatePolicy.mutateAsync({ continueAutomatically: values.continueAutomatically });
+              }
+              toast.success("Cycle Settings Saved");
+            },
+            open: settingsOpen,
+            readOnly: cycleSettingsReadOnly(phase, Boolean(plan.test_cycle.archived)),
+            title: "Cycle Settings",
+            values: {
+              continueAutomatically: plan.test_cycle.continue_automatically,
+              description: typeof plan.test_cycle.metadata.description === "string" ? plan.test_cycle.metadata.description : "",
+              title: plan.test_cycle.title,
+            },
           }}
         />
       ) : null}

@@ -34,7 +34,13 @@ export function mountSvelte<Props extends Record<string, unknown>>(
 
   const reactiveProps = new Proxy({} as Props, {
     get(_, key) {
-      return prop(key).get();
+      const held = props.get(key);
+      if (held) {
+        return held.get();
+      }
+      // Missing Props Need To Observe Keys Added After The Component Mounts.
+      void keys;
+      return undefined;
     },
     has(_, key) {
       return keys.includes(key);

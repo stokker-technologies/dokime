@@ -18,7 +18,7 @@ import { useNativeSession } from "@/app/native-session/context";
 import { SvelteMount } from "@/components/SvelteMount";
 import { Button } from "@/components/ui/button";
 import CyclesHome from "@/features/cycles-home/CyclesHome.svelte";
-import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
+import NewCycleDialog from "@/features/cycles-home/NewCycleDialog.svelte";
 import { PageShell } from "@/shell/PageShell";
 
 /* === Route === */
@@ -40,7 +40,7 @@ function CyclesRoute() {
   return (
     <PageShell actions={actions} trail={["Cycles"]}>
       <SvelteMount component={CyclesHome} props={{ session, onOpen: openCycle }} />
-      <NewCycleDialog onCreated={openCycle} onOpenChange={setCreating} open={creating} />
+      <SvelteMount component={NewCycleDialog} props={{ onCreated: openCycle, onOpenChange: setCreating, open: creating, session }} />
     </PageShell>
   );
 }

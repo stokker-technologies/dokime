@@ -16,11 +16,10 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { executionControlState, inputNeededLabel, progressCount } from "@/features/cycle/control-model";
 import { render } from "@testing-library/svelte";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 // Local Imports
-import { SettingsFields, cycleSettingsReadOnly } from "@/features/cycle/SettingsForm";
+import SettingsFields from "@/features/cycle/SettingsFields.svelte";
+import { cycleSettingsReadOnly } from "@/features/cycle/settings-fields";
 import {
   CYCLE_STATE_LABELS,
   archiveRefusal,
@@ -213,26 +212,29 @@ test("Live Data Flow", () => {
 });
 
 test("Settings Dialogs", () => {
-  const render = (props: Parameters<typeof SettingsFields>[0]) => renderToStaticMarkup(createElement(SettingsFields, props));
-  const cycle = { continueAutomatically: true, description: "Bench run", title: "Test Cycle" };
+  const values = { continueAutomatically: true, description: "Bench run", title: "Test Cycle" };
+  const onChange = () => {};
 
-  // An Active Cycle Edits Its Title And Continuation; Its Description Was Written At Creation
-  const active = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("active", false), values: cycle });
-  assert.match(active, /Title/);
-  assert.match(active, /Continue Automatically/);
-  assert.doesNotMatch(active, /Continue after a failed case/);
-  assert.equal((active.match(/ disabled=""/g) ?? []).length, 1, "only the description is read-only");
-  assert.match(active, /Set when the cycle was created/);
+  // An Active Cycle Edits Title And Continuation; Its Description Was Written At Creation.
+  const active = render(SettingsFields, { onChange, values, readOnly: cycleSettingsReadOnly("active", false) });
+  assert.equal((active.getByRole("textbox", { name: "Title" }) as HTMLInputElement).disabled, false);
+  assert.equal((active.getByRole("textbox", { name: "Description" }) as HTMLTextAreaElement).disabled, true);
+  const continuation = active.getByRole("switch", { name: "Continue Automatically" }) as HTMLButtonElement;
+  assert.equal(continuation.disabled, false);
+  assert.equal(continuation.getAttribute("aria-checked"), "true");
+  active.unmount();
 
-  // A Sealed Cycle Shows Its Settings Read-Only
-  const sealed = render({ onChange: () => undefined, readOnly: cycleSettingsReadOnly("sealed", false), values: cycle });
-  assert.ok((sealed.match(/ disabled=""/g) ?? []).length >= 3, "title, description and continuation are all read-only");
-  assert.match(sealed, /role="switch"[^>]* disabled=""/);
+  // A Sealed Cycle Shows All Three Settings Read-Only.
+  const sealed = render(SettingsFields, { onChange, values, readOnly: cycleSettingsReadOnly("sealed", false) });
+  assert.equal(sealed.container.querySelectorAll("input:disabled, textarea:disabled, button[role=switch]:disabled").length, 3);
+  sealed.unmount();
 
-  // An Execution's Settings Are Its Title Alone, the Same Form
-  const execution = render({ onChange: () => undefined, values: { title: "Charger Start-Up" } });
-  assert.match(execution, /Title/);
-  assert.doesNotMatch(execution, /Description|Continue Automatically/);
+  // An Execution Uses The Same Fields For Its Title.
+  const execution = render(SettingsFields, { onChange, values: { title: "Charger Start-Up" } });
+  assert.equal(execution.getAllByRole("textbox").length, 1);
+  assert.ok(execution.getByRole("textbox", { name: "Title" }));
+  assert.equal(execution.queryByRole("switch"), null);
+  execution.unmount();
 });
 
 test("Node Menus", () => {
