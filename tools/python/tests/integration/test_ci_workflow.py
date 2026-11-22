@@ -32,7 +32,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.ci import bootstrap, compiler, native, signing, tasks, transport, workflow
+from dokime_tools.ci import bootstrap, build, compiler, native, signing, tasks, transport, workflow
 from dokime_tools.release import guard, nightly, registry
 
 # Type Checking Imports
@@ -47,24 +47,65 @@ from dokime_tools.release import guard, nightly, registry
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_compiler_cache_upload_requires_writes_to_the_disk_store(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            destination = Path(temporary.name) / "environment"
+            for backend, mode, writes, expected in (
+                ("disk", "READ_WRITE", 3, "COMPILER_CACHE_WRITTEN=true\n"),
+                ("disk", "READ_WRITE", 0, ""),
+                ("disk", "READ_WRITE", None, ""),
+                ("disk", "READ_ONLY", 3, ""),
+                ("s3", "READ_WRITE", 3, ""),
+            ):
+                destination.write_text("EXISTING=value\n", encoding="utf-8")
+                environment = {"COMPILER_CACHE_BACKEND": backend, "COMPILER_CACHE_MODE": mode, "GITHUB_ENV": str(destination)}
+
+                def compile_command(command: list[str], *, statistics: dict) -> int:
+                    statistics["cache_writes"] = writes
+                    return 0
+
+                with (
+                    self.subTest(backend=backend, mode=mode, writes=writes),
+                    patch.dict(os.environ, environment, clear=True),
+                    patch.object(build.compiler, "run", side_effect=compile_command),
+                    patch.object(build.summary, "render"),
+                    patch("sys.stdout", io.StringIO()),
+                ):
+                    self.assertEqual(build.run_command(["cargo", "build"], "Build"), 0)
+                    # Later Cache Hits Must Not Clear an Earlier Command's Writes.
+                    writes = 0
+                    self.assertEqual(build.run_command(["cargo", "build"], "Build"), 0)
+                self.assertEqual(destination.read_text(encoding="utf-8"), "EXISTING=value\n" + expected)
+        finally:
+            temporary.cleanup()
+
     def test_compiler_cache_resolves_the_project_wrapper_before_entering_a_consumer(self) -> None:
         temporary = tempfile.TemporaryDirectory()
         try:
             root = Path(temporary.name)
             wrapper = root / "tools/sccache"
             environment = {"COMPILER_CACHE_BACKEND": "disk", "SCCACHE_DIR": str(root / "cache"), "RUSTC_WRAPPER": "sccache"}
-            with (
-                patch.dict(os.environ, environment, clear=True),
-                patch.object(compiler.subprocess, "check_output", return_value=str(wrapper) + "\n") as resolve,
-                patch.object(compiler, "_execute", return_value=7) as execute,
+            for selection, capacity in (
+                ({}, "2G"),
+                ({"PROFILE": "release"}, "8G"),
+                ({"PROFILE": "dev", "CI_CACHE_PROFILE": "test"}, "8G"),
+                ({"PROFILE": "dev", "SCCACHE_CACHE_SIZE": "4G"}, "4G"),
             ):
-                self.assertEqual(compiler.run(["mise", "-C", str(root / "consumer"), "run", "build"]), 7)
-            self.assertEqual(resolve.call_args.args[0], ["mise", "which", "sccache"])
-            self.assertEqual(resolve.call_args.kwargs["cwd"], Path(compiler.__file__).resolve().parents[5])
-            selected = execute.call_args.args[2]
-            self.assertEqual(selected["RUSTC_WRAPPER"], str(wrapper))
-            self.assertEqual(selected["SCCACHE_DIR"], str((root / "cache").resolve()))
-            self.assertEqual(execute.call_args.args[3], "disk")
+                with (
+                    self.subTest(selection=selection),
+                    patch.dict(os.environ, environment | selection, clear=True),
+                    patch.object(compiler.subprocess, "check_output", return_value=str(wrapper) + "\n") as resolve,
+                    patch.object(compiler, "_execute", return_value=7) as execute,
+                ):
+                    self.assertEqual(compiler.run(["mise", "-C", str(root / "consumer"), "run", "build"]), 7)
+                self.assertEqual(resolve.call_args.args[0], ["mise", "which", "sccache"])
+                self.assertEqual(resolve.call_args.kwargs["cwd"], Path(compiler.__file__).resolve().parents[5])
+                selected = execute.call_args.args[2]
+                self.assertEqual(selected["RUSTC_WRAPPER"], str(wrapper))
+                self.assertEqual(selected["SCCACHE_DIR"], str((root / "cache").resolve()))
+                self.assertEqual(selected["SCCACHE_CACHE_SIZE"], capacity)
+                self.assertEqual(execute.call_args.args[3], "disk")
         finally:
             temporary.cleanup()
 
@@ -421,6 +462,7 @@ class WorkflowTests(unittest.TestCase):
                 "COMPILER_CACHE_BACKEND": "disk",
                 "CI_CACHE_PROFILE": "release",
                 "RUST_TOOLCHAIN": "1.98.0",
+                "GITHUB_SHA": "a" * 40,
             }
             original = native.default_caches(root, environment)
             (root / "mise.lock").write_text("other tool changed", encoding="utf-8")
@@ -435,6 +477,11 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotEqual(rust["restore-keys"], crates["restore-keys"])
             tests = native.default_caches(root, environment | {"CI_CACHE_PROFILE": "test"})["sccache"]
             self.assertNotEqual(tests["restore-keys"], crates["restore-keys"])
+            following = native.default_caches(root, environment | {"GITHUB_SHA": "b" * 40})["sccache"]
+            self.assertNotEqual(following["key"], crates["key"])
+            self.assertEqual(following["restore-keys"], crates["restore-keys"])
+            rerun = native.default_caches(root, environment | {"GITHUB_RUN_ID": "200", "GITHUB_RUN_ATTEMPT": "2"})["sccache"]
+            self.assertEqual(rerun, crates)
 
             # Restore Only the Same Platform and Bench Variant Across Runs.
             self.assertNotIn("bench_baselines", original)

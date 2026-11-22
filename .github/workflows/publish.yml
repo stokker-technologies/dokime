@@ -210,7 +210,7 @@ jobs:
         path: ${{ steps.setup.outputs.uv-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
-        && steps.setup.outputs.sccache-path != ''
+        && steps.setup.outputs.sccache-path != '' && env.COMPILER_CACHE_WRITTEN == 'true'
       with:
         path: ${{ steps.setup.outputs.sccache-path }}
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
@@ -218,7 +218,6 @@ jobs:
       MISE_ENABLE_TOOLS: aqua:anchore/syft,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,minisign,node,pnpm,powershell,python,rust,sccache,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: ${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) && 'READ_WRITE'
         || 'READ_ONLY' }}
       PROFILE: ${{ inputs.profile }}

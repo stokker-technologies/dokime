@@ -117,8 +117,8 @@ def _configured(command: Sequence[str] | str, shell: str | None, *, statistics: 
         directory = Path(os.environ["SCCACHE_DIR"])
         directory.mkdir(parents=True, exist_ok=True)
         environment.update(SCCACHE_DIR=str(directory.resolve()), SCCACHE_LOCAL_RW_MODE=mode)
-        if size := os.environ.get("SCCACHE_CACHE_SIZE"):
-            environment["SCCACHE_CACHE_SIZE"] = size
+        profile = os.environ.get("CI_CACHE_PROFILE") or os.environ.get("PROFILE", "dev")
+        environment["SCCACHE_CACHE_SIZE"] = os.environ.get("SCCACHE_CACHE_SIZE") or ("2G" if profile == "dev" else "8G")
     else:
         raise RuntimeError("Configure Compiler Cache: sccache: a supported explicit backend is required")
     # Resolve the Project Tool Before a Child Enters a Generated Workspace.
