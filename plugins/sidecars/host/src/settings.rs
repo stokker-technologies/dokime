@@ -40,6 +40,7 @@ pub const MINIMUM_SCAN_INTERVAL: &str = "minimum_scan_interval";
 
 pub const NETWORK_PROBE_TIMEOUT: &str = "network_probe_timeout";
 pub const SYSTEM_PROBE_TIMEOUT: &str = "system_probe_timeout";
+pub const SYSTEM_DEEP_REFRESH_INTERVAL: &str = "system_deep_refresh_interval";
 pub const CPU_CALIBRATION_WINDOW: &str = "cpu_calibration_window";
 pub const WIFI_LINK_PROBE_TIMEOUT: &str = "wifi_link_probe_timeout";
 pub const WIFI_SCAN_PROBE_TIMEOUT: &str = "wifi_scan_probe_timeout";
@@ -145,6 +146,14 @@ pub const SETTINGS: &[Setting] = &[
         2_000,
     ),
     Setting::milliseconds(SYSTEM_PROBE_TIMEOUT, "System Probe Timeout", "Maximum wait for the Git identity subprocess.", 2_000, 1, 2_000),
+    Setting::milliseconds(
+        SYSTEM_DEEP_REFRESH_INTERVAL,
+        "System Deep Refresh Interval",
+        "Time before checking again for a battery after an empty inventory; system rows never wait for battery queries.",
+        300_000,
+        1,
+        DAY_MS,
+    ),
     Setting::milliseconds(
         CPU_CALIBRATION_WINDOW,
         "CPU Calibration Window",

@@ -46,7 +46,7 @@ mod native {
 // Standard Library Imports
 use std::env;
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // Third Party Imports
 use starship_battery::units::electric_potential::volt;
@@ -57,6 +57,9 @@ use starship_battery::units::thermodynamic_temperature::degree_celsius;
 use starship_battery::units::time::second;
 use starship_battery::{Battery, Manager};
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, RefreshKind};
+use tokio::sync::oneshot;
+use tokio::sync::oneshot::error::TryRecvError;
+use tokio::task;
 
 // Local Imports
 use crate::Host;
@@ -85,6 +88,12 @@ pub struct Collector {
     git: Mutex<Option<GitIdentity>>,
 }
 
+/// One In-Flight Battery Inventory; an Empty Inventory Is Cached Until Deep Refresh.
+pub struct BatteryProbe<T> {
+    pending: Option<oneshot::Receiver<Option<T>>>,
+    absent_since: Option<Instant>,
+}
+
 /// Git Identity Is Static Context, Read Once Rather Than per Sample.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GitIdentity {
@@ -101,7 +110,7 @@ struct State {
     sample_index: i64,
     system: sysinfo::System,
     components: Components,
-    batteries: Option<Manager>,
+    battery: BatteryProbe<Battery>,
 }
 
 #[derive(Default)]
@@ -131,6 +140,7 @@ impl Collector {
     /// Collect One System Row; a Failed Probe Becomes a Row Naming the Failure.
     pub async fn collect(&self, ctx: &Context) -> Result<System> {
         let timeout = ctx.duration_setting(settings::SYSTEM_PROBE_TIMEOUT).await?;
+        let deep_refresh_interval = ctx.duration_setting(settings::SYSTEM_DEEP_REFRESH_INTERVAL).await?;
         let known = self.git.lock().unwrap_or_else(PoisonError::into_inner).clone();
         let git = match known {
             Some(git) => git,
@@ -142,14 +152,14 @@ impl Collector {
         };
         let capacity_gflops = ctx.plugin::<Arc<Host>>()?.cpu.capacity_gflops(ctx).await.ok();
         let state = self.state.clone();
-        let collected = tokio::task::spawn_blocking(move || {
+        let collected = task::spawn_blocking(move || {
             let mut state = state.lock().unwrap_or_else(PoisonError::into_inner);
             let listening =
                 state.as_mut().ok_or_else(|| Error::Invalid("Collect System Telemetry: Start the Collection Before Reading".into()))?;
             if listening.state.is_none() {
                 listening.state = Some(State::new()?);
             }
-            listening.state.as_mut().expect("State Created Above").collect(capacity_gflops, git)
+            listening.state.as_mut().expect("State Created Above").collect(capacity_gflops, git, deep_refresh_interval)
         })
         .await
         .map_err(|error| Error::Invalid(format!("Collect System Telemetry: {error}; Restart the Plugin")))?;
@@ -169,6 +179,36 @@ impl Collector {
     }
 }
 
+impl<T> Default for BatteryProbe<T> {
+    fn default() -> Self {
+        Self { pending: None, absent_since: None }
+    }
+}
+
+impl<T> BatteryProbe<T> {
+    /// Read Only Completed Work; Starting a Probe Must Return Its Receiver Without Waiting.
+    pub fn collect_at(
+        &mut self, now: Instant, deep_refresh_interval: Duration, start: impl FnOnce() -> oneshot::Receiver<Option<T>>,
+    ) -> Option<T> {
+        let mut battery = None;
+        if let Some(pending) = &mut self.pending {
+            match pending.try_recv() {
+                Ok(reading) => {
+                    self.pending = None;
+                    self.absent_since = reading.is_none().then_some(now);
+                    battery = reading;
+                }
+                Err(TryRecvError::Empty) => return None,
+                Err(TryRecvError::Closed) => self.pending = None,
+            }
+        }
+        if self.absent_since.is_none_or(|last| now.duration_since(last) >= deep_refresh_interval) {
+            self.pending = Some(start());
+        }
+        battery
+    }
+}
+
 impl State {
     fn new() -> Result<Self> {
         let invalid = |error: sysinfo::Error| Error::Invalid(format!("Read System Inventory: {error}; Restart the Plugin"));
@@ -176,11 +216,11 @@ impl State {
             sample_index: 0,
             system: sysinfo::System::new_with_specifics(RefreshKind::nothing().with_cpu(CpuRefreshKind::everything())).map_err(invalid)?,
             components: Components::new_with_refreshed_list().map_err(invalid)?,
-            batteries: Manager::new().ok(),
+            battery: BatteryProbe::default(),
         })
     }
 
-    fn collect(&mut self, capacity_gflops: Option<f64>, git: GitIdentity) -> Result<System> {
+    fn collect(&mut self, capacity_gflops: Option<f64>, git: GitIdentity, deep_refresh_interval: Duration) -> Result<System> {
         self.sample_index += 1;
         // Utilization Covers the Time Since the Previous Collection; the First One Reads Zero.
         self.system.refresh_cpu_specifics(CpuRefreshKind::nothing().with_usage());
@@ -236,7 +276,14 @@ impl State {
             power_mode_performance_bias: power.performance_bias,
             ..System::default()
         };
-        let battery = self.batteries.as_ref().and_then(|manager| manager.batteries().ok()?.next()?.ok());
+        let battery = self.battery.collect_at(Instant::now(), deep_refresh_interval, || {
+            let (sender, receiver) = oneshot::channel();
+            task::spawn_blocking(move || {
+                let battery = Manager::new().ok().and_then(|manager| manager.batteries().ok()?.next()?.ok());
+                let _ = sender.send(battery);
+            });
+            receiver
+        });
         Ok(match battery {
             Some(battery) => with_battery(row, &battery),
             None => row,
@@ -269,7 +316,7 @@ pub fn parse_git_identity(text: &str) -> GitIdentity {
 async fn git_identity(timeout: Duration) -> GitIdentity {
     let mut command = command::command("git");
     command.args(["config", "--get-regexp", r"^user\.(name|email)$"]);
-    let output = tokio::task::spawn_blocking(move || command::bounded_output(command, timeout)).await;
+    let output = task::spawn_blocking(move || command::bounded_output(command, timeout)).await;
     match output {
         Ok(Ok(output)) if output.status.success() => parse_git_identity(&String::from_utf8_lossy(&output.stdout)),
         _ => GitIdentity::default(),
