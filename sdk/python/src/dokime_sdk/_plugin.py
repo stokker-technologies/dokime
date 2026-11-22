@@ -250,9 +250,12 @@ class Plugin:
                 raise ValueError("Materialize Test Case: Execution Scope Must Be Empty")
             if request.template != template.identifier:
                 raise ValueError("Materialize Test Case: Supply the Bound Template Without an Execution Scope")
-            return TestCasesMaterializeResponse(
-                test_case=template.build({key: decode(value) for key, value in request.parameters.items()}).message,
-            )
+            case = template.build({key: decode(value) for key, value in request.parameters.items()}).message
+            # The Host Freezes Exactly the Values It Resolved, So the Case Echoes Their Wire Form, Not a Re-Encoding.
+            case.ClearField("parameters")
+            for key, value in request.parameters.items():
+                case.parameters[key].CopyFrom(value)
+            return TestCasesMaterializeResponse(test_case=case)
 
         return operation(
             template._lifecycle["materialize"],
