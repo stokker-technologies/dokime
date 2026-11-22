@@ -239,16 +239,18 @@ test("Node Menus", () => {
   assert.ok(archiveRefusal(false, "cycle"));
   assert.ok(archiveRefusal(false, "execution"));
 
-  // Download Report Waits Only for a Save in Progress
-  assert.deepEqual(reportDownloadState(false), {
+  // Download Report Waits for Sealed Evidence and a Save in Progress
+  assert.deepEqual(reportDownloadState(false, true), {
     disabled: false,
     label: "Download Report",
     title: "Download Report",
   });
-  const saving = reportDownloadState(true);
+  const saving = reportDownloadState(true, true);
   assert.equal(saving.disabled, true);
   assert.equal(saving.label, "Download Report");
   assert.notEqual(saving.title, "Download Report");
+  assert.equal(reportDownloadState(false, false).disabled, true);
+  assert.match(reportDownloadState(false, false).title, /once the run is sealed/);
 
   // A Saved Report Is Named After Its Cycle or Execution
   assert.equal(reportFilename("Charger Soak"), "Charger Soak.html");

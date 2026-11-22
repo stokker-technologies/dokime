@@ -377,13 +377,18 @@ export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution")
     : "Archiving becomes available once the run is sealed.";
 }
 
-/** Download Report waits only for a save already in progress. */
-export function reportDownloadState(saving: boolean): ReportDownloadState {
+/** Download Report waits for sealed evidence and any save already in progress. */
+export function reportDownloadState(saving: boolean, sealed: boolean): ReportDownloadState {
   return {
-    disabled: saving,
+    disabled: saving || !sealed,
     label: "Download Report",
-    title: saving ? "Saving The Report…" : "Download Report",
+    title: saving ? "Saving The Report…" : sealed ? "Download Report" : "Downloading becomes available once the run is sealed.",
   };
+}
+
+/** A cycle report captures every execution, so each must have sealed. */
+export function cycleReportSealed(status: CycleLifecycle, executions: readonly Pick<TestExecution, "sealed">[]): boolean {
+  return !isCycleInFlight(status) && executions.every((execution) => execution.sealed);
 }
 
 /** The file a saved report is offered as, named after its cycle or execution. */

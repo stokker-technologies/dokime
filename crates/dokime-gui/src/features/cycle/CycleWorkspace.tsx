@@ -63,6 +63,7 @@ import {
   type CycleExecutionRow,
   type CycleSelection,
   cycleState,
+  cycleReportSealed,
   type FollowState,
   sealedCaseCount,
   followSelection,
@@ -436,6 +437,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               menu={cycleMenu}
               primary={seal}
               subject={{ executionId: null, label: plan.test_cycle.title, sealed: phase === "sealed" }}
+              reportSealed={cycleReportSealed(status, executions)}
             />
           ) : null
         }

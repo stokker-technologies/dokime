@@ -12,8 +12,7 @@
  *
  * It creates one frozen report and saves its retained bytes through the native
  * dialog, named after the cycle or execution, then
- * opens the saved file in the default browser. It waits only for a save
- * already in progress.
+ * opens the saved file in the default browser once the evidence is sealed.
  */
 
 /* === External Imports === */
@@ -40,20 +39,25 @@ export type CycleReportMenuItemProps = {
   executionId: string | null;
   /** The cycle or execution label the file is named after. */
   label: string;
+  sealed: boolean;
 };
 
 /* === Components === */
 
-export function CycleReportMenuItem({ cycleId, executionId, label }: CycleReportMenuItemProps) {
+export function CycleReportMenuItem({ cycleId, executionId, label, sealed }: CycleReportMenuItemProps) {
   const { downloadReport } = useCycleCommands(cycleId);
-  const state = reportDownloadState(downloadReport.isPending);
+  const state = reportDownloadState(downloadReport.isPending, sealed);
   const save = () => {
     downloadReport
       .mutateAsync({ executionId, label })
       .then((saved) => {
-        if (!saved) return;
+        if (!saved) {
+          return;
+        }
         toast.success("Report Saved");
-        if (saved.openFailure) toast.error(saved.openFailure);
+        if (saved.openFailure) {
+          toast.error(saved.openFailure);
+        }
       })
       .catch((error: unknown) => toast.error(failureOf(error, "The Report Could Not Be Saved")));
   };
