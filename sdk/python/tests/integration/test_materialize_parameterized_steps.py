@@ -207,6 +207,10 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             async def wait(self, ctx: Context) -> None:
                 pass
 
+            @criterion("Waited")
+            async def waited(self, ctx: Context) -> bool:
+                return True
+
         class DurationSuite(Suite):
             templates: ClassVar[list[type[TestTemplate]]] = [DurationTestTemplate]
 
@@ -221,6 +225,12 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
         defaulted = await client.cases.materialize(DurationTestTemplate)
         chosen = await client.cases.materialize(DurationTestTemplate, parameters={"duration_min": [5]})
         self.assertEqual([len(defaulted), len(chosen)], [1, 1])
+        # Steps Rebuild the Case From the Frozen Values, So a Count Must Survive Execution Too.
+        cycle = await client.cycle(label="Durations")
+        execution = await cycle.execution(defaulted[0])
+        async for _ in execution.run():
+            pass
+        self.assertEqual((await execution.seal()).status, ResultStatus.PASSED)
         await registered.unregister()
 
     async def test_class_template_materialization_retry_and_artifacts_through_host(self) -> None:
