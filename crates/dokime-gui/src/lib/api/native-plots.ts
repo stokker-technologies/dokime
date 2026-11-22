@@ -245,6 +245,7 @@ function requestedPlotTypes(requests: readonly PlotRequest[]): PlotTypes {
     [PlotKind.TRAJECTORY]: "trajectory",
     [PlotKind.BAR]: "bar",
     [PlotKind.PIE]: "pie",
+    [PlotKind.HEAT_STRIP]: "heat_strip",
   };
   return new Map(requests.map((request) => [request.plotId ?? request.stream, kinds[request.plotType]]));
 }

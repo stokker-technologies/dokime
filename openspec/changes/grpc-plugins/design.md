@@ -1,5 +1,11 @@
 # gRPC Plugins Design
 
+## Heat Strip Live Projection
+
+The desktop request-kind map identifies Heat Strip before projecting native
+watch and snapshot columns. Desktop and reports use the shared plot projection
+and `HeatStripPlot`; live revisions replace the rendered cells.
+
 ## Stop Ends Execution Waits
 
 Locked owner decision: Stop ends every execution-scoped host sleep and condition

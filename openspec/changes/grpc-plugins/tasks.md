@@ -1,3 +1,10 @@
+## Heat Strip Live Width and Samples
+
+- [x] Restore Native Live Heat Strip Projection and Prove Cells Draw and Update on a Running Execution Watch.
+- [ ] Fill Each Facet Row With Its Own Sorted Categories and Equal Width Cells; Prove Storage Projection and Shared Layout.
+- [ ] Select Sample Instants Through Shared Playback, Follow New Live Samples Until Scrubbing and Default Reports to Their Last Frozen Sample; Prove Selection, Follow and Report Integration.
+- [ ] Pass Focused Tests, Touched-Package Compilation, Formatting, Repository and Strict OpenSpec Validation.
+
 ## Stop Ends Execution Waits
 
 - [x] Record the Locked Decision: Stop Completes Execution-Scoped Host Waits Normally, Lets the Active Step Finish, Evaluates Criteria, Runs Cleanup and Seals Stopped With Evidence Intact; Cancel Still Aborts and Unstopped Waits Keep Their Duration.
