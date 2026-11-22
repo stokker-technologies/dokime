@@ -70,6 +70,7 @@
 </script>
 
 <script lang="ts">
+  import ExecutionStepsCriteria from "../../features/cycle/ExecutionStepsCriteria.svelte";
   import ArtifactTreeView from "../ArtifactTreeView.svelte";
   import ErrorCard from "../ErrorCard.svelte";
   import MediaGalleryView from "../MediaGalleryView.svelte";
@@ -81,7 +82,6 @@
   import OperatorNotes from "./OperatorNotes.svelte";
   import PlotGroupGrid from "./PlotGroupGrid.svelte";
   import RecordTimeline from "./RecordTimeline.svelte";
-  import StepRecordList from "./StepRecordList.svelte";
 
   let props: DocumentCardContentProps = $props();
   const card = $derived(props.card);
@@ -146,12 +146,14 @@
 {:else if card.kind === "notes"}
   <OperatorNotes notes={props.notes} />
 {:else if card.kind === "steps"}
-  <StepRecordList
+  <ExecutionStepsCriteria
+    layout="document"
     records={props.stepRecords}
     emptyMessage={report ? "No step records for the selected case run." : "No step records for the selected execution yet."}
   />
 {:else if card.kind === "criteria"}
-  <StepRecordList
+  <ExecutionStepsCriteria
+    layout="document"
     records={props.criterionRecords}
     emptyMessage={report ? "No criteria records for the selected case run." : "No criteria records for the selected execution yet."}
   />

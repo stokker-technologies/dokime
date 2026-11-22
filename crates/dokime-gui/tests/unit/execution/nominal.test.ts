@@ -18,7 +18,7 @@ import { fireEvent, render } from "@testing-library/svelte";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { type ComponentProps, flushSync } from "svelte";
+import { tick } from "svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
@@ -27,7 +27,6 @@ import OperatorNotes from "@/components/document/OperatorNotes.svelte";
 import ArtifactTreeView from "@/components/ArtifactTreeView.svelte";
 import MediaGalleryView from "@/components/MediaGalleryView.svelte";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
-import { mountSvelte } from "@/components/mount-svelte.svelte";
 import { PromptPanel } from "@/components/PromptPanel";
 import { formatPreview } from "@/components/start-cycle-form-model";
 import ExecutionParameters from "@/features/cycle/ExecutionParameters.svelte";
@@ -612,7 +611,8 @@ test("Media Cards and Tree Share Live Uploads", () => {
   };
   const audio = { ...image, artifact_id: "audio", path: "media/recording.wav", media_type: "audio/wav", href: "blob:audio" };
   const video = { ...image, artifact_id: "video", path: "media/clip.webm", media_type: "video/webm", href: "blob:video" };
-  const { container } = render(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" });
+  const { container, unmount } = render(MediaGalleryView, { artifacts: [image, audio, video], emptyMessage: "" });
+  onTestFinished(unmount);
   const markup = container.innerHTML;
   assert.match(markup, /<img[^>]+src="data:image\/png;base64,/);
   assert.match(markup, /<audio[^>]+controls=""[^>]+src="blob:audio"/);
@@ -631,19 +631,40 @@ test("Media Cards and Tree Share Live Uploads", () => {
   const tree = buildArtifactTree([image, audio, video]);
   assert.equal(tree.folders[0].path, "media");
   assert.equal(tree.folders[0].files.find((file) => file.artifact_id === "image")?.fileName, name);
+});
 
-  // Updating Preview Results Must Leave The Requests That Produced Them In Place
-  const onPreviewRequest = vi.fn();
-  const host = document.createElement("div");
-  const props = { artifacts: [image, audio, video], emptyMessage: "", onPreviewRequest, preview: undefined };
-  const mounted = mountSvelte<ComponentProps<typeof MediaGalleryView>>(MediaGalleryView, host, props);
-  onTestFinished(mounted.destroy);
-  flushSync();
-  assert.ok(onPreviewRequest.mock.calls.length > 0);
-  onPreviewRequest.mockClear();
-  mounted.update({ ...props, preview: { urls: {}, errors: {}, retry: vi.fn() } });
-  flushSync();
-  assert.deepEqual(onPreviewRequest.mock.calls, []);
+test("Native Media Loads Only the Current Preview", async () => {
+  const artifact = { artifact_id: "image", label: "Image", path: "media/image.png", media_type: "image/png" };
+  let completePending!: (url: string) => void;
+  const pending = new Promise<string>((resolve) => {
+    completePending = resolve;
+  });
+  const prepare = vi.fn(() => pending);
+  let completeCurrent!: (url: string) => void;
+  const current = new Promise<string>((resolve) => {
+    completeCurrent = resolve;
+  });
+  const prepareCurrent = vi.fn(() => current);
+  const transfers = { generation: "1", isCurrent: () => true, open: vi.fn(), download: vi.fn(), prepare };
+  const { getByRole, rerender, unmount } = render(MediaGalleryView, { artifacts: [artifact], emptyMessage: "", transfers });
+  onTestFinished(unmount);
+
+  await fireEvent.click(getByRole("button", { name: "Inspect" }));
+  assert.equal(prepare.mock.calls.length, 1);
+  await rerender({ artifacts: [artifact], emptyMessage: "", transfers: { ...transfers, generation: "2", prepare: prepareCurrent } });
+  assert.equal(prepareCurrent.mock.calls.length, 0);
+
+  completePending("data:image/png;base64,stale");
+  await pending;
+  await tick();
+  assert.equal(prepareCurrent.mock.calls.length, 1);
+  assert.equal(getByRole("dialog").querySelector("img"), null);
+
+  completeCurrent("data:image/png;base64,current");
+  await current;
+  await tick();
+  assert.equal(getByRole("dialog").querySelector("img")?.getAttribute("src"), "data:image/png;base64,current");
+  assert.equal(prepareCurrent.mock.calls.length, 1);
 });
 
 test("Note Preview Preserves the Draft and Submits It", async () => {

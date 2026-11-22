@@ -1,14 +1,7 @@
 <!-- Dokime — SPDX-License-Identifier: Apache-2.0 -->
 <script module lang="ts">
-  import type { MediaArtifactCandidate, MediaGalleryArtifact, ResolvedMediaGalleryArtifact } from "./media-gallery-model";
+  import type { MediaGalleryArtifact, ResolvedMediaGalleryArtifact } from "./media-gallery-model";
   import { artifactLabel } from "../lib/dashboard";
-
-  export type MediaActions = {
-    open: (artifact: MediaGalleryArtifact) => Promise<unknown>;
-    download: (artifact: MediaGalleryArtifact) => Promise<unknown>;
-  };
-
-  export type MediaPreviewRequest = { media: MediaArtifactCandidate[]; requested: ReadonlySet<string> };
 
   function mediaArtifactTitle(artifact: Pick<ResolvedMediaGalleryArtifact, "displayPath" | "label">): string {
     return artifact.displayPath.split("/").filter(Boolean).at(-1) ?? artifactLabel(artifact.label);
@@ -18,25 +11,21 @@
 <script lang="ts">
   import { Dialog } from "bits-ui";
   import { Download, ExternalLink } from "lucide-svelte";
-  import { untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { artifactDisplayPath, formatArtifactSize } from "../lib/artifact-tree";
   import { mediaArtifactKind } from "../lib/media";
   import { failureOf, type NotificationFailure } from "../lib/notification-details";
   import ErrorCard from "./ErrorCard.svelte";
   import MediaGalleryCard from "./MediaGalleryCard.svelte";
-  import { isNativeArtifactSource, mediaBlobType, type MediaGalleryProps, type MediaPreviewState } from "./media-gallery-model";
+  import { isNativeArtifactSource, mediaBlobType, type MediaGalleryProps } from "./media-gallery-model";
+  import { mediaPreviews, type MediaTransfers } from "./media-previews.svelte";
   import { buttonVariants } from "./ui/button-variants";
   import Button from "./ui/Button.svelte";
   import DialogContent from "./ui/DialogContent.svelte";
 
-  type Props = MediaGalleryProps & {
-    actions?: MediaActions;
-    preview?: MediaPreviewState;
-    onPreviewRequest?: (request: MediaPreviewRequest) => void;
-  };
+  type Props = MediaGalleryProps & { transfers?: MediaTransfers };
 
-  let { artifacts, emptyMessage, runDir, actions, preview, onPreviewRequest }: Props = $props();
+  let { artifacts, emptyMessage, runDir, transfers }: Props = $props();
   let selectedId = $state<string | null>(null);
   let openingId = $state<string | null>(null);
   let downloadingId = $state<string | null>(null);
@@ -49,30 +38,22 @@
       return kind ? [{ ...artifact, displayPath: artifactDisplayPath(artifact, runDir), kind }] : [];
     }),
   );
+  const preview = mediaPreviews(
+    () => media,
+    () => new Set(selectedId ? [...visible, selectedId] : visible),
+    () => transfers,
+  );
   const resolved = $derived(
     media.map((artifact) => ({
       ...artifact,
-      href: artifact.href ?? artifact.downloadHref ?? preview?.urls[artifact.artifact_id] ?? null,
+      href: artifact.href ?? artifact.downloadHref ?? preview.get(artifact.artifact_id)?.url ?? null,
       downloadHref: artifact.downloadHref ?? artifact.href ?? null,
-      nativeTransfer: Boolean(actions && !artifact.href && !artifact.downloadHref && isNativeArtifactSource(artifact)),
+      nativeTransfer: Boolean(transfers && !artifact.href && !artifact.downloadHref && isNativeArtifactSource(artifact)),
     })),
   );
   const selected = $derived(resolved.find((artifact) => artifact.artifact_id === selectedId));
-  const selectedError = $derived(selected ? preview?.errors[selected.artifact_id] : undefined);
+  const selectedError = $derived(selected ? preview.get(selected.artifact_id)?.failure : undefined);
   const outlineLink = buttonVariants({ size: "sm", variant: "outline" });
-
-  $effect(() => {
-    const notify = onPreviewRequest;
-    if (!notify) {
-      return;
-    }
-    const requested = new Set(media.filter((artifact) => visible.has(artifact.artifact_id)).map((artifact) => artifact.artifact_id));
-    if (selectedId) {
-      requested.add(selectedId);
-    }
-    const request = { media, requested };
-    untrack(() => notify(request));
-  });
 
   function markVisible(artifactId: string, isVisible: boolean) {
     if (isVisible) {
@@ -83,13 +64,13 @@
   }
 
   async function openArtifact(artifact: MediaGalleryArtifact) {
-    if (!actions || openingId || downloadingId) {
+    if (!transfers || openingId || downloadingId) {
       return;
     }
     openingId = artifact.artifact_id;
     openError = null;
     try {
-      await actions.open(artifact);
+      await transfers.open(artifact);
     } catch (error: unknown) {
       openError = { artifactId: artifact.artifact_id, failure: failureOf(error, "Artifact Action Failed") };
     } finally {
@@ -98,13 +79,13 @@
   }
 
   async function downloadArtifact(artifact: MediaGalleryArtifact) {
-    if (!actions || downloadingId) {
+    if (!transfers || downloadingId) {
       return;
     }
     downloadingId = artifact.artifact_id;
     downloadError = null;
     try {
-      await actions.download(artifact);
+      await transfers.download(artifact);
     } catch (error: unknown) {
       downloadError = { artifactId: artifact.artifact_id, failure: failureOf(error, "Artifact Action Failed") };
     } finally {
@@ -133,9 +114,9 @@
         nativeBusy={openingId === artifact.artifact_id || downloadingId === artifact.artifact_id}
         nativeOpenError={openError?.artifactId === artifact.artifact_id ? openError.failure.message : null}
         nativeDownloadError={downloadError?.artifactId === artifact.artifact_id ? downloadError.failure.message : null}
-        onRetry={() => preview?.retry(artifact.artifact_id)}
-        previewError={preview?.errors[artifact.artifact_id] ?? null}
-        onVisibilityChange={onPreviewRequest ? markVisible : undefined}
+        onRetry={() => preview.retry(artifact.artifact_id)}
+        previewError={preview.get(artifact.artifact_id)?.failure?.message ?? null}
+        onVisibilityChange={transfers ? markVisible : undefined}
       />
     {/each}
   </div>
@@ -166,8 +147,8 @@
               <div class="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
                 {#if selectedError}
                   <ErrorCard
-                    failure={failureOf(preview?.failures?.[selected.artifact_id] ?? selectedError, "Media Preview Unavailable")}
-                    onRetry={() => preview?.retry(selected.artifact_id)}
+                    failure={selectedError}
+                    onRetry={() => preview.retry(selected.artifact_id)}
                   />
                 {:else}
                   <p>Loading media preview…</p>
