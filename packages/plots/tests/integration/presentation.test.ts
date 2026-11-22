@@ -104,3 +104,48 @@ test("XY Axes Keep Numeric Tick Spacing and Share Number Formatting", async () =
   assert.deepEqual(labels, ["1000.00", "1000.25", "1000.50"]);
   assert.deepEqual(labels, (y.values as uPlot.Axis.Values)({} as uPlot, splits, 1, 50, 0.25));
 });
+
+test("XY Frames With No Drawable Pairs Show an Empty State and Recover", async () => {
+  const { host, root } = mountPlot();
+  for (const mode of ["aligned", "faceted"] as const) {
+    for (const series of [
+      { x: [0, 1, 2], y: [null, null, null] },
+      { x: [Number.NaN, Number.POSITIVE_INFINITY, 2], y: [1, 2, null] },
+    ]) {
+      const plot = documentPlotSpec({
+        plot: descriptor,
+        payload: { ...payload, cartesian: { mode, series: [series], point_count: 91, signature: `missing:${mode}` } },
+      });
+      await act(async () => root.render(createElement(XyPlot, { plot })));
+      assert.ok(host.querySelector('[data-testid="plot-placeholder"]'));
+      assert.equal(host.querySelector(".plot-card strong")?.textContent, descriptor.title);
+      assert.equal(charts.options.length, 0);
+      assert.ok(!host.textContent?.includes("91"));
+    }
+  }
+  const plot = documentPlotSpec({ plot: descriptor, payload });
+  await act(async () => root.render(createElement(XyPlot, { plot })));
+  assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
+  assert.equal(charts.options.length, 1);
+});
+
+test("XY Counts Only Finite Pairs Admitted by the Selected Scales", async () => {
+  const { host, root } = mountPlot();
+  for (const scale of ["linear", "log"] as const) {
+    const plot = documentPlotSpec({
+      plot: { ...descriptor, x_scale: scale, y_scale: scale },
+      payload: {
+        ...payload,
+        cartesian: {
+          mode: "faceted",
+          series: [{ x: [-1, 0, 1, 2, 3, Number.NaN], y: [2, 1, -1, 1, null, 1] }],
+          point_count: 91,
+          signature: scale,
+        },
+      },
+    });
+    await act(async () => root.render(createElement(XyPlot, { plot })));
+    const count = host.querySelector(".plot-card .text-xs")?.textContent?.trim().split(" ")[0];
+    assert.equal(Number(count), scale === "linear" ? 4 : 1);
+  }
+});

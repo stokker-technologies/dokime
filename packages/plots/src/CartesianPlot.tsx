@@ -280,7 +280,10 @@ export const CartesianPlot = memo(function CartesianPlot({
   const [laidOut, setLaidOut] = useState(false);
   const renderedSeries = useMemo(() => limitRenderedSeries(series, cartesian), [series, cartesian]);
   const backendCartesian = useMemo(() => usableCartesianFrame(cartesian, renderedSeries, series), [cartesian, renderedSeries, series]);
-  const chartFrame = useMemo(() => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null), [backendCartesian]);
+  const chartFrame = useMemo(
+    () => (backendCartesian ? chartFrameFromCartesian(backendCartesian, xScale, yScale) : null),
+    [backendCartesian, xScale, yScale],
+  );
   const seriesKey = useMemo(
     () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}:${item.downsampled ? 1 : 0}`).join("|"),
     [renderedSeries, series],
@@ -1096,14 +1099,26 @@ export function usableCartesianFrame(
   };
 }
 
-function chartFrameFromCartesian(cartesian: PlotCartesianFrame): ChartFrame {
+function chartFrameFromCartesian(cartesian: PlotCartesianFrame, xScale: DocumentAxisScale, yScale: DocumentAxisScale): ChartFrame {
+  let pointCount = 0;
+  for (const series of cartesian.series) {
+    for (let index = 0; index < series.x.length; index += 1) {
+      const x = series.x[index];
+      const y = series.y[index];
+      const finitePair = Number.isFinite(x) && isNumber(y);
+      const withinScales = (xScale !== "log" || x > 0) && (yScale !== "log" || (y !== null && y > 0));
+      if (finitePair && withinScales) {
+        pointCount += 1;
+      }
+    }
+  }
   return {
     data:
       cartesian.mode === "faceted"
         ? ([null, ...cartesian.series.map((series) => [series.x, series.y])] as unknown as uPlot.AlignedData)
         : ([cartesian.series[0]?.x ?? [], ...cartesian.series.map((series) => series.y)] as uPlot.AlignedData),
     mode: cartesian.mode,
-    pointCount: cartesian.point_count,
+    pointCount,
     signature: cartesian.signature,
   };
 }
