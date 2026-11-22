@@ -4,21 +4,33 @@
 
 import type { SettingDeclaration, SettingValue } from "@host/model";
 import type { RuntimePluginSettings, SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import * as rpc from "@/lib/host/client";
+import { pluginsSecretsList, pluginsSettingsList, pluginsSettingsSet, settingsSchema } from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { required, type Wire } from "@dokime/plots/lib/rpc/canonical";
 import { failureOf } from "@dokime/plots/lib/notification-details";
 
+/* === Constants === */
+
+const durationUnits: Record<string, bigint> = {
+  d: 86_400_000_000_000n,
+  h: 3_600_000_000_000n,
+  min: 60_000_000_000n,
+  s: 1_000_000_000n,
+  ms: 1_000_000n,
+  us: 1_000n,
+  ns: 1n,
+};
+
 /* === Public Functions === */
 
 export async function fetchNativeSettingsFrame(session: SessionIdentity) {
-  const response = await rpc.settingsSchema(session, {});
+  const response = await settingsSchema(session, {});
   return required(response.schema, "Get Settings Schema");
 }
 
 export function mapNativeRuntimePluginSettings(
-  settings: Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>,
-  requirements: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
+  settings: Wire<Awaited<ReturnType<typeof pluginsSettingsList>>>,
+  requirements: Wire<Awaited<ReturnType<typeof pluginsSecretsList>>>,
 ): RuntimePluginSettings {
   return {
     settings: {
@@ -27,7 +39,13 @@ export function mapNativeRuntimePluginSettings(
         ...requirements.secrets.map((requirement) => {
           const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
           const metadata = required(declaration.metadata, "List Plugin Secret Metadata");
-          return { kind: "secret" as const, id: metadata.identifier, title: metadata.label, description: metadata.description, required: declaration.required };
+          return {
+            kind: "secret" as const,
+            id: metadata.identifier,
+            title: metadata.label,
+            description: metadata.description,
+            required: declaration.required,
+          };
         }),
       ],
     },
@@ -42,8 +60,8 @@ export function mapNativeRuntimePluginSettings(
 
 export async function getNativePluginSettings(session: SessionIdentity, pluginId: string) {
   const [settings, requirements] = await Promise.all([
-    rpc.pluginsSettingsList(session, { name: pluginId }),
-    rpc.pluginsSecretsList(session, { name: pluginId }),
+    pluginsSettingsList(session, { name: pluginId }),
+    pluginsSecretsList(session, { name: pluginId }),
   ]);
   return mapNativeRuntimePluginSettings(settings, requirements);
 }
@@ -52,7 +70,7 @@ export async function getNativePluginSettings(session: SessionIdentity, pluginId
 export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {
   try {
     requireCurrentSession(session);
-    const current = await rpc.pluginsSettingsList(session, { name: pluginId });
+    const current = await pluginsSettingsList(session, { name: pluginId });
     requireCurrentSession(session);
     const entries = current.declarations.map((declaration) => {
       const value = Object.hasOwn(values, declaration.name)
@@ -60,7 +78,7 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
         : readPluginSetting(current.value?.values[declaration.name] ?? required(declaration.default, "Read Plugin Setting Default"));
       return [declaration.name, parsePluginSetting(declaration, value)] as const;
     });
-    await rpc.pluginsSettingsSet(session, {
+    await pluginsSettingsSet(session, {
       name: pluginId,
       expectedRevision: current.revision,
       requestId: crypto.randomUUID(),
@@ -86,7 +104,9 @@ export function readPluginSetting(setting: Wire<SettingValue>): boolean | number
     case "duration": {
       const nanoseconds = value.value.seconds * 1_000_000_000n + BigInt(value.value.nanos);
       const absolute = nanoseconds < 0n ? -nanoseconds : nanoseconds;
-      const fraction = String(absolute % 1_000_000_000n).padStart(9, "0").replace(/0+$/, "");
+      const fraction = String(absolute % 1_000_000_000n)
+        .padStart(9, "0")
+        .replace(/0+$/, "");
       return `${nanoseconds < 0n ? "-" : ""}${absolute / 1_000_000_000n}${fraction ? `.${fraction}` : ""}`;
     }
     default:
@@ -94,19 +114,46 @@ export function readPluginSetting(setting: Wire<SettingValue>): boolean | number
   }
 }
 
+export function formatPluginSetting(setting: Wire<SettingValue>): string {
+  if (setting.value.case !== "duration") {
+    return String(readPluginSetting(setting));
+  }
+  const { seconds, nanos } = setting.value.value;
+  const nanoseconds = seconds * 1_000_000_000n + BigInt(nanos);
+  if (nanoseconds === 0n) {
+    return "0 s";
+  }
+  for (const [unit, scale] of Object.entries(durationUnits)) {
+    if (nanoseconds % scale === 0n) {
+      return `${nanoseconds / scale} ${unit}`;
+    }
+    if (unit === "s" && (nanoseconds >= scale || nanoseconds <= -scale)) {
+      return `${readPluginSetting(setting)} s`;
+    }
+  }
+  return `${nanoseconds} ns`;
+}
+
 /** Parse and Validate With the Same Declaration Used to Render the Field. */
 export function parsePluginSetting(declaration: Wire<SettingDeclaration>, value: unknown): Wire<SettingValue> {
   const kind = required(declaration.default, "Read Plugin Setting Default").value.case;
   const parsed = writeSetting(kind, value);
-  for (const [bound, direction] of [[declaration.minimum, "minimum"], [declaration.maximum, "maximum"]] as const) {
-    if (!bound) continue;
+  for (const [bound, direction] of [
+    [declaration.minimum, "minimum"],
+    [declaration.maximum, "maximum"],
+  ] as const) {
+    if (!bound) {
+      continue;
+    }
     const current = comparableSetting(parsed);
     const limit = comparableSetting(bound);
     if (bound.value.case !== kind || current === undefined || limit === undefined) {
       throw new Error("Validate Plugin Setting: Reload the Plugin to Obtain Valid Bounds");
     }
     if (direction === "minimum" ? current < limit : current > limit) {
-      throw new Error(`Enter ${declaration.title || declaration.name} ${direction === "minimum" ? "at least" : "at most"} ${readPluginSetting(bound)}${kind === "duration" ? " s" : ""}.`);
+      throw new Error(
+        `Enter ${declaration.title || declaration.name} ${direction === "minimum" ? "at least" : "at most"} ${readPluginSetting(bound)}${kind === "duration" ? " s" : ""}.`,
+      );
     }
   }
   return parsed;
@@ -115,7 +162,9 @@ export function parsePluginSetting(declaration: Wire<SettingDeclaration>, value:
 /* === Private Functions === */
 
 function requireCurrentSession(session: SessionIdentity) {
-  if (!session.isCurrent()) throw new Error("The Connection Changed. Reopen Plugin Settings on the Current Host Before Saving.");
+  if (!session.isCurrent()) {
+    throw new Error("The Connection Changed. Reopen Plugin Settings on the Current Host Before Saving.");
+  }
 }
 
 function comparableSetting(setting: Wire<SettingValue>) {
@@ -151,7 +200,9 @@ function writeSetting(kind: Wire<SettingValue>["value"]["case"], value: unknown)
       break;
     }
     case "integer": {
-      if (typeof value !== "string" || !/^-?\d+$/.test(value)) break;
+      if (typeof value !== "string" || !/^-?\d+$/.test(value)) {
+        break;
+      }
       const integer = BigInt(value);
       if (integer >= -(1n << 63n) && integer < 1n << 63n) {
         return { value: { case: "integer", value: integer } };
@@ -159,12 +210,22 @@ function writeSetting(kind: Wire<SettingValue>["value"]["case"], value: unknown)
       break;
     }
     case "duration": {
-      if (typeof value !== "string") break;
-      const match = /^(-?)(\d+)(?:\.(\d{1,9}))?$/.exec(value);
-      if (!match) break;
+      if (typeof value !== "string") {
+        break;
+      }
+      const match = /^(-?)(\d+)(?:\.(\d{1,9}))?\s*(ns|us|ms|s|min|h|d)?$/.exec(value.trim());
+      if (!match) {
+        break;
+      }
       const sign = match[1] ? -1n : 1n;
-      const seconds = sign * BigInt(match[2]);
-      const nanos = Number(sign * BigInt((match[3] ?? "").padEnd(9, "0")));
+      const decimal = BigInt(match[2]) * 1_000_000_000n + BigInt((match[3] ?? "").padEnd(9, "0"));
+      const scaled = decimal * durationUnits[match[4] ?? "s"];
+      if (scaled % 1_000_000_000n !== 0n) {
+        break;
+      }
+      const nanoseconds = sign * (scaled / 1_000_000_000n);
+      const seconds = nanoseconds / 1_000_000_000n;
+      const nanos = Number(nanoseconds % 1_000_000_000n);
       if (seconds >= -315_576_000_000n && seconds <= 315_576_000_000n) {
         return { value: { case: "duration", value: { seconds, nanos } } };
       }
@@ -173,5 +234,7 @@ function writeSetting(kind: Wire<SettingValue>["value"]["case"], value: unknown)
     default:
       break;
   }
-  throw new Error(`Enter a Valid ${kind === "duration" ? "Duration in Seconds" : kind === "integer" ? "64-Bit Integer" : kind || "Setting Value"}.`);
+  throw new Error(
+    `Enter a Valid ${kind === "duration" ? "Duration Such as 5 s or 30 min (ns, us, ms, s, min, h, d)" : kind === "integer" ? "64-Bit Integer" : kind || "Setting Value"}.`,
+  );
 }

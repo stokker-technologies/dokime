@@ -159,13 +159,16 @@ test("Advanced Reveals Additional Preference Fields", () => {
     "backend-telemetry.interval_ms",
     "backend-listener.certificate_names",
   ];
-  for (const id of visible) assert.ok(simple.includes(`id="${id}"`), id);
+  for (const id of visible) {
+    assert.ok(simple.includes(`id="${id}"`), id);
+  }
   for (const id of additional) {
     assert.ok(!simple.includes(`id="${id}"`), id);
     assert.ok(advanced.includes(`id="${id}"`), id);
   }
-  for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"])
+  for (const value of ["fixture", "3210", "1234", "5678", "42", "127.0.0.1:9876", "fixture.local, 127.0.0.1"]) {
     assert.ok(advanced.includes(`value="${value}"`), value);
+  }
 });
 
 test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
@@ -236,10 +239,11 @@ test("Autosave Debounces Edits For 100ms And Serializes Pending Revisions", asyn
     const writer = createDebouncedWriter<number>(
       async (value) => {
         writes.push(value);
-        if (value === 2)
+        if (value === 2) {
           await new Promise<void>((resolve) => {
             finish = resolve;
           });
+        }
       },
       () => {},
     );
@@ -270,7 +274,9 @@ test("Autosave Blocks After Failure and Can Cancel Invalid Edits or Flush on Nav
     let retained: unknown;
     const writer = createDebouncedWriter(write, (state) => {
       states.push(state.kind);
-      if (state.kind === "error") retained = state.failure;
+      if (state.kind === "error") {
+        retained = state.failure;
+      }
     });
     writer.change(1);
     writer.cancel();
@@ -396,7 +402,9 @@ test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", asy
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
         input.dispatchEvent(new Event("input", { bubbles: true }));
       });
-      if (value === "2") await act(async () => vi.advanceTimersByTimeAsync(100));
+      if (value === "2") {
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+      }
       if (value === "25") {
         const complete = finish;
         assert.ok(complete, "the earlier draft is saving");
@@ -443,7 +451,19 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
   );
   const props: ComponentProps<typeof InstalledPluginSettingsForm> = {
     schema: {
-      contributions: [{ kind: "number", id: "budget", title: "Budget", description: "", default: 1000, min: 1000, max: 10000, step: 1 }],
+      contributions: [
+        {
+          kind: "setting",
+          declaration: {
+            name: "budget",
+            title: "Budget",
+            description: "",
+            default: { value: { case: "number", value: 1000 } },
+            minimum: { value: { case: "number", value: 1000 } },
+            maximum: { value: { case: "number", value: 10000 } },
+          },
+        },
+      ],
     },
     values: { budget: 1000 },
     onSubmit: save,
@@ -459,7 +479,9 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
     });
     assert.equal(input.value, value);
     assert.equal(document.activeElement, input);
-    if (value === "250") await act(async () => vi.advanceTimersByTimeAsync(100));
+    if (value === "250") {
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+    }
     assert.equal(save.mock.calls.length, 0);
   }
   await act(async () => vi.advanceTimersByTimeAsync(100));

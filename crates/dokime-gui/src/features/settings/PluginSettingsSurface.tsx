@@ -112,8 +112,11 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 <Button
                   disabled={reload.isPending || !reloadable}
                   onClick={() => {
-                    if (owning) reload.mutate(owning.name);
-                    else if (pluginId) reload.mutate(pluginId);
+                    if (owning) {
+                      reload.mutate(owning.name);
+                    } else if (pluginId) {
+                      reload.mutate(pluginId);
+                    }
                   }}
                   variant="outline"
                 >

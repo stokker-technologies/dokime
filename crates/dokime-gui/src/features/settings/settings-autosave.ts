@@ -48,22 +48,26 @@ export function useAutosave<T>(
   const saveRef = useRef(save);
   saveRef.current = save;
   const writer = useRef<ReturnType<typeof createDebouncedWriter<T>> | null>(null);
-  if (!writer.current)
+  if (!writer.current) {
     writer.current = createDebouncedWriter(
       async (value) => {
         await saveRef.current(value);
       },
       (next) => setState(next.kind === "error" ? { ...next, message: message(next.failure ?? new Error(next.message)) } : next),
     );
+  }
   useEffect(() => () => writer.current?.flush(), []);
   const change = useCallback((value: T) => {
     last.current = { value };
+    writer.current?.reset();
     writer.current?.change(value);
   }, []);
 
   /* "Saved" states what just happened, then stops taking up the row. */
   useEffect(() => {
-    if (state.kind !== "saved") return undefined;
+    if (state.kind !== "saved") {
+      return undefined;
+    }
     const clear = setTimeout(() => setState({ kind: "idle" }), SAVED_MS);
     return () => clearTimeout(clear);
   }, [state]);
@@ -93,27 +97,32 @@ export function createDebouncedWriter<T>(write: (value: T) => Promise<void>, cha
   let failed = false;
 
   async function drain() {
-    if (writing || !pending || !ready || failed) return;
+    if (writing || !pending || !ready || failed) {
+      return;
+    }
     const current = pending;
     pending = undefined;
     writing = true;
     try {
       await write(current.value);
-      if (!pending) changed({ kind: "saved" });
+      if (!pending) {
+        changed({ kind: "saved" });
+      }
     } catch (error) {
       pending ??= current;
       failed = true;
       changed({ kind: "error", message: failureOf(error, "Operation Failed").message, failure: error });
     } finally {
       writing = false;
-      if (pending && ready && !failed) void drain();
+      if (pending && ready && !failed) {
+        void drain();
+      }
     }
   }
 
   return {
     change(value: T) {
       clearTimeout(timer);
-      failed = false;
       pending = { value };
       ready = false;
       changed({ kind: "saving" });

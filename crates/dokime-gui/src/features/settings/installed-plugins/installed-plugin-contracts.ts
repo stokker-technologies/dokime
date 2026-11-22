@@ -44,9 +44,7 @@ export type RuntimeInstalledPluginRecord = {
   error: string | null;
 };
 
-export type SettingsEntry =
-  | { kind: "setting"; declaration: Wire<SettingDeclaration> }
-  | ({ kind: "secret" } & SecretSetting);
+export type SettingsEntry = { kind: "setting"; declaration: Wire<SettingDeclaration> } | ({ kind: "secret" } & SecretSetting);
 
 export type Settings = { contributions?: SettingsEntry[] };
 

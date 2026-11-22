@@ -69,7 +69,9 @@ function managedPlugin(name: string) {
 function emit(...messages: InstallPluginProgress[]): void {
   const channel = fixture.channels.at(-1);
   assert.ok(channel, "the installation invoke carries a progress channel");
-  for (const message of messages) channel.onmessage(message);
+  for (const message of messages) {
+    channel.onmessage(message);
+  }
 }
 
 /* === Entry Point === */
@@ -228,16 +230,50 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
   vi.useFakeTimers();
   const declarations = [
     create(SettingDeclarationSchema, { name: "enabled", title: "Enabled", default: { value: { case: "flag", value: false } } }),
-    create(SettingDeclarationSchema, { name: "count", title: "Count", default: { value: { case: "integer", value: 2n } }, minimum: { value: { case: "integer", value: 1n } }, maximum: { value: { case: "integer", value: 9223372036854775807n } } }),
-    create(SettingDeclarationSchema, { name: "gain", title: "Gain", default: { value: { case: "number", value: 1.5 } }, minimum: { value: { case: "number", value: 0.5 } }, maximum: { value: { case: "number", value: 10 } } }),
+    create(SettingDeclarationSchema, {
+      name: "count",
+      title: "Count",
+      default: { value: { case: "integer", value: 2n } },
+      minimum: { value: { case: "integer", value: 1n } },
+      maximum: { value: { case: "integer", value: 9223372036854775807n } },
+    }),
+    create(SettingDeclarationSchema, {
+      name: "gain",
+      title: "Gain",
+      default: { value: { case: "number", value: 1.5 } },
+      minimum: { value: { case: "number", value: 0.5 } },
+      maximum: { value: { case: "number", value: 10 } },
+    }),
     create(SettingDeclarationSchema, { name: "address", title: "Address", default: { value: { case: "text", value: "initial" } } }),
-    create(SettingDeclarationSchema, { name: "timeout", title: "Timeout", default: { value: { case: "duration", value: { seconds: 5n } } }, minimum: { value: { case: "duration", value: { seconds: 1n } } }, maximum: { value: { case: "duration", value: { seconds: 1800n } } } }),
+    create(SettingDeclarationSchema, {
+      name: "timeout",
+      title: "Timeout",
+      default: { value: { case: "duration", value: { seconds: 5n } } },
+      minimum: { value: { case: "duration", value: { seconds: 1n } } },
+      maximum: { value: { case: "duration", value: { seconds: 1800n } } },
+    }),
   ];
   let revision = 1;
-  let stored = Object.fromEntries(declarations.map((declaration) => [declaration.name, declaration.default!]));
-  fixture.settingsList.mockImplementation(async () => ({ declarations, revision: new Uint8Array([revision]), value: { values: stored } }));
+  let stored = Object.fromEntries(
+    declarations.map((declaration) => {
+      assert.ok(declaration.default);
+      return [declaration.name, declaration.default] as const;
+    }),
+  );
+  let releaseFirstWrite: () => void = () => undefined;
+  const firstWrite = new Promise<void>((resolve) => {
+    releaseFirstWrite = resolve;
+  });
+  fixture.settingsList.mockImplementation(async () => ({
+    declarations,
+    revision: new Uint8Array([revision]),
+    value: { values: revision === 1 ? {} : stored },
+  }));
   fixture.secretsList.mockResolvedValue({ secrets: [] });
   fixture.settingsSet.mockImplementation(async (identity, request) => {
+    if (fixture.settingsSet.mock.calls.length === 1) {
+      await firstWrite;
+    }
     assert.equal(identity, session);
     assert.deepEqual(request.expectedRevision, new Uint8Array([revision]));
     assert.ok(request.requestId);
@@ -256,25 +292,32 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
   const root = createRoot(host);
   const saved: SettingValues[] = [];
   onTestFinished(async () => {
+    releaseFirstWrite();
     await act(async () => root.unmount());
     host.remove();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
-  await act(async () => root.render(createElement(InstalledPluginSettingsForm, {
-    schema: initial.settings,
-    values: initial.values,
-    onSubmit: async (values) => {
-      const result = await updateNativePluginSettings(session, "example", values);
-      saved.push(result.values);
-    },
-  })));
+  await act(async () =>
+    root.render(
+      createElement(InstalledPluginSettingsForm, {
+        schema: initial.settings,
+        values: initial.values,
+        onSubmit: async (values) => {
+          const result = await updateNativePluginSettings(session, "example", values);
+          saved.push(result.values);
+        },
+      }),
+    ),
+  );
   const edit = async (title: string, value: string) => {
-    const label = [...host.querySelectorAll("label")].find((element) => element.textContent === title);
+    const label = [...host.querySelectorAll("label")].find(
+      (element) => element.textContent === title || element.textContent === `${title} [s]`,
+    );
     assert.ok(label);
     const control = host.querySelector(`#${CSS.escape(label.htmlFor)}`);
-    assert.ok(control instanceof HTMLTextAreaElement || control instanceof HTMLInputElement);
-    const prototype = control instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    assert.ok(control instanceof HTMLInputElement);
+    const prototype = HTMLInputElement.prototype;
     await act(async () => {
       Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(control, value);
       control.dispatchEvent(new Event("input", { bubbles: true }));
@@ -293,9 +336,18 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
   await edit("Count", "9007199254740993");
   await edit("Gain", "2.75");
   await edit("Address", "changed");
-  await edit("Timeout", "1800");
+  await edit("Timeout", "30 min");
   await act(async () => vi.runOnlyPendingTimersAsync());
+  assert.equal(fixture.settingsSet.mock.calls.length, 1);
+  await act(async () => releaseFirstWrite());
   assert.equal(saved.length, 5);
+  assert.equal(host.querySelectorAll("textarea").length, 0);
+  assert.equal(host.querySelectorAll('input[type="number"]').length, 2);
+  const durationLabel = [...host.querySelectorAll("label")].find((label) => label.textContent === "Timeout [s]");
+  assert.ok(durationLabel);
+  const durationInput = host.querySelector(`#${CSS.escape(durationLabel.htmlFor)}`);
+  assert.ok(durationInput instanceof HTMLInputElement);
+  assert.equal(durationInput.value, "30 min");
   assert.deepEqual(saved.at(-1), { enabled: true, count: "9007199254740993", gain: 2.75, address: "changed", timeout: "1800" });
   assert.equal(stored.count.value.case, "integer");
   assert.deepEqual(stored.count.value, { case: "integer", value: 9007199254740993n });
@@ -316,10 +368,17 @@ test("Every Setting Kind Saves Through the Form and Reads Back Without Losing Ot
 
 test("Bounds and Typed Values Are Validated Before Set and Stale Generations Never Write", async () => {
   const declaration = create(SettingDeclarationSchema, {
-    name: "count", title: "Count", default: { value: { case: "integer", value: 2n } },
-    minimum: { value: { case: "integer", value: 1n } }, maximum: { value: { case: "integer", value: 3n } },
+    name: "count",
+    title: "Count",
+    default: { value: { case: "integer", value: 2n } },
+    minimum: { value: { case: "integer", value: 1n } },
+    maximum: { value: { case: "integer", value: 3n } },
   });
-  fixture.settingsList.mockResolvedValue({ declarations: [declaration], revision: new Uint8Array([1]), value: { values: { count: declaration.default } } });
+  fixture.settingsList.mockResolvedValue({
+    declarations: [declaration],
+    revision: new Uint8Array([1]),
+    value: { values: { count: declaration.default } },
+  });
   for (const value of ["0", "4", "1.5", "9223372036854775808"]) {
     await assert.rejects(updateNativePluginSettings(session, "example", { count: value }));
   }
@@ -332,7 +391,11 @@ test("Bounds and Typed Values Are Validated Before Set and Stale Generations Nev
   await assert.rejects(updateNativePluginSettings({ generation: session.generation, isCurrent: () => current }, "example", { count: "2" }));
   assert.equal(fixture.settingsSet.mock.calls.length, 0);
   current = true;
-  fixture.settingsList.mockResolvedValue({ declarations: [declaration], revision: new Uint8Array([1]), value: { values: { count: declaration.default } } });
+  fixture.settingsList.mockResolvedValue({
+    declarations: [declaration],
+    revision: new Uint8Array([1]),
+    value: { values: { count: declaration.default } },
+  });
   const refusal = { code: "revision_conflict", message: "fixture_conflict", action: "fixture_reload" };
   fixture.settingsSet.mockRejectedValueOnce(refusal);
   await assert.rejects(updateNativePluginSettings(session, "example", { count: "2" }), (error: unknown) => {

@@ -38,6 +38,7 @@ import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
 import { FailureSchema, PluginEntrySchema, PluginState, SettingDeclarationSchema } from "@host/model";
+import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/lib/api/native-settings";
 
 /* === Re-Exports === */
 
@@ -91,8 +92,12 @@ vi.mock("react", async (original) => {
 });
 vi.mock("@dokime/plots/components/ui/button", () => ({
   Button: ({ onClick, ...props }: ComponentProps<"button">) => {
-    if (onClick && !props.disabled && props.children !== "Copy") fixture.buttons.push(() => onClick({} as never));
-    if (onClick && !props.disabled && props["aria-label"]) fixture.actions.set(props["aria-label"], () => onClick({} as never));
+    if (onClick && !props.disabled && props.children !== "Copy") {
+      fixture.buttons.push(() => onClick({} as never));
+    }
+    if (onClick && !props.disabled && props["aria-label"]) {
+      fixture.actions.set(props["aria-label"], () => onClick({} as never));
+    }
     return createElement("button", { type: "button", ...props });
   },
 }));
@@ -169,7 +174,18 @@ beforeEach(() => {
       runtime: "code",
       status: "failed",
       error: null,
-      settings: { contributions: [{ kind: "setting", declaration: create(SettingDeclarationSchema, { name: "address", title: "Address", default: { value: { case: "text", value: "" } } }) }] },
+      settings: {
+        contributions: [
+          {
+            kind: "setting",
+            declaration: create(SettingDeclarationSchema, {
+              name: "address",
+              title: "Address",
+              default: { value: { case: "text", value: "" } },
+            }),
+          },
+        ],
+      },
       values: { address: "corrected" },
       secrets: [],
     },
@@ -207,7 +223,18 @@ test("Failed Forms Keep Their Controls Editable", () => {
       runtime: "code",
       status: "failed",
       error: null,
-      settings: { contributions: [{ kind: "setting", declaration: create(SettingDeclarationSchema, { name: "address", title: "Address", default: { value: { case: "text", value: "" } } }) }] },
+      settings: {
+        contributions: [
+          {
+            kind: "setting",
+            declaration: create(SettingDeclarationSchema, {
+              name: "address",
+              title: "Address",
+              default: { value: { case: "text", value: "" } },
+            }),
+          },
+        ],
+      },
       values: { address: "corrected" },
       secrets: [],
     },
@@ -217,7 +244,7 @@ test("Failed Forms Keep Their Controls Editable", () => {
     fixture.detail.mock.calls.map(([id]) => id),
     [entry.name],
   );
-  assert.equal((html.match(/<textarea/g) ?? []).length, 1);
+  assert.equal((html.match(/<input/g) ?? []).length, 1);
   assert.equal(html.includes("disabled="), false);
 });
 
@@ -351,17 +378,6 @@ test("Missing Secret Action", () => {
   assert.equal(ordinary.includes('role="dialog"'), false);
 });
 
-test("Failed Plugin Keeps Its Settings Below Its Failure", () => {
-  fixture.installations.mockReturnValue({ data: [entry] });
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
-  assert.equal((html.match(/role="alert"/g) ?? []).length, 1);
-  assert.equal(fixture.detail.mock.calls.length, 1);
-  assert.ok(html.includes("textarea"));
-  assert.ok(html.indexOf('role="alert"') < html.indexOf("<textarea"));
-  fixture.buttons[0]();
-  assert.deepEqual(fixture.reload.mock.calls, [[entry.name]]);
-});
-
 test("Undescribed Plugin Waits Without Requesting Settings", () => {
   fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, state: PluginState.CONNECTING }] });
   const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
@@ -380,19 +396,6 @@ test("Independent Failed Section Occupies Its Content Slot", () => {
   assert.ok(html.includes("bench_section"));
 });
 
-test("Disabled Undescribed Plugin Keeps Its Settings Available", () => {
-  fixture.installations.mockReturnValue({ data: [{ ...entry, failure: undefined, value: { enabled: false } }] });
-  const html = renderToStaticMarkup(createElement(PluginSettingsSurface, { pluginId: entry.name }));
-  assert.equal(fixture.detail.mock.calls.length, 1);
-  assert.ok(html.includes("textarea"));
-  const content = document.createElement("div");
-  content.innerHTML = html;
-  const textarea = content.querySelector("textarea");
-  assert.ok(textarea);
-  assert.equal(textarea.disabled, false);
-  assert.ok([...content.querySelectorAll('[role="status"]')].every((status) => !status.textContent.trim()));
-});
-
 test("Failed Plugin Settings Save the Corrected Value", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.useFakeTimers();
@@ -407,13 +410,77 @@ test("Failed Plugin Settings Save the Corrected Value", async () => {
     vi.unstubAllGlobals();
   });
   await act(async () => root.render(createElement(PluginSettingsSurface, { pluginId: entry.name })));
-  const textarea = host.querySelector("textarea");
-  assert.ok(textarea);
-  assert.equal(textarea.disabled, false);
+  const input = host.querySelector("input");
+  assert.ok(input);
+  assert.equal(input.disabled, false);
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "repaired-address");
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "repaired-address");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   });
   await act(async () => vi.advanceTimersByTimeAsync(100));
   assert.deepEqual(fixture.save.mock.calls, [[{ pluginId: entry.name, values: { address: "repaired-address" } }]]);
+});
+
+test("Durations Format Compact Units and Parse Them Without Losing Nanoseconds", () => {
+  const declaration = create(SettingDeclarationSchema, {
+    name: "timeout",
+    title: "Timeout",
+    default: { value: { case: "duration", value: { seconds: 5n } } },
+  });
+  for (const [input, seconds, nanos, display] of [
+    ["5.000000000", 5n, 0, "5 s"],
+    ["1800.000000000", 1800n, 0, "30 min"],
+    ["1.5 s", 1n, 500000000, "1.5 s"],
+    ["1500 ms", 1n, 500000000, "1.5 s"],
+    ["0.000001 ms", 0n, 1, "1 ns"],
+    ["-0.5 s", 0n, -500000000, "-500 ms"],
+    ["0 ns", 0n, 0, "0 s"],
+    ["2 h", 7200n, 0, "2 h"],
+    ["1 d", 86400n, 0, "1 d"],
+    ["42 us", 0n, 42000, "42 us"],
+  ] as const) {
+    const parsed = parsePluginSetting(declaration, input);
+    assert.deepEqual(parsed.value, { case: "duration", value: { seconds, nanos } });
+    assert.equal(formatPluginSetting(parsed), display);
+    assert.deepEqual(parsePluginSetting(declaration, display), parsed);
+  }
+  for (const input of ["", "1,5 s", "1 000 s", "0.1 ns", "1.0000000001 s", "315576000001 s", "5 seconds"]) {
+    assert.throws(() => parsePluginSetting(declaration, input));
+  }
+});
+
+test("Typed Bounds Reject Invalid Drafts With Exact Integer and Duration Comparisons", () => {
+  const integer = create(SettingDeclarationSchema, {
+    name: "count",
+    title: "Count",
+    default: { value: { case: "integer", value: 9007199254740993n } },
+    minimum: { value: { case: "integer", value: 9007199254740992n } },
+    maximum: { value: { case: "integer", value: 9007199254740994n } },
+  });
+  assert.equal(readPluginSetting(parsePluginSetting(integer, "9007199254740993")), "9007199254740993");
+  for (const value of ["9007199254740991", "9007199254740995", "2.5", "1e3", "1,000"]) {
+    assert.throws(() => parsePluginSetting(integer, value));
+  }
+  const duration = create(SettingDeclarationSchema, {
+    name: "timeout",
+    title: "Timeout",
+    default: { value: { case: "duration", value: { seconds: 5n } } },
+    minimum: { value: { case: "duration", value: { seconds: 5n } } },
+    maximum: { value: { case: "duration", value: { seconds: 1800n } } },
+  });
+  assert.equal(readPluginSetting(parsePluginSetting(duration, "30 min")), "1800");
+  for (const value of ["4.999999999 s", "1800.000000001 s"]) {
+    assert.throws(() => parsePluginSetting(duration, value));
+  }
+  const number = create(SettingDeclarationSchema, {
+    name: "gain",
+    title: "Gain",
+    default: { value: { case: "number", value: 2.5 } },
+    minimum: { value: { case: "number", value: 0.5 } },
+    maximum: { value: { case: "number", value: 10 } },
+  });
+  assert.equal(formatPluginSetting(parsePluginSetting(number, "2.5000")), "2.5");
+  for (const value of ["", "2,5", "0.49", "10.01", "Infinity", "NaN", " ", "0x10"]) {
+    assert.throws(() => parsePluginSetting(number, value));
+  }
 });

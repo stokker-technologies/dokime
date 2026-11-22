@@ -693,7 +693,9 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
   assert.equal(projected.values.power, true);
   const contribution = projected.settings.contributions?.[0];
   assert.equal(contribution?.kind, "setting");
-  if (contribution?.kind === "setting") assert.equal(contribution.declaration.default?.value.case, "flag");
+  if (contribution?.kind === "setting") {
+    assert.equal(contribution.declaration.default?.value.case, "flag");
+  }
   await updateNativePluginSettings(session, "entry", { power: false });
 });
 
