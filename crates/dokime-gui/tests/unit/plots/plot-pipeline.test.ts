@@ -22,6 +22,7 @@ import { create } from "@bufbuild/protobuf";
 
 // Local Imports
 import { DataExpressionSchema, PlotKind, SnapshotsWatchResponseSchema } from "@host/model";
+import { documentPlot } from "@dokime/document/lib/document-presentation";
 import { Downsample, PlotStreamKind } from "@host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
@@ -203,4 +204,27 @@ test("Document XY Requests Preserve the Declared Display Budget and Technique", 
     assert.equal(native.technique, expected);
     assert.equal(native.xKey, "elapsed_s");
   }
+});
+
+test("Projected Record-Only Plots Request No Stream", () => {
+  const interval = create(DataExpressionSchema, {
+    kind: {
+      case: "transform",
+      value: {
+        input: { kind: { case: "record", value: { identifier: "connected", field: "" } } },
+        kind: { case: "timeBetween", value: "disconnected" },
+      },
+    },
+  });
+  const projected = documentPlot({
+    plot_id: "time.reconnect",
+    title: "Time",
+    plot_type: "histogram",
+    x_expression: interval,
+    available_streams: ["telemetry"],
+  });
+  assert.equal(projected.stream, "");
+  assert.equal(plotRequestForDocumentPlot(projected, { scope: null, panelWidth: 640 }).stream, "");
+  const sampled = create(DataExpressionSchema, { kind: { case: "stream", value: { identifier: "telemetry", field: "value" } } });
+  assert.equal(documentPlot({ plot_id: "series", plot_type: "time_series", y_expressions: [sampled] }).stream, "telemetry");
 });

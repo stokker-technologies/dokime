@@ -138,14 +138,13 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
   const yExpressions = input.y_expressions ?? [];
   const seriesByExpression = input.series_by_expression ?? null;
   const bins = input.histogram?.bins;
+  const expressions = [xExpression, ...yExpressions, seriesByExpression].filter((expression) => expression != null);
+  // A Plot Bound by Expressions Reads Only Their Streams; Record-Only Plots Name No Stream.
   const stream =
     nonEmptyString(input.stream) ??
-    expressionStream(xExpression) ??
-    yExpressions.map(expressionStream).find(Boolean) ??
-    expressionStream(seriesByExpression) ??
-    available_streams?.map(nonEmptyString).find(Boolean) ??
-    nonEmptyString(input.z_stream) ??
-    input.plot_id;
+    expressions.map(expressionStream).find(Boolean) ??
+    (expressions.length === 0 ? (available_streams?.map(nonEmptyString).find(Boolean) ?? nonEmptyString(input.z_stream)) : null) ??
+    "";
   const fields = input.y?.length ? input.y : yExpressions.map(expressionField).filter((field): field is string => field !== null);
 
   return {
