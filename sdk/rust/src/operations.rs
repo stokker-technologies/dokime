@@ -14,6 +14,7 @@
 /* === Re-Exports === */
 
 pub use crate::operation::Operation;
+pub use crate::resource::Resource;
 pub use ::harmos::plugin::StateHandle;
 
 /* === Imports === */
@@ -22,13 +23,13 @@ pub use ::harmos::plugin::StateHandle;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 // Third Party Imports
-use ::harmos::{OperationCall, plugin};
+use ::harmos::{OperationInput, plugin};
 use prost_types::Timestamp;
 
 // Local Imports
 use crate::context::{self, Executions};
 use crate::templates::Environment;
-use crate::{Message, Result};
+use crate::{Message, Payload, Record, Result};
 
 /* === Constants === */
 
@@ -76,7 +77,7 @@ impl Context {
     pub fn stop_requested(&self) -> bool {
         self.inner.stop_requested()
     }
-    pub async fn operation<Q: OperationCall>(&self, request: Q) -> Result<Q::Response> {
+    pub async fn operation<Q: OperationInput>(&self, request: Q) -> Result<Q::Response> {
         self.inner.operation(request).await
     }
     pub async fn sleep(&self, duration: Duration) -> Result<()> {
@@ -90,6 +91,12 @@ impl Context {
     }
     pub async fn secret(&self, identifier: &str) -> Result<Vec<u8>> {
         self.inner.secret(identifier).await
+    }
+    pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<u64> {
+        self.inner.record(record, value).await
+    }
+    pub async fn resource<T: Resource>(&self) -> Result<Arc<T>> {
+        self.inner.resources.get::<T>(self).await
     }
     pub async fn settings<T: Message>(&self) -> Result<T> {
         self.inner.settings::<T>().await

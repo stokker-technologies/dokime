@@ -65,7 +65,7 @@ impl Uploads<'_> {
                     },
                 )
                 .await?),
-            Self::Template(context) => context.call_with(UploadsCreateRequest { metadata: Some(metadata), request_id }, None).await,
+            Self::Template(context) => context.operation_with(UploadsCreateRequest { metadata: Some(metadata), request_id }, None).await,
         }
     }
     async fn append(&self, upload: Upload, offset: u64, data: Vec<u8>, request_id: String) -> Result<UploadsAppendResponse> {
@@ -84,7 +84,7 @@ impl Uploads<'_> {
                 .await?),
             Self::Template(context) => {
                 context
-                    .call_with(
+                    .operation_with(
                         UploadsAppendRequest {
                             upload: Some(upload),
                             offset,
@@ -113,7 +113,7 @@ impl Uploads<'_> {
                 .await?),
             Self::Template(context) => {
                 context
-                    .call_with(
+                    .operation_with(
                         UploadsPublishRequest {
                             upload: Some(upload),
                             length,
@@ -141,7 +141,7 @@ impl Uploads<'_> {
                     .await?;
             }
             Self::Template(context) => {
-                context.call_with(UploadsDeleteRequest { upload: Some(upload), request_id }, None).await?;
+                context.operation_with(UploadsDeleteRequest { upload: Some(upload), request_id }, None).await?;
             }
         }
         Ok(())

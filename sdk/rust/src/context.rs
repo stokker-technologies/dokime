@@ -29,7 +29,7 @@ use std::{
 };
 
 // Third Party Imports
-use ::harmos::{OperationCall, plugin};
+use ::harmos::{OperationInput, plugin};
 use prost_reflect::ReflectMessage;
 use prost_types::Timestamp;
 
@@ -40,6 +40,7 @@ use crate::plugin::{
     CaptureMode, HostContentArtifactsCreateOptions, HostDocumentsAppendPartsOptions, HostEvidenceTraceabilityGetOptions,
     HostEvidenceTraceabilitySetOptions, HostExecutionsProgressSetOptions, HostPromptsCreateOptions, Prompt, Step,
 };
+use crate::resource;
 use crate::templates::{
     CaptureResult, DocumentAppendOptions, DocumentPart, Environment, LogAppendOptions, ProgressSetOptions, PromptAnswer,
     RecordAppendOptions, RecordRow, StatisticsReadOptions, StatisticsSnapshot, TraceabilitySetOptions,
@@ -72,6 +73,8 @@ type Resources = Mutex<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>;
 pub(crate) struct Executions {
     store: Arc<Mutex<HashMap<String, Arc<Execution>>>>,
     state: Arc<dyn Any + Send + Sync>,
+    pub(crate) resources: Arc<resource::Resources>,
+    pub(crate) records: Arc<HashMap<String, String>>,
     secrets: Arc<HashSet<String>>,
 }
 
@@ -82,6 +85,8 @@ pub struct Context {
     execution: Arc<Execution>,
     termination: Option<Termination>,
     state: Arc<dyn Any + Send + Sync>,
+    pub(crate) resources: Arc<resource::Resources>,
+    pub(crate) records: Arc<HashMap<String, String>>,
     secrets: Arc<HashSet<String>>,
 }
 
@@ -142,6 +147,8 @@ impl Executions {
         Self {
             store: Arc::new(Mutex::new(HashMap::new())),
             state,
+            resources: Arc::new(resource::Resources::default()),
+            records: Arc::new(HashMap::new()),
             secrets: Arc::new(secrets),
         }
     }
@@ -186,6 +193,8 @@ impl Context {
         }
         let state = executions.state.clone();
         let secrets = executions.secrets.clone();
+        let resources = executions.resources.clone();
+        let records = executions.records.clone();
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.entry(identifier.into()).or_insert_with(|| {
             Arc::new(Execution {
@@ -206,6 +215,8 @@ impl Context {
             execution: execution.clone(),
             termination: None,
             state,
+            resources,
+            records,
             secrets,
         })
     }
@@ -213,6 +224,8 @@ impl Context {
     pub(crate) fn invocation(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
         let state = executions.state.clone();
         let secrets = executions.secrets.clone();
+        let resources = executions.resources.clone();
+        let records = executions.records.clone();
         let executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.get(transport.scope().unwrap_or_default()).cloned().unwrap_or_else(|| {
             Arc::new(Execution {
@@ -226,6 +239,8 @@ impl Context {
             execution,
             termination: None,
             state,
+            resources,
+            records,
             secrets,
         })
     }
@@ -233,6 +248,8 @@ impl Context {
     pub(crate) fn publication(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
         let state = executions.state.clone();
         let secrets = executions.secrets.clone();
+        let resources = executions.resources.clone();
+        let records = executions.records.clone();
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         if transport.scope().is_err() {
             executions.entry(String::new()).or_insert_with(|| {
@@ -251,6 +268,8 @@ impl Context {
             execution: execution.clone(),
             termination: None,
             state,
+            resources,
+            records,
             secrets,
         })
     }
@@ -261,6 +280,8 @@ impl Context {
             execution,
             termination: None,
             state,
+            resources: Arc::new(resource::Resources::default()),
+            records: Arc::new(HashMap::new()),
             secrets: Arc::new(HashSet::new()),
         }
     }
@@ -342,7 +363,7 @@ impl Context {
         T::from_value(value).map_err(|error| Error::Invalid(format!("Parameter {identifier}: {error}")))
     }
 
-    pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
+    pub(crate) async fn operation_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
         match &self.transport {
             Transport::Harmos(transport) => Ok(transport.operation_with(Wire(request), policy).await?.0),
             Transport::Local(local) => {
@@ -351,7 +372,7 @@ impl Context {
             }
         }
     }
-    pub async fn operation<Q: OperationCall>(&self, request: Q) -> Result<Q::Response> {
+    pub async fn operation<Q: OperationInput>(&self, request: Q) -> Result<Q::Response> {
         match &self.transport {
             Transport::Harmos(transport) => Ok(transport.operation(request).await?),
             Transport::Local(_) => Err(Error::failure(
@@ -441,6 +462,9 @@ impl Context {
     }
 
     pub fn resolve(&self, local: &str) -> Result<String> {
+        if let Some(identity) = self.records.get(local) {
+            return Ok(identity.clone());
+        }
         let Some(origin::Kind::PluginRun(run)) = self.origin()?.kind.as_ref() else {
             return Err(Error::Invalid("Resolve Declaration: Call From a Template Operation".into()));
         };
@@ -490,7 +514,7 @@ impl Context {
     }
     pub async fn record_with<T: Payload>(&self, record: &Record<T>, value: T, options: RecordAppendOptions) -> Result<u64> {
         let kind = self.resolve(record.identifier())?;
-        self.call_with(
+        self.operation_with(
             RecordsAppendRequest {
                 execution: self.execution_id().into(),
                 kind,
@@ -523,7 +547,7 @@ impl Context {
     ) -> Result<StatisticsSnapshot> {
         let step = step.into();
         let response = self
-            .call_with(
+            .operation_with(
                 EvidenceStatisticsRequest {
                     stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
                         stream.as_ref().into()
@@ -566,7 +590,7 @@ impl Context {
         self.log_with(severity, message, LogAppendOptions::default()).await
     }
     pub async fn log_with(&self, severity: Severity, message: impl Into<String>, options: LogAppendOptions) -> Result<()> {
-        self.call_with(
+        self.operation_with(
             LogsAppendRequest {
                 execution: self.execution_id().into(),
                 severity: severity as i32,
@@ -712,7 +736,7 @@ impl<T: Payload> RecordsQuery<'_, T> {
     async fn read(&self, limit: u32) -> Result<RecordsListResponse> {
         let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
         self.context
-            .call_with(
+            .operation_with(
                 RecordsListRequest {
                     record_type: self.context.resolve(self.record.identifier())?,
                     step,
@@ -744,7 +768,7 @@ impl<T: Payload> RecordsQuery<'_, T> {
         loop {
             let page = self
                 .context
-                .call_with(
+                .operation_with(
                     RecordsListRequest {
                         record_type: self.context.resolve(self.record.identifier())?,
                         step: step.clone(),
@@ -881,7 +905,7 @@ mod tests {
             Arc::new(()),
         );
         let error = context.operation(crate::untyped("example.measure", serde_json::json!({"channel": 1}))).await.unwrap_err();
-        let Error::Harmos(::harmos::Error::Failure(failure)) = error else {
+        let Error::Failure(failure) = error else {
             panic!("Expected a Structured Refusal");
         };
         assert_eq!(failure.code, "testing_host_unsupported");
