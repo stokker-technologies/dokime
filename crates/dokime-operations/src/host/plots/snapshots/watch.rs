@@ -112,8 +112,11 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                             if context.host.shutting_down() {
                                 return;
                             }
-                            let progress = progress(&selection.requests, &observed, |execution| {
-                                context.host.store().metadata(execution).ok().map(|cut| (cut.state, cut.frontier))
+                            let progress = progress(&selection.requests, &observed, |execution, live| {
+                                let store = context.host.store();
+                                let cut = store.metadata(execution).ok()?;
+                                let frontier = if live { store.accepted_frontier(execution).ok()? } else { cut.frontier };
+                                Some((cut.state, frontier))
                             });
                             match progress {
                                 WatchProgress::Complete => return,
@@ -160,14 +163,15 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
 /* === Private Functions === */
 
 fn progress(
-    requests: &[PlotRequest], observed: &BTreeMap<String, u64>, mut metadata: impl FnMut(&str) -> Option<(ExecutionState, u64)>,
+    requests: &[PlotRequest], observed: &BTreeMap<String, u64>, mut metadata: impl FnMut(&str, bool) -> Option<(ExecutionState, u64)>,
 ) -> WatchProgress {
     let mut complete = true;
     for request in requests {
         let Some(execution) = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) else {
             return WatchProgress::Refresh;
         };
-        let Some((state, frontier)) = metadata(execution) else {
+        let live = request.window_s.is_some() && request.at.is_none();
+        let Some((state, frontier)) = metadata(execution, live) else {
             return WatchProgress::Refresh;
         };
         let through = request.at.as_ref().and_then(|at| at.positions.first()).map_or(frontier, |position| position.sequence);
@@ -201,14 +205,14 @@ mod tests {
             ..Default::default()
         });
         let mut observed = BTreeMap::from([("first".into(), 3), ("last".into(), 3)]);
-        assert_eq!(progress(&requests, &observed, |_| Some((ExecutionState::Open, 3))), WatchProgress::Waiting);
+        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Open, 3))), WatchProgress::Waiting);
 
         // Seal After Delivering a Pre-Seal Page, Then Drain Every Final Page.
-        assert_eq!(progress(&requests, &observed, |_| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
+        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
         observed.insert("first".into(), 5);
-        assert_eq!(progress(&requests, &observed, |_| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
+        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Refresh);
         observed.insert("last".into(), 5);
-        assert_eq!(progress(&requests, &observed, |_| Some((ExecutionState::Sealed, 5))), WatchProgress::Complete);
+        assert_eq!(progress(&requests, &observed, |_, _| Some((ExecutionState::Sealed, 5))), WatchProgress::Complete);
     }
 }
 

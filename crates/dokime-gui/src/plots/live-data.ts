@@ -110,7 +110,9 @@ export function useLivePlotPayloads({
       const last = groups.at(-1);
       if (!last || last.length === NATIVE_PLOT_MAX_REQUESTS || last[0].plot_type !== plot.plot_type) {
         groups.push([plot]);
-      } else last.push(plot);
+      } else {
+        last.push(plot);
+      }
     }
     return groups;
   }, [requestPlots]);
@@ -158,18 +160,24 @@ export function useLivePlotPayloads({
   const dataKeyRef = useRef<string | null>(null);
   const viewKeyRef = useRef<string | null>(null);
   const refreshFailuresRef = useRef(new Set<string>());
-  const groupsRef = useRef(new Map<string, () => void>());
+  const groupsRef = useRef(new Map<string, { dispose: () => void; reschedule: () => void }>());
   const pendingRef = useRef(new Set<string>());
   const renderActiveRef = useRef(renderActive);
 
+  const visibleRef = useRef(visible);
+
   useEffect(() => {
     renderActiveRef.current = renderActive;
-  }, [renderActive]);
+    visibleRef.current = visible;
+    for (const group of groupsRef.current.values()) {
+      group.reschedule();
+    }
+  }, [renderActive, visible]);
 
   useEffect(
     () => () => {
-      for (const dispose of groupsRef.current.values()) {
-        dispose();
+      for (const group of groupsRef.current.values()) {
+        group.dispose();
       }
       groupsRef.current.clear();
       pendingRef.current.clear();
@@ -200,8 +208,8 @@ export function useLivePlotPayloads({
 
     const testCycleId = requestScope?.cycleId;
     if (!enabled || !testCycleId || selectedPlots.length === 0 || !requestVisible) {
-      for (const dispose of groupsRef.current.values()) {
-        dispose();
+      for (const group of groupsRef.current.values()) {
+        group.dispose();
       }
       groupsRef.current.clear();
     }
@@ -253,15 +261,16 @@ export function useLivePlotPayloads({
       });
       desired.set(cutKey([nativeSession.identity.generation, requests, refreshKey]), { plots, requests });
     }
-    for (const [key, dispose] of groupsRef.current) {
+    for (const [key, group] of groupsRef.current) {
       if (desired.has(key)) {
         continue;
       }
-      dispose();
+      group.dispose();
       groupsRef.current.delete(key);
     }
-    if (dataChanged)
+    if (dataChanged) {
       commit((current) => Object.fromEntries(Object.entries(current).filter(([id]) => requestPlots.some((plot) => plot.plot_id === id))));
+    }
     for (const [key, group] of desired) {
       if (groupsRef.current.has(key)) {
         continue;
@@ -317,17 +326,47 @@ export function useLivePlotPayloads({
         ),
       }));
 
-      let queued: LivePlotStateMap = {};
-      const flush = () => {
-        flushFrameRef.current = null;
-        flushTimerRef.current = null;
-        if (!active || !nativeSession.identity.isCurrent() || Object.keys(queued).length === 0) {
+      const queued: LivePlotStateMap = {};
+      let queuedUpdatedAt: number | null = null;
+      const isVisible = (id: string) =>
+        renderActiveRef.current &&
+        // Initial Payloads Complete Visible-Group Admission Before Off-Screen Updates Are Throttled.
+        (typeof IntersectionObserver === "undefined" || visibleRef.current[id] === true || !modelRef.current[id]?.payload);
+      const flush = (visible?: boolean) => {
+        if (visible !== false) {
+          flushFrameRef.current = null;
+        }
+        if (visible !== true) {
+          flushTimerRef.current = null;
+        }
+        if (!active || !nativeSession.identity.isCurrent()) {
           return;
         }
-        const updates = queued;
-        queued = {};
-        // Only Complete Revisions Reach The Visible Model, In One Shared Commit.
-        commit((current) => ({ ...current, ...updates }));
+        const updates: LivePlotStateMap = {};
+        for (const [id, state] of Object.entries(queued)) {
+          if (visible !== undefined && isVisible(id) !== visible) {
+            continue;
+          }
+          updates[id] = state;
+          delete queued[id];
+        }
+        if (Object.keys(updates).length > 0) {
+          // Only Complete Revisions Reach The Visible Model, In One Shared Commit.
+          commit((current) => ({ ...current, ...updates }));
+        }
+        if (queuedUpdatedAt !== null) {
+          onRefreshChange?.({ refreshing: pendingRef.current.size > 0, updatedAt: queuedUpdatedAt });
+          queuedUpdatedAt = null;
+        }
+      };
+      const scheduleFlush = () => {
+        const ids = Object.keys(queued);
+        if (ids.some(isVisible) && flushFrameRef.current === null) {
+          flushFrameRef.current = window.requestAnimationFrame(() => flush(true));
+        }
+        if (ids.some((id) => !isVisible(id)) && flushTimerRef.current === null) {
+          flushTimerRef.current = window.setTimeout(() => flush(false), HIDDEN_PLOT_STREAM_FLUSH_MS);
+        }
       };
 
       const enqueue = (messages: readonly PlotPayloadStreamMessage[]) => {
@@ -355,19 +394,12 @@ export function useLivePlotPayloads({
               for (const plot of activePlots) {
                 pendingRef.current.delete(plot.plot_id);
               }
-              onRefreshChange?.({ refreshing: pendingRef.current.size > 0, updatedAt: Date.now() });
+              queuedUpdatedAt = Date.now();
               received.clear();
             }
           }
         }
-        if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
-          return;
-        }
-        if (renderActiveRef.current) {
-          flushFrameRef.current = window.requestAnimationFrame(flush);
-          return;
-        }
-        flushTimerRef.current = window.setTimeout(flush, HIDDEN_PLOT_STREAM_FLUSH_MS);
+        scheduleFlush();
       };
 
       const markStreamEnded = () => {
@@ -529,26 +561,34 @@ export function useLivePlotPayloads({
 
       if (automatic) {
         void consumeStream();
-      } else void readSnapshot();
+      } else {
+        void readSnapshot();
+      }
 
-      groupsRef.current.set(key, () => {
-        active = false;
-        for (const plot of activePlots) {
-          pendingRef.current.delete(plot.plot_id);
-        }
-        controller.abort();
-        if (reopenTimer !== null) {
-          window.clearTimeout(reopenTimer);
-          reopenTimer = null;
-        }
-        for (const release of releases) {
-          release();
-        }
-        for (const stream of streams) {
-          void stream.cancel().catch(() => undefined);
-        }
-        streams.clear();
-        clearScheduledFlush(flushFrameRef, flushTimerRef);
+      groupsRef.current.set(key, {
+        reschedule: () => {
+          clearScheduledFlush(flushFrameRef, flushTimerRef);
+          scheduleFlush();
+        },
+        dispose: () => {
+          active = false;
+          for (const plot of activePlots) {
+            pendingRef.current.delete(plot.plot_id);
+          }
+          controller.abort();
+          if (reopenTimer !== null) {
+            window.clearTimeout(reopenTimer);
+            reopenTimer = null;
+          }
+          for (const release of releases) {
+            release();
+          }
+          for (const stream of streams) {
+            void stream.cancel().catch(() => undefined);
+          }
+          streams.clear();
+          clearScheduledFlush(flushFrameRef, flushTimerRef);
+        },
       });
     }
   }, [requestInputs, requestPlots, refreshKey, onRefreshChange, enabled, requestScope, windowS, requestVisible, nativeSession, automatic]);

@@ -288,10 +288,12 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
   const commits: number[][] = [];
   let nextPlots = plots;
   let nextScope = scope;
+  let renderActive = true;
   function View() {
     window = usePlotWindow();
     states = useLivePlotPayloads({
       enabled: true,
+      renderActive,
       plots: nextPlots,
       scope: nextScope,
       windowS: window.option.value,
@@ -321,6 +323,10 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
     plots,
     streams,
     host,
+    setRenderActive: async (active: boolean) => {
+      renderActive = active;
+      await render();
+    },
     window: () => window,
     states: () => states,
     commits,
@@ -536,6 +542,49 @@ test("Timed Refresh", async () => {
   });
   await view.advance();
   assert.equal(refreshFixture.notify.mock.calls.length, 2);
+});
+
+test("Live Frames Coalesce and Resume", async () => {
+  vi.stubGlobal("IntersectionObserver", class {});
+  const view = await mountPlotView();
+  const initial = snapshotEnvelopes(view.plots);
+  const push = async (revision: number) => {
+    await act(async () => {
+      view.streams[0].push(...initial.map((frame) => ({ ...frame, revision, kind: "snapshot" as const })));
+    });
+  };
+  const before = view.commits.length;
+  for (let revision = 1; revision <= 128; revision++) {
+    await push(revision);
+  }
+  assert.equal(view.states().pulse.revision, 0);
+  await view.advance(16);
+  assert.equal(view.states().pulse.revision, 128);
+  assert.equal(view.commits.length - before, 1);
+
+  // Hidden Frames Retain Only the Latest Revision Until Their Throttle Fires.
+  await view.setRenderActive(false);
+  await push(129);
+  await push(130);
+  await view.advance(16);
+  assert.equal(view.states().pulse.revision, 128);
+
+  // Becoming Visible Replaces the Hidden Timer With the Next Rendered Frame.
+  await view.setRenderActive(true);
+  await view.advance(16);
+  assert.equal(view.states().pulse.revision, 130);
+  assert.equal(refreshFixture.watch.mock.calls.length, 1);
+
+  // An Off-Screen Card in a Visible Group Retains Its Own Throttle.
+  await act(async () => {
+    useSummaryWindowStore.setState({ visible: { pulse: true, current: false } });
+  });
+  await push(131);
+  await view.advance(16);
+  assert.equal(view.states().pulse.revision, 131);
+  assert.equal(view.states().current.revision, 130);
+  await view.advance(984);
+  assert.equal(view.states().current.revision, 131);
 });
 
 test("A Large Document Uses Independent Bounded Watches", async () => {

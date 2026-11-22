@@ -442,18 +442,19 @@ async fn observe_plugins(
 
 #[cfg(test)]
 mod tests {
-    use std::{env, env::consts::EXE_SUFFIX, error::Error, num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::{env, env::consts::EXE_SUFFIX, error::Error, num::NonZeroUsize, sync::Arc, thread, time::Duration};
 
     use harmos_operations::storage::{
         AppendFileBytes, AppendFileBytesRequest, CompoundOutcome, CreateFileProduction, CreateFileProductionRequest, CreateFileWriter,
         CreateFileWriterRequest, DeleteScope, DeleteScopeRequest, Info, InfoRequest, ListFileProductions, ListFileProductionsRequest,
     };
     use harmos_protocol::host::PluginState;
-    use harmos_protocol::model::{PageRequest, StorageTransferSettings};
+    use harmos_protocol::model::{Declarations, PageRequest, StorageTransferSettings, StreamDeclaration};
     use harmos_protocol::policy::UNBOUNDED;
     use harmos_runtime::Identifier;
     use harmos_runtime::storage::{FileMetadata, MutationId};
     use harmos_runtime::streams::Item;
+    use prost::Message;
     use prost_types::Timestamp;
     use tokio_stream::StreamExt;
     use tonic::transport::Endpoint;
@@ -462,12 +463,121 @@ mod tests {
     use crate::{CaptureSettings, ControlledClock, Host, HostSettings, PlacementSettings, PluginProcess};
     use dokime_client_internal::Client;
     use dokime_operations::host::executions::commands;
+    use dokime_operations::host::plots::snapshots;
     use dokime_operations::host::storage::administration;
     use dokime_protocol::host::CycleSummary;
     use dokime_protocol::host::executions::{ExecutionCommandAction, ExecutionCommandPhase, ExecutionCommandReceipt};
+    use dokime_protocol::host::plots::{PlotRequest, SnapshotsWatchRequest};
+    use dokime_protocol::model::{EvidenceScope, Import, Origin, origin};
     use dokime_storage::persisted::Scope;
     use dokime_storage::storage_defaults;
+    use dokime_storage::{Execution, Sample};
     use dokime_test_support::credentials;
+
+    #[derive(dokime::Row)]
+    #[dokime(package = "fixture.live")]
+    struct Reading {
+        value: u64,
+    }
+
+    #[test]
+    fn live_plot_admission() -> Result<(), Box<dyn Error>> {
+        credentials::run(Box::pin(async {
+            // Start a Host With a Controlled Execution Clock and No Sampling Plugin.
+            let root = credentials::tempdir()?;
+            let settings = HostSettings {
+                installation: None,
+                placement: PlacementSettings {
+                    reconnect_delay: Duration::from_secs(1),
+                    stream_window: NonZeroUsize::new(8).unwrap(),
+                    interval_window: crate::INTERVAL_WINDOW,
+                    interval_lag: crate::INTERVAL_LAG,
+                    message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+                },
+                storage: storage_defaults(),
+                clock: Arc::new(ControlledClock::new(1_000_000_000)),
+                capture: CaptureSettings::default(),
+                credentials: credentials::namespace(),
+            };
+            let operations = ClientSettings {
+                read_timeout: crate::PLUGINS_TIMEOUT,
+                mutation_timeout: crate::PLUGINS_TIMEOUT,
+                watch_timeout: UNBOUNDED,
+                max_cases: 1000,
+                page_items: 50,
+                message_bytes: settings.placement.message_bytes.get(),
+                stream_buffer: settings.placement.stream_window.get(),
+            };
+            let host = Host::open(root.path(), settings, operations).await?;
+            host.store.create(&Execution {
+                identifier: "execution".into(),
+                cycle: "cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(origin::Kind::Import(Import::default())),
+                }),
+                catalog: Declarations {
+                    types: Some(<Reading as dokime::encoding::contract::Message>::types()),
+                    streams: vec![StreamDeclaration {
+                        id: "readings".into(),
+                        row: <Reading as dokime::encoding::contract::Message>::name(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }
+                .encode_to_vec(),
+                ..Default::default()
+            })?;
+            host.store.open_stream("execution", "readings")?;
+            let context = &host.assembly.as_ref().unwrap().context;
+            let request = PlotRequest {
+                plot_id: Some("readings".into()),
+                stream: "readings".into(),
+                y_keys: vec!["value".into()],
+                scope: Some(EvidenceScope {
+                    cycle_id: Some("cycle".into()),
+                    execution_id: Some("execution".into()),
+                    ..Default::default()
+                }),
+                window_s: Some(60.0),
+                ..Default::default()
+            };
+            let mut updates = snapshots::watch::handle(
+                context,
+                SnapshotsWatchRequest {
+                    requests: vec![request],
+                    ..Default::default()
+                },
+            )
+            .await?;
+            assert_eq!(updates.next().await.unwrap()?.updates[0].envelope.as_ref().unwrap().revision, 0);
+
+            // Admit Outside a Tokio Runtime: No Flush Worker or Timer Can Make These Rows Durable.
+            let store = host.store.clone();
+            thread::spawn(move || {
+                store.sample_batch(
+                    "execution",
+                    &(0..128)
+                        .map(|index| Sample {
+                            stream: "readings".into(),
+                            source_ns: index * 1_000_000,
+                            row: Reading { value: index as u64 }.encode_to_vec(),
+                            ..Default::default()
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .join()
+            .unwrap()?;
+            let update = updates.next().await.unwrap()?;
+            let envelope = update.updates[0].envelope.as_ref().unwrap();
+            assert_eq!(envelope.revision, 128);
+            assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, 128);
+            assert_eq!(host.store.metadata("execution")?.frontier, 0);
+            drop(updates);
+            host.shutdown().await?;
+            Ok(())
+        }))
+    }
 
     #[test]
     fn seal_upload_recovery_discovers_lost_responses_and_settles_exact_scope_pages() -> Result<(), Box<dyn Error>> {

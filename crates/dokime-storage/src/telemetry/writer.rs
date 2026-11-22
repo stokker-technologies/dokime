@@ -359,9 +359,12 @@ impl Store {
         }
         Ok(next)
     }
-    /// The Last Position an Execution Allocated; a Read Session Sees Only Saved Positions.
+    /// The Last Position Visible to This Store or Its Captured Read Session.
     pub(crate) fn accepted_position(&self, connection: &Connection, execution: &str) -> Result<u64> {
         let saved = crate::store::saved_position(connection, execution)?;
+        if let Some(samples) = &self.live_samples {
+            return Ok(saved.max(samples.accepted.get(execution).copied().unwrap_or(0)));
+        }
         if self.cancelled.is_some() {
             return Ok(saved);
         }
