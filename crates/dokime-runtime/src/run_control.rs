@@ -22,6 +22,8 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_operations::clock::WindDown;
+use harmos_runtime::{operations::OperationHost, plugin::grpc::ScopedBinding};
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
@@ -49,6 +51,7 @@ struct State {
     completed: HashSet<usize>,
     invoked: HashSet<usize>,
     command: Option<ExecutionCommandReceipt>,
+    wind_down: Vec<WindDown>,
 }
 #[derive(Default)]
 pub(crate) struct RunControl {
@@ -63,6 +66,18 @@ pub(crate) struct RunControl {
 /* === Implementations === */
 
 impl RunControl {
+    pub(crate) fn bind(&self, binding: &ScopedBinding) -> Result<()> {
+        let mut state = lock(&self.state)?;
+        if state.stopping {
+            binding.request_wind_down();
+        }
+        let wind_down = OperationHost::context(binding.operations()).get::<WindDown>().expect("bound scope wind-down").clone();
+        state.wind_down.push(wind_down);
+        Ok(())
+    }
+    pub(crate) fn stop_requested(&self) -> Result<bool> {
+        Ok(lock(&self.state)?.stopping)
+    }
     pub(crate) fn is_running(&self) -> Result<bool> {
         let state = lock(&self.state)?;
         Ok(!state.phase.is_empty() && state.phase != "queued")
@@ -90,8 +105,11 @@ impl RunControl {
             changed.as_mut().enable();
             {
                 let mut state = lock(&self.state)?;
-                if state.stopping || cancellation.is_cancelled() {
+                if cancellation.is_cancelled() {
                     return Err(Error::Cancelled);
+                }
+                if state.stopping {
+                    return Ok(None);
                 }
                 if !state.paused && (!state.interactive || state.command.is_some()) {
                     let command = state.command.clone();
@@ -202,7 +220,11 @@ impl ExecutionManager {
     pub fn stop_execution(&self, execution: &str) -> Result<()> {
         let active = lock(&self.inner.active)?;
         let active = active.get(execution).ok_or_else(|| Error::Invalid("Stop Execution: Select an Active Run".into()))?;
-        lock(&active.control.state)?.stopping = true;
+        let mut state = lock(&active.control.state)?;
+        state.stopping = true;
+        for wind_down in &state.wind_down {
+            wind_down.request();
+        }
         active.control.changed.notify_waiters();
         self.signal_change();
         Ok(())

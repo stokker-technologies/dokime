@@ -79,7 +79,18 @@ references and markers. Observer and window payloads preserve proto3 optional
 field presence, including explicit zero values; interval storage adoption remains
 pending. Execution observers inherit execution resources for admitted child calls,
 including record publication. Typed stream subscription remains unavailable
-in the product context adapter. Stop-completes-run has no current product declaration.
+in the product context adapter.
+
+Stop releases execution-scoped host waits normally. The current step finishes,
+criteria evaluate, cleanup runs and the execution seals with `Termination.STOPPED`,
+retaining streams and records. Author loops read `ctx.stop_requested`:
+
+```python
+while not ctx.stop_requested:
+    await ctx.sleep(10)
+```
+
+Cancel still aborts active work.
 
 Setting bounds are inclusive and use the default's value type. The library
 validates defaults at host admission and every saved write:

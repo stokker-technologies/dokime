@@ -269,6 +269,7 @@ pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseS
                 Some(Attribution::Evaluated(_)) => CaseStatus::Failed,
                 Some(Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::NotRun as i32 => CaseStatus::NotRun,
                 Some(Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::Cancelled as i32 => CaseStatus::Cancelled,
+                Some(Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::Stopped as i32 => CaseStatus::Stopped,
                 _ => CaseStatus::Interrupted,
             }
         } as i32;

@@ -1,5 +1,47 @@
 # gRPC Plugins Design
 
+## Stop Ends Execution Waits
+
+Locked owner decision: Stop ends every execution-scoped host sleep and condition
+wait early and normally. The active step finishes, criteria evaluate, cleanup
+runs, streams and records settle, and the execution seals as Stopped. Stop does
+not abort work outside a host wait; Cancel still aborts active work. Without Stop,
+waits retain their complete duration. This settles the earlier question of
+whether Stop completes the active run; a stopped run must not become Cancelled
+or Completed as a substitute for Stopped.
+
+Authors can inspect `ctx.stop_requested` in Python and the equivalent Rust
+context accessor to end their own loops. The stop state belongs to the execution
+and must reach plugin contexts through the existing host/library boundary.
+Runtime policy deadlines remain active and separate from execution waits.
+
+Library revision `253e3b7c2f8e0456b8ec810da10fe824d1775726` supplies graceful
+scope wind-down. Each bound execution owner registers its library WindDown handle
+with run control; Stop requests those handles, including bindings admitted after
+Stop. The library settles scoped waits and sample cuts at actual completion and
+keeps policy deadlines and cancellation unchanged. The product owns no second
+wait implementation or plugin stop state.
+
+The protocol adds `Termination::Stopped` and `CaseStatus::Stopped`.
+Python `ctx.stop_requested` and Rust
+`ctx.stop_requested()` delegate directly to the library context accessor. A Stop
+ends step admission normally, then evaluates criteria and runs cleanup before
+sealing Stopped. Its criterion evidence remains retained; the execution's outcome
+identifies the stop rather than presenting a complete-run verdict. Cancel still
+aborts the active invocation and seals Cancelled after cleanup.
+
+OBC's sample-target wait and continuous startup loop also read the same SDK
+accessor. A released sleep must not restart an unfinished sample target or keep
+continuous observation running after Stop.
+
+The owner authorized removal of the unused product `Clock.sleep` declaration in
+`crates/dokime-operations/src/resources.rs` and its runtime implementation in
+`crates/dokime-runtime/src/streams.rs`. SDK Time.Sleep remains library-owned.
+
+Protocol generation reads the exported README from `proto/export.md`; its former
+`docs/project/protocol-export.md` input was deleted on dev. The export text is
+preserved at its new source path; documentation-site contents are untouched.
+
 ## Library State and Ownership
 
 ### Peer Stream Capture

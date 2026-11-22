@@ -156,6 +156,7 @@ inline constexpr auto TERMINATION_FAILED = static_cast<::dokime::model::v1::Term
 inline constexpr auto TERMINATION_CANCELLED = static_cast<::dokime::model::v1::Termination>(3);
 inline constexpr auto TERMINATION_INTERRUPTED = static_cast<::dokime::model::v1::Termination>(4);
 inline constexpr auto TERMINATION_NOT_RUN = static_cast<::dokime::model::v1::Termination>(5);
+inline constexpr auto TERMINATION_STOPPED = static_cast<::dokime::model::v1::Termination>(6);
 using ::dokime::host::v1::Field;
 using ::dokime::host::v1::FieldType;
 using ::dokime::host::v1::Schema;
@@ -691,6 +692,7 @@ inline constexpr auto CASE_STATUS_BLOCKED = static_cast<::dokime::host::v1::Case
 inline constexpr auto CASE_STATUS_CANCELLED = static_cast<::dokime::host::v1::CaseStatus>(9);
 inline constexpr auto CASE_STATUS_INTERRUPTED = static_cast<::dokime::host::v1::CaseStatus>(10);
 inline constexpr auto CASE_STATUS_NOT_RUN = static_cast<::dokime::host::v1::CaseStatus>(11);
+inline constexpr auto CASE_STATUS_STOPPED = static_cast<::dokime::host::v1::CaseStatus>(12);
 using ::dokime::host::v1::content::ArtifactsGetResponse;
 using ::dokime::host::v1::content::ArtifactsListResponse;
 using ::dokime::host::v1::content::ArtifactsWatchResponse;

@@ -17,6 +17,8 @@ pub(crate) mod composition;
 mod root_claim;
 mod state;
 mod status;
+#[cfg(test)]
+mod stop_waits;
 
 /* === Re-Exports === */
 

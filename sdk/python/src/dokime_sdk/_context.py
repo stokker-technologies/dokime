@@ -70,6 +70,10 @@ class Context:
     async def cancelled(self) -> str:
         return await self._transport.cancelled()
 
+    @property
+    def stop_requested(self) -> bool:
+        return self._transport.wind_down_requested
+
     async def subscribe[T: Message](self, stream: "Stream[T]", *, max_item_bytes: int) -> "StreamSubscription[T]":
         identity = self._stream_identities.get(id(stream), stream.identifier)
         if identity is None:

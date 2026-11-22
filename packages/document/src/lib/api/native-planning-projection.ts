@@ -209,6 +209,7 @@ export function projectExecutionStatus(
       case Termination.FAILED:
         return "failed";
       case Termination.CANCELLED:
+      case Termination.STOPPED:
         return "stopped";
       case Termination.INTERRUPTED:
         return "interrupted";
@@ -236,6 +237,7 @@ export function mapCaseStatus(status: CaseStatus | undefined): ExecutionQueueIte
     case CaseStatus.BLOCKED:
       return "blocked";
     case CaseStatus.CANCELLED:
+    case CaseStatus.STOPPED:
       return "stopped";
     case CaseStatus.INTERRUPTED:
       return "interrupted";

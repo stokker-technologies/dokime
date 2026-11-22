@@ -1,3 +1,11 @@
+## Stop Ends Execution Waits
+
+- [x] Record the Locked Decision: Stop Completes Execution-Scoped Host Waits Normally, Lets the Active Step Finish, Evaluates Criteria, Runs Cleanup and Seals Stopped With Evidence Intact; Cancel Still Aborts and Unstopped Waits Keep Their Duration.
+- [x] Library Owner: Supply Graceful Scope Wind-Down and Actual-Completion Sample Cuts at Revision `253e3b7c2f8e0456b8ec810da10fe824d1775726`.
+- [x] Pin Cargo and Python to the Wind-Down Revision; Regenerate Every Projection and Tracked Lock, Preserving the Exported Protocol README After Its Former Source Was Deleted on Dev.
+- [x] Declare Stopped Termination and Regenerate Tracked Bindings; Adopt Library Scope Wind-Down in Run Control, Preserve Active Work and Criteria/Cleanup, Expose Python `ctx.stop_requested` and Rust `ctx.stop_requested()`, Display Stopped, Delete the Unused Product Sleep and End OBC Sample-Target and Continuous Loops Through the Same Accessor.
+- [x] Prove Stop, Cancel and Complete Unstopped Wait Durations on a Controlled Clock Through the Real Host With Streams and Records Retained; Run Focused Runtime/Operations and SDK Tests, Workspace Test Compilation, Formatting, Repository and Strict OpenSpec Checks After Source Adoption.
+
 ## Peer Stream Capture
 
 - [x] Freeze Requested Peer Stream Declarations and Row Types Through the Existing Installed Plugin Inventory; Bind, Sample, Drain and Release Every Execution Owner on All Exit Paths. Prove Deterministic Peer Rows, Frozen Decoding and Cancellation Release in Runtime Tests.
