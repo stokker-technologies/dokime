@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import hashlib
 import runpy
 import shutil
 import tarfile
@@ -44,6 +45,33 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
+    def test_python_source_inventory_tracks_content_additions_removals_and_renames(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, scratch)
+        generator = Path(__file__).resolve().parents[4] / "sdk/python/tools/generate.py"
+        source_inventory = runpy.run_path(str(generator))["source_inventory"]
+        self.assertEqual(source_inventory(scratch), {})
+        product = scratch / "dokime/model/v1/value.proto"
+        product.parent.mkdir(parents=True)
+        product.write_bytes(b"product")
+        library = scratch / "harmos/model/v1/value.proto"
+        library.parent.mkdir(parents=True)
+        library.write_bytes(b"library")
+        (scratch / ".revision").write_text("not a protocol")
+        inventory = source_inventory(scratch)
+        self.assertEqual(
+            inventory,
+            {
+                "dokime/model/v1/value.proto": hashlib.sha256(b"product").hexdigest(),
+                "harmos/model/v1/value.proto": hashlib.sha256(b"library").hexdigest(),
+            },
+        )
+        product.write_bytes(b"changed")
+        self.assertNotEqual(source_inventory(scratch)["dokime/model/v1/value.proto"], inventory["dokime/model/v1/value.proto"])
+        product.rename(product.with_name("renamed.proto"))
+        library.unlink()
+        self.assertEqual(source_inventory(scratch), {"dokime/model/v1/renamed.proto": hashlib.sha256(b"changed").hexdigest()})
+
     def test_protocol_inputs_export_the_workspace_pin_and_replace_product_inputs(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, scratch)

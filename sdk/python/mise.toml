@@ -42,7 +42,7 @@ run = 'mise -C ../.. run package:python -- --profile {{env.DOKIME_BUILD_PROFILE 
 [tasks.install]
 hide = true
 description = "Install the Built Python Wheel"
-run = 'uv run --no-sync --project ../../tools/python python tools/installed.py install'
+run = 'uv run --no-sync --project ../../tools/python python tools/installed.py'
 
 [tasks.test]
 description = "Test the Installed Python SDK"

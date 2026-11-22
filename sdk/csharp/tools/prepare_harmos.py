@@ -68,7 +68,6 @@ if source:
             "sdk/csharp/tests/Harmos.Conformance",
             "sdk/csharp/Directory.Build.props",
             "sdk/tests/fixtures/conformance/proto",
-            "proto",
         ]
     )
     files = zipfile.ZipFile(io.BytesIO(archive))
@@ -83,20 +82,17 @@ else:
         archive = response.read()
     finally:
         response.close()
-    members = tarfile.open(fileobj=io.BytesIO(archive))
-    try:
+    with tarfile.open(fileobj=io.BytesIO(archive)) as members:
         for member in members.getmembers():
             relative = Path(*Path(member.name).parts[1:])
             if (
                 relative.as_posix().startswith(
-                    ("sdk/csharp/src/Harmos/", "sdk/csharp/tests/Harmos.Conformance/", "sdk/tests/fixtures/conformance/proto/", "proto/")
+                    ("sdk/csharp/src/Harmos/", "sdk/csharp/tests/Harmos.Conformance/", "sdk/tests/fixtures/conformance/proto/")
                 )
                 or relative.as_posix() == "sdk/csharp/Directory.Build.props"
             ):
                 member.name = str(relative)
                 members.extract(member, output, filter="data")
-    finally:
-        members.close()
 
 shutil.copyfile(root / "tools/Harmos.csproj", output / "Harmos.csproj")
 # The Package Identity Derives From the Revision; Solution Projects Reference This Staged Project.

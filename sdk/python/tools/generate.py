@@ -23,8 +23,6 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
-import grpc_tools
-from grpc_tools import protoc
 
 # Local Imports
 
@@ -150,6 +148,13 @@ PUBLIC_HOMES = {
 # === Public Functions === #
 
 
+def source_inventory(protocols: Path) -> dict[str, str]:
+    """Fingerprint Every Authoritative Proto for Generation and Distribution Checks."""
+    return {
+        path.relative_to(protocols).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(protocols.rglob("*.proto"))
+    }
+
+
 def main(*, check: bool = False, exports_only: bool = False) -> None:
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
@@ -160,6 +165,10 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))
     try:
         if not exports_only:
+            import grpc_tools
+            from grpc_tools import protoc
+
+            manifest = source_inventory(protocols)
             arguments = [
                 "protoc",
                 f"-I{protocols}",
@@ -169,7 +178,7 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                 f"--grpc_python_out={output}",
                 f"--descriptor_set_out={output / 'surface.pb'}",
                 "--include_imports",
-                *map(str, sorted(protocols.glob("dokime/**/*.proto"))),
+                *(str(protocols / name) for name in manifest if name.startswith("dokime/")),
             ]
             status = protoc.main(arguments)
             if status:
@@ -219,11 +228,6 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                     drift.append("_wire/surface.pb")
             else:
                 shutil.copyfile(output / "surface.pb", source / "_wire/surface.pb")
-            manifest = {}
-            for path in protocols.rglob("*.proto"):
-                relative = path.relative_to(protocols).as_posix()
-                digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                manifest[relative] = digest
             text = json.dumps(manifest, sort_keys=True) + "\n"
             if check:
                 if (source / "_wire/sources.json").read_text(encoding="utf-8") != text:

@@ -11,9 +11,9 @@
 # === Imports === #
 
 # Standard Library Imports
-import hashlib
 import json
 import os
+import runpy
 import subprocess
 import sys
 import tarfile
@@ -107,20 +107,20 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
         if any(name.lower().endswith((".so", ".pyd", ".dll", ".dylib", ".a", ".lib")) for name in names):
             raise ToolError("Build Wheel: Python wheel contains a native extension")
         protocols = inputs(root)
-        sources = sorted(protocols.rglob("*.proto"))
+        source_inventory = runpy.run_path(str(Path(__file__).resolve().parents[5] / "sdk/python/tools/generate.py"))["source_inventory"]
+        expected = source_inventory(protocols)
         manifest = json.loads(archive.read("dokime_sdk/_wire/sources.json"))
-        expected = {path.relative_to(protocols).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
         if not expected or manifest != expected:
             differences = sorted(name for name in manifest.keys() | expected.keys() if manifest.get(name) != expected.get(name))
             raise ToolError(
                 "Build Wheel: Regenerate With mise run generate -- --protocol --language python, Then Rebuild; "
-                "Python wheel protocol sources differ from proto/: " + ", ".join(differences)
+                "Python wheel protocol sources differ from target/protocol: " + ", ".join(differences)
             )
         required = {"dokime_sdk/_wire/surface.pb"}
-        for path in sources:
-            if path.relative_to(protocols).parts[0] != "dokime":
+        for name in expected:
+            if not name.startswith("dokime/"):
                 continue
-            stem = path.relative_to(protocols).with_suffix("").as_posix().replace("dokime/", "dokime_sdk/_wire/", 1)
+            stem = name.removesuffix(".proto").replace("dokime/", "dokime_sdk/_wire/", 1)
             required.update(stem + suffix for suffix in ("_pb2.py", "_pb2.pyi", "_pb2_grpc.py"))
         if not required.issubset(names):
             raise ToolError("Build Wheel: Python wheel is missing generated protocol modules")
@@ -128,10 +128,10 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
         archive.close()
     archive = tarfile.open(selected[1], "r:gz")
     try:
-        for path in sources:
-            member = f"dokime_sdk-{version}/proto/{path.relative_to(protocols).as_posix()}"
+        for name in expected:
+            member = f"dokime_sdk-{version}/proto/{name}"
             content = archive.extractfile(member)
-            if content is None or content.read() != path.read_bytes():
+            if content is None or content.read() != (protocols / name).read_bytes():
                 raise ToolError("Build Wheel: Python source distribution is missing authoritative protocol sources")
     finally:
         archive.close()
