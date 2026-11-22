@@ -14,6 +14,7 @@
 # Standard Library Imports
 import runpy
 import shutil
+import tarfile
 import tempfile
 import unittest
 from io import BytesIO
@@ -52,24 +53,32 @@ class GenerationContracts(unittest.TestCase):
         product.parent.mkdir(parents=True)
         product.write_text("product contract")
 
-        def export(command: list[str], **options: object) -> None:
-            output = Path(command[command.index("--output") + 1])
-            source = output / "harmos/model/v1/value.proto"
-            source.parent.mkdir(parents=True)
-            source.write_text(command[2])
+        def archive(url: str) -> BytesIO:
+            data = BytesIO()
+            files = tarfile.open(fileobj=data, mode="w:gz")
+            for name, text in (("library/proto/harmos/model/v1/value.proto", url), ("library/proto/harmos/model/v1/behaviour.md", "notes")):
+                contents = text.encode()
+                member = tarfile.TarInfo(name)
+                member.size = len(contents)
+                files.addfile(member, BytesIO(contents))
+            files.close()
+            data.seek(0)
+            return data
 
-        with mock.patch.object(protocol.subprocess, "run", side_effect=export) as run:
+        with mock.patch.object(protocol.urllib.request, "urlopen", side_effect=archive) as download:
             output = protocol.inputs(scratch)
-            self.assertEqual(run.call_args.args[0][2], "https://example.test/library.git#ref=first,subdir=proto,depth=2147483647")
+            self.assertEqual(download.call_args.args[0], "https://example.test/library/archive/first.tar.gz")
+            self.assertEqual((output / "harmos/model/v1/value.proto").read_text(), "https://example.test/library/archive/first.tar.gz")
+            self.assertFalse((output / "harmos/model/v1/behaviour.md").exists())
             self.assertEqual((output / "dokime/model/v1/value.proto").read_text(), "product contract")
             product.unlink()
             protocol.inputs(scratch)
             self.assertFalse((output / "dokime/model/v1/value.proto").exists())
-            self.assertEqual(run.call_count, 1)
+            self.assertEqual(download.call_count, 1)
             manifest.write_text(manifest.read_text().replace('"first"', '"second"'))
             protocol.inputs(scratch)
-            self.assertEqual(run.call_count, 2)
-            self.assertIn("ref=second", (output / "harmos/model/v1/value.proto").read_text())
+            self.assertEqual(download.call_count, 2)
+            self.assertIn("second", (output / "harmos/model/v1/value.proto").read_text())
         self.assertFalse((scratch / "proto/harmos").exists())
 
     def test_pin_projection_and_lock_refresh_precede_locked_generation(self) -> None:

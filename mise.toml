@@ -76,7 +76,7 @@ usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Sy
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups",
-  "{{vars.tools}} dokime_tools.build.protocol --inputs-only",
+  "{% if not usage.tools_only %}{{vars.tools}} dokime_tools.build.protocol --inputs-only{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise run build:python{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise -C sdk/python run install{% endif %}",
   "{% if not usage.tools_only and (usage.docs_only or not usage.without_frontend) %}pnpm install --frozen-lockfile{% endif %}",
