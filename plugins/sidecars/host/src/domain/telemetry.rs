@@ -306,7 +306,6 @@ pub struct WifiNetwork {
     pub wifi_channel: i64,
     pub wifi_band: String,
     pub associated: bool,
-    pub network_count: i64,
 }
 
 /// The SSID and Security of Each Scanned Network Broadcasting Both.
@@ -688,7 +687,6 @@ impl WifiNetwork {
         Column::new("wifi_channel", "Wi-Fi Channel", ""),
         Column::new("wifi_band", "Wi-Fi Band", ""),
         Column::new("associated", "Associated", ""),
-        Column::new("network_count", "Channel Networks", ""),
     ];
 }
 

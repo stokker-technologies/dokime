@@ -2,6 +2,9 @@
 
 - [x] Record the Channel Stream and Dense Layout Decisions With Collector, Platform, Stream, Plot and Test Ownership.
 - [x] Publish `host.wifi_channels` From the Existing Scan Collection With Full Supported Band Plans, Zero Occupancy, Primary Counts and the Shared Overlap Model; Prove With Fake Reports and Commit.
+- [x] Remove the Superseded Per-Network Channel Count From Host Scan Readings, Telemetry Rows, Columns, Publication and Assertions; Keep Channel-Plan Counts as Their Single Public Owner.
+- [x] Prove the Per-Network Count Removal With Focused Host Tests, Host Test-Target Compilation, Formatting and Repository Checks.
+- [ ] Complete Workspace Test-Target Compilation With Desktop Testing for the Per-Network Count Removal After Preparing the Generated Report.
 - [x] Wrap Dense Heat Strip Rows at a Minimum Cell Width Without Changing Sparse Rows; Prove Layout and Hover Values and Commit.
 - [x] Pass Focused Host and Plot Tests, Workspace Test-Target Compilation With Desktop Testing, Formatting, Repository and Strict OpenSpec Validation.
 

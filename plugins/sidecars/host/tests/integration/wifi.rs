@@ -151,7 +151,6 @@ fn wifi_channels_share_adjacent_overlap_without_scaling_or_clamping() {
     let network_rows = scan_rows(7, Ok(report), WEIGHT);
     assert_eq!(network_rows.len(), 4);
     assert_eq!(network_rows[0].sample_index, Some(row("2.4GHz", 6).sample_index));
-    assert_eq!(network_rows[0].network_count, Some(row("2.4GHz", 6).network_count));
     assert!((network_rows[0].wifi_network_congestion_score.unwrap() / WEIGHT - row("2.4GHz", 6).occupancy).abs() < 1e-9);
     let encoded = row("2.4GHz", 6).encode_to_vec();
     assert_eq!(WifiChannels::decode(encoded.as_slice()).unwrap(), *row("2.4GHz", 6));
@@ -310,8 +309,6 @@ fn a_scan_is_one_row_per_network_sharing_its_collection() {
         assert_eq!(row.congestion_model.as_deref(), Some(CONGESTION_MODEL_24_GHZ));
     }
     assert_eq!(rows.iter().filter(|row| row.associated == Some(true)).count(), 1);
-    assert_eq!(rows[0].network_count, Some(2));
-    assert_eq!(rows[2].network_count, Some(1));
     assert_eq!(rows[2].wifi_band.as_deref(), Some("5GHz"));
 }
 
