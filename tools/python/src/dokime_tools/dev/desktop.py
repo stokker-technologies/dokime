@@ -206,9 +206,19 @@ def discard(root: Path, namespace: str, host: Path, environment: Mapping[str, st
     shutil.rmtree(root)
 
 
-def main(arguments: list[str] | None = None) -> int:
+def plugin_paths(arguments: list[str] | None = None) -> list[Path]:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args(arguments)
+    parser.add_argument("--plugin", action="append", default=[], type=Path, help="Install a Plugin Bundle or Plugin Folder")
+    args = parser.parse_args(arguments)
+    plugins = [plugin.resolve() for plugin in args.plugin]
+    for plugin in plugins:
+        if not plugin.is_file() and not (plugin.is_dir() and (plugin / "dokime.toml").is_file()):
+            parser.error(f"Install Development Plugin {plugin}: Supply a Bundle File or a Plugin Folder With dokime.toml")
+    return plugins
+
+
+def main(arguments: list[str] | None = None) -> int:
+    plugins = plugin_paths(arguments)
     extension = ".exe" if os.name == "nt" else ""
 
     # Generate the Desktop Messages and Settings the Frontend Imports
@@ -292,6 +302,24 @@ def main(arguments: list[str] | None = None) -> int:
                 stderr=sys.stderr,
             )
             bundles.append(bundle)
+
+        # Bundle Requested Folders and Append Requested Bundles After the Shipped Plugins.
+        for index, plugin in enumerate(plugins):
+            if plugin.is_dir():
+                bundle = root / f"requested-{index}.dokime"
+                subprocess.run(
+                    [str(cli), "plugin", "bundle", str(plugin), "--out", str(bundle)],
+                    cwd=ROOT,
+                    env=environment,
+                    check=True,
+                    creationflags=spawn_flags(),
+                    stdin=subprocess.DEVNULL,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+                bundles.append(bundle)
+                continue
+            bundles.append(plugin)
 
         # Install Them Into the Desktop's Data Folder Through a Short-Lived Host; the Desktop Host Starts Them Again
         server = owner.start(

@@ -39,6 +39,22 @@ from dokime_tools.dev import desktop
 
 
 class DevelopmentDesktopTests(unittest.TestCase):
+    def test_repeatable_plugin_arguments_accept_bundles_and_manifest_folders(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary_directory.name)
+            bundle = root / "peer.dokime"
+            bundle.write_bytes(b"bundle")
+            project = root / "caller"
+            project.mkdir()
+            (project / "dokime.toml").write_text("[plugin]\n", encoding="utf-8")
+            self.assertEqual(desktop.plugin_paths([]), [])
+            self.assertEqual(desktop.plugin_paths(["--plugin", str(bundle), "--plugin", str(project)]), [bundle, project])
+            self.assertRaises(SystemExit, desktop.plugin_paths, ["--plugin", str(root)])
+            self.assertRaises(SystemExit, desktop.plugin_paths, ["--plugin"])
+        finally:
+            temporary_directory.cleanup()
+
     def test_isolation_replaces_inherited_roots_and_namespace(self) -> None:
         inherited = {
             "PATH": "tools",
@@ -66,14 +82,22 @@ class DevelopmentDesktopTests(unittest.TestCase):
 
             # A Failed Removal Keeps the Folder So Its Credentials Are Not Orphaned.
             refused = subprocess.CompletedProcess(["dokime-host"], 1)
-            with patch.object(desktop.subprocess, "run", return_value=refused), self.assertRaises(policy.ToolError):
-                desktop.discard(folder, "dokime-dev-1", host, {})
+            refused_patch = patch.object(desktop.subprocess, "run", return_value=refused)
+            refused_patch.start()
+            try:
+                self.assertRaises(policy.ToolError, desktop.discard, folder, "dokime-dev-1", host, {})
+            finally:
+                refused_patch.stop()
             self.assertTrue(folder.is_dir())
 
             # Successful Removal Covers Every Root in the Namespace, Then Deletes the Folder.
             removed = subprocess.CompletedProcess(["dokime-host"], 0)
-            with patch.object(desktop.subprocess, "run", return_value=removed) as run:
+            removed_patch = patch.object(desktop.subprocess, "run", return_value=removed)
+            run = removed_patch.start()
+            try:
                 desktop.discard(folder, "dokime-dev-1", host, {})
+            finally:
+                removed_patch.stop()
             storages = [call.args[0][4] for call in run.call_args_list]
             self.assertEqual(storages, [str(root) for root in roots])
             self.assertTrue(all(call.args[0][1:3] == ["--credential-namespace", "dokime-dev-1"] for call in run.call_args_list))
