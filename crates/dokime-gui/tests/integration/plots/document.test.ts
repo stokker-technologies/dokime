@@ -53,7 +53,10 @@ test("Desktop and Frozen Documents Share Section Headings and Single Plot Cards"
       assert.ok(card.children[3].querySelector("table"));
       const headers = [...card.querySelectorAll("thead th")].map((cell) => cell.textContent);
       const values = [...card.querySelectorAll("tbody td")].map((cell) => cell.textContent);
-      assert.equal(values[headers.findIndex((header) => header?.startsWith("Median"))], card.textContent?.includes("Voltage") ? "5.50" : "6.50");
+      assert.equal(
+        values[headers.findIndex((header) => header?.startsWith("Median"))],
+        card.textContent?.includes("Voltage") ? "5.50" : "6.50",
+      );
       assert.equal(values[headers.findIndex((header) => header?.startsWith("Std"))], "3.45");
       assert.equal(card.querySelectorAll('[data-testid="plot-settings"]').length, frozen ? 0 : 1);
     }

@@ -7,19 +7,12 @@
  * ***
  */
 
-/* === External Imports === */
-
-import { useMemo } from "react";
-
 /* === Local Imports === */
 
 import { AbbreviatedValue } from "./AbbreviatedValue";
-import { DataTable } from "./data-table/DataTable";
-import { type DataTableColumns, dataTableColumns } from "./data-table/data-table-model";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { formatUnitLabel } from "../lib/format";
-import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "../lib/statistics";
-import { formatSummaryValue, statsSummaryCells } from "../lib/statistics";
+import type { SeriesLegendColumn, SeriesLegendRow, StatsSummaryRow } from "../lib/statistics";
+import { seriesLegendColumns, seriesLegendRows } from "../lib/statistics";
 import { cn } from "../lib/utils";
 
 /* === Types === */
@@ -40,103 +33,27 @@ type StatsSummaryTableProps =
   | {
       rows: StatsSummaryRow[];
       legend?: undefined;
-      /** `false` when the card around the statistics already names them. */
-      titled?: boolean;
     }
-  | { legend: SeriesLegend; rows?: undefined; titled?: undefined };
-
-type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
-
-/* === Constants === */
-
-const STATISTICS = [
-  ["mean", "Mean"],
-  ["median", "Median"],
-  ["std", "Std"],
-  ["rms", "RMS"],
-  ["min", "Min"],
-  ["max", "Max"],
-] as const;
-
-const column = dataTableColumns<DescribedRow>();
-
-const COLUMNS: DataTableColumns<DescribedRow> = [
-  column.accessor("label", {
-    header: "Metric",
-    meta: { label: "Metric", truncate: true, width: "w-44" },
-  }),
-  ...STATISTICS.map(([key, title]) =>
-    column.accessor((row) => row.stats[key], {
-      cell: ({ row }) => {
-        const exact = formatSummaryValue(row.original.stats[key]);
-        return (
-          <>
-            <AbbreviatedValue exact={exact} />
-            {row.original.unit && exact !== "-" ? ` ${row.original.unit}` : ""}
-          </>
-        );
-      },
-      header: title,
-      id: key,
-      meta: { align: "end", label: title, truncate: true, width: "w-32" },
-    }),
-  ),
-  column.accessor("count", {
-    header: "Count",
-    meta: { align: "end", label: "Count", width: "w-32" },
-  }),
-];
+  | { legend: SeriesLegend; rows?: undefined };
 
 /* === Components === */
 
 export function StatsSummaryTable(props: StatsSummaryTableProps) {
-  return props.legend ? (
-    <SeriesLegendTable legend={props.legend} />
-  ) : (
-    <DescribedStatsTable rows={props.rows} titled={props.titled ?? true} />
-  );
-}
-
-/* === Private Functions === */
-
-function rowLabel(row: DescribedRow): string {
-  return row.label;
-}
-
-/* === Private Components === */
-
-function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled: boolean }) {
-  const described = useMemo(
-    () =>
-      rows.map((row) => ({
-        count: row.count,
-        label: formatUnitLabel(row.label, row.unit),
-        stats: row.statistics ?? {},
-        unit: row.unit,
-      })),
-    [rows],
-  );
-
-  if (rows.length === 1) {
-    return <StatsSummaryGrid row={rows[0]} titled={titled} />;
-  }
-
-  return (
-    <DataTable
-      title="Statistics"
-      description="Summary statistics for each recorded metric."
-      columns={COLUMNS}
-      data={described}
-      emptyText="No Statistics Recorded"
-      getRowId={rowLabel}
-    />
-  );
-}
-
-function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
+  const legend: SeriesLegend = props.legend ?? {
+    columns: [{ id: "trace", header: "Metric" }, ...seriesLegendColumns(props.rows[0]?.unit).slice(3)],
+    rows: seriesLegendRows({
+      hidden: new Set(),
+      summaries: props.rows.map((row, index) => ({ ...row.statistics, series_id: String(index), count: row.count })),
+      traces: props.rows.map((row, index) => ({ key: String(index), label: row.label, color: "" })),
+    }),
+    pending: false,
+  };
   const onToggle = legend.onToggle;
   return (
-    <Table aria-label="Trace Statistics" className={cn("transition-opacity", legend.pending && "opacity-50")}>
+    <Table
+      aria-label={props.legend ? "Trace Statistics" : "Histogram Statistics"}
+      className={cn("transition-opacity", legend.pending && "opacity-50")}
+    >
       <TableHeader>
         <TableRow>
           {legend.columns.map(({ header, id }) => (
@@ -161,8 +78,10 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
                     <button type="button" aria-pressed={!row.hidden} className="block w-full text-left">
                       <TraceCell row={row} />
                     </button>
-                  ) : (
+                  ) : props.legend ? (
                     <TraceCell row={row} />
+                  ) : (
+                    row.label
                   )
                 ) : (
                   <AbbreviatedValue
@@ -176,13 +95,15 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
         ))}
         {legend.rows.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={legend.columns.length}>No Traces Recorded</TableCell>
+            <TableCell colSpan={legend.columns.length}>{props.legend ? "No Traces Recorded" : "No Statistics Recorded"}</TableCell>
           </TableRow>
         ) : null}
       </TableBody>
     </Table>
   );
 }
+
+/* === Private Components === */
 
 /** The trace's colour, filled while it draws and outlined while hidden. */
 function TraceCell({ row }: { row: SeriesLegendRow }) {
@@ -198,35 +119,5 @@ function TraceCell({ row }: { row: SeriesLegendRow }) {
       </span>
       {row.hidden ? <span className="sr-only">(Hidden)</span> : null}
     </span>
-  );
-}
-
-function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boolean }) {
-  const items = statsSummaryCells(row);
-
-  return (
-    <section
-      aria-label={`${row.label} Statistics`}
-      className="grid min-w-0 max-w-full overflow-hidden gap-2 rounded-lg bg-muted/20 p-3"
-      data-testid="stats-summary-grid"
-    >
-      {titled ? (
-        <strong className="truncate text-sm" title={formatUnitLabel(row.label, row.unit)}>
-          {formatUnitLabel(row.label, row.unit)}
-        </strong>
-      ) : null}
-      <dl className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,6.5rem),1fr))]">
-        {items.map(([label, value]) => (
-          <div className="min-w-0 rounded-lg bg-muted/35 p-2" key={label}>
-            <dt className="truncate text-xs font-bold text-muted-foreground" title={label}>
-              {label}
-            </dt>
-            <dd className="mt-1 truncate text-sm font-semibold tabular-nums">
-              <AbbreviatedValue exact={value} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </section>
   );
 }

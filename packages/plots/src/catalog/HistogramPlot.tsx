@@ -43,11 +43,9 @@ export function HistogramSeriesPlot({ plot }: { plot: PlotCardSpec }) {
     count: item.count,
   }));
 
-  // One series is one card under one title, its statistics folded in; several
-  // keep a chart each and share one table naming every series.
   const single = series.length === 1;
   return (
-    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3">
+    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3 rounded-lg border bg-card p-4 text-card-foreground">
       {series.map((item) => (
         <HistogramChart
           key={item.key}
@@ -56,11 +54,10 @@ export function HistogramSeriesPlot({ plot }: { plot: PlotCardSpec }) {
           unit={unit}
           format={axis?.format ?? null}
           xTitle={axis ? histogramAxisTitle(axis) : undefined}
-        >
-          {single ? <StatsSummaryTable rows={rows} titled={false} /> : null}
-        </HistogramChart>
+        />
       ))}
-      {single ? null : <StatsSummaryTable rows={rows} />}
+      {plot.description ? <p className="text-xs text-muted-foreground">{plot.description}</p> : null}
+      <StatsSummaryTable rows={rows} />
     </article>
   );
 }

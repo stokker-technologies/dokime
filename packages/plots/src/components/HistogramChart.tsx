@@ -9,13 +9,13 @@
 
 /* === External Imports === */
 
-import type { ValueFormat } from "@generated/host/model";
-import type { Wire } from "../lib/rpc/canonical";
-import { Button } from "./ui/button";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 
 /* === Local Imports === */
 
+import type { ValueFormat } from "@generated/host/model";
+import type { Wire } from "../lib/rpc/canonical";
+import { Button } from "./ui/button";
 import { formatNumber, formatUnitLabel } from "../lib/format";
 
 import { HISTOGRAM_COUNT_LABEL } from "../histogram-axes";
@@ -35,21 +35,11 @@ type HistogramChartProps = {
   /** How a bin edge prints; `null` keeps the plain number. */
   format?: Wire<ValueFormat> | null;
   sampleLabel?: string;
-  /** Content the card holds under the chart, such as its statistics, under the one title. */
-  children?: ReactNode;
 };
 
 /* === Components === */
 
-export function HistogramChart({
-  children,
-  title,
-  distribution,
-  unit,
-  xTitle,
-  format = null,
-  sampleLabel = "samples",
-}: HistogramChartProps) {
+export function HistogramChart({ title, distribution, unit, xTitle, format = null, sampleLabel = "samples" }: HistogramChartProps) {
   const [activeBinIndex, setActiveBinIndex] = useState<number | null>(null);
 
   if (!distribution.count) {
@@ -61,7 +51,7 @@ export function HistogramChart({
   const activeBin = activeBinIndex === null ? undefined : bins[activeBinIndex];
 
   return (
-    <section className="grid min-h-44 min-w-0 max-w-full overflow-hidden gap-3 rounded-lg bg-muted/20 p-3">
+    <section className="grid min-h-44 min-w-0 max-w-full overflow-hidden gap-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <strong className="min-w-0 truncate text-sm" title={formatUnitLabel(title, unit)}>
           {formatUnitLabel(title, unit)}
@@ -127,7 +117,6 @@ export function HistogramChart({
           </span>
         ) : null}
       </div>
-      {children}
     </section>
   );
 }

@@ -49,7 +49,6 @@ import {
   nearestDrawnPoint,
   seriesLegendColumns,
   seriesLegendRows,
-  statsSummaryCells,
   summaryInFlight,
   toggleTrace,
   type SeriesSummary,
@@ -1625,7 +1624,7 @@ test("Series Legend", () => {
   assert.equal(summaryInFlight("ended"), false);
 });
 
-test("Backend Statistics", () => {
+test("Histogram Bins", () => {
   // A Histogram Draws One Bar per Backend Bin with the Backend's Counts
   const bars = histogramBars({
     bins: [
@@ -1640,30 +1639,6 @@ test("Backend Statistics", () => {
     { slot: "1", min: 1.5, max: 3, count: 0 },
     { slot: "2", min: 3, max: 4.5, count: 7 },
   ]);
-
-  // The Summary Grid Prints the Backend's Statistics and Count
-  const cells = statsSummaryCells({
-    label: "Voltage",
-    unit: "V",
-    statistics: { mean: 12.5, median: 12, std: 0.25, rms: 12.6, min: 11, max: 14 },
-    count: 42,
-  });
-  assert.deepEqual(cells, [
-    ["Mean [V]", "12.50"],
-    ["Median [V]", "12.00"],
-    ["Std [V]", "0.25"],
-    ["RMS [V]", "12.60"],
-    ["Min [V]", "11.00"],
-    ["Max [V]", "14.00"],
-    ["Count", "42"],
-  ]);
-
-  // Statistics the Backend Has Not Delivered Print Dashes, Never Browser Numbers
-  const missing = statsSummaryCells({ label: "Voltage", unit: "V", statistics: null, count: 0 });
-  assert.deepEqual(
-    missing.map(([, value]) => value),
-    ["-", "-", "-", "-", "-", "-", "0"],
-  );
 });
 
 test("Plot Placeholders", () => {
