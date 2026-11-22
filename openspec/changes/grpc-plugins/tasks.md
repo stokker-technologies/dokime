@@ -1,6 +1,6 @@
 ## Peer Stream Capture
 
-- [ ] Freeze Requested Peer Stream Declarations and Row Types Through the Existing Installed Plugin Inventory; Bind, Sample, Drain and Release Every Execution Owner on All Exit Paths. Prove Deterministic Peer Rows, Frozen Decoding and Cancellation Release in Runtime Tests.
+- [x] Freeze Requested Peer Stream Declarations and Row Types Through the Existing Installed Plugin Inventory; Bind, Sample, Drain and Release Every Execution Owner on All Exit Paths. Prove Deterministic Peer Rows, Frozen Decoding and Cancellation Release in Runtime Tests.
 - [ ] Add Explicit Qualified Python `TestTemplate.uses_streams`, Resolve Them Without Registering Producers and Materialize Them Into Cases. Prove Units and a Two-Plugin Product Host Journey.
 - [x] Accept Repeatable Desktop Development `--plugin` Bundle or Folder Arguments, Bundle Folders and Install After Shipped Plugins Through the Existing CLI. Prove Argument Handling.
 - [ ] Complete Focused Tests, Workspace Test Compilation With Desktop Testing, Python Build/Package, Generation Drift, Formatting, Repository Checking and Strict Change Validation; Report SDK Authoring and Desktop Development Documentation Impact to the Owner.

@@ -210,6 +210,18 @@ impl ExecutionManager {
             .find(|entry| entry.name == identifier)
             .ok_or_else(|| Error::Invalid(format!("Start Execution: Connect Plugin {identifier}")))
     }
+    pub(crate) async fn streams(
+        &self, entry: &PluginEntry, streams: &[String],
+    ) -> Result<dokime_operations::host::executions::streams::Streams> {
+        let context = self
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Capture Execution Streams: Assemble the Host Context".into()))?;
+        let plugins = context.host.plugins().await?;
+        Ok(dokime_operations::host::executions::streams::resolve(entry, &plugins, streams)?)
+    }
     pub(crate) async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
         let context = self
             .inner

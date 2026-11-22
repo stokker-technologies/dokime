@@ -25,4 +25,5 @@ pub mod set;
 pub mod start;
 pub mod steps;
 pub mod stop;
+pub mod streams;
 pub mod watch;
