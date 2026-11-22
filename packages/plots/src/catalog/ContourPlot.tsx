@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import type { ContourGrid } from "@host/model";
+import type { ContourGrid } from "@generated/host/model";
 import type { Wire } from "../lib/rpc/canonical";
 import { contours } from "d3-contour";
 import { geoPath, geoTransform } from "d3-geo";

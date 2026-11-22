@@ -271,7 +271,7 @@ jobs:
       run: printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
     - name: Build and Publish the Documentation Image
       run: |
-        docker build --file sites/docs/Dockerfile --build-arg "REVISION=$GITHUB_SHA" --tag "$IMAGE" target/docs/image
+        docker build --file docs/Dockerfile --build-arg "REVISION=$GITHUB_SHA" --tag "$IMAGE" target/docs/image
         docker push "$IMAGE"
   check_generated:
     name: Check / Generated

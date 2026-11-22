@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import type { ElapsedUnit, ValueFormat } from "@host/model";
+import type { ElapsedUnit, ValueFormat } from "@generated/host/model";
 import type { Wire } from "./rpc/canonical";
 
 /* === Types === */

@@ -87,7 +87,7 @@ fn brand_text(file: &str, field: &str) -> String {
 }
 
 fn embed_organization(manifest: &Path) {
-    let root = manifest.join("../../../organization").canonicalize().expect("organization directory");
+    let root = manifest.join("../../../assets/organization").canonicalize().expect("organization directory");
     println!("cargo:rerun-if-changed={}", root.display());
     let mut pending = vec![root.clone()];
     let mut files = Vec::new();

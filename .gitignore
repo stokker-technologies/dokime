@@ -25,9 +25,6 @@ __pycache__/
 .mypy_cache/
 .pyright/
 
-# Documentation build outputs
-/sites/docs/.astro/
-
 # Web and Tauri
 **/node_modules/
 /crates/dokime-gui/dist/

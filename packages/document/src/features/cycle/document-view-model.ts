@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
 import { localArtifactHref } from "../../lib/artifact-tree";

@@ -11,7 +11,7 @@
 
 /* === Imports === */
 
-import { PlotKind, PlotStreamKind, type PlotRequest, type SnapshotsWatchResponse } from "@host/model";
+import { PlotKind, PlotStreamKind, type PlotRequest, type SnapshotsWatchResponse } from "@generated/host/model";
 import { type PlotEnvelope, mapNativePlotEnvelope, mapNativePlotPayload } from "@dokime/plots/lib/api/native-plot-projection";
 import { plotsSnapshotsList, plotsSnapshotsWatch } from "@/lib/host/client";
 import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";

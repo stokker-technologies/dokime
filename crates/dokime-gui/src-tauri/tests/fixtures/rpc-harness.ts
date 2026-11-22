@@ -38,10 +38,12 @@ import { transformWithOxc } from "vite";
 
 export async function openHarness() {
   const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-  const generated = resolve(gui, "../../target/generated/typescript");
-  assert.ok(existsSync(generated), `${generated} is missing; run \`mise run generate\``);
+  const root = resolve(gui, "../..");
+  const generated = resolve(root, "target/generated");
+  const typescript = resolve(generated, "typescript");
+  assert.ok(existsSync(typescript), `${typescript} is missing; run \`mise run generate\``);
   const owner = spawn("uv", ["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.test.fixture"], {
-    cwd: resolve(gui, "../.."),
+    cwd: root,
     stdio: ["pipe", "pipe", "inherit"],
   });
   const stopped = new Promise<void>((resolve, reject) => {
@@ -74,7 +76,10 @@ export async function openHarness() {
     for await (const line of lines) {
       const message = JSON.parse(line);
       if ("channel" in message) {
-        callbacks.get(message.channel)?.({ message: buffer(message.bytes), index: message.index });
+        callbacks.get(message.channel)?.({
+          message: buffer(message.bytes),
+          index: message.index,
+        });
         continue;
       }
       const call = pending.get(message.id);
@@ -121,8 +126,7 @@ export async function openHarness() {
     },
   };
   // Follow Runtime Imports After Type Erasure, Including Workspace Package Exports.
-  const root = resolve(gui, "../..");
-  const host = resolve(root, "target/generated/host");
+  const host = resolve(generated, "host");
   const compiled = new Set<string>();
   async function compile(input: string): Promise<string> {
     if (!existsSync(input)) {
@@ -136,7 +140,10 @@ export async function openHarness() {
       return output;
     }
     compiled.add(input);
-    const result = await transformWithOxc(readFileSync(input, "utf8"), input, { target: "es2022", lang: "ts" });
+    const result = await transformWithOxc(readFileSync(input, "utf8"), input, {
+      target: "es2022",
+      lang: "ts",
+    });
     let source = result.code;
     for (const match of source.matchAll(/\b(?:from\s*|import\s*)(["'])([^"']+)\1/g)) {
       const specifier = match[2];
@@ -145,8 +152,6 @@ export async function openHarness() {
         target = resolve(gui, "src", specifier.slice(2));
       } else if (specifier.startsWith("@generated/")) {
         target = resolve(generated, specifier.slice("@generated/".length));
-      } else if (specifier.startsWith("@host/")) {
-        target = resolve(host, specifier.slice("@host/".length));
       } else if (specifier.startsWith(".")) {
         target = resolve(dirname(input), specifier);
       } else {
@@ -173,9 +178,11 @@ export async function openHarness() {
   return {
     invoke,
     load: (path: string) => load(resolve(gui, "src/lib/rpc", path)),
-    loadCanonical: (path: string) => load(resolve(generated, path)),
+    loadCanonical: (path: string) => load(resolve(typescript, path)),
     loadHost: <P extends "client.js" | "model.js">(path: P) =>
-      load(resolve(host, path)) as Promise<P extends "client.js" ? typeof import("@host/client") : typeof import("@host/model")>,
+      load(resolve(host, path)) as Promise<
+        P extends "client.js" ? typeof import("@generated/host/client") : typeof import("@generated/host/model")
+      >,
     /** Report one observation to the driving test without awaiting a reply. */
     report(value: unknown) {
       process.stdout.write(`${JSON.stringify(value)}\n`);

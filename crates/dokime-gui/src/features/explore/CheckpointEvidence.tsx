@@ -10,8 +10,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
 import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { failureOf } from "@dokime/plots/lib/notification-details";
-import { ArtifactState } from "@host/model";
-import { Severity } from "@host/model";
+import { ArtifactState } from "@generated/host/model";
+import { Severity } from "@generated/host/model";
 import { nativeValuesToJson } from "@dokime/plots/lib/host/values";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";

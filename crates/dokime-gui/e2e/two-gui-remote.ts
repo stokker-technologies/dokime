@@ -26,7 +26,7 @@ import { parseArgs } from "node:util";
 
 // Local Imports
 import type { ArtifactSource, Delivered } from "@dokime/document/lib/contracts/delivery";
-import type { Document } from "@generated/application-settings";
+import type { Document } from "@generated/typescript/application-settings";
 import type { Session } from "./native-fixture.ts";
 import {
   startBackend,

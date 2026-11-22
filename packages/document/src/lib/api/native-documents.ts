@@ -12,7 +12,7 @@
 /* === External Imports === */
 
 import { toBinary } from "@bufbuild/protobuf";
-import * as hostModel from "@host/model";
+import * as hostModel from "@generated/host/model";
 
 /* === Local Imports === */
 
@@ -30,7 +30,7 @@ import {
   PlotKind,
   Reduction,
   type DocumentFrame,
-} from "@host/model";
+} from "@generated/host/model";
 
 import { assembleCapture, type DeclaredNode } from "../document-assembly";
 import {

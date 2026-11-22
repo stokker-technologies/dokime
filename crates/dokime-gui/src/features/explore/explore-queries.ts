@@ -9,8 +9,8 @@
 
 /* === External Imports === */
 
-import { ArchiveScope } from "@host/model";
-import { ExecutionOrderKey } from "@host/model";
+import { ArchiveScope } from "@generated/host/model";
+import { ExecutionOrderKey } from "@generated/host/model";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNativeSession } from "@/app/native-session/context";

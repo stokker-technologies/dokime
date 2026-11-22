@@ -21,7 +21,7 @@
 /* === Local Imports === */
 
 import { failureOf } from "@dokime/plots/lib/notification-details";
-import type { SettingsFrame } from "@host/model";
+import type { SettingsFrame } from "@generated/host/model";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import { useSettingsFrameQuery } from "@/features/settings/settings-queries";
 import { SETTINGS_SECTIONS, type SettingsSection } from "@/features/settings/settings-sections";

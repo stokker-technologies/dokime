@@ -1,4 +1,4 @@
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 /* ***
  *

@@ -7,7 +7,7 @@
  * ***
  */
 
-import type { ValueFormat } from "@host/model";
+import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "../rpc/canonical";
 import type { JsonObject } from "../types";
 

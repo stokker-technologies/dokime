@@ -26,7 +26,7 @@ import {
   ResultStatus,
   Severity,
   StreamMatchOperator,
-} from "@host/model";
+} from "@generated/host/model";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -523,7 +523,7 @@ test("Frozen Descriptor Pages Are Verified and Reused Across Executions", async 
   });
   const cache = new FrozenSchemaCache();
   const detail = (executionId: string) => create(awaitedExecutionSchema, { summary: { executionId }, schemas: { digest } });
-  const awaitedExecutionSchema = (await import("@host/model")).ExecutionDetailSchema;
+  const awaitedExecutionSchema = (await import("@generated/host/model")).ExecutionDetailSchema;
   const first = await cache.get(session, detail("one"));
   const second = await cache.get(session, detail("two"));
   assert.equal(first, second);
@@ -643,7 +643,7 @@ test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", a
     assert.equal(path, "/dokime.host.v1.evidence.Notes/Create");
     assert.deepEqual(request.owner.owner.kind, {
       case: "execution",
-      value: create((await import("@host/model")).ExecutionNoteOwnerSchema, {
+      value: create((await import("@generated/host/model")).ExecutionNoteOwnerSchema, {
         cycleId: "cycle",
         executionId: "run",
       }),
@@ -657,7 +657,7 @@ test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", a
 
 test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
   const { fetchNativeSettingsFrame, getNativePluginSettings, updateNativePluginSettings } = await import("@/lib/api/native-settings");
-  const { SettingsCardState } = await import("@host/model");
+  const { SettingsCardState } = await import("@generated/host/model");
   const settings = {
     declarations: [{ name: "power", title: "Power", default: { value: { case: "flag", value: false } } }],
     value: { values: { power: { value: { case: "flag", value: true } } } },
@@ -737,7 +737,7 @@ test("Trace Snapshot Hands Its Exact Position to Watch and Filters Scope", async
   const cancelled = vi.fn(async () => {});
   fixture.stream.mockImplementation(async (path, _input, output, _identity, request) => {
     assert.equal(path, "/dokime.host.v1.status.TraceEvents/Watch");
-    assert.deepEqual(request.at, create((await import("@host/model")).PositionSchema, at));
+    assert.deepEqual(request.at, create((await import("@generated/host/model")).PositionSchema, at));
     return {
       cancel: cancelled,
       async *[Symbol.asyncIterator]() {

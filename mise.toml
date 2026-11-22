@@ -76,7 +76,7 @@ usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Sy
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups",
-  "{% if not usage.tools_only %}{{vars.tools}} dokime_tools.build.protocol --inputs-only{% endif %}",
+  "{% if not usage.tools_only and not usage.docs_only %}{{vars.tools}} dokime_tools.build.protocol --inputs-only{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise run build:python{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise -C sdk/python run install{% endif %}",
   "{% if not usage.tools_only and (usage.docs_only or not usage.without_frontend) %}pnpm install --frozen-lockfile{% endif %}",
@@ -127,39 +127,18 @@ run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
 [tasks."docs:build"]
 description = "Build the Documentation Site Entry"
-usage = 'flag "--prepared" help="Use Canonical Host Messages Already Generated in This Job"; flag "--archive"; flag "--release"'
-run = [
-  "{% if not usage.prepared %}mise -C crates/dokime-gui run generate:host-frontend{% endif %}",
-  "{{vars.tools}} dokime_tools.docs.site build{% if usage.archive %} --archive{% endif %}{% if usage.release %} --release{% endif %}",
-]
+usage = 'flag "--archive"; flag "--release"'
+run = "{{vars.tools}} dokime_tools.docs.site{% if usage.archive %} --archive{% endif %}{% if usage.release %} --release{% endif %}"
 
 [tasks."docs:serve"]
 description = "Preview the Documentation Site"
-run = ["mise -C crates/dokime-gui run generate:host-frontend", "{{vars.tools}} dokime_tools.docs.site serve"]
+env = { ASTRO_TELEMETRY_DISABLED = "1" }
+run = "pnpm --dir docs dev"
 
 [tasks."docs:image"]
 description = "Assemble Published Documentation Archives Into the Site Image"
 run = "{{vars.tools}} dokime_tools.docs.image"
 
-[tasks."docs:test"]
-description = "Test Documentation Tooling"
-usage = 'flag "--select <select>"'
-run = [
-  "mise -C crates/dokime-gui run generate:host-frontend",
-  'pnpm --dir sites/docs test{% if usage.select %} --test-name-pattern="{{usage.select}}"{% endif %} tests/*.test.ts',
-]
-
-[tasks."docs:format"]
-description = "Format the Documentation Site"
-run = "pnpm --dir sites/docs format"
-
-[tasks."docs:lint"]
-description = "Lint the Documentation Site"
-run = [
-  "pnpm --dir sites/docs lint",
-  "{{vars.python}} ruff check tools/python/src/dokime_tools/docs tools/python/src/dokime_tools/ci/impact.py tools/python/src/dokime_tools/ci/nightly_freshness.py tools/python/tests/integration/test_docs_site.py tools/python/tests/integration/test_ci_impact.py tools/python/tests/integration/test_ci_workflow.py",
-  "{{vars.python}} ty check --project tools/python tools/python/src/dokime_tools/docs tools/python/src/dokime_tools/ci/impact.py tools/python/src/dokime_tools/ci/nightly_freshness.py tools/python/tests/integration/test_docs_site.py tools/python/tests/integration/test_ci_impact.py tools/python/tests/integration/test_ci_workflow.py",
-]
 
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"

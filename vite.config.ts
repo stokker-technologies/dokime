@@ -6,8 +6,7 @@ export default defineConfig({
   resolve: {
     dedupe: ["@bufbuild/protobuf"],
     alias: {
-      "@host": fileURLToPath(new URL("./target/generated/host", import.meta.url)),
-      "@generated": fileURLToPath(new URL("./target/generated/typescript", import.meta.url)),
+      "@generated": fileURLToPath(new URL("./target/generated", import.meta.url)),
     },
   },
 });

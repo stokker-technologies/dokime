@@ -133,6 +133,9 @@ class HostFixtureTests(unittest.TestCase):
         temporary_directory = tempfile.TemporaryDirectory()
         root = Path(temporary_directory.name)
         try:
+            report = root / "target/generated/report/report.html"
+            report.parent.mkdir(parents=True)
+            report.write_bytes(b"report")
             with (
                 patch.object(host_fixtures.configuration, "ROOT", root),
                 patch.object(host_fixtures.generated, "prepare") as prepare,
@@ -215,6 +218,9 @@ class HostFixtureTests(unittest.TestCase):
                 extension = ".exe" if os.name == "nt" else ""
                 for name in ("dokime-host", "plugin-obc"):
                     (product / f"{name}{extension}").write_bytes(b"product")
+                report = root / "target/generated/report/report.html"
+                report.parent.mkdir(parents=True)
+                report.write_bytes(b"report")
                 with (
                     self.subTest(language=language),
                     patch.object(host_fixtures.configuration, "ROOT", root),
@@ -305,6 +311,9 @@ class HostFixtureTests(unittest.TestCase):
             extension = ".exe" if os.name == "nt" else ""
             for name in ("dokime-host", "plugin-obc"):
                 (product / f"{name}{extension}").write_bytes(b"product")
+            report = root / "target/generated/report/report.html"
+            report.parent.mkdir(parents=True)
+            report.write_bytes(b"report")
             with (
                 patch.object(host_fixtures.configuration, "ROOT", root),
                 patch.object(host_fixtures.generated, "prepare"),
@@ -397,6 +406,7 @@ class HostFixtureTests(unittest.TestCase):
                     "dokime-rust-boundary",
                     "dokime-rust-secrets",
                     "dokime-rust-capture",
+                    "dokime-rust-history",
                     "dokime-rust-plugin",
                     "dokime-host",
                     "plugin-obc",
@@ -414,6 +424,9 @@ class HostFixtureTests(unittest.TestCase):
                 product.mkdir(parents=True)
                 for name in ("dokime-host", "plugin-obc"):
                     (product / f"{name}{extension}").write_bytes(profile.encode())
+                report = root / "target/generated/report/report.html"
+                report.parent.mkdir(parents=True)
+                report.write_bytes(b"report")
                 reference = (
                     root / "target/reference-host" / paths.target() / profile / "fixture-revision/bin" / f"harmos-conformance{extension}"
                 )

@@ -13,7 +13,7 @@
 
 /* === Imports === */
 
-import { createPreferencesCommands } from "@generated/native-preferences";
+import { createPreferencesCommands } from "@generated/typescript/native-preferences";
 import { invoke } from "./commands";
 import { readPreferences, savePreferences } from "../host/preferences";
 

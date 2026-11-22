@@ -16,8 +16,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "paths": {
-      "@host/*": ["./target/generated/host/*"],
-      "@generated/*": ["./target/generated/typescript/*"]
+      "@generated/*": ["./target/generated/*"],
+      "@assets/*": ["./assets/*"]
     },
     "types": ["vite/client", "node"],
     "allowImportingTsExtensions": true

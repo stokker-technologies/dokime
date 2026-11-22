@@ -20,7 +20,7 @@
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import type { SettingsFrame } from "@host/model";
+import type { SettingsFrame } from "@generated/host/model";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { ManagedPlugin } from "@/lib/api/native-plugins";

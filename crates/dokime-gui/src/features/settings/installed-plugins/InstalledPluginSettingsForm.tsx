@@ -3,7 +3,7 @@
 /* === Imports === */
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { SettingDeclaration } from "@host/model";
+import type { SettingDeclaration } from "@generated/host/model";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@dokime/plots/components/ui/input";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";

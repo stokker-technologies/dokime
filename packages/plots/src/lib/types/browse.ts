@@ -1,5 +1,5 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import type { Origin, ExecutionOutcome } from "@host/model";
+import type { Origin, ExecutionOutcome } from "@generated/host/model";
 import type { Wire } from "../rpc/canonical";
 
 export type CycleHistorySummary = {

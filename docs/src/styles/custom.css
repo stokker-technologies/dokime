@@ -1,0 +1,116 @@
+/* Dokime — SPDX-License-Identifier: Apache-2.0 */
+@layer base, starlight, theme, components, utilities;
+
+@import "@astrojs/starlight-tailwind";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@assets/organization/theme/base.css";
+@import "@assets/organization/theme/light.css";
+@import "@assets/organization/theme/dark.css";
+
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@assets/organization/fonts/roboto-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Roboto Slab";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@assets/organization/fonts/roboto-slab-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Roboto Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 700;
+  src: url("@assets/organization/fonts/roboto-mono-latin-wght-normal.woff2") format("woff2");
+}
+
+@theme {
+  --font-sans: "Roboto", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+/* Map Starlight surfaces, ink, and accent to Dokime brand tokens. */
+:root,
+::backdrop {
+  --brand-font-sans: var(--font-sans);
+  --brand-font-heading: "Roboto Slab", "Roboto", sans-serif;
+  --brand-font-mono: var(--font-mono);
+  --sl-font-system-mono: var(--brand-font-mono);
+  --sl-color-white: var(--foreground);
+  --sl-color-gray-1: var(--foreground);
+  --sl-color-gray-2: var(--muted-foreground);
+  --sl-color-gray-3: var(--muted-foreground);
+  --sl-color-gray-4: var(--input);
+  --sl-color-gray-5: var(--border);
+  --sl-color-gray-6: var(--muted);
+  --sl-color-gray-7: var(--muted);
+  --sl-color-black: var(--background);
+  --sl-color-accent-low: var(--accent);
+  --sl-color-accent: var(--link);
+  --sl-color-accent-high: var(--link);
+  --sl-color-text-invert: var(--primary-foreground);
+  --sl-color-bg-nav: var(--background);
+  --sl-color-bg-sidebar: var(--background);
+  --sl-color-bg-inline-code: var(--muted);
+  --sl-color-hairline-light: var(--border);
+  --sl-color-hairline-shade: var(--border);
+}
+
+h1,
+.site-title {
+  font-family: var(--brand-font-heading);
+}
+
+/* Distinguish top-level pages, top-level sections, and subsections in the sidebar. */
+.sidebar-content a.large {
+  color: var(--muted-foreground);
+  font-size: var(--sl-text-sm);
+  font-weight: 400;
+}
+
+.sidebar-content a[aria-current="page"] {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-weight: 600;
+}
+
+.sidebar-content .group-label {
+  font-family: var(--brand-font-mono);
+  font-size: var(--sl-text-sm);
+  font-weight: 500;
+}
+
+.sidebar-content ul ul .group-label,
+.sidebar-content ul ul .group-label .large {
+  font-family: var(--brand-font-sans);
+  font-size: var(--sl-text-sm);
+  font-weight: 500;
+}
+
+.sidebar-content ul ul summary .caret {
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.d2-diagram {
+  overflow-x: auto;
+}
+
+.d2-diagram > svg {
+  width: 100%;
+  height: auto;
+}
+
+[data-theme="light"] .d2-diagram > [data-d2-theme="dark"],
+[data-theme="dark"] .d2-diagram > [data-d2-theme="light"] {
+  display: none;
+}

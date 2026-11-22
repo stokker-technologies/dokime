@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { FailureSchema, PluginState, SettingDeclarationSchema } from "@host/model";
+import { FailureSchema, PluginState, SettingDeclarationSchema } from "@generated/host/model";
 import "fake-indexeddb/auto";
 import { create, toBinary } from "@bufbuild/protobuf";
 import { act, createElement } from "react";

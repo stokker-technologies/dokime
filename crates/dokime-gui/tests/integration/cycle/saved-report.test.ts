@@ -37,7 +37,7 @@ import {
   DocumentSummaryGroupSchema,
   DocumentSummaryTileSchema,
   ValueSchema,
-} from "@host/model";
+} from "@generated/host/model";
 import { documentSummaryTile } from "@dokime/document/lib/document-presentation";
 import { formatCompactDecimal } from "@dokime/plots/lib/format";
 import { seriesLegendColumns, seriesLegendRows } from "@dokime/plots/lib/statistics";

@@ -14,7 +14,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
 import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { failureOf } from "@dokime/plots/lib/notification-details";
-import type { ApplicationSettings, SettingsScope, PreferencesSnapshot } from "@generated/application-settings";
+import type { ApplicationSettings, SettingsScope, PreferencesSnapshot } from "@generated/typescript/application-settings";
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@dokime/plots/components/ui/input";
 import { Switch } from "@/components/ui/switch";

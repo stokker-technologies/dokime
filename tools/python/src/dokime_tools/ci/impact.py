@@ -81,7 +81,7 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         parts = PurePosixPath(path).parts
         if not path or path.startswith("/") or "\\" in path or any(part in {".", ".."} for part in parts):
             return frozenset({"all"})
-        if path.startswith("packages/") or path in {
+        if path.startswith(("packages/", "assets/organization/")) or path in {
             "package.json",
             "pnpm-workspace.yaml",
             "pnpm-lock.yaml",
@@ -92,14 +92,12 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
         }:
             classes.update({"gui", "docs"})
         elif (
-            path.startswith(("docs/", "openspec/", "sites/", "tools/python/src/dokime_tools/docs/"))
+            path.startswith(("docs/", "assets/screenshots/", "openspec/", "sites/", "tools/python/src/dokime_tools/docs/"))
             or path.lower().endswith((".md", ".mdx"))
             or path
             in {
                 "tools/python/src/dokime_tools/ci/impact.py",
                 "tools/python/tests/integration/test_ci_impact.py",
-                "tools/python/tests/integration/test_docs_site.py",
-                "tools/python/tests/integration/test_docs_operations.py",
                 ".github/workflows/validate-build-docs.yml",
             }
         ):
@@ -133,7 +131,7 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
             classes.add("csharp")
         elif path.startswith("sdk/tests/fixtures/python/"):
             classes.add("python")
-        elif path.startswith(("crates/dokime-gui/", "sdk/typescript/", "organization/")):
+        elif path.startswith(("crates/dokime-gui/", "sdk/typescript/")):
             classes.add("gui")
         elif path.startswith("sdk/rust/tests/fixtures/"):
             classes.add("fixtures")

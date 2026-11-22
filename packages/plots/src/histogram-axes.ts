@@ -17,7 +17,7 @@
 
 /* === Local Imports === */
 
-import type { ValueFormat } from "@host/model";
+import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "./lib/rpc/canonical";
 import type { DocumentViewPlot, TelemetryColumnSpec } from "./lib/types";
 import { formatUnitLabel } from "./lib/format";

@@ -17,8 +17,8 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 // Local Imports
-import type { PreferencesSnapshot } from "@generated/application-settings";
-import defaults from "@generated/application-settings.json";
+import type { PreferencesSnapshot } from "@generated/typescript/application-settings";
+import defaults from "@generated/typescript/application-settings.json";
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
 import { createRoot } from "react-dom/client";

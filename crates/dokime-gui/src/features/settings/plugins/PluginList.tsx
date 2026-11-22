@@ -31,7 +31,7 @@ import { Badge } from "@dokime/plots/components/ui/badge";
 import { Button } from "@dokime/plots/components/ui/button";
 import { useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
-import { PluginState } from "@host/model";
+import { PluginState } from "@generated/host/model";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Types === */

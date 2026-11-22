@@ -115,7 +115,7 @@ class ImpactTests(unittest.TestCase):
                 selected = [row for row in packages if row["work"] == f"Packages / {name.title()}"]
                 self.assertEqual({row["platform"] for row in selected}, {"unix", "windows"})
                 for row in selected:
-                    self.assertEqual(row["command"], f"test:typescript:integration -- --project packages/{name} --select tests")
+                    self.assertEqual(row["command"], f"test:typescript:integration -- --prepared --project packages/{name} --select tests")
                     self.assertEqual(json.loads(row["bootstrap"]), [])
                     for profile in ("dev", "release"):
                         archives = json.loads(row["archives"].replace("{profile}", profile).replace("{platform}", row["platform"]))
@@ -143,7 +143,7 @@ class ImpactTests(unittest.TestCase):
             "sites/docs/package.json",
             "sites/docs/pnpm-lock.yaml",
             "sites/other/index.html",
-            "docs/guides/screenshots/desktop.png",
+            "assets/screenshots/desktop.png",
             "tools/python/src/dokime_tools/docs/image.py",
             "tools/python/src/dokime_tools/ci/impact.py",
         )

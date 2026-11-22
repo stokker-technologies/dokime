@@ -9,9 +9,9 @@
 
 /* === Local Imports === */
 
-import type { ValueFormat } from "@host/model";
+import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "./lib/rpc/canonical";
-import type { PlotReferenceBand, PlotReferenceLine, PlotReferenceValue, DataExpression } from "@host/model";
+import type { PlotReferenceBand, PlotReferenceLine, PlotReferenceValue, DataExpression } from "@generated/host/model";
 import { formatTitleWord } from "./lib/format";
 import { scaleStatisticValue, type StatisticValue } from "./lib/statistics";
 import { numericValue } from "./lib/utils";

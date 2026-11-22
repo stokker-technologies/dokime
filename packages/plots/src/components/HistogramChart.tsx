@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import type { ValueFormat } from "@host/model";
+import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "../lib/rpc/canonical";
 import { Button } from "./ui/button";
 import { type ReactNode, useState } from "react";

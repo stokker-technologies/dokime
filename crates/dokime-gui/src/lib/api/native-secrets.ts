@@ -23,8 +23,8 @@ import { commands } from "@/lib/desktop/commands";
 import { required } from "@dokime/plots/lib/rpc/canonical";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { SecretImportAction } from "@host/model";
-import type { Metadata } from "@host/model";
+import { SecretImportAction } from "@generated/host/model";
+import type { Metadata } from "@generated/host/model";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Re-Exports === */

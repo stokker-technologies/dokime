@@ -13,7 +13,7 @@
 
 /* === Imports === */
 
-import type * as hostModel from "@host/model";
+import type * as hostModel from "@generated/host/model";
 
 import { nativeValueToJson } from "@dokime/plots/lib/host/values";
 
@@ -23,7 +23,7 @@ import { traceabilitySnapshotFromItems } from "../traceability";
 
 import type { TraceabilitySnapshot } from "@dokime/plots/lib/types";
 
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 
 import { NativeApiLimitError, timestampIso } from "@dokime/plots/lib/api/native-values";
 

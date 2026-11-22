@@ -14,7 +14,12 @@
 /* === Imports === */
 
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import type { ApplicationSettings, SettingsScope, PreferencesSnapshot, PreferencesUpdate } from "@generated/application-settings";
+import type {
+  ApplicationSettings,
+  SettingsScope,
+  PreferencesSnapshot,
+  PreferencesUpdate,
+} from "@generated/typescript/application-settings";
 import {
   Density,
   ThemeMode,
@@ -23,9 +28,9 @@ import {
   ClientPreferencesSchema,
   ReportDefaultsSchema,
   TelemetryPreferencesSchema,
-} from "@host/model";
-import { Downsample } from "@host/model";
-import { SettingsGetResponseSchema, SettingsSetRequestSchema } from "@host/model";
+} from "@generated/host/model";
+import { Downsample } from "@generated/host/model";
+import { SettingsGetResponseSchema, SettingsSetRequestSchema } from "@generated/host/model";
 import { invoke } from "../desktop/commands";
 import { safeNumber } from "@dokime/plots/lib/api/native-values";
 

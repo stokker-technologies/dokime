@@ -14,7 +14,7 @@
 
 import { cycleState, type CycleState } from "@dokime/document/features/cycle/cycle-workspace-model";
 import type { PromptRequest } from "@dokime/plots/lib/types";
-import { CyclePhase, CycleStatus } from "@host/model";
+import { CyclePhase, CycleStatus } from "@generated/host/model";
 import type { CycleSummary } from "@dokime/document/lib/api/native-planning-projection";
 import { mapCycleStatus } from "@dokime/document/lib/api/native-planning-projection";
 

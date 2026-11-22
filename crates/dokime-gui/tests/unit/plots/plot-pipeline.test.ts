@@ -21,9 +21,9 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { DataExpressionSchema, PlotKind, Reduction, SnapshotsWatchResponseSchema } from "@host/model";
+import { DataExpressionSchema, PlotKind, Reduction, SnapshotsWatchResponseSchema } from "@generated/host/model";
 import { documentPlot } from "@dokime/document/lib/document-presentation";
-import { Downsample, PlotStreamKind } from "@host/model";
+import { Downsample, PlotStreamKind } from "@generated/host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@dokime/plots/live-frames";

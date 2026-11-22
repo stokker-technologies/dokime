@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import type { ValueFormat } from "@host/model";
+import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "./lib/rpc/canonical";
 import type { NotificationFailure } from "./lib/notification-details";
 import type { SeriesSummary } from "./lib/statistics";

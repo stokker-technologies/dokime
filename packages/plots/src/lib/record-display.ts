@@ -9,7 +9,7 @@
 
 /* === Local Imports === */
 
-import type { ValueFormat } from "@host/model";
+import type { ValueFormat } from "@generated/host/model";
 import type { Wire } from "./rpc/canonical";
 import { formatNumber, formatTime } from "./format";
 import type { RecordDisplay, RecordTone } from "./types";

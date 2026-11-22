@@ -1,4 +1,4 @@
-/* GENERATED from the authored `organization/theme/` CSS.
+/* GENERATED from the authored `assets/organization/theme/` CSS.
  * Do not edit by hand. */
 
 /* BEGIN authored theme/typography.css */
@@ -61,7 +61,7 @@ html {
 }
 /* END authored theme/base.css */
 
-/* BEGIN generated corner radii from organization/organization.toml */
+/* BEGIN generated corner radii from assets/organization/organization.toml */
 :root {
   --brand-radius: 0.125rem;
   --brand-radius-sm: 0;
@@ -114,7 +114,8 @@ html {
 /* END authored theme/light.css */
 
 /* BEGIN authored theme/dark.css */
-.dark {
+.dark,
+[data-theme="dark"] {
   color-scheme: dark;
   --background: #111111;
   --foreground: #ddd9c8;

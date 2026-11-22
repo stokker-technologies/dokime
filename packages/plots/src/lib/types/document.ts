@@ -7,7 +7,7 @@
  * ***
  */
 
-import type { ValueFormat, DataExpression, PlotReferenceLine, PlotReferenceBand } from "@host/model";
+import type { ValueFormat, DataExpression, PlotReferenceLine, PlotReferenceBand } from "@generated/host/model";
 import type { Wire } from "../rpc/canonical";
 import type { NotificationFailure } from "../notification-details";
 import type { DocumentStatistic, JsonObject, Metadata, MetricPresentation, MetricState } from "../types";

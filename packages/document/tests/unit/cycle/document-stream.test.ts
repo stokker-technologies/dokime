@@ -21,7 +21,7 @@ import { create } from "@bufbuild/protobuf";
 import { test } from "vitest";
 
 // Local Imports
-import { DocumentFrameSchema } from "@host/model";
+import { DocumentFrameSchema } from "@generated/host/model";
 import {
   assembleDocument,
   type CompletedDocument,

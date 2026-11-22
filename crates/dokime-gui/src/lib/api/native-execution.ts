@@ -15,7 +15,7 @@
 
 import * as rpc from "@/lib/host/client";
 import { required } from "@dokime/plots/lib/rpc/canonical";
-import { ArchiveScope, CyclePhase, ExecutionMode, ExecutionParameterSet } from "@host/model";
+import { ArchiveScope, CyclePhase, ExecutionMode, ExecutionParameterSet } from "@generated/host/model";
 import { type NativeExecution, mapNativeExecution } from "@dokime/document/lib/api/native-execution-projection";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";

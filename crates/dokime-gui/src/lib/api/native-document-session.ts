@@ -27,7 +27,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 
 import type { DocumentDownsampleTechnique } from "@dokime/plots/lib/types";
 
-import { Downsample } from "@host/model";
+import { Downsample } from "@generated/host/model";
 
 import { assembleDocument, sameFrontiers, type CompletedDocument } from "@dokime/document/lib/api/native-documents";
 

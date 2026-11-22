@@ -68,7 +68,7 @@
   }
 }
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 @custom-variant data-open {
   &:where([data-state="open"]),
   &:where([data-open]:not([data-open="false"])) {
@@ -267,7 +267,8 @@
   --plot-reference-4: #8f889f;
 }
 
-.dark {
+.dark,
+[data-theme="dark"] {
   --plot-reference-1: #8ba2b2;
   --plot-reference-2: #e5d5c3;
   --plot-reference-3: #987f7f;

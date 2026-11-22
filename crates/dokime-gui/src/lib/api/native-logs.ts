@@ -8,8 +8,8 @@
  */
 
 /* Library Trace Snapshot and Watch Adapter. */
-import type { Event } from "@host/model";
-import type { Position } from "@host/model";
+import type { Event } from "@generated/host/model";
+import type { Position } from "@generated/host/model";
 import * as rpc from "@/lib/host/client";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";

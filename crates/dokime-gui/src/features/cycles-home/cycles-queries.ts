@@ -21,7 +21,7 @@ import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import type { PromptRequest } from "@dokime/plots/lib/types";
-import { ArchiveScope, CycleOrderKey } from "@host/model";
+import { ArchiveScope, CycleOrderKey } from "@generated/host/model";
 import type { CycleSummary } from "@dokime/document/lib/api/native-planning-projection";
 
 /* === Types === */

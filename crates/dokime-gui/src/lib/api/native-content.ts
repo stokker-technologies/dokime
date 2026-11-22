@@ -21,8 +21,8 @@ import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type { ArtifactRecord, ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileReadWindow } from "@dokime/plots/lib/types";
-import * as desktopProtocol from "@generated/desktop-protocol";
-import * as hostModel from "@host/model";
+import * as desktopProtocol from "@generated/typescript/desktop-protocol";
+import * as hostModel from "@generated/host/model";
 import {
   type ArtifactMetadata,
   type ExecutionFileMetadata,

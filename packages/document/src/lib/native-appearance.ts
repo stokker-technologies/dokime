@@ -17,16 +17,16 @@ import type * as appearance from "@dokime/plots/lib/types/appearance";
 
 import type { RuntimeAppLogo } from "@dokime/plots/lib/types/appearance";
 
-import { LogoVariant } from "@host/model";
+import { LogoVariant } from "@generated/host/model";
 
 import { defaultBrand } from "./brand";
 
-import type { BackendAppearanceResponse } from "@host/model";
+import type { BackendAppearanceResponse } from "@generated/host/model";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { RuntimeAppearanceFrame } from "@dokime/plots/lib/types/appearance";
 
-import { ThemeModePolicy } from "@host/model";
+import { ThemeModePolicy } from "@generated/host/model";
 
 // Standard Library Imports
 

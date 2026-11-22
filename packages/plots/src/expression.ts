@@ -1,5 +1,5 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import { Aggregate, type DataExpression } from "@host/model";
+import { Aggregate, type DataExpression } from "@generated/host/model";
 import type { Wire } from "./lib/rpc/canonical";
 
 const MAX_TRANSFORMS = 32;

@@ -37,7 +37,7 @@ import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
-import { FailureSchema, PluginEntrySchema, PluginState, SettingDeclarationSchema } from "@host/model";
+import { FailureSchema, PluginEntrySchema, PluginState, SettingDeclarationSchema } from "@generated/host/model";
 import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/lib/api/native-settings";
 
 /* === Re-Exports === */

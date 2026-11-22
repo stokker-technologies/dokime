@@ -17,7 +17,7 @@ import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { ArtifactRecord, ExecutionFileLifecycle } from "@dokime/plots/lib/types";
 
-import * as hostModel from "@host/model";
+import * as hostModel from "@generated/host/model";
 
 import { nowIso, safeNumber, timestampIso } from "@dokime/plots/lib/api/native-values";
 

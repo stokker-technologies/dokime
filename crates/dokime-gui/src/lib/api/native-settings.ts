@@ -2,7 +2,7 @@
 
 /* === Imports === */
 
-import type { SettingDeclaration, SettingValue } from "@host/model";
+import type { SettingDeclaration, SettingValue } from "@generated/host/model";
 import type { RuntimePluginSettings, SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { pluginsSecretsList, pluginsSettingsList, pluginsSettingsSet, settingsSchema } from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";

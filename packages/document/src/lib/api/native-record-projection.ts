@@ -13,7 +13,7 @@
 
 /* === Imports === */
 
-import type * as hostModel from "@host/model";
+import type * as hostModel from "@generated/host/model";
 
 import { fallbackRecordDisplay } from "@dokime/plots/lib/record-display";
 
@@ -27,7 +27,7 @@ import { isReflectList, isReflectMap, isReflectMessage, reflect, type ReflectMes
 
 import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 
-import { LogsAppendRequestSchema, Severity } from "@host/model";
+import { LogsAppendRequestSchema, Severity } from "@generated/host/model";
 
 import { recordMessage } from "../host/schema-registry";
 
