@@ -1,4 +1,4 @@
-set(DOKIME_PROTO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../proto" CACHE PATH "Authoritative Dokime Protocol Sources")
+set(DOKIME_PROTO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../target/protocol" CACHE PATH "Authoritative Dokime Protocol Sources")
 set(DOKIME_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/g")
 # Explicit Protocol Inputs Keep Ninja Freshness Checks Free of Forced Regeneration.
 # Plugins Compile Only the Message Closure of Their Plugin Contract and Host Operations.

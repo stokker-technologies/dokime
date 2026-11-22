@@ -53,8 +53,12 @@ from .release_downloads_fixtures import SETTINGS
 
 class PythonPackagingTests(TestCase):
     def fixture(self, root: Path) -> Path:
+        (root / "Cargo.toml").write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "pinned"\n')
+        exported = root / "target/protocol"
+        exported.mkdir(parents=True, exist_ok=True)
+        (exported / ".revision").write_text("https://example.test/library.git#ref=pinned,subdir=proto,depth=2147483647")
         proto = root / "proto/dokime/host/v1/service.proto"
-        proto.parent.mkdir(parents=True)
+        proto.parent.mkdir(parents=True, exist_ok=True)
         proto.write_bytes(b'syntax = "proto3";')
         output = root / "target/build/dev/any/python"
         output.mkdir(parents=True, exist_ok=True)
@@ -72,16 +76,20 @@ class PythonPackagingTests(TestCase):
                 archive.writestr("dokime_sdk/_wire/host/v1/" + name, b"generated")
         finally:
             archive.close()
-        with tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz") as archive:
+        archive = tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz")
+        try:
             member = TarInfo("dokime_sdk-0.1.3/proto/dokime/host/v1/service.proto")
             member.size = len(proto.read_bytes())
             archive.addfile(member, BytesIO(proto.read_bytes()))
+        finally:
+            archive.close()
         return output
 
     def test_build_rejects_stale_protocol_sources(self) -> None:
         temporary_directory = TemporaryDirectory()
         try:
             root = Path(temporary_directory.name)
+            self.fixture(root)
 
             def build_distributions(*args: object, **kwargs: object) -> None:
                 self.fixture(root)

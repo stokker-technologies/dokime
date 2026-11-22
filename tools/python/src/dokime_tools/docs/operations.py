@@ -32,6 +32,7 @@ from harmos_tools.source.protocol import caller_options
 
 # Local Imports
 from .. import policy
+from ..build.protocol import inputs
 
 # Type Checking Imports
 
@@ -73,6 +74,7 @@ METHODS = VALUES = 2
 
 def generate(directory: Path) -> Path:
     """Write One Page per Protocol Package and an Overview Under target/docs/generated/."""
+    inputs(directory)
     scratch_directory = tempfile.TemporaryDirectory()
     scratch = scratch_directory.name
     try:

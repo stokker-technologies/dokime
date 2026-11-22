@@ -154,7 +154,7 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
     bundled_protocols = sdk / "proto"
-    protocols = bundled_protocols if bundled_protocols.is_dir() else root / "proto"
+    protocols = bundled_protocols if bundled_protocols.is_dir() else root / "target/protocol"
     python_package = "dokime_sdk"
     source = sdk / "src" / python_package
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))

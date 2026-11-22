@@ -12,8 +12,8 @@
 # === Imports === #
 
 # Standard Library Imports
-import shutil
 import runpy
+import shutil
 import tempfile
 import unittest
 import zipfile
@@ -23,8 +23,8 @@ from unittest import mock
 # Third Party Imports
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.release import contracts
 from dokime_tools.build import paths
+from dokime_tools.release import contracts
 from dokime_tools.test.archive import install_wheels
 
 # Type Checking Imports

@@ -84,7 +84,7 @@ pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn Error>> {
 }
 
 pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn Error>> {
-    let proto = root.join("proto");
+    let proto = root.join("target/protocol");
     let (compiler, includes) = self::compiler(root)?;
     let mut pending = vec![proto.join("dokime"), proto.join("harmos")];
     let mut inputs = Vec::new();

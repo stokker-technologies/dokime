@@ -2,6 +2,13 @@
 version: v2
 modules:
   - path: proto
+  - path: target/protocol
+    excludes:
+      - target/protocol/dokime
+    lint:
+      # The Library Owns Its Protocol Lint Policy.
+      ignore:
+        - target/protocol/harmos
 lint:
   use:
     - STANDARD
@@ -13,9 +20,6 @@ lint:
     - SERVICE_SUFFIX
     # Nested resources follow the versioned executor package.
     - PACKAGE_VERSION_SUFFIX
-    # Vendored library enums preserve their encoded vocabulary.
-    - ENUM_VALUE_PREFIX
-    - ENUM_ZERO_VALUE_SUFFIX
     # Nested resources exchange owner-defined values in both directions. Protoc
     # still rejects every file import cycle; packages are not dependency units.
     - PACKAGE_NO_IMPORT_CYCLE
