@@ -1,18 +1,18 @@
 # Project Guidance
 
-## Branch Work
+## Project Tooling
 
-- Resume from `openspec/changes/grpc-plugins/design.md` and the owning change's task list. All open changes integrate together on `feat/final-library-pin`; this feature worktree hands back local commits. Do not push without authorization.
-- Discover tasks with `mise tasks`; run focused work through `mise run`. Hosted CI and Nightly provide full validation.
-- Build host fixtures with `mise run build:host-fixtures -- --language rust` (or `python`, `csharp`, `cpp`); build the command-line SDK example fixtures with `mise run build:cli-fixtures`.
+- Use `mise tasks`. Run focused work with `mise run`.
+- Branch names follow the conventional commit conventions. (e.g. `feat: storage engine` becomes `feat/storage-engine`)
 
-## Development Storage Policy
+## Development Policies
 
-- Dokime is in development. Database schemas and evidence formats may change without version bumps for now; keep their baseline at v1.
-- Clean database breaks are allowed. Do not add migrations or legacy compatibility solely to preserve development data. Use fresh storage roots when a schema change makes existing data incompatible; never silently delete or reset existing data.
+- The `dokime` project is in development, breaking APIs and storage formats is allowed. Legacy compatibility is out of scope.
+- Breaking changes are encouraged if they leader to cleaner, more idiomatic or streamlined code.
+- There must be no unjustified increase in project complexity - a reduction in managed lines of code is always a win.
 
 ## Documentation
 
-- Read `docs/project/architecture.md` before proposing architecture, protocol or public API changes. The owner writes the documentation; report documentation impact instead of editing `docs/`.
-- Start at `README.md` and `docs/index.md`. Read `docs/guides/gui.md` before changing `crates/dokime-gui/`.
-- Keep documentation in `docs/` and refer to code by path. Do not add `AGENTS.md`, `CLAUDE.md` or other Markdown notes inside code directories; package READMEs that registries publish are the exception.
+- Use documentation in `docs/` as a source of truth for the project.
+- Never edit documentation in `docs/`. This is user managed.
+- Do not add tests for docs and the related sites and frontends.
