@@ -1,5 +1,44 @@
 # gRPC Plugins Design
 
+## Stop Ends Execution Waits
+
+Locked owner decision: Stop ends every execution-scoped host sleep and condition
+wait early and normally. The active step finishes, criteria evaluate, cleanup
+runs, streams and records settle, and the execution seals as Stopped. Stop does
+not abort work outside a host wait; Cancel still aborts active work. Without Stop,
+waits retain their complete duration. This settles the earlier question of
+whether Stop completes the active run; a stopped run must not become Cancelled
+or Completed as a substitute for Stopped.
+
+Authors can inspect `ctx.stop_requested` in Python and the equivalent Rust
+context accessor to end their own loops. The stop state belongs to the execution
+and must reach plugin contexts through the existing host/library boundary.
+Runtime policy deadlines remain active and separate from execution waits.
+
+Implementation requires the library's scoped wait owner to support graceful
+early completion. At workspace pin `d9af0b8`, library
+`crates/harmos-runtime/src/operations/clock.rs:174` waits for
+`windows.committed_through(deadline)` after its registered timer returns. Waking
+the clock alone still requests samples through the original, possibly hours-long
+deadline. `operations/manager/mod.rs:223` selects this private unit clock ahead
+of an injected ClockAccess. The product must not duplicate that wait or window
+owner; the library needs an execution stop signal that settles waits and sample
+cuts at actual completion while preserving policy deadlines.
+
+The product protocol also needs an owned contract change: its Termination enum
+has no Stopped value, Executions.Get is CLIENTS-only, and Backend.Environment
+does not expose stop state. Neither SDK can expose the requested state through
+an existing plugin operation. Protocol changes and regenerated bindings are
+outside this worker's ownership; runtime/SDK adoption and real-host proof remain
+blocked on these capabilities, with no compatibility path or second mechanism.
+
+Overlap for the owner: product `crates/dokime-operations/src/resources.rs:59`
+declares Clock.sleep, implemented by `crates/dokime-runtime/src/streams.rs:202`,
+but no product operation calls it. Library `operations/clock.rs:174` implements
+the active scoped wait used by SDK Time.Sleep calls. Prefer deleting the unused
+product sleep trait method and implementation; this worker leaves both intact
+pending the owner's overlap decision.
+
 ## Library State and Ownership
 
 ### Peer Stream Capture
