@@ -153,9 +153,6 @@ Release and organization installers include the kit's default plugins in `plugin
 Set `installer.exclude_plugins = ["obc"]` to exclude a default; use
 `[[plugin]]` entries to add bundles. Packaging progress goes to stderr; `--json`
 keeps stdout machine-readable and disables progress.
-The [startup admission contract](openspec/changes/organization-pack-coverage/proposal.md#installation-plugin-admission)
-records registry ownership, user-entry precedence and rejected-bundle reporting;
-its platform proof requirements are listed with the decision.
 
 Add the command-line tool from the `nightly` release to a `mise.toml`:
 
