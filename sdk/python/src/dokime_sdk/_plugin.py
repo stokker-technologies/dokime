@@ -84,7 +84,9 @@ class Plugin:
     suites: ClassVar[Sequence[type[Suite]]] = ()
     lanes: ClassVar[Sequence[Lane]] = ()
     operations: ClassVar[Sequence[Callable[..., object]]] = ()
-    settings: ClassVar[Sequence[dokime_sdk.operations.SettingDeclaration]] = ()
+    settings: ClassVar[Sequence[type[dokime_sdk.operations.Settings]]] = ()
+    secrets: ClassVar[Sequence[dokime_sdk.operations.Secret]] = ()
+    resources: ClassVar[Sequence[type[dokime_sdk.operations.Resource]]] = ()
 
     def __init__(self) -> None:
         _logs.install()
@@ -97,12 +99,23 @@ class Plugin:
         plugin_methods: dict[str, object] = {}
         for cls in reversed(type(self).__mro__):
             plugin_methods.update(vars(cls))
-        self._secrets = tuple(item for item in plugin_methods.values() if isinstance(item, dokime_sdk.operations.Secret))
-        self._resources = tuple(item for item in plugin_methods.values() if isinstance(item, dokime_sdk.operations.Resource))
-        self._resource_locks = {item.identifier: asyncio.Lock() for item in self._resources}
-        self._resource_values: dict[str, object] = {}
+        self._secrets = tuple(self.secrets)
+        self._resources = tuple(self.resources)
+        for resource in self._resources:
+            if not isinstance(resource, type) or not issubclass(resource, dokime_sdk.operations.Resource):
+                raise TypeError("Build Plugin: Declare Resource Classes in resources")
+        if len(self._resources) != len(set(self._resources)):
+            raise ValueError("Build Plugin: Declare Each Resource Class Once")
+        self._resource_locks = {item: asyncio.Lock() for item in self._resources}
+        self._resource_values: dict[type[dokime_sdk.operations.Resource], dokime_sdk.operations.Resource] = {}
         self._resources_closed = False
         self._settings = tuple(self.settings)
+        for settings in self._settings:
+            if not isinstance(settings, type) or not issubclass(settings, dokime_sdk.operations.Settings):
+                raise TypeError("Build Plugin: Declare Settings Classes in settings")
+        if len(self._settings) != len(set(self._settings)):
+            raise ValueError("Build Plugin: Declare Each Settings Class Once")
+        self._settings_values: dict[type[dokime_sdk.operations.Settings], dokime_sdk.operations.Settings] = {}
         self._sessions: dict[tuple[str, str], _Session] = {}
         self._ready: dict[tuple[str, str], asyncio.Event] = {}
         templates = [template for suite in self._suites for template in suite.templates]
@@ -178,7 +191,7 @@ class Plugin:
             adapter,
             requires=requires,
             sections=contributions,
-            settings=[item._definition() for item in self._settings],
+            settings=[field._definition(name) for item in self._settings for name, field in item._fields().items()],
             messages=[message_type(record.row) for _, record in self._records],
         )
         self._plugin = harmos.plugin.Plugin(
@@ -442,9 +455,13 @@ class Plugin:
             try:
                 if name == "initialize":
                     self._resources_closed = False
+                    self._settings_values.clear()
 
                     async def initialize() -> None:
                         try:
+                            if self._settings:
+                                snapshot = await transport.settings()
+                                self._settings_values = {item: item(snapshot.value) for item in self._settings}
                             await self.initialize(context)
                         except BaseException:
                             await self._close_resources()
@@ -477,15 +494,16 @@ class Plugin:
     async def _close_resources(self) -> None:
         self._resources_closed = True
         failures = []
-        for declaration in reversed(self._resources):
-            async with self._resource_locks[declaration.identifier]:
-                if declaration.identifier not in self._resource_values:
-                    continue
-                value = self._resource_values.pop(declaration.identifier)
-                try:
-                    await declaration.close(value)
-                except Exception as error:
-                    failures.append(error)
+        for lock in self._resource_locks.values():
+            async with lock:
+                pass
+        while self._resource_values:
+            _, value = self._resource_values.popitem()
+            try:
+                await value.close()
+            except Exception as error:
+                failures.append(error)
+        self._settings_values.clear()
         if failures:
             raise ExceptionGroup("Close Plugin Resources: Resolve the Release Failures, Then Restart", failures)
 

@@ -44,7 +44,6 @@ ROOT_EXPORTS = {
 
 PUBLIC_HOMES = {
     "": frozenset(name for names in ROOT_EXPORTS.values() for name in names),
-    # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
     "operations": frozenset(
         [
             "Context",
@@ -54,8 +53,8 @@ PUBLIC_HOMES = {
             "RetryPolicy",
             "Resource",
             "Secret",
-            "SettingDeclaration",
-            "SettingValue",
+            "Setting",
+            "Settings",
             "StreamSubscription",
             "Visibility",
             "operation",

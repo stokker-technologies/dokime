@@ -21,7 +21,7 @@ from google.protobuf.wrappers_pb2 import Int64Value
 import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Case, Client, Cycle, Execution, Gap, Outcome, Plugin, Progress, StreamRow, Suite
-from dokime_sdk.operations import StreamSubscription, Visibility, operation
+from dokime_sdk.operations import Context, Resource, Setting, Settings, StreamSubscription, Visibility, operation
 from dokime_sdk.templates import TestTemplate, criterion, record, step
 
 # Type Checking Imports
@@ -33,6 +33,17 @@ from dokime_sdk.templates import TestTemplate, criterion, record, step
 # === Types === #
 
 # === Classes === #
+
+
+class ConnectionSettings(Settings):
+    api_address: str = Setting.text("Remote API Address", default="127.0.0.1:30059")
+
+
+class RemoteApi(Resource):
+    async def open(self, ctx: Context) -> None:
+        assert_type(ctx.settings(ConnectionSettings), ConnectionSettings)
+        assert_type(ctx.settings(ConnectionSettings).api_address, str)
+        assert_type(await ctx.secret("api_token"), str)
 
 
 class ConfirmationTestTemplate(TestTemplate):
@@ -62,6 +73,7 @@ class ExamplePlugin(Plugin):
 
 
 async def subscription_surface(ctx: dokime_sdk.operations.Context, stream: dokime_sdk.templates.Stream[Int64Value]) -> None:
+    assert_type(await ctx.resource(RemoteApi), RemoteApi)
     subscription = await ctx.subscribe(stream, max_item_bytes=4096)
     assert_type(subscription, StreamSubscription[Int64Value])
     async for item in subscription:

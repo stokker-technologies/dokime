@@ -19,7 +19,7 @@ from datetime import timedelta
 
 # Third Party Imports
 from dokime_sdk import Plugin, Suite, operations
-from dokime_sdk.operations import OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
+from dokime_sdk.operations import OperationPolicy, RetryPolicy, Setting, Settings, Visibility, operation
 from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
 from google.protobuf.message import Message
 from google.protobuf.wrappers_pb2 import BytesValue
@@ -106,11 +106,15 @@ async def echo(ctx: operations.Context, request: BytesValue) -> BytesValue:
     return request
 
 
+class ThermalSettings(Settings):
+    load_interval: timedelta = Setting.duration("Load Interval", default=timedelta(milliseconds=1))
+
+
 class ThermalPlugin(Plugin):
     version = "1.0.0"
     suites = [ThermalSuite]
     operations = [echo]
-    settings = [SettingDeclaration("thermal.load.interval", "Load Interval", "", SettingValue(duration=timedelta(milliseconds=1)))]
+    settings = (ThermalSettings,)
 
 
 # === Public Functions === #

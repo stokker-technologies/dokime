@@ -57,32 +57,47 @@ Outside execution scopes, records are written to plugin stderr for host diagnost
 
 ## Secrets and Resources
 
-Declare secrets and resources as plugin attributes. Secret reads return UTF-8 text;
-missing or empty values refuse with an action naming the secret to store before Retry.
-Resources open lazily once per activation, serialize concurrent opens, and close
-when the plugin finalizes, including when its finalizer raises.
+Declare resource classes in `resources`, settings classes in `settings`, and secret
+names in `secrets`. Handlers look up resources and settings by type without importing
+the plugin class. Secrets return UTF-8 text and name the recovery action when missing.
 
 ```python
-from dokime_sdk.operations import Context, Resource, Secret
+from datetime import timedelta
+from dokime_sdk.operations import Context, Resource, Secret, Setting, Settings
 
 
-async def open_remote(ctx: Context) -> Remote:
-    token = await ctx.secret(ConnectionPlugin.api_token)
-    return await Remote.connect(token)
+class ConnectionSettings(Settings):
+    api_address: str = Setting.text("Remote API Address", default="127.0.0.1:30059")
+    dll_timeout: timedelta = Setting.duration("DLL Host Timeout", default=timedelta(seconds=5), max=timedelta(seconds=30))
 
 
-async def close_remote(remote: Remote) -> None:
-    await remote.close()
+class RemoteApi(Resource):
+    async def open(self, ctx: Context) -> None:
+        address = ctx.settings(ConnectionSettings).api_address
+        token = await ctx.secret("api_token")
+        self.remote = await Remote.connect(address, token)
+
+    async def close(self) -> None:
+        await self.remote.close()
 
 
 class ConnectionPlugin(Plugin):
-    api_token = Secret("Remote API Token")
-    remote = Resource(open=open_remote, close=close_remote)
+    resources = (RemoteApi,)
+    settings = (ConnectionSettings,)
+    secrets = (Secret("api_token", "Remote API Token"),)
 ```
 
-Handlers use `remote = await ctx.resource(ConnectionPlugin.remote)`. Each declaration
-gets its identifier from its attribute name. Resource open functions receive the
-current context and can read declared secrets or open other declared resources.
+Use `api = await ctx.resource(RemoteApi)` and
+`timeout = ctx.settings(ConnectionSettings).dll_timeout`. A resource opens lazily
+under a lock, once per activation. Resources close in reverse opening order when
+activation ends, including failed initialization or finalization. An unsuccessful
+`open` owns the cleanup of its partially initialized state.
+
+Settings are synchronous, read-only activation snapshots loaded before initialization
+and refreshed on Retry or restart. Field names are the host setting names, so names
+across declared settings classes must be unique. `Setting.flag`, `integer`, `number`,
+`text`, and `duration` use the library's typed defaults and inclusive numeric/duration
+bounds. Choices and required settings await the library contract.
 
 ## Declarations
 

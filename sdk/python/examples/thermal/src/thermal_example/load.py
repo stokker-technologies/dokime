@@ -175,7 +175,7 @@ class ThermalLoadTestTemplate(TestTemplate):
     channel_127 = sampling.channel("channel_127")
 
     @stream("Single-Stream Ceiling", row=Counter)
-    @window_observer(columns=CounterColumns, interval_ms=1, interval_setting="thermal.load.interval")
+    @window_observer(columns=CounterColumns, interval_ms=1, interval_setting="load_interval")
     def burst(self, ctx: Context, window: Window) -> Message:
         return sampling.counter(window)
 

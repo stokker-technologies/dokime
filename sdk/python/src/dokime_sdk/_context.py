@@ -91,8 +91,9 @@ class Context:
         subscription = await self._transport.subscribe(identity, stream.row, max_item_bytes=max_item_bytes)
         return cast(StreamSubscription[T], subscription)
 
-    async def secret(self, declaration: "operations.Secret") -> str:
-        if not any(declaration is item for item in self.plugin._secrets):
+    async def secret(self, identifier: str) -> str:
+        declaration = next((item for item in self.plugin._secrets if item.identifier == identifier), None)
+        if declaration is None:
             raise ValueError("Read Secret: Select a Secret Declared on This Plugin")
         try:
             value = (await self._host.secrets.get(declaration.identifier)).secret
@@ -118,39 +119,23 @@ class Context:
                 f"Store the {declaration.label} secret as text for this plugin, then Retry",
             ) from error
 
-    async def resource[T](self, declaration: "operations.Resource[T]") -> T:
-        if not any(declaration is item for item in self.plugin._resources):
+    async def resource[T: operations.Resource](self, resource: type[T]) -> T:
+        if resource not in self.plugin._resources:
             raise ValueError("Open Resource: Select a Resource Declared on This Plugin")
-        async with self.plugin._resource_locks[declaration.identifier]:
+        async with self.plugin._resource_locks[resource]:
             if self.plugin._resources_closed:
                 raise refused("resource.open", "The Plugin Is Deactivating", "Restart the Plugin, Then Retry")
-            if declaration.identifier not in self.plugin._resource_values:
-                value = await declaration.open(self)
-                self.plugin._resource_values[declaration.identifier] = value
-            return cast(T, self.plugin._resource_values[declaration.identifier])
+            if resource not in self.plugin._resource_values:
+                value = resource()
+                await value.open(self)
+                self.plugin._resource_values[resource] = value
+            return cast(T, self.plugin._resource_values[resource])
 
-    async def settings(self) -> dict[str, "operations.SettingValue"]:
-        from . import operations
-
-        response = await self._host.plugins.settings.list()
-        values = {}
-        for key, value in response.value.values.items():
-            kind = value.WhichOneof("value")
-            match kind:
-                case "flag":
-                    result = operations.SettingValue(flag=value.flag)
-                case "integer":
-                    result = operations.SettingValue(integer=value.integer)
-                case "number":
-                    result = operations.SettingValue(number=value.number)
-                case "text":
-                    result = operations.SettingValue(text=value.text)
-                case "duration":
-                    result = operations.SettingValue(duration=value.duration.ToTimedelta())
-                case _:
-                    raise ValueError("Read Settings: Save Exactly One Typed Value for Each Setting")
-            values[key] = result
-        return values
+    def settings[T: operations.Settings](self, settings: type[T]) -> T:
+        value = self.plugin._settings_values.get(settings)
+        if value is None:
+            raise ValueError("Read Settings: Declare the Settings Class and Activate the Plugin")
+        return cast(T, value)
 
 
 class StreamSubscription[T: Message](AsyncIterator[StreamRow[T] | Gap], Protocol):

@@ -28,7 +28,7 @@ import dokime_sdk.operations
 import dokime_sdk.templates
 from dokime_sdk import Lane, Plugin, Scalar, Suite
 from dokime_sdk._generated import shared
-from dokime_sdk.operations import OperationPolicy, RetryPolicy, SettingDeclaration, SettingValue, Visibility, operation
+from dokime_sdk.operations import OperationPolicy, RetryPolicy, Visibility, operation
 from dokime_sdk.templates import (
     Document,
     Materialization,
@@ -164,28 +164,6 @@ class AuthoringStory(unittest.TestCase):
         self.assertTrue(all(identifier.startswith("example.") for identifier in registered))
         required = {item.id for item in declarations.requires}
         self.assertTrue({"measure", "example.read"}.isdisjoint(required))
-
-    def test_setting_bounds(self) -> None:
-        for minimum, default, maximum, field, expected in (
-            (SettingValue(integer=0), SettingValue(integer=7), SettingValue(integer=10), "integer", (0, 7, 10)),
-            (SettingValue(number=0.0), SettingValue(number=1.5), SettingValue(number=2.0), "number", (0.0, 1.5, 2.0)),
-            (
-                SettingValue(duration=timedelta()),
-                SettingValue(duration=timedelta(seconds=1)),
-                SettingValue(duration=timedelta(seconds=2)),
-                "duration",
-                (timedelta(), timedelta(seconds=1), timedelta(seconds=2)),
-            ),
-        ):
-            declaration = SettingDeclaration("reading", "Reading", "", default, minimum=minimum, maximum=maximum)
-            value = declaration._definition()
-            for bound, expected_value in zip((value.minimum, value.default, value.maximum), expected, strict=True):
-                self.assertEqual(bound.WhichOneof("value"), field)
-                actual = bound.duration.ToTimedelta() if field == "duration" else getattr(bound, field)
-                self.assertEqual(actual, expected_value)
-        unbounded = SettingDeclaration("enabled", "Enabled", "", SettingValue(flag=False))._definition()
-        self.assertFalse(unbounded.HasField("minimum"))
-        self.assertFalse(unbounded.HasField("maximum"))
 
     def test_document_queries_preserve_declaration_binding(self) -> None:
         templates = dokime_sdk.templates

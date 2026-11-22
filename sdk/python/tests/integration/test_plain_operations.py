@@ -14,7 +14,6 @@
 # Standard Library Imports
 import unittest
 from collections.abc import Callable
-from datetime import timedelta
 from typing import Any, ClassVar, cast
 
 # Third Party Imports
@@ -27,7 +26,6 @@ from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue
 from grpc.aio import insecure_channel
 from harmos import VISIBILITY_PROTECTED
 from harmos._columns import columns_type
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse
 from harmos._wire.plugin.v1.instance_pb2 import (
     InstanceInvokeRequest,
@@ -40,7 +38,7 @@ from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 # Local Imports
 import dokime_sdk.operations
 from dokime_sdk import Failure, Plugin, Suite
-from dokime_sdk.operations import FailureError, SettingValue, Visibility, operation
+from dokime_sdk.operations import FailureError, Visibility, operation
 from dokime_sdk.templates import Context, TestTemplate, Window, criterion, observer, prompt, record, step, stream, window_observer
 
 # Type Checking Imports
@@ -56,67 +54,6 @@ from dokime_sdk.templates import Context, TestTemplate, Window, criterion, obser
 
 
 class PlainValueStory(unittest.IsolatedAsyncioTestCase):
-    async def test_settings_values(self) -> None:
-        expected = {
-            "enabled": SettingValue(flag=False),
-            "count": SettingValue(integer=0),
-            "threshold": SettingValue(number=0.0),
-            "label": SettingValue(text=""),
-            "interval": SettingValue(duration=timedelta()),
-        }
-
-        @operation("example.settings", visibility=Visibility.PUBLIC)
-        async def read(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
-            return await ctx.settings() == expected
-
-        class SettingsPlugin(Plugin):
-            identifier = "example"
-            version = "1.0.0"
-            operations: ClassVar[list[Callable[..., object]]] = [read]
-
-        endpoint = await SettingsPlugin()._activate("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.stop)
-        channel = insecure_channel(endpoint.address)
-        self.addAsyncCleanup(channel.close)
-        invoke = channel.stream_stream(
-            "/harmos.plugin.v1.Instance/Invoke",
-            request_serializer=InstanceInvokeRequest.SerializeToString,
-            response_deserializer=InstanceInvokeResponse.FromString,
-        )
-        call = invoke()
-        try:
-            await call.write(
-                InstanceInvokeRequest(
-                    request=Request(
-                        operation="example.settings",
-                        payload=BoolValue(value=True).SerializeToString(),
-                        invocation="settings",
-                        attempt=1,
-                    )
-                )
-            )
-            frame = await call.read()
-            assert isinstance(frame, InstanceInvokeResponse)
-            self.assertTrue(frame.HasField("child"), frame)
-            response = SettingsListResponse(
-                value={
-                    "values": {
-                        "enabled": {"flag": False},
-                        "count": {"integer": 0},
-                        "threshold": {"number": 0.0},
-                        "label": {"text": ""},
-                        "interval": {"duration": {}},
-                    }
-                }
-            )
-            await call.write(InstanceInvokeRequest(child=ChildResponse(call=frame.child.call, payload=response.SerializeToString())))
-            frame = await call.read()
-            assert isinstance(frame, InstanceInvokeResponse)
-            self.assertFalse(frame.response.HasField("failure"), frame.response.failure)
-            self.assertTrue(BoolValue.FromString(frame.response.payload).value)
-        finally:
-            call.cancel()
-
     async def test_observer_presence(self) -> None:
         definition = FileDescriptorProto(name="optional_reading.proto", package="reading", syntax="proto3")
         message = definition.message_type.add(name="Reading")

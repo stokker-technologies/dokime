@@ -16,11 +16,11 @@ import inspect
 import math
 import re
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from enum import IntEnum
 from types import FunctionType
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, cast, get_type_hints
 
 # Third Party Imports
 import harmos
@@ -121,83 +121,125 @@ class OperationPolicy:
 
 
 @dataclass(frozen=True)
-class SettingValue:
-    flag: bool | None = None
-    integer: int | None = None
-    number: float | None = None
-    text: str | None = None
-    duration: timedelta | None = None
+class Setting:
+    title: str
+    description: str
+    default: harmos.SettingValue
+    minimum: harmos.SettingValue | None = None
+    maximum: harmos.SettingValue | None = None
 
-    def __post_init__(self) -> None:
-        variants = (self.flag, self.integer, self.number, self.text, self.duration)
-        if sum(item is not None for item in variants) != 1:
-            raise ValueError("Declare Setting: Supply Exactly One Value Variant")
-        for name, expected in (("flag", bool), ("integer", int), ("number", float), ("text", str), ("duration", timedelta)):
-            item = getattr(self, name)
-            if item is not None and type(item) is not expected:
-                raise TypeError(f"Declare Setting: Supply {expected.__name__} for {name}")
+    @staticmethod
+    def flag(title: str, *, default: bool, description: str = "") -> bool:
+        return cast(bool, Setting(title, description, harmos.SettingValue(flag=default)))
 
-    def _definition(self) -> shared.SettingValue:
-        value = shared.SettingValue()
-        for name in ("flag", "integer", "number", "text", "duration"):
-            item = getattr(self, name)
-            if item is None:
-                continue
-            if name == "duration":
-                value.duration.FromTimedelta(item)
-            else:
-                setattr(value, name, item)
-        return value
+    @staticmethod
+    def integer(title: str, *, default: int, min: int | None = None, max: int | None = None, description: str = "") -> int:
+        return cast(
+            int,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(integer=default),
+                harmos.SettingValue(integer=min) if min is not None else None,
+                harmos.SettingValue(integer=max) if max is not None else None,
+            ),
+        )
+
+    @staticmethod
+    def number(title: str, *, default: float, min: float | None = None, max: float | None = None, description: str = "") -> float:
+        return cast(
+            float,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(number=default),
+                harmos.SettingValue(number=min) if min is not None else None,
+                harmos.SettingValue(number=max) if max is not None else None,
+            ),
+        )
+
+    @staticmethod
+    def text(title: str, *, default: str, description: str = "") -> str:
+        return cast(str, Setting(title, description, harmos.SettingValue(text=default)))
+
+    @staticmethod
+    def duration(
+        title: str, *, default: timedelta, min: timedelta | None = None, max: timedelta | None = None, description: str = ""
+    ) -> timedelta:
+        value = harmos.SettingValue()
+        value.duration.FromTimedelta(default)
+        minimum = harmos.SettingValue() if min is not None else None
+        maximum = harmos.SettingValue() if max is not None else None
+        if minimum is not None and min is not None:
+            minimum.duration.FromTimedelta(min)
+        if maximum is not None and max is not None:
+            maximum.duration.FromTimedelta(max)
+        return cast(timedelta, Setting(title, description, value, minimum, maximum))
+
+    def _definition(self, name: str) -> harmos.SettingDeclaration:
+        return harmos.SettingDeclaration(
+            name=name,
+            title=self.title,
+            description=self.description,
+            default=self.default,
+            minimum=self.minimum,
+            maximum=self.maximum,
+        )
+
+    def __get__(self, instance: "Settings | None", owner: "type[Settings]") -> object:
+        if instance is None:
+            return self
+        for name, declaration in owner._fields().items():
+            if declaration is self:
+                return instance._values[name]
+        raise ValueError("Read Settings: Declare the Setting on a Settings Class")
+
+    def __set__(self, instance: "Settings", value: object) -> None:
+        raise AttributeError("Change Settings: Save Values on the Host, Then Retry or Restart the Plugin")
+
+
+class Settings:
+    """Typed Settings Read From One Activation Snapshot."""
+
+    def __init__(self, values: harmos.SettingValues) -> None:
+        self._values: dict[str, object] = {}
+        for name, declaration in self._fields().items():
+            if name not in values.values:
+                raise ValueError(f"Read Settings: Configure {name}, Then Retry the Plugin")
+            value = values.values[name]
+            kind = value.WhichOneof("value")
+            if kind != declaration.default.WhichOneof("value"):
+                raise ValueError(f"Read Settings: Save the Declared Type for {name}, Then Retry the Plugin")
+            self._values[name] = value.duration.ToTimedelta() if kind == "duration" else getattr(value, kind)
+
+    @classmethod
+    def _fields(cls) -> dict[str, Setting]:
+        fields: dict[str, Setting] = {}
+        for parent in reversed(cls.__mro__):
+            for name, value in vars(parent).items():
+                fields.pop(name, None)
+                if isinstance(value, Setting):
+                    fields[name] = value
+        return fields
 
 
 @dataclass(frozen=True)
-class SettingDeclaration:
-    name: str
-    title: str
-    description: str
-    default: SettingValue
-    minimum: SettingValue | None = None
-    maximum: SettingValue | None = None
-
-    def _definition(self) -> shared.SettingDeclaration:
-        return shared.SettingDeclaration(
-            name=self.name,
-            title=self.title,
-            description=self.description,
-            default=self.default._definition(),
-            minimum=self.minimum._definition() if self.minimum is not None else None,
-            maximum=self.maximum._definition() if self.maximum is not None else None,
-        )
-
-
-@dataclass
 class Secret:
+    identifier: str
     label: str
-    identifier: str = field(default="", init=False)
-
-    def __set_name__(self, owner: type, name: str) -> None:
-        if self.identifier:
-            raise ValueError("Declare Secret: Use a Separate Declaration for Each Plugin Attribute")
-        self.identifier = name
 
     def _definition(self) -> shared.SecretDeclaration:
         return shared.SecretDeclaration(metadata={"identifier": self.identifier, "label": self.label}, required=True)
 
 
-@dataclass
-class Resource[T]:
-    """A Lazily Opened Value Released When the Plugin Activation Ends."""
+class Resource:
+    """A Lazily Opened Class Released When the Plugin Activation Ends."""
 
-    __type_params__: ClassVar[tuple[TypeVar, ...]]
+    async def open(self, ctx: Context) -> None:
+        pass
 
-    open: Callable[[Context], Awaitable[T]]
-    close: Callable[[T], Awaitable[None]]
-    identifier: str = field(default="", init=False)
-
-    def __set_name__(self, owner: type, name: str) -> None:
-        if self.identifier:
-            raise ValueError("Declare Resource: Use a Separate Declaration for Each Plugin Attribute")
-        self.identifier = name
+    async def close(self) -> None:
+        pass
 
 
 # === Public Functions === #
