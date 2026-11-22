@@ -173,8 +173,8 @@ pub fn publish_scan(readings: ScanReadings, rows: &CollectionOutput) {
         let Some(wifi_bssid) = reading.wifi_bssid else {
             continue;
         };
-        if let (Some(wifi_signal_percent), Some(wifi_channel), Some(wifi_band), Some(associated), Some(network_count)) =
-            (reading.wifi_signal_percent, reading.wifi_channel, reading.wifi_band, reading.associated, reading.network_count)
+        if let (Some(wifi_signal_percent), Some(wifi_channel), Some(wifi_band), Some(associated)) =
+            (reading.wifi_signal_percent, reading.wifi_channel, reading.wifi_band, reading.associated)
         {
             let row = WifiNetwork {
                 wifi_bssid: wifi_bssid.clone(),
@@ -182,7 +182,6 @@ pub fn publish_scan(readings: ScanReadings, rows: &CollectionOutput) {
                 wifi_channel,
                 wifi_band,
                 associated,
-                network_count,
             };
             rows.publish(&Stream::new(WifiNetwork::STREAM), row);
         }

@@ -143,7 +143,6 @@ pub struct WifiScan {
     pub wifi_band: Option<String>,
     pub wifi_security: Option<String>,
     pub associated: Option<bool>,
-    pub network_count: Option<i64>,
     pub scan_network_count: Option<i64>,
     pub active_wifi_channel: Option<i64>,
     pub active_wifi_band: Option<String>,

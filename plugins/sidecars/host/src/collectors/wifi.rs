@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 
 // Third Party Imports
 use sysinfo::Networks;
+use tokio::task;
 
 // Local Imports
 use crate::domain::readings::{WifiLatency, WifiLink, WifiScan};
@@ -336,7 +337,6 @@ pub fn scan_rows(sample_index: u64, report: result::Result<ScanReport, String>, 
             wifi_band: network.channel.and_then(band),
             wifi_security: network.security,
             associated: Some(network.associated),
-            network_count: Some(i64::from(network.channel.and_then(|channel| per_channel.get(&channel)).copied().unwrap_or_default())),
             scan_network_count: Some(total),
             active_wifi_channel: active_channel.map(i64::from),
             active_wifi_band: active_channel.and_then(band),
@@ -409,7 +409,7 @@ pub fn throughput(counters: &[Counters], adapter: &str, elapsed_s: f64) -> Optio
 /* === Private Functions === */
 
 async fn blocking<T: Send + 'static>(collect: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
-    tokio::task::spawn_blocking(collect)
+    task::spawn_blocking(collect)
         .await
         .map_err(|error| Error::Invalid(format!("Collect Wi-Fi Telemetry: the collection worker failed: {error}; Restart the Plugin")))?
 }
