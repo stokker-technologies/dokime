@@ -83,7 +83,8 @@ fn operator_exports_evidence() -> Result<(), Box<dyn Error>> {
             let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
             let suite = suites["values"][0]["metadata"]["identifier"].as_str().ok_or("List Suites: Missing Suite Identity")?;
             let cases = directory.path().join("cases.pb");
-            let arguments = ["--endpoint", &endpoint, "plan", "materialize", "--suite", suite, "--template", "execution.boundary"];
+            let arguments =
+                ["--endpoint", &endpoint, "plan", "materialize", "--suite", suite, "--template", "execution.execution.boundary"];
             super::run(&[arguments.as_slice(), &["--out", cases.to_str().unwrap()]].concat()).await?;
 
             // Read the Confirmed Cycle Identity From the File Rather Than Standard Output

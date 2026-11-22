@@ -113,7 +113,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         "--suite",
                         suite,
                         "--template",
-                        "capture.confirmation",
+                        "example.capture.confirmation",
                         "--out",
                         cases.to_str().unwrap(),
                     ];

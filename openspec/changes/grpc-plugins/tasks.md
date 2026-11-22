@@ -440,4 +440,4 @@
 - [x] Pass Focused Rust Tests and Workspace and SDK Consumer Test-Target Compilation With Desktop Testing.
 - [x] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
 - [ ] Resolve the Native C++ Test Task's False Stale-Build Refusal for CMake `CONFIGURE_DEPENDS`; Keep the Failing Task Visible Alongside the Passing Native Build and Focused CTest Proof.
-- [ ] Migrate the CLI First-Hour and Desktop Execution-Matrix References in Their Owning Workspaces.
+- [x] Migrate CLI First-Hour and Evidence Export, Desktop Execution-Matrix and Native E2E, and Python Thermal Readback References; Prove Focused CLI, Desktop Acceptance and Runtime Stories.

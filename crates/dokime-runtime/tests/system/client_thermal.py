@@ -74,14 +74,16 @@ async def journey(phase: str, url: str, expected: Path) -> None:
             await cycle.seal()
 
         # Read Frozen Rows Using the Product Handles and the Fixture's Row Types.
-        records = await execution.records("thermal.cycle.door", row_type=Door).read()
+        records = await execution.records(
+            "thermal.thermal.cycle.door", row_type=Door
+        ).read()
         assert len(records) == 1
         assert (
             records[0].value.SerializeToString()
             == Door(closed=True).SerializeToString()
         )
         samples = await execution.samples(
-            "thermal.cycle.temperature", row_type=Temperature
+            "thermal.thermal.cycle.temperature", row_type=Temperature
         ).collect()
         assert [sample.timestamp_ns for sample in samples] == [
             1_000_000_000,

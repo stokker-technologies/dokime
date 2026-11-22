@@ -217,7 +217,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let suite = suites["values"][0]["metadata"]["identifier"].as_str().ok_or("List Suites: Missing Suite Identity")?;
                 // Preview Without Registration, Then Recover the Same Registered Reply
                 let plan =
-                    serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"capture.confirmation"}],"max_cases":1}});
+                    serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"example.capture.confirmation"}],"max_cases":1}});
                 let input = directory.path().join("plan.json");
                 fs::write(&input, serde_json::to_vec(&plan)?)?;
                 let preview: Value = serde_json::from_str(
@@ -249,7 +249,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "capture.confirmation",
+                    "example.capture.confirmation",
                     "--out",
                     cases.to_str().unwrap(),
                 ])
@@ -334,7 +334,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "capture.confirmation",
+                    "example.capture.confirmation",
                     "--out",
                     cases.to_str().unwrap(),
                     "--parameters",
