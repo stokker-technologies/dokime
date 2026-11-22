@@ -21,6 +21,8 @@ from typing import ClassVar
 from unittest.mock import Mock, patch
 
 # Third Party Imports
+from harmos import plugin
+
 # Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
@@ -383,6 +385,7 @@ class AuthoringStory(unittest.TestCase):
         class TypedPlugin(ExamplePlugin):
             operations: ClassVar[list[Callable[..., object]]] = [readVoltage]
 
+        self.assertIsInstance(vars(readVoltage)["__dokime_operation__"], plugin.Operation)
         declaration = next(item for item in TypedPlugin().declarations().operations if item.id == "typed.read_voltage")
         self.assertEqual(declaration.request, "google.protobuf.Int64Value")
         self.assertEqual(declaration.response, "google.protobuf.BoolValue")

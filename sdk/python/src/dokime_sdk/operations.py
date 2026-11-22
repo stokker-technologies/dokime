@@ -200,44 +200,6 @@ class Resource[T]:
         self.identifier = name
 
 
-@dataclass(frozen=True)
-class _Operation[Q: Payload, R: Payload]:
-    __type_params__: ClassVar[tuple[TypeVar, ...]]
-
-    identifier: str
-    request: type[Q]
-    response: type[R]
-    visibility: Visibility
-    policy: OperationPolicy | None = None
-    description: str = ""
-    replay_safe: bool = False
-    lane: plugin.Lane | None = None
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.visibility, Visibility):
-            raise TypeError("Declare Operation: Supply a Visibility Member")
-        if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*", self.identifier):
-            raise ValueError("Declare Operation: Supply a Lowercase Dotted Identifier")
-        if self.policy is not None:
-            self.policy._validate(self.identifier)
-        if self.policy is not None and self.policy.retries is not None and not self.replay_safe:
-            raise ValueError("Declare Operation: Mark Retried Operations replay_safe")
-        message_type(self.request)
-        message_type(self.response)
-
-    def _definition(self) -> plugin.Operation[Message, Message]:
-        return plugin.Operation(
-            self.identifier,
-            message_type(self.request),
-            message_type(self.response),
-            cast(Any, self.visibility.value),
-            self.policy._definition() if self.policy is not None else None,
-            self.description,
-            self.replay_safe,
-            lane=self.lane,
-        )
-
-
 # === Public Functions === #
 
 
@@ -262,52 +224,65 @@ def operation[F: Callable[..., object]](
             response = annotations["return"]
         except (KeyError, NameError, TypeError) as error:
             raise TypeError("Declare Operation: Supply Resolvable Request and Result Payload Annotations") from error
-        definition = _Operation(
-            identifier if identifier is not None else build_identifier(handler.__name__),
-            request,
-            response,
-            visibility,
-            policy,
+        identity = identifier if identifier is not None else build_identifier(handler.__name__)
+        if not isinstance(visibility, Visibility):
+            raise TypeError("Declare Operation: Supply a Visibility Member")
+        if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)*", identity):
+            raise ValueError("Declare Operation: Supply a Lowercase Dotted Identifier")
+        if policy is not None:
+            policy._validate(identity)
+        if policy is not None and policy.retries is not None and not replay_safe:
+            raise ValueError("Declare Operation: Mark Retried Operations replay_safe")
+        definition = plugin.Operation(
+            identity,
+            message_type(request),
+            message_type(response),
+            cast(Any, visibility.value),
+            policy._definition() if policy is not None else None,
             description,
             replay_safe,
-            lane,
+            lane=lane,
         )
         vars(handler)["__dokime_operation__"] = definition
+        vars(handler)["__dokime_policy__"] = policy
         return handler
 
     return decorate
 
 
+# === Private Functions === #
+
+
 def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier: str) -> Callable[..., Awaitable[Message]]:
-    definition = cast(_Operation, vars(handler)["__dokime_operation__"])
-    transport = definition._definition()
+    definition = cast(plugin.Operation[Message, Message], vars(handler)["__dokime_operation__"])
+    policy = cast(OperationPolicy | None, vars(handler)["__dokime_policy__"]) or OperationPolicy()
+    annotations = get_type_hints(handler)
+    parameters = tuple(inspect.signature(handler).parameters)
+    request_type = annotations[parameters[1]]
+    response_type = annotations["return"]
 
     async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
         context = Context(transport, owner)
         try:
-            result = await _logs.run(context, handler, context, unpack(definition.request, request))
-            return pack(definition.response, cast(Payload, result))
+            result = await _logs.run(context, handler, context, unpack(request_type, request))
+            return pack(response_type, cast(Payload, result))
         except _errors.SdkError as error:
             raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
         except harmos.FailureError:
             raise
         except Exception as error:
-            policy = definition.policy or OperationPolicy()
             raise policy._failure(error, identifier, owner.identifier) from error
 
     return plugin.operation(
         identifier,
-        request=transport.request,
-        response=transport.response,
-        visibility=transport.visibility,
-        policy=transport.policy,
-        description=transport.description,
-        replay_safe=transport.replay_safe,
-        lane=transport.lane,
+        request=definition.request,
+        response=definition.response,
+        visibility=definition.visibility,
+        policy=definition.policy,
+        description=definition.description,
+        replay_safe=definition.replay_safe,
+        lane=definition.lane,
     )(execute)
-
-
-# === Private Functions === #
 
 
 # === Entry Point === #

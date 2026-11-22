@@ -119,8 +119,8 @@ class Plugin:
         for index, function in enumerate(self._operations):
             if not isinstance(function, FunctionType) or not hasattr(function, "__dokime_operation__"):
                 raise TypeError("Build Plugin: List Decorated Plain Functions in operations")
-            definition = cast(dokime_sdk.operations._Operation, vars(function)["__dokime_operation__"])
-            identity = build_identifier(function.__name__, definition.identifier, prefix=self.identifier)
+            definition = cast(harmos.plugin.Operation, vars(function)["__dokime_operation__"])
+            identity = build_identifier(function.__name__, definition.id, prefix=self.identifier)
             operation_identities.append(identity)
             methods[f"external_{index}"] = dokime_sdk.operations._bind_operation(function, self, identity)
         if len(operation_identities) != len(set(operation_identities)):

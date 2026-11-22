@@ -29,6 +29,9 @@ keep their identifiers as written.
 
 ## Operation Calls
 
+Operation declarations use the library's `Operation` contract. Host-clock waits
+and reads delegate to the library context; the SDK converts durations and timestamps.
+
 Call operations by identifier with an optional dict using protobuf's standard JSON
 mapping. The host owns JSON conversion, schema validation, operation admission and
 failure wording. Unknown fields are rejected.

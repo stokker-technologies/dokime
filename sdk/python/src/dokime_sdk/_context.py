@@ -66,10 +66,12 @@ class Context:
         seconds = duration.total_seconds() if isinstance(duration, timedelta) else duration
         nanoseconds = round(seconds * 1_000_000_000)
         value = Duration(seconds=nanoseconds // 1_000_000_000, nanos=nanoseconds % 1_000_000_000)
-        await self._host.time.sleep(value)
+        await _logs.flush()
+        await self._transport.sleep(value)
 
     async def now(self) -> datetime:
-        return (await self._host.time.get()).ToDatetime(tzinfo=UTC)
+        await _logs.flush()
+        return (await self._transport.now()).ToDatetime(tzinfo=UTC)
 
     async def cancelled(self) -> str:
         await _logs.flush()
