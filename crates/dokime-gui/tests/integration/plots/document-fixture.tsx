@@ -76,7 +76,7 @@ const liveStates: LivePlotStateMap = Object.fromEntries(
           signature: plot.plot_id,
           series: [{ x: Array.from({ length: 120 }, (_, row) => row), y: Array.from({ length: 120 }, (_, row) => index + (row % 12)) }],
         },
-        summaries: [{ series_id: plot.plot_id, count: 120, min: index, max: index + 11, mean: index + 5.5, rms: index ? 7.36 : 6.49 }],
+        summaries: [{ series_id: plot.plot_id, count: 120, min: index, max: index + 11, mean: index + 5.5, median: index + 5.5, std: Math.sqrt(143 / 12), rms: index ? 7.36 : 6.49 }],
       },
     },
   ]),
