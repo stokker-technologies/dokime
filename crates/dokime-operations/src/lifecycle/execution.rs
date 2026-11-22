@@ -83,6 +83,12 @@ pub async fn prepare(operations: &OperationManager, mutation: MutationId, admiss
     if previews.len() != value.previews.len() || previews.iter().any(|key| key.is_empty()) {
         return Err(Error::Invalid("Admit Execution: Enumerate Each Derived Object Key Once".into()));
     }
+    let case = io::read::<Case>(operations, &value.case, None, bytes)
+        .await?
+        .ok_or_else(|| Error::NotFound("Admit Execution: Select a Registered Case".into()))?;
+    if !case.value.cycle.is_empty() && case.value.cycle != value.cycle {
+        return Err(Error::Invalid("Admit Execution: Select the Case's Registered Cycle".into()));
+    }
     // Reserve Both Request and Reply Space Before Any Execution Can Be Admitted.
     let schema = ObjectDefinition::of::<Preview>().schema().map_err(|source| Error::Invalid(format!("Admit Execution: {source}")))?;
     let mut deletes = Vec::new();
@@ -91,17 +97,12 @@ pub async fn prepare(operations: &OperationManager, mutation: MutationId, admiss
         deletes.push(MutationItem::Delete {
             schema: schema.id.clone(),
             item,
-            expected: None,
+            // Preview Revisions Share This History and the Same Token Size.
+            expected: Some(case.revision.clone()),
         });
     }
     mutations::bound_preview_deletions(&deletes, bytes)?;
 
-    let case = io::read::<Case>(operations, &value.case, None, bytes)
-        .await?
-        .ok_or_else(|| Error::NotFound("Admit Execution: Select a Registered Case".into()))?;
-    if !case.value.cycle.is_empty() && case.value.cycle != value.cycle {
-        return Err(Error::Invalid("Admit Execution: Select the Case's Registered Cycle".into()));
-    }
     let scope = &value.scope;
     if admission.parameters.key != value.key
         || admission.steps.key != value.key

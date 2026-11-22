@@ -21,6 +21,8 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos_operations::storage::{CreateSnapshot, CreateSnapshotRequest, Mutate, MutateRequest, MutationItem};
 use harmos_protocol::model::ReadCut;
+use harmos_runtime::Identifier;
+use harmos_runtime::storage::query::{RecordSelection, Source};
 use prost::Message;
 
 // Local Imports
@@ -111,6 +113,94 @@ impl Fixture {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[tokio::test]
+async fn preview_clearing_never_deletes_another_execution_owner() -> Proof {
+    // Keep a Preview Under Another Closed Execution's Exact Scope.
+    let fixture = Fixture::open().await?;
+    let operations = &fixture.runtime.operations;
+    let rows = NonZeroUsize::new(1).unwrap();
+    lifecycle::register(operations, &fixture.mutation("schemas").await?).await?;
+    fixture.native_cycle("cycle").await?;
+    let (_, second_closed) = fixture.native_closed("second", "cycle", vec!["second/envelope".into()]).await?;
+
+    // Include an Unused Key and the Other Owner's Key in the Frozen Inventory.
+    fixture.native_execution("first", "cycle", vec!["first/envelope".into(), "unused".into(), "second/envelope".into()]).await?;
+    let preview = Preview {
+        key: "first/envelope".into(),
+        scope: Scope::Execution("first").identifier()?,
+        source_cut: Vec::new(),
+        kind: "envelope".into(),
+        selection: Vec::new(),
+        payload: vec![7],
+    };
+    let response = io::call::<Mutate>(
+        operations,
+        MutateRequest {
+            mutation: Some(fixture.mutation("first-preview").await?),
+            items: vec![MutationItem::Create(io::encode(&preview, fixture.bytes)?)],
+        },
+    )
+    .await?;
+    let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read First Execution")?;
+    let gate = Gate::new(&execution.value)?;
+    let closed = gate.close().await;
+    let outcome = ExecutionOutcome {
+        attribution: Some(Attribution::Evaluated(EvaluatedOutcome {
+            status: ResultStatus::Passed as i32,
+            ..Default::default()
+        })),
+    };
+    let outcome = Protobuf::product("dokime.host.v1.ExecutionOutcome", &outcome, fixture.bytes)?;
+    let drained = DrainedIntake {
+        execution: "first".into(),
+        receipt: response.receipt.ok_or("Return Preview Durability")?,
+    };
+    seal::close(
+        operations,
+        fixture.mutation("close-first").await?,
+        &closed,
+        drained,
+        execution,
+        outcome,
+        Termination::Completed as i32,
+        0,
+        rows,
+        fixture.bytes,
+    )
+    .await?;
+
+    // Clear Only Existing Preview Revisions Visible at the Execution-Scoped C.
+    let execution = lifecycle::read::<Execution>(operations, "first", None, fixture.bytes).await?.ok_or("Read Closed First Execution")?;
+    let (schema, _) = bindings::schema::<Reading>()?;
+    let partial = Source::Records(RecordSelection {
+        schema,
+        scope: Some(Scope::Execution("first").identifier()?),
+        item: Some(Identifier::new("reading")?),
+        source_start: None,
+        source_end: None,
+    });
+    let refused = seal::prepare(
+        operations,
+        fixture.mutation("partial-source").await?,
+        &closed,
+        execution.clone(),
+        &[partial],
+        0,
+        rows,
+        fixture.bytes,
+    )
+    .await;
+    assert!(matches!(refused, Err(crate::Error::Invalid(_))));
+    let plan = seal::prepare(operations, fixture.mutation("seal-first").await?, &closed, execution, &[], 0, rows, fixture.bytes).await?;
+    seal::publish(operations, &plan, fixture.bytes).await?;
+    assert!(lifecycle::read::<Preview>(operations, "first/envelope", None, fixture.bytes).await?.is_none());
+    assert!(lifecycle::read::<Preview>(operations, "second/envelope", None, fixture.bytes).await?.is_some());
+    drop(closed);
+    drop(second_closed);
+    fixture.runtime.stop().await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn frozen_schemas_survive_reopen_and_refuse_changed_graphs() -> Proof {

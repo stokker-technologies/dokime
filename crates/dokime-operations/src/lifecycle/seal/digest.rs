@@ -170,8 +170,19 @@ fn validate(source: &Source, scope: &Identifier) -> Result<()> {
         Source::Objects(selection) => {
             selection.schema.as_ref().is_some_and(|schema| ![Preview::ID, PreparedReport::ID, Report::ID].contains(&schema.id.as_str()))
         }
-        Source::Records(selection) => selection.scope.as_ref() == Some(scope),
-        Source::Stream(selection) => selection.scope.as_ref() == Some(scope) && selection.after == 0,
+        Source::Records(selection) => {
+            selection.scope.as_ref() == Some(scope)
+                && selection.item.is_none()
+                && selection.source_start.is_none()
+                && selection.source_end.is_none()
+        }
+        Source::Stream(selection) => {
+            selection.scope.as_ref() == Some(scope)
+                && selection.item.is_none()
+                && selection.source_start.is_none()
+                && selection.source_end.is_none()
+                && selection.after == 0
+        }
         Source::Files(selection) => selection.scope.as_ref() == Some(scope),
         Source::Schemas(_) => false,
     };

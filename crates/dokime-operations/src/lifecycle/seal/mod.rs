@@ -194,11 +194,17 @@ pub async fn prepare(
         }
         let schema = ObjectDefinition::of::<Preview>().schema().map_err(|source| Error::Invalid(format!("Seal Execution: {source}")))?;
         for key in &value.previews {
+            let Some(preview) = io::read::<Preview>(operations, key, Some(at.clone()), bytes).await? else {
+                continue;
+            };
+            if preview.value.scope != value.scope {
+                return Err(Error::Permission("Seal Execution: Clear Only Previews Owned by This Execution".into()));
+            }
             let item = ObjectKey::new(key, bytes).map_err(|source| Error::Invalid(format!("Seal Execution: {source}")))?;
             items.push(MutationItem::Delete {
                 schema: schema.id.clone(),
                 item,
-                expected: None,
+                expected: Some(preview.revision),
             });
         }
         Ok(MutateRequest { mutation: Some(mutation), items })

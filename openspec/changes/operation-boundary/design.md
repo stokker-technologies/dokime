@@ -501,6 +501,11 @@ publication cut **S**; C is the frozen evidence image and S publishes its seal.
 Never predict S or embed a self-referential seal. Bound and enumerate preview keys
 before admitting the execution so seal/clear fits one mutation; never split it.
 
+Preview clearing resolves each frozen key at the execution-scoped C and deletes
+only an existing owned revision with its native CAS token. An absent key causes
+no global-key deletion. Each frozen plugin source is digested in full, without
+item, time or alternate-sequence filters.
+
 Open/Closed reads without `at` select latest durable data without flushing; supplied
 issued cuts remain fixed. Sealed evidence, documents, plots and later reports source
 data at C; current presentation/report listings may use later cuts. Publish report
