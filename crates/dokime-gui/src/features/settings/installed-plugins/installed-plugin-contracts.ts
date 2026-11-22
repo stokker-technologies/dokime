@@ -9,6 +9,12 @@
 
 /* Installed-plugin contracts. */
 
+/* === Imports === */
+
+import type { SettingDeclaration } from "@host/model";
+import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { SecretSetting, Value } from "@dokime/plots/lib/types/settings";
+
 /* === Types === */
 
 /**
@@ -38,13 +44,15 @@ export type RuntimeInstalledPluginRecord = {
   error: string | null;
 };
 
-import type { RuntimePluginSettings } from "@dokime/plots/lib/types/settings";
+export type SettingsEntry = { kind: "setting"; declaration: Wire<SettingDeclaration> } | ({ kind: "secret" } & SecretSetting);
 
-export type {
-  RuntimePluginSettings,
-  Settings,
-  SettingsEntry,
-} from "@dokime/plots/lib/types/settings";
+export type Settings = { contributions?: SettingsEntry[] };
+
+export type RuntimePluginSettings = {
+  settings: Settings;
+  values: Record<string, Value>;
+  secrets: { identifier: string; available: boolean }[];
+};
 
 export type InstalledPluginRuntimeKind = RuntimeInstalledPluginRecord["runtime"];
 export type SettingValues = RuntimePluginSettings["values"];

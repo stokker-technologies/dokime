@@ -53,11 +53,13 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
     const value = fromBinary(input, toBinary(input, create(input, request)));
     requests.push({ path, value });
     // The Host Refuses a Change Whose Catalog Generation Is Stale.
-    if (
-      (path.endsWith("/Set") || path.endsWith("/Delete")) &&
-      toHex((value as unknown as { expectedRevision: Uint8Array }).expectedRevision) !== toHex(revision)
-    )
-      throw new Error("conflict");
+    if (path.endsWith("/Set") || path.endsWith("/Delete")) {
+      assert.ok("expectedRevision" in value);
+      assert.ok(value.expectedRevision instanceof Uint8Array);
+      if (toHex(value.expectedRevision) !== toHex(revision)) {
+        throw new Error("conflict");
+      }
+    }
     const reply =
       path === "/dokime.host.v1.Status/Get"
         ? { status: { identity: { hostId: "fixture-host", applicationName: "Fixture Host" } } }

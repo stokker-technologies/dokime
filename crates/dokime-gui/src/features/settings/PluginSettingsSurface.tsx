@@ -112,8 +112,11 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 <Button
                   disabled={reload.isPending || !reloadable}
                   onClick={() => {
-                    if (owning) reload.mutate(owning.name);
-                    else if (pluginId) reload.mutate(pluginId);
+                    if (owning) {
+                      reload.mutate(owning.name);
+                    } else if (pluginId) {
+                      reload.mutate(pluginId);
+                    }
                   }}
                   variant="outline"
                 >
@@ -122,8 +125,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
                 {reload.isError ? <ErrorCard notificationContext="action" failure={failureOf(reload.error, "Operation Failed")} /> : null}
               </SettingsRow>
             </SettingsCard>
-            {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
-            {installation ? <PluginDetailCard pluginId={installation.name} /> : null}
+            {pluginId ? <PluginDetailCard key={`${generation}:${pluginId}`} pluginId={pluginId} /> : null}
+            {installation ? <PluginDetailCard key={`${generation}:${installation.name}`} pluginId={installation.name} /> : null}
             {!section && pluginsQuery.isError ? <ErrorCard failure={failureOf(pluginsQuery.error, "Data Unavailable")} /> : null}
             {cards.length ? (
               <PluginSettingsCards cards={cards} />
