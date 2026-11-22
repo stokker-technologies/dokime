@@ -14,6 +14,7 @@
 
 - [x] Use the Complete Storage Statistics Owner for Default and Explicit Trace Windows; Delete the Partial Summary Path and Prove Every Statistic From Constructed Rows and Desktop/Report Tables.
 - [x] Render Single and Multiple Histogram Statistics Through the Same Plain Table as Trace Statistics Inside Their Plot Card; Remove the Grid and List Presentations.
+- [x] Preserve the Complete Unit-Bearing Header on Hover in the Shared Plain Table; Repair the Real Report Unit Labels Failure Without Changing Its Assertion.
 - [x] Compare Refresh Failure and Refresh Cancellation on This Branch and a Disposable Origin/Dev Worktree; Both Fail Identically Because Their Immediate-Completion Assertions Precede the Animation-Frame Commit. Owner Must Resolve This Test/Presentation Rework.
 - [ ] Pass Focused Rust, Shared Plot and Desktop TypeScript Tests, Report Integration, Workspace Test Compilation With Desktop Testing, Formatting, Repository Checking and Headless Screenshots.
 

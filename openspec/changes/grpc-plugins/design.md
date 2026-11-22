@@ -3346,6 +3346,8 @@ or pagination. Histogram charts share that card and one table for every series.
 Default and explicit trace windows both use storage's complete
 `series_summary` mapping over `numeric_statistics`; the partial default mapping
 is deleted. Median and standard deviation therefore arrive for default windows.
+Each plain table header retains its complete unit-bearing label in `title`,
+preserving the existing report unit-label contract.
 
 The refresh tests in `crates/dokime-gui/tests/integration/plots/nominal.test.ts`
 assume snapshot completion immediately after changing the selected window.

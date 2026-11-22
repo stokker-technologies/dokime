@@ -57,7 +57,7 @@ export function StatsSummaryTable(props: StatsSummaryTableProps) {
       <TableHeader>
         <TableRow>
           {legend.columns.map(({ header, id }) => (
-            <TableHead className={id === "trace" ? undefined : "text-right"} key={id}>
+            <TableHead className={id === "trace" ? undefined : "text-right"} key={id} title={header}>
               {header}
             </TableHead>
           ))}
