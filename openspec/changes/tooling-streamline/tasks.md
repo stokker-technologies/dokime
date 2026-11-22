@@ -2,7 +2,7 @@
 - [ ] 8.1 Resolve library protocols from the workspace Cargo pin into ignored target/protocol, migrate generator inputs and Buf scopes, and delete tracked proto/harmos and vendoring tests. Inventory: tools/python, tools/protocol input paths, SDK generation input paths, buf.yaml and mise.toml.
 - [ ] 8.2 Project the pin once, then refresh locks and the tooling environment before locked generation; remove the operation-boundary follow-up.
 - [x] 8.3 Omit nextest's ignored --no-tests option for compile-only focused selections while retaining empty-run failures for executed tests.
-- [ ] 8.4 Reuse the profile-aware wheel installer for SDK installation, consolidate example preparation there, and remove the operation-boundary follow-up.
+- [x] 8.4 Reuse the profile-aware wheel installer for SDK installation, consolidate example preparation there, and remove the operation-boundary follow-up.
 - [ ] 8.5 Prove focused tooling tests, both generation drift entry points from an absent export, one-run pin bootstrap in a scratch copy, bindings, formatting, repository checks and strict OpenSpec validation.
 - [ ] 8.6 Release protocol resolution: consume the library release's Buf Schema Registry label after the owner provisions its registry organization/token and the library release flow publishes that label; dev and nightly continue resolving git at the Cargo pin. Not implemented in this delivery.
 - [x] 1.2 Lock `mise.toml`, `tools/python`, `.github/workflows`, setup action, contributor guide and tooling guide as the source inventory.

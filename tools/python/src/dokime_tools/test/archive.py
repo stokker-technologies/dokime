@@ -171,6 +171,26 @@ def install_wheels(directory: Path, profile: str) -> None:
             check=True,
         )
 
+        # Prepare Examples Without Replacing the Selected SDK Wheel.
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                sys.executable,
+                "--no-deps",
+                "--reinstall",
+                str(directory / "sdk/python/examples/client"),
+                str(directory / "sdk/python/examples/starter"),
+                str(directory / "sdk/python/examples/thermal"),
+            ],
+            cwd=directory,
+            env=environment,
+            check=True,
+            creationflags=spawn_flags(),
+        )
+
 
 def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping | None = None) -> None:
     """Name and Hash the Built Fixtures, Without Binding Source or Revision."""
