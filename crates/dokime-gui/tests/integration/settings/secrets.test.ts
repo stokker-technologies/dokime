@@ -46,19 +46,24 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
     ],
   });
   const requests: { path: string; value: unknown }[] = [];
-  const revision = new Uint8Array([1, 2, 3]);
+  const revision = new Uint8Array(8);
+  new DataView(revision.buffer).setBigUint64(0, generation);
   fixture.unary.mockImplementation(async (path, input, output, identity, request) => {
     assert.equal(identity, session);
     const value = fromBinary(input, toBinary(input, create(input, request)));
     requests.push({ path, value });
+    // The Host Refuses a Change Whose Catalog Generation Is Stale.
+    if (
+      (path.endsWith("/Set") || path.endsWith("/Delete")) &&
+      toHex((value as { expectedRevision: Uint8Array }).expectedRevision) !== toHex(revision)
+    )
+      throw new Error("conflict");
     const reply =
       path === "/dokime.host.v1.Status/Get"
         ? { status: { identity: { hostId: "fixture-host", applicationName: "Fixture Host" } } }
-        : path.endsWith("/Get")
-          ? { revision, value: { metadata: { identifier: "token" } } }
-          : path.endsWith("/List")
-            ? { generation, entries: snapshot.entries }
-            : { receipt: { requestId: request.requestId, completed: true } };
+        : path.endsWith("/List")
+          ? { generation, entries: snapshot.entries }
+          : { receipt: { requestId: request.requestId, completed: true } };
     return fromBinary(output, toBinary(output, create(output, reply)));
   });
   const catalog = await readSecrets(session);
@@ -79,6 +84,10 @@ test("Secret Catalog Uses Canonical Metadata and Exact Generations", async () =>
   assert.deepEqual(put.expectedRevision, revision);
   assert.deepEqual(remove.names, ["token"]);
   assert.deepEqual(remove.expectedRevision, revision);
+  assert.equal(
+    requests.some((item) => item.path.endsWith("/Secrets/Get")),
+    false,
+  );
   await assert.rejects(putSecret(session, { identifier: "token", label: "Token" }, undefined, generation - 1n));
 });
 
@@ -120,3 +129,7 @@ test("Secret Catalog Rejects an Incomplete Host Reply", async () => {
   fixture.unary.mockResolvedValue(create(SecretSnapshotSchema, { entries: [{}] }));
   await assert.rejects(readSecrets(session), (error) => error instanceof Error);
 });
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
