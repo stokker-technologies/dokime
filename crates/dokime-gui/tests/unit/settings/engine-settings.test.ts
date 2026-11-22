@@ -53,7 +53,7 @@ vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useState: () => [fixture.draft, vi.fn()],
 }));
-vi.mock("@dokime/plots/components/ui/button", () => ({
+vi.mock("@/components/ui/button", () => ({
   Button: ({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void }) => {
     fixture.save = { onClick, disabled: Boolean(disabled) };
     return createElement("button", { type: "button" }, children);

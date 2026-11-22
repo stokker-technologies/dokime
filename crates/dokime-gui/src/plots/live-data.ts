@@ -10,14 +10,14 @@
 /* === Imports === */
 
 import type { EvidenceScope } from "@generated/host/model";
-import { cutKey, type Wire } from "@dokime/plots/lib/rpc/canonical";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { cutKey, type Wire } from "@/lib/rpc/canonical";
+import { failureOf } from "@/lib/notification-details";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { create } from "@bufbuild/protobuf";
-import { validatedExpression } from "@dokime/plots/expression";
-import { plotType } from "@dokime/plots/lib/api/native-plot-projection";
-import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
+import { validatedExpression } from "@/plots/expression";
+import { plotType } from "@/lib/api/native-plot-projection";
+import { jsonToNativeValue } from "@/lib/host/values";
 import {
   AxisScale,
   FilterOperator,
@@ -35,15 +35,15 @@ import {
 } from "@generated/host/model";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import type { PlotRefreshState } from "@dokime/document/features/cycle/PlotWindowSlider";
+import type { PlotRefreshState } from "@/features/cycle/PlotWindowSlider";
 import { fetchNativePlotPayloads, NATIVE_PLOT_MAX_REQUESTS, type NativePlotStream, openNativePlotStream } from "@/lib/api/native-plots";
-import { NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
-import { toast } from "@dokime/plots/lib/notifications";
-import { summaryInFlight } from "@dokime/plots/lib/statistics";
-import type { DocumentAxisScale, DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
-import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@dokime/plots/live-frames";
-import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@dokime/plots/reduce";
-import { type SummaryWindow, useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
+import { NativeApiLimitError } from "@/lib/api/native-values";
+import { toast } from "@/lib/notifications";
+import { summaryInFlight } from "@/lib/statistics";
+import type { DocumentAxisScale, DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
+import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
+import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
 

@@ -15,15 +15,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 // Local Imports
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { Button } from "@dokime/plots/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
+import { ErrorCard } from "@/components/ErrorCard";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { buildLabel } from "@/features/settings/sections/build-version";
 import { commands } from "@/lib/desktop/commands";
-import type { BuildIdentity } from "@dokime/document/lib/contracts/connection";
+import type { BuildIdentity } from "@/lib/contracts/connection";
 import type { UpdateCheck, UpdateMode, UpdateStatus } from "@/lib/desktop/updates";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 
 /* === Re-Exports === */
 

@@ -9,23 +9,23 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
-import { type DataTableColumns, type DataTableSearch, dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
-import { Badge } from "@dokime/plots/components/ui/badge";
-import { Button } from "@dokime/plots/components/ui/button";
-import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
-import { LIST_STATUS_PILL_CLASS } from "@dokime/document/features/cycle/cycle-workspace-model";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
+import { type DataTableColumns, type DataTableSearch, dataTableColumns } from "@/components/data-table/data-table-model";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
 import {
   applyFrozenOrder,
@@ -39,7 +39,7 @@ import {
 import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
-import { PageShell } from "@dokime/document/shell/PageShell";
+import { PageShell } from "@/shell/PageShell";
 
 /* === Constants === */
 

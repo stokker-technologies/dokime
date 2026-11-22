@@ -60,8 +60,7 @@ test("Live Document Responsiveness", async () => {
   let socket: WebSocket | undefined;
   try {
     await build({
-      configFile: resolve("../../packages/report/vite.config.ts"),
-      root: resolve("../../packages/report"),
+      configFile: resolve("vite.config.ts"),
       mode: "report",
       logLevel: "error",
       resolve: {
@@ -96,11 +95,11 @@ test("Live Document Responsiveness", async () => {
           transformIndexHtml: {
             order: "pre",
             handler: () =>
-              '<!doctype html><html><body><div id="root" style="width:1200px"></div><script type="module" src="/../../crates/dokime-gui/tests/integration/execution/responsiveness-fixture.tsx"></script></body></html>',
+              '<!doctype html><html><body><div id="root" style="width:1200px"></div><script type="module" src="/tests/integration/execution/responsiveness-fixture.tsx"></script></body></html>',
           },
         },
       ],
-      build: { outDir: join(scratch, "frozen"), rolldownOptions: { input: resolve("../../packages/report/report.html") } },
+      build: { outDir: join(scratch, "frozen") },
     });
     child = spawn(
       browserPath,

@@ -16,12 +16,12 @@ import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 
 import { useNativeSession } from "@/app/native-session/context";
-import { Badge } from "@dokime/plots/components/ui/badge";
-import { Button } from "@dokime/plots/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,19 +29,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dokime/plots/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@dokime/plots/components/ui/popover";
-import { Progress } from "@dokime/document/components/ui/progress";
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/ActiveCycle";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
-import { cn } from "@dokime/plots/lib/utils";
+import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
-import { consoleAttentionCount } from "@dokime/document/shell/ConsoleDrawerView";
-import { useRouteCycleId } from "@dokime/document/shell/route-scope";
+import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
+import { useRouteCycleId } from "@/shell/route-scope";
 import {
   type BackendOperation,
   operationPercent,
@@ -50,7 +50,7 @@ import {
   summarizeOperations,
 } from "@/shell/status-bar-operations";
 import { useHubStore } from "@/stores/hub-store";
-import { useUiStore } from "@dokime/document/stores/ui-store";
+import { useUiStore } from "@/stores/ui-store";
 import { RunIndicator } from "./RunIndicator";
 import { StatusBarFrame } from "./StatusBarFrame";
 

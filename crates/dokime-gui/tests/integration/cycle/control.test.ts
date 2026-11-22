@@ -29,8 +29,8 @@ import { test, vi } from "vitest";
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { type ExecutionActions, ExecutionControl, useExecutionActions } from "@/features/cycle/ExecutionControl";
 import { NodeMenu, type ExecutionMenu } from "@/features/cycle/NodeMenu";
-import type { CycleExecutionRow } from "@dokime/document/features/cycle/cycle-workspace-model";
-import { mapNativeExecutionSummary } from "@dokime/document/lib/api/native-planning-projection";
+import type { CycleExecutionRow } from "@/features/cycle/cycle-workspace-model";
+import { mapNativeExecutionSummary } from "@/lib/api/native-planning-projection";
 
 /* === Re-Exports === */
 

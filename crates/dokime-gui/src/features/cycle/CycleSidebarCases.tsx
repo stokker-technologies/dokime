@@ -32,11 +32,13 @@
 
 /* === External Imports === */
 
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { CycleSidebarCasesView } from "@dokime/document/features/cycle/CycleSidebarCasesView";
+import { CycleSidebarCasesView } from "@/features/cycle/CycleSidebarCasesView";
 import { useCycleDetailQuery, useCyclePendingPromptsQuery, useRerunCase } from "./cycle-queries";
 /* === Local Imports === */
-import type { CycleSelection } from "@dokime/document/features/cycle/cycle-workspace-model";
+import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
+import { useSelectionStore } from "@/stores/selection-store";
 
 /* === Types === */
 export type CycleSidebarCasesProps = {
@@ -46,6 +48,8 @@ export type CycleSidebarCasesProps = {
 
 /* === Components === */
 export function CycleSidebarCases(props: CycleSidebarCasesProps) {
+  const navigate = useNavigate();
+  const followActive = useSelectionStore((state) => state.followActive);
   const detailQuery = useCycleDetailQuery(props.cycleId);
   const rerunCase = useRerunCase(props.cycleId);
   const prompts = useCyclePendingPromptsQuery(props.cycleId).data;
@@ -53,12 +57,34 @@ export function CycleSidebarCases(props: CycleSidebarCasesProps) {
     () => new Set((prompts ?? []).flatMap((prompt) => (prompt.scope?.executionId ? [prompt.scope.executionId] : []))),
     [prompts],
   );
+  if (props.live === false) {
+    return <CycleSidebarCasesView detailQuery={detailQuery} selection={props.selection} live={false} onSelect={props.onSelect} />;
+  }
+
+  const select = (next: CycleSelection) => {
+    void navigate({
+      params: { cycleId: props.cycleId },
+      replace: true,
+      search: (current: Record<string, unknown>) => ({
+        ...current,
+        caseId: next.caseId,
+        executionId: next.executionId,
+        view: next.view,
+      }),
+      to: "/cycles/$cycleId",
+    });
+  };
+
   return (
     <CycleSidebarCasesView
-      {...props}
       detailQuery={detailQuery}
       inputNeeded={inputNeeded}
+      selection={props.selection}
+      followActive={followActive}
+      live
+      onSelect={select}
       actions={{
+        addCases: () => void navigate({ search: { appendTo: props.cycleId }, to: "/library" }),
         rerunCase: rerunCase.rerun,
       }}
     />

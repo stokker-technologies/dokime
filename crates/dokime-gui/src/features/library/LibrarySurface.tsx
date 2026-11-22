@@ -9,28 +9,28 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
-import { DataTable } from "@dokime/plots/components/data-table/DataTable";
-import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { DataTable } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
-import { Button } from "@dokime/plots/components/ui/button";
-import { Input } from "@dokime/plots/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
-import { useBrand } from "@dokime/document/lib/brand";
-import type { SuiteTemplateEntry, TestSuiteEntry } from "@dokime/plots/lib/types";
-import { PageShell } from "@dokime/document/shell/PageShell";
+import { useBrand } from "@/lib/brand";
+import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
+import { PageShell } from "@/shell/PageShell";
 
 /* === Constants === */
 

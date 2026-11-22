@@ -16,10 +16,10 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
@@ -37,15 +37,15 @@ import {
   MenubarTrigger,
 } from "@/components/ui/menubar";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
-import { useAppearance } from "@dokime/document/lib/appearance";
+import { useAppearance } from "@/lib/appearance";
 import { useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
-import { useApplicationTheme } from "@dokime/document/lib/application-theme";
-import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
-import type { DensityPreference, ThemeModePreference } from "@dokime/document/lib/theme";
-import { useFocusMode } from "@dokime/document/shell/focus-mode";
-import { useRouteCycleId } from "@dokime/document/shell/route-scope";
-import { useSidebarState } from "@dokime/document/shell/use-sidebar-state";
-import { useUiStore } from "@dokime/document/stores/ui-store";
+import { useApplicationTheme } from "@/lib/application-theme";
+import { isTauriDesktop } from "@/lib/surface-environment";
+import type { DensityPreference, ThemeModePreference } from "@/lib/theme";
+import { useFocusMode } from "@/shell/focus-mode";
+import { useRouteCycleId } from "@/shell/route-scope";
+import { useSidebarState } from "@/shell/use-sidebar-state";
+import { useUiStore } from "@/stores/ui-store";
 
 /* === Constants === */
 

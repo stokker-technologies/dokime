@@ -10,8 +10,8 @@
 /* === Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { DocumentWorkspaceView } from "@/components/document/DocumentWorkspaceView";
-import { DocumentViewPresentation, type DocumentViewProps } from "@dokime/document/features/cycle/DocumentViewPresentation";
-import { type DocumentSurfaceOptions, documentSurface } from "@dokime/document/features/cycle/document-view-model";
+import { DocumentViewPresentation, type DocumentViewProps } from "@/features/cycle/DocumentViewPresentation";
+import { type DocumentSurfaceOptions, documentSurface } from "@/features/cycle/document-view-model";
 import { useDocumentView } from "./use-document-view";
 
 /* === Components === */

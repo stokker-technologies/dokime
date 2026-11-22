@@ -9,22 +9,22 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { exploreQueryKeys, useExploreHistoryQuery } from "@/features/explore/explore-queries";
 import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView";
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
 import { setNativeCycleArchived, setNativeExecutionArchived } from "@/lib/api/native-execution";
-import type { ExecutionBrowsePage } from "@dokime/plots/lib/types/browse";
-import { PageNotice, PageShell } from "@dokime/document/shell/PageShell";
+import type { ExecutionBrowsePage } from "@/lib/types/browse";
+import { PageNotice, PageShell } from "@/shell/PageShell";
 import { type ExploreEntry, type ExploreTarget, exploreEntryKey } from "./explore-contracts";
 
 const GUI_FILTER_DEBOUNCE_MS = 250;

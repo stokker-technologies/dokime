@@ -15,7 +15,7 @@ import { useState } from "react";
 
 /* === Local Imports === */
 
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { AddSecretDialog } from "@/features/settings/sections/SecretsSection";
 
 import { InstalledPluginRuntimeBadge, InstalledPluginStatusBadge } from "@/features/settings/installed-plugins/InstalledPluginBadges";
@@ -23,7 +23,7 @@ import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugi
 import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { useBrand } from "@dokime/document/lib/brand";
+import { useBrand } from "@/lib/brand";
 
 /* === Types === */
 

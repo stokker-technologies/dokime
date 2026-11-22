@@ -15,8 +15,8 @@
 
 // Standard Library Imports
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Pencil } from "lucide-react";
@@ -24,13 +24,13 @@ import { useEffect, useId, useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
-import { dataTableColumns } from "@dokime/plots/components/data-table/data-table-model";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
+import { dataTableColumns } from "@/components/data-table/data-table-model";
 // Third Party Imports
-import { Button } from "@dokime/plots/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
-import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
-import { Input } from "@dokime/plots/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";

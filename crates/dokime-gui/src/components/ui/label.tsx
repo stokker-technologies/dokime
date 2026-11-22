@@ -14,7 +14,7 @@ import type * as React from "react";
 
 /* === Local Imports === */
 
-import { cn } from "@dokime/plots/lib/utils";
+import { cn } from "@/lib/utils";
 
 /* === Components === */
 

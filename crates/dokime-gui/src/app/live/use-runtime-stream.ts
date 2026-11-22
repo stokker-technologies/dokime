@@ -9,8 +9,8 @@
 
 /* === External Imports === */
 
-import { toast } from "@dokime/plots/lib/notifications";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { toast } from "@/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 

@@ -18,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { appendNativeTestCycle, previewNativeTestCycle } from "@/lib/api/native-planning";
-import type { PreviewTestCycleRequest, TestCycleSelection } from "@dokime/plots/lib/types";
+import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 import { fetchNativeSuites } from "../../lib/host/suite-session";
 
 /* === Query Keys === */

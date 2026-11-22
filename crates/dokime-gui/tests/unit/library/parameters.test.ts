@@ -27,8 +27,8 @@ import { test } from "vitest";
 import { editorRow } from "@/components/parameter-editor/model";
 import { ParameterValueCell } from "@/components/parameter-editor/parameter-cells";
 import { registeredParameterRaw } from "@/components/start-cycle-form-model";
-import { mapParameter } from "@dokime/document/lib/host/suites";
-import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
+import { mapParameter } from "@/lib/host/suites";
+import { jsonToNativeValue } from "@/lib/host/values";
 import { parseParameterInput } from "@/lib/parameter-parser";
 
 /* === Re-Exports === */

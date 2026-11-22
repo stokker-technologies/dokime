@@ -9,9 +9,9 @@
 
 /* === External Imports === */
 
-import { cutKey } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey } from "@/lib/rpc/canonical";
 import { nativeFailure } from "@/lib/rpc/failure-details";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -28,7 +28,7 @@ import {
   setNativePluginEnabled,
 } from "@/lib/api/native-plugins";
 import { commands } from "@/lib/desktop/commands";
-import { clearPluginNotifications, toast } from "@dokime/plots/lib/notifications";
+import { clearPluginNotifications, toast } from "@/lib/notifications";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Query Keys === */

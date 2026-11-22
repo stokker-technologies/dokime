@@ -11,17 +11,17 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
-import { useNavigationMode } from "@dokime/document/shell/use-sidebar-state";
-import { useUiStore } from "@dokime/document/stores/ui-store";
+import { useNavigationMode } from "@/shell/use-navigation-mode";
+import { useUiStore } from "@/stores/ui-store";
 
 /* === Local Imports === */
 
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
@@ -34,8 +34,8 @@ import { RemoteSection } from "@/features/settings/sections/RemoteSection";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
-import { PanelHeader } from "@dokime/document/shell/PageShell";
-import { usePageChrome } from "@dokime/document/shell/page-chrome";
+import { PanelHeader } from "@/shell/PageShell";
+import { usePageChrome } from "@/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
 import { BackendsTable } from "./BackendsTable";
 

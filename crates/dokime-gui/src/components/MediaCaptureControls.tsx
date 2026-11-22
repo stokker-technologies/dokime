@@ -15,10 +15,10 @@
 /* === Imports === */
 
 import type { EvidenceScope } from "@generated/host/model";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import { Camera, Mic, Monitor } from "lucide-react";
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 /* === Re-Exports === */
 

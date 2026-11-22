@@ -26,8 +26,8 @@ import {
 } from "@/components/start-cycle-form-model";
 import type { ParameterOverrides } from "@/lib/desktop/settings";
 import { type ParseResult, parseParameterInput } from "@/lib/parameter-parser";
-import type { FileDefinition, ParameterDefinition, SuiteTemplateEntry } from "@dokime/plots/lib/types";
-import type { NotificationProblem } from "@dokime/plots/lib/notification-details";
+import type { FileDefinition, ParameterDefinition, SuiteTemplateEntry } from "@/lib/types";
+import type { NotificationProblem } from "@/lib/notification-details";
 
 /* === Constants === */
 

@@ -32,7 +32,7 @@ import {
 import { Downsample } from "@generated/host/model";
 import { SettingsGetResponseSchema, SettingsSetRequestSchema } from "@generated/host/model";
 import { invoke } from "../desktop/commands";
-import { safeNumber } from "@dokime/plots/lib/api/native-values";
+import { safeNumber } from "@/lib/api/native-values";
 
 /* === Re-Exports === */
 

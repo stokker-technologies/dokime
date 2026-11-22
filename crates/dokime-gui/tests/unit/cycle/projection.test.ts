@@ -29,7 +29,7 @@ import {
 import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
 import { executionControlState } from "@/features/cycle/control-model";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
-import { mapNativeExecutionSummary, projectExecutionStatus } from "@dokime/document/lib/api/native-planning-projection";
+import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning-projection";
 
 /* === Re-Exports === */
 

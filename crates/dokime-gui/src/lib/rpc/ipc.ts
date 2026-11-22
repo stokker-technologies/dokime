@@ -14,8 +14,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 /* === Local Imports === */
 
 import { FRAME_BYTES as DESKTOP_FRAME_BYTES, STREAM_CREDIT as DESKTOP_STREAM_CREDIT } from "@generated/typescript/desktop-protocol";
-import type { RpcError } from "@dokime/document/lib/contracts/rpc";
-import { isReportBuild } from "@dokime/document/lib/ui-mode";
+import type { RpcError } from "@/lib/contracts/rpc";
+import { isReportBuild } from "@/lib/ui-mode";
 import { normalizeRpcError } from "./errors";
 import { descriptorSha256 } from "@generated/host/identity";
 import type { NativeClientStream, NativeStream, SessionIdentity } from "./transport";

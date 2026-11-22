@@ -3,10 +3,10 @@
 /* === Imports === */
 
 import { type ReactNode, useCallback } from "react";
-import { ErrorRecoveryContext } from "@dokime/plots/components/ErrorCard";
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
-import { PlotPaletteContext } from "@dokime/plots/use-plot-palette";
-import { TraceabilitySaveContext } from "@dokime/document/components/traceability/TraceabilityJsonDialog";
+import { ErrorRecoveryContext } from "@/components/ErrorCard";
+import type { NotificationFailure } from "@/lib/notification-details";
+import { PlotPaletteContext } from "@/plots/use-plot-palette";
+import { TraceabilitySaveContext } from "@/components/traceability/TraceabilityJsonDialog";
 import { failureRecovery } from "@/lib/failure-recovery";
 import { saveNativeDocument } from "@/lib/api/native-document-delivery";
 import { usePlotPalette } from "@/plots/desktop-plot-palette";

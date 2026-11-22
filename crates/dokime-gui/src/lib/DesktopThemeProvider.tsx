@@ -16,15 +16,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { type ReactNode, useEffect, useState } from "react";
 // Local Imports
-import { useAppearance } from "@dokime/document/lib/appearance";
+import { useAppearance } from "@/lib/appearance";
 import { useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
-import { toast } from "@dokime/plots/lib/notifications";
-import type { ResolvedTheme, ThemeModePreference } from "@dokime/document/lib/theme";
-import { useUiStore } from "@dokime/document/stores/ui-store";
-import { ApplicationThemeProvider } from "@dokime/document/lib/application-theme";
+import { toast } from "@/lib/notifications";
+import type { ResolvedTheme, ThemeModePreference } from "@/lib/theme";
+import { useUiStore } from "@/stores/ui-store";
+import { ApplicationThemeProvider } from "@/lib/application-theme";
 
 /* === Re-Exports === */
 

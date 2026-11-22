@@ -13,18 +13,20 @@ import { useCallback, useMemo, useState } from "react";
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { useReportDefaults } from "@/lib/application-settings";
-import { orderedDocumentSections } from "@dokime/document/lib/document-layout";
+import { orderedDocumentSections } from "@/lib/document-layout";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
+import { PlotMeasurementsContext } from "@/plots/interaction";
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import { useLivePlotPayloads } from "@/plots/live-data";
-import { PlotSettingsEditorContext, type PlotDisplaySettings } from "@dokime/plots/plot-settings";
+import { PlotSettingsEditorContext, type PlotDisplaySettings } from "@/plots/plot-settings";
 import { updatePlotSettings } from "../../lib/api/native-document-session";
 import { DocumentCardContent } from "./DocumentSurface";
 import {
   DocumentWorkspacePresentation,
   visibleDocumentPlots,
   type DocumentWorkspaceViewProps,
-} from "@dokime/document/components/document/DocumentWorkspacePresentation";
-import { isDocumentSurfaceCard } from "@dokime/document/components/document/document-surface-policy";
+} from "@/components/document/DocumentWorkspacePresentation";
+import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 
 /* === Components === */
 export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
@@ -32,7 +34,9 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
     <DocumentWorkspacePresentation {...props} />
   ) : (
     <PlotSettingsEditorContext.Provider value={PlotSettingsButton}>
-      <ConnectedDocumentWorkspace {...props} />
+      <PlotMeasurementsContext.Provider value={useSummaryWindowStore.getInitialState()}>
+        <ConnectedDocumentWorkspace {...props} />
+      </PlotMeasurementsContext.Provider>
     </PlotSettingsEditorContext.Provider>
   );
 }

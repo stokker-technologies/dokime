@@ -20,9 +20,9 @@ import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import type { PromptRequest } from "@dokime/plots/lib/types";
+import type { PromptRequest } from "@/lib/types";
 import { ArchiveScope, CycleOrderKey } from "@generated/host/model";
-import type { CycleSummary } from "@dokime/document/lib/api/native-planning-projection";
+import type { CycleSummary } from "@/lib/api/native-planning-projection";
 
 /* === Types === */
 

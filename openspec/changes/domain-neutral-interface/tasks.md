@@ -1,6 +1,0 @@
-- [x] 1.1 Inventory current domain leaks in parameter-editor/model.ts, parameter-cells.tsx, start-cycle-form-model.ts, lib/traceability.ts and plots/grouping.ts; retain plugin metadata, authoring guidance and focused proof consumers in scope.
-- [ ] 2.1 Replace the Wi-Fi channel selector with a generic grouped choice fed by the plugin's option provider.
-- [ ] 2.2 Replace the fixed host-system traceability fields, categories and titles with fields and groups the plugin contributes.
-- [ ] 2.3 Remove unit inference from field names and the hardcoded stream identifiers and labels in plot grouping; use declared field metadata.
-- [ ] 3.1 Run focused grouped-choice, traceability and field-metadata tests; grid and report playback parity proof belongs to grpc-plugins.
-- [ ] 3.2 Update the authoring guidance and the product guide for the retained scope.

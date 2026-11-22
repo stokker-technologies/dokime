@@ -68,13 +68,12 @@ def build_report(args: list[str]) -> Path:
     """Generate the Desktop's Standalone Report Renderer."""
     organization.generate()
     output = configuration.ROOT / "target/generated/report"
-    report_root = configuration.ROOT / "packages/report"
     temporary = tempfile.TemporaryDirectory(prefix="dokime-gui-report-", dir=configuration.ROOT / "target")
     directory = temporary.name
     try:
         subprocess.run(
-            ["node", str(report_root / "node_modules/vite/bin/vite.js"), "build", "--mode", "report", "--outDir", directory, *args],
-            cwd=report_root,
+            ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--mode", "report", "--outDir", directory, *args],
+            cwd=WEB_ROOT,
             check=True,
             creationflags=spawn_flags(),
             stdin=sys.stdin,

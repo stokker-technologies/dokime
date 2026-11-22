@@ -39,6 +39,8 @@ operator questions, retries, cancellation, cleanup and report publication.
 
 The native desktop is back in the Cargo workspace and uses the execution host.
 Its product includes native installers and self-contained HTML reports.
+The desktop and report build entries live in `crates/dokime-gui` and share their presentation components.
+The report renders captured data locally and can open without a backend connection.
 See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples
@@ -153,9 +155,6 @@ Release and organization installers include the kit's default plugins in `plugin
 Set `installer.exclude_plugins = ["obc"]` to exclude a default; use
 `[[plugin]]` entries to add bundles. Packaging progress goes to stderr; `--json`
 keeps stdout machine-readable and disables progress.
-The [startup admission contract](openspec/changes/organization-pack-coverage/proposal.md#installation-plugin-admission)
-records registry ownership, user-entry precedence and rejected-bundle reporting;
-its platform proof requirements are listed with the decision.
 
 Add the command-line tool from the `nightly` release to a `mise.toml`:
 

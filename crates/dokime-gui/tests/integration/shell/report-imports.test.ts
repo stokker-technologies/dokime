@@ -29,19 +29,25 @@ const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").r
   compilerOptions: { paths: Record<string, string[]> };
 };
 
+const DESKTOP_MODULES = [
+  /^src\/(?:app|routes|stores|lib\/desktop)\//,
+  /^src\/lib\/(?:api\/native-document-session|host\/(?:client|suite-session)|rpc\/(?:transport|ipc|artifact-upload))\./,
+  /^src\/shell\/(?:AppShell\.|ConsoleDrawer\.|MenuBar\.|Sidebar\.|StatusBar\.|console-(?:buffer|records)\.|focus-mode\.|route-scope\.|use-sidebar-state\.)/,
+  /(?:^|\/)(?:server-state|[^/]+-queries|live-data)\.[jt]sx?$/,
+  /^\.\.\/\.\.\/target\/generated\/host\/client\./,
+];
+const DESKTOP_DEPENDENCIES =
+  /^(?:@tauri-apps\/|@tanstack\/(?:[^/]+-(?:router|query)|query-core|router-core)(?:\/|$)|@connectrpc\/|@grpc\/|zustand(?:\/|$))/;
+
 /* === Types === */
 
 /* === Classes === */
 
 /* === Tests === */
 
-test("The Embedded Report Permits Generated Messages and Cannot Reach RPC Clients or Transports", () => {
-  const reportRoot = resolve(root, "../../packages/report");
-  const vite = readFileSync(resolve(reportRoot, "vite.config.ts"), "utf8");
-  const input = vite.match(/input:[^\n]*?fileURLToPath\(new URL\("(.+?)", import.meta.url\)\)/)?.[1];
-  assert.ok(input, "resolve the report HTML from the Vite entry configuration");
-  const html = readFileSync(resolve(reportRoot, input), "utf8");
-  const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(reportRoot, match[1].replace(/^\//, "")));
+test("The Embedded Report Can Render Without Desktop Services or Routing", () => {
+  const html = readFileSync(resolve(root, "report.html"), "utf8");
+  const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(root, match[1].replace(/^\//, "")));
   assert.ok(entries.length, "the report must have a module entry");
 
   const messages = resolveLocal("@generated/host/model", entries[0]);
@@ -56,17 +62,15 @@ test("The Embedded Report Permits Generated Messages and Cannot Reach RPC Client
     const file = chain[chain.length - 1];
     const path = relative(root, file).replaceAll("\\", "/");
     const trace = chain.map((item) => relative(root, item)).join(" → ");
-    assert.doesNotMatch(
-      path,
-      /^(?:src\/lib\/(?:host\/client|rpc\/(?:transport|ipc|artifact-upload))\.|\.\.\/\.\.\/target\/generated\/host\/client\.)/,
-      trace,
-    );
+    for (const desktopModule of DESKTOP_MODULES) {
+      assert.doesNotMatch(path, desktopModule, trace);
+    }
     if (visited.has(file)) continue;
     visited.add(file);
-    if (!/\.[cm]?[jt]sx?$/.test(file)) continue;
+    if (!/\.(?:[cm]?[jt]sx?|svelte)$/.test(file)) continue;
     const source = readFileSync(file, "utf8");
     for (const specifier of runtimeImports(source)) {
-      assert.doesNotMatch(specifier, /^(?:@connectrpc\/|@grpc\/)/, trace);
+      assert.doesNotMatch(specifier, DESKTOP_DEPENDENCIES, `${trace} → ${specifier}`);
       const dependency = resolveLocal(specifier, file);
       if (dependency) pending.push([...chain, dependency]);
     }
@@ -97,14 +101,6 @@ function runtimeImports(source: string): string[] {
 
 function resolveLocal(specifier: string, importer: string): string | null {
   let base: string | undefined;
-  if (specifier.startsWith("@dokime/")) {
-    const [, name, ...subpath] = specifier.split("/");
-    const packageRoot = resolve(root, "../../packages", name);
-    const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8")) as { exports: Record<string, string> };
-    const entry = manifest.exports[`./${subpath.join("/")}`];
-    assert.ok(entry, `resolve the shared package export ${specifier}`);
-    base = resolve(packageRoot, entry);
-  }
   for (const [alias, paths] of Object.entries(config.compilerOptions.paths)) {
     if (!alias.endsWith("/*") || !specifier.startsWith(alias.slice(0, -1))) continue;
     base = resolve(root, paths[0].replace("*", specifier.slice(alias.length - 1)));
@@ -115,7 +111,11 @@ function resolveLocal(specifier: string, importer: string): string | null {
   // Assets Have No TypeScript Imports And May Be Produced By A Separate Build.
   if (/\.(?:css|json|svg|png|woff2?)$/.test(base)) return null;
   const typescript = base.replace(/\.[cm]?js$/, ".ts");
-  const candidates = [typescript, base, ...[".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].map((suffix) => base + suffix)];
+  const candidates = [
+    typescript,
+    base,
+    ...[".ts", ".tsx", ".js", ".jsx", ".svelte", "/index.ts", "/index.tsx"].map((suffix) => base + suffix),
+  ];
   const found = candidates.find((candidate) => existsSync(candidate) && /\.[^/]+$/.test(candidate));
   assert.ok(found, `unresolved report import ${specifier} from ${relative(root, importer)}`);
   return found;

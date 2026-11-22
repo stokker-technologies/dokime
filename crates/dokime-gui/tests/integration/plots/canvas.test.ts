@@ -61,8 +61,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
   let socket: WebSocket | undefined;
   try {
     await build({
-      configFile: resolve("../../packages/report/vite.config.ts"),
-      root: resolve("../../packages/report"),
+      configFile: resolve("vite.config.ts"),
       mode: "report",
       logLevel: "error",
       plugins: [
@@ -71,11 +70,11 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           transformIndexHtml: {
             order: "pre",
             handler: () =>
-              '<!doctype html><html><body><div id="root" style="width:800px"></div><script type="module" src="/../../crates/dokime-gui/tests/integration/plots/canvas-fixture.tsx"></script></body></html>',
+              '<!doctype html><html><body><div id="root" style="width:800px"></div><script type="module" src="/tests/integration/plots/canvas-fixture.tsx"></script></body></html>',
           },
         },
       ],
-      build: { outDir: join(scratch, "frozen"), rolldownOptions: { input: resolve("../../packages/report/report.html") } },
+      build: { outDir: join(scratch, "frozen") },
     });
     child = spawn(
       browserPath,

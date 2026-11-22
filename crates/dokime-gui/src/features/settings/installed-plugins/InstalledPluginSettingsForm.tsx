@@ -5,13 +5,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { SettingDeclaration } from "@generated/host/model";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@dokime/plots/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useAutosave } from "@/features/settings/settings-autosave";
 import type { Settings, SettingValues } from "./installed-plugin-contracts";
 import { formatPluginSetting, parsePluginSetting, readPluginSetting } from "@/lib/api/native-settings";
-import { required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { required, type Wire } from "@/lib/rpc/canonical";
 
 /* === Types === */
 

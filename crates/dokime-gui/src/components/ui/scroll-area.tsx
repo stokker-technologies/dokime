@@ -10,7 +10,7 @@
 import * as radix from "radix-ui";
 import type * as React from "react";
 
-import { cn } from "@dokime/plots/lib/utils";
+import { cn } from "@/lib/utils";
 
 function ScrollArea({ className, children, ...props }: React.ComponentProps<typeof radix.ScrollArea.Root>) {
   return (

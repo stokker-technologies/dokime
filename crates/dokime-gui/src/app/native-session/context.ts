@@ -19,7 +19,7 @@
 import { createContext, useContext } from "react";
 
 // Local Imports
-import type { AppearanceResource } from "@dokime/document/lib/native-appearance";
+import type { AppearanceResource } from "@/lib/native-appearance";
 import type { ConnectedSession, NativeSession } from "./session";
 
 /* === Re-Exports === */

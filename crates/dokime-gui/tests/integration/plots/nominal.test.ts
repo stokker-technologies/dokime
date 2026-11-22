@@ -37,14 +37,14 @@ import {
 } from "@generated/host/model";
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
-import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
-import { NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
-import type { RuntimeThemeFamily, useAppearance } from "@dokime/document/lib/appearance";
-import { ApplicationThemeProvider } from "@dokime/document/lib/application-theme";
-import { formatNumber, formatTime, formatUnitLabel } from "@dokime/plots/lib/format";
-import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
+import { NativeApiLimitError } from "@/lib/api/native-values";
+import type { RuntimeThemeFamily, useAppearance } from "@/lib/appearance";
+import { ApplicationThemeProvider } from "@/lib/application-theme";
+import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
+import { jsonToNativeValue } from "@/lib/host/values";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
@@ -53,8 +53,8 @@ import {
   summaryInFlight,
   toggleTrace,
   type SeriesSummary,
-} from "@dokime/plots/lib/statistics";
-import { applyThemeVariables } from "@dokime/document/lib/theme";
+} from "@/lib/statistics";
+import { applyThemeVariables } from "@/lib/theme";
 import type {
   DocumentViewPlot,
   HubRecord,
@@ -63,46 +63,41 @@ import type {
   PlotPayloadStreamMessage,
   TelemetryColumnSpec,
   TelemetryStream,
-} from "@dokime/plots/lib/types";
-import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@dokime/plots/CartesianPlot";
+} from "@/lib/types";
+import { drawnData } from "@/plots/cartesian-frame";
+import { CartesianPlot, cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
-import { formatBooleanState, formatCursorX } from "@dokime/plots/axis";
-import { BarPlot } from "@dokime/plots/catalog/BarPlot";
-import { ContourPlot } from "@dokime/plots/catalog/ContourPlot";
-import { GridChartPlot } from "@dokime/plots/catalog/GridChartPlot";
-import { PiePlot } from "@dokime/plots/catalog/PiePlot";
-import { TimeSeriesPlot } from "@dokime/plots/catalog/TimeSeriesPlot";
-import { TrajectoryPlot } from "@dokime/plots/catalog/TrajectoryPlot";
-import { XyIntervalPlot } from "@dokime/plots/catalog/XyIntervalPlot";
-import { XyPlot } from "@dokime/plots/catalog/XyPlot";
-import { documentPlotSpec, groupRepeatsPlotTitle } from "@dokime/plots/grouping";
+import { formatBooleanState, formatCursorX } from "@/plots/axis";
+import { BarPlot } from "@/plots/catalog/BarPlot";
+import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
+import { PiePlot } from "@/plots/catalog/PiePlot";
+import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
+import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
+import { XyPlot } from "@/plots/catalog/XyPlot";
+import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
   histogramAxes,
   histogramAxisTitle,
   type HistogramColumn,
   type HistogramDeclaration,
-} from "@dokime/plots/histogram-axes";
-import { histogramBars } from "@dokime/plots/histogram-bins";
-import { PlotInteractionProvider } from "@dokime/plots/interaction";
+} from "@/plots/histogram-axes";
+import { histogramBars } from "@/plots/histogram-bins";
+import { PlotInteractionProvider } from "@/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
-import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@dokime/plots/live-frames";
-import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@dokime/plots/markers";
-import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@dokime/plots/playback";
-import {
-  NO_NUMERIC_SAMPLES,
-  STREAM_ERROR,
-  WAITING_FOR_SAMPLES,
-  plotPlaceholderText,
-  plotUnavailableText,
-} from "@dokime/plots/plot-placeholder";
-import { PlotSettingsEditorContext } from "@dokime/plots/plot-settings";
-import { promptMarkerLabel, promptMarkers } from "@dokime/plots/prompt-markers";
-import { m4Indices, windowIndices } from "@dokime/plots/reduce";
+import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
+import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
+import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@/plots/playback";
+import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
+import { PlotSettingsEditorContext } from "@/plots/plot-settings";
+import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
+import { m4Indices, windowIndices } from "@/plots/reduce";
 import { usePlotPalette } from "@/plots/desktop-plot-palette";
-import { heldViewport } from "@dokime/plots/viewport";
-import { applyReportAppearance } from "@dokime/report/report-appearance";
-import { useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
+import { heldViewport } from "@/plots/viewport";
+import { applyReportAppearance } from "@/report/report-appearance";
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Re-Exports === */
 
@@ -363,7 +358,7 @@ vi.mock("@/lib/api/native-plots", async (original) => ({
   fetchNativePlotPayloads: refreshFixture.read,
   openNativePlotStream: refreshFixture.watch,
 }));
-vi.mock("@dokime/plots/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
+vi.mock("@/lib/notifications", () => ({ toast: { error: refreshFixture.notify } }));
 vi.mock("@/lib/application-settings", async (original) => {
   const settings = await original<typeof import("@/lib/application-settings")>();
   return { ...settings, useReportDefaults: () => settings.BUILT_IN_REPORT_DEFAULTS };
@@ -1264,7 +1259,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     mode_locked: false,
     source_plugin_id: null,
   };
-  const readAppearance = vi.spyOn(await import("@dokime/document/lib/appearance"), "useAppearance").mockReturnValue(frame);
+  const readAppearance = vi.spyOn(await import("@/lib/appearance"), "useAppearance").mockReturnValue(frame);
   onTestFinished(() => readAppearance.mockRestore());
   function Palette() {
     return createElement("output", null, JSON.stringify(usePlotPalette()));

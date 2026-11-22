@@ -15,8 +15,8 @@ import * as React from "react";
 
 /* === Local Imports === */
 
-import { Button } from "@dokime/plots/components/ui/button";
-import { cn } from "@dokime/plots/lib/utils";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /* === Components === */
 

@@ -24,13 +24,13 @@ import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
-import { PathPill } from "@dokime/document/components/PathPill";
-import { Button } from "@dokime/plots/components/ui/button";
-import { Checkbox } from "@dokime/plots/components/ui/checkbox";
-import { Input } from "@dokime/plots/components/ui/input";
+import { PathPill } from "@/components/PathPill";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
-import { formatNumber } from "@dokime/plots/lib/format";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatNumber } from "@/lib/format";
 import {
   isWithdrawingAction,
   type PromptValue,
@@ -39,8 +39,8 @@ import {
   promptFieldDefault,
   promptFieldError,
 } from "@/lib/prompts";
-import type { PromptField, PromptRequest } from "@dokime/plots/lib/types";
-import { occurrenceKeys } from "@dokime/plots/lib/utils";
+import type { PromptField, PromptRequest } from "@/lib/types";
+import { occurrenceKeys } from "@/lib/utils";
 
 /* === Types === */
 

@@ -20,13 +20,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { Metric } from "@dokime/document/components/Metric";
-import { StatsSummaryTable } from "@dokime/plots/components/StatsSummaryTable";
-import { DocumentCardContentView } from "@dokime/document/components/document/DocumentSurfaceView";
-import { DocumentViewRenderer } from "@dokime/document/components/document/DocumentViewRenderer";
-import { type CompletedDocument, mapNativeDocument } from "@dokime/document/lib/api/native-documents";
-import { NativeIntegerValue } from "@dokime/plots/lib/api/native-values";
-import { nativeValueToJson } from "@dokime/plots/lib/host/values";
+import { Metric } from "@/components/Metric";
+import { StatsSummaryTable } from "@/plots/StatsSummaryTable";
+import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
+import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
+import { type CompletedDocument, mapNativeDocument } from "@/lib/api/native-documents";
+import { NativeIntegerValue } from "@/lib/api/native-values";
+import { nativeValueToJson } from "@/lib/host/values";
 import {
   DocumentBindingSchema,
   DocumentCardKind,
@@ -38,9 +38,9 @@ import {
   DocumentSummaryTileSchema,
   ValueSchema,
 } from "@generated/host/model";
-import { documentSummaryTile } from "@dokime/document/lib/document-presentation";
-import { formatCompactDecimal } from "@dokime/plots/lib/format";
-import { seriesLegendColumns, seriesLegendRows } from "@dokime/plots/lib/statistics";
+import { documentSummaryTile } from "@/lib/document-presentation";
+import { formatCompactDecimal } from "@/lib/format";
+import { seriesLegendColumns, seriesLegendRows } from "@/lib/statistics";
 
 /* === Re-Exports === */
 
@@ -192,7 +192,7 @@ test("Saved Report Browser", async () => {
   const created: unknown[] = [];
   const published: unknown[] = [];
   vi.resetModules();
-  vi.doMock("@dokime/document/lib/surface-environment", async (original) => ({
+  vi.doMock("@/lib/surface-environment", async (original) => ({
     ...(await original<object>()),
     isTauriDesktop: () => true,
   }));
@@ -246,7 +246,7 @@ test("Saved Report Browser", async () => {
     assert.equal(published.length, 0);
   } finally {
     vi.doUnmock("@/lib/host/client");
-    vi.doUnmock("@dokime/document/lib/surface-environment");
+    vi.doUnmock("@/lib/surface-environment");
     vi.doUnmock("@/lib/desktop/commands");
     vi.resetModules();
   }

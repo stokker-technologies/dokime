@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { type PromptValues, promptDefaults } from "@/lib/prompts";
-import type { PromptRequest } from "@dokime/plots/lib/types";
+import type { PromptRequest } from "@/lib/types";
 
 /** Polls refresh the request object; only a different prompt replaces the draft. */
 export function usePromptValues(prompt: PromptRequest | undefined) {

@@ -13,20 +13,15 @@
 
 /* === Local Imports === */
 
-import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import {
-  type NativeHealthItem,
-  type NativeOperatorNote,
-  mapNativeHealth,
-  mapNativeNote,
-} from "@dokime/document/lib/api/native-annotation-projection";
+import { type NativeHealthItem, type NativeOperatorNote, mapNativeHealth, mapNativeNote } from "@/lib/api/native-annotation-projection";
 
 import * as rpc from "@/lib/host/client";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { CommandReceipt, HealthItem, OperatorNote } from "@dokime/plots/lib/types";
-import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, timestampIso } from "@dokime/plots/lib/api/native-values";
+import type { CommandReceipt, HealthItem, OperatorNote } from "@/lib/types";
+import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, timestampIso } from "@/lib/api/native-values";
 
 /* === Types === */
 

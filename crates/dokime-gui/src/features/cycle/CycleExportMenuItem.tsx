@@ -16,11 +16,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { FileArchive } from "lucide-react";
 // Local Imports
-import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
-import { toast } from "@dokime/plots/lib/notifications";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { toast } from "@/lib/notifications";
 import { useCycleCommands } from "./cycle-queries";
 
 /* === Re-Exports === */
