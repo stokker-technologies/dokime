@@ -13,6 +13,7 @@
 
 mod transitions;
 mod sealing;
+mod deleting;
 
 /* === Re-Exports === */
 

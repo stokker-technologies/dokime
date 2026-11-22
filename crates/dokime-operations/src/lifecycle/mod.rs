@@ -14,6 +14,7 @@
 pub mod admission;
 mod catalog;
 pub mod cycle;
+pub mod deletion;
 pub mod execution;
 mod io;
 mod mutations;
