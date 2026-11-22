@@ -14,13 +14,14 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { render } from "@testing-library/svelte";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { Metric } from "@/components/Metric";
+import Metric from "@/components/Metric.svelte";
 import { EditableOperatorNotes } from "@/components/document/OperatorNotesView";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
@@ -675,10 +676,15 @@ test("Integer Cards, Records, Parameters and Criteria Keep Decimal Digits", () =
   for (const integer of [1152921504606847975n, 18446744073709551615n, -1152921504606847975n, 42n]) {
     const value = new NativeIntegerValue(integer, integer >= 0n);
     const expected = integer.toString();
-    const markup = renderToStaticMarkup(
-      createElement(Metric, { label: "Integer", value: expected, exactValue: expected, rawValue: value, presentation: "progress" }),
-    );
-    assert.ok(markup.includes(`>${expected}</span>`));
+    const { container, unmount } = render(Metric, {
+      label: "Integer",
+      value: expected,
+      exactValue: expected,
+      rawValue: value,
+      presentation: "progress",
+    });
+    assert.equal(container.querySelector("[data-exact-value]")?.textContent, expected);
+    unmount();
     assert.equal(formatRecordValue(value), expected);
     assert.equal(formatRecordValue(JSON.parse(JSON.stringify(value))), expected);
     assert.equal(formatValue(value, "V"), `${expected} V`);

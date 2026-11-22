@@ -15,12 +15,12 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { test, vi } from "vitest";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { Metric } from "@/components/Metric";
+import Metric from "@/components/Metric.svelte";
 import StatsSummaryTable from "@/plots/StatsSummaryTable.svelte";
 import { render } from "@testing-library/svelte";
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
@@ -174,8 +174,10 @@ test("Report Unit Labels", () => {
     state: null,
   });
   assert.match(tile.label, / \[Mbps\]$/);
-  const metric = renderToStaticMarkup(createElement(Metric, { label: tile.label, value: tile.formatted }));
-  assert.match(metric, /<span[^>]*class="[^"]*truncate[^"]*"[^>]*title="[^"<>]* \[Mbps\]"/);
+  const { container: metric, unmount: unmountMetric } = render(Metric, { label: tile.label, value: tile.formatted });
+  const markup = metric.innerHTML;
+  unmountMetric();
+  assert.match(markup, /<span(?=[^>]*class="[^"]*truncate[^"]*")(?=[^>]*title="[^"<>]* \[Mbps\]")/);
   const { container, unmount } = render(StatsSummaryTable, {
     legend: { columns: seriesLegendColumns("Mbps"), rows: [], pending: false },
   });
@@ -311,27 +313,38 @@ test("Desktop and Report Summary Values Share Ungrouped Decimal Formatting", () 
       unit: "V",
     });
     assert.equal(tile.exact, expected);
-    const host = document.createElement("div");
-    host.innerHTML = renderToStaticMarkup(
-      createElement(Metric, { metricId: tile.metric_id, label: tile.label, value: tile.formatted, exactValue: tile.exact ?? undefined }),
-    );
+    const { container: host, unmount } = render(Metric, {
+      metricId: tile.metric_id,
+      label: tile.label,
+      value: tile.formatted,
+      exactValue: tile.exact ?? undefined,
+    });
+    onTestFinished(unmount);
     const shown = host.querySelector('[data-document-metric="mean"] strong [data-exact-value]');
     assert.equal(shown?.getAttribute("data-exact-value"), expected);
     assert.equal(tile.label, "Mean [V]");
   }
 });
 
-test("Plot Cards Without a Declared Span Stack One per Row", () => {
+test("Plot Cards Without a Declared Span Stack One per Row", async () => {
   const view = mapNativeDocument(thermalDocument(100));
   const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(
-    createElement(DocumentViewRenderer, {
-      document: view,
-      renderCard: (card) =>
-        card.kind === "overview"
-          ? createElement(DocumentCardContentView, { card, documentId: view.document_id, renderMode: "live" } as never)
-          : createElement("p", null, card.title),
-    }),
+  const root = createRoot(host);
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  });
+  await act(async () =>
+    root.render(
+      createElement(DocumentViewRenderer, {
+        document: view,
+        renderCard: (card) =>
+          card.kind === "overview"
+            ? createElement(DocumentCardContentView, { card, documentId: view.document_id, renderMode: "live" } as never)
+            : createElement("p", null, card.title),
+      }),
+    ),
   );
   const span = (element: Element | null | undefined) =>
     ["base", "sm", "md", "lg", "xl"].map((size) => element?.getAttribute(`data-col-span-${size}`));
@@ -421,10 +434,13 @@ test("Integer Statistics Show Every Digit on Desktop and Report Cards", () => {
         presentation: "value",
       });
       assert.equal(tile.formatted, String(signed));
-      const host = document.createElement("div");
-      host.innerHTML = renderToStaticMarkup(
-        createElement(Metric, { metricId: tile.metric_id, label: tile.label, value: tile.formatted, exactValue: tile.exact ?? undefined }),
-      );
+      const { container: host, unmount } = render(Metric, {
+        metricId: tile.metric_id,
+        label: tile.label,
+        value: tile.formatted,
+        exactValue: tile.exact ?? undefined,
+      });
+      onTestFinished(unmount);
       assert.equal(host.querySelector("[data-exact-value]")?.textContent, String(signed));
     }
   }

@@ -24,10 +24,11 @@ import { type ReactNode, useContext } from "react";
 import { ErrorCard } from "@/components/ErrorCard";
 import { DocumentRetryContext } from "./DocumentViewRenderer";
 import { ArtifactTreeView } from "../ArtifactTreeView";
-import { DataTable } from "@/components/data-table/DataTable";
-import { dataTableColumns } from "@/components/data-table/data-table-model";
 import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "./DocumentEmbeddedContent";
-import { DocumentMetricFlow, metricFlowStorageKey } from "./DocumentOverviewCards";
+import DocumentMetricFlow from "./overview/DocumentMetricFlow.svelte";
+import { metricFlowStorageKey } from "./overview/metric-model";
+import DocumentTable from "./DocumentTable.svelte";
+import { SvelteMount } from "../SvelteMount";
 import { FrozenOperatorNotes } from "./OperatorNotesView";
 import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/document/PlotGroupGrid";
 import { RecordTimeline } from "./RecordTimeline";
@@ -41,7 +42,6 @@ import { isStatedGroup } from "../../lib/traceability";
 import type {
   DocumentViewCard,
   DocumentViewPlot,
-  DocumentViewTableRow,
   HealthItem,
   HubRecord,
   OperatorNote,
@@ -99,7 +99,6 @@ export type DocumentCardContentProps = LiveDocumentSurfaceProps | ReportDocument
 /* === Constants === */
 
 /** A recorded number in fixed notation, or the absent-value dash. */
-const NUMBER = /^(-|[-+]?\d+(\.\d+)?([eE][-+]?\d+)?)$/;
 
 /* === Public Functions === */
 
@@ -116,62 +115,46 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
     );
 
   if (props.card.kind === "overview") {
-    return (
-      <DocumentMetricFlow
-        groups={props.card.groups.map((group) => ({
-          groupId: group.group_id,
-          title: group.title,
-          metrics: group.metrics.map((metric) => ({
-            metricId: metric.metric_id,
-            detail: metric.detail ?? undefined,
-            label: metric.label,
-            rawValue: metric.value,
-            presentation: metric.presentation,
-            state: metric.state,
-            value: metric.formatted,
-            exactValue: metric.exact ?? undefined,
-          })),
-        }))}
-        storageKey={metricFlowStorageKey({
-          blockId: props.card.card_id,
-          documentId: props.documentId,
-        })}
-      />
-    );
+    const groups = props.card.groups.map((group) => ({
+      groupId: group.group_id,
+      title: group.title,
+      metrics: group.metrics.map((metric) => ({
+        metricId: metric.metric_id,
+        detail: metric.detail ?? undefined,
+        label: metric.label,
+        rawValue: metric.value,
+        presentation: metric.presentation,
+        state: metric.state,
+        value: metric.formatted,
+        exactValue: metric.exact ?? undefined,
+      })),
+    }));
+    const storageKey = metricFlowStorageKey({
+      blockId: props.card.card_id,
+      documentId: props.documentId,
+    });
+    return <SvelteMount component={DocumentMetricFlow} props={{ groups, storageKey }} />;
   }
 
   if (props.card.kind === "table") {
-    return <DocumentTableContent rows={props.card.rows} />;
+    return <SvelteMount component={DocumentTable} props={{ rows: props.card.rows }} />;
   }
 
   if (props.card.kind === "plots") {
-    return reportMode ? (
+    return (
       <div className="plot-grid grid gap-3">
         <LivePlotGroupGrid
-          {...plotMarkers(props.records)}
+          records={props.records}
           documentPlots={props.card.plots}
-          liveStates={reportPlotStates(props.card.plots, props.reportPlots)}
+          liveStates={reportMode ? reportPlotStates(props.card.plots, props.reportPlots) : props.livePlotStates}
+          onPlotSettingsChange={reportMode ? undefined : props.onPlotSettingsChange}
           parameters={props.plotParameterContext}
-          resetKey="All"
+          resetKey={reportMode ? "All" : props.plotResetKey}
           showGroupHeaders={false}
-          telemetry={props.reportTelemetry}
+          telemetry={reportMode ? props.reportTelemetry : props.plotContextTelemetry}
           title={props.sectionTitle}
-          viewportMode="fit"
-          zoom
-        />
-      </div>
-    ) : (
-      <div className="plot-grid grid gap-3">
-        <LivePlotGroupGrid
-          {...plotMarkers(props.records)}
-          documentPlots={props.card.plots}
-          liveStates={props.livePlotStates}
-          onPlotSettingsChange={props.onPlotSettingsChange}
-          parameters={props.plotParameterContext}
-          resetKey={props.plotResetKey}
-          showGroupHeaders={false}
-          telemetry={props.plotContextTelemetry}
-          title={props.sectionTitle}
+          viewportMode={reportMode ? "fit" : "live"}
+          zoom={reportMode}
         />
       </div>
     );
@@ -233,32 +216,6 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
   }
 
   return null;
-}
-
-/** A long table pages inside its own card: the document stays one ordered
-    surface, so nothing here touches routing or hides rows behind a tab. */
-export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] }) {
-  const column = dataTableColumns<DocumentViewTableRow>();
-  const names = tableColumns(rows);
-  // A column whose every recorded cell is a number sits on the right edge.
-  const columns = (names.length ? names : ["Value"]).map((name) => {
-    const numeric = rows.some((row) => row.cells[name] !== undefined) && rows.every((row) => NUMBER.test(row.cells[name] ?? "-"));
-    return column.accessor((row) => row.cells[name] ?? "-", {
-      id: name,
-      header: name,
-      meta: { align: numeric ? "end" : undefined, filter: "text" },
-    });
-  });
-  return (
-    <DataTable
-      title="Recorded Values"
-      description="Rows retained in this document table."
-      columns={columns}
-      data={rows}
-      getRowId={(row) => row.row_id}
-      emptyText="No Table Rows Recorded"
-    />
-  );
 }
 
 export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {
@@ -349,32 +306,6 @@ export function RecordListContent({ live = true, records }: { live?: boolean; re
 }
 
 /* === Private Functions === */
-
-/**
- * The records the plots mark, prompts among them. Spread rather than named,
- * so this view passes them whether or not the grid it is built against
- * declares the prop yet.
- */
-function plotMarkers(records: HubRecord[]): { records: HubRecord[] } {
-  return { records };
-}
-
-/** Columns are the union of the row keys in first-appearance order, so a row
-    that omits a field does not reorder or drop a column. */
-function tableColumns(rows: DocumentViewTableRow[]): string[] {
-  const columns: string[] = [];
-  const seen = new Set<string>();
-  for (const row of rows) {
-    for (const column of Object.keys(row.cells)) {
-      if (seen.has(column)) {
-        continue;
-      }
-      seen.add(column);
-      columns.push(column);
-    }
-  }
-  return columns;
-}
 
 function reportPlotStates(documentPlots: DocumentViewPlot[], reportPlots: Record<string, PlotPayload>): LivePlotStateMap {
   return Object.fromEntries(
