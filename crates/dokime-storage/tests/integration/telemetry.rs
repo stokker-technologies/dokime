@@ -1380,7 +1380,7 @@ fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
 }
 
 #[test]
-fn heat_strip_reduces_typed_cells_facets_absence_and_windows() -> Result<()> {
+fn heat_strip_samples_reduce_only_tied_instants_and_keep_facet_categories() -> Result<()> {
     #[derive(Clone, PartialEq, Message)]
     struct HeatRow {
         #[prost(double, optional, tag = "1")]
@@ -1445,9 +1445,7 @@ fn heat_strip_reduces_typed_cells_facets_absence_and_windows() -> Result<()> {
         group: Some("facet"),
         limit: 8,
     };
-    for (reducer, expected, at) in
-        [(Reduction::Last, 6.0, 5), (Reduction::Max, 8.0, 4), (Reduction::Mean, 6.5, 5), (Reduction::Count, 4.0, 5)]
-    {
+    for (reducer, expected) in [(Reduction::Last, 6.0), (Reduction::Max, 6.0), (Reduction::Mean, 5.0), (Reduction::Count, 2.0)] {
         let (frame, count, groups) = store.heat_strip_window(binding(), reducer)?;
         assert_eq!(count, 7);
         assert_eq!(groups, vec![("a".into(), 7), ("b".into(), 0)]);
@@ -1461,12 +1459,21 @@ fn heat_strip_reduces_typed_cells_facets_absence_and_windows() -> Result<()> {
                     _ => panic!("typed cell"),
                 })
                 .collect::<Vec<_>>(),
-            vec![2, 10, large, large + 1]
+            vec![2, 2, 2, 10, large, large + 1]
         );
-        assert_eq!(frame.series[0].y[0].value, Some(expected));
-        assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: at, nanos: 0 }.to_string());
+        assert_eq!(frame.series[0].y[2].value, Some(expected));
+        assert_eq!(frame.series[0].instants[..3], [3, 4, 5].map(|seconds| prost_types::Timestamp { seconds, nanos: 0 }.to_string()));
+        assert_eq!(
+            frame.series[1].x,
+            vec![
+                model::Value {
+                    kind: Some(value::Kind::UnsignedInteger(10))
+                };
+                2
+            ]
+        );
         assert!(frame.series[1].y.iter().all(|v| v.value.is_none()));
-        assert!(frame.series[1].instants.iter().all(String::is_empty));
+        assert_eq!(frame.series[1].instants, [6, 9].map(|seconds| prost_types::Timestamp { seconds, nanos: 0 }.to_string()));
     }
     assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last).is_err());
     let (frame, count, _) = store.heat_strip_window(
@@ -1579,7 +1586,7 @@ fn grouped_categories_preserve_durable_last_and_explicit_pie_totals() -> Result<
     assert_eq!(groups, vec![(String::new(), 2)]);
     assert_eq!(category.series[0].y[0].value, Some(8.0));
     let (heat, _, _) = store.heat_strip_window(request(), Reduction::Last)?;
-    assert_eq!(heat.series[0].y[0].value, Some(4.0));
+    assert_eq!(heat.series[0].y.iter().map(|y| y.value).collect::<Vec<_>>(), vec![Some(8.0), Some(4.0)]);
     assert!(store.category_window(request(), None, true).is_err());
     for (aggregate, expected) in [(Aggregate::Max, 8.0), (Aggregate::Mean, 6.0), (Aggregate::Count, 2.0), (Aggregate::Sum, 12.0)] {
         let (category, count, _) = store.category_window(request(), Some(aggregate), true)?;

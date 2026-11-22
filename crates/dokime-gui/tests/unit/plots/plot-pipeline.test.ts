@@ -17,14 +17,25 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
-import { DataExpressionSchema, PlotKind, Reduction, SnapshotsWatchResponseSchema } from "@generated/host/model";
+import {
+  DataExpressionSchema,
+  EvidenceScopeSchema,
+  PlotKind,
+  PlotCartesianMode,
+  Reduction,
+  SnapshotsWatchResponseSchema,
+} from "@generated/host/model";
 import { documentPlot } from "@dokime/document/lib/document-presentation";
 import { Downsample, PlotStreamKind } from "@generated/host/model";
-import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
+import { mapNativePlotWatchPage, openNativePlotStream } from "@/lib/api/native-plots";
+import { plotsSnapshotsWatch } from "@/lib/host/client";
+import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@dokime/plots/live-frames";
 
@@ -70,6 +81,80 @@ function message(
 }
 
 /* === Entry Point === */
+
+vi.mock("@/lib/host/client", () => ({ plotsSnapshotsWatch: vi.fn() }));
+
+test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them When Rows Arrive", async () => {
+  const descriptor = { plot_id: "heat", title: "Heat Strip", stream: "signal", plot_type: "heat_strip", y: ["value"] } as DocumentViewPlot;
+  const pages = [3, 7].map((value, index) =>
+    create(SnapshotsWatchResponseSchema, {
+      updates: [
+        {
+          kind: index ? PlotStreamKind.REPLACE : PlotStreamKind.SNAPSHOT,
+          envelope: {
+            plotId: "heat",
+            epoch: "running",
+            selection: "execution",
+            revision: BigInt(index + 1),
+            diagnostics: {},
+            payload: {
+              stream: "signal",
+              series: [{ key: "band", label: "Band", rawPoints: BigInt(index + 1) }],
+              frame: {
+                mode: PlotCartesianMode.FACETED,
+                pointCount: 1n,
+                series: [
+                  {
+                    x: [{ kind: { case: "unsignedInteger", value: 6n } }],
+                    y: [{ value }],
+                    instants: [`1970-01-01T00:00:0${index + 1}Z`],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    }),
+  );
+  vi.mocked(plotsSnapshotsWatch).mockResolvedValue({
+    cancel: async () => {},
+    async *[Symbol.asyncIterator]() {
+      yield* pages;
+    },
+  });
+  const session = { generation: "1", isCurrent: () => true };
+  const request = plotRequestForDocumentPlot(descriptor, {
+    scope: create(EvidenceScopeSchema, { executionId: "execution", cycleId: "cycle" }),
+  });
+  const stream = await openNativePlotStream(session, [request]);
+  let state = emptyLivePlotState();
+  let frames = 0;
+  for await (const page of stream) {
+    for (const update of page.updates) {
+      assert.notEqual(update.kind, "pending");
+      if (update.kind === "pending") {
+        continue;
+      }
+      state = applyPlotMessages(state, [update]);
+    }
+    assert.equal(state.status, "live");
+    const markup = renderToStaticMarkup(
+      createElement(LivePlotGroupGrid, {
+        documentPlots: [descriptor],
+        liveStates: { heat: state },
+        title: "Values",
+        viewportMode: "live",
+      }),
+    );
+    assert.ok(markup.includes('data-testid="heat-strip-plot"'));
+    assert.ok(markup.includes('data-cell="6"'));
+    assert.ok(markup.includes(`6 · Band · ${frames ? 7 : 3}`));
+    frames += 1;
+  }
+  assert.equal(frames, 2);
+  assert.equal(state.payload?.cartesian, null);
+});
 
 test("Late Buckets Replace Retained Rows and Expire Without Duplicates", () => {
   const opening = message("snapshot", 1, [0, 1, 10, 11, 20], [1, 2, 3, null, 4]);

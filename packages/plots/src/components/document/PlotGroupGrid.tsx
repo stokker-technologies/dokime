@@ -309,7 +309,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <PlotPlaceholder title={plot.title} actions={actions} {...plotUnavailableText(plot.analysis.message)} />;
   }
   if (plot.plotType === "heat_strip") {
-    return <HeatStripPlot plot={plot} />;
+    return <HeatStripPlot key={resetKey ?? plot.key} plot={plot} />;
   }
   if (plot.plotType === "grid_chart") {
     return <GridChartPlot key={plot.key} plot={plot} />;

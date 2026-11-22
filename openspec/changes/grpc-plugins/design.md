@@ -1,5 +1,52 @@
 # gRPC Plugins Design
 
+## Heat Strip Live Projection
+
+The desktop request-kind map identifies Heat Strip before projecting native
+watch and snapshot columns. Desktop and reports use the shared plot projection
+and `HeatStripPlot`; live revisions replace the rendered cells.
+
+Each facet contains only its observed typed categories, sorted by the existing
+numeric/lexical comparator. A full-width CSS grid shares that row's width evenly
+and uses the same minimum cell height and wrapping labels on both surfaces.
+Absent values remain uncoloured; absence of a category in another facet no
+longer creates a slot. One legend spans every facet's values.
+
+Sample scrubbing replaces whole-window Heat Strip reduction. Storage groups by
+source instant, typed facet and typed cell in one bounded read, retaining absent
+sample values and exact instants in existing plot columns. The declared reducer
+resolves multiple contributions at the same sample instant; omitted reduction
+uses Last with durable position breaking ties. No new wire family is needed.
+The point and query-memory budgets apply to retained sampled cells; exceeding
+them refuses the selection and asks for a narrower window or fewer samples.
+
+The shared plot playback owner supplies the full-width per-sample slider,
+selected source time and Latest control. Live delivery follows the last sample
+until seeking holds the loaded payload; Latest rejoins incoming data. Reports
+use their captured samples, default to the last and seek without fetching live
+evidence. Cells with no value at the selected instant remain empty; there is no
+carry-forward across instants. The colour domain covers the loaded samples and
+all facets, keeping colours stable while scrubbing. Execution/reset changes
+remount the Heat Strip to discard a held selection.
+
+The superseded square/union layout assertions and whole-window Heat Strip
+reducer story are replaced by facet-width and per-sample proofs. Category plot
+reduction retains its existing durable-position semantics.
+
+Existing overlaps await an owner decision: the desktop's `requestedPlotTypes`
+in `crates/dokime-gui/src/lib/api/native-plots.ts` and `plotType` in
+`packages/plots/src/lib/api/native-plot-projection.ts` maintain inverse kind
+catalogs for native reads/watches and document requests respectively. Prefer
+deleting the desktop catalog and deriving both directions from the shared one.
+In the shared projection, `mapNativePlotAnalysis` checks missing results both
+before and inside its switch for the payload projection caller. Prefer deleting
+the repeated case guards. Both overlaps remain pending the owner's decision.
+
+The host's former whole-window snapshot story is superseded as well: its
+two-cell assertion intentionally omits older samples. Its replacement proves
+all source instants, a newly appended sample, the unchanged captured cut and
+sample-window isolation. The whole-window Heat Strip grouping code is removed.
+
 ## Stop Ends Execution Waits
 
 Locked owner decision: Stop ends every execution-scoped host sleep and condition

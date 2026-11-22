@@ -397,9 +397,8 @@ mod tests {
         assert!(store.plot_selection(&cut, &Default::default()).is_err());
     }
     #[tokio::test]
-    async fn heat_strip_snapshots_keep_cell_times_windows_and_fixed_cuts() {
+    async fn heat_strip_sample_snapshots_retain_history_and_freeze_the_captured_cut() {
         let (_root, store, _) = fixture();
-        let cut = store.cut("execution").unwrap();
         let input = DataExpression {
             kind: Some(data_expression::Kind::Record(FieldReference {
                 identifier: "connected".into(),
@@ -407,16 +406,15 @@ mod tests {
             })),
             ..Default::default()
         };
-        let plot = dokime_protocol::builders::Plot::heat_strip(input.clone())
-            .cells(input.clone())
-            .facet(DataExpression {
+        let plot = dokime_protocol::builders::Plot::heat_strip(input)
+            .cells(DataExpression {
                 kind: Some(data_expression::Kind::Literal(Value {
-                    kind: Some(value::Kind::Text("facet".into())),
+                    kind: Some(value::Kind::UnsignedInteger(6)),
                 })),
                 ..Default::default()
             })
             .message;
-        let request = request(
+        let binding = request(
             &plot,
             EvidenceScope {
                 execution_id: Some("execution".into()),
@@ -424,13 +422,27 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(request.cell_expression, plot.cell);
-        assert_eq!(request.facet_expression, plot.facet);
-        let captured = snapshots_at(&store, &cut, vec![request.clone()], 128, 0, "epoch").await.unwrap();
+        let cut = store.cut("execution").unwrap();
+        let captured = snapshots_at(&store, &cut, vec![binding.clone()], 128, 0, "epoch").await.unwrap();
         let frame = captured[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
         assert_eq!(frame.series.len(), 1);
-        assert_eq!(frame.series[0].y.iter().map(|v| v.value).collect::<Vec<_>>(), vec![Some(1.0), Some(2.0)]);
-        assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: 86410, nanos: 0 }.to_string());
+        assert_eq!(
+            frame.series[0].x,
+            vec![
+                Value {
+                    kind: Some(value::Kind::UnsignedInteger(6))
+                };
+                5
+            ]
+        );
+        assert_eq!(
+            frame.series[0].y.iter().map(|number| number.value).collect::<Vec<_>>(),
+            vec![Some(1.0), Some(1.0), Some(1.0), Some(2.0), Some(2.0)]
+        );
+        assert_eq!(
+            frame.series[0].instants,
+            [1, 4, 86410, 172814, 259222].map(|seconds| prost_types::Timestamp { seconds, nanos: 0 }.to_string())
+        );
         store
             .append(
                 "execution",
@@ -446,13 +458,17 @@ mod tests {
                 },
             )
             .unwrap();
-        let frozen = snapshots_at(&store, &cut, vec![request.clone()], 128, 0, "epoch").await.unwrap();
-        assert_eq!(captured[0].payload, frozen[0].payload);
-        let mut window = request;
+        let latest = store.cut("execution").unwrap();
+        let live = snapshots_at(&store, &latest, vec![binding.clone()], 128, 0, "epoch").await.unwrap();
+        let live = live[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+        assert_eq!(live.series[0].y.len(), 6);
+        assert_eq!(live.series[0].y[5].value, Some(3.0));
+        let frozen = snapshots_at(&store, &cut, vec![binding.clone()], 128, 0, "epoch").await.unwrap();
+        assert_eq!(frozen[0].payload, captured[0].payload);
+        let mut window = binding;
         window.viewport = Some(dokime_protocol::host::plots::PlotWindow { from: 0.0, to: 10.0 });
-        let snapshot = snapshots_at(&store, &cut, vec![window], 128, 0, "epoch").await.unwrap();
-        let frame = snapshot[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
-        assert_eq!(frame.series[0].y.len(), 1);
-        assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: 4, nanos: 0 }.to_string());
+        let selected = snapshots_at(&store, &latest, vec![window], 128, 0, "epoch").await.unwrap();
+        let selected = selected[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+        assert_eq!(selected.series[0].instants, [1, 4].map(|seconds| prost_types::Timestamp { seconds, nanos: 0 }.to_string()));
     }
 }
