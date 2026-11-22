@@ -23,7 +23,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
-import { DataExpressionSchema, PlotKind, PlotCartesianMode, Reduction, SnapshotsWatchResponseSchema } from "@generated/host/model";
+import {
+  DataExpressionSchema,
+  EvidenceScopeSchema,
+  PlotKind,
+  PlotCartesianMode,
+  Reduction,
+  SnapshotsWatchResponseSchema,
+} from "@generated/host/model";
 import { documentPlot } from "@dokime/document/lib/document-presentation";
 import { Downsample, PlotStreamKind } from "@generated/host/model";
 import { mapNativePlotWatchPage, openNativePlotStream } from "@/lib/api/native-plots";
@@ -117,14 +124,18 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
     },
   });
   const session = { generation: "1", isCurrent: () => true };
-  const request = plotRequestForDocumentPlot(descriptor, { scope: null });
+  const request = plotRequestForDocumentPlot(descriptor, {
+    scope: create(EvidenceScopeSchema, { executionId: "execution", cycleId: "cycle" }),
+  });
   const stream = await openNativePlotStream(session, [request]);
   let state = emptyLivePlotState();
   let frames = 0;
   for await (const page of stream) {
     for (const update of page.updates) {
       assert.notEqual(update.kind, "pending");
-      if (update.kind === "pending") continue;
+      if (update.kind === "pending") {
+        continue;
+      }
       state = applyPlotMessages(state, [update]);
     }
     assert.equal(state.status, "live");

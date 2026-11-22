@@ -199,52 +199,43 @@ impl Store {
             Reduction::Count => Some(Aggregate::Count),
             _ => return Err(Error::Data("Read Heat Strip: Select Last, Max, Mean or Count")),
         };
-        let mut groups = self.grouped_values(&request, aggregate, true)?;
+        let groups = self.grouped_values(&request, aggregate, true)?;
         let budget = self.storage_settings()?.query_bytes.get();
-        let bytes = groups.keys().fold(0usize, |bytes, key| bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len())));
-        let mut cells = BTreeMap::new();
-        let mut facets = BTreeMap::new();
-        for ((facet, cell), group) in &groups {
-            cells.insert(cell.clone(), group.cell.clone());
-            facets.insert(facet.clone(), group.facet.clone());
-        }
-        let mut cells = cells.into_iter().collect::<Vec<_>>();
-        cells.sort_by(|a, b| compare_cells(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
-        let mut facets = facets.into_iter().collect::<Vec<_>>();
-        facets.sort_by(|a, b| compare_cells(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
-        let points = groups.len();
-        if points > request.limit || bytes.saturating_add(points.saturating_mul(256)) > budget {
-            return Err(Error::Data("Read Heat Strip: Narrow the Window or Select Fewer Cells and Facets"));
+        let bytes = groups.keys().fold(0usize, |bytes, key| bytes.saturating_add(768 + 4 * (key.0.len() + key.1.len())));
+        if bytes > budget {
+            return Err(Error::Data("Read Heat Strip: Narrow the Window or Select Fewer Samples and Cells"));
         }
         let mut frame = PlotFrame {
             mode: Some(PlotCartesianMode::Faceted as i32),
-            point_count: points as u64,
+            point_count: groups.len() as u64,
             ..Default::default()
         };
+        let mut facets = BTreeMap::<String, (ScalarValue, Vec<(String, i64, ValueGroup)>)>::new();
+        for ((facet, cell, time), group) in groups {
+            let entry = facets.entry(facet).or_insert_with(|| (group.facet.clone(), Vec::new()));
+            entry.1.push((cell, time, group));
+        }
+        let mut facets = facets.into_iter().collect::<Vec<_>>();
+        facets.sort_by(|a, b| compare_cells(&a.1.0, &b.1.0).then_with(|| a.0.cmp(&b.0)));
         let mut counts = Vec::new();
         let mut count = 0;
-        for (facet, label) in facets {
+        for (_, (label, mut samples)) in facets {
+            samples.sort_by(|a, b| compare_cells(&a.2.cell, &b.2.cell).then_with(|| a.0.cmp(&b.0)).then_with(|| a.1.cmp(&b.1)));
             let mut column = PlotColumn::default();
             let mut raw = 0;
-            for (cell, identity) in &cells {
-                let Some(group) = groups.remove(&(facet.clone(), cell.clone())) else {
-                    continue;
-                };
-                column.x.push(value(identity.clone()));
+            for (_, time, group) in samples {
+                column.x.push(value(group.cell));
                 raw += group.count;
-                let (total, at) = match group.latest {
-                    Some(latest) => {
-                        let total = match group.accumulator {
-                            Some(accumulator) => accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?,
-                            None => latest.scalar,
-                        };
-                        (total, instant(latest.time))
-                    }
-                    None => (ScalarValue::Null, String::new()),
+                let total = match group.latest {
+                    Some(latest) => match group.accumulator {
+                        Some(accumulator) => accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?,
+                        None => latest.scalar,
+                    },
+                    None => ScalarValue::Null,
                 };
                 column.y.push(NullableNumber { value: scalar::number(&total) });
                 column.totals.push(value(total));
-                column.instants.push(at);
+                column.instants.push(instant(time));
             }
             count += raw;
             counts.push((scalar::text(&label), raw));
@@ -302,10 +293,10 @@ impl Store {
     }
     fn grouped_values(
         &self, request: &KindWindow<'_>, aggregate: Option<Aggregate>, heat_strip: bool,
-    ) -> Result<BTreeMap<(String, String), ValueGroup>> {
+    ) -> Result<BTreeMap<(String, String, i64), ValueGroup>> {
         let budget = self.storage_settings()?.query_bytes.get();
         let mut bytes = 0usize;
-        let mut groups = BTreeMap::<(String, String), ValueGroup>::new();
+        let mut groups = BTreeMap::<(String, String, i64), ValueGroup>::new();
         self.kind_values(request, heat_strip, |row| {
             let invalid_heat_identity = heat_strip
                 && (missing(&row.g)
@@ -314,9 +305,9 @@ impl Store {
             if missing(&row.x) || invalid_heat_identity {
                 return Ok(());
             }
-            let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?);
+            let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?, if heat_strip { row.time } else { 0 });
             if !groups.contains_key(&key) {
-                bytes = bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len()));
+                bytes = bytes.saturating_add(if heat_strip { 768 } else { 512 } + 4 * (key.0.len() + key.1.len()));
                 if groups.len() >= request.limit || bytes > budget {
                     return Err(Error::Data("Read Grouped Plot: Narrow the Window or Select Fewer Cells and Facets"));
                 }

@@ -73,8 +73,12 @@ type PlotCartesianMode = NonNullable<NativePlotFrame["mode"]>;
 
 /** Map one protobuf envelope into the payload family used by the renderer. */
 export function mapNativePlotEnvelope(envelope: PlotEnvelope, plotType?: DocumentPlotType | null): PlotPayloadEnvelope {
-  if (!envelope.payload) throw new Error("Native plot envelope has no payload.");
-  if (!envelope.diagnostics) throw new Error("Native plot envelope has no diagnostics.");
+  if (!envelope.payload) {
+    throw new Error("Read Plot Envelope: Restore Its Payload");
+  }
+  if (!envelope.diagnostics) {
+    throw new Error("Read Plot Envelope: Restore Its Diagnostics");
+  }
   return {
     plot_id: envelope.plotId,
     revision: safeNumber(envelope.revision, "Plots envelope revision"),
@@ -100,9 +104,13 @@ export function plotType(value?: DocumentPlotType | null): PlotType {
     box_plot: PlotKind.BOX_PLOT,
     pie: PlotKind.PIE,
   };
-  if (value == null) return PlotKind.UNSPECIFIED;
+  if (value == null) {
+    return PlotKind.UNSPECIFIED;
+  }
   const kind = kinds[value];
-  if (kind === undefined) throw new Error(`Unsupported document plot type: ${String(value)}`);
+  if (kind === undefined) {
+    throw new Error(`Unsupported document plot type: ${String(value)}`);
+  }
   return kind;
 }
 
@@ -115,9 +123,12 @@ export function mapNativePlotPayload(payload: NativePlotPayload, plotType?: Docu
     context: payload.context ? { value: nativeValueToJson(payload.context) } : {},
     series: payload.series.map((series, index) => {
       const metadata = mapNativePlotSeries(series);
-      if (payload.frame?.mode && !points) return metadata;
+      if (payload.frame?.mode && !points) {
+        return metadata;
+      }
       const column = payload.frame?.series[index];
-      if (column && (column.x.length !== column.y.length || (plotType === "trajectory" && column.instants.length !== column.y.length))) {
+      const timed = plotType === "trajectory" || plotType === "heat_strip";
+      if (column && (column.x.length !== column.y.length || (timed && column.instants.length !== column.y.length))) {
         throw new Error("Read Plot Columns: Restore Matching Coordinates and Source Instants");
       }
       return {
@@ -167,9 +178,15 @@ export function requiredText(value: unknown, label: string): string {
 /* === Private Functions === */
 
 function statisticValue(value?: NativePlotFrame["series"][number]["x"][number]): StatisticValue | undefined {
-  if (!value || value.kind.case === "null") return undefined;
-  if (value.kind.case === "number") return value.kind.value;
-  if (["integer", "unsignedInteger", "exact"].includes(value.kind.case ?? "")) return nativeValueToJson(value) as StatisticValue;
+  if (!value || value.kind.case === "null") {
+    return undefined;
+  }
+  if (value.kind.case === "number") {
+    return value.kind.value;
+  }
+  if (["integer", "unsignedInteger", "exact"].includes(value.kind.case ?? "")) {
+    return nativeValueToJson(value) as StatisticValue;
+  }
   throw new Error("Read Statistic: Restore Its Numeric or Exact Value");
 }
 
@@ -190,15 +207,23 @@ function categoryValue(value: NativePlotFrame["series"][number]["x"][number]): s
 
 function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | null {
   const result = analysis?.result?.kind;
-  if (!result?.case) return null;
-  if (!result.value) throw new Error("Native plot analysis is missing its result.");
+  if (!result?.case) {
+    return null;
+  }
+  if (!result.value) {
+    throw new Error("Native plot analysis is missing its result.");
+  }
 
   switch (result.case) {
     case "error":
-      if (!result.value) throw new Error("Native plot analysis is missing its result.");
+      if (!result.value) {
+        throw new Error("Native plot analysis is missing its result.");
+      }
       return { kind: "error", message: result.value.message };
     case "histogram":
-      if (!result.value) throw new Error("Native plot analysis is missing its result.");
+      if (!result.value) {
+        throw new Error("Native plot analysis is missing its result.");
+      }
       return {
         kind: "histogram",
         series: result.value.series.map((series) => ({
@@ -224,7 +249,9 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
         })),
       };
     case "boxPlot":
-      if (!result.value) throw new Error("Native plot analysis is missing its result.");
+      if (!result.value) {
+        throw new Error("Native plot analysis is missing its result.");
+      }
       return {
         kind: "box_plot",
         series: result.value.series.map((series) => ({
@@ -243,7 +270,9 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
         total: safeNumber(result.value.total, "box summary total"),
       };
     case "sigmaInterval":
-      if (!result.value) throw new Error("Native plot analysis is missing its result.");
+      if (!result.value) {
+        throw new Error("Native plot analysis is missing its result.");
+      }
       return {
         kind: "sigma_interval",
         series: result.value.series.map((series) => ({
@@ -295,14 +324,20 @@ function mapNativeCartesianFrame(frame?: NativePlotFrame): PlotCartesianFrame | 
   const series = frame.series.map((column) => {
     const x = mode === "aligned" ? frame.time : column.x.map((value) => Number(nativeValueToJson(value)));
     const y: (number | null)[] = [];
-    if (x.length !== column.y.length) valid = false;
+    if (x.length !== column.y.length) {
+      valid = false;
+    }
     for (let row = 0; row < column.y.length; row += 1) {
       y.push(column.y[row].value ?? null);
-      if (!Number.isFinite(x[row])) valid = false;
+      if (!Number.isFinite(x[row])) {
+        valid = false;
+      }
     }
     return { x, y };
   });
-  if (!valid) return null;
+  if (!valid) {
+    return null;
+  }
   return {
     mode,
     series,

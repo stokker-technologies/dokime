@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * dokime-rust-workspace
@@ -20,8 +21,9 @@ import assert from "node:assert/strict";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
-import { test, vi } from "vitest";
-import { createElement } from "react";
+import { onTestFinished, test, vi } from "vitest";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
@@ -30,6 +32,8 @@ import { CycleSnapshotProvider } from "@dokime/document/features/cycle/snapshot-
 import { ReportShell } from "@dokime/report/ReportShell";
 import { ReportCycleWorkspace } from "@dokime/report/ReportCycleWorkspace";
 import { NativeIntegerValue } from "@dokime/plots/lib/api/native-values";
+import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
+import { emptyLivePlotState } from "@dokime/plots/live-frames";
 import { materializeReport, readReportCapture, reportOutcome } from "@dokime/report/native-report";
 import {
   AppearanceLogoSchema,
@@ -314,6 +318,15 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
         },
       ],
     }).executions[0].plots;
+    if (plotType === PlotKind.HEAT_STRIP) {
+      const frame = execution.plots?.envelopes[0].payload?.frame;
+      assert.ok(frame);
+      frame.pointCount = 2n;
+      frame.series[0].x.push(frame.series[0].x[0]);
+      frame.series[0].y.push({ ...frame.series[0].y[0], value: 9 });
+      frame.series[0].instants.push("1970-01-01T00:00:02Z");
+      frame.series[0].totals.push({ ...frame.series[0].totals[0], kind: { case: "unsignedInteger", value: 9n } });
+    }
     const { source } = await materializeReport(capture);
     if (plotType === PlotKind.HEAT_STRIP) {
       const declaration = source.document("execution")?.cards[0].plots[0];
@@ -327,6 +340,36 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
     assert.equal(trajectory ? Number(coordinate) : coordinate, trajectory ? 2 : "category");
     assert.equal(payload.series[0].points[0].y, 3);
     assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
+    if (plotType === PlotKind.HEAT_STRIP) {
+      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+      const host = document.createElement("div");
+      document.body.append(host);
+      const root = createRoot(host);
+      onTestFinished(async () => {
+        await act(async () => root.unmount());
+        host.remove();
+        vi.unstubAllGlobals();
+      });
+      const descriptor = source.document("execution")?.cards[0].plots[0];
+      assert.ok(descriptor);
+      await act(async () =>
+        root.render(
+          createElement(LivePlotGroupGrid, {
+            title: "Values",
+            documentPlots: [descriptor],
+            viewportMode: "fit",
+            liveStates: { [metadata.identifier]: { ...emptyLivePlotState(), payload } },
+          }),
+        ),
+      );
+      assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
+      const slider = host.querySelector<HTMLElement>('[role="slider"]');
+      assert.ok(slider);
+      assert.equal(slider.getAttribute("aria-valuenow"), "1");
+      await act(async () => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+      assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
+      assert.equal(source.plotPayloads("execution").plots[metadata.identifier].series[0].points[1].y, 9);
+    }
   }
 });
 
