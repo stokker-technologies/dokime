@@ -41,7 +41,6 @@ import {
   type NativeDocumentSession,
 } from "../../lib/api/native-document-session";
 import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "@/features/cycle/document-query-model";
-import { frozenQuery, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 
 /* === Constants === */
 
@@ -100,20 +99,22 @@ export const workflowQueryKeys = {
 
 /* === Private Functions === */
 
-/** The connection a live read needs. Unreachable while a snapshot stands in. */
+/** The connection a live read needs. */
 function requireSession(session: ReturnType<typeof useNativeSessionOptional>) {
-  if (!session) throw new Error("A connected native backend is required.");
+  if (!session) {
+    throw new Error("Connect to a backend before reading cycle evidence.");
+  }
   return session;
 }
 
-/** The identity a live read needs. Unreachable while a snapshot stands in. */
+/** The identity a live read needs. */
 function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
   return requireSession(session).identity;
 }
 
 /** Keys stay generation-scoped live, and constant while nothing is fetched. */
 function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  return session?.identity.generation ?? "frozen";
+  return session?.identity.generation ?? "disconnected";
 }
 
 /* === Query Hooks === */
@@ -128,7 +129,6 @@ function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
  * continues from its new cursor.
  */
 export function useRecordsQuery(enabled: boolean, scope: Wire<EvidenceScope> | null) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const queryClient = useQueryClient();
   /* Callers build their scope inline, so the key and the stream follow its
@@ -139,7 +139,7 @@ export function useRecordsQuery(enabled: boolean, scope: Wire<EvidenceScope> | n
   const stableScope = useMemo(() => scope, [scopeKey]);
   const queryKey = useMemo(() => [...workflowQueryKeys.records(), generation, stableScope] as const, [generation, stableScope]);
   const query = useQuery({
-    enabled: enabled && session !== null && !snapshot,
+    enabled: enabled && session !== null,
     queryFn: () => fetchNativeRecordTail(identityOf(session), stableScope),
     queryKey,
     gcTime: GUI_EVIDENCE_GC_MS,
@@ -148,79 +148,70 @@ export function useRecordsQuery(enabled: boolean, scope: Wire<EvidenceScope> | n
   });
   const loaded = query.isSuccess;
   useEffect(() => {
-    if (!enabled || !session || snapshot || !loaded) return undefined;
+    if (!enabled || !session || !loaded) {
+      return;
+    }
     return holdRecordTail(queryClient, { ...session.identity, own: session.own }, queryKey, stableScope);
-  }, [enabled, loaded, queryClient, queryKey, session, snapshot, stableScope]);
-  return snapshot ? frozenQuery(snapshot.records) : query;
+  }, [enabled, loaded, queryClient, queryKey, session, stableScope]);
+  return query;
 }
 
 export function useNotesQuery(enabled: boolean, scope: Wire<EvidenceScope>) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: enabled && session !== null && !!scope.cycleId,
     queryFn: () => fetchNativeNotes(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.notes(), generationOf(session), scope],
   });
-  return snapshot ? frozenQuery(snapshot.notes) : query;
 }
 
 export function useHealthQuery(enabled: boolean, scope: Wire<EvidenceScope>) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: enabled && session !== null && !!scope.cycleId,
     queryFn: () => fetchNativeHealth(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.health(), generationOf(session), scope],
   });
-  return snapshot ? frozenQuery(snapshot.health) : query;
 }
 
 export function useTraceabilityQuery(enabled: boolean, scope: Wire<EvidenceScope> | null) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeTraceability(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
     gcTime: GUI_EVIDENCE_GC_MS,
   });
-  return snapshot ? frozenQuery(snapshot.traceability(scope?.executionId ?? null)) : query;
 }
 
 export function useExecutionDetailQuery(executionId: string | null, enabled: boolean) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: Boolean(executionId) && enabled && session !== null,
     queryFn: () => fetchNativeTestExecutionDetail(identityOf(session), executionId ?? ""),
     queryKey: [...workflowQueryKeys.executionDetail(executionId), generationOf(session)],
   });
-  return snapshot ? frozenQuery(snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined) : query;
 }
 
 export function useExecutionFilesQuery(executionId: string | null, enabled: boolean) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   // Runtime Changes Refresh Files Alongside Documents Through The Shared Throttle.
-  const query = useQuery({
+  return useQuery({
     enabled: Boolean(executionId) && enabled && session !== null,
     queryFn: () => fetchNativeExecutionFiles(identityOf(session), executionId ?? ""),
     queryKey: [...workflowQueryKeys.executionFiles(executionId), generationOf(session)],
     staleTime: Infinity,
   });
-  return snapshot ? frozenQuery(snapshot.executionFiles(executionId)) : query;
 }
 
 export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
   const queryClient = useQueryClient();
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const cardKey = [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)];
   const navigation = useDocumentNavigation(JSON.stringify(cardKey));
   const captureKey = [...cardKey, "pages", navigation.token ?? ""];
   const query = useQuery({
-    enabled: Boolean(cycleId && executionId) && session !== null && !snapshot,
+    enabled: Boolean(cycleId && executionId) && session !== null,
     queryFn: ({ queryKey, signal }) =>
       capturedDocument(queryClient, queryKey, (previous, publish) =>
         fetchNativeDocument(
@@ -252,31 +243,24 @@ export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: s
     request: { cycleId: cycleId ?? "", executionId: executionId ?? "", documentId: "default", epoch: session ? nativeEpoch(session) : "" },
     session: session ? nativeDocumentSession(session) : null,
     retryRoot: () => query.refetch(),
-    enabled: Boolean(cycleId && executionId) && !snapshot,
+    enabled: Boolean(cycleId && executionId),
   });
-  return snapshot && executionId
-    ? {
-        ...frozenQuery(snapshot.document(executionId) ?? undefined),
-        retryCard: cards.retryCard,
-        navigation: navigation.controls(undefined, false),
-      }
-    : { ...query, data: cards.data, retryCard: cards.retryCard, navigation: navigation.controls(cards.page, query.isFetching) };
+  return { ...query, data: cards.data, retryCard: cards.retryCard, navigation: navigation.controls(cards.page, query.isFetching) };
 }
 
 /**
  * The cycle's own document: the host-composed records, artifacts, media and
  * cycle-level plots, read through the same document route with no execution
- * in its scope. A frozen report answers from its embedded cycle capture.
+ * in its scope.
  */
 export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) {
   const queryClient = useQueryClient();
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const cardKey = [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)];
   const navigation = useDocumentNavigation(JSON.stringify(cardKey));
   const captureKey = [...cardKey, "pages", navigation.token ?? ""];
   const query = useQuery({
-    enabled: Boolean(cycleId) && enabled && session !== null && !snapshot,
+    enabled: Boolean(cycleId) && enabled && session !== null,
     queryFn: ({ queryKey, signal }) =>
       capturedDocument(queryClient, queryKey, (previous, publish) =>
         fetchNativeDocument(
@@ -308,15 +292,9 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
     request: { cycleId: cycleId ?? "", executionId: "", documentId: "default", epoch: session ? nativeEpoch(session) : "" },
     session: session ? nativeDocumentSession(session) : null,
     retryRoot: () => query.refetch(),
-    enabled: Boolean(cycleId) && enabled && !snapshot,
+    enabled: Boolean(cycleId) && enabled,
   });
-  return snapshot && enabled
-    ? {
-        ...frozenQuery(snapshot.document(null) ?? undefined),
-        retryCard: cards.retryCard,
-        navigation: navigation.controls(undefined, false),
-      }
-    : { ...query, data: cards.data, retryCard: cards.retryCard, navigation: navigation.controls(cards.page, query.isFetching) };
+  return { ...query, data: cards.data, retryCard: cards.retryCard, navigation: navigation.controls(cards.page, query.isFetching) };
 }
 
 /* === Invalidation === */
@@ -432,7 +410,9 @@ export function useEditNoteMutation() {
 
 function nativeEpoch(session: ReturnType<typeof useNativeSession>): string {
   const epoch = session.snapshot.connection.backend?.epoch;
-  if (!epoch) throw new Error("The connected native backend has no process epoch.");
+  if (!epoch) {
+    throw new Error("The connected native backend has no process epoch.");
+  }
   return epoch;
 }
 
@@ -460,7 +440,9 @@ async function capturedDocument(
     progress = mergeDocumentProgress(mapNativeDocument(document), progress);
     queryClient.setQueryData<RootDocument>(queryKey, { completed: held?.completed, current: document, mapped: progress });
   });
-  if (held && completed === held.completed) return held;
+  if (held && completed === held.completed) {
+    return held;
+  }
   return { completed, current: completed, mapped: mapNativeDocument(completed) };
 }
 
@@ -487,7 +469,9 @@ function useDocumentNavigation(owner: string) {
         setState({ ...current, token, previous });
       },
       next: () => {
-        if (page?.next) setState({ ...current, token: page.next, previous: [...current.previous, page.current] });
+        if (page?.next) {
+          setState({ ...current, token: page.next, previous: [...current.previous, page.current] });
+        }
       },
       latest: () => setState({ owner, previous: [], revision: current.revision + 1 }),
     }),
@@ -515,7 +499,9 @@ function useDocumentCards({
   const held = queryClient.getQueryData<RootDocument>(queryKey);
   const candidates = (document?.cards ?? []).flatMap((card) => {
     const source = held?.current.bindings.has(card.card_id) ? held.current : held?.completed;
-    if (source?.bindings.get(card.card_id)?.result?.kind.case !== "pending") return [];
+    if (source?.bindings.get(card.card_id)?.result?.kind.case !== "pending") {
+      return [];
+    }
     const key = [...cardKey, "cards", card.card_id, nativeDocumentCardKey(source, card.card_id)];
     return [{ id: card.card_id, key, page: source.page?.current }];
   });
@@ -527,7 +513,9 @@ function useDocumentCards({
       retry: documentRetry,
       retryDelay: documentRetryDelay,
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<CardRead> => {
-        if (!session) throw new Error("A connected native backend is required.");
+        if (!session) {
+          throw new Error("Connect to a backend before reading cycle evidence.");
+        }
         const latest = queryClient.getQueryData<RootDocument>(queryKey);
         const source = latest?.current.bindings.has(id) ? latest.current : latest?.completed;
         const previous = queryClient.getQueryData<CardRead>(key);
@@ -537,7 +525,9 @@ function useDocumentCards({
           signal,
           previous?.document,
         );
-        if (previous && captured === previous.document) return previous;
+        if (previous && captured === previous.document) {
+          return previous;
+        }
         return { document: captured, card: mapNativeDocumentCard(captured, id) };
       },
     })),
@@ -547,7 +537,9 @@ function useDocumentCards({
     results.map((query, index) => {
       const id = candidates[index]?.id;
       const original = id === undefined ? undefined : cards.get(id);
-      if (!original) return [id, undefined] as const;
+      if (!original) {
+        return [id, undefined] as const;
+      }
       if (query.error)
         return [id, { ...(query.data?.card ?? original), loading: false, failure: failureOf(query.error, original.title) }] as const;
       return [id, query.data?.card] as const;
@@ -597,7 +589,9 @@ function holdRecordTail(
   const flush = () => {
     if (frame !== null) window.cancelAnimationFrame(frame);
     frame = null;
-    if (stopped || !session.isCurrent()) return;
+    if (stopped || !session.isCurrent()) {
+      return;
+    }
     const records = [...pending.values()];
     pending.clear();
     const through = cursor;
@@ -631,7 +625,9 @@ function holdRecordTail(
         // The stream failed: the tail is re-read below and followed again.
       }
       stream = undefined;
-      if (stopped || !session.isCurrent()) return;
+      if (stopped || !session.isCurrent()) {
+        return;
+      }
       flush();
       await queryClient.invalidateQueries({ queryKey, exact: true });
       await new Promise((resume) => window.setTimeout(resume, GUI_RECONNECT_MS));
@@ -655,9 +651,13 @@ function holdRecordTail(
 
 function releaseRecordTail(key: string) {
   const held = recordTails.get(key);
-  if (!held) return;
+  if (!held) {
+    return;
+  }
   held.holders -= 1;
-  if (held.holders > 0) return;
+  if (held.holders > 0) {
+    return;
+  }
   recordTails.delete(key);
   held.stop();
 }

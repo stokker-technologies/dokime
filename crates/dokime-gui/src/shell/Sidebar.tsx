@@ -57,15 +57,6 @@ const NO_ATTENTION: ReadonlyMap<string, number> = new Map();
 
 /* === Types === */
 
-export type SidebarProps =
-  | { live?: true }
-  | {
-      selection: { caseId?: string; executionId?: string };
-      cycleId: string;
-      live: false;
-      onSelect: (selection: { caseId?: string; executionId?: string }) => void;
-    };
-
 type Destination = {
   icon: LucideIcon;
   label: string;
@@ -76,13 +67,13 @@ type Destination = {
 
 /* === Components === */
 
-export function Sidebar(props: SidebarProps) {
+export function Sidebar() {
   const sidebar = useSidebarState();
   const { mode } = sidebar;
   const [drawer, setDrawer] = useState(false);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  if (props.live !== false && mode === "phone")
+  if (mode === "phone") {
     return (
       <nav aria-label="Navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background">
         {DESTINATIONS.map(({ icon: Icon, ...destination }) => (
@@ -102,31 +93,26 @@ export function Sidebar(props: SidebarProps) {
         ))}
       </nav>
     );
+  }
   return (
     <>
       <SidebarFrame {...sidebar}>
-        {props.live === false ? (
-          <ul className="grid min-h-0 content-start gap-1 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
-            <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />
-          </ul>
-        ) : (
-          <>
-            <DestinationTree />
-            {mode === "tablet" ? (
-              <Button variant="ghost" className="min-h-11" onClick={() => setDrawer(true)}>
-                More
-              </Button>
-            ) : null}
-          </>
-        )}
+        <DestinationTree />
+        {mode === "tablet" ? (
+          <Button variant="ghost" className="min-h-11" onClick={() => setDrawer(true)}>
+            More
+          </Button>
+        ) : null}
       </SidebarFrame>
-      {props.live !== false && mode === "tablet" ? (
+      {mode === "tablet" ? (
         <Sheet open={drawer} onOpenChange={setDrawer}>
           <SheetContent
             side="left"
             className="w-80"
             onClick={(event) => {
-              if ((event.target as Element).closest("button")) setDrawer(false);
+              if ((event.target as Element).closest("button")) {
+                setDrawer(false);
+              }
             }}
           >
             <SheetTitle>Navigation</SheetTitle>

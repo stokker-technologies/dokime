@@ -61,7 +61,7 @@ test("settings back", () => {
 
 test("destination switching", () => {
   fixture.width = 599;
-  const phone = Sidebar({}) as ReactElement<{ children: unknown }>;
+  const phone = Sidebar() as ReactElement<{ children: unknown }>;
   const tabs = Children.toArray(phone.props.children as import("react").ReactNode).filter(isValidElement) as ReactElement<{
     onClick: () => void;
   }>[];
@@ -76,12 +76,12 @@ test("destination switching", () => {
   ]);
   for (const width of [600, 1023, 1024]) {
     fixture.width = width;
-    const shell = Sidebar({}) as ReactElement<{ children: import("react").ReactNode }>;
+    const shell = Sidebar() as ReactElement<{ children: import("react").ReactNode }>;
     const frames = Children.toArray(shell.props.children).filter(isValidElement);
     expect(frames.some((node) => node.type === SidebarFrame)).toBe(true);
   }
   fixture.width = 599;
-  expect((Sidebar({}) as ReactElement).type).toBe("nav");
+  expect((Sidebar() as ReactElement).type).toBe("nav");
 });
 
 /* === Private Functions === */

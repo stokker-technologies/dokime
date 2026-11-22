@@ -24,10 +24,6 @@
  * while the runtime has none. The rows read the same query the workspace
  * reads, so the tree and the document never disagree. The running execution
  * carries a marker while Follow Active is following it.
- *
- * With `live={false}` the same tree is the frozen report's outline: the same
- * grid and glyphs, no menus and no commands, and selection is handed back to
- * the report rather than written to a URL it does not own.
  */
 
 /* === External Imports === */
@@ -44,7 +40,7 @@ import { useSelectionStore } from "@/stores/selection-store";
 export type CycleSidebarCasesProps = {
   cycleId: string;
   selection: CycleSelection;
-} & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
+};
 
 /* === Components === */
 export function CycleSidebarCases(props: CycleSidebarCasesProps) {
@@ -57,10 +53,6 @@ export function CycleSidebarCases(props: CycleSidebarCasesProps) {
     () => new Set((prompts ?? []).flatMap((prompt) => (prompt.scope?.executionId ? [prompt.scope.executionId] : []))),
     [prompts],
   );
-  if (props.live === false) {
-    return <CycleSidebarCasesView detailQuery={detailQuery} selection={props.selection} live={false} onSelect={props.onSelect} />;
-  }
-
   const select = (next: CycleSelection) => {
     void navigate({
       params: { cycleId: props.cycleId },

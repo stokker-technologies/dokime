@@ -10,7 +10,6 @@ import { scopeVisibleIn } from "@/lib/scope";
 import type { HubRecord } from "@/lib/types";
 import { type DocumentViewOptions, documentView } from "@/features/cycle/document-view-model";
 import { useExecutionFilesQuery, useHealthQuery, useNotesQuery, useRecordsQuery, useTraceabilityQuery } from "./server-state";
-import { useFrozenPlotPayloads } from "@/features/cycle/snapshot-source";
 
 const EMPTY_RECORDS: HubRecord[] = [];
 
@@ -32,7 +31,6 @@ export function useDocumentView(options: DocumentViewOptions) {
      plots reads its records too. */
   const recordsQuery = useRecordsQuery(kinds.has("records") || kinds.has("plots") || !live, scope);
   const traceabilityQuery = useTraceabilityQuery(kinds.has("traceability"), scope);
-  const reportPayloads = useFrozenPlotPayloads(scope.executionId ?? null);
   const view = useMemo(
     () =>
       documentView(
@@ -51,7 +49,7 @@ export function useDocumentView(options: DocumentViewOptions) {
           health: healthQuery.data ?? [],
           records: EMPTY_RECORDS,
           traceability: traceabilityQuery.data ?? null,
-          reportPayloads,
+          reportPayloads: null,
         },
       ),
     [
@@ -67,7 +65,6 @@ export function useDocumentView(options: DocumentViewOptions) {
       notesQuery.data,
       healthQuery.data,
       traceabilityQuery.data,
-      reportPayloads,
     ],
   );
   const records = useMemo(

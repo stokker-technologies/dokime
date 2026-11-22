@@ -12,11 +12,6 @@
  * These hooks reuse the query keys and invalidation of `server-state.ts` so the
  * runtime stream keeps both the routed workspace and this one fresh. They add
  * no projection: the `lib/api` adapters still own the protobuf boundary.
- *
- * Each read consults `useCycleSnapshotSource` first. A frozen report mounts
- * the same workspace with `live={false}` and a snapshot in that context, so
- * these hooks answer from the snapshot and never reach for a backend that is
- * not there. The return shape is identical either way.
  */
 
 /* === External Imports === */
@@ -50,16 +45,10 @@ import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import { downloadNativeReport, type NativeReportSource } from "@/lib/api/native-reports";
 import { reportFilename } from "@/features/cycle/cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
-import { frozenQuery, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
-
-/* === Constants === */
-
-/** One identity, so a frozen prompt list never re-renders the banner. */
-const EMPTY_PROMPTS: Awaited<ReturnType<typeof fetchNativePendingPrompts>> = [];
 
 /* === Private Functions === */
 
-/** The identity a live read needs. Unreachable while a snapshot stands in. */
+/** The identity a live read needs. */
 function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
   if (!session) {
     throw new Error("A connected native backend is required.");
@@ -69,65 +58,53 @@ function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
 
 /** Keys stay generation-scoped live, and constant while nothing is fetched. */
 function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  return session?.identity.generation ?? "frozen";
+  return session?.identity.generation ?? "disconnected";
 }
 
 /* === Query Hooks === */
 
 /** The cycle's cases and every attempt of each, read to completion. */
 export function useCycleDetailQuery(cycleId: string, enabled = true) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeTestCycleDetail(identityOf(session), cycleId),
     queryKey: [...workflowQueryKeys.cycleDetail(cycleId), generationOf(session)],
   });
-  return snapshot ? frozenQuery({ plan: snapshot.plan, executions: snapshot.executions }) : query;
 }
 
 /** The live runtime as this cycle sees it, never another cycle's. */
 export function useCycleRuntimeShellQuery(cycleId: string) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: session !== null,
     queryFn: () => fetchNativeRuntimeShell(identityOf(session), cycleId),
     queryKey: [...workflowQueryKeys.runtimeShell(), cycleId, generationOf(session)],
   });
-  return snapshot ? frozenQuery(snapshot.runtimeShell) : query;
 }
 
-/** The label of the cycle this one reruns, for its lineage link; none in a frozen report. */
+/** The label of the cycle this one reruns for its lineage link. */
 export function useCycleLabelQuery(cycleId: string | null) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: cycleId !== null && session !== null,
     queryFn: () => fetchNativeCycleLabel(identityOf(session), cycleId ?? ""),
     queryKey: [...workflowQueryKeys.cycleDetail(cycleId ?? ""), "label", generationOf(session)],
   });
-  return snapshot ? frozenQuery(null) : query;
 }
 
-/* A frozen cycle has no pending prompt by construction: generation waits for
-   the cycle to settle, and nobody can answer a question in a static file. */
 export function useCyclePendingPromptsQuery(cycleId: string) {
-  const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
-  const query = useQuery({
+  return useQuery({
     enabled: session !== null,
     queryFn: () => fetchNativePendingPrompts(identityOf(session), { cycleId }),
     queryKey: [...workflowQueryKeys.prompts(), cycleId, generationOf(session)],
   });
-  return snapshot ? frozenQuery(EMPTY_PROMPTS) : query;
 }
 
 /* === Mutation Hooks === */
 
 export function useCycleCommands(cycleId: string) {
-  /* A frozen report renders no control that fires one of these, so the set is
-     built without a connection and asks for one only when a command runs. */
   const connection = useNativeSessionOptional();
   const session = () => {
     if (!connection) {
