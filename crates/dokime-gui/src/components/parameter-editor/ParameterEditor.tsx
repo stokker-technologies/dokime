@@ -15,23 +15,23 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { Clipboard, RotateCcw } from "lucide-react";
 import type { CSSProperties } from "react";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
-import { notificationText } from "@dokime/plots/lib/notifications";
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { notificationText } from "@/lib/notifications";
+import { ErrorCard } from "@/components/ErrorCard";
 
 import type { FileRowState } from "@/components/start-cycle-form-model";
 import { parameterInputId } from "@/components/start-cycle-form-model";
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@dokime/plots/components/ui/tooltip";
-import type { FileDefinition } from "@dokime/plots/lib/types";
-import { cn } from "@dokime/plots/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { FileDefinition } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   acceptsExpressions,
   type EditorParameterRow,

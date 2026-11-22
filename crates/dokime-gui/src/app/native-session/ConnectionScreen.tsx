@@ -17,18 +17,18 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
 
-import { PathPill } from "@dokime/document/components/PathPill";
-import { Button } from "@dokime/plots/components/ui/button";
+import { PathPill } from "@/components/PathPill";
+import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
-import { defaultBrand } from "@dokime/document/lib/brand";
+import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
-import { formatDecimal } from "@dokime/plots/lib/format";
-import { BrandMark } from "@dokime/document/shell/BrandMark";
+import { formatDecimal } from "@/lib/format";
+import { BrandMark } from "@/shell/BrandMark";
 import { useNativeSessionController } from "./context";
 import { startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
 

@@ -13,19 +13,19 @@
 
 /* === Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { ErrorCard } from "@/components/ErrorCard";
 
 // Standard Library Imports
 
 // Local Imports
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { MoreHorizontal } from "lucide-react";
 import { useId, useState } from "react";
 // Third Party Imports
-import { Checkbox } from "@dokime/plots/components/ui/checkbox";
-import { Button } from "@dokime/plots/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@dokime/plots/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   exportSecrets,
   importSecrets,

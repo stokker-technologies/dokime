@@ -21,7 +21,7 @@ import { commands } from "@/lib/desktop/commands";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
 import { backendOverviewGet, statusGet } from "@/lib/host/client";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Re-Exports === */

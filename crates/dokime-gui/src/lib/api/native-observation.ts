@@ -11,20 +11,20 @@
 
 /* === Local Imports === */
 
-import { mapRuntimeShell } from "@dokime/document/lib/api/native-runtime-projection";
+import { mapRuntimeShell } from "@/lib/api/native-runtime-projection";
 
 import * as rpc from "@/lib/host/client";
-import { required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { required, type Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import { type NativeTraceabilitySnapshot, mapNativeTraceability } from "@dokime/document/lib/api/native-traceability-projection";
+import { type NativeTraceabilitySnapshot, mapNativeTraceability } from "@/lib/api/native-traceability-projection";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.backendOverviewWatch>> extends NativeStream<infer Frame> ? Frame : never
 >;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { HubLiveState, TraceabilitySnapshot } from "@dokime/plots/lib/types";
+import type { HubLiveState, TraceabilitySnapshot } from "@/lib/types";
 import { listNativeCycles } from "./native-planning";
-import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError } from "@dokime/plots/lib/api/native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError } from "@/lib/api/native-values";
 
 /* === Types === */
 

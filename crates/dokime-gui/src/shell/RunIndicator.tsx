@@ -19,7 +19,7 @@
 
 // Local Imports
 import { useNativeSession } from "@/app/native-session/context";
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { workflowQueryKeys } from "@/features/cycle/server-state";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
@@ -27,8 +27,8 @@ import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { isNativeCycleLive } from "@dokime/document/lib/api/native-planning-projection";
-import { cn } from "@dokime/plots/lib/utils";
+import { isNativeCycleLive } from "@/lib/api/native-planning-projection";
+import { cn } from "@/lib/utils";
 import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
 
 /* === Re-Exports === */

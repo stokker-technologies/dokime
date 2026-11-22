@@ -11,15 +11,15 @@
 
 /* === Imports === */
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@dokime/plots/components/ui/select";
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ErrorCard } from "@/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
 import type { ApplicationSettings, SettingsScope, PreferencesSnapshot } from "@generated/typescript/application-settings";
 import { useEffect, useRef, useState } from "react";
-import { Input } from "@dokime/plots/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { formatUnitLabel } from "@dokime/plots/lib/format";
-import { toast } from "@dokime/plots/lib/notifications";
+import { formatUnitLabel } from "@/lib/format";
+import { toast } from "@/lib/notifications";
 import { usePreferences, useSavePreferences } from "./application-preferences";
 import { SettingsCard } from "./SettingsCard";
 import { SettingsRow } from "./SettingsRow";

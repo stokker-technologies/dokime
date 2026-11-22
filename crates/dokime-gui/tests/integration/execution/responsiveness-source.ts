@@ -17,7 +17,7 @@
 
 // Local Imports
 import type { RecordTail } from "@/lib/api/native-evidence";
-import type { HubRecord } from "@dokime/plots/lib/types";
+import type { HubRecord } from "@/lib/types";
 
 /* === Re-Exports === */
 

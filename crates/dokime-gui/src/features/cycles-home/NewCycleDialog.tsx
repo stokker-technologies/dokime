@@ -14,15 +14,15 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { type FormEvent, useEffect, useState } from "react";
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { ErrorCard } from "@/components/ErrorCard";
 
-import { Button } from "@dokime/plots/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@dokime/plots/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SettingsFields } from "@/features/cycle/SettingsForm";
 import { useCreateCycleMutation } from "@/features/cycles-home/cycles-queries";
 import { initialNewCycleForm, type NewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";

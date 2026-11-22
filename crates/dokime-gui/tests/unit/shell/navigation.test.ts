@@ -20,9 +20,9 @@
 import { Children, isValidElement, type ReactElement } from "react";
 // Local Imports
 import { expect, test, vi } from "vitest";
-import { navigationMode, settingsParent, sidebarWidth } from "@dokime/document/shell/navigation-model";
+import { navigationMode, settingsParent, sidebarWidth } from "@/shell/navigation-model";
 import { Sidebar } from "@/shell/Sidebar";
-import { SidebarFrame } from "@dokime/document/shell/SidebarFrame";
+import { SidebarFrame } from "@/shell/SidebarFrame";
 
 /* === Re-Exports === */
 
@@ -36,8 +36,8 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => fixture.navigate,
   useRouterState: ({ select }: { select: (state: unknown) => unknown }) => select({ location: { pathname: fixture.pathname, search: {} } }),
 }));
-vi.mock("@dokime/document/shell/use-sidebar-state", async () => {
-  const { navigationMode } = await import("@dokime/document/shell/navigation-model");
+vi.mock("@/shell/use-sidebar-state", async () => {
+  const { navigationMode } = await import("@/shell/navigation-model");
   return {
     useSidebarState: () => ({ mode: navigationMode(fixture.width), collapsed: fixture.width < 1024, toggle: vi.fn(), width: "256px" }),
   };

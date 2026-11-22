@@ -1,14 +1,14 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import { type AppearanceResource, logoVariant } from "@dokime/document/lib/native-appearance";
+import { type AppearanceResource, logoVariant } from "@/lib/native-appearance";
 // Native appearance resources. The session owner disposes resources when replaced.
 
-import type { RuntimeAppLogo } from "@dokime/plots/lib/types/appearance";
+import type { RuntimeAppLogo } from "@/lib/types/appearance";
 import * as rpc from "../host/client";
 
 import type { SessionIdentity } from "./transport.js";
 
 import { readFileReference } from "@/lib/api/native-content";
-import { required } from "@dokime/plots/lib/rpc/canonical";
+import { required } from "@/lib/rpc/canonical";
 function current(session: SessionIdentity) {
   if (!session.isCurrent()) throw { kind: "session", detail: { kind: "superseded" } };
 }

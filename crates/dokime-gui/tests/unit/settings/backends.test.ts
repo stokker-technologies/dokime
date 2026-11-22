@@ -23,15 +23,15 @@ import { beforeEach, test, vi } from "vitest";
 // Local Imports
 import { AppRoot } from "@/app/AppRoot";
 import { NativeSession } from "@/app/native-session/session";
-import { DataTable } from "@dokime/plots/components/data-table/DataTable";
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { PathPill } from "@dokime/document/components/PathPill";
-import { Button } from "@dokime/plots/components/ui/button";
+import { DataTable } from "@/components/data-table/DataTable";
+import { ErrorCard } from "@/components/ErrorCard";
+import { PathPill } from "@/components/PathPill";
+import { Button } from "@/components/ui/button";
 import { BackendsTable } from "@/features/settings/BackendsTable";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopSessionSnapshot } from "@/lib/desktop/session";
 import { preferencesCommands } from "@/lib/desktop/settings";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Re-Exports === */
 

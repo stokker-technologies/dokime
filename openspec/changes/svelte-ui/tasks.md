@@ -1,45 +1,49 @@
 # Tasks
 
-## 1. Inventory and Baseline
+## 1. React Baseline and Layout
 
-- [x] 1.1 Lock the producer, consumer, route, state, test, build and dependency inventory below and record the presentation contracts in the proposal, design and requirement delta.
-- [x] 1.2 Prepare the React worktree with the existing tasks. Capture connection, Cycles, Library, History, execution or cycle evidence with plots, Settings, Notifications and a saved report at matching viewports in Light and Dark under `target/svelte-parity/before/` with headless Playwright. Record reproducible fixture and route selection under the ignored evidence directory.
-- [x] 1.3 Validate and commit the OpenSpec artifacts before porting source.
+- [x] 1.1 Capture the React desktop journeys and frozen report in Light and Dark under `target/svelte-parity/before/`.
+- [x] 1.2 Separate Cartesian frame selection, range calculation and viewport reduction and verify palette and desktop plot integration.
+- [x] 1.3 Move shared plots, document presentation, cycle views, projections, contracts, primitives, formatting and theme into the existing frontend by domain. Preserve the in-progress Svelte plots for the next step.
+- [x] 1.4 Put the report HTML and entry in the GUI Vite build, preserving the report generation task, output path and decoder. Move organization generation and Tauri watch inputs.
+- [x] 1.5 Remove package manifests, aliases and workspace entries. Consolidate package test jobs into the existing GUI lanes and identify any hosted workflow impact.
+- [x] 1.6 Prove the React layout with the GUI typecheck, both Vite builds, the report import check, and focused frontend and tooling tests. Commit the layout before Svelte integration.
 
 ## 2. Plots
 
-- [x] 2.1 Separate Cartesian frame selection, range calculation and viewport reduction from the component. Verify the plots palette and desktop plot integration tests against the shared functions.
-- [ ] 2.2 Port `CartesianPlot`, the placeholder, HistogramChart, and all catalog entries (Bar, Box, Contour, Frequency Series, Grid Chart, Heat Strip, Histogram, Pie, Time Series, Trajectory, XY and XY Interval). Preserve canvas and SVG geometry, viewport, legends, pointer and resizing behavior. Verify the existing presentation, heat strip and viewport suites.
-- [ ] 2.3 Port PlotGroupGrid, AbbreviatedValue, FailureDetails, ErrorCard, StatsSummaryTable and the DataTable group. Preserve existing column sorting, remove generic search, filtering and pagination presentation, and verify semantic tables and current summary calculations.
-- [ ] 2.4 Port the badge, button, checkbox, dialog, dropdown, input, popover, select, slider, table and tooltip primitives. Preserve focus, keyboard and pointer interaction and existing classes and slots.
-- [ ] 2.5 Port interaction, playback, plot settings, plot palette, summary window and notifications presentation state. Preserve the axis, category, colors, expressions, grouping, frames, markers, bins, reduction, viewport, statistics, format and projection modules. Verify teardown and existing palette, point color and color suites.
-- [ ] 2.6 Update plots exports, package manifest, tsconfig, Vite/Vitest and formatter configuration. Port component assertions to Testing Library. Run package typecheck and focused unit/integration tasks and capture matching plot states in both themes under `target/svelte-parity/after/plots/`.
+- [ ] 2.1 Port Cartesian, placeholder, histogram, and all catalog plots. Preserve viewport, canvas and SVG geometry, indicators, legends, hover, and resizing.
+- [ ] 2.2 Port plot interactions, playback, settings, palette and summary window state. Keep plot math, projections, colors, axes, frames and formatting.
+- [ ] 2.3 Port plot grouping, summaries, failure cards and shared controls. Preserve keyboard and pointer behavior and replace generic data table search and pagination with plain tables and existing column sorting.
+- [ ] 2.4 Port the corresponding test fixtures and run focused tests and typecheck. Capture plots in both themes under `target/svelte-parity/after/plots/`.
 
-## 3. Document
+## 3. Document and Section Presentation
 
-- [ ] 3.1 Port cycle documents, evidence, sidebar cases, labels, parameters, sections, records, steps, node summary, plot windows, prompt history and snapshot components. Preserve document layout, assembly, query models, evidence projection and report download behavior. Run the document presentation and cycle unit suites.
-- [ ] 3.2 Port artifact tree, gallery, markdown, metric, path, records, value, notification and failure components, plus cards, progress, tabs, textarea, toggle and toggle group primitives. Verify media, record and notification interaction.
-- [ ] 3.3 Port AppShellLayout, BrandMark, ConsoleDrawerView, PageShell, SidebarFrame and page chrome. Port appearance, application theme, brand, snapshot source, frozen plots, elapsed time, row windowing, media gallery, route scope, focus mode, shell density, sidebar/navigation state, console buffer, plot-window state and UI/selection stores. Keep pure models, CSS, theme tokens and host projections. Verify subscriptions and view restoration.
-- [ ] 3.4 Update document exports, manifest, tsconfig, Vite/Vitest and formatter configuration. Run package typecheck and focused unit/integration tasks and capture matching document states in both themes under `target/svelte-parity/after/document/`.
+- [ ] 3.1 Port document workspace and view, sections, notes, records, overview metrics and plan cards. Preserve models, query semantics, evidence assembly and report download.
+- [ ] 3.2 Port artifact tree, media, markdown, value, clipboard and traceability presentation, notification and failure views, and the remaining shared UI controls.
+- [ ] 3.3 Port the document tests, including the plot canvas and live document responsiveness fixtures. Preserve measurements consumed by the system driver. Run focused tests and typecheck and capture both themes under `target/svelte-parity/after/document/`.
 
-## 4. Frozen Report
+## 4. Cycle Views
 
-- [ ] 4.1 Port ReportApp, ReportCycleWorkspace, ReportShell and the entrypoint. Preserve appearance materialization, frozen evidence selection, and decoder and payload compatibility. Run the native-report integration suite.
-- [ ] 4.2 Update package exports, manifest, tsconfig, Vite/Vitest, formatter configuration and `report.html`. Use `mise -C crates/dokime-gui run generate:report`, verify one standalone output and run the package typecheck. Open the same saved capture without external requests and capture both themes under `target/svelte-parity/after/report/`.
+- [ ] 4.1 Port shared cycle evidence, cases, labels, parameters, sections, records, steps, prompt history, plot windows and snapshot source.
+- [ ] 4.2 Port desktop cycle workspace and home, queries, mutations, active-cycle and document navigation, prompt and execution control, and live plot wiring.
+- [ ] 4.3 Run focused cycle, execution and document tests and typecheck and capture both themes under `target/svelte-parity/after/cycle/`.
 
-## 5. Desktop
+## 5. Frozen Report
 
-- [ ] 5.1 Port startup, provider composition, native session and connection screen, query client, runtime stream and execution progress. Keep desktop commands, API, host and RPC clients, generated bindings and Tauri host contracts. Verify startup and shell status tests.
-- [ ] 5.2 Port root shell and routes `/`, `/cycles`, `/cycles/:cycleId`, `/history`, `/history/:cycleId`, `/history/compare`, `/history/executions/:executionId`, `/library`, `/notifications`, `/settings`, `/settings/:section` and `/settings/plugins/:pluginId`. Preserve path and search semantics, redirects, focus and navigation history. Delete the generated React route tree and generator configuration.
-- [ ] 5.3 Port app shell, menu, sidebar, console, status bar, run indicator, theme and appearance, backend status, console records, hub store, rerun notice and parameter overrides. Verify shell navigation, sidebar cycles, organization, run focus, console and notifications tests.
-- [ ] 5.4 Port cycle and cycles-home, History/explore and execution evidence, Library, system Notifications and all Settings sections, plugins and installed plugins. Port queries and mutations for cycle detail, runtime, label, pending prompts, execution actions/files/records, notes, health, traceability, documents, History queries, settings frame, plugins, app preferences and appearance. Port routing and control hooks for active cycle, document cards/navigation, prompt values, drop, autosave, touch density and desktop build.
-- [ ] 5.5 Port shared components and primitives, document and plot adapters, live frames and palette, suite picker state/mutations, parameter editing, artifact upload and media URLs. Verify settings, execution, storage, Library, cycle and History unit/integration suites, including document, evidence queries, saved report and control.
-- [ ] 5.6 Port execution responsiveness and plot canvas/document fixtures and component tests to Testing Library. Preserve structural, performance-invariant and behavior assertions. Verify integration setup, generation/surface checks, smoke build, native e2e, report browser and save contracts. Port the React-specific system benchmark surface and build instrumentation without running the benchmark.
-- [ ] 5.7 Update desktop `package.json`, `index.html`, `vite.config.ts`, `tsconfig.json`, `biome.json`, shadcn `components.json`, CSS scanning, and Tauri build references where needed. Verify the live frontend build and native asset paths.
+- [ ] 5.1 Port the report app, navigation within the capture, shell and entry. Preserve appearance materialization, captured execution selection and the embedded decoder contract.
+- [ ] 5.2 Extend the report import check to reject Tauri, routing, query clients and desktop-only modules in its transitive module graph.
+- [ ] 5.3 Run the native report tests, typecheck and report generation. Verify one self-contained output, open the capture offline and capture both themes under `target/svelte-parity/after/report/`.
 
-## 6. Workspace and Handoff
+## 6. Desktop Shell and Routes
 
-- [ ] 6.1 Update package manifests and pnpm workspace lock. Remove React, React DOM and types, React Query/Router/Table, React router generator/plugin, React Vite plugin, Radix, lucide-react, next-themes, React notifications and unused React-bound state adapters. Preserve shared pure dependencies and remove stale React references in scoped tools.
-- [ ] 6.2 Update shared Vite/TypeScript/test and format tooling, React-specific dev/build or organization generation if present, and applicable README wording. Identify any hosted CI and owner-managed documentation impact without changing either. Verify repository checks.
-- [ ] 6.3 Incorporate `origin/dev` at each package boundary. Run focused typechecks and corresponding unit/integration suites for every affected frontend package, report generation, desktop frontend build, `mise run format`, `mise run check:repository`, `mise run test -- --changed Cargo.toml --no-run` with desktop testing as applicable, and strict OpenSpec validation.
-- [ ] 6.4 Capture the final baseline journey in both themes under `target/svelte-parity/after/`, compare with the before captures and fix visible regressions. Verify the offline report and workspace dependency inventory.
+- [ ] 6.1 Port startup, native session, providers, runtime subscriptions, query client and connection screen. Keep desktop commands, host and RPC clients, generated bindings and Tauri contracts.
+- [ ] 6.2 Replace the router and generated tree while preserving the root, cycles, history, comparison and execution evidence, library, notifications and settings URLs, parameters, redirects and back and forward.
+- [ ] 6.3 Port the desktop shell, menu, sidebar, console, indicators, theme, focus, native appearance, UI and selection state, and runtime notifications.
+- [ ] 6.4 Port History, Library, Notifications and Settings surfaces, including preferences, plugins, suite and parameter editing, file uploads and media. Run focused tests and typecheck and capture the desktop journeys in both themes.
+- [ ] 6.5 Port React-specific system fixture instrumentation and complete the live frontend build.
+
+## 7. Cleanup and Handoff
+
+- [ ] 7.1 Remove superseded React components, hooks, fixtures, route generation and dependencies. Update Vite, TypeScript, Biome, CSS scanning, shadcn configuration and the pnpm lockfile.
+- [ ] 7.2 Incorporate upstream changes at each migration boundary. Run focused frontend checks, both builds, format, repository check, the workspace test-target compile gate and strict OpenSpec validation.
+- [ ] 7.3 Compare the final screenshots under `target/svelte-parity/after/` against the baseline and fix visible regressions. Verify offline report and final workspace dependencies.

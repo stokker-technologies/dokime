@@ -174,7 +174,7 @@ function generateFrontend(descriptors: FileDescriptorSet, digest: Buffer) {
     for (const message of file.messageType) messages.set(`.${file.package}.${message.name}`, { file, message });
   }
   const lines = [
-    'import { required } from "@dokime/plots/lib/rpc/canonical";',
+    'import { required } from "@/lib/rpc/canonical";',
     'import { projectStream } from "@/lib/rpc/transport";',
     "// Generated from the Host Protocol. Do Not Edit.",
     'import { unary, openStream, openClientStream, type SessionIdentity } from "@/lib/rpc/transport";',

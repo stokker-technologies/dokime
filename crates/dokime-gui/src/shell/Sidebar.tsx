@@ -22,22 +22,22 @@ import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useSt
 
 // Local Imports
 
-import { Badge } from "@dokime/plots/components/ui/badge";
-import { Button } from "@dokime/plots/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
-import { STATUS_PILL_CLASS } from "@dokime/document/features/cycle/cycle-workspace-model";
-import { highestPromptLevel, pendingPromptCountLabel } from "@dokime/document/features/cycle/prompt-banner-model";
+import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
 import { cycleRows } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
-import { useNotificationSummary } from "@dokime/plots/lib/notifications";
-import { recordLevelVariant } from "@dokime/plots/lib/record-display";
-import { cycleIdOfPathname } from "@dokime/document/shell/route-scope";
+import { useNotificationSummary } from "@/lib/notifications";
+import { recordLevelVariant } from "@/lib/record-display";
+import { cycleIdOfPathname } from "@/shell/route-scope";
 import { sidebarCycles } from "@/shell/sidebar-cycles";
 import { SidebarRow } from "@/shell/sidebar-row";
-import { useSidebarState } from "@dokime/document/shell/use-sidebar-state";
-import { SidebarFrame } from "@dokime/document/shell/SidebarFrame";
+import { useSidebarState } from "@/shell/use-sidebar-state";
+import { SidebarFrame } from "@/shell/SidebarFrame";
 
 /* === Re-Exports === */
 

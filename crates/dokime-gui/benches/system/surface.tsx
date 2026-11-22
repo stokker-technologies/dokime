@@ -6,15 +6,15 @@ import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { NativeSession } from "@/app/native-session/session";
 import { fetchNativeDocument } from "@/lib/api/native-document-session";
-import { mapNativeDocument } from "@dokime/document/lib/api/native-documents";
+import { mapNativeDocument } from "@/lib/api/native-documents";
 import { commands } from "@/lib/desktop/commands";
-import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
-import type { DocumentViewPlot } from "@dokime/plots/lib/types";
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import type { DocumentViewPlot } from "@/lib/types";
 import type { EvidenceScope } from "@generated/host/model";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import { useLivePlotPayloads } from "@/plots/live-data";
-import { useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
-import "@dokime/document/styles.css";
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
+import "@/theme/styles.css";
 
 type Observation = {
   stages: Record<string, number[]>;

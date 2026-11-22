@@ -13,12 +13,12 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { useAppearance } from "@dokime/document/lib/appearance";
-import { useApplicationTheme } from "@dokime/document/lib/application-theme";
-import type { ResolvedTheme } from "@dokime/document/lib/theme";
-import { materializeThemeFamilyVariables, resolveThemeFamily } from "@dokime/document/lib/theme-family";
-import { plotPaletteFromVariables, resolvePlotThemeColors } from "@dokime/plots/colors";
-import { useUiStore } from "@dokime/document/stores/ui-store";
+import { useAppearance } from "@/lib/appearance";
+import { useApplicationTheme } from "@/lib/application-theme";
+import type { ResolvedTheme } from "@/lib/theme";
+import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
+import { plotPaletteFromVariables, resolvePlotThemeColors } from "@/plots/colors";
+import { useUiStore } from "@/stores/ui-store";
 
 /* === Public Functions === */
 

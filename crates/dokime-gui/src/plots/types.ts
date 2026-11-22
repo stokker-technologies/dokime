@@ -1,0 +1,85 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Local Imports === */
+
+import type { ValueFormat } from "@generated/host/model";
+import type { Wire } from "../lib/rpc/canonical";
+import type { NotificationFailure } from "../lib/notification-details";
+import type { SeriesSummary } from "../lib/statistics";
+import type {
+  DocumentAxisScale,
+  DocumentFftOptions,
+  DocumentHistogramOptions,
+  DocumentPlotStyle,
+  DocumentPlotType,
+  DocumentReferenceBand,
+  DocumentReferenceLine,
+  PlotAnalysis,
+  PlotCartesianFrame,
+  PlotMarker,
+  PlotSeries,
+} from "../lib/types";
+import type { HistogramAxes } from "./histogram-axes";
+import type { PromptMarker } from "./prompt-markers";
+
+/* === Types === */
+
+export type PlotCardSpec = {
+  key: string;
+  stream: string;
+  title: string;
+  /** The heading above already prints this title; the card keeps it for assistive tech only. */
+  titleRepeated?: boolean;
+  description?: string | null;
+  series: PlotSeries[];
+  cartesian?: PlotCartesianFrame | null;
+  analysis?: PlotAnalysis | null;
+  markers: PlotMarker[];
+  /** When the execution asked and the operator answered; time series only. */
+  promptMarkers?: PromptMarker[];
+  plotType: DocumentPlotType;
+  arrangement?: "grouped" | "stacked" | null;
+  pareto?: boolean;
+  hole?: number | null;
+  xyInterval?: "sigma" | null;
+  render?: "cells" | "bands";
+  style: DocumentPlotStyle;
+  xScale: DocumentAxisScale;
+  yScale: DocumentAxisScale;
+  fft: DocumentFftOptions;
+  histogram?: DocumentHistogramOptions | null;
+  /** A histogram's axes: the declared value on x, the host's count on y. */
+  histogramAxes?: HistogramAxes | null;
+  timeAxis: boolean;
+  /** Declared Boolean Fields: False = 0, True = 1, Null = A Gap. */
+  booleanAxis?: boolean;
+  unit?: string | null;
+  colors: string[];
+  referenceLines: DocumentReferenceLine[];
+  referenceBands: DocumentReferenceBand[];
+  stateLabel?: string;
+  stateDetail?: string;
+  failure?: NotificationFailure;
+  contextSummary?: string;
+  context?: Record<string, unknown>;
+  windowS?: number | null;
+  xFormat?: Wire<ValueFormat> | null;
+  /** Set when the x column declares a duration: the axis prints elapsed time. */
+  xElapsedUnit?: string | null;
+  yFormat?: Wire<ValueFormat> | null;
+  runStartedAt?: number | null;
+  cycleStartedAt?: number | null;
+  /** The backend's statistics of each trace over the shown window. */
+  summaries?: SeriesSummary[] | null;
+  /** A new window's statistics are in flight, so the shown ones are dimmed. */
+  summaryPending?: boolean;
+};
+
+export type PlotViewportMode = "fit" | "live";

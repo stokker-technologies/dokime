@@ -6,12 +6,12 @@
 import { create, type createFileRegistry, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import type { ExecutionDetail } from "@generated/host/model";
-import { frozenRegistry } from "@dokime/document/lib/host/schema-registry";
+import { frozenRegistry } from "@/lib/host/schema-registry";
 
 /* === Local Imports === */
 
-import { NATIVE_MAX_PAGES } from "@dokime/plots/lib/api/native-values";
-import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { NATIVE_MAX_PAGES } from "@/lib/api/native-values";
+import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import * as rpc from "./client";
 

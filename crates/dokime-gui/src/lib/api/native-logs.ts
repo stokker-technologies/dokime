@@ -11,10 +11,10 @@
 import type { Event } from "@generated/host/model";
 import type { Position } from "@generated/host/model";
 import * as rpc from "@/lib/host/client";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { HubRecord, Severity } from "@dokime/plots/lib/types";
-import { NATIVE_MAX_PAGES, timestampIso } from "@dokime/plots/lib/api/native-values";
+import type { HubRecord, Severity } from "@/lib/types";
+import { NATIVE_MAX_PAGES, timestampIso } from "@/lib/api/native-values";
 
 const GUI_LOG_BYTES = 262_144;
 const GUI_LOG_EVENTS = 256;

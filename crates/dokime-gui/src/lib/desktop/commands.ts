@@ -21,9 +21,9 @@ import { normalizeRpcError } from "@/lib/rpc/errors";
 /* === Local Imports === */
 
 import type { InstallPluginProgress } from "@/lib/api/native-plugins";
-import { isReportBuild } from "@dokime/document/lib/ui-mode";
-import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "@dokime/document/lib/contracts/delivery";
-import type { BuildIdentity } from "@dokime/document/lib/contracts/connection";
+import { isReportBuild } from "@/lib/ui-mode";
+import type { ArtifactDeliveryRequest, ArtifactSource, Delivered, DesktopSaveDocument } from "@/lib/contracts/delivery";
+import type { BuildIdentity } from "@/lib/contracts/connection";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot, StorageBackupDestination } from "./session";
 import type { SavedSettings, SavedSettingsChange } from "./settings";
 import { settleUnlessStopping } from "./stopping";

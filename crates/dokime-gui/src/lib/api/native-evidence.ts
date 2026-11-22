@@ -12,23 +12,23 @@
 /* === External Imports === */
 
 import { executionSchemas } from "@/lib/host/schemas";
-import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
-import type { CapturedRecord, RecordPage } from "@dokime/document/lib/api/native-record-projection";
+import type { CapturedRecord, RecordPage } from "@/lib/api/native-record-projection";
 
 /* === Local Imports === */
 
-import { decodeFrozenRecords } from "@dokime/document/lib/api/native-record-projection";
+import { decodeFrozenRecords } from "@/lib/api/native-record-projection";
 
 import * as rpc from "@/lib/host/client";
-import { nativeRecordScope } from "@dokime/plots/lib/host/values";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { nativeRecordScope } from "@/lib/host/values";
+import type { Wire } from "@/lib/rpc/canonical";
 
 type Cursor = NonNullable<RecordPage["resolvedAt"]>;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { HubRecord } from "@dokime/plots/lib/types";
-import { NativeApiLimitError, mapBounded } from "@dokime/plots/lib/api/native-values";
+import type { HubRecord } from "@/lib/types";
+import { NativeApiLimitError, mapBounded } from "@/lib/api/native-values";
 
 /* === Canonical Types === */
 

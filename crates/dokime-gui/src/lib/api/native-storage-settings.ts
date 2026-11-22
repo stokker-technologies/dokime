@@ -19,14 +19,14 @@
 
 // Local Imports
 import type { StorageSource } from "@/features/settings/settings-contracts";
-import { required } from "@dokime/plots/lib/rpc/canonical";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import { required } from "@/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 
 type StorageSources = Wire<Awaited<ReturnType<typeof rpc.storageSourcesGet>>>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import { safeNumber } from "@dokime/plots/lib/api/native-values";
+import { safeNumber } from "@/lib/api/native-values";
 
 /* === Re-Exports === */
 

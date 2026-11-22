@@ -28,8 +28,8 @@
 import type { ReactNode } from "react";
 
 // Local Imports
-import { Progress } from "@dokime/document/components/ui/progress";
-import { ExecutionSectionCard } from "@dokime/document/features/cycle/ExecutionSectionCard";
+import { Progress } from "@/components/ui/progress";
+import { ExecutionSectionCard } from "@/features/cycle/ExecutionSectionCard";
 
 /* === Re-Exports === */
 

@@ -58,8 +58,8 @@ class DevelopmentDesktopTests(unittest.TestCase):
         cargo_patch.start()
         try:
             arguments = ["--features", "console", "--no-default-features", "--", "--example"]
-            for package in ("report", "plots", "document"):
-                changed = desktop.ROOT / "packages" / package / "src/renderer.tsx"
+            for source in ("report", "plots", "components/document"):
+                changed = desktop.ROOT / "crates/dokime-gui/src" / source / "renderer.tsx"
                 self.assertTrue(any(changed.is_relative_to(folder) for folder in folders))
                 actions.reset_mock()
                 self.assertEqual(runtime.main(arguments), 0)

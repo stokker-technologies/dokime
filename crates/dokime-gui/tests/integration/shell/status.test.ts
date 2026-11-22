@@ -22,7 +22,7 @@ import { statusPresentation } from "@/features/settings/plugins/PluginList";
 import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
 import { announceStopping, settleUnlessStopping } from "@/lib/desktop/stopping";
 import type { SettingsFrame } from "@generated/host/model";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import { type BackendOperation, operationPhaseLabel, operationsCountLabel, summarizeOperations } from "@/shell/status-bar-operations";
 
 /* === Re-Exports === */

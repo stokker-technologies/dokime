@@ -17,16 +17,16 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { Download } from "lucide-react";
-import { toast } from "@dokime/plots/lib/notifications";
+import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
-import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
-import { Button } from "@dokime/plots/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { useCycleCommands } from "./cycle-queries";
-import { reportDownloadState } from "@dokime/document/features/cycle/cycle-workspace-model";
+import { reportDownloadState } from "@/features/cycle/cycle-workspace-model";
 
 /* === Types === */
 

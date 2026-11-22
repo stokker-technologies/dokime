@@ -6,7 +6,7 @@ import { copyFile } from "node:fs/promises";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const selected = new Map([
-  ["/packages/plots/src/live-frames.ts", new Map([["applyDocumentPlotMessages", "retained_update"]])],
+  ["/src/plots/live-frames.ts", new Map([["applyDocumentPlotMessages", "retained_update"]])],
   ["/lib/api/native-plots.ts", new Map([["mapNativePlotWatchPage", "native_frame_adaptation"]])],
 ]);
 

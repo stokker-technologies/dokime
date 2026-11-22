@@ -23,7 +23,7 @@ import { CyclePhase, type CycleSummary } from "@generated/host/model";
 
 import * as rpc from "@/lib/host/client";
 import { executionSchemas } from "@/lib/host/schemas";
-import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ExecutionBrowseCycle,
@@ -31,13 +31,13 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
   SavedCycleSummary,
-} from "@dokime/plots/lib/types/browse";
+} from "@/lib/types/browse";
 import { readFileReference } from "./native-content";
 import { fetchNativeDocument } from "./native-document-session";
 import { listNativeCycles } from "./native-planning";
-import { mapCyclePhase, mapStepStatus, projectExecutionStatus } from "@dokime/document/lib/api/native-planning-projection";
-import { decodeFrozenRecords } from "@dokime/document/lib/api/native-record-projection";
-import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, safeNumber, timestampIso } from "@dokime/plots/lib/api/native-values";
+import { mapCyclePhase, mapStepStatus, projectExecutionStatus } from "@/lib/api/native-planning-projection";
+import { decodeFrozenRecords } from "@/lib/api/native-record-projection";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, safeNumber, timestampIso } from "@/lib/api/native-values";
 
 /* === Constants === */
 
@@ -507,7 +507,7 @@ export function artifactStateLabel(state: ArtifactState | undefined): string {
 
 export function nativeRecordText(
   record: Wire<CapturedRecord>,
-  decoded?: import("@dokime/plots/lib/types").HubRecord,
+  decoded?: import("@/lib/types").HubRecord,
 ): {
   timestamp: string;
   severity: string;

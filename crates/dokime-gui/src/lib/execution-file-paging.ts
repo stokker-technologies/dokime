@@ -15,12 +15,7 @@
 
 /* === Local Imports === */
 
-import type {
-  ExecutionFileFollowEvent,
-  ExecutionFileIdentity,
-  ExecutionFileLifecycle,
-  ExecutionFileReadWindow,
-} from "@dokime/plots/lib/types";
+import type { ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileLifecycle, ExecutionFileReadWindow } from "@/lib/types";
 
 /* === Constants === */
 

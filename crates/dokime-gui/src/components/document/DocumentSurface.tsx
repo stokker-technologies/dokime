@@ -11,7 +11,7 @@
 import { ArtifactTree } from "@/components/ArtifactTree";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
-import { type DocumentCardContentProps, DocumentCardContentView } from "@dokime/document/components/document/DocumentSurfaceView";
+import { type DocumentCardContentProps, DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
 import { OperatorNotesContent } from "./OperatorNotesContent";
 
 /* === Components === */

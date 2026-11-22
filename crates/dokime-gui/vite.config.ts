@@ -14,6 +14,7 @@ import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
+import { viteSingleFile } from "vite-plugin-singlefile";
 import { defineConfig } from "vitest/config";
 import workspace from "../../tools/config/vite.base.ts";
 
@@ -24,18 +25,18 @@ const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version?: string };
 const appVersion = packageJson.version ?? "dev";
 
-// The Desktop Builds Live Assets; The Report Package Owns Its Standalone Template.
 export default defineConfig(({ mode }) => ({
   root: projectRoot,
   // Concurrent Lanes Own Separate Vite Dependency And Vitest Result Caches.
   cacheDir: `node_modules/.vite/${mode}${mode === "test" ? `/${process.env.DOKIME_TEST_LANE ?? "all"}` : ""}`,
-  publicDir: "public",
+  publicDir: mode !== "report" && "public",
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
-    __DOKIME_UI_MODE__: JSON.stringify("live"),
+    __DOKIME_UI_MODE__: JSON.stringify(mode === "report" ? "report" : "live"),
   },
   plugins: {
     test: [],
+    report: [react(), tailwindcss(), viteSingleFile()],
   }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
     dedupe: workspace.resolve?.dedupe,
@@ -52,30 +53,40 @@ export default defineConfig(({ mode }) => ({
       ignored: ["**/.git/**", "**/.playwright-mcp/**", "**/.run/**", "**/.tmp/**", "**/target/**"],
     },
   },
-  build: {
-    chunkSizeWarningLimit: 800,
-    outDir: "dist",
-    emptyOutDir: true,
-    rolldownOptions: {
-      checks: {
-        pluginTimings: false,
-      },
-      output: {
-        strictExecutionOrder: true,
-        codeSplitting: {
-          maxSize: 800_000,
-          groups: [
-            { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
-            { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
-            { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
-            {
-              name: "document-surface",
-              test: /\/src\/(?:components\/document|plots)\//,
+  build:
+    mode === "report"
+      ? {
+          outDir: "../../target/generated/report",
+          emptyOutDir: true,
+          rolldownOptions: {
+            input: fileURLToPath(new URL("./report.html", import.meta.url)),
+            checks: { pluginTimings: false },
+          },
+        }
+      : {
+          chunkSizeWarningLimit: 800,
+          outDir: "dist",
+          emptyOutDir: true,
+          rolldownOptions: {
+            checks: {
+              pluginTimings: false,
             },
-          ],
+            output: {
+              strictExecutionOrder: true,
+              codeSplitting: {
+                maxSize: 800_000,
+                groups: [
+                  { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
+                  { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
+                  { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
+                  {
+                    name: "document-surface",
+                    test: /\/src\/(?:components\/document|plots)\//,
+                  },
+                ],
+              },
+            },
+          },
         },
-      },
-    },
-  },
   test: { ...workspace.test, setupFiles: ["tests/setup.ts"] },
 }));

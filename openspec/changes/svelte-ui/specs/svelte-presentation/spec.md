@@ -8,7 +8,7 @@ Define the shared Svelte rendering stack and preserve the operator experience ac
 
 ### Requirement: Shared Svelte Presentation
 
-The desktop and frozen report SHALL use Svelte 5 and share their document and plot components. The frontend presentation and its build SHALL have one component framework.
+The desktop and frozen report SHALL use Svelte 5 and share their document and plot components in `crates/dokime-gui`. The frontend presentation and its build SHALL have one component framework.
 
 #### Scenario: Build Both Surfaces
 
@@ -58,3 +58,8 @@ The report SHALL remain one self-contained HTML file using the current embedded 
 - **WHEN** an operator opens a saved report in an isolated browser with network requests disabled
 - **THEN** the embedded capture renders the recorded cycle, document and plots with its saved appearance
 - **AND** the report uses no external assets or live host calls
+
+#### Scenario: Build the Report With an Isolated Module Graph
+
+- **WHEN** Vite builds the frozen report entry
+- **THEN** its module graph excludes Tauri, routing, query clients and desktop-only modules

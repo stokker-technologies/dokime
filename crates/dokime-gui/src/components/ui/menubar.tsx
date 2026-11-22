@@ -1,7 +1,7 @@
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import * as radix from "radix-ui";
 import type * as React from "react";
-import { cn } from "@dokime/plots/lib/utils";
+import { cn } from "@/lib/utils";
 
 function Menubar({ className, ...props }: React.ComponentProps<typeof radix.Menubar.Root>) {
   return (

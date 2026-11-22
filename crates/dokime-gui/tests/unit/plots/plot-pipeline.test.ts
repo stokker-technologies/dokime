@@ -31,13 +31,13 @@ import {
   Reduction,
   SnapshotsWatchResponseSchema,
 } from "@generated/host/model";
-import { documentPlot } from "@dokime/document/lib/document-presentation";
+import { documentPlot } from "@/lib/document-presentation";
 import { Downsample, PlotStreamKind } from "@generated/host/model";
 import { mapNativePlotWatchPage, openNativePlotStream } from "@/lib/api/native-plots";
 import { plotsSnapshotsWatch } from "@/lib/host/client";
-import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
-import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
-import { applyPlotMessages, emptyLivePlotState } from "@dokime/plots/live-frames";
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
+import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
 
 import { plotRequestForDocumentPlot } from "@/plots/live-data";
 

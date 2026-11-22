@@ -27,8 +27,8 @@
 
 /* === Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
+import { failureOf } from "@/lib/notification-details";
+import { ErrorCard } from "@/components/ErrorCard";
 
 // Standard Library Imports
 
@@ -36,16 +36,16 @@ import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { useEffect, useMemo, useRef } from "react";
 
 // Local Imports
-import { stepRecordLabel } from "@dokime/document/components/document/StepRecordsCard";
+import { stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { PromptPanel } from "@/components/PromptPanel";
-import { Badge } from "@dokime/plots/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { type PromptValue, type PromptValues, promptResponseValues } from "@/lib/prompts";
-import { recordLevelLabel, recordLevelVariant } from "@dokime/plots/lib/record-display";
-import type { HubRecord, PromptField, PromptRequest, StepExecutionRecord } from "@dokime/plots/lib/types";
-import { STATUS_PILL_CLASS } from "@dokime/document/features/cycle/cycle-workspace-model";
-import { ExecutionSectionCard } from "@dokime/document/features/cycle/ExecutionSectionCard";
-import { PromptAnswers } from "@dokime/document/features/cycle/PromptHistory";
-import { answeredPrompts, pendingPromptCountLabel, queuePrompts } from "@dokime/document/features/cycle/prompt-banner-model";
+import { recordLevelLabel, recordLevelVariant } from "@/lib/record-display";
+import type { HubRecord, PromptField, PromptRequest, StepExecutionRecord } from "@/lib/types";
+import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { ExecutionSectionCard } from "@/features/cycle/ExecutionSectionCard";
+import { PromptAnswers } from "@/features/cycle/PromptHistory";
+import { answeredPrompts, pendingPromptCountLabel, queuePrompts } from "@/features/cycle/prompt-banner-model";
 import { usePromptResponseMutation } from "./server-state";
 import { usePromptValues } from "./use-prompt-values";
 

@@ -14,11 +14,11 @@
 // Third Party Imports
 
 // Local Imports
-import { DocumentViewRenderer } from "@dokime/document/components/document/DocumentViewRenderer";
-import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
-import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot } from "@dokime/plots/lib/types";
-import { emptyLivePlotState, type LivePlotStateMap } from "@dokime/plots/live-frames";
-import { PlotSettingsEditorContext } from "@dokime/plots/plot-settings";
+import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot } from "@/lib/types";
+import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
+import { PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { PlotSettingsButton } from "../../../src/plots/PlotSettingsDialog";
 
 /* === Re-Exports === */

@@ -15,12 +15,12 @@ import { type ReactNode, useEffect, useState } from "react";
 
 /* === Local Imports === */
 
-import { DokimeToaster } from "@dokime/document/components/DokimeToaster";
-import { type ThemeModePolicy, useAppearance } from "@dokime/document/lib/appearance";
+import { DokimeToaster } from "@/components/DokimeToaster";
+import { type ThemeModePolicy, useAppearance } from "@/lib/appearance";
 import { AppearanceProvider } from "@/lib/NativeAppearanceProvider";
-import { useApplicationTheme } from "@dokime/document/lib/application-theme";
+import { useApplicationTheme } from "@/lib/application-theme";
 import { DesktopThemeProvider } from "@/lib/DesktopThemeProvider";
-import { isTauriDesktop } from "@dokime/document/lib/surface-environment";
+import { isTauriDesktop } from "@/lib/surface-environment";
 import { useNativeSessionOptional } from "./native-session/context";
 import { createDokimeQueryClient } from "./query-client";
 import { DesktopPresentation } from "./DesktopPresentation";

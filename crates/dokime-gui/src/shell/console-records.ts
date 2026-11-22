@@ -15,8 +15,8 @@
  */
 
 /* === External Imports === */
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { toast } from "@dokime/plots/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import { useCallback, useEffect } from "react";
 import { useStore } from "zustand";
 
@@ -24,7 +24,7 @@ import { useStore } from "zustand";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openTraceStream, NativeTraceHistoryExpired, type TraceLevel } from "@/lib/api/native-logs";
 import { normalizeRpcError } from "@/lib/rpc/errors";
-import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "@dokime/document/shell/console-buffer";
+import { type ConsoleRecords, consoleBufferKey, consoleRecordsStore, EMPTY_CONSOLE_BUFFER } from "@/shell/console-buffer";
 
 /* === Constants === */
 

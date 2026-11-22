@@ -25,7 +25,7 @@ import { parseArgs } from "node:util";
 // Third Party Imports
 
 // Local Imports
-import type { ArtifactSource, Delivered } from "@dokime/document/lib/contracts/delivery";
+import type { ArtifactSource, Delivered } from "@/lib/contracts/delivery";
 import type { Document } from "@generated/typescript/application-settings";
 import type { Session } from "./native-fixture.ts";
 import {

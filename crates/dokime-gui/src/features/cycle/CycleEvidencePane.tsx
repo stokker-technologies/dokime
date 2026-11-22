@@ -23,17 +23,17 @@
 /* === External Imports === */
 
 import type { EvidenceScope } from "@generated/host/model";
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import { type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import type { HubLiveState, PromptRequest, TestCyclePlan } from "@dokime/plots/lib/types";
-import { CycleEvidenceView } from "@dokime/document/features/cycle/CycleEvidenceView";
+import type { HubLiveState, PromptRequest, TestCyclePlan } from "@/lib/types";
+import { CycleEvidenceView } from "@/features/cycle/CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { DocumentPagination } from "./DocumentPagination";
-import { evidencePaneState } from "@dokime/document/features/cycle/document-query-model";
-import { usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
+import { evidencePaneState } from "@/features/cycle/document-query-model";
+import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import { PromptQueue } from "./PromptQueue";
 import { useCycleDocumentQuery } from "./server-state";
 

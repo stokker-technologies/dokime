@@ -48,9 +48,9 @@ import {
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import { downloadNativeReport, type NativeReportSource } from "@/lib/api/native-reports";
-import { reportFilename } from "@dokime/document/features/cycle/cycle-workspace-model";
+import { reportFilename } from "@/features/cycle/cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
-import { frozenQuery, useCycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
+import { frozenQuery, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 
 /* === Constants === */
 

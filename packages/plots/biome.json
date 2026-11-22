@@ -1,9 +1,0 @@
-{
-  "extends": ["../../biome.json"],
-  "files": {
-    "includes": ["**/*.json", "**/*.ts", "**/*.tsx"]
-  },
-  "vcs": {
-    "root": "../.."
-  }
-}

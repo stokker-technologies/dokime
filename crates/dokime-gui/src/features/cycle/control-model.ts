@@ -30,13 +30,9 @@
 // Third Party Imports
 
 // Local Imports
-import type { TestCycle, TestExecution } from "@dokime/plots/lib/types";
+import type { TestCycle, TestExecution } from "@/lib/types";
 import type { RerunNotices } from "@/stores/rerun-notice-store";
-import {
-  executionStatusLabel,
-  isTerminalExecutionStatus,
-  isUnstartedExecution,
-} from "@dokime/document/features/cycle/cycle-workspace-model";
+import { executionStatusLabel, isTerminalExecutionStatus, isUnstartedExecution } from "@/features/cycle/cycle-workspace-model";
 
 /* === Re-Exports === */
 

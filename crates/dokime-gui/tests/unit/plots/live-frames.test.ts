@@ -24,8 +24,8 @@ import { create } from "@bufbuild/protobuf";
 import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@generated/host/model";
 import { PlotStreamKind } from "@generated/host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
-import type { PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
-import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState } from "@dokime/plots/live-frames";
+import type { PlotPayloadStreamMessage } from "@/lib/types";
+import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState } from "@/plots/live-frames";
 
 /* === Re-Exports === */
 

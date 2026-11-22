@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import type { BuildIdentity } from "@dokime/document/lib/contracts/connection";
+import type { BuildIdentity } from "@/lib/contracts/connection";
 
 /* === Re-Exports === */
 

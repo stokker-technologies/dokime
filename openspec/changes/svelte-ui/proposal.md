@@ -23,4 +23,4 @@ Existing desktop, plot, and report capabilities retain their requirements.
 
 ## Impact
 
-This changes `packages/plots`, `packages/document`, `packages/report`, `crates/dokime-gui`, their frontend tooling, and the pnpm workspace dependency graph. The checkout has no `packages/dokime` package. Host contracts, Rust domain crates, plugins, SDKs, documentation content, and hosted CI are outside the implementation boundary.
+This consolidates the plots, document, and report packages into `crates/dokime-gui` and removes `packages/`. It changes the application and report entries, frontend tooling, and pnpm workspace dependencies. Host contracts, Rust domain crates, plugins, SDKs, documentation content, and GitHub workflow files are outside the implementation boundary.

@@ -2,23 +2,23 @@
 
 /* === Imports === */
 
-import { appearanceFrameFromNative } from "@dokime/document/lib/native-appearance";
+import { appearanceFrameFromNative } from "@/lib/native-appearance";
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import { toast } from "@dokime/plots/lib/notifications";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import { useEffect, useMemo, type ReactNode } from "react";
 
 /* === Local Imports === */
 
 import { useNativeAppearance } from "@/app/native-session/context";
-import { BrandProvider, bootOrganization, brandFromLogos, defaultBrand, organizationPack, packLogos } from "@dokime/document/lib/brand";
+import { BrandProvider, bootOrganization, brandFromLogos, defaultBrand, organizationPack, packLogos } from "@/lib/brand";
 
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
-import { applyBrandFavicon } from "@dokime/document/lib/favicon";
-import type { RuntimeAppLogo, RuntimeAppearanceFrame } from "@dokime/plots/lib/types/appearance";
-import { isReportBuild } from "@dokime/document/lib/ui-mode";
+import { applyBrandFavicon } from "@/lib/favicon";
+import type { RuntimeAppLogo, RuntimeAppearanceFrame } from "@/lib/types/appearance";
+import { isReportBuild } from "@/lib/ui-mode";
 
-import { AppearanceContext, defaultAppearanceFrame, packOrganization, type Appearance } from "@dokime/document/lib/appearance";
+import { AppearanceContext, defaultAppearanceFrame, packOrganization, type Appearance } from "@/lib/appearance";
 
 /* === Components === */
 

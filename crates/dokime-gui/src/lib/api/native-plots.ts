@@ -12,12 +12,12 @@
 /* === Imports === */
 
 import { PlotKind, PlotStreamKind, type PlotRequest, type SnapshotsWatchResponse } from "@generated/host/model";
-import { type PlotEnvelope, mapNativePlotEnvelope, mapNativePlotPayload } from "@dokime/plots/lib/api/native-plot-projection";
+import { type PlotEnvelope, mapNativePlotEnvelope, mapNativePlotPayload } from "@/lib/api/native-plot-projection";
 import { plotsSnapshotsList, plotsSnapshotsWatch } from "@/lib/host/client";
-import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";
+import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { DocumentPlotType, PlotPayloadStreamMessage, PlotPayloadEnvelope } from "@dokime/plots/lib/types";
-import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber } from "@dokime/plots/lib/api/native-values";
+import type { DocumentPlotType, PlotPayloadStreamMessage, PlotPayloadEnvelope } from "@/lib/types";
+import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber } from "@/lib/api/native-values";
 
 /* === Constants === */
 

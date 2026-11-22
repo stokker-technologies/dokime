@@ -1,6 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { ConnectedSession } from "@/app/native-session/session";
-import type { NotificationFailure } from "@dokime/plots/lib/notification-details";
+import type { NotificationFailure } from "@/lib/notification-details";
 
 /** Native Actions Are Supplied To Host-Free Failure Presentation. */
 export function failureRecovery(session: ConnectedSession | null, failure: NotificationFailure): (() => Promise<void>) | undefined {

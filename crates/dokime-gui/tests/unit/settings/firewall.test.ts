@@ -39,7 +39,7 @@ const fixture = vi.hoisted(() => ({
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => fixture.invoke(...args) }));
-vi.mock("@dokime/document/lib/brand", () => ({ useBrand: () => ({ label: fixture.label }) }));
+vi.mock("@/lib/brand", () => ({ useBrand: () => ({ label: fixture.label }) }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryFn }: { queryFn: () => Promise<unknown> }) => {
     fixture.inspect = queryFn;
@@ -50,7 +50,7 @@ vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useState: (initial: unknown) => [initial, (value: unknown) => fixture.messages.push(value)],
 }));
-vi.mock("@dokime/plots/components/ui/button", () => ({
+vi.mock("@/components/ui/button", () => ({
   Button: ({ onClick }: { onClick: () => void }) => {
     fixture.click = onClick;
     return createElement("button", { onClick, type: "button" });

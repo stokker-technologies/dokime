@@ -13,7 +13,7 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { DownloadReportAction } from "@/features/cycle/DownloadReportAction";
-import { DropdownMenu, DropdownMenuContent } from "@dokime/plots/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 
 /* === Constants === */
 

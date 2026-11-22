@@ -14,22 +14,22 @@ import type { EvidenceScope } from "@generated/host/model";
 
 /* === Local Imports === */
 
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import { PromptKind } from "@generated/host/model";
 import { PromptFieldKind, PromptActionEmphasis } from "@generated/host/model";
 import { StreamMatchOperator, type EvidenceCondition } from "@generated/host/model";
 import { Severity } from "@generated/host/model";
-import { jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@dokime/plots/lib/host/values";
+import { jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@/lib/host/values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { CommandReceipt, PromptRequest } from "@dokime/plots/lib/types";
-import { numericValue } from "@dokime/plots/lib/utils";
-import { NativeApiLimitError, nowIso, timestampIso } from "@dokime/plots/lib/api/native-values";
+import type { CommandReceipt, PromptRequest } from "@/lib/types";
+import { numericValue } from "@/lib/utils";
+import { NativeApiLimitError, nowIso, timestampIso } from "@/lib/api/native-values";
 
 /* === Types === */
 
 type PromptView = Wire<NonNullable<Awaited<ReturnType<typeof rpc.promptsGet>>["prompt"]>>;
-import { required } from "@dokime/plots/lib/rpc/canonical";
+import { required } from "@/lib/rpc/canonical";
 type PromptInstance = NonNullable<PromptView["prompt"]>;
 type NativePromptResponse = NonNullable<PromptView["response"]>;
 type PromptDefinition = NonNullable<PromptInstance["definition"]>;

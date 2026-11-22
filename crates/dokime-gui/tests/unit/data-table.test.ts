@@ -24,10 +24,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
-import { DataTableColumnHeader } from "@dokime/plots/components/data-table/DataTableColumnHeader";
-import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@dokime/plots/components/data-table/data-table-model";
-import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
+import { DataTable, DataTableRowActions } from "@/components/data-table/DataTable";
+import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
+import { type DataTableFeatures, dataTableColumns, dataTableFeatures } from "@/components/data-table/data-table-model";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 /* === Re-Exports === */
 

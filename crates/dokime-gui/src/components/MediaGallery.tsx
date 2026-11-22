@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -17,8 +17,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from "@/lib/api/native-content";
 import { prepareNativeMedia } from "@/lib/api/native-delivery";
-import { isReportBuild } from "@dokime/document/lib/ui-mode";
-import { MediaGallerySurface, useMediaGallery } from "@dokime/document/components/MediaGalleryView";
+import { isReportBuild } from "@/lib/ui-mode";
+import { MediaGallerySurface, useMediaGallery } from "@/components/MediaGalleryView";
 import {
   artifactContentKey,
   isNativeArtifactSource,
@@ -27,7 +27,7 @@ import {
   type MediaPreviewState,
   mediaArtifactSource,
   mediaBlobType,
-} from "@dokime/document/components/media-gallery-model";
+} from "@/components/media-gallery-model";
 
 /* === Types === */
 type MediaUrlEntry = {

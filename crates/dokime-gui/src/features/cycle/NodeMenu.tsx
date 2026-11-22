@@ -23,7 +23,7 @@ import { Archive, ArchiveRestore, Ellipsis, LockKeyhole, Play, Plus, Repeat, Rot
 import { Fragment, type ReactNode } from "react";
 
 // Local Imports
-import { Button } from "@dokime/plots/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -31,8 +31,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dokime/plots/components/ui/dropdown-menu";
-import { type NodeMenuItem, nodeMenuGroups } from "@dokime/document/features/cycle/cycle-workspace-model";
+} from "@/components/ui/dropdown-menu";
+import { type NodeMenuItem, nodeMenuGroups } from "@/features/cycle/cycle-workspace-model";
 
 /* === Re-Exports === */
 

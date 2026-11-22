@@ -17,7 +17,7 @@ import { test } from "vitest";
 
 // Local Imports
 import { EXECUTION_FILE_WINDOW_BYTES, pageExecutionFile } from "@/lib/execution-file-paging";
-import type { ExecutionFileLifecycle, ExecutionFileReadWindow } from "@dokime/plots/lib/types";
+import type { ExecutionFileLifecycle, ExecutionFileReadWindow } from "@/lib/types";
 
 /* === Re-Exports === */
 

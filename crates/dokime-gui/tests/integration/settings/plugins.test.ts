@@ -24,7 +24,7 @@ import { beforeEach, onTestFinished, test, vi } from "vitest";
 // Local Imports
 import { type InstallPluginProgress, installNativePlugin, getNativePlugin } from "@/lib/api/native-plugins";
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { failureOf } from "@/lib/notification-details";
 import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugins/InstalledPluginSettingsForm";
 import { mapNativeRuntimePluginSettings, updateNativePluginSettings } from "@/lib/api/native-settings";
 import type { SettingValues } from "@/features/settings/installed-plugins/installed-plugin-contracts";

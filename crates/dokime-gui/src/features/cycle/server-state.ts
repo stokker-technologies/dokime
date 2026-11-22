@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import type { Wire } from "@dokime/plots/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@generated/host/model";
 import { useMutation, useQueries, useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -20,12 +20,7 @@ import { createRuntimeProjectionRefreshCoordinator, type RuntimeProjectionRefres
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
-import {
-  mapNativeDocument,
-  mapNativeDocumentCard,
-  nativeDocumentCardKey,
-  type CompletedDocument,
-} from "@dokime/document/lib/api/native-documents";
+import { mapNativeDocument, mapNativeDocumentCard, nativeDocumentCardKey, type CompletedDocument } from "@/lib/api/native-documents";
 import {
   RECORD_TAIL,
   appendRecordTail,
@@ -37,16 +32,16 @@ import {
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
-import { failureOf } from "@dokime/plots/lib/notification-details";
-import type { DocumentViewCard, DocumentViewPayload } from "@dokime/plots/lib/types";
+import { failureOf } from "@/lib/notification-details";
+import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import {
   fetchNativeDocument,
   type NativeDocumentCapture,
   type NativeDocumentRequest,
   type NativeDocumentSession,
 } from "../../lib/api/native-document-session";
-import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "@dokime/document/features/cycle/document-query-model";
-import { frozenQuery, useCycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
+import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "@/features/cycle/document-query-model";
+import { frozenQuery, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 
 /* === Constants === */
 

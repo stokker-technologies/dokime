@@ -16,13 +16,13 @@ import { useId, useState } from "react";
 
 /* === Local Imports === */
 
-import { ErrorCard } from "@dokime/plots/components/ErrorCard";
-import { Button } from "@dokime/plots/components/ui/button";
-import { Input } from "@dokime/plots/components/ui/input";
+import { ErrorCard } from "@/components/ErrorCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { commands } from "@/lib/desktop/commands";
 import type { SavedSettingsChange } from "@/lib/desktop/settings";
-import { formatUnitLabel } from "@dokime/plots/lib/format";
-import { failureOf } from "@dokime/plots/lib/notification-details";
+import { formatUnitLabel } from "@/lib/format";
+import { failureOf } from "@/lib/notification-details";
 import { SettingsCard } from "../SettingsCard";
 import { SettingsRow } from "../SettingsRow";
 

@@ -23,7 +23,7 @@ import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
 import { updateNativePluginSettings } from "@/lib/api/native-settings";
-import { appearanceQueryKey } from "@dokime/document/lib/appearance";
+import { appearanceQueryKey } from "@/lib/appearance";
 
 /* === Query Keys === */
 
