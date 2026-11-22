@@ -47,7 +47,7 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Resume";
 pub async fn handle(context: &Context, request: UploadsResumeRequest) -> Result<UploadsResumeResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let session = transfer::session(request.upload)?;
-        let mutation = transfer::mutation(context, ID, &request.request_id).await?;
+        let (maximum, mutation) = transfer::admission(context, ID, &request.request_id).await?;
         let mut native = CreateFileWriterRequest {
             session: Some(session),
             mutation: Some(mutation),
@@ -62,7 +62,7 @@ pub async fn handle(context: &Context, request: UploadsResumeRequest) -> Result<
         Ok(UploadsResumeResponse {
             upload: response.production.map(transfer::upload),
             receipt: response.receipt,
-            chunk_bytes: transfer::chunk_bytes(context).await? as u64,
+            chunk_bytes: maximum as u64,
             message_bytes: context.settings.message_bytes as u64,
         })
     })

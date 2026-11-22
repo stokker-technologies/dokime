@@ -39,7 +39,12 @@ import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
 import { failureOf } from "@dokime/plots/lib/notification-details";
 import type { DocumentViewCard, DocumentViewPayload } from "@dokime/plots/lib/types";
-import { fetchNativeDocument, type NativeDocumentRequest, type NativeDocumentSession } from "../../lib/api/native-document-session";
+import {
+  fetchNativeDocument,
+  type NativeDocumentCapture,
+  type NativeDocumentRequest,
+  type NativeDocumentSession,
+} from "../../lib/api/native-document-session";
 import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "@dokime/document/features/cycle/document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
 
@@ -355,23 +360,27 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
   const queries = queryClient.getQueryCache().findAll({ queryKey: [...workflowQueryKeys.all, "documents"] });
-  await Promise.all(
-    queries.map((query) => {
-      let refresh = documentRefreshes.get(query);
-      if (!refresh) {
-        refresh = createRuntimeProjectionRefreshCoordinator(() =>
-          queryClient.invalidateQueries({ predicate: (candidate) => candidate === query }, { cancelRefetch: false }),
-        );
-        documentRefreshes.set(query, refresh);
-      }
-      return refresh.request({ ensureTrailing: query.isActive() && query.state.fetchStatus === "fetching" });
-    }),
-  );
+  for (const cards of [false, true]) {
+    await Promise.all(
+      queries
+        .filter((query) => (query.queryKey.at(-3) === "cards") === cards)
+        .map((query) => {
+          let refresh = documentRefreshes.get(query);
+          if (!refresh) {
+            refresh = createRuntimeProjectionRefreshCoordinator(() =>
+              queryClient.invalidateQueries({ predicate: (candidate) => candidate === query }, { cancelRefetch: false }),
+            );
+            documentRefreshes.set(query, refresh);
+          }
+          return refresh.request({ ensureTrailing: query.isActive() && query.state.fetchStatus === "fetching" });
+        }),
+    );
+  }
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }),
+    invalidateRuntimeDocuments(queryClient),
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }),
   ]);
 }
@@ -434,7 +443,10 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
 /* === Captured Documents === */
 
 /** The documents last captured, by query: a capture whose frontiers are unchanged answers these. */
-const capturedDocuments = new Map<string, { completed?: CompletedDocument; current: CompletedDocument; mapped: DocumentViewPayload }>();
+const capturedDocuments = new Map<
+  string,
+  { completed?: NativeDocumentCapture; current: NativeDocumentCapture; mapped: DocumentViewPayload }
+>();
 const documentRefreshes = new WeakMap<Query, RuntimeProjectionRefreshCoordinator>();
 
 /** The most open documents remembered at once; the oldest is forgotten first. */
@@ -447,7 +459,7 @@ const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;
  */
 async function capturedDocument(
   queryKey: readonly unknown[],
-  capture: (previous: CompletedDocument | null, publish: (document: CompletedDocument) => void) => Promise<CompletedDocument>,
+  capture: (previous: NativeDocumentCapture | null, publish: (document: NativeDocumentCapture) => void) => Promise<NativeDocumentCapture>,
   publish: (document: DocumentViewPayload) => void,
 ): Promise<DocumentViewPayload> {
   const key = JSON.stringify(queryKey);
@@ -499,7 +511,7 @@ function useDocumentNavigation(owner: string) {
   };
 }
 
-type CardRead = { document: CompletedDocument; card: DocumentViewCard };
+type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
 
 function useDocumentCards({
   document,
@@ -535,17 +547,25 @@ function useDocumentCards({
       retryDelay: documentRetryDelay,
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<CardRead> => {
         if (!session) throw new Error("A connected native backend is required.");
+        const latest = capturedDocuments.get(JSON.stringify(queryKey));
+        const source = latest?.current.bindings.has(id) ? latest.current : latest?.completed;
         const previous = queryClient.getQueryData<CardRead>(key);
-        const captured = await fetchNativeDocument(session, { ...request, cardIds: [id], page }, signal, previous?.document);
+        const captured = await fetchNativeDocument(
+          session,
+          { ...request, cardIds: [id], at: source?.resolvedAt, page },
+          signal,
+          previous?.document,
+        );
         if (previous && captured === previous.document) return previous;
         return { document: captured, card: mapNativeDocumentCard(captured, id) };
       },
     })),
   });
+  const cards = new Map(document?.cards.map((card) => [card.card_id, card]));
   const values = new Map(
     results.map((query, index) => {
       const id = candidates[index]?.id;
-      const original = document?.cards.find((card) => card.card_id === id);
+      const original = id === undefined ? undefined : cards.get(id);
       if (!original) return [id, undefined] as const;
       if (query.error)
         return [id, { ...(query.data?.card ?? original), loading: false, failure: failureOf(query.error, original.title) }] as const;
@@ -559,7 +579,8 @@ function useDocumentCards({
       await results[index]?.refetch();
       return;
     }
-    await Promise.all([retryRoot(), ...results.filter((query) => query.error || query.data?.card.failure).map((query) => query.refetch())]);
+    await retryRoot();
+    await Promise.all(results.filter((query) => query.error || query.data?.card.failure).map((query) => query.refetch()));
   };
   return { data, retryCard, page: held?.current.page };
 }
