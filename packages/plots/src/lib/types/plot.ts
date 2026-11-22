@@ -72,6 +72,7 @@ export type DocumentPlotType =
   | "trajectory"
   | "contour"
   | "grid_chart"
+  | "heat_strip"
   | "bar"
   | "pie"
   | "histogram"

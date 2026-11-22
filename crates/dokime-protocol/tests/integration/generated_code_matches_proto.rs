@@ -415,3 +415,31 @@ fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
     assert_eq!(restored.operations[0].request, restored.operations[1].request);
     assert_eq!(case.steps[1].operation, restored.operations[1].id);
 }
+
+#[test]
+fn heat_strip_builder_roundtrips_and_request_shape_refuses_invalid_options() {
+    let source = FieldReference::new("scan");
+    for reduction in [Reduction::Last, Reduction::Max, Reduction::Mean, Reduction::Count] {
+        let plot =
+            builders::Plot::heat_strip(source.field("value")).cells(source.field("cell")).facet(source.field("facet")).reduce(reduction);
+        let model = plot.message;
+        assert_eq!(dokime_protocol::model::Plot::decode(model.encode_to_vec().as_slice()).unwrap(), model);
+        let mut request = dokime_protocol::host::plots::PlotRequest {
+            plot_type: model.kind,
+            y_expressions: model.y,
+            cell_expression: model.cell,
+            facet_expression: model.facet,
+            reduction: model.reduction,
+            ..Default::default()
+        };
+        assert!(request.validate_heat_strip().is_ok());
+        request.reduction = None;
+        assert!(request.validate_heat_strip().is_ok());
+        request.reduction = Some(Reduction::Min as i32);
+        assert!(request.validate_heat_strip().is_err());
+        request.reduction = Some(reduction as i32);
+        request.cell_expression = None;
+        assert!(request.validate_heat_strip().is_err());
+    }
+    assert_eq!(builders::Plot::heat_strip(source.field("value")).message.reduction, Some(Reduction::Last as i32));
+}

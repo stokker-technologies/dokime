@@ -20,7 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::model::{Metadata, Plot, PlotKind};
+use crate::host::plots::PlotRequest;
+use crate::model::{PlotKind, Reduction};
 
 /* === Constants === */
 
@@ -35,25 +36,6 @@ use crate::model::{Metadata, Plot, PlotKind};
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Plot {
-    pub fn new(identifier: impl Into<String>, label: impl Into<String>, kind: PlotKind) -> Self {
-        Self {
-            metadata: Some(Metadata::new(identifier, label)),
-            kind: kind as i32,
-            ..Default::default()
-        }
-    }
-
-    pub fn line(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self::new(identifier, label, PlotKind::TimeSeries)
-    }
-
-    pub fn unit(mut self, unit: impl Into<String>) -> Self {
-        self.unit = unit.into();
-        self
-    }
-}
 
 impl PlotKind {
     /// Parse a declared kind, refusing retired spellings with authoring guidance.
@@ -87,6 +69,43 @@ impl PlotKind {
         }
         let kind = Self::try_from(number).ok().filter(|kind| *kind != Self::Unspecified);
         kind.ok_or_else(|| format!("use a declared plot kind number instead of {number}"))
+    }
+}
+
+impl PlotRequest {
+    pub fn validate_heat_strip(&self) -> Result<(), String> {
+        let heat_strip = self.plot_type == PlotKind::HeatStrip as i32;
+        if !heat_strip {
+            if self.reduction.is_some_and(|value| matches!(Reduction::try_from(value), Ok(Reduction::Last | Reduction::Count))) {
+                return Err("Query Plot: Use Last and Count Reductions Only in a Heat Strip".into());
+            }
+            if self.cell_expression.is_some() || self.facet_expression.is_some() {
+                return Err("Query Plot: Use Cell and Facet Expressions Only in a Heat Strip".into());
+            }
+            return Ok(());
+        }
+        if self.cell_expression.is_none() || (if self.y_expressions.is_empty() { self.y_keys.len() } else { self.y_expressions.len() }) != 1
+        {
+            return Err("Query Heat Strip: Supply One Value Expression and a Cell Expression".into());
+        }
+        if self.x_expression.is_some()
+            || self.z_expression.is_some()
+            || self.series_by_expression.is_some()
+            || self.series_by.is_some()
+            || self.grid.is_some()
+            || self.xy_interval.is_some()
+            || self.arrangement.is_some()
+            || self.pareto
+            || self.hole.is_some()
+        {
+            return Err("Query Heat Strip: Use Cells and Facet for Grouping and Remove Other Plot Options".into());
+        }
+        if self.reduction.is_some_and(|value| {
+            !matches!(Reduction::try_from(value), Ok(Reduction::Last | Reduction::Max | Reduction::Mean | Reduction::Count))
+        }) {
+            return Err("Query Heat Strip: Select Last, Max, Mean or Count".into());
+        }
+        Ok(())
     }
 }
 

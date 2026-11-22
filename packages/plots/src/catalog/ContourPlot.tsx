@@ -13,12 +13,12 @@ import type { ContourGrid } from "@host/model";
 import type { Wire } from "../lib/rpc/canonical";
 import { contours } from "d3-contour";
 import { geoPath, geoTransform } from "d3-geo";
-import { scaleLinear, scaleLog, scaleSequential } from "d3-scale";
-import { interpolateYlOrRd } from "d3-scale-chromatic";
+import { scaleLinear, scaleLog } from "d3-scale";
 import { useEffect, useId, useRef } from "react";
 
 /* === Local Imports === */
 
+import { sequentialColorScale } from "../colors";
 import { formatNumber, formatUnitLabel } from "../lib/format";
 
 import { PlotPlaceholder } from "../PlotPlaceholder";
@@ -65,14 +65,7 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
   const width = WIDTH - MARGIN.left - MARGIN.right;
   const height = HEIGHT - MARGIN.top - MARGIN.bottom;
   const values = grid.values.filter((_, index) => grid.valid[index]);
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-  for (const value of values) {
-    min = Math.min(min, value);
-    max = Math.max(max, value);
-  }
-  const domain: [number, number] = min === max ? [min - 1, max + 1] : [min, max];
-  const color = scaleSequential(interpolateYlOrRd).domain(domain);
+  const { color } = sequentialColorScale(values);
   const x = (plot.xScale === "log" ? scaleLog : scaleLinear)(
     [grid.xEdges[0], grid.xEdges[grid.columns]],
     [MARGIN.left, MARGIN.left + width],

@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::f64::consts::{E, SQRT_2, TAU};
 use std::iter;
@@ -38,7 +38,7 @@ use dokime_protocol::model::FftDetrend;
 use dokime_protocol::model::FftWindow;
 use dokime_protocol::model::FrequencyLevelUnit;
 use dokime_protocol::model::GridAxisEntry;
-use dokime_protocol::model::GridDefinition;
+use dokime_protocol::model::GridChart;
 use dokime_protocol::model::PlotFftOptions;
 use dokime_protocol::model::PlotIntervalOptions;
 use dokime_protocol::model::Reduction;
@@ -68,6 +68,14 @@ pub type CartesianRead = (PlotFrame, u64, Vec<(String, u64)>);
 type GridReduction = BTreeMap<(String, String), (ScalarValue, ScalarValue, f64, u64)>;
 
 /* === Structs === */
+
+struct ValueGroup {
+    cell: ScalarValue,
+    facet: ScalarValue,
+    latest: Option<Input>,
+    count: u64,
+    accumulator: Option<Accumulator>,
+}
 
 #[derive(Default)]
 struct CartesianGroup {
@@ -113,7 +121,7 @@ impl Store {
         }
         let mut raw_counts = BTreeMap::<String, CartesianGroup>::new();
         let mut count = 0u64;
-        self.kind_values(&request, |row| {
+        self.kind_values(&request, false, |row| {
             if missing(&row.x) {
                 return Ok(());
             }
@@ -138,7 +146,7 @@ impl Store {
         }
 
         let mut rows = Vec::new();
-        self.kind_values(&request, |row| {
+        self.kind_values(&request, false, |row| {
             if missing(&row.x) {
                 return Ok(());
             }
@@ -180,34 +188,83 @@ impl Store {
             keys,
         ))
     }
+    pub fn heat_strip_window(&self, request: KindWindow<'_>, reduction: Reduction) -> Result<CartesianRead> {
+        if request.x.is_none() || request.limit == 0 {
+            return Err(Error::Data("Read Heat Strip: Select Cells and a Positive Display Budget"));
+        }
+        let aggregate = match reduction {
+            Reduction::Last => None,
+            Reduction::Max => Some(Aggregate::Max),
+            Reduction::Mean => Some(Aggregate::Mean),
+            Reduction::Count => Some(Aggregate::Count),
+            _ => return Err(Error::Data("Read Heat Strip: Select Last, Max, Mean or Count")),
+        };
+        let mut groups = self.grouped_values(&request, aggregate, true)?;
+        let budget = self.storage_settings()?.query_bytes.get();
+        let bytes = groups.keys().fold(0usize, |bytes, key| bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len())));
+        let mut cells = BTreeMap::new();
+        let mut facets = BTreeMap::new();
+        for ((facet, cell), group) in &groups {
+            cells.insert(cell.clone(), group.cell.clone());
+            facets.insert(facet.clone(), group.facet.clone());
+        }
+        let mut cells = cells.into_iter().collect::<Vec<_>>();
+        cells.sort_by(|a, b| compare_cells(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
+        let mut facets = facets.into_iter().collect::<Vec<_>>();
+        facets.sort_by(|a, b| compare_cells(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
+        let points = cells.len().checked_mul(facets.len()).ok_or(Error::Data("Read Heat Strip: Select Fewer Cells and Facets"))?;
+        if points > request.limit || bytes.saturating_add(points.saturating_mul(256)) > budget {
+            return Err(Error::Data("Read Heat Strip: Narrow the Window or Select Fewer Cells and Facets"));
+        }
+        let mut frame = PlotFrame {
+            mode: Some(PlotCartesianMode::Faceted as i32),
+            point_count: points as u64,
+            ..Default::default()
+        };
+        let mut counts = Vec::new();
+        let mut count = 0;
+        for (facet, label) in facets {
+            let mut column = PlotColumn::default();
+            let mut raw = 0;
+            for (cell, identity) in &cells {
+                column.x.push(value(identity.clone()));
+                let group = groups.remove(&(facet.clone(), cell.clone()));
+                let (total, at) = match group {
+                    Some(group) => {
+                        raw += group.count;
+                        match group.latest {
+                            Some(latest) => {
+                                let total = match group.accumulator {
+                                    Some(accumulator) => {
+                                        accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?
+                                    }
+                                    None => latest.scalar,
+                                };
+                                (total, instant(latest.time))
+                            }
+                            None => (ScalarValue::Null, String::new()),
+                        }
+                    }
+                    None => (ScalarValue::Null, String::new()),
+                };
+                column.y.push(NullableNumber { value: scalar::number(&total) });
+                column.totals.push(value(total));
+                column.instants.push(at);
+            }
+            count += raw;
+            counts.push((scalar::text(&label), raw));
+            frame.series.push(column);
+        }
+        Ok((frame, count, counts))
+    }
     pub fn category_window(&self, request: KindWindow<'_>, aggregate: Option<Aggregate>, unique: bool) -> Result<CartesianRead> {
-        let mut grouped = BTreeMap::<(String, String), (Input, u64, Accumulator)>::new();
-        self.kind_values(&request, |row| {
-            if missing(&row.x) {
-                return Ok(());
-            }
-            let key = (serde_json::to_string(&row.x)?, serde_json::to_string(&row.g)?);
-            if !grouped.contains_key(&key) && grouped.len() >= request.limit {
-                return Err(Error::Data("narrow categories or select fewer groups"));
-            }
-            if !grouped.contains_key(&key) {
-                grouped.insert(key.clone(), (row.clone(), 0, expressions::accumulator(aggregate.unwrap_or(Aggregate::Sum), 0.0)?));
-            }
-            let entry = grouped.get_mut(&key).unwrap();
-            entry.1 += 1;
-            if aggregate.is_some() {
-                entry.2.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
-            }
-            if row.position > entry.0.position {
-                entry.0 = row;
-            }
-            Ok(())
-        })?;
-        let rows = grouped.into_values().map(|(row, n, accumulator)| {
-            let total = if aggregate.is_some() {
-                accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?
-            } else {
-                row.scalar
+        let grouped = self.grouped_values(&request, aggregate, false)?;
+        let rows = grouped.into_values().map(|group| {
+            let n = group.count;
+            let row = group.latest.ok_or(Error::Data("Read Category Plot: Supply a Numeric Value"))?;
+            let total = match group.accumulator {
+                Some(accumulator) => accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?,
+                None => row.scalar,
             };
             let y = scalar::number(&total).ok_or(Error::Data("Read Category Total: Select a Numeric Aggregate"))?;
             Ok::<_, Error>((row.x, y, row.g, n as i64, total))
@@ -248,13 +305,73 @@ impl Store {
             keys,
         ))
     }
+    fn grouped_values(
+        &self, request: &KindWindow<'_>, aggregate: Option<Aggregate>, heat_strip: bool,
+    ) -> Result<BTreeMap<(String, String), ValueGroup>> {
+        let budget = self.storage_settings()?.query_bytes.get();
+        let mut bytes = 0usize;
+        let mut groups = BTreeMap::<(String, String), ValueGroup>::new();
+        self.kind_values(request, heat_strip, |row| {
+            let invalid_heat_identity = heat_strip
+                && (missing(&row.g)
+                    || scalar::number(&row.x).is_some_and(|v| !v.is_finite())
+                    || scalar::number(&row.g).is_some_and(|v| !v.is_finite()));
+            if missing(&row.x) || invalid_heat_identity {
+                return Ok(());
+            }
+            let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?);
+            if !groups.contains_key(&key) {
+                bytes = bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len()));
+                if groups.len() >= request.limit || bytes > budget {
+                    return Err(Error::Data("Read Grouped Plot: Narrow the Window or Select Fewer Cells and Facets"));
+                }
+                groups.insert(
+                    key.clone(),
+                    ValueGroup {
+                        cell: row.x.clone(),
+                        facet: row.g.clone(),
+                        latest: None,
+                        count: 0,
+                        accumulator: aggregate.map(|kind| expressions::accumulator(kind, 0.0)).transpose()?,
+                    },
+                );
+            }
+            let group = groups.get_mut(&key).unwrap();
+            if !row.y.is_finite() {
+                if !missing(&row.scalar) && scalar::number(&row.scalar).is_none() {
+                    return Err(Error::Data("Read Heat Strip: Select a Numeric Value Expression"));
+                }
+                return Ok(());
+            }
+            group.count += 1;
+            if let Some(accumulator) = &mut group.accumulator {
+                accumulator.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
+            }
+            let replace = group.latest.as_ref().is_none_or(|previous| {
+                let newer = (row.time, row.position) > (previous.time, previous.position);
+                if heat_strip && aggregate == Some(Aggregate::Max) {
+                    let order = compare_cells(&row.scalar, &previous.scalar);
+                    order.is_gt() || order.is_eq() && newer
+                } else if heat_strip {
+                    newer
+                } else {
+                    row.position > previous.position
+                }
+            });
+            if replace {
+                group.latest = Some(row);
+            }
+            Ok(())
+        })?;
+        Ok(groups)
+    }
     pub fn sigma_window(&self, request: KindWindow<'_>, options: PlotIntervalOptions) -> Result<(PlotSigmaIntervalAnalysis, u64)> {
         if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
             return Err(Error::Invalid("Query XY Sigma: Supply Positive Finite Bin Width and Sigma".into()));
         }
         let width = options.bin_width;
         let mut groups = BTreeMap::<(String, i64), (ScalarValue, u64, f64, f64, f64, f64)>::new();
-        self.kind_values(&request, |row| {
+        self.kind_values(&request, false, |row| {
             let Some(x) = scalar::number(&row.x) else {
                 return Ok(());
             };
@@ -318,7 +435,7 @@ impl Store {
         y_log: bool,
     ) -> Result<(ContourGrid, u64)> {
         let mut bounds = (None::<f64>, None::<f64>, None::<f64>, None::<f64>);
-        self.kind_values(&request, |row| {
+        self.kind_values(&request, false, |row| {
             if let (Some(x), Some(_)) = (scalar::number(&row.x), scalar::number(&row.z))
                 && (!x_log || x > 0.0)
                 && (!y_log || row.y > 0.0)
@@ -380,7 +497,7 @@ impl Store {
         };
         let mut counts = vec![0_u64; rows * columns];
         let mut count = 0;
-        self.kind_values(&request, |input| {
+        self.kind_values(&request, false, |input| {
             let (Some(x), Some(z)) = (scalar::number(&input.x), scalar::number(&input.z)) else {
                 return Ok(());
             };
@@ -420,7 +537,7 @@ impl Store {
     }
 
     #[tracing::instrument(name = "plot.grid", skip_all)]
-    pub fn grid_window(&self, request: KindWindow<'_>, definition: &GridDefinition, reduction: Reduction) -> Result<(GridFrames, u64)> {
+    pub fn grid_window(&self, request: KindWindow<'_>, definition: &GridChart, reduction: Reduction) -> Result<(GridFrames, u64)> {
         let frame_key = |input: &Input| -> FrameKey {
             if request.group.is_none() {
                 return FrameKey::Instant(input.time);
@@ -436,7 +553,7 @@ impl Store {
         let mut column_keys = definition.columns.iter().map(|axis| axis.key.clone()).collect::<BTreeSet<_>>();
         let mut grouped = BTreeMap::<FrameKey, GridReduction>::new();
         let mut examined = 0;
-        self.kind_values(&request, |row| {
+        self.kind_values(&request, false, |row| {
             if missing(&row.x) || missing(&row.z) {
                 return Ok(());
             }
@@ -550,7 +667,7 @@ impl Store {
                 limit: request.limit,
             };
             let mut highlights = BTreeMap::<FrameKey, Input>::new();
-            self.kind_values(&binding, |row| {
+            self.kind_values(&binding, false, |row| {
                 let key = frame_key(&row);
                 if !retained_frames.contains(&key) {
                     return Ok(());
@@ -733,7 +850,7 @@ struct Input {
     g: ScalarValue,
 }
 impl Store {
-    fn kind_values(&self, request: &KindWindow<'_>, mut read: impl FnMut(Input) -> Result<()>) -> Result<()> {
+    fn kind_values(&self, request: &KindWindow<'_>, retain_absent: bool, mut read: impl FnMut(Input) -> Result<()>) -> Result<()> {
         let fields =
             iter::once(request.window.field).chain(request.x).chain(request.z).chain(request.group).map(str::to_owned).collect::<Vec<_>>();
         self.evaluated_batches(request.window, &fields, |batch| {
@@ -746,9 +863,11 @@ impl Store {
             let groups = request.group.map(|field| FieldPath::from(format!("values.{field}").as_str()));
             for row in 0..batch.num_rows() {
                 let scalar = ys.value(&batch, row)?;
-                let Some(y) = scalar::number(&scalar).filter(|v| v.is_finite()) else {
+                let number = scalar::number(&scalar).filter(|v| v.is_finite());
+                if number.is_none() && !retain_absent {
                     continue;
-                };
+                }
+                let y = number.unwrap_or(f64::NAN);
                 read(Input {
                     position: positions.value(row),
                     time: times.value(row),
@@ -768,6 +887,59 @@ impl Store {
 
 /* === Private Functions === */
 
+fn compare_cells(left: &ScalarValue, right: &ScalarValue) -> Ordering {
+    match (scalar::number(left), scalar::number(right)) {
+        (Some(_), Some(_)) => match (left, right) {
+            (ScalarValue::Float(left), ScalarValue::Float(right)) => left.partial_cmp(right).unwrap_or(Ordering::Equal),
+            (ScalarValue::Float(left), right) => compare_cell_float(right, *left).reverse(),
+            (left, ScalarValue::Float(right)) => compare_cell_float(left, *right),
+            (ScalarValue::Bool(left), right) => compare_cells(&ScalarValue::Unsigned(u64::from(*left)), right),
+            (left, ScalarValue::Bool(right)) => compare_cells(left, &ScalarValue::Unsigned(u64::from(*right))),
+            _ => left.compare(right).expect("finite exact numeric cells"),
+        },
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        _ => scalar::text(left).cmp(&scalar::text(right)),
+    }
+}
+
+/// Compare a Rational Cell to a Float Without Rounding Away Its Identity.
+fn compare_cell_float(left: &ScalarValue, right: f64) -> Ordering {
+    let (negative, numerator, denominator) = match left {
+        ScalarValue::Signed(value) => (*value < 0, u128::from(value.unsigned_abs()), 1),
+        ScalarValue::Unsigned(value) => (false, u128::from(*value), 1),
+        ScalarValue::Exact(value) => (value.negative, value.numerator, value.denominator.get()),
+        ScalarValue::Bool(value) => (false, u128::from(*value), 1),
+        _ => unreachable!("numeric cell"),
+    };
+    let right_negative = right < 0.0;
+    if negative != right_negative {
+        return if negative { Ordering::Less } else { Ordering::Greater };
+    }
+    let right = right.abs();
+    // All Rational Magnitudes Fit in u128; Saturating Float Casts Would Lose This Boundary.
+    let mut order = if right >= u128::MAX as f64 { Ordering::Less } else { (numerator / denominator).cmp(&(right as u128)) };
+    if order.is_eq() {
+        let mut remainder = numerator % denominator;
+        let mut fraction = right.fract();
+        // Compare Binary Fraction Digits; Subtraction Avoids Overflow When Doubling the Remainder.
+        while fraction != 0.0 {
+            fraction *= 2.0;
+            let right_bit = fraction >= 1.0;
+            fraction = fraction.fract();
+            let left_bit = remainder >= denominator - remainder;
+            remainder = if left_bit { remainder - (denominator - remainder) } else { remainder * 2 };
+            order = left_bit.cmp(&right_bit);
+            if !order.is_eq() {
+                break;
+            }
+        }
+        if order.is_eq() {
+            order = remainder.cmp(&0);
+        }
+    }
+    if negative { order.reverse() } else { order }
+}
 fn value(value: ScalarValue) -> Value {
     scalar::wire(&value).expect("finite plot scalar")
 }
@@ -786,3 +958,80 @@ fn instant(at_ns: i64) -> String {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::cmp::Ordering;
+    use std::num::NonZeroU128;
+
+    use harmos_query::scalar::ExactNumber;
+
+    use super::compare_cells;
+    use crate::scalar::ScalarValue;
+
+    #[test]
+    fn heat_strip_cell_order_is_numeric_then_lexical_without_identity_loss() {
+        let mut cells = [
+            ScalarValue::Text("2".into()),
+            ScalarValue::Text("10".into()),
+            ScalarValue::Unsigned(9_007_199_254_740_993),
+            ScalarValue::Unsigned(9_007_199_254_740_992),
+            ScalarValue::Signed(-1),
+            ScalarValue::Float(2.5),
+        ];
+        cells.sort_by(compare_cells);
+        assert_eq!(
+            cells,
+            [
+                ScalarValue::Signed(-1),
+                ScalarValue::Float(2.5),
+                ScalarValue::Unsigned(9_007_199_254_740_992),
+                ScalarValue::Unsigned(9_007_199_254_740_993),
+                ScalarValue::Text("10".into()),
+                ScalarValue::Text("2".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn heat_strip_mixed_numeric_cells_preserve_exact_fraction_and_float_order() {
+        let exact = |negative, numerator, denominator| {
+            ScalarValue::Exact(ExactNumber::new(negative, numerator, NonZeroU128::new(denominator).unwrap()))
+        };
+        let ordered = [
+            ScalarValue::Float(-f64::MAX),
+            exact(true, u128::MAX, 1),
+            ScalarValue::Signed(i64::MIN),
+            exact(true, 1, 10),
+            ScalarValue::Float(-f64::from_bits(1)),
+            ScalarValue::Signed(0),
+            ScalarValue::Float(f64::from_bits(1)),
+            exact(false, 1, u128::MAX),
+            exact(false, 1, 10),
+            ScalarValue::Float(0.1),
+            ScalarValue::Bool(true),
+            ScalarValue::Float(2.5),
+            ScalarValue::Float(9_007_199_254_740_992.0),
+            ScalarValue::Unsigned(9_007_199_254_740_993),
+            exact(false, u128::MAX, 1),
+            ScalarValue::Float(u128::MAX as f64),
+            ScalarValue::Float(f64::MAX),
+        ];
+        for (index, left) in ordered.iter().enumerate() {
+            assert_eq!(compare_cells(left, left), Ordering::Equal);
+            for right in &ordered[index + 1..] {
+                assert_eq!(compare_cells(left, right), Ordering::Less, "{left:?} < {right:?}");
+                assert_eq!(compare_cells(right, left), Ordering::Greater, "{right:?} > {left:?}");
+            }
+        }
+        for (left, right) in [
+            (ScalarValue::Float(-0.0), ScalarValue::Signed(0)),
+            (ScalarValue::Bool(true), ScalarValue::Unsigned(1)),
+            (exact(false, 5, 2), ScalarValue::Float(2.5)),
+            (ScalarValue::Signed(-2), ScalarValue::Float(-2.0)),
+        ] {
+            assert_eq!(compare_cells(&left, &right), Ordering::Equal);
+            assert_eq!(compare_cells(&right, &left), Ordering::Equal);
+        }
+    }
+}

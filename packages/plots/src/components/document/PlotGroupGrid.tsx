@@ -25,6 +25,7 @@ import { ContourPlot } from "../../catalog/ContourPlot";
 import { HistogramSeriesPlot } from "../../catalog/HistogramPlot";
 import { TimeSeriesPlot } from "../../catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "../../catalog/TrajectoryPlot";
+import { HeatStripPlot } from "../../catalog/HeatStripPlot";
 import { GridChartPlot } from "../../catalog/GridChartPlot";
 import { XyIntervalPlot } from "../../catalog/XyIntervalPlot";
 import { XyPlot } from "../../catalog/XyPlot";
@@ -275,6 +276,9 @@ const LivePlotCard = memo(function LivePlotCard({
 
 function plotCardClassName(plot: PlotCardSpec): string {
   const baseClassName = "min-w-0 max-w-full overflow-hidden";
+  if (plot.plotType === "heat_strip") {
+    return `${baseClassName} min-h-0`;
+  }
   if (plot.plotType === "grid_chart") {
     return `${baseClassName} min-h-0`;
   }
@@ -303,6 +307,9 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   }
   if (plot.analysis?.kind === "error") {
     return <PlotPlaceholder title={plot.title} actions={actions} {...plotUnavailableText(plot.analysis.message)} />;
+  }
+  if (plot.plotType === "heat_strip") {
+    return <HeatStripPlot plot={plot} />;
   }
   if (plot.plotType === "grid_chart") {
     return <GridChartPlot key={plot.key} plot={plot} />;

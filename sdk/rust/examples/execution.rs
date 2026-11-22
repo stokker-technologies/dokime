@@ -87,7 +87,13 @@ fn main() -> Result<()> {
         y: vec![FieldReference::new("execution.execution.capture.reading").field("value")],
         ..Default::default()
     };
-    let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
+    let heat = dokime::builders::Plot::heat_strip(FieldReference::new("execution.execution.capture.reading").field("value"))
+        .cells(dokime::DataExpression {
+            kind: Some(dokime::data_expression::Kind::Literal(dokime::Value { kind: Some(Kind::Text("Reading".into())) })),
+            ..Default::default()
+        })
+        .label("Latest Reading");
+    let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot).plot(heat));
     let revision = env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
     let template = Template::of::<CaptureTestTemplate>()

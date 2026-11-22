@@ -178,68 +178,71 @@ namespace Dokime.Clients.PlotsResources;
             "ASgEUglyYXdQb2ludHMijAEKEFBsb3RTdHJlYW1VcGRhdGUSOAoEa2luZBgB",
             "IAEoDjIkLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RTdHJlYW1LaW5kUgRr",
             "aW5kEj4KCGVudmVsb3BlGAIgASgLMiIuZG9raW1lLmhvc3QudjEucGxvdHMu",
-            "UGxvdEVudmVsb3BlUghlbnZlbG9wZSKsEAoLUGxvdFJlcXVlc3QSRgoLYXJy",
+            "UGxvdEVudmVsb3BlUghlbnZlbG9wZSK9EQoLUGxvdFJlcXVlc3QSRgoLYXJy",
             "YW5nZW1lbnQYASABKA4yHy5kb2tpbWUubW9kZWwudjEuQmFyQXJyYW5nZW1l",
             "bnRIAFILYXJyYW5nZW1lbnSIAQESFgoGcGFyZXRvGAIgASgIUgZwYXJldG8S",
             "FwoEaG9sZRgDIAEoAUgBUgRob2xliAEBEkEKC3h5X2ludGVydmFsGAQgASgO",
             "MhsuZG9raW1lLm1vZGVsLnYxLlh5SW50ZXJ2YWxIAlIKeHlJbnRlcnZhbIgB",
-            "ARIzCgRncmlkGAUgASgLMh8uZG9raW1lLm1vZGVsLnYxLkdyaWREZWZpbml0",
-            "aW9uUgRncmlkEj0KCXJlZHVjdGlvbhgGIAEoDjIaLmRva2ltZS5tb2RlbC52",
-            "MS5SZWR1Y3Rpb25IA1IJcmVkdWN0aW9uiAEBEjYKBnJlbmRlchgHIAEoDjIe",
-            "LmRva2ltZS5tb2RlbC52MS5Db250b3VyUmVuZGVyUgZyZW5kZXISPwoKeV92",
-            "aWV3cG9ydBgIIAEoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RXaW5k",
-            "b3dSCXlWaWV3cG9ydBImCgxwYW5lbF9oZWlnaHQYCSABKA1IBFILcGFuZWxI",
-            "ZWlnaHSIAQESHAoHcGxvdF9pZBgKIAEoCUgFUgZwbG90SWSIAQESNgoJcGxv",
-            "dF90eXBlGAsgASgOMhkuZG9raW1lLm1vZGVsLnYxLlBsb3RLaW5kUghwbG90",
-            "VHlwZRIwCgVzdHlsZRgMIAEoDjIaLmRva2ltZS5tb2RlbC52MS5MaW5lU3R5",
-            "bGVSBXN0eWxlEjMKB3hfc2NhbGUYDSABKA4yGi5kb2tpbWUubW9kZWwudjEu",
-            "QXhpc1NjYWxlUgZ4U2NhbGUSMwoHeV9zY2FsZRgOIAEoDjIaLmRva2ltZS5t",
-            "b2RlbC52MS5BeGlzU2NhbGVSBnlTY2FsZRIWCgZzdHJlYW0YDyABKAlSBnN0",
-            "cmVhbRIVCgZ5X2tleXMYECADKAlSBXlLZXlzEi4KE21hcmtlcl9yZWNvcmRf",
-            "dHlwZXMYESADKAlSEW1hcmtlclJlY29yZFR5cGVzEjUKB2ZpbHRlcnMYEiAD",
-            "KAsyGy5kb2tpbWUubW9kZWwudjEuUGxvdEZpbHRlclIHZmlsdGVycxIYCgV4",
-            "X2tleRgTIAEoCUgGUgR4S2V5iAEBEiAKCXNlcmllc19ieRgUIAEoCUgHUghz",
-            "ZXJpZXNCeYgBARJCCgx4X2V4cHJlc3Npb24YFSABKAsyHy5kb2tpbWUubW9k",
-            "ZWwudjEuRGF0YUV4cHJlc3Npb25SC3hFeHByZXNzaW9uEkQKDXlfZXhwcmVz",
-            "c2lvbnMYFiADKAsyHy5kb2tpbWUubW9kZWwudjEuRGF0YUV4cHJlc3Npb25S",
-            "DHlFeHByZXNzaW9ucxJRChRzZXJpZXNfYnlfZXhwcmVzc2lvbhgXIAEoCzIf",
-            "LmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblISc2VyaWVzQnlFeHBy",
-            "ZXNzaW9uEh4KCHpfc3RyZWFtGBggASgJSAhSB3pTdHJlYW2IAQESHAoHel9m",
-            "aWVsZBgZIAEoCUgJUgZ6RmllbGSIAQESFwoEdW5pdBgaIAEoCUgKUgR1bml0",
-            "iAEBEiIKCm1heF9wb2ludHMYGyABKARIC1IJbWF4UG9pbnRziAEBEh4KCHdp",
-            "bmRvd19zGBwgASgBSAxSB3dpbmRvd1OIAQESNAoFc2NvcGUYHSABKAsyHi5k",
-            "b2tpbWUubW9kZWwudjEuRXZpZGVuY2VTY29wZVIFc2NvcGUSOQoJdGVjaG5p",
-            "cXVlGB4gASgOMhsuZG9raW1lLm1vZGVsLnYxLkRvd25zYW1wbGVSCXRlY2hu",
-            "aXF1ZRJCCgx6X2V4cHJlc3Npb24YHyABKAsyHy5kb2tpbWUubW9kZWwudjEu",
-            "RGF0YUV4cHJlc3Npb25SC3pFeHByZXNzaW9uEjEKA2ZmdBggIAEoCzIfLmRv",
-            "a2ltZS5tb2RlbC52MS5QbG90RmZ0T3B0aW9uc1IDZmZ0EkAKCGludGVydmFs",
-            "GCEgASgLMiQuZG9raW1lLm1vZGVsLnYxLlBsb3RJbnRlcnZhbE9wdGlvbnNS",
-            "CGludGVydmFsEkMKCWhpc3RvZ3JhbRgiIAEoCzIlLmRva2ltZS5tb2RlbC52",
-            "MS5QbG90SGlzdG9ncmFtT3B0aW9uc1IJaGlzdG9ncmFtEkcKDnN1bW1hcnlf",
-            "d2luZG93GCQgASgLMiAuZG9raW1lLmhvc3QudjEucGxvdHMuUGxvdFdpbmRv",
-            "d1INc3VtbWFyeVdpbmRvdxI8Cgh2aWV3cG9ydBglIAEoCzIgLmRva2ltZS5o",
-            "b3N0LnYxLnBsb3RzLlBsb3RXaW5kb3dSCHZpZXdwb3J0EiQKC3BhbmVsX3dp",
-            "ZHRoGCYgASgNSA1SCnBhbmVsV2lkdGiIAQESLQoCYXQYJyABKAsyGC5oYXJt",
-            "b3MubW9kZWwudjEuUmVhZEN1dEgOUgJhdIgBAUIOCgxfYXJyYW5nZW1lbnRC",
-            "BwoFX2hvbGVCDgoMX3h5X2ludGVydmFsQgwKCl9yZWR1Y3Rpb25CDwoNX3Bh",
-            "bmVsX2hlaWdodEIKCghfcGxvdF9pZEIICgZfeF9rZXlCDAoKX3Nlcmllc19i",
-            "eUILCglfel9zdHJlYW1CCgoIX3pfZmllbGRCBwoFX3VuaXRCDQoLX21heF9w",
-            "b2ludHNCCwoJX3dpbmRvd19zQg4KDF9wYW5lbF93aWR0aEIFCgNfYXRKBAgj",
-            "ECQiMAoKUGxvdFdpbmRvdxISCgRmcm9tGAEgASgBUgRmcm9tEg4KAnRvGAIg",
-            "ASgBUgJ0byp6ChFQbG90Q2FydGVzaWFuTW9kZRIjCh9QTE9UX0NBUlRFU0lB",
-            "Tl9NT0RFX1VOU1BFQ0lGSUVEEAASHwobUExPVF9DQVJURVNJQU5fTU9ERV9B",
-            "TElHTkVEEAESHwobUExPVF9DQVJURVNJQU5fTU9ERV9GQUNFVEVEEAIqyAEK",
-            "DlBsb3RTdHJlYW1LaW5kEiAKHFBMT1RfU1RSRUFNX0tJTkRfVU5TUEVDSUZJ",
-            "RUQQABIdChlQTE9UX1NUUkVBTV9LSU5EX1NOQVBTSE9UEAESHAoYUExPVF9T",
-            "VFJFQU1fS0lORF9SRVBMQUNFEAISGgoWUExPVF9TVFJFQU1fS0lORF9ERUxU",
-            "QRADEh8KG1BMT1RfU1RSRUFNX0tJTkRfU1RBVElTVElDUxAEEhoKFlBMT1Rf",
-            "U1RSRUFNX0tJTkRfRVJST1IQBTLeAQoJU25hcHNob3RzEmUKBExpc3QSKi5k",
-            "b2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNMaXN0UmVxdWVzdBorLmRv",
-            "a2ltZS5ob3N0LnYxLnBsb3RzLlNuYXBzaG90c0xpc3RSZXNwb25zZSIEyPMY",
-            "ARJqCgVXYXRjaBIrLmRva2ltZS5ob3N0LnYxLnBsb3RzLlNuYXBzaG90c1dh",
-            "dGNoUmVxdWVzdBosLmRva2ltZS5ob3N0LnYxLnBsb3RzLlNuYXBzaG90c1dh",
-            "dGNoUmVzcG9uc2UiBMjzGAEwAUIgqgIdRG9raW1lLkNsaWVudHMuUGxvdHNS",
-            "ZXNvdXJjZXNiBnByb3RvMw=="));
+            "ARIuCgRncmlkGAUgASgLMhouZG9raW1lLm1vZGVsLnYxLkdyaWRDaGFydFIE",
+            "Z3JpZBI9CglyZWR1Y3Rpb24YBiABKA4yGi5kb2tpbWUubW9kZWwudjEuUmVk",
+            "dWN0aW9uSANSCXJlZHVjdGlvbogBARI2CgZyZW5kZXIYByABKA4yHi5kb2tp",
+            "bWUubW9kZWwudjEuQ29udG91clJlbmRlclIGcmVuZGVyEj8KCnlfdmlld3Bv",
+            "cnQYCCABKAsyIC5kb2tpbWUuaG9zdC52MS5wbG90cy5QbG90V2luZG93Ugl5",
+            "Vmlld3BvcnQSJgoMcGFuZWxfaGVpZ2h0GAkgASgNSARSC3BhbmVsSGVpZ2h0",
+            "iAEBEhwKB3Bsb3RfaWQYCiABKAlIBVIGcGxvdElkiAEBEjYKCXBsb3RfdHlw",
+            "ZRgLIAEoDjIZLmRva2ltZS5tb2RlbC52MS5QbG90S2luZFIIcGxvdFR5cGUS",
+            "MAoFc3R5bGUYDCABKA4yGi5kb2tpbWUubW9kZWwudjEuTGluZVN0eWxlUgVz",
+            "dHlsZRIzCgd4X3NjYWxlGA0gASgOMhouZG9raW1lLm1vZGVsLnYxLkF4aXNT",
+            "Y2FsZVIGeFNjYWxlEjMKB3lfc2NhbGUYDiABKA4yGi5kb2tpbWUubW9kZWwu",
+            "djEuQXhpc1NjYWxlUgZ5U2NhbGUSFgoGc3RyZWFtGA8gASgJUgZzdHJlYW0S",
+            "FQoGeV9rZXlzGBAgAygJUgV5S2V5cxIuChNtYXJrZXJfcmVjb3JkX3R5cGVz",
+            "GBEgAygJUhFtYXJrZXJSZWNvcmRUeXBlcxI1CgdmaWx0ZXJzGBIgAygLMhsu",
+            "ZG9raW1lLm1vZGVsLnYxLlBsb3RGaWx0ZXJSB2ZpbHRlcnMSGAoFeF9rZXkY",
+            "EyABKAlIBlIEeEtleYgBARIgCglzZXJpZXNfYnkYFCABKAlIB1IIc2VyaWVz",
+            "QnmIAQESQgoMeF9leHByZXNzaW9uGBUgASgLMh8uZG9raW1lLm1vZGVsLnYx",
+            "LkRhdGFFeHByZXNzaW9uUgt4RXhwcmVzc2lvbhJECg15X2V4cHJlc3Npb25z",
+            "GBYgAygLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgx5RXhw",
+            "cmVzc2lvbnMSUQoUc2VyaWVzX2J5X2V4cHJlc3Npb24YFyABKAsyHy5kb2tp",
+            "bWUubW9kZWwudjEuRGF0YUV4cHJlc3Npb25SEnNlcmllc0J5RXhwcmVzc2lv",
+            "bhIeCgh6X3N0cmVhbRgYIAEoCUgIUgd6U3RyZWFtiAEBEhwKB3pfZmllbGQY",
+            "GSABKAlICVIGekZpZWxkiAEBEhcKBHVuaXQYGiABKAlIClIEdW5pdIgBARIi",
+            "CgptYXhfcG9pbnRzGBsgASgESAtSCW1heFBvaW50c4gBARIeCgh3aW5kb3df",
+            "cxgcIAEoAUgMUgd3aW5kb3dTiAEBEjQKBXNjb3BlGB0gASgLMh4uZG9raW1l",
+            "Lm1vZGVsLnYxLkV2aWRlbmNlU2NvcGVSBXNjb3BlEjkKCXRlY2huaXF1ZRge",
+            "IAEoDjIbLmRva2ltZS5tb2RlbC52MS5Eb3duc2FtcGxlUgl0ZWNobmlxdWUS",
+            "QgoMel9leHByZXNzaW9uGB8gASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFF",
+            "eHByZXNzaW9uUgt6RXhwcmVzc2lvbhIxCgNmZnQYICABKAsyHy5kb2tpbWUu",
+            "bW9kZWwudjEuUGxvdEZmdE9wdGlvbnNSA2ZmdBJACghpbnRlcnZhbBghIAEo",
+            "CzIkLmRva2ltZS5tb2RlbC52MS5QbG90SW50ZXJ2YWxPcHRpb25zUghpbnRl",
+            "cnZhbBJDCgloaXN0b2dyYW0YIiABKAsyJS5kb2tpbWUubW9kZWwudjEuUGxv",
+            "dEhpc3RvZ3JhbU9wdGlvbnNSCWhpc3RvZ3JhbRJHCg5zdW1tYXJ5X3dpbmRv",
+            "dxgkIAEoCzIgLmRva2ltZS5ob3N0LnYxLnBsb3RzLlBsb3RXaW5kb3dSDXN1",
+            "bW1hcnlXaW5kb3cSPAoIdmlld3BvcnQYJSABKAsyIC5kb2tpbWUuaG9zdC52",
+            "MS5wbG90cy5QbG90V2luZG93Ugh2aWV3cG9ydBIkCgtwYW5lbF93aWR0aBgm",
+            "IAEoDUgNUgpwYW5lbFdpZHRoiAEBEi0KAmF0GCcgASgLMhguaGFybW9zLm1v",
+            "ZGVsLnYxLlJlYWRDdXRIDlICYXSIAQESSAoPY2VsbF9leHByZXNzaW9uGCgg",
+            "ASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUg5jZWxsRXhw",
+            "cmVzc2lvbhJKChBmYWNldF9leHByZXNzaW9uGCkgASgLMh8uZG9raW1lLm1v",
+            "ZGVsLnYxLkRhdGFFeHByZXNzaW9uUg9mYWNldEV4cHJlc3Npb25CDgoMX2Fy",
+            "cmFuZ2VtZW50QgcKBV9ob2xlQg4KDF94eV9pbnRlcnZhbEIMCgpfcmVkdWN0",
+            "aW9uQg8KDV9wYW5lbF9oZWlnaHRCCgoIX3Bsb3RfaWRCCAoGX3hfa2V5QgwK",
+            "Cl9zZXJpZXNfYnlCCwoJX3pfc3RyZWFtQgoKCF96X2ZpZWxkQgcKBV91bml0",
+            "Qg0KC19tYXhfcG9pbnRzQgsKCV93aW5kb3dfc0IOCgxfcGFuZWxfd2lkdGhC",
+            "BQoDX2F0SgQIIxAkIjAKClBsb3RXaW5kb3cSEgoEZnJvbRgBIAEoAVIEZnJv",
+            "bRIOCgJ0bxgCIAEoAVICdG8qegoRUGxvdENhcnRlc2lhbk1vZGUSIwofUExP",
+            "VF9DQVJURVNJQU5fTU9ERV9VTlNQRUNJRklFRBAAEh8KG1BMT1RfQ0FSVEVT",
+            "SUFOX01PREVfQUxJR05FRBABEh8KG1BMT1RfQ0FSVEVTSUFOX01PREVfRkFD",
+            "RVRFRBACKsgBCg5QbG90U3RyZWFtS2luZBIgChxQTE9UX1NUUkVBTV9LSU5E",
+            "X1VOU1BFQ0lGSUVEEAASHQoZUExPVF9TVFJFQU1fS0lORF9TTkFQU0hPVBAB",
+            "EhwKGFBMT1RfU1RSRUFNX0tJTkRfUkVQTEFDRRACEhoKFlBMT1RfU1RSRUFN",
+            "X0tJTkRfREVMVEEQAxIfChtQTE9UX1NUUkVBTV9LSU5EX1NUQVRJU1RJQ1MQ",
+            "BBIaChZQTE9UX1NUUkVBTV9LSU5EX0VSUk9SEAUy3gEKCVNuYXBzaG90cxJl",
+            "CgRMaXN0EiouZG9raW1lLmhvc3QudjEucGxvdHMuU25hcHNob3RzTGlzdFJl",
+            "cXVlc3QaKy5kb2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNMaXN0UmVz",
+            "cG9uc2UiBMjzGAESagoFV2F0Y2gSKy5kb2tpbWUuaG9zdC52MS5wbG90cy5T",
+            "bmFwc2hvdHNXYXRjaFJlcXVlc3QaLC5kb2tpbWUuaG9zdC52MS5wbG90cy5T",
+            "bmFwc2hvdHNXYXRjaFJlc3BvbnNlIgTI8xgBMAFCIKoCHURva2ltZS5DbGll",
+            "bnRzLlBsb3RzUmVzb3VyY2VzYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.Clients.RecordSchemasReflection.Descriptor, global::Dokime.EvidenceReflection.Descriptor, global::Dokime.ExpressionsReflection.Descriptor, global::Dokime.PlotsReflection.Descriptor, global::Dokime.ScalarReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FailureReflection.Descriptor, global::Harmos.PageReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Clients.PlotsResources.PlotCartesianMode), typeof(global::Dokime.Clients.PlotsResources.PlotStreamKind), }, null, new pbr::GeneratedClrTypeInfo[] {
@@ -274,7 +277,7 @@ namespace Dokime.Clients.PlotsResources;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSigmaIntervalAnalysis), global::Dokime.Clients.PlotsResources.PlotSigmaIntervalAnalysis.Parser, new[]{ "Series" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotSigmaSeries), global::Dokime.Clients.PlotsResources.PlotSigmaSeries.Parser, new[]{ "Key", "Bins", "RawPoints" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotStreamUpdate), global::Dokime.Clients.PlotsResources.PlotStreamUpdate.Parser, new[]{ "Kind", "Envelope" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotRequest), global::Dokime.Clients.PlotsResources.PlotRequest.Parser, new[]{ "Arrangement", "Pareto", "Hole", "XyInterval", "Grid", "Reduction", "Render", "YViewport", "PanelHeight", "PlotId", "PlotType", "Style", "XScale", "YScale", "Stream", "YKeys", "MarkerRecordTypes", "Filters", "XKey", "SeriesBy", "XExpression", "YExpressions", "SeriesByExpression", "ZStream", "ZField", "Unit", "MaxPoints", "WindowS", "Scope", "Technique", "ZExpression", "Fft", "Interval", "Histogram", "SummaryWindow", "Viewport", "PanelWidth", "At" }, new[]{ "Arrangement", "Hole", "XyInterval", "Reduction", "PanelHeight", "PlotId", "XKey", "SeriesBy", "ZStream", "ZField", "Unit", "MaxPoints", "WindowS", "PanelWidth", "At" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotRequest), global::Dokime.Clients.PlotsResources.PlotRequest.Parser, new[]{ "Arrangement", "Pareto", "Hole", "XyInterval", "Grid", "Reduction", "Render", "YViewport", "PanelHeight", "PlotId", "PlotType", "Style", "XScale", "YScale", "Stream", "YKeys", "MarkerRecordTypes", "Filters", "XKey", "SeriesBy", "XExpression", "YExpressions", "SeriesByExpression", "ZStream", "ZField", "Unit", "MaxPoints", "WindowS", "Scope", "Technique", "ZExpression", "Fft", "Interval", "Histogram", "SummaryWindow", "Viewport", "PanelWidth", "At", "CellExpression", "FacetExpression" }, new[]{ "Arrangement", "Hole", "XyInterval", "Reduction", "PanelHeight", "PlotId", "XKey", "SeriesBy", "ZStream", "ZField", "Unit", "MaxPoints", "WindowS", "PanelWidth", "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PlotsResources.PlotWindow), global::Dokime.Clients.PlotsResources.PlotWindow.Parser, new[]{ "From", "To" }, null, null, null, null)
           }));
     }
@@ -10932,6 +10935,8 @@ namespace Dokime.Clients.PlotsResources;
       viewport_ = other.viewport_ != null ? other.viewport_.Clone() : null;
       panelWidth_ = other.panelWidth_;
       at_ = other.at_ != null ? other.at_.Clone() : null;
+      cellExpression_ = other.cellExpression_ != null ? other.cellExpression_.Clone() : null;
+      facetExpression_ = other.facetExpression_ != null ? other.facetExpression_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -11036,10 +11041,10 @@ namespace Dokime.Clients.PlotsResources;
 
     /// <summary>Field number for the "grid" field.</summary>
     public const int GridFieldNumber = 5;
-    private global::Dokime.GridDefinition grid_;
+    private global::Dokime.GridChart grid_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.GridDefinition Grid {
+    public global::Dokime.GridChart Grid {
       get { return grid_; }
       set {
         grid_ = value;
@@ -11597,6 +11602,30 @@ namespace Dokime.Clients.PlotsResources;
       }
     }
 
+    /// <summary>Field number for the "cell_expression" field.</summary>
+    public const int CellExpressionFieldNumber = 40;
+    private global::Dokime.DataExpression cellExpression_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.DataExpression CellExpression {
+      get { return cellExpression_; }
+      set {
+        cellExpression_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "facet_expression" field.</summary>
+    public const int FacetExpressionFieldNumber = 41;
+    private global::Dokime.DataExpression facetExpression_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.DataExpression FacetExpression {
+      get { return facetExpression_; }
+      set {
+        facetExpression_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -11650,6 +11679,8 @@ namespace Dokime.Clients.PlotsResources;
       if (!object.Equals(Viewport, other.Viewport)) return false;
       if (PanelWidth != other.PanelWidth) return false;
       if (!object.Equals(At, other.At)) return false;
+      if (!object.Equals(CellExpression, other.CellExpression)) return false;
+      if (!object.Equals(FacetExpression, other.FacetExpression)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -11695,6 +11726,8 @@ namespace Dokime.Clients.PlotsResources;
       if (viewport_ != null) hash ^= Viewport.GetHashCode();
       if (HasPanelWidth) hash ^= PanelWidth.GetHashCode();
       if (at_ != null) hash ^= At.GetHashCode();
+      if (cellExpression_ != null) hash ^= CellExpression.GetHashCode();
+      if (facetExpression_ != null) hash ^= FacetExpression.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -11853,6 +11886,14 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(186, 2);
         output.WriteMessage(At);
       }
+      if (cellExpression_ != null) {
+        output.WriteRawTag(194, 2);
+        output.WriteMessage(CellExpression);
+      }
+      if (facetExpression_ != null) {
+        output.WriteRawTag(202, 2);
+        output.WriteMessage(FacetExpression);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -12003,6 +12044,14 @@ namespace Dokime.Clients.PlotsResources;
         output.WriteRawTag(186, 2);
         output.WriteMessage(At);
       }
+      if (cellExpression_ != null) {
+        output.WriteRawTag(194, 2);
+        output.WriteMessage(CellExpression);
+      }
+      if (facetExpression_ != null) {
+        output.WriteRawTag(202, 2);
+        output.WriteMessage(FacetExpression);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -12119,6 +12168,12 @@ namespace Dokime.Clients.PlotsResources;
       if (at_ != null) {
         size += 2 + pb::CodedOutputStream.ComputeMessageSize(At);
       }
+      if (cellExpression_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(CellExpression);
+      }
+      if (facetExpression_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(FacetExpression);
+      }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -12145,7 +12200,7 @@ namespace Dokime.Clients.PlotsResources;
       }
       if (other.grid_ != null) {
         if (grid_ == null) {
-          Grid = new global::Dokime.GridDefinition();
+          Grid = new global::Dokime.GridChart();
         }
         Grid.MergeFrom(other.Grid);
       }
@@ -12273,6 +12328,18 @@ namespace Dokime.Clients.PlotsResources;
         }
         At.MergeFrom(other.At);
       }
+      if (other.cellExpression_ != null) {
+        if (cellExpression_ == null) {
+          CellExpression = new global::Dokime.DataExpression();
+        }
+        CellExpression.MergeFrom(other.CellExpression);
+      }
+      if (other.facetExpression_ != null) {
+        if (facetExpression_ == null) {
+          FacetExpression = new global::Dokime.DataExpression();
+        }
+        FacetExpression.MergeFrom(other.FacetExpression);
+      }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -12310,7 +12377,7 @@ namespace Dokime.Clients.PlotsResources;
           }
           case 42: {
             if (grid_ == null) {
-              Grid = new global::Dokime.GridDefinition();
+              Grid = new global::Dokime.GridChart();
             }
             input.ReadMessage(Grid);
             break;
@@ -12480,6 +12547,20 @@ namespace Dokime.Clients.PlotsResources;
             input.ReadMessage(At);
             break;
           }
+          case 322: {
+            if (cellExpression_ == null) {
+              CellExpression = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(CellExpression);
+            break;
+          }
+          case 330: {
+            if (facetExpression_ == null) {
+              FacetExpression = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(FacetExpression);
+            break;
+          }
         }
       }
     #endif
@@ -12517,7 +12598,7 @@ namespace Dokime.Clients.PlotsResources;
           }
           case 42: {
             if (grid_ == null) {
-              Grid = new global::Dokime.GridDefinition();
+              Grid = new global::Dokime.GridChart();
             }
             input.ReadMessage(Grid);
             break;
@@ -12685,6 +12766,20 @@ namespace Dokime.Clients.PlotsResources;
               At = new global::Harmos.ReadCut();
             }
             input.ReadMessage(At);
+            break;
+          }
+          case 322: {
+            if (cellExpression_ == null) {
+              CellExpression = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(CellExpression);
+            break;
+          }
+          case 330: {
+            if (facetExpression_ == null) {
+              FacetExpression = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(FacetExpression);
             break;
           }
         }

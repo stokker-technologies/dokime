@@ -338,7 +338,7 @@ impl Store {
             .map_err(|_| Error::Data("restore valid frozen descriptors"))?;
         Codec::new(pool.get_message_by_name(&message).ok_or(Error::Data("restore the source row descriptor"))?)
     }
-    fn source_batches(
+    pub(crate) fn source_batches(
         &self, cut: &ExecutionCut, source: &Source, selection: BatchSelection<'_>, fields: &[String],
         mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {

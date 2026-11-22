@@ -281,6 +281,7 @@ from dokime_sdk._wire.model.v1.plots_pb2 import (
     PLOT_KIND_CONTOUR,
     PLOT_KIND_FREQUENCY_SERIES,
     PLOT_KIND_GRID_CHART,
+    PLOT_KIND_HEAT_STRIP,
     PLOT_KIND_HISTOGRAM,
     PLOT_KIND_PIE,
     PLOT_KIND_TIME_SERIES,
@@ -292,6 +293,8 @@ from dokime_sdk._wire.model.v1.plots_pb2 import (
     PLOT_STYLE_POINTS,
     PLOT_STYLE_STEP,
     PLOT_STYLE_UNSPECIFIED,
+    REDUCTION_COUNT,
+    REDUCTION_LAST,
     REDUCTION_MAX,
     REDUCTION_MEAN,
     REDUCTION_MIN,
@@ -307,7 +310,6 @@ from dokime_sdk._wire.model.v1.plots_pb2 import (
     FrequencyLevelUnit,
     GridAxisEntry,
     GridChart,
-    GridDefinition,
     GridHighlight,
     LineStyle,
     Plot,
@@ -550,8 +552,6 @@ GridAxisEntry.__module__ = "dokime_sdk"
 GridAxisEntry.__qualname__ = "GridAxisEntry"
 GridChart.__module__ = "dokime_sdk"
 GridChart.__qualname__ = "GridChart"
-GridDefinition.__module__ = "dokime_sdk"
-GridDefinition.__qualname__ = "GridDefinition"
 GridHighlight.__module__ = "dokime_sdk"
 GridHighlight.__qualname__ = "GridHighlight"
 Plot.__module__ = "dokime_sdk"
@@ -739,6 +739,7 @@ __all__ = [
     "PLOT_KIND_CONTOUR",
     "PLOT_KIND_FREQUENCY_SERIES",
     "PLOT_KIND_GRID_CHART",
+    "PLOT_KIND_HEAT_STRIP",
     "PLOT_KIND_HISTOGRAM",
     "PLOT_KIND_PIE",
     "PLOT_KIND_TIME_SERIES",
@@ -766,6 +767,8 @@ __all__ = [
     "PROMPT_FIELD_KIND_INTEGER",
     "PROMPT_FIELD_KIND_TEXT",
     "PROMPT_FIELD_KIND_UNSPECIFIED",
+    "REDUCTION_COUNT",
+    "REDUCTION_LAST",
     "REDUCTION_MAX",
     "REDUCTION_MEAN",
     "REDUCTION_MIN",
@@ -880,7 +883,6 @@ __all__ = [
     "Grant",
     "GridAxisEntry",
     "GridChart",
-    "GridDefinition",
     "GridHighlight",
     "Grpc",
     "History",

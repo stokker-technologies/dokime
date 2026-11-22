@@ -614,7 +614,11 @@ export function plotRequestForDocumentPlot(
     hole: plot.hole ?? undefined,
     xyInterval: plot.xy_interval ? XyInterval.SIGMA : undefined,
     render: plot.render === "bands" ? ContourRender.BANDS : ContourRender.CELLS,
-    reduction: plot.reduction ? { mean: Reduction.MEAN, min: Reduction.MIN, max: Reduction.MAX }[plot.reduction] : undefined,
+    reduction: plot.reduction
+      ? { mean: Reduction.MEAN, min: Reduction.MIN, max: Reduction.MAX, last: Reduction.LAST, count: Reduction.COUNT }[plot.reduction]
+      : undefined,
+    cellExpression: plot.cell_expression ? validatedExpression(plot.cell_expression) : undefined,
+    facetExpression: plot.facet_expression ? validatedExpression(plot.facet_expression) : undefined,
     grid: plot.grid
       ? {
           row: plot.grid.row ? validatedExpression(plot.grid.row) : undefined,

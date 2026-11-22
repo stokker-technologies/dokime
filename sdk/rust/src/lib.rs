@@ -50,6 +50,7 @@ pub use client::{RegisteredPlugin, ResultStatus};
 use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row};
+pub use dokime_protocol::builders;
 pub use error::{Error, Result};
 pub use exports::*;
 pub use payload::Payload;

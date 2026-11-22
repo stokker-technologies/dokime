@@ -21,6 +21,7 @@ public static class Plots
   public static Plot Xy(DataExpression value) => new() { Kind = PlotKind.Xy, Y = { value.Clone() } };
   public static Plot Trajectory(DataExpression value) => new() { Kind = PlotKind.Trajectory, Y = { value.Clone() } };
   public static Plot Contour(DataExpression value) => new() { Kind = PlotKind.Contour, Z = value.Clone() };
+  public static Plot HeatStrip(DataExpression value) => new() { Kind = PlotKind.HeatStrip, Y = { value.Clone() }, Reduction = Reduction.Last };
   public static Plot GridChart(DataExpression value) => new() { Kind = PlotKind.GridChart, Y = { value.Clone() } };
   public static Plot Bar(DataExpression value) => new() { Kind = PlotKind.Bar, Y = { value.Clone() } };
   public static Plot Pie(DataExpression value) => new() { Kind = PlotKind.Pie, Y = { value.Clone() } };
@@ -48,6 +49,16 @@ public static class PlotOptions
   public static Plot WithY(this Plot plot, DataExpression value)
   {
     plot.Y.Add(value.Clone());
+    return plot;
+  }
+  public static Plot Cells(this Plot plot, DataExpression value)
+  {
+    plot.Cell = value.Clone();
+    return plot;
+  }
+  public static Plot Facet(this Plot plot, DataExpression value)
+  {
+    plot.Facet = value.Clone();
     return plot;
   }
   public static Plot SeriesBy(this Plot plot, DataExpression value)

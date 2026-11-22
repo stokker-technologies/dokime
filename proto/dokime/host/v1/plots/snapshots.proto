@@ -323,7 +323,7 @@ message PlotRequest {
   bool pareto = 2;
   optional double hole = 3;
   optional .dokime.model.v1.XyInterval xy_interval = 4;
-  .dokime.model.v1.GridDefinition grid = 5;
+  .dokime.model.v1.GridChart grid = 5;
   optional .dokime.model.v1.Reduction reduction = 6;
   .dokime.model.v1.ContourRender render = 7;
   .dokime.host.v1.plots.PlotWindow y_viewport = 8;
@@ -358,6 +358,8 @@ message PlotRequest {
   optional uint32 panel_width = 38;
 
   optional .harmos.model.v1.ReadCut at = 39;
+  .dokime.model.v1.DataExpression cell_expression = 40;
+  .dokime.model.v1.DataExpression facet_expression = 41;
 }
 
 // PlotWindow value owned by this resource.

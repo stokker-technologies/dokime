@@ -60,4 +60,18 @@ voltage.Range();
 ladder.Items();
 if (voltage.HasMin || voltage.HasMax || ladder.HasMinItems || ladder.HasMaxItems)
   throw new InvalidOperationException("Parameter Builders: Clear Unbounded Fields");
-Console.WriteLine("4 builder tests passed");
+
+var heat = Dokime.Templates.Plots.HeatStrip(Expressions.Field("scan", "value"))
+    .Cells(Expressions.Field("scan", "cell")).Facet(Expressions.Field("scan", "facet"));
+if (heat.Reduction != Reduction.Last)
+  throw new InvalidOperationException("Heat Strip: Preserve the Default Reducer");
+foreach (var reduction in new[] { Reduction.Last, Reduction.Max, Reduction.Mean, Reduction.Count })
+{
+  heat.Reduce(reduction);
+  var roundtrip = Plot.Parser.ParseFrom(heat.ToByteArray());
+  if (roundtrip.Kind != PlotKind.HeatStrip || roundtrip.Cell.Stream.Field != "cell" ||
+      roundtrip.Facet.Stream.Field != "facet" || roundtrip.Reduction != reduction || roundtrip.Y.Count != 1)
+    throw new InvalidOperationException("Heat Strip: Preserve the Serialized Bindings and Reducer");
+}
+
+Console.WriteLine("5 builder tests passed");

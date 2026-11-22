@@ -32,6 +32,24 @@ from dokime_sdk.templates import Document, GridAxisEntry, Parameter, Section, St
 
 
 class DocumentStory(unittest.TestCase):
+    def test_heat_strip_document_roundtrips_every_reducer(self) -> None:
+        samples = Stream("example.samples")
+        for reduction in (
+            dokime_sdk.templates.Reduction.LAST,
+            dokime_sdk.templates.Reduction.MAX,
+            dokime_sdk.templates.Reduction.MEAN,
+            dokime_sdk.templates.Reduction.COUNT,
+        ):
+            plot = dokime_sdk.templates.heat_strip(samples.field("value"), label="Heat Strip").cells(samples.field("cell"))
+            plot.facet(samples.field("facet")).reduce(reduction)
+            document = Document("Report").section(Section("Values").plot(plot)).message
+            decoded = type(document).FromString(document.SerializeToString())
+            self.assertEqual(decoded, document)
+            captured = decoded.sections[0].cards[0].plot
+            self.assertEqual(captured.cell.stream.field, "cell")
+            self.assertEqual(captured.facet.stream.field, "facet")
+            self.assertEqual(captured.reduction, int(reduction))
+
     def test_compose_serialize_and_reopen(self) -> None:
         # Build A Contour And Playback Grid From A Declared Stream.
         samples = Stream("example.samples")

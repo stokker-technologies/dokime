@@ -94,6 +94,7 @@ contour = _plots.contour
 field = _plots.field
 frequency_series = _plots.frequency_series
 grid_chart = _plots.grid_chart
+heat_strip = _plots.heat_strip
 histogram = _plots.histogram
 pie = _plots.pie
 time_series = _plots.time_series

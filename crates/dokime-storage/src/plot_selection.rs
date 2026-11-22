@@ -20,6 +20,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
+use arrow_array::{Int64Array, StructArray};
 use harmos_query::transform::{FieldPath, FieldPathExecution};
 
 // Local Imports
@@ -59,6 +60,81 @@ pub struct PlotSelection {
 /* === Implementations === */
 
 impl Store {
+    pub fn plot_source_bounds(&self, cut: &ExecutionCut, after: u64, through: u64) -> Result<Option<(i64, i64)>> {
+        let plan = self
+            .projection
+            .lock()
+            .map_err(|_| Error::Data("Read Plot Bounds: Restart After the Projection Lock Failed"))?
+            .clone()
+            .ok_or(Error::Data("Read Plot Bounds: Select the Plot Expressions First"))?;
+        let source = plan.source()?;
+        let mut bounds = None::<(i64, i64)>;
+        if !source.0 {
+            let connection = self.lock()?;
+            let upper = through.min(i64::MAX as u64) as i64;
+            let complete: (Option<i64>, Option<i64>) = connection.query_row(
+                "SELECT MIN(b.start_ns),MAX(b.end_ns) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 AND f.stream=?2 AND b.first_position>?3 AND b.last_position<=?4",
+                rusqlite::params![cut.execution.identifier, source.1, after as i64, upper],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            bounds = complete.0.zip(complete.1);
+            let mut query = connection.prepare(
+                "SELECT b.first_position,b.last_position FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 AND f.stream=?2 AND b.last_position>?3 AND b.first_position<=?4 AND (b.first_position<=?3 OR b.last_position>?4)",
+            )?;
+            let partial = query
+                .query_map(rusqlite::params![cut.execution.identifier, source.1, after as i64, upper], |row| {
+                    Ok((row.get::<_, i64>(0)? as u64, row.get::<_, i64>(1)? as u64))
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            drop(query);
+            drop(connection);
+            for (first, last) in partial {
+                self.read_batches(
+                    crate::BatchSelection {
+                        execution: &cut.execution.identifier,
+                        stream: &source.1,
+                        after: after.max(first.saturating_sub(1)),
+                        through: through.min(last),
+                        start_ns: i64::MIN,
+                        end_ns: i64::MAX,
+                    },
+                    &[],
+                    |batch| {
+                        let storage = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+                        let times = storage.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+                        for time in times.values() {
+                            bounds = Some(bounds.map_or((*time, *time), |(start, end)| (start.min(*time), end.max(*time))));
+                        }
+                        Ok(true)
+                    },
+                )?;
+            }
+            return Ok(bounds);
+        }
+        self.source_batches(
+            cut,
+            &source,
+            crate::BatchSelection {
+                execution: &cut.execution.identifier,
+                stream: &source.1,
+                after,
+                through,
+                start_ns: i64::MIN,
+                end_ns: i64::MAX,
+            },
+            &[],
+            |batch| {
+                let storage = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+                let times = storage.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+                for time in times.values() {
+                    bounds = Some(bounds.map_or((*time, *time), |(start, end)| (start.min(*time), end.max(*time))));
+                }
+                Ok(true)
+            },
+        )?;
+        Ok(bounds)
+    }
+
     pub fn plot_group_values(&self, window: NumericWindow<'_>, field: &str, maximum: usize) -> Result<Vec<PlotGroup>> {
         let mut groups = Vec::<ScalarValue>::new();
         self.evaluated_batches(window, &[field.into()], |batch| {
@@ -93,6 +169,8 @@ impl Store {
                 .iter()
                 .chain(request.z_expression.iter())
                 .chain(request.x_expression.iter())
+                .chain(request.cell_expression.iter())
+                .chain(request.facet_expression.iter())
                 .filter_map(reference)
                 .find(|(_, record)| !record)
                 .map(|(reference, _)| reference.identifier.clone())
@@ -121,6 +199,8 @@ impl Store {
             .iter_mut()
             .chain(selected.x_expression.iter_mut())
             .chain(selected.z_expression.iter_mut())
+            .chain(selected.cell_expression.iter_mut())
+            .chain(selected.facet_expression.iter_mut())
             .chain(selected.series_by_expression.iter_mut())
             .chain(grid_bindings)
         {

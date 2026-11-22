@@ -23,9 +23,10 @@
 use crate::device::Bench;
 use crate::device::Reading;
 use crate::{settings, suites};
+use dokime::builders::Plot;
 use dokime::plugin::{Observer, Stream};
 use dokime::templates::Context;
-use dokime::{Document, FieldReference, Plot, PlotKind, Result, model};
+use dokime::{Document, FieldReference, Result, model};
 
 /* === Constants === */
 
@@ -100,9 +101,11 @@ async fn measure(ctx: &Context) -> Result<Measurement> {
 pub fn document(stream: &str, id: &str, title: &str) -> Document {
     let mut waveforms = model::Section::new("AC Waveforms").id(format!("{id}.waveforms"));
     for (name, label, unit) in [("voltage_v", "Voltage", "V"), ("current_a", "Current", "A")] {
-        let mut chart = Plot::new(format!("{id}.{name}"), label, PlotKind::Xy).unit(unit);
-        chart.x = Some(FieldReference::new(stream).field("elapsed_s"));
-        chart.y.push(FieldReference::new(stream).field(name));
+        let chart = Plot::xy(FieldReference::new(stream).field(name))
+            .id(format!("{id}.{name}"))
+            .label(label)
+            .unit(unit)
+            .x(FieldReference::new(stream).field("elapsed_s"));
         waveforms = waveforms.plot(chart);
     }
     Document::new(title).id(format!("{id}.report")).section(waveforms).section(charging(stream, id))
@@ -114,8 +117,7 @@ pub fn charging(stream: &str, id: &str) -> model::Section {
     for (name, label, unit) in
         [("dc_voltage_v", "Battery Voltage", "V"), ("dc_current_a", "Charging Current", "A"), ("input_power_w", "AC Input Power", "W")]
     {
-        let mut chart = Plot::line(format!("{id}.{name}"), label).unit(unit);
-        chart.y.push(FieldReference::new(stream).field(name));
+        let chart = Plot::time_series(FieldReference::new(stream).field(name)).id(format!("{id}.{name}")).label(label).unit(unit);
         section = section.plot(chart);
     }
     section

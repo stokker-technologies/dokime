@@ -50,6 +50,8 @@ message Plot {
   .dokime.model.v1.AxisScale y_scale = 24;
 
   optional uint32 input_samples = 25;
+  .dokime.model.v1.DataExpression cell = 26;
+  .dokime.model.v1.DataExpression facet = 27;
 }
 
 // GridAxisEntry value owned by this resource.
@@ -93,17 +95,6 @@ message ReferenceBand {
   string color = 4;
   .dokime.model.v1.DataExpression center = 5;
   .dokime.model.v1.DataExpression tolerance = 6;
-}
-
-// GridDefinition value owned by this resource.
-message GridDefinition {
-  .dokime.model.v1.DataExpression row = 1;
-  .dokime.model.v1.DataExpression column = 2;
-  .dokime.model.v1.DataExpression frame = 3;
-  repeated .dokime.model.v1.GridAxisEntry rows = 4;
-  repeated .dokime.model.v1.GridAxisEntry columns = 5;
-  repeated .dokime.model.v1.GridHighlight highlights = 6;
-  string summary_label = 7;
 }
 
 // PlotFftOptions value owned by this resource.
@@ -163,6 +154,8 @@ enum Reduction {
   REDUCTION_MEAN = 1;
   REDUCTION_MIN = 2;
   REDUCTION_MAX = 3;
+  REDUCTION_LAST = 4;
+  REDUCTION_COUNT = 5;
 }
 
 // ContourRender choices.
@@ -200,6 +193,7 @@ enum PlotKind {
   PLOT_KIND_CONTOUR = 18;
   PLOT_KIND_GRID_CHART = 19;
   PLOT_KIND_BOX_PLOT = 20;
+  PLOT_KIND_HEAT_STRIP = 21;
 }
 
 // Downsample choices.

@@ -109,6 +109,25 @@ impl Plot {
         })
     }
 
+    pub fn heat_strip(value: DataExpression) -> Self {
+        Self::from(model::Plot {
+            kind: PlotKind::HeatStrip as i32,
+            y: vec![value],
+            reduction: Some(Reduction::Last as i32),
+            ..Default::default()
+        })
+    }
+
+    pub fn cells(mut self, value: DataExpression) -> Self {
+        self.message.cell = Some(value);
+        self
+    }
+
+    pub fn facet(mut self, value: DataExpression) -> Self {
+        self.message.facet = Some(value);
+        self
+    }
+
     pub fn grid_chart(value: DataExpression) -> Self {
         Self::from(model::Plot {
             kind: PlotKind::GridChart as i32,

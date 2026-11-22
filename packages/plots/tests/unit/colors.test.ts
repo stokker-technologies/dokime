@@ -8,7 +8,7 @@
  */
 
 /**
- * Plot Marker Colors
+ * Plot Colour Selection
  */
 
 /* === Imports === */
@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 // Local Imports
-import { markerColor } from "@dokime/plots/colors";
+import { markerColor, sequentialColorScale } from "@dokime/plots/colors";
 
 /* === Re-Exports === */
 
@@ -43,3 +43,16 @@ test("Marker Kinds Take the Reference Palette by Index", () => {
 });
 
 /* === Entry Point === */
+
+test("Sequential Colour Domains Ignore Missing Values and Share Constant and Empty Behaviour", () => {
+  const scale = sequentialColorScale([null, -3, undefined, Number.NaN, 9, Number.POSITIVE_INFINITY]);
+  assert.deepEqual([scale.min, scale.max, scale.present], [-3, 9, true]);
+  assert.deepEqual(scale.color.domain(), [-3, 9]);
+  const constant = sequentialColorScale([4, null, 4]);
+  assert.equal(constant.present, true);
+  assert.equal(constant.color(4), sequentialColorScale([4]).color(4));
+  assert.notEqual(constant.color(4), undefined);
+  const empty = sequentialColorScale([null, Number.NaN]);
+  assert.equal(empty.present, false);
+  assert.ok(empty.color.domain().every(Number.isFinite));
+});

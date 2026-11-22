@@ -438,7 +438,7 @@ pub struct PlotRequest {
     )]
     pub xy_interval: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "5")]
-    pub grid: ::core::option::Option<super::super::super::model::v1::GridDefinition>,
+    pub grid: ::core::option::Option<super::super::super::model::v1::GridChart>,
     #[prost(
         enumeration = "super::super::super::model::v1::Reduction",
         optional,
@@ -521,6 +521,14 @@ pub struct PlotRequest {
     pub panel_width: ::core::option::Option<u32>,
     #[prost(message, optional, tag = "39")]
     pub at: ::core::option::Option<::harmos_protocol::model::ReadCut>,
+    #[prost(message, optional, tag = "40")]
+    pub cell_expression: ::core::option::Option<
+        super::super::super::model::v1::DataExpression,
+    >,
+    #[prost(message, optional, tag = "41")]
+    pub facet_expression: ::core::option::Option<
+        super::super::super::model::v1::DataExpression,
+    >,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]

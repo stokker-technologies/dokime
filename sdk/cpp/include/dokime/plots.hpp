@@ -78,6 +78,14 @@ struct Plot {
     *message.add_y() = value.message;
     return *this;
   }
+  Plot &cells(const Expression &value) {
+    *message.mutable_cell() = value.message;
+    return *this;
+  }
+  Plot &facet(const Expression &value) {
+    *message.mutable_facet() = value.message;
+    return *this;
+  }
   Plot &series_by(const Expression &value) {
     *message.mutable_series_by() = value.message;
     return *this;
@@ -214,6 +222,14 @@ inline Plot contour(const Expression &value) {
   Plot plot;
   plot.message.set_kind(PLOT_KIND_CONTOUR);
   *plot.message.mutable_z() = value.message;
+  return plot;
+}
+
+inline Plot heat_strip(const Expression &value) {
+  Plot plot;
+  plot.message.set_kind(PLOT_KIND_HEAT_STRIP);
+  plot.message.set_reduction(REDUCTION_LAST);
+  *plot.message.add_y() = value.message;
   return plot;
 }
 

@@ -7,6 +7,11 @@
  * ***
  */
 
+/* === Imports === */
+
+import { scaleSequential } from "d3-scale";
+import { interpolateYlOrRd } from "d3-scale-chromatic";
+
 /* === Types === */
 
 export type ResolvedPlotThemeColors = {
@@ -32,6 +37,24 @@ const REFERENCE_PALETTE_VARIABLES = Array.from({ length: REFERENCE_PALETTE_SIZE 
 const DEFAULT_REFERENCE_COLOR = "#60706a";
 
 /* === Public Functions === */
+
+/** One Finite Colour Domain for Every Cell in a Plot. */
+export function sequentialColorScale(values: Iterable<number | null | undefined>) {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value == null || !Number.isFinite(value)) continue;
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+  }
+  const present = Number.isFinite(min);
+  if (!present) {
+    min = 0;
+    max = 1;
+  }
+  const domain: [number, number] = min === max ? [min - 1, max + 1] : [min, max];
+  return { min, max, present, color: scaleSequential(interpolateYlOrRd).domain(domain) };
+}
 
 /** The plot palette entry of series `index`: every plot starts at the first entry. */
 export function plotColor(index: number, palette?: readonly string[] | null): string {

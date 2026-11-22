@@ -26,11 +26,12 @@ use crate::records::charger;
 use crate::settings;
 use crate::streams::measurement::{self, charging};
 use crate::suites::{self, parameters, read_supply, supply, timing};
+use dokime::builders::Plot;
 use dokime::plugin::{Criterion, Observer, Prompt, Record, Step, Stream, Template};
 use dokime::templates::Context;
 use dokime::{
-    Card, ContourRender, DataExpression, Document, FieldReference, GridAxisEntry, GridChart, Plot, PlotKind, PlotStyle, PromptArchetype,
-    Reduction, ReferenceBand, ReferenceLine, Result, Value, XyInterval, data_expression, model, value,
+    Card, ContourRender, DataExpression, Document, FieldReference, GridAxisEntry, GridChart, PlotStyle, PromptArchetype, Reduction,
+    ReferenceBand, ReferenceLine, Result, Value, XyInterval, data_expression, model, value,
 };
 
 /* === Constants === */
@@ -164,7 +165,11 @@ async fn scan(ctx: &Context) -> Result<Survey> {
 
 /// All Ten Plot Families and One Hundred Independent Time Series.
 pub fn document() -> Document {
-    let mut voltage = Plot::new("obc.benchmark.plots.signals", "AC Voltage", PlotKind::TimeSeries).unit("V");
+    let mut voltage = Plot::time_series(FieldReference::new(SAMPLES).field("voltage_v"))
+        .id("obc.benchmark.plots.signals")
+        .label("AC Voltage")
+        .unit("V")
+        .message;
     voltage.style = PlotStyle::LinePoints as i32;
     voltage.y = vec![FieldReference::new(SAMPLES).field("voltage_v"), FieldReference::new(SAMPLES).field("voltage_rms_v")];
     voltage.marker_records = vec![STARTED.into(), COMPLETED.into()];
@@ -180,17 +185,26 @@ pub fn document() -> Document {
     let timeline = model::Section::new("Signal Timeline").id("obc.benchmark.plots.timeline").plot(voltage);
 
     // Scattered Electrical Samples and the Independent Thermal Survey
-    let mut surface = Plot::new("obc.benchmark.plots.power_map", "Input Power Map", PlotKind::Contour).unit("W");
+    let mut surface = Plot::contour(FieldReference::new(SAMPLES).field("input_power_w"))
+        .id("obc.benchmark.plots.power_map")
+        .label("Input Power Map")
+        .unit("W")
+        .message;
     surface.x = Some(FieldReference::new(SAMPLES).field("voltage_v"));
     surface.y = vec![FieldReference::new(SAMPLES).field("current_a")];
-    surface.z = Some(FieldReference::new(SAMPLES).field("input_power_w"));
     surface.reduction = Some(Reduction::Mean as i32);
     surface.render = ContourRender::Bands as i32;
-    let mut trajectory = Plot::new("obc.benchmark.plots.trajectory", "Electrical Trajectory", PlotKind::Trajectory).unit("A");
-    trajectory.x = Some(FieldReference::new(SAMPLES).field("voltage_v"));
-    trajectory.y = vec![FieldReference::new(SAMPLES).field("current_a")];
-    let mut grid = Plot::new("obc.benchmark.plots.channel_survey", "Channel Survey", PlotKind::GridChart).unit("K");
-    grid.y = vec![FieldReference::new(SURVEY).field("rise_k")];
+    let trajectory = Plot::trajectory(FieldReference::new(SAMPLES).field("current_a"))
+        .x(FieldReference::new(SAMPLES).field("voltage_v"))
+        .id("obc.benchmark.plots.trajectory")
+        .label("Electrical Trajectory")
+        .unit("A")
+        .message;
+    let mut grid = Plot::grid_chart(FieldReference::new(SURVEY).field("rise_k"))
+        .id("obc.benchmark.plots.channel_survey")
+        .label("Channel Survey")
+        .unit("K")
+        .message;
     grid.reduction = Some(Reduction::Mean as i32);
     grid.grid = Some(GridChart {
         row: Some(FieldReference::new(SURVEY).field("module")),
@@ -207,17 +221,29 @@ pub fn document() -> Document {
         .card(Card::plot(trajectory).columns(6))
         .card(Card::plot(grid).columns(12));
 
-    let mut voltages = Plot::new("obc.benchmark.plots.voltage_distribution", "Voltage Distribution", PlotKind::Histogram).unit("V");
-    voltages.x = Some(FieldReference::new(SAMPLES).field("voltage_v"));
-    voltages.y = vec![FieldReference::new(SAMPLES).field("voltage_v")];
-    let mut currents = Plot::new("obc.benchmark.plots.current_distribution", "Current Distribution", PlotKind::Histogram).unit("A");
-    currents.x = Some(FieldReference::new(SAMPLES).field("current_a"));
-    currents.y = vec![FieldReference::new(SAMPLES).field("current_a")];
-    let mut by_phase = Plot::new("obc.benchmark.plots.voltage_by_phase", "Voltage by Phase", PlotKind::BoxPlot).unit("V");
+    let voltages = Plot::histogram(FieldReference::new(SAMPLES).field("voltage_v"))
+        .y(FieldReference::new(SAMPLES).field("voltage_v"))
+        .id("obc.benchmark.plots.voltage_distribution")
+        .label("Voltage Distribution")
+        .unit("V")
+        .message;
+    let currents = Plot::histogram(FieldReference::new(SAMPLES).field("current_a"))
+        .y(FieldReference::new(SAMPLES).field("current_a"))
+        .id("obc.benchmark.plots.current_distribution")
+        .label("Current Distribution")
+        .unit("A")
+        .message;
+    let mut by_phase = Plot::box_plot(FieldReference::new(SAMPLES).field("voltage_v"))
+        .id("obc.benchmark.plots.voltage_by_phase")
+        .label("Voltage by Phase")
+        .unit("V")
+        .message;
     by_phase.series_by = Some(FieldReference::new(SAMPLES).field("phase"));
-    by_phase.y = vec![FieldReference::new(SAMPLES).field("voltage_v")];
-    let mut spectrum = Plot::new("obc.benchmark.plots.spectrum", "Voltage Spectrum", PlotKind::FrequencySeries).unit("V");
-    spectrum.y = vec![FieldReference::new(SAMPLES).field("voltage_v")];
+    let mut spectrum = Plot::frequency_series(FieldReference::new(SAMPLES).field("voltage_v"))
+        .id("obc.benchmark.plots.spectrum")
+        .label("Voltage Spectrum")
+        .unit("V")
+        .message;
     spectrum.sample_rate_hz = Some(1000.0);
     let distributions = model::Section::new("Signal Distributions")
         .id("obc.benchmark.plots.distributions")
@@ -226,24 +252,43 @@ pub fn document() -> Document {
         .plot(by_phase)
         .plot(spectrum);
 
-    let mut means = Plot::new("obc.benchmark.plots.mean_signal_by_phase", "Mean Signal by Phase", PlotKind::Bar).unit("V");
+    let mut means = Plot::bar(FieldReference::new(SAMPLES).field("voltage_v"))
+        .id("obc.benchmark.plots.mean_signal_by_phase")
+        .label("Mean Signal by Phase")
+        .unit("V")
+        .message;
     means.x = Some(FieldReference::new(SAMPLES).field("phase"));
     means.y = vec![FieldReference::new(SAMPLES).field("voltage_v").mean(), FieldReference::new(SAMPLES).field("voltage_rms_v").mean()];
-    let mut counts = Plot::new("obc.benchmark.plots.sample_count_by_phase", "Sample Count by Phase", PlotKind::Bar).unit("samples");
+    let mut counts = Plot::bar(FieldReference::new(SAMPLES).field("sample_index"))
+        .id("obc.benchmark.plots.sample_count_by_phase")
+        .label("Sample Count by Phase")
+        .unit("samples")
+        .message;
     counts.x = Some(FieldReference::new(SAMPLES).field("phase"));
     counts.y = vec![FieldReference::new(SAMPLES).field("sample_index").count()];
-    let mut share = Plot::new("obc.benchmark.plots.phase_share", "Samples by Phase", PlotKind::Pie).unit("samples");
+    let mut share = Plot::pie(FieldReference::new(SAMPLES).field("sample_index"))
+        .id("obc.benchmark.plots.phase_share")
+        .label("Samples by Phase")
+        .unit("samples")
+        .message;
     share.x = Some(FieldReference::new(SAMPLES).field("phase"));
     share.y = vec![FieldReference::new(SAMPLES).field("sample_index").count()];
     share.hole = Some(0.5);
-    let mut totals = Plot::new("obc.benchmark.plots.phase_totals", "Phase Sample Totals", PlotKind::Bar).unit("samples");
+    let mut totals = Plot::bar(FieldReference::new(SAMPLES).field("sample_index"))
+        .id("obc.benchmark.plots.phase_totals")
+        .label("Phase Sample Totals")
+        .unit("samples")
+        .message;
     totals.x = Some(FieldReference::new(SAMPLES).field("phase"));
     totals.y = vec![FieldReference::new(SAMPLES).field("sample_index").count()];
     totals.pareto = true;
-    let mut correlation = Plot::new("obc.benchmark.plots.signal_correlation", "Signal Correlation", PlotKind::Xy).unit("A");
+    let mut correlation = Plot::xy(FieldReference::new(SAMPLES).field("current_a"))
+        .id("obc.benchmark.plots.signal_correlation")
+        .label("Signal Correlation")
+        .unit("A")
+        .message;
     correlation.style = PlotStyle::Points as i32;
     correlation.x = Some(FieldReference::new(SAMPLES).field("voltage_v"));
-    correlation.y = vec![FieldReference::new(SAMPLES).field("current_a")];
     correlation.series_by = Some(FieldReference::new(SAMPLES).field("phase"));
     correlation.interval = Some(XyInterval::Sigma as i32);
     let breakdown = model::Section::new("Phase Breakdown")
@@ -254,7 +299,11 @@ pub fn document() -> Document {
         .plot(totals)
         .plot(correlation);
 
-    let mut current = Plot::new("obc.benchmark.plots.current", "AC Current", PlotKind::TimeSeries).unit("A");
+    let mut current = Plot::time_series(FieldReference::new(SAMPLES).field("current_a"))
+        .id("obc.benchmark.plots.current")
+        .label("AC Current")
+        .unit("A")
+        .message;
     current.y = vec![FieldReference::new(SAMPLES).field("current_a"), FieldReference::new(SAMPLES).field("current_rms_a")];
     current.reference_lines.push(ReferenceLine {
         value: Some(parameter("current_limit_a")),
@@ -266,8 +315,10 @@ pub fn document() -> Document {
 
     let mut load = model::Section::new("Plot Load").id(format!("{TEMPLATE}.load"));
     for index in 0..100 {
-        let mut plot = Plot::line(format!("{TEMPLATE}.signal_{index}"), format!("Signal {}", index + 1)).unit("V");
-        plot.y.push(FieldReference::new(SAMPLES).field("voltage_v"));
+        let plot = Plot::time_series(FieldReference::new(SAMPLES).field("voltage_v"))
+            .id(format!("{TEMPLATE}.signal_{index}"))
+            .label(format!("Signal {}", index + 1))
+            .unit("V");
         load = load.plot(plot);
     }
     Document::new("Plot Families")

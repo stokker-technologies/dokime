@@ -33,6 +33,8 @@ class Reduction(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     REDUCTION_MEAN: _ClassVar[Reduction]
     REDUCTION_MIN: _ClassVar[Reduction]
     REDUCTION_MAX: _ClassVar[Reduction]
+    REDUCTION_LAST: _ClassVar[Reduction]
+    REDUCTION_COUNT: _ClassVar[Reduction]
 
 class ContourRender(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -64,6 +66,7 @@ class PlotKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     PLOT_KIND_CONTOUR: _ClassVar[PlotKind]
     PLOT_KIND_GRID_CHART: _ClassVar[PlotKind]
     PLOT_KIND_BOX_PLOT: _ClassVar[PlotKind]
+    PLOT_KIND_HEAT_STRIP: _ClassVar[PlotKind]
 
 class Downsample(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -112,6 +115,8 @@ REDUCTION_UNSPECIFIED: Reduction
 REDUCTION_MEAN: Reduction
 REDUCTION_MIN: Reduction
 REDUCTION_MAX: Reduction
+REDUCTION_LAST: Reduction
+REDUCTION_COUNT: Reduction
 CONTOUR_RENDER_UNSPECIFIED: ContourRender
 CONTOUR_RENDER_CELLS: ContourRender
 CONTOUR_RENDER_BANDS: ContourRender
@@ -131,6 +136,7 @@ PLOT_KIND_HISTOGRAM: PlotKind
 PLOT_KIND_CONTOUR: PlotKind
 PLOT_KIND_GRID_CHART: PlotKind
 PLOT_KIND_BOX_PLOT: PlotKind
+PLOT_KIND_HEAT_STRIP: PlotKind
 DOWNSAMPLE_UNSPECIFIED: Downsample
 DOWNSAMPLE_RAW: Downsample
 DOWNSAMPLE_MIN_MAX: Downsample
@@ -181,6 +187,8 @@ class Plot(_message.Message, metaclass=GeneratedProtocolMessageType):
     X_SCALE_FIELD_NUMBER: _ClassVar[int]
     Y_SCALE_FIELD_NUMBER: _ClassVar[int]
     INPUT_SAMPLES_FIELD_NUMBER: _ClassVar[int]
+    CELL_FIELD_NUMBER: _ClassVar[int]
+    FACET_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
     kind: PlotKind
     x: _expressions_pb2.DataExpression
@@ -206,7 +214,9 @@ class Plot(_message.Message, metaclass=GeneratedProtocolMessageType):
     x_scale: AxisScale
     y_scale: AxisScale
     input_samples: int
-    def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., kind: _Optional[_Union[PlotKind, str]] = ..., x: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., y: _Optional[_Iterable[_Union[_expressions_pb2.DataExpression, _Mapping]]] = ..., z: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., series_by: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_expressions_pb2.DocumentFilter, _Mapping]]] = ..., unit: _Optional[str] = ..., marker_records: _Optional[_Iterable[str]] = ..., histogram_bins: _Optional[int] = ..., sample_rate_hz: _Optional[float] = ..., display_points: _Optional[int] = ..., reference_lines: _Optional[_Iterable[_Union[ReferenceLine, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[ReferenceBand, _Mapping]]] = ..., arrangement: _Optional[_Union[BarArrangement, str]] = ..., pareto: _Optional[bool] = ..., hole: _Optional[float] = ..., interval: _Optional[_Union[XyInterval, str]] = ..., reduction: _Optional[_Union[Reduction, str]] = ..., render: _Optional[_Union[ContourRender, str]] = ..., grid: _Optional[_Union[GridChart, _Mapping]] = ..., style: _Optional[_Union[PlotStyle, str]] = ..., x_scale: _Optional[_Union[AxisScale, str]] = ..., y_scale: _Optional[_Union[AxisScale, str]] = ..., input_samples: _Optional[int] = ...) -> None: ...
+    cell: _expressions_pb2.DataExpression
+    facet: _expressions_pb2.DataExpression
+    def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., kind: _Optional[_Union[PlotKind, str]] = ..., x: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., y: _Optional[_Iterable[_Union[_expressions_pb2.DataExpression, _Mapping]]] = ..., z: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., series_by: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., filters: _Optional[_Iterable[_Union[_expressions_pb2.DocumentFilter, _Mapping]]] = ..., unit: _Optional[str] = ..., marker_records: _Optional[_Iterable[str]] = ..., histogram_bins: _Optional[int] = ..., sample_rate_hz: _Optional[float] = ..., display_points: _Optional[int] = ..., reference_lines: _Optional[_Iterable[_Union[ReferenceLine, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[ReferenceBand, _Mapping]]] = ..., arrangement: _Optional[_Union[BarArrangement, str]] = ..., pareto: _Optional[bool] = ..., hole: _Optional[float] = ..., interval: _Optional[_Union[XyInterval, str]] = ..., reduction: _Optional[_Union[Reduction, str]] = ..., render: _Optional[_Union[ContourRender, str]] = ..., grid: _Optional[_Union[GridChart, _Mapping]] = ..., style: _Optional[_Union[PlotStyle, str]] = ..., x_scale: _Optional[_Union[AxisScale, str]] = ..., y_scale: _Optional[_Union[AxisScale, str]] = ..., input_samples: _Optional[int] = ..., cell: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., facet: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ...) -> None: ...
 
 @final
 class GridAxisEntry(_message.Message, metaclass=GeneratedProtocolMessageType):
@@ -278,25 +288,6 @@ class ReferenceBand(_message.Message, metaclass=GeneratedProtocolMessageType):
     center: _expressions_pb2.DataExpression
     tolerance: _expressions_pb2.DataExpression
     def __init__(self, min: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., max: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., label: _Optional[str] = ..., color: _Optional[str] = ..., center: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., tolerance: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ...) -> None: ...
-
-@final
-class GridDefinition(_message.Message, metaclass=GeneratedProtocolMessageType):
-    __slots__: tuple[str, ...]
-    ROW_FIELD_NUMBER: _ClassVar[int]
-    COLUMN_FIELD_NUMBER: _ClassVar[int]
-    FRAME_FIELD_NUMBER: _ClassVar[int]
-    ROWS_FIELD_NUMBER: _ClassVar[int]
-    COLUMNS_FIELD_NUMBER: _ClassVar[int]
-    HIGHLIGHTS_FIELD_NUMBER: _ClassVar[int]
-    SUMMARY_LABEL_FIELD_NUMBER: _ClassVar[int]
-    row: _expressions_pb2.DataExpression
-    column: _expressions_pb2.DataExpression
-    frame: _expressions_pb2.DataExpression
-    rows: _containers.RepeatedCompositeFieldContainer[GridAxisEntry]
-    columns: _containers.RepeatedCompositeFieldContainer[GridAxisEntry]
-    highlights: _containers.RepeatedCompositeFieldContainer[GridHighlight]
-    summary_label: str
-    def __init__(self, row: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., column: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., frame: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., rows: _Optional[_Iterable[_Union[GridAxisEntry, _Mapping]]] = ..., columns: _Optional[_Iterable[_Union[GridAxisEntry, _Mapping]]] = ..., highlights: _Optional[_Iterable[_Union[GridHighlight, _Mapping]]] = ..., summary_label: _Optional[str] = ...) -> None: ...
 
 @final
 class PlotFftOptions(_message.Message, metaclass=GeneratedProtocolMessageType):

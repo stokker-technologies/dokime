@@ -180,7 +180,6 @@ using ::dokime::model::v1::FftWindow;
 using ::dokime::model::v1::FrequencyLevelUnit;
 using ::dokime::model::v1::GridAxisEntry;
 using ::dokime::model::v1::GridChart;
-using ::dokime::model::v1::GridDefinition;
 using ::dokime::model::v1::GridHighlight;
 using ::dokime::model::v1::LineStyle;
 using ::dokime::model::v1::Plot;
@@ -206,6 +205,8 @@ inline constexpr auto REDUCTION_UNSPECIFIED = static_cast<::dokime::model::v1::R
 inline constexpr auto REDUCTION_MEAN = static_cast<::dokime::model::v1::Reduction>(1);
 inline constexpr auto REDUCTION_MIN = static_cast<::dokime::model::v1::Reduction>(2);
 inline constexpr auto REDUCTION_MAX = static_cast<::dokime::model::v1::Reduction>(3);
+inline constexpr auto REDUCTION_LAST = static_cast<::dokime::model::v1::Reduction>(4);
+inline constexpr auto REDUCTION_COUNT = static_cast<::dokime::model::v1::Reduction>(5);
 inline constexpr auto CONTOUR_RENDER_UNSPECIFIED = static_cast<::dokime::model::v1::ContourRender>(0);
 inline constexpr auto CONTOUR_RENDER_CELLS = static_cast<::dokime::model::v1::ContourRender>(1);
 inline constexpr auto CONTOUR_RENDER_BANDS = static_cast<::dokime::model::v1::ContourRender>(2);
@@ -225,6 +226,7 @@ inline constexpr auto PLOT_KIND_HISTOGRAM = static_cast<::dokime::model::v1::Plo
 inline constexpr auto PLOT_KIND_CONTOUR = static_cast<::dokime::model::v1::PlotKind>(18);
 inline constexpr auto PLOT_KIND_GRID_CHART = static_cast<::dokime::model::v1::PlotKind>(19);
 inline constexpr auto PLOT_KIND_BOX_PLOT = static_cast<::dokime::model::v1::PlotKind>(20);
+inline constexpr auto PLOT_KIND_HEAT_STRIP = static_cast<::dokime::model::v1::PlotKind>(21);
 inline constexpr auto DOWNSAMPLE_UNSPECIFIED = static_cast<::dokime::model::v1::Downsample>(0);
 inline constexpr auto DOWNSAMPLE_RAW = static_cast<::dokime::model::v1::Downsample>(1);
 inline constexpr auto DOWNSAMPLE_MIN_MAX = static_cast<::dokime::model::v1::Downsample>(2);

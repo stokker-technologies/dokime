@@ -282,7 +282,7 @@ function placeholderSeries(keys: string[], plot: DocumentViewPlot): PlotPayload[
 }
 
 function labelSeries({ plot, series }: { plot: DocumentViewPlot; series: PlotPayload["series"] }): PlotPayload["series"] {
-  if (plot.series_by) {
+  if (plot.series_by || plot.facet_expression || plot.plot_type === "heat_strip") {
     return series;
   }
   return series.map((item) => ({

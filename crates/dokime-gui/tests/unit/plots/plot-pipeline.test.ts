@@ -21,7 +21,7 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { DataExpressionSchema, PlotKind, SnapshotsWatchResponseSchema } from "@host/model";
+import { DataExpressionSchema, PlotKind, Reduction, SnapshotsWatchResponseSchema } from "@host/model";
 import { documentPlot } from "@dokime/document/lib/document-presentation";
 import { Downsample, PlotStreamKind } from "@host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
@@ -114,6 +114,45 @@ test("Viewport and Panel Width Reach the Native Request With Defaults Enabled", 
   assert.equal(native.panelWidth, 960);
   assert.ok((native.maxPoints ?? 0n) > 0n);
   assert.throws(() => plotRequestForDocumentPlot(plot, { scope: null, panelWidth: 0 }));
+});
+
+test("Heat Strip Requests Preserve Grouping and Every Reducer Across Windows", () => {
+  const expression = (field: string) =>
+    create(DataExpressionSchema, {
+      kind: { case: "stream", value: { identifier: "signal", field } },
+    });
+  const plot: DocumentViewPlot = {
+    plot_id: "heat",
+    title: "Heat Strip",
+    stream: "signal",
+    plot_type: "heat_strip",
+    style: "line",
+    x_scale: "linear",
+    y_scale: "linear",
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    y: ["value"],
+    y_expressions: [expression("value")],
+    cell_expression: expression("cell"),
+    facet_expression: expression("facet"),
+  };
+  for (const [reduction, expected] of [
+    ["last", Reduction.LAST],
+    ["max", Reduction.MAX],
+    ["mean", Reduction.MEAN],
+    ["count", Reduction.COUNT],
+  ] as const) {
+    const request = plotRequestForDocumentPlot({ ...plot, reduction }, { scope: null, windowS: 300, summaryWindow: { from: 10, to: 20 } });
+    assert.equal(request.plotType, PlotKind.HEAT_STRIP);
+    assert.equal(request.reduction, expected);
+    assert.deepEqual(request.cellExpression, plot.cell_expression);
+    assert.deepEqual(request.facetExpression, plot.facet_expression);
+    assert.deepEqual(request.yExpressions, plot.y_expressions);
+    assert.equal(request.windowS, 300);
+    assert.deepEqual({ from: request.viewport?.from, to: request.viewport?.to }, { from: 10, to: 20 });
+  }
+  const request = plotRequestForDocumentPlot({ ...plot, facet_expression: null }, { scope: null });
+  assert.equal(request.facetExpression, undefined);
+  assert.equal(request.reduction, undefined);
 });
 
 test("Record-Only Document Intervals Reach the Native Histogram Request", () => {
