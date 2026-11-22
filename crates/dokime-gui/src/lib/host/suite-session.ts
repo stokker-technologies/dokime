@@ -15,7 +15,7 @@
 
 import { required } from "@dokime/plots/lib/rpc/canonical";
 
-import type { Suite } from "@host/model";
+import type { Suite } from "@generated/host/model";
 
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 

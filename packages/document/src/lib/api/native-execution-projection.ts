@@ -13,7 +13,7 @@
 
 /* === Imports === */
 
-import type * as hostModel from "@host/model";
+import type * as hostModel from "@generated/host/model";
 
 import { metadataJson, nativeValueToJson } from "@dokime/plots/lib/host/values";
 
@@ -21,7 +21,7 @@ import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { StepExecutionRecord, TestCase, TestExecution } from "@dokime/plots/lib/types";
 
-import { ExecutionState, ReportState } from "@host/model";
+import { ExecutionState, ReportState } from "@generated/host/model";
 
 import { mapCriterionStatus, mapStepStatus, projectExecutionStatus } from "./native-planning-projection";
 

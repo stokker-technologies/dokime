@@ -21,7 +21,7 @@ import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { SecretImportAction, SecretSnapshotSchema, SecretsImportRequestSchema } from "@host/model";
+import { SecretImportAction, SecretSnapshotSchema, SecretsImportRequestSchema } from "@generated/host/model";
 import { readSecrets, putSecret, removeSecret, previewSecrets, importSecrets } from "@/lib/api/native-secrets";
 
 const fixture = vi.hoisted(() => ({ unary: vi.fn() }));

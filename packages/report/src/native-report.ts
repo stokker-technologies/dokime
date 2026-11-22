@@ -35,7 +35,7 @@ import { appearanceFrameFromNative, logoVariant } from "@dokime/document/lib/nat
 import { cutKey, required, type Wire } from "@dokime/plots/lib/rpc/canonical";
 import type { ArtifactRecord, DocumentViewPayload, PlotPayload } from "@dokime/plots/lib/types";
 import type { RuntimeAppLogo } from "@dokime/plots/lib/types/appearance";
-import { ReportCaptureSchema, type DocumentsGetResponse, type FileReference, type ReportCapture } from "@host/model";
+import { ReportCaptureSchema, type DocumentsGetResponse, type FileReference, type ReportCapture } from "@generated/host/model";
 
 /* === Re-Exports === */
 

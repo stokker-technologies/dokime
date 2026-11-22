@@ -13,7 +13,7 @@
 
 import { executionSchemas } from "@/lib/host/schemas";
 import { cutKey, required } from "@dokime/plots/lib/rpc/canonical";
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 import type { CapturedRecord, RecordPage } from "@dokime/document/lib/api/native-record-projection";
 
 /* === Local Imports === */

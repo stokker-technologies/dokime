@@ -1,7 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 // Access-Owned Listener Projection for Desktop Settings.
-import type { ApplicationSettings, PreferencesSnapshot } from "@generated/application-settings";
+import type { ApplicationSettings, PreferencesSnapshot } from "@generated/typescript/application-settings";
 import * as rpc from "@/lib/host/client";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";

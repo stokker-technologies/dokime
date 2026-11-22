@@ -44,7 +44,7 @@ test("The Embedded Report Permits Generated Messages and Cannot Reach RPC Client
   const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(reportRoot, match[1].replace(/^\//, "")));
   assert.ok(entries.length, "the report must have a module entry");
 
-  const messages = resolveLocal("@host/model", entries[0]);
+  const messages = resolveLocal("@generated/host/model", entries[0]);
   assert.ok(messages, "resolve the shared generated message barrel");
   entries.push(messages);
 

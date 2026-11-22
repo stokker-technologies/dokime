@@ -11,9 +11,9 @@
 
 /* === External Imports === */
 
-import type { EvidenceScope, RecordScope } from "@host/model";
-import { ValueType, type Value } from "@host/model";
-import type { Metadata } from "@host/model";
+import type { EvidenceScope, RecordScope } from "@generated/host/model";
+import { ValueType, type Value } from "@generated/host/model";
+import type { Metadata } from "@generated/host/model";
 
 /* === Local Imports === */
 

@@ -13,13 +13,13 @@
 
 /* === Imports === */
 
-import type * as hostModel from "@host/model";
+import type * as hostModel from "@generated/host/model";
 
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
 import type { HealthItem, OperatorNote } from "@dokime/plots/lib/types";
 
-import { Severity } from "@host/model";
+import { Severity } from "@generated/host/model";
 
 import { timestampIso } from "@dokime/plots/lib/api/native-values";
 

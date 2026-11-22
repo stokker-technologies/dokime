@@ -13,7 +13,7 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import type { GridAxisEntry } from "@host/model";
+import type { GridAxisEntry } from "@generated/host/model";
 import { DataTable } from "../components/data-table/DataTable";
 import { dataTableColumns } from "../components/data-table/data-table-model";
 import { sequentialColorScale } from "../colors";

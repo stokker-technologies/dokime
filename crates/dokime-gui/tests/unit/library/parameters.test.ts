@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { ParameterSchema, ValueType } from "@host/model";
+import { ParameterSchema, ValueType } from "@generated/host/model";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";

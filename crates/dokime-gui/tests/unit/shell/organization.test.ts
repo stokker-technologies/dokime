@@ -22,7 +22,7 @@ import { afterEach, test, vi } from "vitest";
 // Local Imports
 import { brandFromLogos, selectLogo, type Brand } from "@dokime/document/lib/brand";
 import { loadAppearance } from "@/lib/rpc/appearance";
-import { LogoVariant } from "@host/model";
+import { LogoVariant } from "@generated/host/model";
 import type { RuntimeThemeFamily } from "@dokime/document/lib/appearance";
 import { applyBrandFavicon } from "@dokime/document/lib/favicon";
 import { materializeThemeFamilyVariables } from "@dokime/document/lib/theme-family";

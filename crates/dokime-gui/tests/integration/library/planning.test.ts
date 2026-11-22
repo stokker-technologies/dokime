@@ -28,7 +28,7 @@ import {
   ParameterSchema,
   SuiteSchema,
   ValueType,
-} from "@host/model";
+} from "@generated/host/model";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { act, createElement } from "react";

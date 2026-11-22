@@ -9,7 +9,7 @@
 
 import type { JsonObject } from "../types";
 import type { CycleSummaryDefinition } from "./cycle-summary";
-import type { ExecutionControls } from "@host/model";
+import type { ExecutionControls } from "@generated/host/model";
 import type { Wire } from "../rpc/canonical";
 
 /* === Test-domain types ===

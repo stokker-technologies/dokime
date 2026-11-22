@@ -3,8 +3,7 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"],
-      "@host/*": ["../../target/generated/host/*"],
-      "@generated/*": ["../../target/generated/typescript/*"]
+      "@generated/*": ["../../target/generated/*"]
     },
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },

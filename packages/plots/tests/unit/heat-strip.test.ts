@@ -22,7 +22,7 @@ import { test } from "vitest";
 
 // Local Imports
 import { mapNativePlotPayload, plotType } from "@dokime/plots/lib/api/native-plot-projection";
-import { PlotKind, PlotPayloadSchema, PlotCartesianMode } from "@host/model";
+import { PlotKind, PlotPayloadSchema, PlotCartesianMode } from "@generated/host/model";
 
 /* === Re-Exports === */
 

@@ -15,8 +15,8 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { useMemo } from "react";
-import type { ApplicationSettings } from "@generated/application-settings";
-import defaults from "@generated/application-settings.json";
+import type { ApplicationSettings } from "@generated/typescript/application-settings";
+import defaults from "@generated/typescript/application-settings.json";
 import { usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
 
 /* === Types === */

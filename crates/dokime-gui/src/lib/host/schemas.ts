@@ -5,7 +5,7 @@
 
 import { create, type createFileRegistry, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
-import type { ExecutionDetail } from "@host/model";
+import type { ExecutionDetail } from "@generated/host/model";
 import { frozenRegistry } from "@dokime/document/lib/host/schema-registry";
 
 /* === Local Imports === */

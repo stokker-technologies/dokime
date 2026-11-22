@@ -9,7 +9,7 @@
 
 /* === Imports === */
 
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 import { cutKey, type Wire } from "@dokime/plots/lib/rpc/canonical";
 import { failureOf } from "@dokime/plots/lib/notification-details";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
@@ -32,7 +32,7 @@ import {
   PlotRequestSchema,
   Reduction,
   XyInterval,
-} from "@host/model";
+} from "@generated/host/model";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import type { PlotRefreshState } from "@dokime/document/features/cycle/PlotWindowSlider";

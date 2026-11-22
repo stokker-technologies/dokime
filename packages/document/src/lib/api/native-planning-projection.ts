@@ -15,7 +15,7 @@
 
 import type { TestSuiteEntry } from "@dokime/plots/lib/types";
 
-import type * as hostModel from "@host/model";
+import type * as hostModel from "@generated/host/model";
 
 import {
   CaseStatus,
@@ -29,7 +29,7 @@ import {
   Termination,
   type ExecutionControls,
   type ExecutionOutcome,
-} from "@host/model";
+} from "@generated/host/model";
 
 import { metadataJson, nativeValueToJson } from "@dokime/plots/lib/host/values";
 

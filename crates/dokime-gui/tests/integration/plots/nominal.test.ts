@@ -24,7 +24,7 @@ import {
   SnapshotsWatchResponseSchema,
   ValueFormatSchema,
   XyInterval,
-} from "@host/model";
+} from "@generated/host/model";
 import assert from "node:assert/strict";
 
 // Third Party Imports

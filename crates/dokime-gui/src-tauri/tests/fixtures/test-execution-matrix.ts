@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { openHarness } from "./rpc-harness.ts";
 
 const harness = await openHarness();
-let progress: Awaited<ReturnType<typeof import("@host/client").executionsProgressWatch>> | undefined;
+let progress: Awaited<ReturnType<typeof import("@generated/host/client").executionsProgressWatch>> | undefined;
 try {
   const api = await harness.loadHost("client.js");
   const types = await harness.loadHost("model.js");

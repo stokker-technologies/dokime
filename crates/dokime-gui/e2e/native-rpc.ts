@@ -73,7 +73,7 @@ registerHooks({
 
 /* === Types === */
 
-type Host = typeof import("@host/model");
+type Host = typeof import("@generated/host/model");
 type ServiceName<S extends string> = S extends `${string}.${infer Rest}` ? ServiceName<Rest> : S;
 type ResponseSchema<S extends string, M extends string> = Host[Extract<`${ServiceName<S>}${M}ResponseSchema`, keyof Host>];
 type OneofJson<T> = T extends { case: infer Name extends string; value: infer Value } ? { [Key in Name]: JsonMessage<Value> } : object;

@@ -1,11 +1,11 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
-import * as hostModel from "@host/model";
+import * as hostModel from "@generated/host/model";
 // History Projects Final Execution Resources and Their Retained Cuts.
 
 /* === External Imports === */
 
 import { create, fromJson, toJson } from "@bufbuild/protobuf";
-import type { CapturedRecord, ExecutionDetail } from "@host/model";
+import type { CapturedRecord, ExecutionDetail } from "@generated/host/model";
 import {
   ArtifactState,
   ExecutionFileKind,
@@ -15,9 +15,9 @@ import {
   ResultStatus,
   type ExecutionOutcome,
   type ReadCut,
-} from "@host/model";
+} from "@generated/host/model";
 
-import { CyclePhase, type CycleSummary } from "@host/model";
+import { CyclePhase, type CycleSummary } from "@generated/host/model";
 
 /* === Local Imports === */
 

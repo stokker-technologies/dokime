@@ -49,7 +49,7 @@ import {
   ReportFileSchema,
   ResultStatus,
   StepStatus,
-} from "@host/model";
+} from "@generated/host/model";
 
 /* === Re-Exports === */
 

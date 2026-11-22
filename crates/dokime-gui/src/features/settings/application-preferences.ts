@@ -13,7 +13,7 @@
 
 /* === Imports === */
 
-import type { ApplicationSettings, SettingsScope } from "@generated/application-settings";
+import type { ApplicationSettings, SettingsScope } from "@generated/typescript/application-settings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { preferencesCommands } from "@/lib/desktop/settings";

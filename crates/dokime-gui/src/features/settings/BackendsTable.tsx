@@ -17,7 +17,7 @@ import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 
 import { toast } from "@dokime/plots/lib/notifications";
 import { failureOf } from "@dokime/plots/lib/notification-details";
-import type { Document, Profile } from "@generated/application-settings";
+import type { Document, Profile } from "@generated/typescript/application-settings";
 import { Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNativeSessionController } from "@/app/native-session/context";

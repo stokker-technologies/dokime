@@ -11,8 +11,8 @@
 
 /* === Imports === */
 
-import type { ExecutionsCreateResponse, ReadCut } from "@host/model";
-import { CycleOrderKey, CyclePhase } from "@host/model";
+import type { ExecutionsCreateResponse, ReadCut } from "@generated/host/model";
+import { CycleOrderKey, CyclePhase } from "@generated/host/model";
 import {
   casesCreate,
   casesGet,

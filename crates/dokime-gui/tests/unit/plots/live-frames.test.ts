@@ -21,8 +21,8 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/model";
-import { PlotStreamKind } from "@host/model";
+import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@generated/host/model";
+import { PlotStreamKind } from "@generated/host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import type { PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
 import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState } from "@dokime/plots/live-frames";

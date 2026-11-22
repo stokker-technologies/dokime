@@ -14,7 +14,7 @@
 
 /* === Local Imports === */
 
-import type { PlotPayloadDiagnostics } from "@host/model";
+import type { PlotPayloadDiagnostics } from "@generated/host/model";
 import type { Wire } from "./lib/rpc/canonical";
 import { failureOf, type NotificationFailure } from "./lib/notification-details";
 import { summaryInFlight } from "./lib/statistics";

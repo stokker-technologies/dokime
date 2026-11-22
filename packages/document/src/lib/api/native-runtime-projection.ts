@@ -13,15 +13,15 @@
 
 /* === Imports === */
 
-import type * as hostModel from "@host/model";
+import type * as hostModel from "@generated/host/model";
 
 import { defaultBrand } from "../brand";
 
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 
-import { CycleStatus, ResultStatus } from "@host/model";
+import { CycleStatus, ResultStatus } from "@generated/host/model";
 
 import type { ExecutionResultSummary, HubLiveState, RunStatus } from "@dokime/plots/lib/types";
 

@@ -15,7 +15,7 @@ const server = await createServer({
 });
 try {
   const client = await server.ssrLoadModule("/src/lib/host/client.ts");
-  const identity = await server.ssrLoadModule("@host/identity");
+  const identity = await server.ssrLoadModule("@generated/host/identity");
   const calls = Object.values(client).filter((value) => typeof value === "function");
   if (calls.length === 0) throw new Error("the generated client exports no operations");
   if (Object.keys(identity).length === 0) throw new Error("the generated identity module exports nothing");

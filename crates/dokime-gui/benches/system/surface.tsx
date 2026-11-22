@@ -10,7 +10,7 @@ import { mapNativeDocument } from "@dokime/document/lib/api/native-documents";
 import { commands } from "@/lib/desktop/commands";
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import type { DocumentViewPlot } from "@dokime/plots/lib/types";
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import { useLivePlotPayloads } from "@/plots/live-data";
 import { useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";

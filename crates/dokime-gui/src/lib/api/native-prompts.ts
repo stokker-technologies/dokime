@@ -1,4 +1,4 @@
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 /* ***
  *
  * Dokime
@@ -16,10 +16,10 @@ import type { EvidenceScope } from "@host/model";
 
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { PromptKind } from "@host/model";
-import { PromptFieldKind, PromptActionEmphasis } from "@host/model";
-import { StreamMatchOperator, type EvidenceCondition } from "@host/model";
-import { Severity } from "@host/model";
+import { PromptKind } from "@generated/host/model";
+import { PromptFieldKind, PromptActionEmphasis } from "@generated/host/model";
+import { StreamMatchOperator, type EvidenceCondition } from "@generated/host/model";
+import { Severity } from "@generated/host/model";
 import { jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@dokime/plots/lib/host/values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, PromptRequest } from "@dokime/plots/lib/types";

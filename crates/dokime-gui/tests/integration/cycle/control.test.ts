@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { create } from "@bufbuild/protobuf";
-import { CycleSummarySchema, ExecutionState, ExecutionSummarySchema } from "@host/model";
+import { CycleSummarySchema, ExecutionState, ExecutionSummarySchema } from "@generated/host/model";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";

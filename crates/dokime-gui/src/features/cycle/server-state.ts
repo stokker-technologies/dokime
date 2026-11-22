@@ -10,7 +10,7 @@
 /* === External Imports === */
 
 import type { Wire } from "@dokime/plots/lib/rpc/canonical";
-import type { EvidenceScope } from "@host/model";
+import type { EvidenceScope } from "@generated/host/model";
 import { useMutation, useQueries, useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 

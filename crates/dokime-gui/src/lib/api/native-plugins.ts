@@ -2,7 +2,7 @@
 
 /* === External Imports === */
 
-import { PluginState, type PluginEntry } from "@host/model";
+import { PluginState, type PluginEntry } from "@generated/host/model";
 import { Channel } from "@tauri-apps/api/core";
 
 /* === Local Imports === */

@@ -7,8 +7,8 @@
  * ***
  */
 
-import type * as model from "@host/model";
-import type { PlotDomain, ContourGrid, GridFrames, GridAxisEntry, PlotPayloadDiagnostics, ValueFormat } from "@host/model";
+import type * as model from "@generated/host/model";
+import type { PlotDomain, ContourGrid, GridFrames, GridAxisEntry, PlotPayloadDiagnostics, ValueFormat } from "@generated/host/model";
 import type { Wire } from "../rpc/canonical";
 import type { SeriesSummary, StatisticValue, StatsSummary } from "../statistics";
 import type { JsonObject } from "../types";

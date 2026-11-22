@@ -12,8 +12,8 @@
 /* === External Imports === */
 
 import { required } from "@dokime/plots/lib/rpc/canonical";
-import type { Parameter, ParameterExpression, Suite, TestCaseTemplate } from "@host/model";
-import { ValueType } from "@host/model";
+import type { Parameter, ParameterExpression, Suite, TestCaseTemplate } from "@generated/host/model";
+import { ValueType } from "@generated/host/model";
 
 /* === Local Imports === */
 
