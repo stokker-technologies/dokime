@@ -21,7 +21,6 @@ import {
   mapNativePlotEnvelope,
   mapNativePlotPayload,
   plotType,
-  requiredText,
 } from "@dokime/plots/lib/api/native-plot-projection";
 
 /* === Local Imports === */
@@ -224,7 +223,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
             unit: input.histogram.unit ?? undefined,
           },
         }),
-    stream: requiredText(input.stream, "plot stream"),
+    stream: input.stream,
     yKeys: input.yKeys,
     markerRecordTypes: input.markerRecordTypes ?? [],
     filters: (input.filters ?? []).map(plotFilter),

@@ -87,10 +87,13 @@ impl Store {
     }
     pub fn plot_selection(&self, cut: &ExecutionCut, request: &PlotRequest) -> Result<PlotSelection> {
         let mut selected = request.clone();
-        let grouping = request
-            .series_by_expression
-            .clone()
-            .or_else(|| request.series_by.as_ref().map(|field| expressions::reference(&request.stream, field, false)));
+        let grouping = request.series_by_expression.clone().or_else(|| {
+            request
+                .series_by
+                .as_ref()
+                .filter(|_| !request.stream.is_empty())
+                .map(|field| expressions::reference(&request.stream, field, false))
+        });
         let mut fields = BTreeMap::new();
         let mut labels = BTreeMap::new();
         let mut projected = BTreeSet::new();
@@ -134,14 +137,16 @@ impl Store {
             selected.z_stream = Some(request.stream.clone());
             selected.z_field = Some(key);
         }
-        *self.projection.lock().map_err(|_| Error::Data("restart after the plot projection lock failed"))? = Some(Projection {
+        let projection = Projection {
             cut: cut.clone(),
             stream: request.stream.clone(),
             fields,
             filters: request.filters.clone(),
             grouping,
             group: None,
-        });
+        };
+        projection.source()?;
+        *self.projection.lock().map_err(|_| Error::Data("restart after the plot projection lock failed"))? = Some(projection);
         selected.filters.clear();
         Ok(PlotSelection { request: selected, projected, labels })
     }
@@ -155,8 +160,8 @@ pub(crate) fn compare_groups(left: &str, right: &str) -> Ordering {
     let number = |value: &str| value.parse::<f64>().ok().filter(|value| value.is_finite());
     match (number(left), number(right)) {
         (Some(a), Some(b)) => a.total_cmp(&b).then_with(|| left.cmp(right)),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
         _ => left.cmp(right),
     }
 }

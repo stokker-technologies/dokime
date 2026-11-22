@@ -232,7 +232,9 @@ async fn batch(
     let mut workers = JoinSet::new();
     loop {
         while workers.len() < capacity {
-            let Some((index, (mut request, source))) = pending.next() else { break };
+            let Some((index, (mut request, source))) = pending.next() else {
+                break;
+            };
             let reader = store.independent_projection();
             let epoch = epoch.to_owned();
             let span = tracing::Span::current();
@@ -287,7 +289,9 @@ async fn batch(
                 }
             });
         }
-        let Some(result) = workers.join_next().await else { break };
+        let Some(result) = workers.join_next().await else {
+            break;
+        };
         let (index, envelope) =
             result.map_err(|source| Error::Invalid(format!("Query Plot: Restart After the Query Worker Failed: {source}")))??;
         output[index] = Some(envelope);
@@ -319,23 +323,31 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let selection_key = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
     let selected = store.plot_selection(cut, request)?;
     let request = &selected.request;
-    let stream = catalog
-        .streams
-        .iter()
-        .find(|stream| stream.id == request.stream)
-        .ok_or_else(|| Error::Invalid(format!("Query Plot: Select a Declared Stream {}", request.stream)))?;
-    let descriptor =
-        pool.get_message_by_name(&stream.row).ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Row Descriptor".into()))?;
-    let mut fields = if request.y_expressions.is_empty() { request.y_keys.clone() } else { Vec::new() };
+    let stream = request.stream.as_str();
+    let descriptor = if stream.is_empty() {
+        None
+    } else {
+        let declaration = catalog
+            .streams
+            .iter()
+            .find(|declaration| declaration.id == stream)
+            .ok_or_else(|| Error::Invalid(format!("Query Plot: Select a Declared Stream {stream}")))?;
+        Some(
+            pool.get_message_by_name(&declaration.row)
+                .ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Row Descriptor".into()))?,
+        )
+    };
+    let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
+    let mut fields = if request.y_expressions.is_empty() && !stream.is_empty() { request.y_keys.clone() } else { Vec::new() };
     let mut aggregate = None;
     for expression in &request.y_expressions {
         match expression.kind.as_ref() {
-            Some(data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => fields.push(reference.field.clone()),
+            Some(data_expression::Kind::Stream(reference)) if reference.identifier == stream => fields.push(reference.field.clone()),
             Some(data_expression::Kind::Aggregate(expression)) => {
                 let Some(data_expression::Kind::Stream(reference)) = expression.input.as_ref().and_then(|input| input.kind.as_ref()) else {
                     return Err(Error::Invalid("Query Plot: Aggregate a Numeric Stream Column".into()));
                 };
-                if reference.identifier != stream.id {
+                if reference.identifier != stream {
                     return Err(Error::Invalid("Query Plot: Select Columns from One Stream".into()));
                 }
                 fields.push(reference.field.clone());
@@ -349,7 +361,17 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             _ => return Err(Error::Invalid("Query Plot: Select Numeric Columns from the Requested Stream".into())),
         }
     }
-    if fields.is_empty() {
+    if fields.is_empty()
+        && kind == PlotKind::Histogram
+        && let Some(data_expression::Kind::Stream(reference)) =
+            request.x_expression.as_ref().and_then(|expression| expression.kind.as_ref())
+        && reference.identifier == stream
+    {
+        fields.push(reference.field.clone());
+    }
+    if fields.is_empty()
+        && let Some(descriptor) = &descriptor
+    {
         fields.extend(
             descriptor
                 .fields()
@@ -361,9 +383,12 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     fields.dedup();
     for field in &fields {
         if !selected.projected.contains(field)
-            && descriptor.get_field_by_name(field).is_none_or(|field| field.is_list() || field.is_map() || !numeric(&field.kind()))
+            && descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.get_field_by_name(field))
+                .is_none_or(|field| field.is_list() || field.is_map() || !numeric(&field.kind()))
         {
-            return Err(Error::Invalid(format!("Query Plot: Select a Declared Numeric Scalar Field {}.{field}", stream.id)));
+            return Err(Error::Invalid(format!("Query Plot: Select a Declared Numeric Scalar Field {stream}.{field}")));
         }
     }
     if fields.is_empty() {
@@ -378,7 +403,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if !request.filters.is_empty() {
         return Err(Error::Invalid("Query Plot: Select an Unfiltered Stream Window".into()));
     }
-    if request.z_stream.as_ref().is_some_and(|selected| selected != &stream.id) {
+    if request.z_stream.as_ref().is_some_and(|selected| selected != stream) {
         return Err(Error::Invalid("Query Plot: Select Coordinate Columns from One Stream".into()));
     }
     if aggregate.is_some_and(|kind| !matches!(kind, Aggregate::Count | Aggregate::Sum | Aggregate::Min | Aggregate::Max | Aggregate::Mean))
@@ -388,7 +413,6 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if request.panel_width == Some(0) || request.panel_height == Some(0) {
         return Err(Error::Invalid("Query Plot: Supply Positive Panel Dimensions".into()));
     }
-    let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
     let temporal = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries | PlotKind::Xy | PlotKind::Trajectory);
     if aggregate.is_some()
         && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
@@ -400,8 +424,8 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     }
     let field_reference = |expression: Option<&DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
         match expression.and_then(|expression| expression.kind.as_ref()) {
-            Some(data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),
-            None => Ok(fallback.map(str::to_owned)),
+            Some(data_expression::Kind::Stream(reference)) if reference.identifier == stream => Ok(Some(reference.field.clone())),
+            None => Ok(fallback.filter(|_| !stream.is_empty()).map(str::to_owned)),
             _ => Err(Error::Invalid("Query Plot: Select Coordinate Columns from the Requested Stream".into())),
         }
     };
@@ -443,7 +467,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         if let Some(viewport) = request.viewport.as_ref().filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified)) {
             (ns(viewport.from)?, ns(viewport.to)?)
         } else {
-            let bounds = store.numeric_bounds(execution, &stream.id, &fields[0], through)?.unwrap_or((0, 0));
+            let bounds = store.numeric_bounds(execution, stream, &fields[0], through)?.unwrap_or((0, 0));
             if let Some(window_s) = request.window_s {
                 if !window_s.is_finite() || window_s < 0.0 {
                     return Err(Error::Invalid("Query Plot: Choose a Finite Nonnegative Time Window".into()));
@@ -458,7 +482,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     }
     let resolution = ((i128::from(end_ns) - i128::from(start_ns) + 1 + bins.get() as i128 - 1) / bins.get() as i128).max(1) as u64;
     let mut payload = PlotPayload {
-        stream: stream.id.clone(),
+        stream: stream.to_owned(),
         x_key: x.clone().unwrap_or_else(|| "timestamp".into()),
         series_by: group.clone(),
         max_points: display as u64,
@@ -481,7 +505,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     for field in fields {
         let window = NumericWindow {
             execution,
-            stream: &stream.id,
+            stream,
             field: &field,
             after,
             through,
@@ -880,7 +904,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         );
     }
     Ok(PlotEnvelope {
-        plot_id: request.plot_id.clone().unwrap_or_else(|| stream.id.clone()),
+        plot_id: request.plot_id.clone().unwrap_or_else(|| stream.to_owned()),
         revision: cut.frontier,
         epoch: epoch.into(),
         selection: selection_key,
