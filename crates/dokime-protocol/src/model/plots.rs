@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::host::plots::PlotRequest;
-use crate::model::{Metadata, Plot, PlotKind, Reduction};
+use crate::model::{PlotKind, Reduction};
 
 /* === Constants === */
 
@@ -36,25 +36,6 @@ use crate::model::{Metadata, Plot, PlotKind, Reduction};
 /* === Traits === */
 
 /* === Implementations === */
-
-impl Plot {
-    pub fn new(identifier: impl Into<String>, label: impl Into<String>, kind: PlotKind) -> Self {
-        Self {
-            metadata: Some(Metadata::new(identifier, label)),
-            kind: kind as i32,
-            ..Default::default()
-        }
-    }
-
-    pub fn line(identifier: impl Into<String>, label: impl Into<String>) -> Self {
-        Self::new(identifier, label, PlotKind::TimeSeries)
-    }
-
-    pub fn unit(mut self, unit: impl Into<String>) -> Self {
-        self.unit = unit.into();
-        self
-    }
-}
 
 impl PlotKind {
     /// Parse a declared kind, refusing retired spellings with authoring guidance.

@@ -1551,3 +1551,40 @@ fn heat_strip_projection_applies_filters_cuts_and_indexed_source_bounds() -> Res
     assert_eq!(values, vec![4.0, 6.0, 8.0]);
     Ok(())
 }
+
+#[test]
+fn grouped_categories_preserve_durable_last_and_explicit_pie_totals() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    let mut samples = fixture::samples(2);
+    for (sample, (value, source_ns)) in samples.iter_mut().zip([(4, 20), (8, 10)]) {
+        sample.row = Row { value, label: "group".into() }.encode_to_vec();
+        sample.source_ns = source_ns;
+    }
+    store.sample_batch("execution", &samples)?;
+    store.flush_samples()?;
+    let cut = store.cut("execution")?;
+    let request = || KindWindow {
+        window: numeric(cut.frontier),
+        x: Some("label"),
+        z: None,
+        group: None,
+        limit: 8,
+    };
+
+    let (category, count, groups) = store.category_window(request(), None, false)?;
+    assert_eq!(count, 2);
+    assert_eq!(groups, vec![(String::new(), 2)]);
+    assert_eq!(category.series[0].y[0].value, Some(8.0));
+    let (heat, _, _) = store.heat_strip_window(request(), Reduction::Last)?;
+    assert_eq!(heat.series[0].y[0].value, Some(4.0));
+    assert!(store.category_window(request(), None, true).is_err());
+    for (aggregate, expected) in [(Aggregate::Max, 8.0), (Aggregate::Mean, 6.0), (Aggregate::Count, 2.0), (Aggregate::Sum, 12.0)] {
+        let (category, count, _) = store.category_window(request(), Some(aggregate), true)?;
+        assert_eq!(count, 2);
+        assert_eq!(category.series[0].y[0].value, Some(expected));
+    }
+    Ok(())
+}

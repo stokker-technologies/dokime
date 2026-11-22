@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::f64::consts::{E, SQRT_2, TAU};
 use std::iter;
@@ -69,7 +69,7 @@ type GridReduction = BTreeMap<(String, String), (ScalarValue, ScalarValue, f64, 
 
 /* === Structs === */
 
-struct HeatCell {
+struct ValueGroup {
     cell: ScalarValue,
     facet: ScalarValue,
     latest: Option<Input>,
@@ -199,58 +199,9 @@ impl Store {
             Reduction::Count => Some(Aggregate::Count),
             _ => return Err(Error::Data("Read Heat Strip: Select Last, Max, Mean or Count")),
         };
+        let mut groups = self.grouped_values(&request, aggregate, true)?;
         let budget = self.storage_settings()?.query_bytes.get();
-        let mut bytes = 0usize;
-        let mut groups = BTreeMap::<(String, String), HeatCell>::new();
-        self.kind_values(&request, true, |row| {
-            if missing(&row.x)
-                || missing(&row.g)
-                || scalar::number(&row.x).is_some_and(|v| !v.is_finite())
-                || scalar::number(&row.g).is_some_and(|v| !v.is_finite())
-            {
-                return Ok(());
-            }
-            let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?);
-            if !groups.contains_key(&key) {
-                bytes = bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len()));
-                if groups.len() >= request.limit || bytes > budget {
-                    return Err(Error::Data("Read Heat Strip: Narrow the Window or Select Fewer Cells and Facets"));
-                }
-                groups.insert(
-                    key.clone(),
-                    HeatCell {
-                        cell: row.x.clone(),
-                        facet: row.g.clone(),
-                        latest: None,
-                        count: 0,
-                        accumulator: aggregate.map(|kind| expressions::accumulator(kind, 0.0)).transpose()?,
-                    },
-                );
-            }
-            let group = groups.get_mut(&key).unwrap();
-            if !row.y.is_finite() {
-                if !missing(&row.scalar) && scalar::number(&row.scalar).is_none() {
-                    return Err(Error::Data("Read Heat Strip: Select a Numeric Value Expression"));
-                }
-                return Ok(());
-            }
-            group.count += 1;
-            if let Some(accumulator) = &mut group.accumulator {
-                accumulator.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
-            }
-            let replace = group.latest.as_ref().is_none_or(|previous| {
-                let newer = (row.time, row.position) > (previous.time, previous.position);
-                if reduction == Reduction::Max {
-                    row.scalar.compare(&previous.scalar).is_ok_and(|order| order.is_gt() || order.is_eq() && newer)
-                } else {
-                    newer
-                }
-            });
-            if replace {
-                group.latest = Some(row);
-            }
-            Ok(())
-        })?;
+        let bytes = groups.keys().fold(0usize, |bytes, key| bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len())));
         let mut cells = BTreeMap::new();
         let mut facets = BTreeMap::new();
         for ((facet, cell), group) in &groups {
@@ -307,33 +258,13 @@ impl Store {
         Ok((frame, count, counts))
     }
     pub fn category_window(&self, request: KindWindow<'_>, aggregate: Option<Aggregate>, unique: bool) -> Result<CartesianRead> {
-        let mut grouped = BTreeMap::<(String, String), (Input, u64, Accumulator)>::new();
-        self.kind_values(&request, false, |row| {
-            if missing(&row.x) {
-                return Ok(());
-            }
-            let key = (serde_json::to_string(&row.x)?, serde_json::to_string(&row.g)?);
-            if !grouped.contains_key(&key) && grouped.len() >= request.limit {
-                return Err(Error::Data("narrow categories or select fewer groups"));
-            }
-            if !grouped.contains_key(&key) {
-                grouped.insert(key.clone(), (row.clone(), 0, expressions::accumulator(aggregate.unwrap_or(Aggregate::Sum), 0.0)?));
-            }
-            let entry = grouped.get_mut(&key).unwrap();
-            entry.1 += 1;
-            if aggregate.is_some() {
-                entry.2.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
-            }
-            if row.position > entry.0.position {
-                entry.0 = row;
-            }
-            Ok(())
-        })?;
-        let rows = grouped.into_values().map(|(row, n, accumulator)| {
-            let total = if aggregate.is_some() {
-                accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?
-            } else {
-                row.scalar
+        let grouped = self.grouped_values(&request, aggregate, false)?;
+        let rows = grouped.into_values().map(|group| {
+            let n = group.count;
+            let row = group.latest.ok_or(Error::Data("Read Category Plot: Supply a Numeric Value"))?;
+            let total = match group.accumulator {
+                Some(accumulator) => accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?,
+                None => row.scalar,
             };
             let y = scalar::number(&total).ok_or(Error::Data("Read Category Total: Select a Numeric Aggregate"))?;
             Ok::<_, Error>((row.x, y, row.g, n as i64, total))
@@ -373,6 +304,66 @@ impl Store {
             count,
             keys,
         ))
+    }
+    fn grouped_values(
+        &self, request: &KindWindow<'_>, aggregate: Option<Aggregate>, heat_strip: bool,
+    ) -> Result<BTreeMap<(String, String), ValueGroup>> {
+        let budget = self.storage_settings()?.query_bytes.get();
+        let mut bytes = 0usize;
+        let mut groups = BTreeMap::<(String, String), ValueGroup>::new();
+        self.kind_values(request, heat_strip, |row| {
+            let invalid_heat_identity = heat_strip
+                && (missing(&row.g)
+                    || scalar::number(&row.x).is_some_and(|v| !v.is_finite())
+                    || scalar::number(&row.g).is_some_and(|v| !v.is_finite()));
+            if missing(&row.x) || invalid_heat_identity {
+                return Ok(());
+            }
+            let key = (serde_json::to_string(&row.g)?, serde_json::to_string(&row.x)?);
+            if !groups.contains_key(&key) {
+                bytes = bytes.saturating_add(512 + 4 * (key.0.len() + key.1.len()));
+                if groups.len() >= request.limit || bytes > budget {
+                    return Err(Error::Data("Read Grouped Plot: Narrow the Window or Select Fewer Cells and Facets"));
+                }
+                groups.insert(
+                    key.clone(),
+                    ValueGroup {
+                        cell: row.x.clone(),
+                        facet: row.g.clone(),
+                        latest: None,
+                        count: 0,
+                        accumulator: aggregate.map(|kind| expressions::accumulator(kind, 0.0)).transpose()?,
+                    },
+                );
+            }
+            let group = groups.get_mut(&key).unwrap();
+            if !row.y.is_finite() {
+                if !missing(&row.scalar) && scalar::number(&row.scalar).is_none() {
+                    return Err(Error::Data("Read Heat Strip: Select a Numeric Value Expression"));
+                }
+                return Ok(());
+            }
+            group.count += 1;
+            if let Some(accumulator) = &mut group.accumulator {
+                accumulator.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
+            }
+            let replace = group.latest.as_ref().is_none_or(|previous| {
+                let newer = (row.time, row.position) > (previous.time, previous.position);
+                if heat_strip && aggregate == Some(Aggregate::Max) {
+                    let order = compare_cells(&row.scalar, &previous.scalar);
+                    order.is_gt() || order.is_eq() && newer
+                } else if heat_strip {
+                    newer
+                } else {
+                    row.position > previous.position
+                }
+            });
+            if replace {
+                group.latest = Some(row);
+            }
+            Ok(())
+        })?;
+        Ok(groups)
     }
     pub fn sigma_window(&self, request: KindWindow<'_>, options: PlotIntervalOptions) -> Result<(PlotSigmaIntervalAnalysis, u64)> {
         if !options.bin_width.is_finite() || options.bin_width <= 0.0 || !options.sigma.is_finite() || options.sigma <= 0.0 {
@@ -896,13 +887,58 @@ impl Store {
 
 /* === Private Functions === */
 
-fn compare_cells(left: &ScalarValue, right: &ScalarValue) -> std::cmp::Ordering {
+fn compare_cells(left: &ScalarValue, right: &ScalarValue) -> Ordering {
     match (scalar::number(left), scalar::number(right)) {
-        (Some(_), Some(_)) => left.compare(right).unwrap_or(std::cmp::Ordering::Equal),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (Some(_), Some(_)) => match (left, right) {
+            (ScalarValue::Float(left), ScalarValue::Float(right)) => left.partial_cmp(right).unwrap_or(Ordering::Equal),
+            (ScalarValue::Float(left), right) => compare_cell_float(right, *left).reverse(),
+            (left, ScalarValue::Float(right)) => compare_cell_float(left, *right),
+            (ScalarValue::Bool(left), right) => compare_cells(&ScalarValue::Unsigned(u64::from(*left)), right),
+            (left, ScalarValue::Bool(right)) => compare_cells(left, &ScalarValue::Unsigned(u64::from(*right))),
+            _ => left.compare(right).expect("finite exact numeric cells"),
+        },
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
         _ => scalar::text(left).cmp(&scalar::text(right)),
     }
+}
+
+/// Compare a Rational Cell to a Float Without Rounding Away Its Identity.
+fn compare_cell_float(left: &ScalarValue, right: f64) -> Ordering {
+    let (negative, numerator, denominator) = match left {
+        ScalarValue::Signed(value) => (*value < 0, u128::from(value.unsigned_abs()), 1),
+        ScalarValue::Unsigned(value) => (false, u128::from(*value), 1),
+        ScalarValue::Exact(value) => (value.negative, value.numerator, value.denominator.get()),
+        ScalarValue::Bool(value) => (false, u128::from(*value), 1),
+        _ => unreachable!("numeric cell"),
+    };
+    let right_negative = right < 0.0;
+    if negative != right_negative {
+        return if negative { Ordering::Less } else { Ordering::Greater };
+    }
+    let right = right.abs();
+    // All Rational Magnitudes Fit in u128; Saturating Float Casts Would Lose This Boundary.
+    let mut order = if right >= u128::MAX as f64 { Ordering::Less } else { (numerator / denominator).cmp(&(right as u128)) };
+    if order.is_eq() {
+        let mut remainder = numerator % denominator;
+        let mut fraction = right.fract();
+        // Compare Binary Fraction Digits; Subtraction Avoids Overflow When Doubling the Remainder.
+        while fraction != 0.0 {
+            fraction *= 2.0;
+            let right_bit = fraction >= 1.0;
+            fraction = fraction.fract();
+            let left_bit = remainder >= denominator - remainder;
+            remainder = if left_bit { remainder - (denominator - remainder) } else { remainder * 2 };
+            order = left_bit.cmp(&right_bit);
+            if !order.is_eq() {
+                break;
+            }
+        }
+        if order.is_eq() {
+            order = remainder.cmp(&0);
+        }
+    }
+    if negative { order.reverse() } else { order }
 }
 fn value(value: ScalarValue) -> Value {
     scalar::wire(&value).expect("finite plot scalar")
@@ -925,6 +961,11 @@ fn instant(at_ns: i64) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+    use std::num::NonZeroU128;
+
+    use harmos_query::scalar::ExactNumber;
+
     use super::compare_cells;
     use crate::scalar::ScalarValue;
 
@@ -950,5 +991,47 @@ mod tests {
                 ScalarValue::Text("2".into())
             ]
         );
+    }
+
+    #[test]
+    fn heat_strip_mixed_numeric_cells_preserve_exact_fraction_and_float_order() {
+        let exact = |negative, numerator, denominator| {
+            ScalarValue::Exact(ExactNumber::new(negative, numerator, NonZeroU128::new(denominator).unwrap()))
+        };
+        let ordered = [
+            ScalarValue::Float(-f64::MAX),
+            exact(true, u128::MAX, 1),
+            ScalarValue::Signed(i64::MIN),
+            exact(true, 1, 10),
+            ScalarValue::Float(-f64::from_bits(1)),
+            ScalarValue::Signed(0),
+            ScalarValue::Float(f64::from_bits(1)),
+            exact(false, 1, u128::MAX),
+            exact(false, 1, 10),
+            ScalarValue::Float(0.1),
+            ScalarValue::Bool(true),
+            ScalarValue::Float(2.5),
+            ScalarValue::Float(9_007_199_254_740_992.0),
+            ScalarValue::Unsigned(9_007_199_254_740_993),
+            exact(false, u128::MAX, 1),
+            ScalarValue::Float(u128::MAX as f64),
+            ScalarValue::Float(f64::MAX),
+        ];
+        for (index, left) in ordered.iter().enumerate() {
+            assert_eq!(compare_cells(left, left), Ordering::Equal);
+            for right in &ordered[index + 1..] {
+                assert_eq!(compare_cells(left, right), Ordering::Less, "{left:?} < {right:?}");
+                assert_eq!(compare_cells(right, left), Ordering::Greater, "{right:?} > {left:?}");
+            }
+        }
+        for (left, right) in [
+            (ScalarValue::Float(-0.0), ScalarValue::Signed(0)),
+            (ScalarValue::Bool(true), ScalarValue::Unsigned(1)),
+            (exact(false, 5, 2), ScalarValue::Float(2.5)),
+            (ScalarValue::Signed(-2), ScalarValue::Float(-2.0)),
+        ] {
+            assert_eq!(compare_cells(&left, &right), Ordering::Equal);
+            assert_eq!(compare_cells(&right, &left), Ordering::Equal);
+        }
     }
 }
