@@ -18,13 +18,12 @@
 import assert from "node:assert/strict";
 import { forceCloseDatabase, IDBFactory, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
 // Third Party Imports
-import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ComponentProps } from "svelte";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { Button } from "@/components/ui/button";
 import type NotificationToast from "@/features/notifications/NotificationToast.svelte";
 import { failureOf } from "@/lib/notification-details";
 
@@ -88,13 +87,6 @@ function record(index: number) {
     tone: "info" as const,
     unread: 1 as const,
   };
-}
-
-function buttonIn(node: ReactNode): ReactElement<{ onClick: () => void; type: string; "aria-haspopup": string }> | undefined {
-  if (Array.isArray(node)) return node.map(buttonIn).find(Boolean);
-  if (!isValidElement<{ children?: ReactNode }>(node)) return undefined;
-  if (node.type === "button" || node.type === Button) return node as ReturnType<typeof buttonIn>;
-  return buttonIn(node.props.children);
 }
 
 /* === Entry Point === */
@@ -254,7 +246,7 @@ test("Closed Connections Recover", async () => {
 test("Every Toast and History Entry Opens the Retained Details", async () => {
   const { fireEvent, render } = await import("@testing-library/svelte");
   const history = await import("@/lib/notifications");
-  const { NotificationHistoryEntry } = await import("@/features/notifications/NotificationsSurface");
+  const { default: NotificationHistoryEntry } = await import("@/features/notifications/NotificationHistoryEntry.svelte");
   for (const tone of ["error", "warning", "info", "success"] as const) {
     if (tone === "error") {
       history.toast.error(failureOf("complete message", "fixture"), { source: "fixture-source" });
@@ -275,10 +267,10 @@ test("Every Toast and History Entry Opens the Retained Details", async () => {
   }
   const page = await history.notificationPage();
   const retained = page.records[0];
-  const entry = NotificationHistoryEntry({ record: retained, now: retained.at });
-  const trigger = buttonIn(entry);
-  assert.ok(trigger);
-  trigger.props.onClick();
+  const entry = render(NotificationHistoryEntry, { record: retained, now: retained.at });
+  const trigger = entry.getByRole("button");
+  await fireEvent.click(trigger);
+  entry.unmount();
   assert.deepEqual(history.getNotificationDetails(), retained);
 });
 
