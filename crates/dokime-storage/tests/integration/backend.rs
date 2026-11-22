@@ -40,7 +40,7 @@ use harmos_query::transform::{FieldPath, Transform, TransformExecution};
 use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
 use harmos_storage::execution::Execution;
 use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
-use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
+use harmos_storage::query::{ObjectSelection, ObjectVersions, RecordSelection, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
 use harmos_storage::writes::DecodedBatch;
 use harmos_storage::{
@@ -1134,7 +1134,7 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
 }
 
 #[tokio::test]
-async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -> StoryResult {
+async fn sample_page_progress() -> StoryResult {
     // Store a Small Row and a Larger Row in the Same Native Arrow Batch.
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
@@ -1158,7 +1158,7 @@ async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -
     let snapshot = backend.create_snapshot(&at).await?;
     let selection = selection(&schema.key, "execution")?;
 
-    // Return the First Page Before Refusing an Individually Oversized Row.
+    // Page Before the Large Row, Then Return It Despite the Page Budget.
     let mut page = ScanPage {
         after: 0,
         rows: limits().rows,
@@ -1167,15 +1167,99 @@ async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -
     let first = backend.list_samples(&snapshot, &selection, page).await?;
     assert_eq!(first, expected[..1]);
     page.after = first.last().unwrap().record.position.sequence;
-    let refused = backend.list_samples(&snapshot, &selection, page).await;
-    assert!(matches!(refused, Err(harmos_storage::Error::ResourceExhausted { .. })));
-
-    // A Larger Bound Returns the Exact Remaining Native Payload.
-    page.bytes = limits().bytes;
     let remaining = backend.list_samples(&snapshot, &selection, page).await?;
     assert_eq!(remaining, expected[1..]);
+
+    // An Identity Also Makes Progress With a Smaller Page Than Its Own Size.
+    let identities = backend
+        .list_identities(
+            &snapshot,
+            &IdentitySelection {
+                kind: IdentityKind::Streams,
+                schema: Some(schema.key.id.clone()),
+            },
+            ScanPage {
+                after: 0,
+                bytes: NonZeroUsize::MIN,
+                ..page
+            },
+        )
+        .await?;
+    assert!(matches!(identities.as_slice(), [StoredIdentity::Stream { stream, .. }] if stream == &expected[0].stream));
     backend.delete_snapshot(&snapshot).await?;
     backend.delete_session().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn record_page_progress() -> StoryResult {
+    // Store One Large Record Followed by Many Small Records.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let (backends, lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
+    let backend = &backends.primary;
+    backend.create_session().await?;
+    let schema = schema(backend.get_history())?;
+    backend.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
+    let mut expected = rows(&schema, 2, 32, "execution")?.into_iter().map(|row| row.record).collect::<Vec<_>>();
+    let mut large = Reading::decode(&expected[0].payload)?;
+    large.label = "z".repeat(2 * 1024 * 1024);
+    expected[0].payload = large.encode();
+    let at = backend.append_records(StorageBatch::new(expected.clone())).await?;
+    let snapshot = backend.create_snapshot(&at).await?;
+    let selection = RecordSelection {
+        schema: schema.key,
+        scope: Some(Identifier::new("execution")?),
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
+    let mut page = ScanPage {
+        after: 0,
+        rows: limits().rows,
+        bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+    };
+
+    // Return the Oversized First Record Alone.
+    let first = backend.list_records(&snapshot, &selection, page).await?;
+    assert_eq!(first, expected[..1]);
+    assert!(serde_json::to_vec(&first[0])?.len() > page.bytes.get());
+    page.after = first[0].position.sequence;
+    page.bytes = NonZeroUsize::new(1024).unwrap();
+    let mut actual = first;
+    let mut combined = false;
+
+    // Bound Each Later Page and Preserve Every Record Across Continuations.
+    loop {
+        let entries = backend.list_records(&snapshot, &selection, page).await?;
+        if entries.is_empty() {
+            break;
+        }
+        let bytes = entries.iter().map(serde_json::to_vec).collect::<Result<Vec<_>, _>>()?;
+        assert!(bytes.iter().map(Vec::len).sum::<usize>() <= page.bytes.get());
+        combined |= entries.len() > 1;
+        page.after = entries.last().unwrap().position.sequence;
+        actual.extend(entries);
+    }
+    assert!(combined);
+    assert_eq!(actual, expected);
+    backend.delete_snapshot(&snapshot).await?;
+    backend.delete_session().await?;
+
+    // Reopen the Same Large Entry Without Changing the Scan Budget.
+    drop(lease);
+    let (reopened, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
+    reopened.primary.create_session().await?;
+    let snapshot = reopened.primary.create_snapshot(&at).await?;
+    let page = ScanPage {
+        after: 0,
+        rows: limits().rows,
+        bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+    };
+    let first = reopened.primary.list_records(&snapshot, &selection, page).await?;
+    assert_eq!(first, expected[..1]);
+    reopened.primary.delete_snapshot(&snapshot).await?;
+    reopened.primary.delete_session().await?;
     Ok(())
 }
 

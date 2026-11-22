@@ -695,10 +695,11 @@ pub(super) fn list_identities(
                 first,
             },
         };
-        retained += identity.memory_size();
-        if retained > page.bytes.get() {
-            return Err(invalid("list identities: response exceeds byte budget"));
+        let size = identity.memory_size();
+        if !output.is_empty() && retained + size > page.bytes.get() {
+            break;
         }
+        retained += size;
         output.push(identity);
     }
     Ok(output)
@@ -795,11 +796,8 @@ pub(super) fn list_samples(
                 return Ok(output);
             }
             let selected = payload.slice(row, 1);
-            let mut encoded = match convert::encode_payloads(&schema.schema, &selected, page.bytes) {
-                Ok(encoded) => encoded,
-                Err(Error::ResourceExhausted { .. }) if !output.is_empty() => return Ok(output),
-                Err(source) => return Err(source),
-            };
+            // Stored Chunks Own Admission; Page Budgets Apply Between Entries.
+            let mut encoded = convert::encode_payloads(&schema.schema, &selected, NonZeroUsize::MAX)?;
             let payload = encoded.pop().ok_or_else(incompatible)?;
             let value = StoredRow {
                 record: StoredRecord {
@@ -818,11 +816,8 @@ pub(super) fn list_samples(
                 sequence: sequences.value(row),
             };
             let size = encode(&value)?.len();
-            if output.len() == page.rows.get() || (!output.is_empty() && bytes + size > page.bytes.get()) {
+            if !output.is_empty() && bytes + size > page.bytes.get() {
                 return Ok(output);
-            }
-            if size > page.bytes.get() {
-                return Err(exhausted());
             }
             bytes += size;
             output.push(value);
@@ -980,10 +975,7 @@ fn query<T: DeserializeOwned>(
             break;
         }
         let data = row.get_ref(0).map_err(db)?.as_blob().map_err(|_| incompatible())?;
-        if bytes + data.len() > page.bytes.get() {
-            if output.is_empty() {
-                return Err(exhausted());
-            }
+        if !output.is_empty() && bytes + data.len() > page.bytes.get() {
             break;
         }
         bytes += data.len();
