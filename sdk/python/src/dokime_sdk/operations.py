@@ -142,9 +142,18 @@ class SettingDeclaration:
     title: str
     description: str
     default: SettingValue
+    minimum: SettingValue | None = None
+    maximum: SettingValue | None = None
 
     def _definition(self) -> shared.SettingDeclaration:
-        return shared.SettingDeclaration(name=self.name, title=self.title, description=self.description, default=self.default._definition())
+        return shared.SettingDeclaration(
+            name=self.name,
+            title=self.title,
+            description=self.description,
+            default=self.default._definition(),
+            minimum=self.minimum._definition() if self.minimum is not None else None,
+            maximum=self.maximum._definition() if self.maximum is not None else None,
+        )
 
 
 @dataclass(frozen=True)

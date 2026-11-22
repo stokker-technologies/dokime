@@ -18,7 +18,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 # Third Party Imports
-from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from google.protobuf.wrappers_pb2 import BoolValue
 from harmos import PageRequest, Position
 
@@ -40,6 +40,34 @@ from dokime_sdk._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest
 
 
 class SchemaStory(unittest.IsolatedAsyncioTestCase):
+    async def test_sample_presence(self) -> None:
+        definition = descriptor_pb2.FileDescriptorProto(name="optional.proto", package="reading", syntax="proto3")
+        message = definition.message_type.add(name="Reading")
+        message.oneof_decl.add(name="_value")
+        message.field.add(name="value", number=1, type=1, label=1, proto3_optional=True, oneof_index=0)
+        pool = descriptor_pool.DescriptorPool()
+        pool.Add(definition)
+        row_type = message_factory.GetMessageClass(pool.FindMessageTypeByName("reading.Reading"))
+        self.types.Clear()
+        self.types.file.add().CopyFrom(definition)
+        self.digest = sha256(self.types.SerializeToString()).digest()
+        self.detail.schemas.Clear()
+        self.detail.schemas.digest = self.digest
+        self.detail.schemas.streams.add(stream="reading", message_name="reading.Reading")
+        self.reply = SchemasGetResponse(
+            digest=self.digest,
+            types=self.types,
+            streams=self.detail.schemas.streams,
+            resolved_at=self.detail.resolved_at,
+        )
+        self.get.return_value = self.reply
+        cache = FrozenSchemaCache()
+        for expected in (None, 0.0, 2.5):
+            row = row_type() if expected is None else row_type(value=expected)
+            decoded = await cache.decode(self.client, self.detail, "reading", row.SerializeToString())
+            self.assertEqual(decoded.HasField("value"), expected is not None)
+            self.assertEqual(getattr(decoded, "value") if decoded.HasField("value") else None, expected)
+
     def setUp(self) -> None:
         self.types = descriptor_pb2.FileDescriptorSet()
         BoolValue.DESCRIPTOR.file.CopyToProto(self.types.file.add())

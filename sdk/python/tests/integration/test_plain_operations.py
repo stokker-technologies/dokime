@@ -14,17 +14,20 @@
 # Standard Library Imports
 import unittest
 from collections.abc import Callable
+from datetime import timedelta
 from typing import Any, ClassVar, cast
 
-from google.protobuf.json_format import MessageToDict
-
 # Third Party Imports
+from google.protobuf import descriptor_pool, message_factory
+from google.protobuf.descriptor_pb2 import FieldDescriptorProto, FileDescriptorProto
+from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int64Value, StringValue
 from grpc.aio import insecure_channel
 from harmos import VISIBILITY_PROTECTED
 from harmos._columns import columns_type
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse
 from harmos._wire.plugin.v1.instance_pb2 import (
     InstanceInvokeRequest,
@@ -37,8 +40,8 @@ from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 # Local Imports
 import dokime_sdk.operations
 from dokime_sdk import Failure, Plugin, Suite
-from dokime_sdk.operations import FailureError, Operation, Visibility, operation
-from dokime_sdk.templates import Context, TestTemplate, criterion, observer, prompt, record, step, stream
+from dokime_sdk.operations import FailureError, Operation, SettingValue, Visibility, operation
+from dokime_sdk.templates import Context, TestTemplate, Window, criterion, observer, prompt, record, step, stream, window_observer
 
 # Type Checking Imports
 
@@ -53,6 +56,122 @@ from dokime_sdk.templates import Context, TestTemplate, criterion, observer, pro
 
 
 class PlainValueStory(unittest.IsolatedAsyncioTestCase):
+    async def test_settings_values(self) -> None:
+        expected = {
+            "enabled": SettingValue(flag=False),
+            "count": SettingValue(integer=0),
+            "threshold": SettingValue(number=0.0),
+            "label": SettingValue(text=""),
+            "interval": SettingValue(duration=timedelta()),
+        }
+
+        @operation("example.settings", visibility=Visibility.PUBLIC)
+        async def read(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
+            return await ctx.settings() == expected
+
+        class SettingsPlugin(Plugin):
+            version = "1.0.0"
+            operations: ClassVar[list[Callable[..., object]]] = [read]
+
+        endpoint = await SettingsPlugin()._activate("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.stop)
+        channel = insecure_channel(endpoint.address)
+        self.addAsyncCleanup(channel.close)
+        invoke = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Invoke",
+            request_serializer=InstanceInvokeRequest.SerializeToString,
+            response_deserializer=InstanceInvokeResponse.FromString,
+        )
+        call = invoke()
+        try:
+            await call.write(
+                InstanceInvokeRequest(
+                    request=Request(
+                        operation="example.settings",
+                        payload=BoolValue(value=True).SerializeToString(),
+                        invocation="settings",
+                        attempt=1,
+                    )
+                )
+            )
+            frame = await call.read()
+            assert isinstance(frame, InstanceInvokeResponse)
+            self.assertTrue(frame.HasField("child"), frame)
+            response = SettingsListResponse(
+                value={
+                    "values": {
+                        "enabled": {"flag": False},
+                        "count": {"integer": 0},
+                        "threshold": {"number": 0.0},
+                        "label": {"text": ""},
+                        "interval": {"duration": {}},
+                    }
+                }
+            )
+            await call.write(InstanceInvokeRequest(child=ChildResponse(call=frame.child.call, payload=response.SerializeToString())))
+            frame = await call.read()
+            assert isinstance(frame, InstanceInvokeResponse)
+            self.assertFalse(frame.response.HasField("failure"), frame.response.failure)
+            self.assertTrue(BoolValue.FromString(frame.response.payload).value)
+        finally:
+            call.cancel()
+
+    async def test_observer_presence(self) -> None:
+        definition = FileDescriptorProto(name="optional_reading.proto", package="reading", syntax="proto3")
+        message = definition.message_type.add(name="Reading")
+        message.oneof_decl.add(name="_value")
+        message.field.add(
+            name="value",
+            number=1,
+            type=FieldDescriptorProto.TYPE_DOUBLE,
+            label=FieldDescriptorProto.LABEL_OPTIONAL,
+            proto3_optional=True,
+            oneof_index=0,
+        )
+        pool = descriptor_pool.DescriptorPool()
+        pool.Add(definition)
+        row_type = message_factory.GetMessageClass(pool.FindMessageTypeByName("reading.Reading"))
+        columns = columns_type(row_type, "readings.reading")
+        rows = (row_type(), row_type(value=0.0), row_type(value=2.5))
+        pending = iter(rows)
+
+        class ReadingsPlugin(Plugin):
+            version = "1.0.0"
+
+            @stream("Reading", row=row_type)
+            @observer()
+            def reading(self, ctx: dokime_sdk.operations.Context) -> Message:
+                return next(pending)
+
+            @stream("Window", row=row_type)
+            @window_observer(columns=columns)
+            def window(self, ctx: dokime_sdk.operations.Context, window: Window) -> Message:
+                return columns(value=[{}, {"value": 0.0}, {"value": 2.5}])
+
+        endpoint = await ReadingsPlugin()._activate("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.stop)
+        channel = insecure_channel(endpoint.address)
+        self.addAsyncCleanup(channel.close)
+        samples = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Samples",
+            request_serializer=InstanceSamplesRequest.SerializeToString,
+            response_deserializer=InstanceSamplesResponse.FromString,
+        )
+        for name in ("reading", "window"):
+            call = samples()
+            try:
+                await call.write(InstanceSamplesRequest(open={"stream": f"readings.{name}"}))
+                await call.write(InstanceSamplesRequest(window={"start": {}, "count": 3, "period": {"seconds": 1}}))
+                response = await call.read()
+                assert isinstance(response, InstanceSamplesResponse)
+                self.assertTrue(response.HasField("batch"), response)
+                decoded = columns.FromString(response.batch.columns)
+                values = list(getattr(decoded, "value"))
+                self.assertEqual([value.HasField("value") for value in values], [False, True, True])
+                self.assertEqual([getattr(value, "value") if value.HasField("value") else None for value in values], [None, 0.0, 2.5])
+            finally:
+                call.cancel()
+
     async def test_plugin_hooks_are_protected_operations_with_the_author_context(self) -> None:
         events: list[str] = []
 
