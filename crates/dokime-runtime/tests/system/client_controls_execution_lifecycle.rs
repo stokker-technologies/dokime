@@ -20,7 +20,10 @@ use std::error::Error;
 
 // Third Party Imports
 use dokime_protocol::host::plugin_placement;
+use tokio::time;
+use tonic::Code;
 use tonic::transport::Endpoint;
+use uuid::Uuid;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -54,9 +57,10 @@ use dokime_client_internal::host::PluginPlacement;
 use dokime_client_internal::host::PluginRemote;
 use dokime_client_internal::host::PluginValue;
 use dokime_client_internal::{ArchiveScope, CycleFilter, CyclePhase, CycleSelection};
+use dokime_protocol::host::PluginState;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
-use dokime_runtime::PluginProcess;
+use dokime_runtime::{PluginProcess, services};
 
 /* === Constants === */
 
@@ -81,7 +85,7 @@ use dokime_runtime::PluginProcess;
 #[test]
 fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Create a Mutable Cycle and Register Its Cases Without Running
         let root = super::support::tempdir()?;
         let credential_root = super::support::tempdir()?;
@@ -103,7 +107,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .await?
             .entry
             .unwrap();
-        super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
+        super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
         let execution = Client::from_channel(channel.clone(), super::support::client_settings())?.executions.clone();
         let cycle = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .cycles
@@ -117,7 +121,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 Default::default(),
                 String::new(),
                 CyclesCreateOptions {
-                    request_id: Some(uuid::Uuid::now_v7().to_string()),
+                    request_id: Some(Uuid::now_v7().to_string()),
                     ..Default::default()
                 },
             )
@@ -216,7 +220,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     case_id: case_id.clone(),
                 }],
                 ExecutionsCreateOptions {
-                    request_id: Some(uuid::Uuid::now_v7().to_string()),
+                    request_id: Some(Uuid::now_v7().to_string()),
                     ..Default::default()
                 },
             )
@@ -248,7 +252,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 identifier.clone(),
                 ExecutionMode::try_from(ExecutionMode::Interactive as i32)?,
                 ExecutionsStartOptions {
-                    request_id: Some(uuid::Uuid::now_v7().to_string()),
+                    request_id: Some(Uuid::now_v7().to_string()),
                     ..Default::default()
                 },
             )
@@ -510,7 +514,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         let current = execution.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
         let seal = current.execution.as_ref().unwrap().seal.clone();
         let mut value = current.value.unwrap();
-        value.label = uuid::Uuid::now_v7().to_string();
+        value.label = Uuid::now_v7().to_string();
         value.archived = true;
         execution
             .set_with(
@@ -530,7 +534,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         let cycles = Client::from_channel(channel.clone(), super::support::client_settings())?.cycles.clone();
         let current = cycles.get_with(cycle.cycle_id.clone(), CyclesGetOptions { at: None, ..Default::default() }).await?;
         let mut value = current.value.unwrap();
-        value.label = uuid::Uuid::now_v7().to_string();
+        value.label = Uuid::now_v7().to_string();
         value.archived = true;
         cycles
             .set_with(
@@ -606,7 +610,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .cancel_with(
                 run.clone(),
                 ExecutionsCancelOptions {
-                    request_id: Some(uuid::Uuid::now_v7().to_string()),
+                    request_id: Some(Uuid::now_v7().to_string()),
                     ..Default::default()
                 },
             )
@@ -633,7 +637,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
 #[test]
 fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Start the Host and Thermal Plugin
             let root = super::support::tempdir()?;
             let credential_root = super::support::tempdir()?;
@@ -655,7 +659,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
 
             // Admit an Interactive Execution
             let cases = super::support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", Default::default()).await?;
@@ -757,6 +761,168 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             assert_eq!(replayed.receipt, admitted.receipt);
 
             process.close().await?;
+            plugin.close().await?;
+            Ok::<_, Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
+fn cycle_origins_remain_registered_for_another_execution() -> Result<(), Box<dyn Error>> {
+    super::support::run(Box::pin(async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            let root = super::support::tempdir()?;
+            let settings = super::support::settings();
+            let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), settings, super::support::service_settings()).await?;
+            let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let entry = client
+                .plugins
+                .create(
+                    "thermal",
+                    PluginPlacement {
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                    },
+                    PluginValue { enabled: true },
+                )
+                .await?
+                .entry
+                .unwrap();
+            super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
+            let cases = client
+                .cases
+                .create_with(
+                    SelectionPlan {
+                        selections: vec![RegisteredSelection {
+                            suite_id: "thermal.thermal".into(),
+                            template_id: "thermal.thermal.cycle".into(),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    },
+                    false,
+                    CasesCreateOptions::default(),
+                )
+                .await?
+                .cases;
+
+            for automatic in [false, true] {
+                // Both Cycle Creation Modes Register the Origin Before Admitting Its First Run.
+                let cycle = client
+                    .cycles
+                    .create_with(
+                        vec![cases[0].origin.clone().unwrap()],
+                        Metadata {
+                            label: "Repeated Case".into(),
+                            ..Default::default()
+                        },
+                        automatic,
+                        String::new(),
+                        CyclesCreateOptions::default(),
+                    )
+                    .await?
+                    .cycle
+                    .unwrap();
+                let first = client
+                    .executions
+                    .list(cycle.cycle_id.clone(), Default::default(), Default::default(), Default::default())
+                    .await?
+                    .executions
+                    .remove(0)
+                    .summary
+                    .unwrap();
+                let registered = client.cases.list(cycle.cycle_id.clone()).await?.cases;
+                assert_eq!(registered.len(), 1);
+                assert_eq!(registered[0].case_id, first.case_id);
+                assert_eq!(registered[0].template_id, "thermal.thermal.cycle");
+                assert_eq!(registered[0].suite_id, "thermal.thermal");
+                assert_eq!(client.cases.get(first.case_id.clone(), cycle.cycle_id.clone()).await?.value.unwrap().parameter_count, 1);
+                if !automatic {
+                    client.executions.start(first.execution_id.clone(), ExecutionMode::Automatic).await?;
+                }
+                let mut progress = client.executions.progress.watch(first.execution_id.clone()).await?;
+                while let Some(frame) = progress.next().await? {
+                    if frame.phase == "prompt" {
+                        break;
+                    }
+                }
+                client.executions.cancel(first.execution_id).await?;
+                while progress.next().await?.is_some() {}
+
+                // The Visible Case Is Runnable Again in the Same Cycle After Interruption.
+                let next = Uuid::now_v7().to_string();
+                let created = client
+                    .executions
+                    .create_with(
+                        cycle.cycle_id.clone(),
+                        vec![ExecutionBinding {
+                            execution_id: next.clone(),
+                            case_id: first.case_id.clone(),
+                        }],
+                        ExecutionsCreateOptions::default(),
+                    )
+                    .await?;
+                assert_eq!(created.executions[0].summary.as_ref().unwrap().case_id, first.case_id);
+                assert_eq!(client.cases.list(cycle.cycle_id.clone()).await?.cases[0].attempt_count, 2);
+                if automatic {
+                    let mut progress = client.executions.progress.watch(next.clone()).await?;
+                    while let Some(frame) = progress.next().await? {
+                        if frame.phase == "prompt" {
+                            break;
+                        }
+                    }
+                    client.executions.cancel(next).await?;
+                    while progress.next().await?.is_some() {}
+                }
+
+                let missing = Uuid::now_v7().to_string();
+                let refused = client
+                    .executions
+                    .create_with(
+                        cycle.cycle_id,
+                        vec![ExecutionBinding {
+                            execution_id: Uuid::now_v7().to_string(),
+                            case_id: missing.clone(),
+                        }],
+                        ExecutionsCreateOptions::default(),
+                    )
+                    .await
+                    .unwrap_err();
+                assert_eq!(refused.code(), Code::NotFound);
+                assert!(refused.message().contains(&missing));
+            }
+            // A Case Registered Before the Cycle Also Remains Visible Through Its Binding.
+            let cycle = client
+                .cycles
+                .create_with(
+                    Vec::new(),
+                    Metadata {
+                        label: "Bound Case".into(),
+                        ..Default::default()
+                    },
+                    false,
+                    String::new(),
+                    CyclesCreateOptions::default(),
+                )
+                .await?
+                .cycle
+                .unwrap();
+            client
+                .executions
+                .create_with(
+                    cycle.cycle_id.clone(),
+                    vec![ExecutionBinding {
+                        execution_id: Uuid::now_v7().to_string(),
+                        case_id: cases[0].case_id.clone(),
+                    }],
+                    ExecutionsCreateOptions::default(),
+                )
+                .await?;
+            assert_eq!(client.cases.list(cycle.cycle_id.clone()).await?.cases[0].case_id, cases[0].case_id);
+            assert_eq!(client.cases.get(cases[0].case_id.clone(), cycle.cycle_id).await?.value.unwrap().parameter_count, 1);
+            server.close().await?;
             plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })

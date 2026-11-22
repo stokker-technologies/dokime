@@ -133,13 +133,7 @@ pub(crate) fn snapshots(context: &Context, cycle: &str) -> Result<Vec<ExecutionS
 pub(crate) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result<ExecutionSummary> {
     let (case_id, _, archived) = context.host.store().execution_presentation(&snapshot.execution.identifier)?;
     let mut summary = projection::summary(snapshot, context.host.controls(&snapshot.execution.identifier)?);
-    summary.case_id = if case_id.is_empty()
-        && matches!(snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(Kind::PluginRun(_)))
-    {
-        snapshot.execution.identifier.clone()
-    } else {
-        case_id
-    };
+    summary.case_id = case_id;
     summary.archived = archived;
     Ok(summary)
 }
@@ -175,13 +169,7 @@ pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
         queued += u64::from(controls.can_start);
         paused |= controls.paused;
     }
-    let mut cases: BTreeSet<_> = cases::storage::list(context, id).await?.into_iter().map(|case| case.case_id).collect();
-    for row in
-        rows.iter().filter(|row| matches!(row.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(Kind::PluginRun(_))))
-    {
-        let (case, _, _) = context.host.store().execution_presentation(&row.execution.identifier)?;
-        cases.insert(if case.is_empty() { row.execution.identifier.clone() } else { case });
-    }
+    let cases = cases::storage::list(context, id).await?;
     let counts = projection::counts(rows.iter().filter_map(|row| row.execution.outcome.as_ref()));
     let mut result = ResultSummary {
         status: counts.result_status.unwrap_or(ResultStatus::Pending as i32),
@@ -263,22 +251,9 @@ pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseS
             continue;
         }
         let summary = summary(context, &snapshot)?;
-        let id = if summary.case_id.is_empty() { snapshot.execution.identifier.clone() } else { summary.case_id };
-        let run = snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref());
-        let entry = cases.entry(id.clone()).or_insert_with(|| CaseSummary {
-            case_id: id,
-            template_id: match run {
-                Some(Kind::PluginRun(run)) => run.template.clone(),
-                _ => String::new(),
-            },
-            ..Default::default()
-        });
-        if entry.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty())
-            && let Some((suite, metadata)) = template_metadata(&snapshot)?
-        {
-            entry.metadata = Some(metadata);
-            entry.suite_id = suite.map(|metadata| metadata.identifier).unwrap_or_default();
-        }
+        let Some(entry) = cases.get_mut(&summary.case_id) else {
+            continue;
+        };
         entry.attempt_count += 1;
         entry.latest_execution_id = Some(snapshot.execution.identifier.clone());
         entry.latest_execution_status = Some(summary.state);
@@ -310,26 +285,9 @@ pub(crate) async fn planned(context: &Context, cycle: &str, case: &str) -> Resul
     if !cases(context, cycle).await?.iter().any(|entry| entry.case_id == case) {
         return Err(Error::NotFound("Inspect Case: Select a Case in This Cycle".into()));
     }
-    match cases::storage::read(context, case, Some(cycle)).await {
-        Ok(case) => return Ok(case),
-        Err(Error::NotFound(_)) => {}
-        Err(error) => return Err(error),
-    }
-    let snapshot = snapshots(context, cycle)?
-        .into_iter()
-        .find(|snapshot| snapshot.execution.identifier == case)
-        .ok_or_else(|| Error::NotFound("Inspect Case: Select an Existing Frozen Case".into()))?;
-    let template_id = match snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-        Some(Kind::PluginRun(run)) => run.template.clone(),
-        _ => return Err(Error::NotFound("Inspect Case: Imports Have No Runnable Case".into())),
-    };
-    Ok(PlannedCase {
-        case_id: case.into(),
-        template_id,
-        origin: snapshot.execution.origin,
-        ..Default::default()
-    })
+    cases::storage::read(context, case, Some(cycle)).await
 }
+
 pub(crate) fn parameters(parameters: &HashMap<String, Value>) -> Vec<CaseParameter> {
     let mut rows: Vec<_> = parameters
         .iter()

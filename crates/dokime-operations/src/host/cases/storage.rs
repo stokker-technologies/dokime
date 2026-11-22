@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, result};
+use std::{collections::HashSet, num::NonZeroUsize, result};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray};
@@ -32,7 +32,7 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::host::{Context, files::transfer};
+use crate::host::{Context, execution_state, files::transfer, views};
 use crate::{Error, Result};
 use dokime_protocol::host::{CasesCreateResponse, PlannedCase};
 use dokime_storage::persisted::{self, Case, Plan, Scope};
@@ -74,12 +74,12 @@ pub(crate) async fn register(
     if let Some(saved) = registration(context, request_id, plan).await? {
         return Ok(saved);
     }
-    if !cycle.is_empty() && crate::host::execution_state::cycle(context, cycle).await?.sealed {
+    if !cycle.is_empty() && execution_state::cycle(context, cycle).await?.sealed {
         return Err(Error::Precondition("Register Selection: Select an Unsealed Cycle".into()));
     }
     let key = registration_key(request_id);
     let digest = Sha256::digest(request_id.as_bytes());
-    let identifier = crate::host::views::hex(&digest);
+    let identifier = views::hex(&digest);
     for (index, case) in reply.cases.iter_mut().enumerate() {
         case.case_id = format!("case-{identifier}-{index}");
     }
@@ -120,6 +120,20 @@ pub(crate) async fn read(context: &Context, identifier: &str, cycle: Option<&str
 }
 
 pub(crate) async fn list(context: &Context, cycle: &str) -> Result<Vec<PlannedCase>> {
+    let mut bound = HashSet::new();
+    let mut after = String::new();
+    loop {
+        let executions =
+            context.host.store().cycle_execution_page(cycle, &after, NonZeroUsize::new(context.settings.page_items).unwrap())?;
+        if executions.is_empty() {
+            break;
+        }
+        for execution in executions {
+            let (case, _, _) = context.host.store().execution_presentation(&execution)?;
+            bound.insert(case);
+            after = execution;
+        }
+    }
     let schema = ObjectDefinition::of::<Case>()
         .schema()
         .map_err(|source| Error::Invalid(format!("List Cases: Restore Their Frozen Schema: {source}")))?;
@@ -171,8 +185,9 @@ pub(crate) async fn list(context: &Context, cycle: &str) -> Result<Vec<PlannedCa
                 if cycles.is_null(index) || payloads.is_null(index) {
                     return Err(Error::Precondition("List Cases: Restore Every Frozen Case Field".into()));
                 }
-                if cycles.value(index) == cycle {
-                    cases.push(PlannedCase::decode(payloads.value(index))?);
+                let case = PlannedCase::decode(payloads.value(index))?;
+                if cycles.value(index) == cycle || (cycles.value(index).is_empty() && bound.contains(&case.case_id)) {
+                    cases.push(case);
                 }
             }
         }
@@ -248,7 +263,7 @@ async fn read_object<T: StoredObject>(context: &Context, key: &str) -> Result<Op
 
 fn registration_key(request_id: &str) -> String {
     let digest = Sha256::digest(request_id.as_bytes());
-    format!("case-registration/{}", crate::host::views::hex(&digest))
+    format!("case-registration/{}", views::hex(&digest))
 }
 
 fn value<T: StoredObject>(context: &Context, value: &T) -> Result<ObjectValue> {

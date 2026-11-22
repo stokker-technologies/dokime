@@ -21,9 +21,11 @@ use std::collections::HashSet;
 // Third Party Imports
 use harmos_protocol::host::PluginState;
 use prost::Message;
+use uuid::Uuid;
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::host::{Context, cases, execution_state, views};
+use crate::{Error, Result};
 use dokime_protocol::host::CyclePhase;
 use dokime_protocol::host::CycleStatus;
 use dokime_protocol::host::ExecutionMode;
@@ -52,8 +54,8 @@ pub const ID: &str = "dokime.host.v1.Executions/Create";
 
 pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Result<ExecutionsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        let _guard = context.administration.lock().await;
-        let cycle = crate::host::execution_state::cycle(context, &request.parent).await?;
+        let administration = context.administration.lock().await;
+        let cycle = execution_state::cycle(context, &request.parent).await?;
         if cycle.sealed
             || cycle.phase == CyclePhase::Sealing as i32
             || request.executions.is_empty()
@@ -65,10 +67,10 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
         let plugins = context.host.plugins().await?;
         let mut prepared = Vec::new();
         for binding in &request.executions {
-            if uuid::Uuid::parse_str(&binding.execution_id).is_err() || !identifiers.insert(&binding.execution_id) {
+            if Uuid::parse_str(&binding.execution_id).is_err() || !identifiers.insert(&binding.execution_id) {
                 return Err(Error::Invalid("Append Executions: Supply Unique Execution UUIDs".into()));
             }
-            let case = crate::host::cases::storage::read(context, &binding.case_id, Some(&request.parent)).await?;
+            let case = cases::storage::read(context, &binding.case_id, Some(&request.parent)).await?;
             let label = case.metadata.as_ref().map(|metadata| metadata.label.clone()).unwrap_or_default();
             let origin = case.origin.ok_or_else(|| Error::Invalid("Append Executions: Materialize the Selected Case".into()))?;
             let run = match origin.kind.as_ref() {
@@ -112,6 +114,7 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
         }
         context.host.store().bind_executions(&request.parent, &prepared)?;
         context.host.signal_change();
+        drop(administration);
         if cycle.continue_automatically && cycle.status != CycleStatus::Paused as i32 {
             for binding in &request.executions {
                 context.host.start_existing(&binding.execution_id, ExecutionMode::Automatic).await?;
@@ -121,9 +124,9 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
             executions: request
                 .executions
                 .iter()
-                .map(|binding| crate::host::execution_state::detail(context, &binding.execution_id))
+                .map(|binding| execution_state::detail(context, &binding.execution_id))
                 .collect::<Result<Vec<_>>>()?,
-            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
+            receipt: Some(views::receipt(context, &request.request_id)?),
         })
     })
     .await
