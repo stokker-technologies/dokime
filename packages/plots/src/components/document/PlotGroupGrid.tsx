@@ -9,12 +9,12 @@
 
 /* === External Imports === */
 
-import { ErrorCard } from "../ErrorCard";
-import { failureOf } from "../../lib/notification-details";
 import { type ComponentProps, memo, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
+import { ErrorCard } from "../ErrorCard";
+import { failureOf } from "../../lib/notification-details";
 import { documentPlotGroupDescription, documentPlotSpec, groupRepeatsPlotTitle } from "../../grouping";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "../../lib/types";
 import { PiePlot } from "../../catalog/PiePlot";
@@ -134,7 +134,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   return (
     <section className="grid gap-2">
       <div>
-        <h3 className="text-base font-semibold">{title}</h3>
+        <h3 className="document-section-title">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       <PlotInteractionProvider zoom={interaction.zoom} syncKey={syncKey}>

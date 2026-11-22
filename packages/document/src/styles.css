@@ -443,6 +443,18 @@
 /* === Components === */
 
 @layer components {
+  .document-section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .plot-card strong {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
   .uplot {
     color: var(--foreground);
     font-family: var(--brand-font-sans);

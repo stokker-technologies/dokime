@@ -16,7 +16,7 @@ import { createContext, type ReactNode, useContext } from "react";
 import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { failureOf } from "@dokime/plots/lib/notification-details";
 import { DocumentGrid } from "./Document";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardHeader } from "../ui/card";
 import {
   documentCardForPlacement,
   documentCardLayoutAttributes,
@@ -284,7 +284,7 @@ function DocumentSectionBlock({
       <Card className="col-span-full" data-section-id={section.metadata.identifier}>
         <CardHeader className="border-b px-4 py-3">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-            <CardTitle className="text-base">{section.metadata.label}</CardTitle>
+            <h4 className="document-section-title truncate">{section.metadata.label}</h4>
             <SectionAction sectionId={section.metadata.identifier} />
           </div>
           {section.metadata.description ? (
@@ -304,7 +304,7 @@ function DocumentSectionBlock({
       >
         <header className="grid min-w-0 gap-1 border-b border-border/60 pb-2">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-            <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+            <h4 className="document-section-title truncate">{section.metadata.label}</h4>
             <SectionAction sectionId={section.metadata.identifier} />
           </div>
           {section.metadata.description ? (
@@ -320,7 +320,7 @@ function DocumentSectionBlock({
     <section className="col-span-full grid min-w-0 gap-3" data-section-id={section.metadata.identifier}>
       <header className="grid min-w-0 gap-1">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+          <h4 className="document-section-title truncate">{section.metadata.label}</h4>
           <SectionAction sectionId={section.metadata.identifier} />
         </div>
         {section.metadata.description ? (
