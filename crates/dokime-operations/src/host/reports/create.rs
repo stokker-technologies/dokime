@@ -24,7 +24,6 @@ use std::time::Instant;
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
-use dokime_storage::ArchivedNativeFile;
 use harmos_protocol::model::{FileMetadata, FileReference};
 use harmos_runtime::Identifier;
 use prost::Message;
@@ -38,6 +37,7 @@ use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::ReportsGetRequest;
 use dokime_protocol::host::report_subject::Kind;
+use dokime_storage::ArchivedNativeFile;
 use dokime_storage::persisted::Scope;
 
 /* === Constants === */

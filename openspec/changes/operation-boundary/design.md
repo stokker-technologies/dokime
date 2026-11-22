@@ -845,7 +845,12 @@ worker prohibitions on release profiles and lint.
 ## Browsing View Retention Ownership
 
 `crates/dokime-operations/src/host/views.rs::read` retains a native file index per
-resource/content digest with the supplied resource scope. The redundant `view-at` index was removed by the 2026-11-22 decision. `retain` removes newly produced files on index failure, publication-race loss or ended observation; normal read completion, disconnect and shutdown still do not release an indexed view. Administration uses `ObjectRetention::All`. Viewport selections change resource keys and response changes create content revisions, so retained views still grow during a session and across restarts until session retirement is implemented.
+resource/content digest with the supplied resource scope. The redundant `view-at` index was removed
+by the 2026-11-22 decision. `retain` removes newly produced files on index failure, publication-race
+loss or ended observation; normal read completion, disconnect and shutdown still do not release an
+indexed view. Administration uses `ObjectRetention::All`. Viewport selections change resource keys
+and response changes create content revisions, so retained views still grow during a session and
+across restarts until session retirement is implemented.
 
 The native backend's `backend/compound.rs::delete_scope` can tombstone scoped objects
 and files. `host/cases/storage.rs::delete` already calls native `DeleteScope` for C,
@@ -884,7 +889,16 @@ connection loss from an operation error. Session-owned retirement remains deferr
 while this prerequisite is unresolved. Failure cleanup is independent and follows
 the document-read decision below.
 
-Generic retained reads use only `view:{resource}:{digest}` and require the returned canonical cut with its resource revision. The 2026-11-22 decision supersedes acceptance of position-only generic view cuts: no repository caller constructs those cuts for this reader. Position-only execution evidence and plot-definition cuts have independent evidence readers and never selected this view index. Delete the `view-at` lookup and writer together; a generic caller that omits its revision must supply the returned cut. Existing development roots are never reset or migrated.
+Generic retained reads use only `view:{resource}:{digest}` and require the returned canonical cut
+with its resource revision. The 2026-11-22 decision supersedes acceptance of position-only generic
+view cuts: no repository caller constructs those cuts for this reader. Position-only execution
+evidence and plot-definition cuts have independent evidence readers and never selected this view
+index. Delete the `view-at` lookup and writer together; a generic caller that omits its revision
+must supply the returned cut. Existing development roots are never reset or migrated. Legacy SQL-root rejection in
+`crates/dokime-storage/src/store.rs` and its guard in
+`crates/dokime-storage/tests/integration/resource_positions.rs` still recognize old `view-at`
+journal entries, preserving their bytes while refusing admission. These are incompatible-root
+guards, not native view-index readers or writers, and remain unchanged.
 
 ## Document Card Result Reads
 
@@ -930,7 +944,8 @@ not retire either owner implicitly.
 
 | Locations | Responsibilities and Callers | Preferred Removal |
 | --- | --- | --- |
-| `crates/dokime-operations/src/host/files/transfer.rs::write` and `host/{cycles/seal.rs,cases/storage.rs,executions/commands/mod.rs}` expiry matches | Owned upload/view writes use the transfer retry policy. Cycle seal publication, case registration/deletion and execution commands independently retry the same mutation-expired failure. | Delete the remaining local retry matches after those families' owners adopt transfer; those files are outside this worker's ownership. |
+| `crates/dokime-operations/src/host/files/transfer.rs::write` and `host/{cycles/seal.rs,cases/storage.rs,executions/commands/mod.rs}` expiry matches | Owned upload/view writes use the transfer retry policy. Cycle seal writer recovery/abandonment and scope deletion, case registration/deletion and execution commands independently retry the same mutation-expired failure. | Delete the remaining local retry matches after those families' owners adopt transfer; those files are outside this worker's ownership. |
+| `crates/dokime-operations/src/host/files/transfer.rs::publication` and `crates/dokime-operations/src/host/evidence/archive.rs::materialize` | Views and Reports.Create publish known-length/digest byte producers through transfer. Evidence.Archive and Cycles.Seal call materialize, which independently uploads an already materialized ZIP with known length/digest and failed-upload cleanup. | Delete materialize's upload loop after the evidence owner adopts the transfer publisher. Evidence handlers are outside this worker's ownership. |
 | `sdk/python/tools/installed.py::main` and `tools/python/src/dokime_tools/test/archive.py::install_wheels` | SDK Install selects a dev wheel and installs examples; bindings/archive preparation selects wheels by profile. Both install the SDK in the root environment. | Delete the SDK installer's hardcoded profile selection by reusing the profile-aware artifact owner, with one owner for example preparation. This remains outside the document worker's tooling ownership. |
 
 Generic retained revisions still hash raw protobuf bytes. Map-bearing declarations
@@ -947,11 +962,35 @@ decision; this change adds no public testing API or alternate test harness.
 
 ## View Single Owners
 
-Owner decision, 2026-11-22: consolidate mutation-expiry handling in the file transfer owner. Upload Append, Create, Resume, Publish, Delete, Files.Delete and retained-view create/discard use the same policy: retry only the library's mutation-expired failure, fetch the current window, preserve the request key and issue one further storage call. A second failure is returned with the owning action; no third attempt, delay or deadline change is allowed. Retry matches outside the assigned file/view families remain for their owners to migrate.
+Owner decision, 2026-11-22: consolidate mutation-expiry handling in the file transfer owner. Upload
+Append, Create, Resume, Publish, Delete, Files.Delete and retained-view create/discard use the same
+policy: retry only the library's mutation-expired failure, fetch the current window, preserve the
+request key and issue one further storage call. A second failure is returned with the owning action;
+no third attempt, delay or deadline change is allowed. Retry matches outside the assigned file/view
+families remain for their owners to migrate.
 
-Views and reports publish through `host/files/transfer.rs::publication`: one create, bounded read/append sequence, publish and failed-upload cleanup. The byte producer remains with its caller (view bytes or temporary report HTML). View cancellation is checked between storage calls; admitted host settlement and unindexed-file cleanup remain in views. Reports retain their durable cycle/execution owner and never inherit view cancellation or browsing lifetime. This supersedes the earlier pending report/view publication-loop overlap, not the separate report-retention decisions.
+Views and reports publish through `host/files/transfer.rs::publication`: one create, bounded
+read/append sequence, publish and failed-upload cleanup. The byte producer remains with its caller
+(view bytes or temporary report HTML). View cancellation is checked between storage calls; admitted
+host settlement and unindexed-file cleanup remain in views. Reports retain their durable
+cycle/execution owner and never inherit view cancellation or browsing lifetime. This supersedes the
+earlier pending report/view publication-loop overlap, not the separate report-retention decisions.
 
-Desktop execution/cycle root query data owns both the current progressive native capture and the last completed capture, plus its mapped display projection. A stable query selector exposes the projection; cards read their declarations, root cut and page from that same query data. Unchanged completed captures reuse the same projection. Query cancellation, generation keys, garbage collection and cache clearing now govern the captures without a separately capped process-global map. Native captures contain Maps, so root queries preserve their reference identity instead of recursively structurally sharing their raw captures. Independent card queries and their existing refresh coordinator are unchanged.
+The capture engine's `host/files/captures/engine.rs::attach` remains distinct: Files.Capture and
+capture Stop admit public execution evidence, asynchronously read a device byte range and compute
+its digest during that single read, then attach the artifact. The fixed view/report publisher
+requires the digest before creation and takes a synchronous byte producer. Reusing it for captures
+would require a second device scan or a changed producer/admission contract. Keep the capture path
+pending that owner's decision; do not introduce an adapter or extra scan.
+
+Desktop execution/cycle root query data owns both the current progressive native capture and the
+last completed capture, plus its mapped display projection. A stable query selector exposes the
+projection; cards read their declarations, root cut and page from that same query data. Unchanged
+completed captures reuse the same projection. Query cancellation, generation keys, garbage
+collection and cache clearing now govern the captures without a separately capped process-global
+map. Native captures contain Maps, so root queries preserve their reference identity instead of
+recursively structurally sharing their raw captures. Independent card queries and their existing
+refresh coordinator are unchanged.
 
 ## Administration Reader Ownership Review
 

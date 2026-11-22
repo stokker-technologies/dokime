@@ -268,15 +268,17 @@ with `plugin-boundary` and `plugin-lifecycle`.
 
 ## View Single Owners
 
-Source inventory: `host/views.rs`, `host/files/transfer.rs`, `host/files/uploads/{append,create,resume,publish,delete}.rs`, `host/files/delete.rs`, `host/reports/create.rs`, desktop `src/features/cycle/server-state.ts`, and this change's design/tasks. No protocol change is planned. Desktop tests and `docs/` remain owner-written.
+Source inventory: `host/views.rs`, `host/files/transfer.rs`, `host/files/uploads/{append,create,resume,publish,delete}.rs`, `host/files/delete.rs`, `host/reports/create.rs`, desktop `src/features/cycle/server-state.ts`, and this change's design/tasks. No protocol change. Desktop tests and `docs/` remain owner-written.
 
-- [ ] Share mutation-expiry retry for all owned upload/file writes and retained-view creation/discard; prove one refresh and second-expiry refusal.
-- [ ] Reconcile generic view indexes after tracing every reader; delete the unused family or record its distinct required purpose.
-- [ ] Publish reports and views through the transfer owner's bounded publication; remove the report-specific loop and preserve cancellation, failure cleanup and durable ownership.
-- [ ] Keep native document captures in root query data; remove the separate capture map while preserving progressive structure, independent cards and stable unchanged projections.
-- [ ] Run focused operations/frontend proof, package and workspace test-target compilation, frontend type/build, generation check, format, repository check and strict OpenSpec validation. Measure native long tasks only on an owned instance if available.
+- [x] Share mutation-expiry retry for all owned upload/file writes and retained-view creation/discard; prove one refresh and second-expiry refusal.
+- [x] Reconcile generic view indexes after tracing every reader; delete the unused family or record its distinct required purpose.
+- [x] Publish reports and views through the transfer owner's bounded publication; remove the report-specific loop and preserve cancellation, failure cleanup and durable ownership.
+- [x] Keep native document captures in root query data; remove the separate capture map while preserving progressive structure, independent cards and stable unchanged projections.
+- [x] Run focused operations/frontend proof, package and workspace test-target compilation, frontend type/build, generation check, format, repository check and strict OpenSpec validation. Windows proof: 12 operations tests, seven frontend tests and one report publication/readback story pass; all compile/check/build tasks exit 0. The optional native long-task comparison was not measured because no owned baseline desktop instance was available.
 
 ## Workflow Follow-Up
+
+- Runtime owner: update `crates/dokime-runtime/benches/storage/reports.rs:388` to describe retained native files and canonical revision indexes; the report-browsing fixture already calls the canonical snapshots reader, but its display label still claims `view-at` indexes. This worker cannot edit runtime or build benchmarks. Keep storage's legacy SQL-root rejection and its preservation test: those `view-at` strings guard incompatible data rather than serving views.
 
 - Migrate the native GUI SQL fixture consumers with the coupled 2.3/2.2 replacement: `crates/dokime-gui/src-tauri/tests/support/server.rs::Fixture::new` creates an imported execution directly through Store; `tests/system/host.rs::large_document_and_long_history_frequency_use_bounded_native_reads` creates, samples, closes and seals through Store. The storage worker now owns the necessary native fixture caller migration, including the integration host/storage fixtures and support; TypeScript remains outside its ownership. Replace these fixtures through the canonical native execution/evidence owner without SQL fixture APIs or compatibility shims. The separate SQL access-journal fixture in `tests/integration/host.rs` follows its administration owner's cutover.
 - Resolve the requested per-item deletion/commit order against D8's coupled switch before implementing 2.3: deleting the SQL seal path also requires migrating the lifecycle, evidence, query and archive consumers assigned to later tasks. A combined compiling cutover commit, followed by each item's focused proof and checkbox closure, is the proposed resolution; no order change is agreed yet.
