@@ -11,8 +11,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="organization/logos/transparent-on-dark.svg">
-    <img src="organization/logos/transparent-on-light.svg" alt="Dokime logo" height="256">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/organization/logos/transparent-on-dark.svg">
+    <img src="assets/organization/logos/transparent-on-light.svg" alt="Dokime logo" height="256">
   </picture>
 </p>
 
@@ -43,7 +43,7 @@ See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples
 
-The existing [screenshots](docs/guides/screenshots/) document desktop workflows.
+The existing [screenshots](assets/screenshots/) document desktop workflows.
 
 ### CLI
 

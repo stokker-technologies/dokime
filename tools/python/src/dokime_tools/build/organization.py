@@ -42,7 +42,7 @@ from . import configuration
 # === Constants === #
 
 
-BRAND = configuration.ROOT / "organization"
+BRAND = configuration.ROOT / "assets/organization"
 GENERATED = configuration.ROOT / "packages/document/src/generated/organization"
 
 # === Types === #
@@ -154,7 +154,7 @@ def _write_text(path: Path, text: str) -> None:
 
 
 def _stylesheet(manifest: dict) -> str:
-    parts = ["/* GENERATED from the authored `organization/theme/` CSS.\n * Do not edit by hand. */\n"]
+    parts = ["/* GENERATED from the authored `assets/organization/theme/` CSS.\n * Do not edit by hand. */\n"]
     for name in ("typography", "base", "light", "dark"):
         file = f"theme/{name}.css"
         source = (BRAND / file).read_text(encoding="utf-8")
@@ -162,7 +162,7 @@ def _stylesheet(manifest: dict) -> str:
         parts.extend((f"\n/* BEGIN authored {file} */\n", source.rstrip("\n"), f"\n/* END authored {file} */\n"))
         if name != "base":
             continue
-        parts.append("\n/* BEGIN generated corner radii from organization/organization.toml */\n:root {\n")
+        parts.append("\n/* BEGIN generated corner radii from assets/organization/organization.toml */\n:root {\n")
         radii = manifest.get("theme", {}).get("corner_radii", {})
         for key in ("base", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"):
             if key in radii:

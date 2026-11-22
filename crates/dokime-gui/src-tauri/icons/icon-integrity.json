@@ -1,7 +1,7 @@
 {
   "algorithm": "sha256",
   "source": {
-    "path": "organization/icons/icon.png",
+    "path": "assets/organization/icons/icon.png",
     "sha256": "e711921dab14ca9763b7978bfcb3aa62b4e34d8893d7aeba2116bf487f35355a"
   },
   "outputs": [

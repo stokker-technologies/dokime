@@ -92,12 +92,12 @@ def export(root: Path, profile: str) -> Path:
         f"bin/dokime-gui{suffix}": build / "bin" / f"dokime-gui{suffix}",
         **bundles,
     }
-    organization = root / "organization"
+    organization = root / "assets/organization"
     for path in organization.rglob("*"):
         if path.is_symlink() or path.is_junction():
             raise ValueError(f"Package Product: distribution appearance input must not contain links: {path}")
         if path.is_file():
-            source[path.relative_to(root).as_posix()] = path
+            source[f"organization/{path.relative_to(organization).as_posix()}"] = path
 
     # Validate Inputs Before Replacing the Owned Export
     invalid = []

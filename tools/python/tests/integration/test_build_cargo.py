@@ -172,7 +172,7 @@ class IconInputTests(unittest.TestCase):
         temporary = temporary_directory.name
         try:
             root = Path(temporary)
-            brand = root / "organization"
+            brand = root / "assets/organization"
             (brand / "icons").mkdir(parents=True)
             (brand / "icons/icon.png").write_bytes(b"source fixture")
             destination = root / "crates/dokime-gui/src-tauri/icons"

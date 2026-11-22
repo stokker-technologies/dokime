@@ -59,7 +59,7 @@ class NativeTests(unittest.TestCase):
             path = build / "bin" / name
             path.parent.mkdir(exist_ok=True)
             path.write_bytes(name.encode())
-        for name in ("LICENSE", "target/notices/NOTICE", "target/notices/THIRD-PARTY-NOTICES", "organization/organization.toml"):
+        for name in ("LICENSE", "target/notices/NOTICE", "target/notices/THIRD-PARTY-NOTICES", "assets/organization/organization.toml"):
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(name.encode())
@@ -121,7 +121,7 @@ class NativeTests(unittest.TestCase):
                 path = build / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(name.encode())
-            for name in ("LICENSE", "target/notices/NOTICE", "target/notices/THIRD-PARTY-NOTICES", "organization/organization.toml"):
+            for name in ("LICENSE", "target/notices/NOTICE", "target/notices/THIRD-PARTY-NOTICES", "assets/organization/organization.toml"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(name.encode())
