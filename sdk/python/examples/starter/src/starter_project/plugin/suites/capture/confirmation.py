@@ -25,6 +25,7 @@ from dokime_sdk.templates import Context, TestTemplate, criterion, observer, rec
 # === Constants === #
 
 log = logging.getLogger(__name__)
+CONFIRMATION = record(bool, identifier="confirmation", label="Confirmation")
 
 # === Types === #
 
@@ -32,14 +33,12 @@ log = logging.getLogger(__name__)
 
 
 class ConfirmationTestTemplate(TestTemplate):
-    confirmation = record(bool, label="Confirmation")
-
     @step("Confirm")
     async def confirm(self, ctx: Context) -> None:
         answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
         log.info("Operator Answered %s", answer)
         reply = await ctx.operation("example.echo", {"confirmed": answer == "Yes"})
-        await ctx.record(self.confirmation, reply["confirmed"])
+        await ctx.record(CONFIRMATION, reply["confirmed"])
 
     @stream("Temperature [°C]", row=float)
     @observer(interval_ms=100)
@@ -48,7 +47,7 @@ class ConfirmationTestTemplate(TestTemplate):
 
     @criterion("Confirmed")
     async def confirmed(self, ctx: Context) -> bool:
-        return await ctx.records(self.confirmation, step=self.confirm).last()
+        return await ctx.records(CONFIRMATION, step=self.confirm).last()
 
 
 # === Public Functions === #

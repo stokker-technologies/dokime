@@ -52,7 +52,7 @@ Register with `plugin.settings<ConnectionSettings>()` and read
 saved values before plugin initialization; Retry or restart refreshes the snapshot.
 Settings use the library's defaults and inclusive bounds. Supported field types are
 `bool`, `std::int64_t`, `double`, `std::string`, and `std::chrono::duration<double>`.
-Choices and required settings await the library contract. Secret declarations and
+The `setting` declaration accepts `choices` and `required`, enforced by the host. Secret declarations and
 `ctx.secret("api_token")` remain independent of resource and settings classes.
 
 ```cpp
@@ -251,3 +251,14 @@ dotenv parsing and managed/remote calls. The C++ thermal host fixture is the
 
 Use fresh development storage when changing evidence schemas; preserve existing
 roots. The [SDK guide](../../docs/sdks/cpp.md) is maintained by the owner.
+
+## Operation Failures and Shared Records
+
+Operation calls throw the library's `harmos::OperationError`, retaining kind, code,
+message, action, operation and retry evidence. `plugin.failure(mapper)` accepts an
+exception mapper returning `std::optional<harmos::OperationError>`; unmapped exceptions
+become Permanent with their text and handler identity.
+
+Declare shared records with `plugin.record(record)`. Template and operation contexts
+write them with `ctx.record(record, value)`. Observer writes reach every execution
+in the host call's capture set and no other execution.

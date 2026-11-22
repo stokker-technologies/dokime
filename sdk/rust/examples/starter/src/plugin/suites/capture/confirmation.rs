@@ -20,8 +20,9 @@
 // Third Party Imports
 
 // Local Imports
+use crate::plugin;
 use dokime::Result;
-use dokime::templates::{Context, Criterion, Record, Step, Template};
+use dokime::templates::{Context, Criterion, Step, Template};
 
 /* === Constants === */
 
@@ -40,22 +41,16 @@ pub struct ConfirmationTestTemplate;
 /* === Implementations === */
 
 impl ConfirmationTestTemplate {
-    pub fn confirmation() -> Record<bool> {
-        Record::of(Self::confirmation, "Confirmation")
-    }
     pub fn template() -> Template {
-        Template::of::<Self>()
-            .record(Self::confirmation())
-            .step(Step::new("Confirm", Self::confirm))
-            .criterion(Criterion::new("Confirmed", Self::confirmed))
+        Template::of::<Self>().step(Step::new("Confirm", Self::confirm)).criterion(Criterion::new("Confirmed", Self::confirmed))
     }
     async fn confirm(ctx: &Context) -> Result<()> {
         let answer = ctx.prompt("Continue?", &["Yes", "No"]).await?;
-        ctx.record(&Self::confirmation(), answer == "Yes").await?;
+        ctx.record(&plugin::confirmation(), answer == "Yes").await?;
         Ok(())
     }
     async fn confirmed(ctx: &Context) -> Result<bool> {
-        ctx.records(&Self::confirmation()).step(Self::confirm).last().await
+        ctx.records(&plugin::confirmation()).step(Self::confirm).last().await
     }
 }
 

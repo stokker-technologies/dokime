@@ -23,6 +23,7 @@ pub mod suites;
 // Third Party Imports
 
 // Local Imports
+use dokime::plugin::Record;
 use dokime::{Plugin, Result};
 
 /* === Constants === */
@@ -43,9 +44,15 @@ pub struct ExamplePlugin;
 
 /* === Public Functions === */
 
+pub fn confirmation() -> Record<bool> {
+    Record::new("confirmation", "Confirmation")
+}
+
 pub fn plugin() -> Result<Plugin> {
-    let plugin =
-        Plugin::of::<ExamplePlugin>(env!("CARGO_PKG_VERSION")).suite(suites::capture::suite()?).operation(operations::echo::operation());
+    let plugin = Plugin::of::<ExamplePlugin>(env!("CARGO_PKG_VERSION"))
+        .record(confirmation())
+        .suite(suites::capture::suite()?)
+        .operation(operations::echo::operation());
     Ok(plugin)
 }
 

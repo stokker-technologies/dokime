@@ -1,125 +1,217 @@
-# Dokime C# SDK
+# Dokime Rust SDK
 
-`Plugin.RunAsync()` registers with the host selected by `DOKIME_REMOTE` in the
-process environment or working-directory `.env`. Managed launches take precedence.
-Registration sends the SDK version under the plugin's stable identifier.
-Closing a client or disposing a registration stops its listener and retains the
-host entry. Call `UnregisterAsync()` explicitly to remove it.
+Author executable test plugins and call a running host with the `dokime` crate.
+The plugin owns shared records; the [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its steps and criteria.
 
-`Dokime` provides .NET 10 authoring and bound asynchronous clients.
-The public homes are `Dokime`, `Dokime.Operations` and `Dokime.Templates`.
+Plugin lifecycle hooks use ordinary async operation contexts:
 
-## Local Integration
+```rust
+Plugin::of::<ExamplePlugin>("0.1.0")
+    .initialize(async |ctx: &dokime::operations::Context| Ok(()))
+    .finalize(async |ctx: &dokime::operations::Context| Ok(()));
+```
 
-Integration Only: `prepare:harmos` stages the sibling `harmos` main checkout
-into this repository's `target/` directory. `HARMOS_SOURCE` can select that checkout.
-`build:reference` uses the shared fixture builder and the library source resolved by
-Cargo for this workspace; both integration entry points build the same reference host.
+The SDK encodes protected `<plugin>.initialize` and `<plugin>.finalize` operations
+with empty payloads. Hooks share plugin-owned state with other operations.
 
-## Operation Calls
+Operation and template contexts accept the library's typed requests and untyped
+JSON calls through the same method:
 
-Both handler contexts support `await ctx.Operation("example.measure", new { channel = 1 })`,
-returning a `JsonNode`. The library owns JSON conversion, validation and child admission.
+```rust
+use dokime::untyped;
+use serde_json::json;
+
+let reply = ctx.operation(untyped("example.measure", json!({"channel": 1}))).await?;
+```
+
+The host converts protobuf JSON, validates every field, and returns its structured
+failure unchanged. An in-process testing host does not simulate operation calls;
+exercise these calls against a real host.
+
+`Plugin::run()` and `Plugin::run_with(address)` register with the host selected by `DOKIME_REMOTE` in the process
+environment or working-directory `.env`. Managed launches take precedence.
+Registration sends the SDK version and uses the plugin identifier as its stable
+entry name. Closing the client stops its listener and retains the entry;
+`RegisteredPlugin::unregister()` removes it explicitly.
 
 ## Operation Lanes
 
-`Dokime.Lane` forwards the library's three lane kinds: `Lane.Serial("instrument")`, `Lane.Concurrent("workers", 4)` and `Lane.Unbounded("independent")`. Register a lane with `plugin.Lane(instrument)` and a handler with `plugin.Operation(new Operation<double, double>("example.measure", lane: instrument), handler)`. The library validates declarations and rejects undeclared lane references. `Describe()` includes lane declarations and each operation's lane reference.
+`dokime::Lane` re-exports the library declaration. Create `let instrument = Lane::serial("instrument");`, assign it with `operation.lane(&instrument)`, and register it with `plugin.lane(instrument)`. `Lane::concurrent("workers", 4)` bounds concurrency; `Lane::unbounded("independent")` is unbounded. Declaration validation rejects undeclared lane references.
 
-## Author a Plugin
+## Author a Suite
 
-A `Plugin` subclass lists its suite types and annotated static operation delegates.
-A `Suite` subclass lists its `TestTemplate` types. Templates declare records,
-streams, observers, parameters and methods carrying `Step` or `Criterion` attributes.
-Both handler contexts expose the actual author plugin through `Plugin`;
-`Dokime.Templates.Context` adds execution evidence and lifecycle operations.
-Template `InitializeAsync` and `CleanupAsync` own execution lifetimes. A template that
-implements `IAsyncDisposable` is disposed after cleanup, including cleanup failure.
-Plugin classes may override `InitializeAsync(Dokime.Operations.Context, CancellationToken)`
-and `FinalizeAsync(Dokime.Operations.Context, CancellationToken)`. The SDK encodes
-protected `<plugin>.initialize` and `<plugin>.finalize` operations with empty payloads.
-Settings groups remain open.
+```rust
+use dokime::{Plugin, Result, Suite};
+use dokime::templates::{Context, Criterion, Record, Step, Template};
 
-Identifiers strip `Plugin`, `Suite` and `TestTemplate` suffixes and convert word
-boundaries to underscores. Templates are always qualified by their suite, and
-members by their template. Explicit `Identifier` overrides remain available.
-Labels derive independently from type names. Duplicate identifiers are refused.
-A short prompt uses `<suite>.<template>.question`; records acknowledge their ordinal.
-Retry policies require positive backoff.
-
-## Connect and Run
-
-```csharp
-using Dokime;
-
-var client = await Client.ConnectAsync();
-var cycle = await client.CycleAsync(label: "Capture");
-// Register your plugin, then materialize its declared template type.
-await cycle.SealAsync();
-var evidence = await cycle.EvidenceAsync();
-await client.CloseAsync();
+struct CaptureSuite;
+struct ExamplePlugin;
+struct ConfirmationTestTemplate;
+impl ConfirmationTestTemplate {
+    fn confirmation() -> Record<bool> {
+        Record::of(Self::confirmation, "Confirmation")
+    }
+    fn template() -> Template {
+        Template::of::<Self>()
+            .record(Self::confirmation())
+            .step(Step::new("Confirm", Self::confirm))
+            .criterion(Criterion::new("Confirmed", Self::confirmed))
+    }
+    async fn confirm(ctx: &Context) -> Result<()> {
+        let answer = ctx.prompt("Continue?", &["Yes", "No"]).await?;
+        ctx.record(&Self::confirmation(), answer == "Yes").await?;
+        Ok(())
+    }
+    async fn confirmed(ctx: &Context) -> Result<bool> {
+        ctx.records(&Self::confirmation()).step(Self::confirm).last().await
+    }
+}
+let plugin = Plugin::of::<ExamplePlugin>("0.1.0").suite(Suite::of::<CaptureSuite>().template(ConfirmationTestTemplate::template()));
 ```
 
-`ConnectionSettings` supplies `Remote`, `PluginAddress` and a `TimeSpan`
-`ConnectTimeout`. `Remote` resolves from explicit settings, process environment,
-then working-directory `.env`. `PluginAddress` overrides a programmatic
-registration's listener; otherwise it binds `127.0.0.1:0`. A direct remote
-is an HTTP origin with an explicit port. Pairing files retain ordered endpoints,
-credentials, pinned HTTPS certificates and host identity.
+This declares template `capture.confirmation`, step `capture.confirmation.confirm`,
+criterion `capture.confirmation.confirmed` and record `capture.confirmation.confirmation`.
+`Plugin::of::<T>`, `Suite::of::<T>()` and `Template::of::<T>()` derive identifiers and
+labels from marker names, removing `Plugin`, `Suite` and `TestTemplate` suffixes.
+`.identifier(...)` and `.label(...)` override them explicitly. Steps and criteria
+use their function names; anonymous handlers require an explicit identifier.
+Builders compose ordinary values and data alone uses derives.
 
-The starter calls `RunAsync()`: launch credentials select library announcement,
-otherwise pairing selects self-registration, and an absent remote selects standalone serving.
+Operation handlers receive `dokime::operations::Context`; template handlers receive
+`dokime::templates::Context`. Both read plugin-owned state through `plugin::<T>()`.
+Template state uses `set(value)` and `get::<T>()` and lasts for one execution.
+Authors do not declare host requirements.
+Template observers use `Observer::new` or `Observer::window` with the template
+context. Plugin-wide observers use `Observer::operation` or
+`Observer::operation_window` with the operation context; they read plugin-owned
+state and have no execution-only methods.
 
-`client.Plugins.RegisterAsync(plugin)` serves the plugin, adds its remote placement
-and watches until ready. `client.CloseAsync()` retains owned host entries and
-closes their endpoints. Transport failures become `SdkError` values retaining the
-host failure, cause chain and mutation request identity. Handles also implement `IAsyncDisposable` where applicable.
-`cycle.ExecutionAsync(testCase)` binds an execution; `RunAsync()` starts it and
-returns progress through the sealed terminal frame. `StartAsync`, `WatchAsync`,
-`StopAsync`, `CancelAsync` and `SealAsync` remain separate operations. Cancellation
-of observation releases the watch without cancelling a host execution. Seal returns
-an `Outcome`; cycle evidence returns verified archive bytes. Execution record and
-sample readers retain paging cuts and validate frozen payload schemas before decoding.
+## Collections and Durable Plugin State
 
-The pinned host does not yet expose product managed-bundle upload, plugin note
-admission or scoped typed sample subscriptions. Those calls refuse with the required
-upstream action, matching the Python reference. Client invocation policy overrides
-also require a host contract. They are not claimed as working features.
+`Plugin::collection` registers the library `Collection` directly. Declare native
+member streams, publish through `CollectionOutput`, select an `interval_setting`,
+and acquire/release resources through `on_start`/`on_stop`. The host owns demand,
+windows and timestamps. Bind a collection invocation to shared author state with
+`operations::Context::from_collection`; never retain an earlier invocation.
+Collection sampling requires a product host; the in-process template harness
+refuses it rather than running another scheduler.
 
-## Starter
+Operation contexts expose `state()?`: call `get::<T>().await?` before
+`put(&value).await?` on the same handle. Put compares the observed revision;
+conflicts require a fresh read and reapplication within the operation's policy.
 
-[`examples/Starter`](examples/Starter) is one solution:
+## Values and Operations
 
-```text
-Example.slnx
-src/Example/                 Shared Plugin, Suites and Operations
-src/Example.Plugin/          Plugin Executable
-src/Example.Client/          Client Flow
-tests/Example.Tests/         Host-Free Description Test
+Records and simple operations accept `bool`, `String`, `i64` and `f64`; the SDK
+encodes their well-known protobuf wrappers. Structured rows use `#[derive(Message)]`
+or `#[derive(dokime::Record)]` with `#[dokime(package = "example")]` when needed.
+
+```rust
+use dokime::{Plugin, Result, Visibility};
+use dokime::operations::{Context, Operation};
+struct ExamplePlugin;
+let echo = Operation::new("example.echo", Visibility::Public,
+    async |_: &Context, request: String| Ok(request));
+let plugin = Plugin::of::<ExamplePlugin>("0.1.0").operation(echo);
 ```
 
-The plugin project supplies literal native metadata for `dokime.toml` dynamic
-fields. `mise run build` builds Debug outputs and stages plugin runtime companions
-under `assets/plugin`. `mise run test` describes the plugin without a host.
-`mise run dev` starts a disposable product host. With `DOKIME_REMOTE` configured,
-`mise run run` runs the client and saves evidence under `_output/`.
+Declare structured questions with `dokime::templates::Prompt` on the template and
+pass the declaration to `ctx.prompt(&question, &[])`. The short text call uses `<template>.question`. The call returns the chosen
+label and refuses rejected or unknown actions. `records(&declaration).last()`
+returns a typed value and refuses an empty result. `.step(handler)` or
+`.step(&step_declaration)` selects one declared step.
 
-## Develop the SDK
+## Run the Examples
 
-```sh
-DOKIME_CSHARP_CONFIGURATION=Debug mise -C sdk/csharp run build
-DOKIME_CSHARP_CONFIGURATION=Debug mise -C sdk/csharp run test
-mise -C sdk/csharp run format
-mise -C sdk/csharp run check
-mise -C sdk/csharp run generate -- --write
-mise -C sdk/csharp run check:generated
-mise -C sdk/csharp run test:created
+The [Starter](examples/starter/) is one Cargo package with a plugin binary and a
+[Client Flow](examples/starter/src/bin/client.rs). The client connects through
+`DOKIME_REMOTE`, registers its owned listener, materializes the confirmation case,
+runs it, seals the execution and cycle, saves a timestamped archive in `_output/`
+and closes the registration and listener.
+
+```powershell
+mise -C sdk/rust run build
+mise -C sdk/rust run test -- --layer unit
+mise -C sdk/rust run test
+# Create a standalone consumer of this checkout:
+./target/debug/dokime new my-project --lang rust --from .
+cd my-project
+mise trust
+mise run build
+# With DOKIME_REMOTE naming a running host:
+mise run run
 ```
 
-`test:created` requires the prepared command-line binary and host fixtures. It
-creates a temporary consumer, points its SDK dependency at this worktree, bundles
-and develops it, answers its operator prompt through the CLI and checks sealed evidence.
+`--from` (or `DOKIME_NEW_FROM`) selects the checkout's starter and writes a Cargo
+path dependency on its Rust SDK. The explicit argument wins over the environment.
+Without either, the command uses its embedded starter and published dependency.
+The plugin binary calls `plugin()?.run()` without parsing arguments. Launch credentials
+select library announcement; otherwise `DOKIME_REMOTE` selects self-registration,
+and no remote selects standalone serving.
+`register_with` accepts a `PluginRegisterOptions` address override; otherwise
+`127.0.0.1:0` selects its owned listener. `client.close()` retains the host entries
+and joins their listeners; repeated close is safe.
 
-Generated carriers remain tracked and are projected through the SDK generation
-task. They are implementation details; authored examples use product values and
-handles. See the [Architecture](../../docs/project/architecture.md) and
-[C# SDK Guide](../../docs/sdks/csharp.md) for the owning contracts.
+`dokime::testing::Harness` runs a template against an in-memory host
+with a controlled clock, without hardware.
+Cleanup runs after attempted initialization, including failure and cancellation,
+and can inspect resources created before initialization failed.
+
+## Read Bound Resources
+
+`client.plugins().list()`, `client.cases().list()`, `client.cycles().list()` and
+`client.executions().list()` return handles owned by that connection.
+`CyclesQuery` and `ExecutionsQuery` select filtered lists through `list_with`.
+Paged cycle and execution reads preserve the first durable cut and refuse changed
+cuts or repeated continuation tokens. Case, cycle and execution handles support
+`refresh()` without creating another resource.
+
+`execution.records::<T>(identifier)` supports `all()`, `rows()`, `count()` and
+`last()`. `execution.samples::<T>(identifier)` supports `all()` and `rows()`.
+Rows preserve their acknowledged identity, ordinal and exact timestamp;
+sample rows also retain receipt time, stream and source.
+Readers verify the frozen descriptor digest and message binding before decoding
+payloads, and reject empty `last()` selections.
+
+Cycle/execution creation, execution controls, cycle sealing, notes and artifacts
+offer `_with` methods accepting operation-specific request identity options.
+Reuse a request identity with identical inputs when replaying a mutation.
+Execution creation derives the same execution UUID from that identity.
+Template contexts also support `artifact()` and `artifact_with()`; they share the
+client's fenced upload implementation and attach only to the calling execution.
+Context records, progress, logs, traceability and document mutations also
+accept operation-specific request identity options through `_with` methods.
+
+## Typed Activation Facilities
+
+Implement `dokime::operations::Settings` with `declarations()` returning the library's
+`SettingDeclaration` values and `read(&SettingValues)` decoding the host snapshot.
+Register with `plugin.settings::<ConnectionSettings>()` and read synchronously with
+`ctx.settings::<ConnectionSettings>()?`. Choices, required values and bounds are validated by the host.
+
+Implement `dokime::operations::Resource::open(&Context)` and optional `close(&self)`;
+register with `plugin.resource::<RemoteApi>()` and call `ctx.resource::<RemoteApi>().await?`.
+Resources open lazily once per activation and close in reverse opening order.
+
+`dokime::Error` and `Result<T>` are the library types. `plugin.failure(mapper)` maps
+application errors preserved by `Error::other(error)`; unmapped errors become Permanent
+with their text and operation identity. Read `error.action()` for the caller's next step.
+Declare shared records with `plugin.record(record)`; operation and template contexts
+both expose `record(&record, value).await?`. Observer records fan out on the host.
+
+## Typed Activation Facilities
+
+Derive settings classes from `Dokime.Operations.Settings`, return library
+`Harmos.SettingDeclaration` values from `Declarations`, and expose typed properties
+using `Read<T>(name)`. List their types in the plugin's `Settings` property and read
+`ctx.Settings<ConnectionSettings>()`. Host validation enforces choices, required values and bounds.
+
+Derive resources from `Dokime.Operations.Resource`, override `OpenAsync(Context)` and
+optional `CloseAsync()`, and list types in `Resources`. `await ctx.Resource<RemoteApi>()`
+returns one lazy instance per activation, released in reverse opening order.
+
+Operation calls throw `Harmos.OperationException` with the host's structured failure.
+Override the plugin's `Failure` property with a mapper returning that exception or null.
+Unmapped exceptions become Permanent with their text and operation identity.
+List shared `Record<T>` values in the plugin's `Records`; template and operation contexts
+both support `RecordAsync(record, value)`. Observer writes fan out on the host.

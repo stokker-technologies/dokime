@@ -20,6 +20,7 @@ from dokime_sdk.operations import Setting, Settings
 # Local Imports
 from starter_project.plugin.operations.echo import echo
 from starter_project.plugin.suites.capture import CaptureSuite
+from starter_project.plugin.suites.capture.confirmation import CONFIRMATION
 
 # Type Checking Imports
 
@@ -41,6 +42,7 @@ class ExamplePlugin(Plugin):
     suites = [CaptureSuite]
     operations = [echo]
     settings = (ConnectionSettings,)
+    records = (CONFIRMATION,)
 
 
 # === Public Functions === #

@@ -1,7 +1,7 @@
 # Dokime Rust SDK
 
 Author executable test plugins and call a running host with the `dokime` crate.
-The [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its records, steps and criteria.
+The plugin owns shared records; the [Capture Suite](examples/starter/src/plugin/suites/capture/confirmation.rs) owns its steps and criteria.
 
 Plugin lifecycle hooks use ordinary async operation contexts:
 
@@ -181,3 +181,15 @@ Template contexts also support `artifact()` and `artifact_with()`; they share th
 client's fenced upload implementation and attach only to the calling execution.
 Context records, progress, logs, traceability and document mutations also
 accept operation-specific request identity options through `_with` methods.
+
+## Activation Resources
+
+Implement `dokime::operations::Resource::open(&Context)` and optional `close(&self)`;
+register with `plugin.resource::<RemoteApi>()` and call `ctx.resource::<RemoteApi>().await?`.
+Resources open lazily once per activation and close in reverse opening order.
+
+`dokime::Error` and `Result<T>` are the library types. `plugin.failure(mapper)` maps
+application errors preserved by `Error::other(error)`; unmapped errors become Permanent
+with their text and operation identity. Read `error.action()` for the caller's next step.
+Declare shared records with `plugin.record(record)`; operation and template contexts
+both expose `record(&record, value).await?`. Observer records fan out on the host.

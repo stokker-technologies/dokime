@@ -57,7 +57,7 @@ public sealed class AuthorRunsThePackagedStarter
             return new RecordsAppendResponse { Ordinal = 1 }.ToByteString();
           });
       Assert.Equal("starter-execution", stored!.Execution);
-      Assert.Equal("example.capture.confirmation.confirmation", stored.Kind);
+      Assert.Equal("example.confirmation", stored.Kind);
       Assert.True(BoolValue.Parser.ParseFrom(stored.Payload).Value);
 
       // Evaluate the Captured Evidence Through Its Qualified Step Selector.

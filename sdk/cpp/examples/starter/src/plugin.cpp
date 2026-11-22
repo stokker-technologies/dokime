@@ -12,6 +12,7 @@
 #include "plugin.hpp"
 #include "plugin/operations/echo.hpp"
 #include "plugin/suites/capture/capture.hpp"
+#include "plugin/suites/capture/confirmation.hpp"
 
 using dokime::Plugin;
 using dokime::operations::Visibility;
@@ -26,6 +27,7 @@ using std::string;
 
 namespace starter_project {
 ExamplePlugin::ExamplePlugin() : Plugin(Plugin::from<ExamplePlugin>("0.1.0")) {
+  record(ConfirmationTestTemplate::confirmation);
   suite(CaptureSuite::definition());
   settings<ConnectionSettings>();
   operation(dokime::operations::operation<string, string>("example.echo", Visibility::Public, echo));

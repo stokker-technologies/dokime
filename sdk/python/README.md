@@ -43,9 +43,9 @@ async def measure(self, ctx):
 ```
 
 An omitted request sends an empty object. Replies are dicts. No peer binding or
-request declaration is required. Catch `dokime_sdk.operations.FailureError` and
-read `error.failure` for the host's classification, operation, field expectation
-and recovery action. The callee's operation policy applies unless the call supplies
+request declaration is required. Catch `dokime_sdk.operations.OperationError` and read `error.kind`, `error.code`,
+`error.message`, `error.action`, `error.operation` and `error.retry`; `error.to_dict()`
+returns the same structured evidence, including host retry decisions. The callee's operation policy applies unless the call supplies
 an override.
 
 ## Standard Logging
@@ -97,7 +97,7 @@ Settings are synchronous, read-only activation snapshots loaded before initializ
 and refreshed on Retry or restart. Field names are the host setting names, so names
 across declared settings classes must be unique. `Setting.flag`, `integer`, `number`,
 `text`, and `duration` use the library's typed defaults and inclusive numeric/duration
-bounds. Choices and required settings await the library contract.
+bounds. `choices=(...)` and `required=True` project into the library declaration and are enforced by the host.
 
 ## Declarations
 
@@ -142,8 +142,26 @@ while not ctx.stop_requested:
 Cancel still aborts active work.
 
 Handler exceptions become Permanent failures carrying their identity and exception text.
-`OperationPolicy(transient=lambda error: isinstance(error, ConnectionError))` marks
-selected handler exceptions Transient; existing structured failures keep their classification.
+Declare a plugin-level failure mapper for application exceptions:
+
+```python
+from dokime_sdk.operations import OperationError
+
+
+def remote_failure(error: Exception) -> OperationError | None:
+    if isinstance(error, ConnectionError):
+        return OperationError("transient", message=str(error), action="Reconnect the Device")
+    return None
+
+
+class ExamplePlugin(Plugin):
+    failure = remote_failure
+```
+
+Structured `OperationError` values retain their classification and recovery action.
+Declare shared records with `records = (EVENT,)`, where `EVENT = record(int, identifier="event")`.
+Templates and observers write the same contract with `await ctx.record(EVENT, value)`.
+An observer write reaches every execution capturing that call and no other execution.
 
 Setting bounds are inclusive and use the default's value type. The library
 validates defaults at host admission and every saved write:
