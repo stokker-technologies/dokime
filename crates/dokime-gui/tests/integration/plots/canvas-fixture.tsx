@@ -18,17 +18,18 @@
 // Third Party Imports
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+import type { ComponentProps } from "svelte";
 
 // Local Imports
 import { SvelteMount } from "@/components/SvelteMount";
 import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
 import { CartesianPlot } from "@/plots/CartesianPlot";
 import { PlotInteractionProvider } from "@/plots/interaction";
-import { HistogramChart } from "@/plots/HistogramChart";
+import HistogramChart from "@/plots/HistogramChart.svelte";
 import PiePlot from "@/plots/catalog/PiePlot.svelte";
-import { BarPlot } from "@/plots/catalog/BarPlot";
-import { BoxPlot } from "@/plots/catalog/BoxPlot";
-import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import BarPlot from "@/plots/catalog/BarPlot.svelte";
+import BoxPlot from "@/plots/catalog/BoxPlot.svelte";
+import ContourPlot from "@/plots/catalog/ContourPlot.svelte";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { documentPlotSpec } from "@/plots/grouping";
@@ -195,21 +196,32 @@ function startCanvasFixture() {
           createElement(
             "div",
             { "data-plot-kind": "histogram" },
-            createElement(HistogramChart, {
-              title: "Samples",
-              unit: "V",
-              distribution: {
-                count: 12,
-                bins: [
-                  { lower: 0, upper: 1, count: 3 },
-                  { lower: 1, upper: 2, count: 0 },
-                  { lower: 2, upper: 3, count: 9 },
-                ],
+            createElement(SvelteMount<ComponentProps<typeof HistogramChart>>, {
+              component: HistogramChart,
+              props: {
+                title: "Samples",
+                unit: "V",
+                distribution: {
+                  count: 12,
+                  bins: [
+                    { lower: 0, upper: 1, count: 3 },
+                    { lower: 1, upper: 2, count: 0 },
+                    { lower: 2, upper: 3, count: 9 },
+                  ],
+                },
               },
             }),
           ),
-          createElement("div", { "data-plot-kind": "bar" }, createElement(BarPlot, { plot })),
-          createElement("div", { "data-plot-kind": "box" }, createElement(BoxPlot, { plot })),
+          createElement(
+            "div",
+            { "data-plot-kind": "bar" },
+            createElement(SvelteMount<ComponentProps<typeof BarPlot>>, { component: BarPlot, props: { plot } }),
+          ),
+          createElement(
+            "div",
+            { "data-plot-kind": "box" },
+            createElement(SvelteMount<ComponentProps<typeof BoxPlot>>, { component: BoxPlot, props: { plot } }),
+          ),
           createElement(
             "div",
             { "data-plot-kind": "grid" },
@@ -235,58 +247,64 @@ function startCanvasFixture() {
             }),
           ),
           ...["cells", "bands"].map((render) =>
-            createElement(ContourPlot, {
+            createElement(SvelteMount<ComponentProps<typeof ContourPlot>>, {
+              component: ContourPlot,
               key: render,
-              plot: documentPlotSpec({
-                plot: {
-                  plot_id: `contour.${render}`,
-                  title: "Surface",
-                  stream: "readings",
-                  plot_type: "contour",
-                  y: ["y"],
-                  render,
-                } as DocumentViewPlot,
-                payload: {
-                  stream: "readings",
-                  x_key: "x",
-                  series: [],
-                  max_points: 4,
-                  generated_at: "2026-01-01T00:00:00Z",
-                  analysis: {
-                    kind: "contour",
-                    grid: {
-                      columns: 2,
-                      rows: 2,
-                      xEdges: [0, 1, 2],
-                      yEdges: [0, 1, 2],
-                      values: [0, 0, 0, 4],
-                      valid: [true, false, false, true],
+              props: {
+                plot: documentPlotSpec({
+                  plot: {
+                    plot_id: `contour.${render}`,
+                    title: "Surface",
+                    stream: "readings",
+                    plot_type: "contour",
+                    y: ["y"],
+                    render,
+                  } as DocumentViewPlot,
+                  payload: {
+                    stream: "readings",
+                    x_key: "x",
+                    series: [],
+                    max_points: 4,
+                    generated_at: "2026-01-01T00:00:00Z",
+                    analysis: {
+                      kind: "contour",
+                      grid: {
+                        columns: 2,
+                        rows: 2,
+                        xEdges: [0, 1, 2],
+                        yEdges: [0, 1, 2],
+                        values: [0, 0, 0, 4],
+                        valid: [true, false, false, true],
+                      },
                     },
                   },
-                },
-              }),
+                }),
+              },
             }),
           ),
           ...["grouped", "stacked", "pareto"].map((option) =>
-            createElement(BarPlot, {
+            createElement(SvelteMount<ComponentProps<typeof BarPlot>>, {
+              component: BarPlot,
               key: option,
-              plot: {
-                ...plot,
-                plotType: "bar",
-                arrangement: option === "pareto" ? null : (option as "grouped" | "stacked"),
-                pareto: option === "pareto",
-                analysis: null,
-                series: (option === "pareto" ? [0] : [0, 1]).map((index) => ({
-                  key: `series${index}`,
-                  label: `Series ${index}`,
-                  raw_points: 3,
-                  downsampled: false,
-                  points: [
-                    { x: "a", y: 2 + index },
-                    { x: "b", y: 3 + index },
-                    { x: "c", y: 3 + index },
-                  ],
-                })),
+              props: {
+                plot: {
+                  ...plot,
+                  plotType: "bar",
+                  arrangement: option === "pareto" ? null : (option as "grouped" | "stacked"),
+                  pareto: option === "pareto",
+                  analysis: null,
+                  series: (option === "pareto" ? [0] : [0, 1]).map((index) => ({
+                    key: `series${index}`,
+                    label: `Series ${index}`,
+                    raw_points: 3,
+                    downsampled: false,
+                    points: [
+                      { x: "a", y: 2 + index },
+                      { x: "b", y: 3 + index },
+                      { x: "c", y: 3 + index },
+                    ],
+                  })),
+                },
               },
             }),
           ),

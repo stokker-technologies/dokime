@@ -69,8 +69,8 @@ import { drawnData } from "@/plots/cartesian-frame";
 import { CartesianPlot, cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { formatBooleanState, formatCursorX } from "@/plots/axis";
-import { BarPlot } from "@/plots/catalog/BarPlot";
-import { ContourPlot } from "@/plots/catalog/ContourPlot";
+import BarPlot from "@/plots/catalog/BarPlot.svelte";
+import ContourPlot from "@/plots/catalog/ContourPlot.svelte";
 import GridChartPlot from "@/plots/catalog/GridChartPlot.svelte";
 import PiePlot from "@/plots/catalog/PiePlot.svelte";
 import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
@@ -2118,7 +2118,7 @@ test("Generated Plot Series Labels Respect Word Positions", () => {
   );
 });
 
-test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", () => {
+test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", async () => {
   onTestFinished(cleanup);
   const declaration = {
     plot_id: "surface",
@@ -2139,8 +2139,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     },
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot }));
+  const { container: host, rerender } = render(ContourPlot, { plot });
   assert.equal(host.querySelectorAll("rect[data-bin]").length, 2);
   assert.ok(host.querySelector('rect[data-bin="0"]')?.getAttribute("fill"));
   assert.equal(host.querySelector('rect[data-bin="1"]'), null);
@@ -2148,7 +2147,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   const last = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
   assert.ok(Math.abs(Number(first.getAttribute("width")) / Number(last.getAttribute("width")) - 2) < 1e-12);
   assert.ok(Math.abs(Number(last.getAttribute("height")) / Number(first.getAttribute("height")) - 3) < 1e-12);
-  host.innerHTML = renderToStaticMarkup(createElement(ContourPlot, { plot: { ...plot, render: "bands" } }));
+  await rerender({ plot: { ...plot, render: "bands" } });
   assert.ok(host.querySelectorAll("[data-contour-mask] path").length > 0);
   assert.equal(host.querySelectorAll("clipPath rect").length, 2);
   assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
@@ -2240,8 +2239,7 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", async () => 
     ],
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...plot, pareto: true } }));
+  const { container: host, rerender } = render(BarPlot, { plot: { ...plot, pareto: true } });
   assert.deepEqual(
     [...host.querySelectorAll("rect[data-category]")].map((node) => node.getAttribute("data-category")),
     ["b", "c", "a"],
@@ -2254,7 +2252,7 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", async () => 
     ...plot,
     series: plot.series.map((series) => ({ ...series, points: series.points.map((point) => ({ ...point, y: 0 })) })),
   };
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...zero, pareto: true } }));
+  await rerender({ plot: { ...zero, pareto: true } });
   assert.equal(host.querySelectorAll("rect[data-category]").length, 3);
   assert.equal(host.querySelector("[data-cumulative]"), null);
   const pie = render(PiePlot, { plot: { ...zero, plotType: "pie" } });
@@ -2277,11 +2275,11 @@ test("Bar Arrangements Pareto and Pie Draw Their Distinct Options", async () => 
       },
     ],
   };
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "grouped" } }));
+  await rerender({ plot: { ...grouped, arrangement: "grouped" } });
   let bars = [...host.querySelectorAll('rect[data-category="a"]')];
   assert.equal(bars.length, 2);
   assert.notEqual(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
-  host.innerHTML = renderToStaticMarkup(createElement(BarPlot, { plot: { ...grouped, arrangement: "stacked" } }));
+  await rerender({ plot: { ...grouped, arrangement: "stacked" } });
   bars = [...host.querySelectorAll('rect[data-category="a"]')];
   assert.equal(bars[0].getAttribute("y"), bars[1].getAttribute("y"));
   assert.ok(Number(bars[1].getAttribute("x")) >= Number(bars[0].getAttribute("x")) + Number(bars[0].getAttribute("width")) - 1e-9);
@@ -2349,14 +2347,10 @@ test("Native Columns Reach Trajectory and Categorical Renderers", () => {
         },
         payload: update.payload,
       });
-      const host = kind === "pie" ? render(PiePlot, { plot }).container : document.createElement("div");
-      if (kind !== "pie") {
+      const host = kind === "trajectory" ? document.createElement("div") : render(kind === "pie" ? PiePlot : BarPlot, { plot }).container;
+      if (kind === "trajectory") {
         host.innerHTML = renderToStaticMarkup(
-          createElement(
-            PlotInteractionProvider,
-            { zoom: false },
-            kind === "trajectory" ? createElement(TrajectoryPlot, { plot }) : createElement(BarPlot, { plot }),
-          ),
+          createElement(PlotInteractionProvider, { zoom: false }, createElement(TrajectoryPlot, { plot })),
         );
       }
       assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);

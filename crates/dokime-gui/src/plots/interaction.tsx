@@ -28,7 +28,7 @@ export type PlotInteraction = {
   syncKey?: string;
 };
 
-type PlotMeasurements = {
+export type PlotMeasurements = {
   setVisible: (plotId: string, visible: boolean | null) => void;
   setPanelSize: (plotId: string, size: { width: number; height: number } | null) => void;
   setPanelWidth: (plotId: string, width: number | null) => void;

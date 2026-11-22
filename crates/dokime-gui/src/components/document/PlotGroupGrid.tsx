@@ -18,11 +18,11 @@ import { failureOf } from "../../lib/notification-details";
 import { documentPlotGroupDescription, documentPlotSpec, groupRepeatsPlotTitle } from "../../plots/grouping";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "../../lib/types";
 import PiePlot from "../../plots/catalog/PiePlot.svelte";
-import { BarPlot } from "../../plots/catalog/BarPlot";
-import { BoxPlot } from "../../plots/catalog/BoxPlot";
+import BarPlot from "../../plots/catalog/BarPlot.svelte";
+import BoxPlot from "../../plots/catalog/BoxPlot.svelte";
 import { FrequencySeriesPlot } from "../../plots/catalog/FrequencySeriesPlot";
-import { ContourPlot } from "../../plots/catalog/ContourPlot";
-import { HistogramSeriesPlot } from "../../plots/catalog/HistogramPlot";
+import ContourPlot from "../../plots/catalog/ContourPlot.svelte";
+import HistogramPlot from "../../plots/catalog/HistogramPlot.svelte";
 import { TimeSeriesPlot } from "../../plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "../../plots/catalog/TrajectoryPlot";
 import HeatStripPlot from "../../plots/catalog/HeatStripPlot.svelte";
@@ -30,7 +30,7 @@ import { SvelteMount } from "../SvelteMount";
 import GridChartPlot from "../../plots/catalog/GridChartPlot.svelte";
 import { XyIntervalPlot } from "../../plots/catalog/XyIntervalPlot";
 import { XyPlot } from "../../plots/catalog/XyPlot";
-import { PlotInteractionProvider, usePlotInteraction, usePlotMeasurements } from "@/plots/interaction";
+import { PlotInteractionProvider, type PlotMeasurements, usePlotInteraction, usePlotMeasurements } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "../../plots/live-frames";
 import { PlotPlaceholder } from "../../plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText, STREAM_ERROR } from "../../plots/plot-placeholder";
@@ -227,7 +227,8 @@ const LivePlotCard = memo(function LivePlotCard({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { zoom } = usePlotInteraction();
-  const setPanelWidth = usePlotMeasurements()?.setPanelWidth;
+  const measurements = usePlotMeasurements();
+  const setPanelWidth = measurements?.setPanelWidth;
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel || !setPanelWidth || zoom) {
@@ -261,14 +262,15 @@ const LivePlotCard = memo(function LivePlotCard({
     return titleRepeated ? { ...marked, titleRepeated } : marked;
   }, [descriptor, parameters, plotPalette, prompts, state, telemetry, titleRepeated]);
   const PlotSettingsButton = usePlotSettingsEditor();
+  const rendering = { resetKey, viewportMode, setPanelSize: measurements?.setPanelSize };
   return (
     <div ref={panelRef} className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
       {onPlotSettingsChange && PlotSettingsButton ? (
         <PlotSettingsButton plot={descriptor} onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}>
-          {(actions) => plotElement(plot, resetKey, viewportMode, actions)}
+          {(actions) => plotElement(plot, { ...rendering, actions })}
         </PlotSettingsButton>
       ) : (
-        plotElement(plot, resetKey, viewportMode)
+        plotElement(plot, rendering)
       )}
     </div>
   );
@@ -288,7 +290,20 @@ function plotCardClassName(plot: PlotCardSpec): string {
   return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-72` : `${baseClassName} min-h-44`;
 }
 
-function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {
+function plotElement(
+  plot: PlotCardSpec,
+  {
+    resetKey,
+    viewportMode,
+    actions,
+    setPanelSize,
+  }: {
+    resetKey?: string;
+    viewportMode: PlotViewportMode;
+    actions?: ReactNode;
+    setPanelSize?: PlotMeasurements["setPanelSize"];
+  },
+) {
   if (plot.failure && !plot.cartesian && !plot.series.some((series) => series.points.length)) {
     return (
       <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-2">
@@ -315,13 +330,13 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <SvelteMount key={plot.key} component={GridChartPlot} props={{ plot }} />;
   }
   if (plot.plotType === "contour") {
-    return <ContourPlot plot={plot} />;
+    return <SvelteMount component={ContourPlot} props={{ plot, setPanelSize }} />;
   }
   if (plot.plotType === "pie") {
     return <SvelteMount component={PiePlot} props={{ plot }} />;
   }
   if (plot.plotType === "bar") {
-    return <BarPlot plot={plot} />;
+    return <SvelteMount component={BarPlot} props={{ plot }} />;
   }
   if (plot.plotType === "xy" && !plot.xyInterval) {
     return <XyPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
@@ -336,10 +351,10 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <FrequencySeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "histogram") {
-    return <HistogramSeriesPlot plot={plot} />;
+    return <SvelteMount component={HistogramPlot} props={{ plot }} />;
   }
   if (plot.plotType === "box_plot") {
-    return <BoxPlot plot={plot} />;
+    return <SvelteMount component={BoxPlot} props={{ plot }} />;
   }
   if (plot.plotType === "time_series") {
     return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
