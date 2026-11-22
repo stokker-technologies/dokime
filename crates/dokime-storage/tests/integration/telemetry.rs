@@ -1123,6 +1123,107 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
 }
 
 #[test]
+fn telemetry_at_records_skips_rows_without_the_selected_field() -> Result<()> {
+    #[derive(Clone, PartialEq, Message)]
+    struct AtRow {
+        #[prost(uint64, optional, tag = "1")]
+        value: Option<u64>,
+
+        #[prost(uint64, optional, tag = "2")]
+        other: Option<u64>,
+    }
+
+    // Declare Optional Measurements and Status Records
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let mut execution = fixture::execution();
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+    let file = &mut catalog.types.as_mut().unwrap().file[0];
+    file.syntax = Some("proto2".into());
+    file.message_type[0].field[1].name = Some("other".into());
+    file.message_type[0].field[1].r#type = Some(Type::Uint64 as i32);
+    let contracts = RecordContracts {
+        records: vec![RecordContract {
+            metadata: Some(Metadata {
+                identifier: "status".into(),
+                ..Default::default()
+            }),
+            message: "fixture.Row".into(),
+        }],
+    };
+    catalog.sections.push(Default::default());
+    let section = catalog.sections.last_mut().unwrap();
+    section.r#type = "dokime.model.v1.RecordContracts".into();
+    section.payload = contracts.encode_to_vec();
+    execution.catalog = catalog.encode_to_vec();
+    store.create(&execution)?;
+    store.open_stream("execution", "readings")?;
+
+    let sampled = FieldReference::new("readings").field("value").at("status");
+    for (rows, source_ns, count) in [
+        (vec![(1, None, None)], 2, 0),
+        (vec![(3, Some(10), None), (4, None, Some(20))], 5, 1),
+        (vec![(6, Some(0), None), (7, None, Some(30))], 8, 2),
+    ] {
+        // Capture Measurements Followed by an Event
+        let samples = rows
+            .into_iter()
+            .map(|(source_ns, value, other)| Sample {
+                stream: "readings".into(),
+                source_ns,
+                row: AtRow { value, other }.encode_to_vec(),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("execution", &samples)?;
+        store.append(
+            "execution",
+            Evidence {
+                kind: "record:status".into(),
+                source_ns,
+                payload: RecordsAppendRequest::default().encode_to_vec(),
+                ..Default::default()
+            },
+        )?;
+
+        // Check Missing Measurements and Present Zero Values
+        let cut = store.cut("execution")?;
+        assert_eq!(store.document_value(&cut, &sampled.clone().count())?.kind, Some(value::Kind::Integer(count)));
+        let last = store.document_value(&cut, &sampled.clone().aggregate(Aggregate::Last))?;
+        if count == 0 {
+            assert!(matches!(last.kind, Some(value::Kind::Null(_))));
+        } else {
+            assert_eq!(last.kind, Some(value::Kind::UnsignedInteger(if count == 1 { 10 } else { 0 })));
+            assert_eq!(store.document_value(&cut, &sampled.clone().sum())?.kind, Some(value::Kind::UnsignedInteger(10)));
+        }
+    }
+
+    // Check Independent Fields and Ordinary Stream Attachments
+    for expression in [FieldReference::new("readings").field("other").into(), FieldReference::new("readings").field("other").at("status")] {
+        let filters = [PlotFilter {
+            expression: Some(expression),
+            operator: FilterOperator::Exists as i32,
+            ..Default::default()
+        }];
+        let sum = store.document_value_filtered(&store.cut("execution")?, &sampled.clone().sum(), &filters)?;
+        assert_eq!(sum.kind, Some(value::Kind::UnsignedInteger(10)));
+    }
+
+    // Check Sealed Evidence
+    store.close_streams("execution")?;
+    store.close(
+        "execution",
+        Termination::Completed,
+        ExecutionOutcome {
+            attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
+        },
+    )?;
+    store.seal("execution", Default::default())?;
+    assert_eq!(store.document_value(&store.cut("execution")?, &sampled.sum())?.kind, Some(value::Kind::UnsignedInteger(10)));
+    Ok(())
+}
+
+#[test]
 fn telemetry_at_records_matches_live_and_sealed_over_a_million_rows() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;

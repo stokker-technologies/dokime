@@ -47,7 +47,11 @@ value and ordering. Plot filters remain row-aligned inside plot evaluation.
 
 For an expression `telemetry(S, F).at(R)`:
 
-- Input A: the rows of stream `S` with field `F`, ordered by timestamp.
+- Input A: the rows of stream `S` WITH field `F`, ordered by timestamp.
+  Rows where `F` is missing or null never qualify; a present zero does qualify.
+  Filter these rows while materializing the secondary input of the library merge,
+  preserving one ordered pass and one merge per sampled field. Field-specific
+  bindings keep other sampled fields and ordinary stream reads independent.
 - Input B: the records of type `R`, ordered by timestamp.
 - Without `within_s`: for each record `b`, the value is `F` of the last row
   `a` with `a.timestamp <= b.timestamp`; no row means no value for `b`.
