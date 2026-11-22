@@ -56,7 +56,7 @@ class PythonPackagingTests(TestCase):
         (root / "Cargo.toml").write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "pinned"\n')
         exported = root / "target/protocol"
         exported.mkdir(parents=True, exist_ok=True)
-        (exported / ".revision").write_text("https://example.test/library.git#ref=pinned,subdir=proto,depth=2147483647")
+        (exported / ".revision").write_text("https://example.test/library/archive/pinned.tar.gz")
         proto = root / "proto/dokime/host/v1/service.proto"
         proto.parent.mkdir(parents=True, exist_ok=True)
         proto.write_bytes(b'syntax = "proto3";')
