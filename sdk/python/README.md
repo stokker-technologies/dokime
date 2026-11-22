@@ -149,16 +149,11 @@ Setting bounds are inclusive and use the default's value type. The library
 validates defaults at host admission and every saved write:
 
 ```python
-from dokime_sdk.operations import SettingDeclaration, SettingValue
+from dokime_sdk.operations import Setting, Settings
 
-sample_count = SettingDeclaration(
-    "sample_count",
-    "Sample Count",
-    "Samples per Capture",
-    SettingValue(integer=10),
-    minimum=SettingValue(integer=0),
-    maximum=SettingValue(integer=100),
-)
+
+class CaptureSettings(Settings):
+    sample_count: int = Setting.integer("Sample Count", default=10, min=0, max=100, description="Samples per Capture")
 ```
 
 ## Starter
