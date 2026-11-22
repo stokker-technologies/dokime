@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Local Imports
 import dokime_tools.test.policy
-from dokime_tools.build import cargo, configuration, paths
+from dokime_tools.build import cargo, configuration, frontend, paths
 from dokime_tools.ci import transport
 from dokime_tools.package.staging import sync_output
 from dokime_tools.prepare import generated
@@ -77,6 +77,19 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
     # Prepare Product Resources for the Complete Rust Producer.
     if "rust" in languages and fixture is None:
         generated.prepare()
+
+    # Prepare the Report for Focused Rust Fixtures Too.
+    if "rust" in languages and not (root / "target/generated/report/report.html").is_file():
+        subprocess.run(
+            ["mise", "-C", "crates/dokime-gui", "run", "generate:host-frontend"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        frontend.build_report([])
 
     # Build the Rust SDK Fixtures.
     if "rust" in languages:
@@ -191,7 +204,7 @@ def build(profile: str, language: str = "auto", fixture: str | None = None) -> N
             (
                 package
                 for package in json.loads(metadata.stdout)["packages"]
-                if package["name"] == "harmos" and (package.get("source") or "").endswith("#" + library["rev"])
+                if package["name"] == "harmos" and (package.get("source") or "").rsplit("#", 1)[-1].startswith(library["rev"])
             ),
             None,
         )
