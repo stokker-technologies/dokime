@@ -15,7 +15,7 @@ import asyncio
 import inspect
 import json
 import os
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.metadata import distributions, packages_distributions, version
 from pathlib import Path
@@ -43,7 +43,7 @@ from ._configuration import load
 from ._connection import connect
 from ._errors import wire_failure
 from ._generated.host import HostOperation, host_requirement
-from ._generated.shared import SecretsDeclarations
+from ._generated.shared import SecretsDeclarations, Value
 from ._payloads import message_type, pack
 from ._values import decode
 from ._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
@@ -250,12 +250,7 @@ class Plugin:
                 raise ValueError("Materialize Test Case: Execution Scope Must Be Empty")
             if request.template != template.identifier:
                 raise ValueError("Materialize Test Case: Supply the Bound Template Without an Execution Scope")
-            case = template.build({key: decode(value) for key, value in request.parameters.items()}).message
-            # The Host Freezes Exactly the Values It Resolved, So the Case Echoes Their Wire Form, Not a Re-Encoding.
-            case.ClearField("parameters")
-            for key, value in request.parameters.items():
-                case.parameters[key].CopyFrom(value)
-            return TestCasesMaterializeResponse(test_case=case)
+            return TestCasesMaterializeResponse(test_case=_build(template, request.parameters).message)
 
         return operation(
             template._lifecycle["materialize"],
@@ -298,8 +293,7 @@ class Plugin:
             key = (template.identifier, request.execution)
             session = self._sessions.get(key)
             if session is None:
-                parameters = {name: decode(value) for name, value in request.test_case.parameters.items()}
-                case = template.build(parameters)
+                case = _build(template, request.test_case.parameters)
                 if case.message != request.test_case:
                     raise ValueError(f"{kind.title()} Execution: Frozen Test Case Does Not Match Materialization")
                 session = _Session(template.instance(), case, origin.SerializeToString(deterministic=True))
@@ -437,6 +431,15 @@ class Plugin:
 
 
 # === Private Functions === #
+
+
+def _build(template: _Template, parameters: Mapping[str, Value]) -> Materialization:
+    """Materialize From the Host-Resolved Values; the Case Echoes Their Wire Form, Never a Re-Encoding."""
+    case = template.build({key: decode(value) for key, value in parameters.items()})
+    case.message.ClearField("parameters")
+    for key, value in parameters.items():
+        case.message.parameters[key].CopyFrom(value)
+    return case
 
 
 def _distribution_version(plugin: type[Plugin]) -> str:
