@@ -34,6 +34,7 @@ using std::lock_guard;
 using std::move;
 using std::rethrow_exception;
 using std::string;
+using std::uint64_t;
 using std::chrono::duration;
 using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
@@ -89,7 +90,7 @@ string Context::secret(const string &identifier) {
   const Operation<SecretsGetRequest, SecretsGetResponse> operation("dokime.host.v1.Secrets/Get", VISIBILITY_PUBLIC);
   return transport_.operation(operation, request).get().secret();
 }
-std::uint64_t Context::append_record(const string &identity, const string &payload) {
+uint64_t Context::append_record(const string &identity, const string &payload) {
   RecordsAppendRequest request;
   request.set_kind(identity);
   request.set_payload(payload);
