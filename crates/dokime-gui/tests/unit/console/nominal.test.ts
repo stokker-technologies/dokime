@@ -120,8 +120,12 @@ function stream() {
             wake = resolve;
           });
         const item = queued.shift();
-        if (!item || "end" in item) return;
-        if ("failure" in item) throw item.failure;
+        if (!item || "end" in item) {
+          return;
+        }
+        if ("failure" in item) {
+          throw item.failure;
+        }
         yield item.page;
       }
     },

@@ -17,8 +17,8 @@
 
 // Third Party Imports
 import { ErrorCard } from "@/components/ErrorCard";
-import { ArrowDownToLine, Eraser, X } from "lucide-react";
-import { type UIEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Eraser, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
@@ -26,13 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
-import { recordClockLabel, recordLevelTextClass } from "@/lib/record-display";
+import { recordLevelLabel } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import type { ConsoleLevel, ConsoleScope, ConsoleState } from "../stores/ui-store";
 import type { ConsoleRecords } from "./console-buffer";
-import { fixedRowWindow } from "../lib/row-window";
-import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned } from "./console-follow";
+import { SvelteMount } from "../components/SvelteMount";
+import ConsoleRecordList from "./ConsoleRecordList.svelte";
 
 // Local Imports
 
@@ -40,26 +39,12 @@ import { CONSOLE_LIST_PADDING_PX, consoleFollowsTail, consoleTailPinned } from "
 
 /* === Constants === */
 
-/** One row height, so the window can be computed instead of measured. */
-const ROW_HEIGHT = 22;
-
-/** Rows drawn beyond the viewport on each side, to cover a fast scroll. */
-const OVERSCAN = 12;
-
 const LEVEL_ORDER: Record<ConsoleLevel, number> = {
   trace: 0,
   debug: 1,
   info: 2,
   warning: 3,
   error: 4,
-};
-
-const LEVEL_LABEL: Record<ConsoleLevel, string> = {
-  trace: "Trace",
-  debug: "Debug",
-  info: "Info",
-  warning: "Warning",
-  error: "Error",
 };
 
 const LEVELS: ConsoleLevel[] = ["trace", "debug", "info", "warning", "error"];
@@ -72,13 +57,6 @@ const SCOPE_LABEL: Record<ConsoleScope, string> = {
 
 const MIN_HEIGHT = 120;
 
-/**
- * The scroll area always scrolls and always shows its track, so the frame
- * reads as a fixed viewport whether it holds three rows or thirty thousand.
- * WebKitGTK draws overlay scrollbars unless the pseudo-elements are styled.
- */
-const SCROLL_AREA_CLASS =
-  "overflow-y-scroll [overflow-anchor:none] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-muted/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/60";
 const MAX_HEIGHT = 900;
 
 /* === Types === */
@@ -106,7 +84,9 @@ export function LiveConsoleView({
   const close = useCallback(() => setConsoleState({ open: false }), [setConsoleState]);
 
   useEffect(() => {
-    if (!drawer.open) return undefined;
+    if (!drawer.open) {
+      return undefined;
+    }
     const leave = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
@@ -117,7 +97,9 @@ export function LiveConsoleView({
     return () => document.removeEventListener("keydown", leave);
   }, [close, drawer.open]);
 
-  if (!drawer.open) return null;
+  if (!drawer.open) {
+    return null;
+  }
 
   return (
     <section
@@ -148,7 +130,7 @@ export function LiveConsoleView({
           <SelectContent>
             {LEVELS.map((level) => (
               <SelectItem key={level} value={level}>
-                {LEVEL_LABEL[level]}
+                {recordLevelLabel(level)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -192,11 +174,14 @@ export function LiveConsoleView({
             </p>
           ) : null}
         </div>
-        <RecordWindow
-          empty="No records at this level yet."
-          follow={drawer.follow}
-          onFollowChange={(follow) => setConsoleState({ follow })}
-          rows={rows}
+        <SvelteMount
+          component={ConsoleRecordList}
+          props={{
+            empty: "No records at this level yet.",
+            follow: drawer.follow,
+            onFollowChange: (follow: boolean) => setConsoleState({ follow }),
+            rows,
+          }}
         />
       </div>
     </section>
@@ -225,136 +210,19 @@ export function FrozenConsole({ records }: { records: HubRecord[] }) {
           <SelectContent>
             {LEVELS.map((option) => (
               <SelectItem key={option} value={option}>
-                {LEVEL_LABEL[option]}
+                {recordLevelLabel(option)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       <div className="rounded-lg border">
-        <RecordWindow className="h-96" empty="No records at this level." follow={follow} onFollowChange={setFollow} rows={rows} />
+        <SvelteMount
+          component={ConsoleRecordList}
+          props={{ class: "h-96", empty: "No records at this level.", follow, onFollowChange: setFollow, rows }}
+        />
       </div>
     </section>
-  );
-}
-
-/**
- * The windowed list.
- *
- * Every row is one height, so the visible slice is arithmetic rather than
- * measurement, and a cycle with fifty thousand records costs the same as one
- * with fifty. No virtualisation dependency: the repository has none, and one
- * fixed row height does not need one.
- *
- * With `onFollowChange` the list keeps its newest row in view until the
- * operator scrolls up, and offers the way back while they read.
- */
-function RecordWindow({
-  className,
-  empty,
-  follow,
-  onFollowChange,
-  rows,
-}: {
-  /** Classes for the scrolling viewport, such as a height bound. */
-  className?: string;
-  empty: string;
-  follow: boolean;
-  onFollowChange?: (follow: boolean) => void;
-  rows: HubRecord[];
-}) {
-  const viewport = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  // Where the operator last left the list, read synchronously on each scroll.
-  const pinned = useRef(true);
-  const [height, setHeight] = useState(0);
-  const tail = rows.at(-1)?.record_id;
-
-  useLayoutEffect(() => {
-    const node = viewport.current;
-    if (!node) return undefined;
-    const observer = new ResizeObserver(() => setHeight(node.clientHeight));
-    observer.observe(node);
-    setHeight(node.clientHeight);
-    return () => observer.disconnect();
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a resize re-pins a following list
-  useLayoutEffect(() => {
-    const node = viewport.current;
-    if (node && consoleFollowsTail(follow, pinned.current) && tail) node.scrollTop = node.scrollHeight;
-  }, [follow, height, tail]);
-
-  const slice = fixedRowWindow(rows.length, ROW_HEIGHT, scrollTop, height, OVERSCAN, CONSOLE_LIST_PADDING_PX);
-  const visible = rows.slice(slice.first, slice.last);
-  const contentHeight = slice.before + visible.length * ROW_HEIGHT + slice.after;
-
-  const onScroll = (event: UIEvent<HTMLDivElement>) => {
-    const node = event.currentTarget;
-    setScrollTop(node.scrollTop);
-    const next = consoleTailPinned(node);
-    pinned.current = next;
-    if (!onFollowChange) return;
-    if (next !== follow) onFollowChange(next);
-  };
-
-  return (
-    <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)]">
-      <div className={cn("min-h-0", SCROLL_AREA_CLASS, className)} onScroll={onScroll} ref={viewport}>
-        {rows.length === 0 ? (
-          <p className="px-[var(--shell-inset)] py-2 text-sm text-muted-foreground">{empty}</p>
-        ) : (
-          <div className="relative" style={{ height: `${contentHeight}px` }}>
-            <div className="absolute inset-x-0" style={{ top: `${slice.before}px` }}>
-              {visible.map((record) => (
-                <ConsoleRow key={record.record_id} record={record} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      {onFollowChange && !follow ? (
-        <Button
-          className="absolute right-[var(--shell-inset)] bottom-2 shadow-sm"
-          data-testid="console-follow-latest"
-          onClick={() => {
-            pinned.current = true;
-            onFollowChange(true);
-          }}
-          size="sm"
-          variant="secondary"
-        >
-          <ArrowDownToLine data-icon="inline-start" />
-          Jump to Latest
-        </Button>
-      ) : null}
-    </div>
-  );
-}
-
-/** One record on the four shared columns. */
-function ConsoleRow({ record }: { record: HubRecord }) {
-  const [expanded, setExpanded] = useState(false);
-  const level = record.level;
-  const label = typeof record.details.trace_level === "string" ? record.details.trace_level : LEVEL_LABEL[level];
-
-  return (
-    <Button
-      variant="plain"
-      size="inline"
-      className={cn(
-        "grid w-full grid-cols-[--spacing(20)_--spacing(15)_--spacing(36)_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
-        expanded ? "py-1" : "overflow-hidden",
-      )}
-      onClick={() => setExpanded((current) => !current)}
-      style={expanded ? undefined : { height: `${ROW_HEIGHT}px` }}
-      type="button"
-    >
-      <span className="truncate text-muted-foreground">{recordClockLabel(record.timestamp)}</span>
-      <span className={cn("truncate uppercase", recordLevelTextClass(level))}>{label}</span>
-      <span className="truncate text-muted-foreground">{record.source}</span>
-      <span className={cn("min-w-0", expanded ? "break-words whitespace-pre-wrap" : "truncate")}>{record.message ?? ""}</span>
-    </Button>
   );
 }
 
@@ -394,14 +262,22 @@ function clampHeight(value: number): number {
 
 /** A scope the route cannot fill falls back to the widest one it can. */
 export function resolvedConsoleScope(scope: ConsoleScope, cycleId: string | null, executionId: string | null): ConsoleScope {
-  if (scope === "execution" && !executionId) return cycleId ? "cycle" : "instance";
-  if (scope === "cycle" && !cycleId) return "instance";
+  if (scope === "execution" && !executionId) {
+    return cycleId ? "cycle" : "instance";
+  }
+  if (scope === "cycle" && !cycleId) {
+    return "instance";
+  }
   return scope;
 }
 
 function scopeDisabled(scope: ConsoleScope, cycleId: string | null, executionId: string | null): boolean {
-  if (scope === "instance") return false;
-  if (scope === "cycle") return !cycleId;
+  if (scope === "instance") {
+    return false;
+  }
+  if (scope === "cycle") {
+    return !cycleId;
+  }
   return !executionId;
 }
 
@@ -412,8 +288,12 @@ export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel,
   const threshold = LEVEL_ORDER[level];
   const needle = filter.trim().toLowerCase();
   return records.filter((record) => {
-    if (LEVEL_ORDER[record.level] < threshold) return false;
-    if (!needle) return true;
+    if (LEVEL_ORDER[record.level] < threshold) {
+      return false;
+    }
+    if (!needle) {
+      return true;
+    }
     return `${record.source} ${record.message ?? ""}`.toLowerCase().includes(needle);
   });
 }
@@ -421,7 +301,9 @@ export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel,
 /** Warnings and errors that arrived after the drawer was last opened. */
 export function consoleAttentionCount(records: HubRecord[], since: number): number {
   return records.filter((record) => {
-    if (record.level !== "warning" && record.level !== "error") return false;
+    if (record.level !== "warning" && record.level !== "error") {
+      return false;
+    }
     const at = Date.parse(record.timestamp);
     return !Number.isFinite(at) || at > since;
   }).length;

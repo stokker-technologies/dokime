@@ -18,6 +18,7 @@ import { fireEvent, render } from "@testing-library/svelte";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
+import { type ComponentProps, flushSync } from "svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
@@ -26,9 +27,10 @@ import OperatorNotes from "@/components/document/OperatorNotes.svelte";
 import ArtifactTreeView from "@/components/ArtifactTreeView.svelte";
 import MediaGalleryView from "@/components/MediaGalleryView.svelte";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
+import { mountSvelte } from "@/components/mount-svelte.svelte";
 import { PromptPanel } from "@/components/PromptPanel";
 import { formatPreview } from "@/components/start-cycle-form-model";
-import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
+import ExecutionParameters from "@/features/cycle/ExecutionParameters.svelte";
 import {
   executionDocumentSections,
   executionPagePrompts,
@@ -192,14 +194,15 @@ test("Parameter Rows", () => {
   assert.deepEqual(executionParameterColumns([]), { value: 1, unit: 0 });
 
   // The Grid Prints Label, Right-Aligned Figure and Dimmed Unit on One Column Template
-  const html = renderToStaticMarkup(createElement(ExecutionParameters, { rows: durations }));
-  assert.match(html, /--parameter-value:12ch/);
-  assert.match(html, /--parameter-unit:3ch/);
-  assert.match(
-    html,
-    /<dt[^>]*title="soak"[^>]*>Soak Time<\/dt><dd class="[^"]*text-right[^"]*">10<\/dd><dd class="text-muted-foreground">min<\/dd>/,
-  );
-  assert.doesNotMatch(html, /truncate/, "a label wraps, it is never clipped");
+  const { container } = render(ExecutionParameters, { rows: durations });
+  const grid = container.querySelector("dl");
+  assert.equal(grid?.style.getPropertyValue("--parameter-value"), "12ch");
+  assert.equal(grid?.style.getPropertyValue("--parameter-unit"), "3ch");
+  const soak = grid?.querySelector('[data-parameter="soak"]');
+  assert.equal(soak?.querySelector('dt[title="soak"]')?.textContent?.trim(), "Soak Time");
+  assert.equal(soak?.querySelector("dd.text-right")?.textContent?.trim(), "10");
+  assert.equal(soak?.querySelector("dd.text-muted-foreground")?.textContent?.trim(), "min");
+  assert.equal(grid?.querySelector(".truncate"), null, "a label wraps");
 });
 
 test("Numbers Use Ungrouped Decimal Points and Preserve Declared Precision", () => {
@@ -628,6 +631,19 @@ test("Media Cards and Tree Share Live Uploads", () => {
   const tree = buildArtifactTree([image, audio, video]);
   assert.equal(tree.folders[0].path, "media");
   assert.equal(tree.folders[0].files.find((file) => file.artifact_id === "image")?.fileName, name);
+
+  // Updating Preview Results Must Leave The Requests That Produced Them In Place
+  const onPreviewRequest = vi.fn();
+  const host = document.createElement("div");
+  const props = { artifacts: [image, audio, video], emptyMessage: "", onPreviewRequest, preview: undefined };
+  const mounted = mountSvelte<ComponentProps<typeof MediaGalleryView>>(MediaGalleryView, host, props);
+  onTestFinished(mounted.destroy);
+  flushSync();
+  assert.ok(onPreviewRequest.mock.calls.length > 0);
+  onPreviewRequest.mockClear();
+  mounted.update({ ...props, preview: { urls: {}, errors: {}, retry: vi.fn() } });
+  flushSync();
+  assert.deepEqual(onPreviewRequest.mock.calls, []);
 });
 
 test("Note Preview Preserves the Draft and Submits It", async () => {

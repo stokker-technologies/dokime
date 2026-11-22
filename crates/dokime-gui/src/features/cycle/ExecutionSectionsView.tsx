@@ -42,14 +42,12 @@ import DocumentTraceability from "../../components/document/DocumentTraceability
 import type { DocumentBlockChrome } from "../../components/document/DocumentViewRenderer.svelte";
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
 import OperatorNotes from "../../components/document/OperatorNotes.svelte";
-import MarkdownText from "../../components/MarkdownText.svelte";
 import { SvelteMount } from "../../components/SvelteMount";
 import MediaGalleryView from "../../components/MediaGalleryView.svelte";
 import { TraceabilityJsonDialog } from "../../components/traceability/TraceabilityJsonDialog";
-import { parseTimestampMs } from "../../lib/time-format";
 import type { DocumentViewCard, TestCyclePlan, TestExecution } from "@/lib/types";
 import { PageShell } from "../../shell/PageShell";
-import { type CycleExecutionRow, cycleRowStatus, isActiveExecutionStatus } from "./cycle-workspace-model";
+import { type CycleExecutionRow, cycleRowStatus } from "./cycle-workspace-model";
 import {
   DocumentViewPresentation,
   type DocumentViewProps,
@@ -68,8 +66,6 @@ import { PlotWindowControl } from "./PlotWindowControl";
 import { type usePlotWindow } from "./use-plot-window";
 import { PromptHistory } from "./PromptHistory";
 import { RecordsSection } from "./RecordsSection";
-import { durationText } from "./elapsed";
-import { useElapsedSeconds } from "./use-elapsed";
 
 /* === Types === */
 
@@ -143,11 +139,12 @@ export function ExecutionSectionsView({
     <div className="grid min-h-0">
       <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={[...trail.slice(0, -1), `${titlePrefix ?? ""}${label}`]}>
         <NodeSummary
-          description={template?.description ? <SvelteMount component={MarkdownText} props={{ text: template.description }} /> : null}
+          description={template?.description}
+          markdown
           live={live}
           onRename={onRename}
           prefix={titlePrefix}
-          progress={<ExecutionProgress execution={started} live={live} steps={view.stepRecords} />}
+          executionProgress={{ execution: started, steps: view.stepRecords }}
           status={cycleRowStatus({ ...row, execution: started ?? row.execution })}
           subject="Execution"
           title={label}
@@ -254,39 +251,6 @@ export function ExecutionSectionsView({
 }
 
 /* === Private Functions === */
-
-function ExecutionProgress({
-  execution,
-  live,
-  steps,
-}: {
-  execution: TestExecution | null;
-  live: boolean;
-  steps: readonly { status: string }[];
-}) {
-  const running = execution !== null && isActiveExecutionStatus(execution.status);
-  const elapsed = useElapsedSeconds(execution?.started_at, live && running);
-  const duration = execution
-    ? durationText({ duration_s: measuredSeconds(execution), status: running ? "running" : execution.status }, live, elapsed)
-    : "";
-  return [stepProgress(steps), duration].filter(Boolean).join(" · ") || null;
-}
-
-/** What the runtime measured: from start to finish, once the execution is sealed. */
-function measuredSeconds(execution: Pick<TestExecution, "started_at" | "finished_at">): number | null {
-  const started = parseTimestampMs(execution.started_at);
-  const finished = parseTimestampMs(execution.finished_at);
-  return started === null || finished === null ? null : Math.max(0, (finished - started) / 1_000);
-}
-
-/** The header's progress text: how many of the execution's steps have settled. */
-function stepProgress(steps: readonly { status: string }[]): string | null {
-  if (!steps.length) {
-    return null;
-  }
-  const settled = steps.filter((step) => step.status !== "pending" && step.status !== "running").length;
-  return `${settled} of ${steps.length} steps finished`;
-}
 
 /** Report holds the main-region cards no built-in section claims. */
 function isReportCard(card: DocumentViewCard): boolean {

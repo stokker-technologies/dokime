@@ -36,11 +36,15 @@ export function ArtifactTree(props: ArtifactTreeProps) {
   return (
     <>
       <SvelteMount component={ArtifactTreeView} props={{ ...props, actions, onPreview: setPreview }} />
-      <TextArtifactViewer artifact={preview} open={preview !== null} onOpenChange={(open) => {
-        if (!open) {
-          setPreview(null);
-        }
-      }} />
+      <TextArtifactViewer
+        artifact={preview}
+        open={preview !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreview(null);
+          }
+        }}
+      />
     </>
   );
 }

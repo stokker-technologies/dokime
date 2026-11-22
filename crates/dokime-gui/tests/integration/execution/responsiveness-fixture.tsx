@@ -116,7 +116,9 @@ function Workload() {
   setStates = updateStates;
   setModal = updateModal;
   setTicks = updateTicks;
-  if (ticks) return <TickWorkload view={view} states={states} />;
+  if (ticks) {
+    return <TickWorkload view={view} states={states} />;
+  }
   return (
     <>
       <Profiler id="steps" onRender={profile}>
@@ -261,7 +263,9 @@ async function scroll() {
   setModal(false);
   await settled();
   const target = document.querySelector<HTMLElement>(`[data-plot-viewport="${plots.at(-1)?.plot_id}"]`);
-  if (!target) throw new Error("Last plot is missing");
+  if (!target) {
+    throw new Error("Last plot is missing");
+  }
   target.scrollIntoView({ block: "center" });
   await settled();
   const top = target.getBoundingClientRect().top;
@@ -284,7 +288,9 @@ async function run(mode: string) {
   for (const control of controls)
     control.style.transitionProperty = mode === "narrow-transitions" ? "color,background-color,border-color,opacity" : "";
   const input = document.querySelector<HTMLInputElement>('input[aria-label="Search Records"]');
-  if (!input) throw new Error("Record search is missing");
+  if (!input) {
+    throw new Error("Record search is missing");
+  }
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
   setter?.call(input, mode === "search" ? "absent*payload" : "");
   input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -360,7 +366,9 @@ async function run(mode: string) {
 /* === Entry Point === */
 
 const root = document.getElementById("root");
-if (!root) throw new Error("Responsiveness root is missing");
+if (!root) {
+  throw new Error("Responsiveness root is missing");
+}
 const reactRoot = createRoot(root);
 reactRoot.render(
   <QueryClientProvider client={client}>

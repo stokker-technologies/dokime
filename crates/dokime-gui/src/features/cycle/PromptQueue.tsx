@@ -44,7 +44,8 @@ import { recordLevelLabel, recordLevelVariant } from "@/lib/record-display";
 import type { HubRecord, PromptField, PromptRequest, StepExecutionRecord } from "@/lib/types";
 import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import { ExecutionSectionCard } from "@/features/cycle/ExecutionSectionCard";
-import { PromptAnswers } from "@/features/cycle/PromptHistory";
+import { SvelteMount } from "../../components/SvelteMount";
+import PromptAnswers from "./PromptAnswers.svelte";
 import { answeredPrompts, pendingPromptCountLabel, queuePrompts } from "@/features/cycle/prompt-banner-model";
 import { usePromptResponseMutation } from "./server-state";
 import { usePromptValues } from "./use-prompt-values";
@@ -69,7 +70,9 @@ export type PromptQueueProps = {
 export function PromptQueue({ prompts, records, steps = [] }: PromptQueueProps) {
   const queue = useMemo(() => queuePrompts(prompts), [prompts]);
   const answered = useMemo(() => answeredPrompts(records), [records]);
-  if (!queue.length && !answered.length) return null;
+  if (!queue.length && !answered.length) {
+    return null;
+  }
   const [first, ...waiting] = queue;
 
   return (
@@ -85,7 +88,7 @@ export function PromptQueue({ prompts, records, steps = [] }: PromptQueueProps) 
           ))}
         </ol>
       ) : null}
-      <PromptAnswers answered={answered} />
+      <SvelteMount component={PromptAnswers} props={{ answered }} />
     </ExecutionSectionCard>
   );
 }

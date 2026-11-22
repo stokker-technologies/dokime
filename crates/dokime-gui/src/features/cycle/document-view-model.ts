@@ -137,7 +137,9 @@ export function documentSurface(options: DocumentSurfaceOptions, view: ReturnTyp
   });
   const mediaArtifacts = view.artifacts.flatMap((artifact) => {
     const href = artifact.href ?? artifact.downloadHref ?? localArtifactHref(artifact.path);
-    if (!href && !nativeAvailable) return [];
+    if (!href && !nativeAvailable) {
+      return [];
+    }
     return [
       {
         ...artifact,

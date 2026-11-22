@@ -1,6 +1,8 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { formatDuration } from "../../lib/format";
 import { parseTimestampMs } from "../../lib/time-format";
+import type { TestExecution } from "../../lib/types";
+import { isActiveExecutionStatus } from "./cycle-workspace-model";
 
 const TICK_MS = 1_000;
 
@@ -48,4 +50,24 @@ export function observeElapsedSeconds(
   tick();
   const handle = window.setInterval(tick, TICK_MS);
   return () => window.clearInterval(handle);
+}
+
+export function executionProgressText(
+  execution: TestExecution | null,
+  steps: readonly { status: string }[],
+  live: boolean,
+  elapsedS: number | null,
+): string {
+  const settled = steps.filter((step) => step.status !== "pending" && step.status !== "running").length;
+  const progress = steps.length ? `${settled} of ${steps.length} steps finished` : "";
+  if (!execution) {
+    return progress;
+  }
+
+  const started = parseTimestampMs(execution.started_at);
+  const finished = parseTimestampMs(execution.finished_at);
+  const durationS = started === null || finished === null ? null : Math.max(0, (finished - started) / 1_000);
+  const status = isActiveExecutionStatus(execution.status) ? "running" : execution.status;
+  const duration = durationText({ duration_s: durationS, status }, live, elapsedS);
+  return [progress, duration].filter(Boolean).join(" · ");
 }

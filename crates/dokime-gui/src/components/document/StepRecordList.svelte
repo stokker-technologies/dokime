@@ -25,7 +25,9 @@
     {#each visible as record, index (`${record.test_execution_id}:${record.record_type}:${record.step_id}:${record.order}:${record.started_at}`)}
       {@const duration = record.status === "pending" || record.status === "running" ? null : formatDuration(record.duration_s)}
       <li class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-l-2 border-border/70 py-2 pr-1 pl-3 text-sm">
-        <span class="grid size-7 shrink-0 place-items-center rounded-lg border bg-muted/40 text-xs font-semibold tabular-nums text-muted-foreground">
+        <span
+          class="grid size-7 shrink-0 place-items-center rounded-lg border bg-muted/40 text-xs font-semibold tabular-nums text-muted-foreground"
+        >
           {String(index + 1).padStart(orderWidth, "0")}
         </span>
         <div class="min-w-0">

@@ -23,8 +23,10 @@
 
 /* === Constants === */
 
+export const CONSOLE_ROW_HEIGHT_PX = 22;
+
 /** Within one row of the bottom still counts as following. */
-export const FOLLOW_SLACK_PX = 22;
+export const FOLLOW_SLACK_PX = CONSOLE_ROW_HEIGHT_PX;
 
 /** Breathing room above the first row and below the last, inside the scroll area. */
 export const CONSOLE_LIST_PADDING_PX = 8;

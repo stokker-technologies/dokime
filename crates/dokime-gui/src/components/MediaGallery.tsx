@@ -71,10 +71,7 @@ export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryPr
     : undefined;
 
   return (
-    <SvelteMount
-      component={MediaGalleryView}
-      props={{ artifacts, emptyMessage, runDir, actions, preview, onPreviewRequest: setRequest }}
-    />
+    <SvelteMount component={MediaGalleryView} props={{ artifacts, emptyMessage, runDir, actions, preview, onPreviewRequest: setRequest }} />
   );
 }
 
@@ -108,10 +105,14 @@ function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: R
        scheme to read it back through: `convertFileSrc` would mint a
        `dokime-media://` URL that the WebView cannot resolve from a file. The
        report's media comes from the payload's own hrefs instead. */
-    if (isReportBuild()) return;
+    if (isReportBuild()) {
+      return;
+    }
     while (activeRef.current < MAX_ACTIVE_MEDIA_DOWNLOADS) {
       const request = queueRef.current.shift();
-      if (!request) return;
+      if (!request) {
+        return;
+      }
       const currentSession = sessionRef.current;
       const currentArtifact = artifactsRef.current.get(request.artifact.artifact_id);
       if (
@@ -132,7 +133,9 @@ function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: R
       if (existingEntry && existingEntry.key === request.key && existingEntry.generation === request.generation) {
         continue;
       }
-      if (requestsRef.current.has(request.artifact.artifact_id)) continue;
+      if (requestsRef.current.has(request.artifact.artifact_id)) {
+        continue;
+      }
       requestsRef.current.set(request.artifact.artifact_id, request);
       activeRef.current += 1;
       void (async () => {

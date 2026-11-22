@@ -113,14 +113,20 @@ export function documentWindowElapsedUnit(sections: DocumentViewSection[]): stri
   const units = new Set<string | null>();
   for (const section of sections) {
     for (const card of section.cards) {
-      if (!isDocumentSurfaceCard(card) || card.kind !== "plots") continue;
+      if (!isDocumentSurfaceCard(card) || card.kind !== "plots") {
+        continue;
+      }
       for (const plot of card.plots) {
-        if (plot.plot_type !== "time_series") continue;
+        if (plot.plot_type !== "time_series") {
+          continue;
+        }
         units.add(plot.x_format ? null : elapsedColumnUnit(plot.x));
       }
     }
   }
-  if (units.size !== 1) return null;
+  if (units.size !== 1) {
+    return null;
+  }
   return [...units][0] ?? null;
 }
 

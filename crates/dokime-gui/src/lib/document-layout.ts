@@ -68,7 +68,9 @@ function clampedSpan(value: number): number {
 }
 
 function normalizedDocumentSections(document: DocumentViewPayload | null | undefined): DocumentViewSection[] {
-  if (!document) return [];
+  if (!document) {
+    return [];
+  }
   const cardMap = new Map(document.cards.map((card) => [card.card_id, card]));
   return sectionsFromNodes(document.layout.nodes, cardMap);
 }

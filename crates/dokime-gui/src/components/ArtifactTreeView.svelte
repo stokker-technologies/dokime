@@ -17,7 +17,13 @@
 <script lang="ts">
   import { Boxes, ChevronDown, ChevronRight, Download, FileAudio, FileText, FileVideo, Folder, FolderOpen, Image } from "lucide-svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import { type ArtifactTreeFolder, artifactDisplayPath, buildArtifactTree, formatArtifactSize, isLocalFileHref } from "../lib/artifact-tree";
+  import {
+    type ArtifactTreeFolder,
+    artifactDisplayPath,
+    buildArtifactTree,
+    formatArtifactSize,
+    isLocalFileHref,
+  } from "../lib/artifact-tree";
   import { artifactLabel } from "../lib/dashboard";
   import { isPreviewableTextArtifact } from "../lib/execution-file-text";
   import { isMediaArtifact } from "../lib/media";
@@ -50,7 +56,8 @@
   });
   const count = $derived(folderFileCount(tree));
   const rowClass = "grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1";
-  const downloadClass = "grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40";
+  const downloadClass =
+    "grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40";
 
   function folderFileCount(folder: ArtifactTreeFolder): number {
     return folder.files.length + folder.folders.reduce((total, child) => total + folderFileCount(child), 0);
@@ -110,7 +117,10 @@
   }
 </script>
 
-{#snippet entries(folder: ArtifactTreeFolder, level: number)}
+{#snippet entries(
+  folder: ArtifactTreeFolder,
+  level: number,
+)}
   {#each folder.folders as child (child.path)}
     {@render folderRow(child, level)}
   {/each}
@@ -119,7 +129,10 @@
   {/each}
 {/snippet}
 
-{#snippet folderRow(folder: ArtifactTreeFolder, level: number)}
+{#snippet folderRow(
+  folder: ArtifactTreeFolder,
+  level: number,
+)}
   <div>
     <Button
       variant="plain"
@@ -145,14 +158,25 @@
   </div>
 {/snippet}
 
-{#snippet fileRow(artifact: ArtifactTreeFile, level: number)}
+{#snippet fileRow(
+  artifact: ArtifactTreeFile,
+  level: number,
+)}
   {@const label = artifactLabel(artifact.label)}
   {@const accessibleLabel = [artifact.fileName, label].filter(Boolean).join(" ")}
-  {@const state = artifact.stream_state === "streaming" ? "Live" : artifact.stream_state === "finalized" ? "Finished" : artifact.stream_state === "interrupted" ? "Interrupted" : null}
+  {@const state =
+    artifact.stream_state === "streaming"
+      ? "Live"
+      : artifact.stream_state === "finalized"
+        ? "Finished"
+        : artifact.stream_state === "interrupted"
+          ? "Interrupted"
+          : null}
   {@const details = [state, formatArtifactSize(artifact.size_bytes)].filter(Boolean).join(" · ")}
   {@const href = artifact.href ?? artifact.downloadHref ?? null}
   {@const downloadHref = artifact.downloadHref !== href ? artifact.downloadHref : null}
-  {@const canTransfer = !href && (artifact.group_id !== "execution-files" || Boolean(artifact.scope?.executionId?.trim() && artifact.path.trim()))}
+  {@const canTransfer =
+    !href && (artifact.group_id !== "execution-files" || Boolean(artifact.scope?.executionId?.trim() && artifact.path.trim()))}
   {@const title = [artifact.fileName, label, artifact.description, artifact.displayPath, details].filter(Boolean).join("\n")}
   {@const fileOpenError = openError?.artifactId === artifact.artifact_id ? openError.message : null}
   {@const fileDownloadError = downloadError?.artifactId === artifact.artifact_id ? downloadError.message : null}
@@ -164,15 +188,37 @@
       <span class="text-xs tabular-nums text-muted-foreground">{details}</span>
     {/snippet}
     {#if actions && onPreview && isPreviewableTextArtifact(artifact)}
-      <Button variant="plain" size="inline" aria-label={accessibleLabel} class={cn("artifact text-left hover:bg-muted/45", rowClass)} {title} onclick={() => onPreview?.(artifact)}>
+      <Button
+        variant="plain"
+        size="inline"
+        aria-label={accessibleLabel}
+        class={cn("artifact text-left hover:bg-muted/45", rowClass)}
+        {title}
+        onclick={() => onPreview?.(artifact)}
+      >
         {@render fileLabel()}
       </Button>
     {:else if href}
-      <a aria-label={accessibleLabel} class={cn("artifact hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-ring/40", rowClass)} {href} rel="noreferrer" target="_blank" {title}>
+      <a
+        aria-label={accessibleLabel}
+        class={cn("artifact hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-ring/40", rowClass)}
+        {href}
+        rel="noreferrer"
+        target="_blank"
+        {title}
+      >
         {@render fileLabel()}
       </a>
     {:else if actions && canTransfer}
-      <Button variant="plain" size="inline" aria-label={accessibleLabel} class={cn("artifact text-left hover:bg-muted/45", rowClass)} disabled={pending} title={fileOpenError ?? title} onclick={() => transfer("open", artifact)}>
+      <Button
+        variant="plain"
+        size="inline"
+        aria-label={accessibleLabel}
+        class={cn("artifact text-left hover:bg-muted/45", rowClass)}
+        disabled={pending}
+        title={fileOpenError ?? title}
+        onclick={() => transfer("open", artifact)}
+      >
         {@render fileLabel()}
       </Button>
     {:else}
@@ -181,7 +227,15 @@
 
     {#if actions && canTransfer}
       <span class="flex items-center gap-1">
-        <Button aria-label={fileDownloadError ? `Retry Download ${label}` : `Download ${label}`} class={downloadClass} disabled={pending} size="icon-sm" title={fileDownloadError ?? "Download Artifact"} variant="ghost" onclick={() => transfer("download", artifact)}>
+        <Button
+          aria-label={fileDownloadError ? `Retry Download ${label}` : `Download ${label}`}
+          class={downloadClass}
+          disabled={pending}
+          size="icon-sm"
+          title={fileDownloadError ?? "Download Artifact"}
+          variant="ghost"
+          onclick={() => transfer("download", artifact)}
+        >
           <Download size={14} />
         </Button>
       </span>
@@ -202,7 +256,9 @@
     <div class="py-1">{@render entries(tree, 0)}</div>
   </div>
 {:else}
-  <div class="grid min-h-24 place-content-center rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-sm text-muted-foreground">
+  <div
+    class="grid min-h-24 place-content-center rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-sm text-muted-foreground"
+  >
     {emptyMessage}
   </div>
 {/if}

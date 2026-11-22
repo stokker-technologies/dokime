@@ -1,6 +1,15 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { type Component, mount, unmount } from "svelte";
-import { SvelteMap } from "svelte/reactivity";
+
+function reactiveProp(initial?: unknown) {
+  let value = $state.raw(initial);
+  return {
+    get: () => value,
+    set(next: unknown) {
+      value = next;
+    },
+  };
+}
 
 export function mountSvelte<Props extends Record<string, unknown>>(
   component: Component<Props>,
@@ -10,32 +19,48 @@ export function mountSvelte<Props extends Record<string, unknown>>(
 ) {
   // React Freezes Props In Development. Track Each Prop Independently So
   // A Callback Can Update React State Without Invalidating Its Own Inputs.
-  const props = new SvelteMap<string | symbol, unknown>(Object.entries(initial));
+  const initialKeys = Reflect.ownKeys(initial);
+  const props = new Map(initialKeys.map((key) => [key, reactiveProp(Reflect.get(initial, key))]));
+  let keys = $state.raw(initialKeys);
+
+  function prop(key: string | symbol) {
+    let held = props.get(key);
+    if (!held) {
+      held = reactiveProp();
+      props.set(key, held);
+    }
+    return held;
+  }
+
   const reactiveProps = new Proxy({} as Props, {
     get(_, key) {
-      return props.get(key);
+      return prop(key).get();
     },
     has(_, key) {
-      return props.has(key);
+      return keys.includes(key);
     },
     ownKeys() {
-      return [...props.keys()];
+      return keys;
     },
     getOwnPropertyDescriptor(_, key) {
-      return props.has(key) ? { configurable: true, enumerable: true } : undefined;
+      return keys.includes(key) ? { configurable: true, enumerable: true } : undefined;
     },
   });
   const instance = mount(component, { target, props: reactiveProps, context });
 
   return {
     update(next: Props) {
-      for (const key of props.keys()) {
+      const nextKeys = Reflect.ownKeys(next);
+      for (const key of keys) {
         if (!Object.hasOwn(next, key)) {
-          props.delete(key);
+          prop(key).set(undefined);
         }
       }
-      for (const [key, value] of Object.entries(next)) {
-        props.set(key, value);
+      for (const key of nextKeys) {
+        prop(key).set(Reflect.get(next, key));
+      }
+      if (keys.length !== nextKeys.length || keys.some((key, index) => key !== nextKeys[index])) {
+        keys = nextKeys;
       }
     },
     destroy() {

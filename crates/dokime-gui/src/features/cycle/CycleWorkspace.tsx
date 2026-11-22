@@ -30,7 +30,7 @@
 
 /* === External Imports === */
 
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Archive, LockKeyhole, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -438,18 +438,15 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               }
               live={live}
               onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? null : (label) => commands.renameCycle.mutateAsync(label)}
-              progress={
-                <>
-                  {`${sealed} of ${cases.length} Cases Sealed`}
-                  {rerunOf ? (
-                    <>
-                      {" · Rerun of "}
-                      <Link className="underline" params={{ cycleId: rerunOf }} to="/cycles/$cycleId">
-                        {rerunOfLabel}
-                      </Link>
-                    </>
-                  ) : null}
-                </>
+              progress={`${sealed} of ${cases.length} Cases Sealed`}
+              rerun={
+                rerunOf
+                  ? {
+                      href: `/cycles/${encodeURIComponent(rerunOf)}`,
+                      label: rerunOfLabel ?? rerunOf,
+                      open: () => void navigate({ to: "/cycles/$cycleId", params: { cycleId: rerunOf } }),
+                    }
+                  : undefined
               }
               status={state}
               subject="Cycle"
