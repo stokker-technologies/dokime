@@ -86,8 +86,8 @@ fn client_plans_parameter_selections() -> Result<(), Box<dyn Error>> {
             super::support::plugin_state(&client.plugins, entry, dokime_protocol::host::PluginState::Ready).await?;
             let cases = Client::from_channel(channel.clone(), super::support::client_settings())?.cases.clone();
             let selection = RegisteredSelection {
-                suite_id: "thermal".into(),
-                template_id: "thermal.cycle".into(),
+                suite_id: "thermal.thermal".into(),
+                template_id: "thermal.thermal.cycle".into(),
                 parameters: vec![RegisteredSelectionParametersEntry {
                     key: "limit".into(),
                     value: Some(SelectionValues {

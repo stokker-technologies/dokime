@@ -62,7 +62,7 @@ fn window_lag_names_its_stream() -> Result<(), Box<dyn Error>> {
         };
         let host = Host::open(root.path(), settings, support::service_settings()).await?;
         let entry = host.add_managed("boundary", &support::boundary_fixture()?, &[]).await?;
-        let origin = host.materialize(&entry, "execution.lag", HashMap::new()).await?;
+        let origin = host.materialize(&entry, "execution.execution.lag", HashMap::new()).await?;
         let cycle = host.start_cycle(vec![origin]).await?.wait().await?;
         let execution = &cycle.executions[0];
 
@@ -82,12 +82,12 @@ fn window_lag_names_its_stream() -> Result<(), Box<dyn Error>> {
 
         // It Names the Lagging Stream Alone and the Lag Setting That Resolves It.
         let streams = [
-            "execution.boundary",
-            "execution.windows.window.host",
-            "execution.windows.window.setting",
-            "execution.overflow.window.overflow",
+            "execution.execution.boundary",
+            "execution.execution.windows.window.host",
+            "execution.execution.windows.window.setting",
+            "execution.execution.overflow.window.overflow",
         ];
-        assert!(outcome.reason.contains("execution.lag.window.lag"), "Fall Behind a Window: Name the Stream: {}", outcome.reason);
+        assert!(outcome.reason.contains("execution.execution.lag.window.lag"), "Fall Behind a Window: Name the Stream: {}", outcome.reason);
         assert!(
             streams.iter().all(|stream| !outcome.reason.contains(stream)),
             "Fall Behind a Window: Name Only the Lagging Stream: {}",

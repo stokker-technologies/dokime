@@ -82,7 +82,7 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
             minimum: None,
             maximum: None,
         })
-        .suite(Suite::of::<()>().identifier("data").label("Data").template(template))
+        .suite(Suite::of::<()>().identifier("data.data").label("Data").template(template))
         .declarations()?;
     let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").expect("Suites Section");
     let suites = <Suites as encoding::Message>::decode(section.payload.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
@@ -119,7 +119,7 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
     assert!(
         Plugin::of::<()>("1.0.0")
             .identifier("data")
-            .suite(Suite::of::<()>().identifier("data").label("Data").template(template))
+            .suite(Suite::of::<()>().identifier("data.data").label("Data").template(template))
             .declarations()
             .is_err()
     );
@@ -127,8 +127,8 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
     // Reject Duplicate Templates Across Suites and Nonfinite Defaults.
     let plugin = Plugin::of::<()>("1.0.0")
         .identifier("data")
-        .suite(Suite::of::<()>().identifier("first").label("First").template(Template::of::<()>().identifier("case").label("Case")))
-        .suite(Suite::of::<()>().identifier("first").label("First").template(Template::of::<()>().identifier("case").label("Case")));
+        .suite(Suite::of::<()>().identifier("data.first").label("First").template(Template::of::<()>().identifier("case").label("Case")))
+        .suite(Suite::of::<()>().identifier("data.first").label("First").template(Template::of::<()>().identifier("case").label("Case")));
     assert!(plugin.declarations().is_err());
     let template = Template::of::<()>().identifier("invalid").label("Invalid").parameters(Inputs {
         limit: f64::NAN,
@@ -138,7 +138,7 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
     assert!(
         Plugin::of::<()>("1.0.0")
             .identifier("data")
-            .suite(Suite::of::<()>().identifier("data").label("Data").template(template))
+            .suite(Suite::of::<()>().identifier("data.data").label("Data").template(template))
             .declarations()
             .is_err()
     );

@@ -115,7 +115,7 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 assert_eq!(count, 1);
                 break;
             }
-            let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
+            let cases = super::support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", HashMap::new()).await?;
             let cycle = super::support::admit(&client, cases).await?;
             let identifier = cycle[0].clone();
             // Admission Started the Run, Queued or Running; Starting It Again Returns That Run, in Its Mode Only.

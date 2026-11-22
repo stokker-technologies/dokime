@@ -87,7 +87,7 @@ public:
     auto *value = response->mutable_value()->mutable_summary();
     value->set_case_id(request->name());
     value->set_suite_id("capture");
-    value->set_template_id("capture.confirmation");
+    value->set_template_id("example.capture.confirmation");
     response->mutable_resolved_at()->add_positions()->set_sequence(7);
     return Status::OK;
   }
@@ -145,8 +145,8 @@ public:
     value.set_cycle_id(request->parent());
     value.mutable_summary()->set_execution_id(request->executions(0).execution_id());
     value.mutable_summary()->set_case_id(wrong_case ? "wrong" : request->executions(0).case_id());
-    value.mutable_admitted_suite()->set_identifier("capture");
-    value.mutable_admitted_template()->set_identifier("capture.confirmation");
+    value.mutable_admitted_suite()->set_identifier("example.capture");
+    value.mutable_admitted_template()->set_identifier("example.capture.confirmation");
     *response->add_executions() = value;
     return Status::OK;
   }
@@ -207,10 +207,10 @@ public:
     google::protobuf::BoolValue::descriptor()->file()->CopyTo(types.add_file());
     bindings.set_digest(harmos::plugin::detail::sha256(types.SerializeAsString()));
     auto *record = bindings.add_records();
-    record->set_record_type("capture.confirmation.confirmation");
+    record->set_record_type("example.capture.confirmation.confirmation");
     record->set_message_name(google::protobuf::BoolValue::descriptor()->full_name());
     auto *stream = bindings.add_streams();
-    stream->set_stream("capture.confirmation.samples");
+    stream->set_stream("example.capture.confirmation.samples");
     stream->set_message_name(google::protobuf::BoolValue::descriptor()->full_name());
   }
   Status Get(ServerContext *, const dokime::host::v1::executions::SchemasGetRequest *,
@@ -419,8 +419,8 @@ TEST_CASE("Bound Handles Compose Materialization, Lazy Run and Seal") {
   settings.remote = host.endpoint;
   auto client = dokime::connect(settings);
   auto cycle = client.cycle("Capture", "cycle-request");
-  const auto cases = client.cases().materialize("capture.confirmation", "example", "capture", {{"limit", {dokime::Scalar{UINT64_MAX}}}},
-                                                {{"source", std::nullopt}}, "case-request");
+  const auto cases = client.cases().materialize("example.capture.confirmation", "example", "example.capture",
+                                                {{"limit", {dokime::Scalar{UINT64_MAX}}}}, {{"source", std::nullopt}}, "case-request");
   REQUIRE(cases.size() == 1);
   REQUIRE(host.cycles.created.origins().empty());
   REQUIRE_FALSE(host.cycles.created.continue_automatically());
@@ -445,7 +445,7 @@ TEST_CASE("Bound Handles Compose Materialization, Lazy Run and Seal") {
   REQUIRE(execution.seal().status == dokime::ResultStatus::Passed);
   auto reopened = client.executions().get(execution.identifier());
   REQUIRE(reopened.cycle().identifier() == cycle.identifier());
-  REQUIRE(reopened.test_case().template_id() == "capture.confirmation");
+  REQUIRE(reopened.test_case().template_id() == "example.capture.confirmation");
   auto watch = execution.watch();
   REQUIRE_FALSE(watch.next()->sealed);
   watch.close();
@@ -520,10 +520,10 @@ TEST_CASE("Bound Readers Decode Frozen Types and Retain Evidence Cuts") {
   const auto rows = samples.collect();
   REQUIRE(rows.size() == 2);
   REQUIRE(rows.front().value);
-  REQUIRE(rows.front().stream == "capture.confirmation.samples");
+  REQUIRE(rows.front().stream == "example.capture.confirmation.samples");
   REQUIRE(host.schemas.reads == 1);
   REQUIRE_THROWS_AS(samples.collect(1), std::invalid_argument);
-  auto wrong_type = execution.records<string>("capture.confirmation.confirmation");
+  auto wrong_type = execution.records<string>("example.capture.confirmation.confirmation");
   REQUIRE_THROWS_AS(wrong_type.last(), std::invalid_argument);
   host.records.outside = true;
   REQUIRE_THROWS_AS(records.last(), std::runtime_error);

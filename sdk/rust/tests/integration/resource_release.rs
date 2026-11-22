@@ -70,11 +70,11 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
     let mut process = Process::start("dokime-rust-resources", Placement::Managed).await?;
     let description = process.describe().await?;
     let request = TestCasesMaterializeRequest {
-        template: "resources.case".into(),
+        template: "resources.resources.case".into(),
         parameters: Default::default(),
     };
     let case = process
-        .invoke("resources.case.materialize", "", request)
+        .invoke("resources.resources.case.materialize", "", request)
         .await?
         .finish::<TestCasesMaterializeResponse>()
         .await?
@@ -84,7 +84,7 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         kind: Some(origin::Kind::PluginRun(PluginRun {
             test_case: Some(case.clone()),
             plugin: description.id,
-            template: "resources.case".into(),
+            template: "resources.resources.case".into(),
             digest: description.declarations.ok_or("Missing Declarations")?.digest,
             started_at: description.started_at,
         })),
@@ -96,8 +96,8 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         test_case: Some(case.clone()),
         origin: Some(origin.clone()),
     };
-    process.invoke("resources.case.initialize", "retained", request).await?.finish::<ExecutionsInitializeResponse>().await?;
-    let (grants, mut samples) = process.publish("resources.case.state", "retained").await?;
+    process.invoke("resources.resources.case.initialize", "retained", request).await?.finish::<ExecutionsInitializeResponse>().await?;
+    let (grants, mut samples) = process.publish("resources.resources.case.state", "retained").await?;
     let window = Window {
         start: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
         period: Some(prost_types::Duration { seconds: 1, nanos: 0 }),
@@ -117,7 +117,7 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         test_case: Some(case),
         origin: Some(origin),
     };
-    process.invoke("resources.case.cleanup", "retained", request).await?.finish::<ExecutionsCleanupResponse>().await?;
+    process.invoke("resources.resources.case.cleanup", "retained", request).await?.finish::<ExecutionsCleanupResponse>().await?;
 
     // Release the Device Read and See That the Store Was Emptied, Not Merely Unregistered.
     process.invoke("resources.release_observer", "", ()).await?.finish::<()>().await?;

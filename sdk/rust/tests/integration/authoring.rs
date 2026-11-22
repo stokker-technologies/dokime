@@ -104,14 +104,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").ok_or("Missing Suites")?;
     let suites = Suites::decode(section.payload.as_slice())?;
     let template = &suites.suites[0].templates[0];
-    assert_eq!(template.metadata.as_ref().ok_or("Missing Metadata")?.identifier, "thermal.cycle");
+    assert_eq!(template.metadata.as_ref().ok_or("Missing Metadata")?.identifier, "thermal.thermal.cycle");
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(declarations.types.clone().ok_or("Missing Types")?)?;
     assert!(pool.get_message_by_name("thermal.Door").is_some());
     assert_eq!(
         declarations
             .operations
             .iter()
-            .find(|operation| operation.id == "thermal.cycle.ramp")
+            .find(|operation| operation.id == "thermal.thermal.cycle.ramp")
             .and_then(|operation| operation.policy.as_ref())
             .ok_or("Missing Retry Policy")?
             .retries
@@ -122,12 +122,12 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
 
     // Each Lifecycle Binding Retains Its Own Protected Identity and Plugin-Face Payloads.
     for (id, request, response) in [
-        ("thermal.cycle.materialize", "TestCasesMaterializeRequest", "TestCasesMaterializeResponse"),
-        ("thermal.cycle.initialize", "ExecutionsInitializeRequest", "ExecutionsInitializeResponse"),
-        ("thermal.cycle.ramp", "StepsExecuteRequest", "StepsExecuteResponse"),
-        ("thermal.cycle.hold", "StepsExecuteRequest", "StepsExecuteResponse"),
-        ("thermal.cycle.within_limit", "CriteriaEvaluateRequest", "CriteriaEvaluateResponse"),
-        ("thermal.cycle.cleanup", "ExecutionsCleanupRequest", "ExecutionsCleanupResponse"),
+        ("thermal.thermal.cycle.materialize", "TestCasesMaterializeRequest", "TestCasesMaterializeResponse"),
+        ("thermal.thermal.cycle.initialize", "ExecutionsInitializeRequest", "ExecutionsInitializeResponse"),
+        ("thermal.thermal.cycle.ramp", "StepsExecuteRequest", "StepsExecuteResponse"),
+        ("thermal.thermal.cycle.hold", "StepsExecuteRequest", "StepsExecuteResponse"),
+        ("thermal.thermal.cycle.within_limit", "CriteriaEvaluateRequest", "CriteriaEvaluateResponse"),
+        ("thermal.thermal.cycle.cleanup", "ExecutionsCleanupRequest", "ExecutionsCleanupResponse"),
     ] {
         let operation = declarations.operations.iter().find(|operation| operation.id == id).ok_or("Missing Lifecycle Binding")?;
         assert_eq!(operation.visibility, Visibility::Protected as i32);
@@ -138,25 +138,25 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     }
 
     // Only the Step Authored With Retries Advertises Replay Safety.
-    assert!(declarations.operations.iter().find(|operation| operation.id == "thermal.cycle.ramp").unwrap().replay_safe);
-    assert!(!declarations.operations.iter().find(|operation| operation.id == "thermal.cycle.hold").unwrap().replay_safe);
+    assert!(declarations.operations.iter().find(|operation| operation.id == "thermal.thermal.cycle.ramp").unwrap().replay_safe);
+    assert!(!declarations.operations.iter().find(|operation| operation.id == "thermal.thermal.cycle.hold").unwrap().replay_safe);
 
     // Admit the Suite and Materialize It Through the Published Harmos Reference Host.
     let runtime = reference::start().await?;
     let attached = runtime.attach_grpc(Placement::Remote(process.address.clone()), reference::placement()).await?;
     let parameters = [("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })].into();
     let request = TestCasesMaterializeRequest {
-        template: "thermal.cycle".into(),
+        template: "thermal.thermal.cycle".into(),
         parameters,
     };
     let payload = runtime.operations.call_encoded(&template.materialize, request.encode_to_vec()).await?;
     let case = TestCasesMaterializeResponse::decode(payload.as_slice())?.test_case.ok_or("Missing Materialized Test Case")?;
     assert_eq!(
         case.steps.iter().map(|step| step.metadata.as_ref().unwrap().identifier.as_str()).collect::<Vec<_>>(),
-        ["thermal.cycle.ramp", "thermal.cycle.hold"]
+        ["thermal.thermal.cycle.ramp", "thermal.thermal.cycle.hold"]
     );
-    assert_eq!(case.streams, ["thermal.cycle.temperature", "thermal.cycle.counter"]);
-    assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "thermal.cycle.within_limit");
+    assert_eq!(case.streams, ["thermal.thermal.cycle.temperature", "thermal.thermal.cycle.counter"]);
+    assert_eq!(case.criteria[0].metadata.as_ref().unwrap().identifier, "thermal.thermal.cycle.within_limit");
     attached.stop("Materialization Complete").await?;
     runtime.stop().await?;
 
@@ -165,7 +165,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         kind: Some(origin::Kind::PluginRun(PluginRun {
             test_case: Some(case.clone()),
             plugin: description.id,
-            template: "thermal.cycle".into(),
+            template: "thermal.thermal.cycle".into(),
             digest: declarations.digest.clone(),
             started_at: description.started_at,
         })),
@@ -194,7 +194,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             "execution_a",
             StepsExecuteRequest {
                 execution: "execution_a".into(),
-                step: "thermal.cycle.ramp".into(),
+                step: "thermal.thermal.cycle.ramp".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
             },
@@ -221,7 +221,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             "execution_a",
             StepsExecuteRequest {
                 execution: "execution_a".into(),
-                step: "thermal.cycle.hold".into(),
+                step: "thermal.thermal.cycle.hold".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
             },
@@ -255,7 +255,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         TimeSleepRequest::decode(sleep.payload.as_slice())?.duration,
         Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 })
     );
-    let (grants, mut samples) = process.publish("thermal.cycle.temperature", "execution_a").await?;
+    let (grants, mut samples) = process.publish("thermal.thermal.cycle.temperature", "execution_a").await?;
     let period = prost_types::Duration { seconds: 1, nanos: 0 };
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
     let window = Window {
@@ -302,7 +302,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
             "execution_a",
             CriteriaEvaluateRequest {
                 execution: "execution_a".into(),
-                criterion: "thermal.cycle.within_limit".into(),
+                criterion: "thermal.thermal.cycle.within_limit".into(),
                 test_case: Some(case.clone()),
                 origin: Some(origin.clone()),
             },
@@ -311,7 +311,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let stats = criterion.child().await?;
     let query = EvidenceStatisticsRequest::decode(stats.payload.as_slice())?;
     assert!(query.scope.is_none());
-    assert_eq!(query.step, "thermal.cycle.hold");
+    assert_eq!(query.step, "thermal.thermal.cycle.hold");
     assert_eq!(query.field, "celsius");
     criterion
         .reply(
@@ -328,14 +328,14 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         )
         .await?;
     let records = criterion.child().await?;
-    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.record_type, "thermal.cycle.door");
+    assert_eq!(RecordsListRequest::decode(records.payload.as_slice())?.record_type, "thermal.thermal.cycle.door");
     criterion
         .reply(
             records.call,
             RecordsListResponse {
                 count: 1,
                 last: Some(CapturedRecord {
-                    record_type: "thermal.cycle.door".into(),
+                    record_type: "thermal.thermal.cycle.door".into(),
                     payload: record.1.payload,
 
                     timestamp: Some(at),

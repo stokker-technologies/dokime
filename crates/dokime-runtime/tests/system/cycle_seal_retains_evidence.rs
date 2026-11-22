@@ -95,7 +95,7 @@ fn cycle_seal_retains_evidence() -> Result<(), Box<dyn Error>> {
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             }, PluginValue { enabled: true }).await?.entry.unwrap();
             support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
-            let cases = support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
+            let cases = support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", HashMap::new()).await?;
             let origin = cases[0].origin.clone().unwrap();
             let cycle = client.cycles.create(vec![origin.clone(), origin], Metadata { label: "Final Evidence".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
             let name = cycle.cycle_id.clone();
@@ -232,7 +232,7 @@ fn cycle_seal_retries_temporary_report_failure_in_same_host() -> Result<(), Box<
                 kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             }, PluginValue { enabled: true }).await?.entry.unwrap();
             support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
-            let cases = support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
+            let cases = support::materialize(&client, "thermal.thermal", "thermal.thermal.cycle", HashMap::new()).await?;
             let cycle = client.cycles.create(vec![cases[0].origin.clone().unwrap()], Metadata { label: "Report Failure".into(), ..Default::default() }, false, "").await?.cycle.unwrap();
             let name = cycle.cycle_id;
 

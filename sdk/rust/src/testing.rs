@@ -827,8 +827,9 @@ mod tests {
                     cleanup_observed.lock().unwrap().push((*context.get::<u32>()?, context.termination()));
                     Ok(())
                 });
-            let plugin = Plugin::of::<()>("1.0.0").suite(Suite::of::<()>().identifier("fixture").template(template));
-            let report = Harness::new(plugin, "fixture.partial").run().await?;
+            let plugin =
+                Plugin::of::<()>("1.0.0").identifier("fixture").suite(Suite::of::<()>().identifier("fixture.fixture").template(template));
+            let report = Harness::new(plugin, "fixture.fixture.partial").run().await?;
             let termination = if cancelled { Termination::Cancelled } else { Termination::Failed };
             assert_eq!(report.termination(), termination);
             assert!(report.failure().is_some());

@@ -67,7 +67,11 @@ fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Err
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let cleanup = host.catalog(&entry)?.suites[0].templates[0].cleanup.clone().unwrap();
             let origin = host
-                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]))
+                .materialize(
+                    &entry,
+                    "thermal.thermal.cycle",
+                    HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]),
+                )
                 .await?;
             let cycle = host.start_cycle(vec![origin.clone(), origin.clone()]).await?;
             let executions = cycle.executions.clone();
@@ -114,7 +118,11 @@ fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let origin = host
-                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]))
+                .materialize(
+                    &entry,
+                    "thermal.thermal.cycle",
+                    HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]),
+                )
                 .await?;
             let cycle = host.start_cycle(vec![origin.clone()]).await?;
             let execution = cycle.executions[0].clone();
@@ -164,7 +172,11 @@ fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let origin = host
-                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]))
+                .materialize(
+                    &entry,
+                    "thermal.thermal.cycle",
+                    HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]),
+                )
                 .await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let execution = cycle.executions[0].clone();

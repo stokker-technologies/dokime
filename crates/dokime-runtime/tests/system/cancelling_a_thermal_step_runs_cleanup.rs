@@ -22,7 +22,6 @@
 // Local Imports
 use dokime::Termination;
 use dokime::Value;
-use dokime_protocol::model::value::Kind as ValueKind;
 use dokime_runtime::Host;
 use dokime_runtime::RunState;
 use dokime_storage::ExecutionState;
@@ -55,8 +54,13 @@ fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> {
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
-            let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
-            let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
+            let parameters = HashMap::from([(
+                "limit".into(),
+                Value {
+                    kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
+                },
+            )]);
+            let origin = host.materialize(&entry, "thermal.thermal.cycle", parameters).await?;
 
             // Cancel While the Hold Step Waits for the Operator
             let cycle = host.start_cycle(vec![origin]).await?;

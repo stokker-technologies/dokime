@@ -80,7 +80,7 @@ async fn admit(client: &Client, template: &str, device: &Path) -> Result<String,
         }]
     };
     let parameters = HashMap::from([("root".into(), text(device))]);
-    let cases = super::support::materialize(client, "capture", template, parameters).await?;
+    let cases = super::support::materialize(client, "capture.capture", template, parameters).await?;
     Ok(super::support::admit(client, cases).await?.remove(0))
 }
 
@@ -169,7 +169,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
             super::support::plugin_state(&client.plugins, created.entry.unwrap(), dokime_protocol::host::PluginState::Ready).await?;
 
             // Copy the Device Tree Once, Preserving Relative Paths
-            let copied = admit(&client, "capture.copy", device.path()).await?;
+            let copied = admit(&client, "capture.capture.copy", device.path()).await?;
             assert_eq!(settle(&client, &copied).await?, Termination::Completed as i32);
             assert_eq!(record::<Captured>(&client, &copied).await?, Captured { files: 2, bytes: 8, gaps: 0 });
             assert_eq!(
@@ -178,14 +178,14 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
             );
 
             // Capture Only What the Device Wrote Between Start and Stop
-            let window = admit(&client, "capture.window", device.path()).await?;
+            let window = admit(&client, "capture.capture.window", device.path()).await?;
             assert_eq!(settle(&client, &window).await?, Termination::Completed as i32);
             assert_eq!(record::<Captured>(&client, &window).await?, Captured { files: 2, bytes: 11, gaps: 0 });
             assert_eq!(artifacts(&client, &window).await?, expected(&[("window/device.log", b"late\n"), ("window/fresh.log", b"fresh\n")]));
 
             // A Cancelled Execution Still Seals Its Running Capture
             std::fs::remove_file(device.path().join("fresh.log"))?;
-            let cancelled = admit(&client, "capture.cancelled", device.path()).await?;
+            let cancelled = admit(&client, "capture.capture.cancelled", device.path()).await?;
             let mut progress = client
                 .executions
                 .progress
@@ -209,7 +209,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
 
             // The Sealed Capture Released Its Only Slot for the Next Execution
             std::fs::remove_file(device.path().join("fresh.log"))?;
-            let again = admit(&client, "capture.window", device.path()).await?;
+            let again = admit(&client, "capture.capture.window", device.path()).await?;
             assert_eq!(settle(&client, &again).await?, Termination::Completed as i32);
             assert_eq!(record::<Captured>(&client, &again).await?, Captured { files: 2, bytes: 11, gaps: 0 });
 

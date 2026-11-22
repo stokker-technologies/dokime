@@ -16,13 +16,13 @@ public sealed class AuthorDeclaresQualifiedMembers
   public void LanesPreserveDeclarationsAndOperationAssignments()
   {
     var instrument = Lane.Serial("instrument");
-    var operation = new Dokime.Operations.Operation<double, double>("example.measure", lane: instrument);
+    var operation = new Dokime.Operations.Operation<double, double>("lane.measure", lane: instrument);
     var plugin = new LanePlugin().Lane(instrument).Operation(operation, (context, value) => Task.FromResult(value));
     var description = plugin.Describe();
     var lane = Assert.Single(description.Lanes);
     Assert.Equal("instrument", lane.Name);
     Assert.True(lane.Serial);
-    Assert.Equal("instrument", Assert.Single(description.Operations, item => item.Identifier == "example.measure").Lane);
+    Assert.Equal("instrument", Assert.Single(description.Operations, item => item.Identifier == "lane.measure").Lane);
 
     var missing = new LanePlugin().Operation(operation, (context, value) => Task.FromResult(value));
     Assert.Throws<ArgumentException>(() => missing.Describe());
@@ -76,10 +76,10 @@ public sealed class AuthorDeclaresQualifiedMembers
     var description = plugin.Describe();
     var suite = Assert.Single(description.Suites);
     var template = Assert.Single(suite.Templates);
-    Assert.Equal("capture.confirmation", template.Identifier);
-    Assert.Equal("capture.confirmation.confirm", Assert.Single(template.Steps));
-    Assert.Equal("capture.confirmation.confirmed", Assert.Single(template.Criteria));
-    Assert.Equal("capture.confirmation.confirmation", Assert.Single(template.Records));
+    Assert.Equal("example.capture.confirmation", template.Identifier);
+    Assert.Equal("example.capture.confirmation.confirm", Assert.Single(template.Steps));
+    Assert.Equal("example.capture.confirmation.confirmed", Assert.Single(template.Criteria));
+    Assert.Equal("example.capture.confirmation.confirmation", Assert.Single(template.Records));
     Assert.Equal(0, plugin.Reads);
   }
 

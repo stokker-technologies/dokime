@@ -68,11 +68,11 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     let mut process = Process::start("dokime-rust-thermal", Placement::Managed).await?;
     let description = process.describe().await?;
     let request = TestCasesMaterializeRequest {
-        template: "thermal.cycle".into(),
+        template: "thermal.thermal.cycle".into(),
         parameters: [("limit".into(), Value { kind: Some(value::Kind::Number(70.0)) })].into(),
     };
     let case = process
-        .invoke("thermal.cycle.materialize", "", request.clone())
+        .invoke("thermal.thermal.cycle.materialize", "", request.clone())
         .await?
         .finish::<TestCasesMaterializeResponse>()
         .await?
@@ -82,7 +82,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
         kind: Some(origin::Kind::PluginRun(PluginRun {
             test_case: Some(case.clone()),
             plugin: description.id,
-            template: "thermal.cycle".into(),
+            template: "thermal.thermal.cycle".into(),
             digest: description.declarations.ok_or("Missing Declarations")?.digest,
             started_at: description.started_at,
         })),
@@ -91,7 +91,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Materialization Cannot Allocate a Bench Resource for a Later Execution.
     let step = StepsExecuteRequest {
         execution: "a".into(),
-        step: "thermal.cycle.ramp".into(),
+        step: "thermal.thermal.cycle.ramp".into(),
         test_case: Some(case.clone()),
         origin: Some(origin.clone()),
     };
@@ -105,7 +105,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Initialize Two Interleaved Executions with Independent Stores.
     let mut initialize = process
         .invoke(
-            "thermal.cycle.initialize",
+            "thermal.thermal.cycle.initialize",
             "a",
             ExecutionsInitializeRequest {
                 execution: "a".into(),
@@ -119,7 +119,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     initialize.finish::<ExecutionsInitializeResponse>().await?;
     let mut initialize = process
         .invoke(
-            "thermal.cycle.initialize",
+            "thermal.thermal.cycle.initialize",
             "b",
             ExecutionsInitializeRequest {
                 execution: "b".into(),
@@ -153,7 +153,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Clean Up One Execution While the Other Remains Ready.
     let mut cleanup = process
         .invoke(
-            "thermal.cycle.cleanup",
+            "thermal.thermal.cycle.cleanup",
             "a",
             ExecutionsCleanupRequest {
                 execution: "a".into(),
@@ -188,7 +188,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Cleanup May Be the First Operation, Including on a Case Never Initialized.
     let mut cleanup = process
         .invoke(
-            "thermal.cycle.cleanup",
+            "thermal.thermal.cycle.cleanup",
             "unstarted",
             ExecutionsCleanupRequest {
                 execution: "unstarted".into(),
@@ -205,7 +205,7 @@ async fn keep_execution_resources_isolated_and_release_them_after_cleanup() -> T
     // Finish the Remaining Execution and Verify Managed Stop Exits Normally.
     let mut cleanup = process
         .invoke(
-            "thermal.cycle.cleanup",
+            "thermal.thermal.cycle.cleanup",
             "b",
             ExecutionsCleanupRequest {
                 execution: "b".into(),

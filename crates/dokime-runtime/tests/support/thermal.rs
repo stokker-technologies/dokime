@@ -56,9 +56,9 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
     let catalog = Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let temperature = pool
-        .get_message_by_name(&catalog.streams.iter().find(|stream| stream.id == "thermal.cycle.temperature").unwrap().row)
+        .get_message_by_name(&catalog.streams.iter().find(|stream| stream.id == "thermal.thermal.cycle.temperature").unwrap().row)
         .expect("Retain the Temperature Stream Schema");
-    for sample in actual.samples.iter().filter(|sample| sample.stream == "thermal.cycle.temperature") {
+    for sample in actual.samples.iter().filter(|sample| sample.stream == "thermal.thermal.cycle.temperature") {
         let decoded = DynamicMessage::decode(temperature.clone(), sample.row.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("celsius").unwrap().as_ref(), &Value::F64(84.0));
     }
@@ -192,7 +192,7 @@ pub fn frozen_record_schema_decodes_door(actual: &ExecutionSnapshot) {
     let catalog = Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let door = pool.all_messages().find(|message| message.name() == "Door").expect("Retain the Door Record Schema");
-    for record in actual.records("thermal.cycle.door") {
+    for record in actual.records("thermal.thermal.cycle.door") {
         let record = RecordsAppendRequest::decode(record.payload.as_slice()).unwrap();
         let decoded = DynamicMessage::decode(door.clone(), record.payload.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("closed").unwrap().as_ref(), &Value::Bool(true));

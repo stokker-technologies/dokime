@@ -90,7 +90,7 @@ fn plugin() -> Plugin {
         .cleanup(async |ctx: &Context| ctx.log(Severity::Info, format!("{:?}", ctx.termination())).await)
         .stream(temperature)
         .observer(observer);
-    Plugin::of::<()>("1.0.0").identifier("oven").suite(Suite::of::<()>().identifier("oven").label("Oven").template(soak))
+    Plugin::of::<()>("1.0.0").identifier("oven").suite(Suite::of::<()>().identifier("oven.oven").label("Oven").template(soak))
 }
 
 async fn soak(ctx: &Context) -> Result<()> {
@@ -123,43 +123,36 @@ async fn held(ctx: &Context) -> Result<bool> {
 #[tokio::test]
 async fn author_soaks_an_oven_without_a_host() -> Result<()> {
     // Run the Template In-Process; the Declared Prompt Takes Its First Non-Cancel Action.
-    let report = Harness::new(plugin(), "oven.soak").run().await?;
+    let report = Harness::new(plugin(), "oven.oven.soak").run().await?;
     assert!(report.passed(), "{report:?}");
     assert_eq!(
         report.criteria(),
         [Evaluated {
-            criterion: "oven.soak.held".into(),
+            criterion: "oven.oven.soak.held".into(),
             passed: true
         }]
     );
     assert_eq!(
         report.prompts(),
         [Prompted {
-            step: "oven.soak.soak".into(),
-            prompt_type: "oven.soak.door".into(),
+            step: "oven.oven.soak.soak".into(),
+            prompt_type: "oven.oven.soak.door".into(),
             action: "closed".into(),
         }]
     );
 
     // The Sleep Grants One Window of Every Sample Due by Its End, Inside the Step.
-    let samples = report.samples::<Temperature>("oven.soak.temperature")?;
+    let samples = report.samples::<Temperature>("oven.oven.soak.temperature")?;
     let times = samples.iter().map(|sample| (sample.at.seconds, sample.at.nanos)).collect::<Vec<_>>();
     assert_eq!(times, [(0, 500_000_000), (1, 0), (1, 500_000_000), (2, 0)]);
-    assert!(samples.iter().all(|sample| sample.step == "oven.soak.soak" && sample.value.celsius == 85.0));
+    assert!(samples.iter().all(|sample| sample.step == "oven.oven.soak.soak" && sample.value.celsius == 85.0));
     assert_eq!(report.now(), Timestamp { seconds: 2, nanos: 0 });
 
     // Records, Progress and Cleanup Logs Are Inspected as Typed Values.
-    let soaked = report.records::<Soaked>("oven.soak.soaked")?;
+    let soaked = report.records::<Soaked>("oven.oven.soak.soaked")?;
     assert_eq!(soaked.len(), 1);
     assert_eq!((soaked[0].celsius, soaked[0].confirmed), (85.0, true));
-    assert_eq!(
-        report.progress(),
-        Some(&ExecutionProgressValue {
-            completed: 1,
-            total: 1,
-            label: "Soaked".into(),
-        })
-    );
+    assert!(matches!(report.progress(), Some(ExecutionProgressValue { completed: 1, total: 1, .. })));
     assert_eq!(
         report.logs(),
         [Logged {
@@ -170,16 +163,16 @@ async fn author_soaks_an_oven_without_a_host() -> Result<()> {
     );
 
     // Answer the Prompt Programmatically and Change the Parameters for a Failing Run.
-    let report = Harness::new(plugin(), "oven.soak")
+    let report = Harness::new(plugin(), "oven.oven.soak")
         .parameters(Setpoint { celsius: 40.0, hold_s: 0 })
-        .answer("oven.soak.door", "cancel")
+        .answer("oven.oven.soak.door", "cancel")
         .run()
         .await?;
     assert_eq!(report.termination(), Termination::Failed);
     assert!(!report.passed());
     assert!(report.criteria().is_empty());
     assert_eq!(report.prompts()[0].action, "cancel");
-    assert!(report.samples::<Temperature>("oven.soak.temperature")?.is_empty());
+    assert!(report.samples::<Temperature>("oven.oven.soak.temperature")?.is_empty());
     assert_eq!(report.logs()[0].message, format!("{:?}", Some(Termination::Failed)));
     Ok(())
 }

@@ -64,7 +64,7 @@ internal sealed class FakeBackend : CallInvoker
     {
       if (selected.Name.Length == 0)
         throw new RpcException(new Grpc.Core.Status(StatusCode.InvalidArgument, "Get Case: Supply a Name"));
-      return new CasesGetResponse { Value = new CaseDetail { Summary = new CaseSummary { CaseId = selected.Name, SuiteId = "capture", TemplateId = "capture.confirmation" } } };
+      return new CasesGetResponse { Value = new CaseDetail { Summary = new CaseSummary { CaseId = selected.Name, SuiteId = "capture", TemplateId = "example.capture.confirmation" } } };
     }
     if (request is CyclesCreateRequest cycle)
       return new CyclesCreateResponse { Cycle = new CycleSummary { CycleId = "cycle", Metadata = cycle.Metadata } };

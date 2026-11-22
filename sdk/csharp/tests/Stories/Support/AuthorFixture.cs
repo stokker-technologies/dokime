@@ -29,6 +29,7 @@ public sealed class ExamplePlugin : Dokime.Plugin
 
 public sealed class CaptureSuite : Suite
 {
+  public override string Identifier => "example.capture";
   public override IReadOnlyList<Type> Templates => [typeof(ConfirmationTestTemplate)];
 }
 

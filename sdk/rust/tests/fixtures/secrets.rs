@@ -67,7 +67,7 @@ fn main() -> Result<()> {
         .step(Step::new("Read Secret", read));
     Plugin::of::<()>("1.0.0")
         .identifier(plugin)
-        .suite(Suite::of::<()>().identifier(plugin).label("Secret Reader").template(template))
+        .suite(Suite::of::<()>().identifier(format!("{plugin}.secrets")).label("Secret Reader").template(template))
         .secret(SecretDeclaration {
             metadata: Some(Metadata {
                 identifier: secret.into(),

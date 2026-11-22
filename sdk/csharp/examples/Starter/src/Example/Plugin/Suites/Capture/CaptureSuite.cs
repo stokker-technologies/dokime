@@ -17,5 +17,6 @@ namespace Example.Plugin.Suites.Capture;
 
 public sealed class CaptureSuite : Suite
 {
+  public override string Identifier => "example.capture";
   public override IReadOnlyList<Type> Templates => [typeof(ConfirmationTestTemplate)];
 }

@@ -16,7 +16,7 @@ public sealed class AuthorSamplesPlainValues
   public async Task ScalarObserverAnswersTypedColumns()
   {
     await using var server = await PluginServer.StartAsync(new ScalarPlugin());
-    var columns = await server.Wire.WindowAsync("scalar.value.reading", "execution-a", new Timestamp { Seconds = 123 }, new Duration { Seconds = 1 }, 2);
+    var columns = await server.Wire.WindowAsync("scalar.scalar.value.reading", "execution-a", new Timestamp { Seconds = 123 }, new Duration { Seconds = 1 }, 2);
     var values = new RepeatedField<double>();
     var input = new CodedInputStream(columns.ToByteArray());
     for (var tag = input.ReadTag(); tag != 0; tag = input.ReadTag())
@@ -37,6 +37,7 @@ public sealed class AuthorSamplesPlainValues
 
   public sealed class ScalarSuite : Suite
   {
+    public override string Identifier => "scalar.scalar";
     public override IReadOnlyList<System.Type> Templates => [typeof(ValueTestTemplate)];
   }
 

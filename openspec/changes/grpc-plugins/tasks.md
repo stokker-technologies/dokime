@@ -437,6 +437,7 @@
 - [x] Bind Derived and Explicit Python Local Identifiers Through One Plugin Root, Preserve Already Qualified Identifiers and Migrate Tests and Examples Without Compatibility Paths.
 - [x] Qualify Rust, C# and C++ Example and Fixture Registrations and Their Runtime/SDK References; Verify OBC's Existing Qualified Catalog.
 - [x] Pass Installed Python Unit and Integration Tests and Release-Context Python Build and Package.
-- [ ] Pass Focused Rust Tests and Workspace and SDK Consumer Test-Target Compilation With Desktop Testing.
-- [ ] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
+- [x] Pass Focused Rust Tests and Workspace and SDK Consumer Test-Target Compilation With Desktop Testing.
+- [x] Pass Native SDK Compilation and Focused Tests, Formatting, Repository Checks and Strict OpenSpec Validation.
+- [ ] Resolve the Native C++ Test Task's False Stale-Build Refusal for CMake `CONFIGURE_DEPENDS`; Keep the Failing Task Visible Alongside the Passing Native Build and Focused CTest Proof.
 - [ ] Migrate the CLI First-Hour and Desktop Execution-Matrix References in Their Owning Workspaces.

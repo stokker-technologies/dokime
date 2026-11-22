@@ -20,6 +20,7 @@ public sealed class ThermalPlugin : Dokime.Plugin
 
 public sealed class ThermalSuite : Suite
 {
+  public override string Identifier => "thermal.thermal";
   public override IReadOnlyList<Type> Templates => [typeof(CycleTestTemplate), typeof(LoadTestTemplate)];
 }
 

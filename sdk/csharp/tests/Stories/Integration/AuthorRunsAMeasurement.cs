@@ -32,20 +32,20 @@ public sealed class AuthorRunsAMeasurement
         if (child.Operation == HostContracts.PromptsCreate.Contract.Id)
         {
           var request = Dokime.Clients.PromptsCreateRequest.Parser.ParseFrom(child.Payload);
-          Assert.Equal("capture.confirmation.question", request.Prompt);
+          Assert.Equal("example.capture.confirmation.question", request.Prompt);
           return new Dokime.Clients.PromptsCreateResponse { Accepted = true, Action = "0" }.ToByteString();
         }
         Assert.Equal(HostContracts.EvidenceRecordsAppend.Contract.Id, child.Operation);
         stored = RecordsAppendRequest.Parser.ParseFrom(child.Payload);
         return new RecordsAppendResponse { Ordinal = 1 }.ToByteString();
       });
-    Assert.Equal("capture.confirmation.confirmation", stored!.Kind);
+    Assert.Equal("example.capture.confirmation.confirmation", stored!.Kind);
     Assert.True(BoolValue.Parser.ParseFrom(stored.Payload).Value);
     var outcome = await server.Wire.InvokeAsync<CriteriaEvaluateResponse>(description, testCase.Criteria[0].Operation,
       new CriteriaEvaluateRequest { Execution = "capture-run", Criterion = testCase.Criteria[0].Metadata.Identifier, TestCase = testCase, Origin = origin }, "capture-run", child =>
       {
         var request = RecordsListRequest.Parser.ParseFrom(child.Payload);
-        Assert.Equal("capture.confirmation.confirm", request.Step);
+        Assert.Equal("example.capture.confirmation.confirm", request.Step);
         return new RecordsListResponse { Last = new CapturedRecord { Payload = stored.Payload } }.ToByteString();
       });
     Assert.True(outcome.Passed);

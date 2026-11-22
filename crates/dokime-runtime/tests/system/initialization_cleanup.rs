@@ -59,7 +59,7 @@ fn initialization_failure_and_cancellation_clean_partial_resources_once() -> Res
                 // Initialize Publishes Its Resource Before Failing or Waiting for Cancellation.
                 let mut parameters = super::support::parameters(17.0, 0, true);
                 parameters.insert(parameter.into(), Value { kind: Some(value::Kind::Boolean(true)) });
-                let origin = host.materialize(&entry, "execution.capture", parameters).await?;
+                let origin = host.materialize(&entry, "execution.execution.capture", parameters).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
                 let execution = cycle.executions[0].clone();
                 if cancelled {

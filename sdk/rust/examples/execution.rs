@@ -84,7 +84,7 @@ fn main() -> Result<()> {
     let observer = Observer::new(&reading, read).every(Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
-        y: vec![FieldReference::new("execution.capture.reading").field("value")],
+        y: vec![FieldReference::new("execution.execution.capture.reading").field("value")],
         ..Default::default()
     };
     let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
@@ -135,7 +135,8 @@ fn main() -> Result<()> {
         .document(document)
         .stream(reading)
         .observer(observer);
-    let plugin = Plugin::of::<ExecutionPlugin>("1.0.0").suite(Suite::of::<ExecutionSuite>().template(template));
+    let plugin =
+        Plugin::of::<ExecutionPlugin>("1.0.0").suite(Suite::of::<ExecutionSuite>().identifier("execution.execution").template(template));
     plugin.run()
 }
 
