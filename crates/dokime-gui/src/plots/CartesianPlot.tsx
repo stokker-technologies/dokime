@@ -42,6 +42,7 @@ import {
   intervalRangeData,
   type IntervalRange,
   limitRenderedSeries,
+  linearXRange,
   liveCartesianXRange,
   paddedYRange,
   referenceYValues,
@@ -506,7 +507,11 @@ export const CartesianPlot = memo(function CartesianPlot({
         x: {
           time: timeAxis && !xElapsedUnit,
           distr: xScale === "log" ? 3 : 1,
-          range: currentPosition ? (_plot, min, max) => paddedYRange(min, max, [], xScale) : undefined,
+          range: currentPosition
+            ? (_plot, min, max) => paddedYRange(min, max, [], xScale)
+            : xScale === "linear"
+              ? (_plot, min, max) => linearXRange(min, max)
+              : undefined,
         },
         y: {
           auto: true,

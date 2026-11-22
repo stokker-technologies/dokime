@@ -300,6 +300,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     for (const dark of [false, true]) {
       for (const touch of [false, true]) {
         await evaluate(`window.canvasFixture.summaries(${dark}, ${touch})`);
+        assert.equal(await evaluate(`window.canvasFixture.counts()[0]`), 1);
         assert.deepEqual(
           await evaluate(
             `(() => [...document.querySelectorAll('[data-testid="contour-plot"]')].map(chart => ({bins:chart.querySelectorAll('rect[data-bin]').length,gaps:chart.querySelectorAll('rect[data-bin="1"],rect[data-bin="2"]').length})))()`,
