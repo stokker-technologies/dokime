@@ -107,6 +107,11 @@ pending. Execution observers inherit execution resources for admitted child call
 including record publication. Typed stream subscription remains unavailable
 in the product context adapter.
 
+Use `ended.time_since(began)` for elapsed-time document expressions between record
+declarations. Binding qualifies both identifiers in the expression. Reference
+lines and bands use the existing `plot.reference_line(...)` and
+`plot.reference_band(...)` builders and are placed explicitly in sections.
+
 Stop releases execution-scoped host waits normally. The current step finishes,
 criteria evaluate, cleanup runs and the execution seals with `Termination.STOPPED`,
 retaining streams and records. Author loops read `ctx.stop_requested`:

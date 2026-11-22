@@ -105,6 +105,11 @@ class Record[T: Payload]:
             raise ValueError("Select Record Field: Declare an Explicit Record Identifier for Document Expressions")
         return Expression(DataExpression(record={"identifier": self.identifier, "field": name}))
 
+    def time_since(self, other: "Record[Any]") -> "Expression":
+        if not other.identifier:
+            raise ValueError("Measure Time Since Record: Declare an Explicit Record Identifier for Document Expressions")
+        return self.field()._transform(TransformExpression(time_between=other.identifier))
+
 
 @dataclass(frozen=True)
 class PromptDeclaration:
