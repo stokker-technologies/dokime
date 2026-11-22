@@ -8,7 +8,7 @@
  */
 
 /**
- * Canonical TypeScript Transpilation And Native Adapter Test Transport
+ * Canonical TypeScript Transpilation and Native Adapter Test Transport
  */
 
 /* === Imports === */
@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -39,7 +39,7 @@ import { transformWithOxc } from "vite";
 export async function openHarness() {
   const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
   const generated = resolve(gui, "../../target/generated/typescript");
-  assert.ok(existsSync(generated), `${generated} is missing; run \`mise run prepare:contracts\``);
+  assert.ok(existsSync(generated), `${generated} is missing; run \`mise run generate\``);
   const owner = spawn("uv", ["run", "--locked", "--project", "tools/python", "python", "-m", "dokime_tools.test.fixture"], {
     cwd: resolve(gui, "../.."),
     stdio: ["pipe", "pipe", "inherit"],
@@ -47,8 +47,11 @@ export async function openHarness() {
   const stopped = new Promise<void>((resolve, reject) => {
     owner.once("error", reject);
     owner.once("exit", (code, signal) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Temporary fixture owner exited with ${code ?? signal}`));
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Temporary fixture owner exited with ${code ?? signal}`));
+      }
     });
   });
   const readiness = createInterface({ input: owner.stdout });
@@ -77,8 +80,11 @@ export async function openHarness() {
       const call = pending.get(message.id);
       assert.ok(call, `unexpected reply ${message.id}`);
       pending.delete(message.id);
-      if (message.error !== undefined) call.reject(message.error);
-      else call.resolve(message.bytes !== undefined ? buffer(message.bytes) : message.value);
+      if (message.error !== undefined) {
+        call.reject(message.error);
+      } else {
+        call.resolve(message.bytes !== undefined ? buffer(message.bytes) : message.value);
+      }
     }
   })();
   function invoke(cmd: string, args: unknown, options?: { headers?: Record<string, string> }) {
@@ -114,69 +120,62 @@ export async function openHarness() {
       },
     },
   };
-  // Preserve The GUI Tree So Canonical Descriptor Imports Resolve Unchanged.
-  function resolvableSpecifiers(source: string, destination: string) {
-    return source.replace(/(from\s+["'])([^"']+)(["'])/g, (match, prefix, specifier, suffix) => {
-      if (specifier.startsWith("@/")) {
-        const target = resolve(temporary, "src", specifier.slice(2));
-        const path = relative(dirname(destination), target).split(sep).join("/");
-        specifier = path.startsWith(".") ? path : `./${path}`;
-      }
-      if (specifier.startsWith("@generated/")) {
-        const target = resolve(temporary, "canonical", specifier.slice("@generated/".length));
-        const path = relative(dirname(destination), target).split(sep).join("/");
-        specifier = path.startsWith(".") ? path : `./${path}`;
-      }
-      if (specifier.startsWith("@host/")) {
-        const target = resolve(temporary, "host", specifier.slice("@host/".length));
-        const path = relative(dirname(destination), target).split(sep).join("/");
-        specifier = path.startsWith(".") ? path : `./${path}`;
-      }
-      if (!specifier.startsWith("./") && !specifier.startsWith("../")) return `${prefix}${import.meta.resolve(specifier)}${suffix}`;
-      const basename = specifier.slice(specifier.lastIndexOf("/") + 1);
-      const extension = basename.includes(".") ? "" : ".js";
-      return `${prefix}${specifier}${extension}${suffix}`;
-    });
-  }
-  async function transpile(source: string, path: string) {
-    const result = await transformWithOxc(source, path, { target: "es2022", lang: "ts" });
-    return result.code;
-  }
-  async function compile(source: string, destination: string) {
-    mkdirSync(destination, { recursive: true });
-    for (const entry of readdirSync(source, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        await compile(resolve(source, entry.name), resolve(destination, entry.name));
-        continue;
-      }
-      if (!entry.name.endsWith(".ts") || entry.name.endsWith(".test.ts") || entry.name.endsWith(".d.ts")) continue;
-      const input = resolve(source, entry.name);
-      const outputPath = resolve(destination, entry.name.replace(/\.ts$/, ".js"));
-      const text = readFileSync(input, "utf8");
-      const output = await transpile(text, input);
-      writeFileSync(outputPath, resolvableSpecifiers(output, outputPath));
+  // Follow Runtime Imports After Type Erasure, Including Workspace Package Exports.
+  const root = resolve(gui, "../..");
+  const host = resolve(root, "target/generated/host");
+  const compiled = new Set<string>();
+  async function compile(input: string): Promise<string> {
+    if (!existsSync(input)) {
+      input = input.replace(/\.js$/, ".ts");
     }
-  }
-  const rpc = resolve(temporary, "src/lib/rpc");
-  const canonical = resolve(temporary, "canonical");
-  await compile(resolve(gui, "src/lib/rpc"), rpc);
-  await compile(generated, canonical);
-  await compile(resolve(gui, "../../target/generated/host"), resolve(temporary, "host"));
-  // The transport's runtime imports outside `src/lib/rpc`; type-only imports erase.
-  for (const module of ["src/lib/ui-mode", "src/lib/desktop/stopping", "src/lib/notification-details"]) {
-    const input = resolve(gui, `${module}.ts`);
-    const output = resolve(temporary, `${module}.js`);
+    if (!input.endsWith(".ts")) {
+      input += ".ts";
+    }
+    const output = resolve(temporary, relative(root, input).replace(/\.ts$/, ".js"));
+    if (compiled.has(input)) {
+      return output;
+    }
+    compiled.add(input);
+    const result = await transformWithOxc(readFileSync(input, "utf8"), input, { target: "es2022", lang: "ts" });
+    let source = result.code;
+    for (const match of source.matchAll(/\b(?:from\s*|import\s*)(["'])([^"']+)\1/g)) {
+      const specifier = match[2];
+      let target: string;
+      if (specifier.startsWith("@/")) {
+        target = resolve(gui, "src", specifier.slice(2));
+      } else if (specifier.startsWith("@generated/")) {
+        target = resolve(generated, specifier.slice("@generated/".length));
+      } else if (specifier.startsWith("@host/")) {
+        target = resolve(host, specifier.slice("@host/".length));
+      } else if (specifier.startsWith(".")) {
+        target = resolve(dirname(input), specifier);
+      } else {
+        const url = import.meta.resolve(specifier);
+        if (!url.startsWith("file:") || !url.endsWith(".ts")) {
+          source = source.replaceAll(`${match[1]}${specifier}${match[1]}`, `${match[1]}${url}${match[1]}`);
+          continue;
+        }
+        target = fileURLToPath(url);
+      }
+      const dependency = await compile(target);
+      const path = relative(dirname(output), dependency).split(sep).join("/");
+      const replacement = path.startsWith(".") ? path : `./${path}`;
+      source = source.replaceAll(`${match[1]}${specifier}${match[1]}`, `${match[1]}${replacement}${match[1]}`);
+    }
     mkdirSync(dirname(output), { recursive: true });
-    writeFileSync(output, resolvableSpecifiers(await transpile(readFileSync(input, "utf8"), input), output));
+    writeFileSync(output, source);
+    return output;
+  }
+  async function load(input: string) {
+    const output = await compile(input);
+    return import(pathToFileURL(output).href);
   }
   return {
     invoke,
-    load: (path: string) => import(pathToFileURL(resolve(rpc, path)) as unknown as string),
-    loadCanonical: (path: string) => import(pathToFileURL(resolve(canonical, path)) as unknown as string),
+    load: (path: string) => load(resolve(gui, "src/lib/rpc", path)),
+    loadCanonical: (path: string) => load(resolve(generated, path)),
     loadHost: <P extends "client.js" | "model.js">(path: P) =>
-      import(pathToFileURL(resolve(temporary, "host", path)) as unknown as string) as Promise<
-        P extends "client.js" ? typeof import("@host/client") : typeof import("@host/model")
-      >,
+      load(resolve(host, path)) as Promise<P extends "client.js" ? typeof import("@host/client") : typeof import("@host/model")>,
     /** Report one observation to the driving test without awaiting a reply. */
     report(value: unknown) {
       process.stdout.write(`${JSON.stringify(value)}\n`);
