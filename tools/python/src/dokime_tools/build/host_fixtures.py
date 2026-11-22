@@ -47,6 +47,7 @@ RUST_FIXTURES = (
     "dokime-rust-boundary",
     "dokime-rust-secrets",
     "dokime-rust-capture",
+    "dokime-rust-history",
     "dokime-rust-plugin",
 )
 

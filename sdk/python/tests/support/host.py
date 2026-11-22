@@ -6,7 +6,7 @@
 #
 # ***
 
-"""An Owned Product Host For SDK And Starter Journeys."""
+"""An Owned Product Host for SDK and Starter Journeys."""
 
 # === Imports === #
 # Standard Library Imports
@@ -58,7 +58,7 @@ class Host:
         host = cls()
         story.addAsyncCleanup(host.close)
         if sys.platform == "linux":
-            # Start An Isolated Credential Store For This Host.
+            # Start an Isolated Credential Store for This Host.
             home = Path(host.root.name) / "credentials"
             home.mkdir(mode=0o700)
             host.environment.update({key: str(home) for key in ("HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR")})
@@ -121,7 +121,7 @@ class Host:
                 output, _ = await check.communicate()
                 if check.returncode == 0 and b"boolean true" in output:
                     break
-        # Launch Prepared Bytes And Await The Host's Ready Event.
+        # Launch Prepared Bytes and Await the Host's Ready Event.
         binary = str(cls.fixture("dokime-host"))
         host.binary = binary
         host.process = await asyncio.create_subprocess_exec(
@@ -148,21 +148,18 @@ class Host:
         return host
 
     @staticmethod
-    def fixture(name: str) -> Path:
+    def fixture(name: str, *, home: str | None = None) -> Path:
         variable = {"dokime-host": "DOKIME_TEST_HOST", "dokime": "DOKIME_TEST_CLI"}.get(
-            name, f"DOKIME_TEST_{name.upper().replace('-', '_')}"
+            name, f"DOKIME_TEST_{name.upper().replace('-', '_').replace('/', '_').replace('.', '_')}"
         )
         override = os.environ.get(variable)
         if override is not None:
             binary = Path(override)
         else:
             repository = next(parent for parent in Path(__file__).resolve().parents if (parent / "Cargo.toml").is_file())
-            filename = f"{name}{'.exe' if os.name == 'nt' else ''}"
-            if "TEST_PROFILE" in os.environ:
-                home = "bin" if name == "dokime" else "fixtures/cli" if name == "rust" else "fixtures/host"
-                binary = paths.output(repository, "build", os.environ["TEST_PROFILE"]) / home / filename
-            else:
-                binary = repository / "target/debug" / filename
+            filename = name if Path(name).suffix else f"{name}{'.exe' if os.name == 'nt' else ''}"
+            home = home or ("bin" if name == "dokime" else "fixtures/cli" if name == "rust" else "fixtures/host")
+            binary = paths.output(repository, "build", os.environ.get("TEST_PROFILE", "dev")) / home / filename
         if not binary.is_file():
             raise RuntimeError(f"Locate SDK Fixture: Build {name} for TEST_PROFILE or Set {variable} to Its Prepared Binary")
         return binary

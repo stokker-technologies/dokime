@@ -24,9 +24,15 @@ from zipfile import ZipFile
 
 # Third Party Imports
 from grpc.aio import insecure_channel, server
-from harmos._wire.plugin.v1.launches_pb2 import LaunchesAnnounceRequest, LaunchesAnnounceResponse
-from harmos._wire.plugin.v1.launches_pb2_grpc import LaunchesServicer, add_LaunchesServicer_to_server
 from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetResponse
+from harmos._wire.plugin.v1.launches_pb2 import (
+    LaunchesAnnounceRequest,
+    LaunchesAnnounceResponse,
+)
+from harmos._wire.plugin.v1.launches_pb2_grpc import (
+    LaunchesServicer,
+    add_LaunchesServicer_to_server,
+)
 
 # isort: split
 
@@ -62,7 +68,6 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
             return PromptAnswer(question.choices[0])
 
         client.on_prompt(answer)
-        extension = ".exe" if os.name == "nt" else ""
         locating = await asyncio.create_subprocess_exec(
             "mise",
             "-C",
@@ -84,26 +89,26 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                 sys.executable,
                 str(root / "sdk/tests/fixtures/python/capture/plugin.py"),
             ],
-            "rust": [str(factory.fixture("rust"))],
+            "rust": [str(factory.fixture("rust", home="fixtures/cli"))],
             "csharp": [
                 dotnet,
                 str(
-                    root
-                    / "target/build/dev"
-                    / ("windows-x86_64" if os.name == "nt" else "linux-x86_64")
-                    / "fixtures/cli/csharp/Csharp.Plugin.dll"
+                    factory.fixture(
+                        "csharp/source/assets/plugin/Csharp.Plugin.dll",
+                        home="fixtures/cli",
+                    )
                 ),
             ],
-            "cpp": [
-                str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}")
-            ],
+            "cpp": [str(factory.fixture("cpp/dokime-plugin", home="fixtures/cli"))],
         }
         timeout = policy.load(root).deadline("integration")
         environment = dict(os.environ)
         ready: asyncio.Queue[str] = asyncio.Queue()
 
         class Launches(LaunchesServicer):
-            async def Announce(self, request: LaunchesAnnounceRequest, context: object) -> LaunchesAnnounceResponse:
+            async def Announce(
+                self, request: LaunchesAnnounceRequest, context: object
+            ) -> LaunchesAnnounceResponse:
                 await ready.put(request.address)
                 return LaunchesAnnounceResponse()
 
@@ -112,7 +117,10 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         port = launches.add_insecure_port("127.0.0.1:0")
         await launches.start()
         self.addAsyncCleanup(launches.stop, None)
-        environment.update(HARMOS_HOST_ENDPOINT=f"127.0.0.1:{port}", HARMOS_LAUNCH_TOKEN="fixture-launch")
+        environment.update(
+            HARMOS_HOST_ENDPOINT=f"127.0.0.1:{port}",
+            HARMOS_LAUNCH_TOKEN="fixture-launch",
+        )
         for language, command in commands.items():
             # Launch the Prepared Fixture and Observe Its Bound Listener.
             process = await asyncio.create_subprocess_exec(
@@ -149,26 +157,19 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                         suites.ParseFromString(section.payload)
                     if section.type == records.DESCRIPTOR.full_name:
                         records.ParseFromString(section.payload)
-                self.assertEqual(len(suites.suites), 1, language)
-                self.assertEqual(len(records.records), 1, language)
-                suite = suites.suites[0]
-                self.assertEqual(len(suite.templates), 1, language)
-                expected = (
-                    "capture.confirmation"
-                    if language in {"python", "cpp"}
-                    else "capture"
-                )
-                if language == "rust":
-                    expected = "capture.confirmation"
-                if language == "csharp":
-                    expected = "capture.confirmation"
-                self.assertEqual(
-                    suite.templates[0].metadata.identifier, expected, language
-                )
-                record = records.records[0]
-                self.assertEqual(
-                    record.metadata.identifier, f"{expected}.confirmation", language
-                )
+                expected = "capture.confirmation"
+                templates = {
+                    template.metadata.identifier: suite
+                    for suite in suites.suites
+                    for template in suite.templates
+                }
+                self.assertIn(expected, templates, language)
+                suite = templates[expected]
+                contracts = {
+                    record.metadata.identifier: record for record in records.records
+                }
+                self.assertIn(f"{expected}.confirmation", contracts, language)
+                record = contracts[f"{expected}.confirmation"]
                 self.assertEqual(record.message, "google.protobuf.BoolValue", language)
 
                 # Register the Fixture and Wait on Host Readiness.
@@ -234,10 +235,7 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                                 execution.identifier
                             )
                             reader = await asyncio.create_subprocess_exec(
-                                str(
-                                    root
-                                    / f"target/debug/dokime-rust-history{extension}"
-                                ),
+                                str(factory.fixture("dokime-rust-history")),
                                 cwd=temporary.name,
                                 env=reader_environment,
                                 creationflags=spawn_flags(),

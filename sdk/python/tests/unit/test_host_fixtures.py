@@ -35,7 +35,7 @@ from unittest.mock import patch
 
 
 class HostFixtureStory(TestCase):
-    def test_sdk_fixture_lookup_uses_prepared_profiles_and_explicit_overrides(self) -> None:
+    def test_exported_fixture_profiles_nested_assets_and_explicit_overrides(self) -> None:
         root = Path(__file__).resolve().parents[4]
         host = runpy.run_path(str(root / "sdk/python/tests/support/host.py"))["Host"]
         self.enterContext(patch("platform.system", return_value="Windows" if os.name == "nt" else "Linux"))
@@ -43,13 +43,15 @@ class HostFixtureStory(TestCase):
         extension = ".exe" if os.name == "nt" else ""
         original = Path.is_file
         for profile in (None, "dev", "release"):
-            for name, home in (("dokime-host", "fixtures/host"), ("dokime", "bin")):
+            for name, home in (
+                ("dokime-host", "fixtures/host"),
+                ("dokime", "bin"),
+                ("rust", "fixtures/cli"),
+                ("csharp/source/assets/plugin/Csharp.Plugin.dll", "fixtures/cli"),
+            ):
                 native = "windows-x86_64" if os.name == "nt" else "linux-x86_64"
-                expected = (
-                    root / "target/build" / profile / native / home / f"{name}{extension}"
-                    if profile
-                    else root / "target/debug" / f"{name}{extension}"
-                )
+                filename = name if Path(name).suffix else f"{name}{extension}"
+                expected = root / "target/build" / (profile or "dev") / native / home / filename
 
                 def present(path: Path, expected: Path = expected) -> bool:
                     return path == expected or original(path)
@@ -62,7 +64,7 @@ class HostFixtureStory(TestCase):
                 self.enterContext(patch.object(Path, "is_file", present))
                 os.environ.pop("DOKIME_TEST_HOST", None)
                 os.environ.pop("DOKIME_TEST_CLI", None)
-                self.assertEqual(host.fixture(name), expected)
+                self.assertEqual(host.fixture(name, home=home), expected)
 
         temporary_directory = TemporaryDirectory()
         try:
