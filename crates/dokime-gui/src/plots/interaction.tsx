@@ -28,6 +28,19 @@ export type PlotInteraction = {
   syncKey?: string;
 };
 
+type PlotMeasurements = {
+  setVisible: (plotId: string, visible: boolean | null) => void;
+  setPanelSize: (plotId: string, size: { width: number; height: number } | null) => void;
+  setPanelWidth: (plotId: string, width: number | null) => void;
+  setSummaryWindow: (plotId: string, window: { from: number; to: number } | null) => void;
+};
+
+export const PlotMeasurementsContext = createContext<PlotMeasurements | null>(null);
+
+export function usePlotMeasurements(): PlotMeasurements | null {
+  return useContext(PlotMeasurementsContext);
+}
+
 const PlotInteractionContext = createContext<PlotInteraction>({ zoom: false });
 
 export function PlotInteractionProvider({ children, zoom, syncKey }: PlotInteraction & { children?: ReactNode }) {

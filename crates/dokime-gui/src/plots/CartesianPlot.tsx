@@ -50,15 +50,13 @@ import {
   windowServes,
 } from "./cartesian-frame";
 import { markerColor, plotColor, resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
-import { usePlotInteraction } from "@/plots/interaction";
+import { usePlotInteraction, usePlotMeasurements } from "@/plots/interaction";
 import { drawMarkerKinds, type MarkerTooltip, markerKinds, markerTooltip } from "./markers";
 import { PlotPlaceholder } from "./PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "./plot-placeholder";
 import type { PromptMarker } from "./prompt-markers";
 import type { PlotViewportMode } from "./types";
 import { attachPan, type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
-
-import { useSummaryWindowStore } from "../stores/summary-window-store";
 
 /* === Constants === */
 
@@ -220,11 +218,11 @@ export const CartesianPlot = memo(function CartesianPlot({
   const hiddenTracesRef = useRef<ReadonlySet<string>>(hiddenTraces);
   hiddenTracesRef.current = hiddenTraces;
   const onViewportChangeRef = useRef(onViewportChange);
-  const setSummaryWindow = useSummaryWindowStore((store) => store.setSummaryWindow);
+  const setSummaryWindow = usePlotMeasurements()?.setSummaryWindow;
   onViewportChangeRef.current =
-    onViewportChange ?? (!localViewport && !zoom && plotId ? (window) => setSummaryWindow(plotId, window) : undefined);
+    onViewportChange ?? (!localViewport && !zoom && plotId && setSummaryWindow ? (window) => setSummaryWindow(plotId, window) : undefined);
   useEffect(() => {
-    if (!plotId || zoom || localViewport) {
+    if (!plotId || !setSummaryWindow || zoom || localViewport) {
       return;
     }
     return () => setSummaryWindow(plotId, null);

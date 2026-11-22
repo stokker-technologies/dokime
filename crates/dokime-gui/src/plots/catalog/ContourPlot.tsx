@@ -24,7 +24,7 @@ import { formatNumber, formatUnitLabel } from "../../lib/format";
 import { PlotPlaceholder } from "../PlotPlaceholder";
 import { plotPlaceholderText } from "../plot-placeholder";
 import type { PlotCardSpec } from "../types";
-import { useSummaryWindowStore } from "../../stores/summary-window-store";
+import { usePlotMeasurements } from "../interaction";
 
 /* === Types === */
 
@@ -39,10 +39,12 @@ const MARGIN = { left: 58, right: 24, top: 20, bottom: 52 };
 export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
   const clip = useId();
   const element = useRef<SVGSVGElement>(null);
-  const setPanelSize = useSummaryWindowStore((store) => store.setPanelSize);
+  const setPanelSize = usePlotMeasurements()?.setPanelSize;
   const hasGrid = plot.analysis?.kind === "contour" && plot.analysis.grid.valid.some(Boolean);
   useEffect(() => {
-    if (!hasGrid || !element.current || typeof ResizeObserver === "undefined") return;
+    if (!setPanelSize || !hasGrid || !element.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
     const observer = new ResizeObserver(([entry]) => {
       if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
       let width = Math.max(1, Math.round((entry.contentRect.width * (WIDTH - MARGIN.left - MARGIN.right)) / WIDTH));

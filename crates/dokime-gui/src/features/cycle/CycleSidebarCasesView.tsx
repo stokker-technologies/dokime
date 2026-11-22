@@ -40,7 +40,6 @@
 
 import { ErrorCard } from "@/components/ErrorCard";
 import { failureOf } from "@/lib/notification-details";
-import { useNavigate } from "@tanstack/react-router";
 import {
   BellRing,
   Check,
@@ -65,7 +64,6 @@ import { Button } from "@/components/ui/button";
 import type { TestCyclePlan, TestExecution } from "@/lib/types";
 import { useRowWindow } from "../../lib/use-row-window";
 import { cn } from "@/lib/utils";
-import { useSelectionStore } from "../../stores/selection-store";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
@@ -111,17 +109,17 @@ export type CycleSidebarState = {
 };
 
 export type CycleSidebarActions = {
+  addCases: () => void;
   rerunCase: (caseId: string) => Promise<string | null | undefined>;
 };
 
 export type CycleSidebarCasesViewProps = {
   detailQuery: CycleSidebarState;
-  actions?: CycleSidebarActions;
-  cycleId: string;
   selection: CycleSelection;
+  onSelect: (selection: CycleSelection) => void;
   /** The executions a pending prompt waits on. */
   inputNeeded?: ReadonlySet<string>;
-} & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
+} & ({ live: true; actions: CycleSidebarActions; followActive: boolean } | { live: false; actions?: undefined; followActive?: undefined });
 
 type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
 
@@ -130,16 +128,14 @@ type Glyph = { icon: LucideIcon; tone: GlyphTone; spin?: boolean; label: string 
 /* === Components === */
 
 export function CycleSidebarCasesView({
-  cycleId,
   detailQuery,
+  followActive,
   actions,
   inputNeeded,
-  live = true,
-  onSelect,
+  live,
+  onSelect: select,
   selection,
 }: CycleSidebarCasesViewProps) {
-  const navigate = useNavigate();
-  const followActive = useSelectionStore((state) => state.followActive);
   const [expanded, setExpanded] = useState(true);
   const treeRef = useRef<HTMLUListElement>(null);
 
@@ -159,24 +155,6 @@ export function CycleSidebarCasesView({
     action()
       .then(() => toast.success(outcome.done))
       .catch((error: unknown) => toast.error(failureOf(error, outcome.failed)));
-  };
-
-  const select = (next: CycleSelection) => {
-    if (!live) {
-      onSelect?.(next);
-      return;
-    }
-    void navigate({
-      params: { cycleId },
-      replace: true,
-      search: (current: Record<string, unknown>) => ({
-        ...current,
-        caseId: next.caseId,
-        executionId: next.executionId,
-        view: next.view,
-      }),
-      to: "/cycles/$cycleId",
-    });
   };
 
   /* Arrow keys walk the visible rows; left and right fold the cycle node and
@@ -312,7 +290,7 @@ export function CycleSidebarCasesView({
                       live
                         ? {
                             label: "Add Cases",
-                            onClick: () => void navigate({ search: { appendTo: cycleId }, to: "/library" }),
+                            onClick: actions.addCases,
                           }
                         : undefined
                     }
@@ -329,13 +307,16 @@ export function CycleSidebarCasesView({
                         inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
                         key={row.key}
                         live={live}
-                        onRerun={() =>
-                          report({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
-                            const created = await liveActions(actions).rerunCase(row.case.caseId);
-                            if (created) {
-                              select({ executionId: created });
-                            }
-                          })
+                        onRerun={
+                          actions
+                            ? () =>
+                                report({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
+                                  const created = await actions.rerunCase(row.case.caseId);
+                                  if (created) {
+                                    select({ executionId: created });
+                                  }
+                                })
+                            : undefined
                         }
                         onSelect={() => select(cycleRowSelection(row))}
                         row={row}
@@ -376,7 +357,7 @@ function ExecutionTreeRow({
   following: boolean;
   inputNeeded: boolean;
   live: boolean;
-  onRerun: () => void;
+  onRerun?: () => void;
   onSelect: () => void;
   row: CycleExecutionRow;
   selected: boolean;
@@ -561,11 +542,4 @@ function cycleGlyph(phase: TestCyclePlan["test_cycle"]["phase"], status: CycleLi
     default:
       return { icon: Circle, label, tone: "muted" };
   }
-}
-
-function liveActions(actions: CycleSidebarActions | undefined): CycleSidebarActions {
-  if (!actions) {
-    throw new Error("Cycle commands require a live workspace.");
-  }
-  return actions;
 }

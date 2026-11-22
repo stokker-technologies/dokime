@@ -19,7 +19,6 @@
 import { ErrorCard } from "@/components/ErrorCard";
 import { ArrowDownToLine, Eraser, X } from "lucide-react";
 import { type UIEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useStore } from "zustand";
 
 /* === Local Imports === */
 
@@ -30,8 +29,8 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 import { recordClockLabel, recordLevelTextClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { type ConsoleLevel, type ConsoleScope, useUiStore } from "../stores/ui-store";
-import { type ConsoleRecords, consoleRecordsStore } from "./console-buffer";
+import type { ConsoleLevel, ConsoleScope, ConsoleState } from "../stores/ui-store";
+import type { ConsoleRecords } from "./console-buffer";
 import { consoleFollowsTail, consoleTailPinned, consoleWindow } from "./console-follow";
 
 // Local Imports
@@ -40,13 +39,11 @@ import { consoleFollowsTail, consoleTailPinned, consoleWindow } from "./console-
 
 /* === Constants === */
 
-const GUI_CONSOLE_OVERSCAN = 12;
-
 /** One row height, so the window can be computed instead of measured. */
 const ROW_HEIGHT = 22;
 
 /** Rows drawn beyond the viewport on each side, to cover a fast scroll. */
-const OVERSCAN = GUI_CONSOLE_OVERSCAN;
+const OVERSCAN = 12;
 
 const LEVEL_ORDER: Record<ConsoleLevel, number> = {
   trace: 0,
@@ -90,16 +87,19 @@ export function LiveConsoleView({
   cycleId,
   executionId,
   streamed,
+  drawer,
+  setConsoleState,
+  filter,
+  setFilter,
 }: {
   cycleId: string | null;
   executionId: string | null;
   streamed: ConsoleRecords;
+  drawer: ConsoleState;
+  setConsoleState: (patch: Partial<ConsoleState>) => void;
+  filter: string;
+  setFilter: (filter: string) => void;
 }) {
-  const drawer = useUiStore((state) => state.console);
-  const setConsoleState = useUiStore((state) => state.setConsoleState);
-  const filter = useStore(consoleRecordsStore, (state) => state.filter);
-  const setFilter = useStore(consoleRecordsStore, (state) => state.setFilter);
-
   const rows = useMemo(() => visibleConsoleRecords(streamed.records, drawer.level, filter), [drawer.level, filter, streamed.records]);
 
   const close = useCallback(() => setConsoleState({ open: false }), [setConsoleState]);

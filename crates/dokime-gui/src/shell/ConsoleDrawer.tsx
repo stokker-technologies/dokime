@@ -20,11 +20,13 @@
  */
 
 /* === External Imports === */
+import { useStore } from "zustand";
 
 /* === Local Imports === */
 import type { HubRecord } from "@/lib/types";
 import { useUiStore } from "@/stores/ui-store";
 import { FrozenConsole, LiveConsoleView, resolvedConsoleScope } from "@/shell/ConsoleDrawerView";
+import { consoleRecordsStore } from "./console-buffer";
 import { useConsoleRecords } from "./console-records";
 
 /* === Types === */
@@ -53,6 +55,9 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
 /* === Private Components === */
 function ConnectedConsole({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
   const drawer = useUiStore((state) => state.console);
+  const setConsoleState = useUiStore((state) => state.setConsoleState);
+  const filter = useStore(consoleRecordsStore, (state) => state.filter);
+  const setFilter = useStore(consoleRecordsStore, (state) => state.setFilter);
   const scope = resolvedConsoleScope(drawer.scope, cycleId, executionId);
   const streamed = useConsoleRecords({
     cycleId: scope === "instance" ? null : cycleId,
@@ -60,5 +65,15 @@ function ConnectedConsole({ cycleId, executionId }: { cycleId: string | null; ex
     executionId: scope === "execution" ? executionId : null,
     level: drawer.level,
   });
-  return <LiveConsoleView cycleId={cycleId} executionId={executionId} streamed={streamed} />;
+  return (
+    <LiveConsoleView
+      cycleId={cycleId}
+      executionId={executionId}
+      streamed={streamed}
+      drawer={drawer}
+      setConsoleState={setConsoleState}
+      filter={filter}
+      setFilter={setFilter}
+    />
+  );
 }

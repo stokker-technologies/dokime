@@ -19,10 +19,8 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 // Third Party Imports
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { useUiStore } from "../stores/ui-store";
 import { BrandMark } from "./BrandMark";
-import { sidebarWidth } from "./navigation-model";
-import { useSidebarState } from "./use-sidebar-state";
+import type { SidebarState } from "./use-sidebar-state";
 
 // Local Imports
 
@@ -33,8 +31,7 @@ import { useSidebarState } from "./use-sidebar-state";
 /* === Types === */
 
 /* === Components === */
-export function SidebarFrame({ children }: { children: ReactNode }) {
-  const { collapsed, width, mode, toggle } = useSidebarState();
+export function SidebarFrame({ children, collapsed, width, mode, toggle, resize }: SidebarState & { children: ReactNode }) {
   if (mode === "phone") return null;
   return (
     <nav
@@ -63,15 +60,16 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
           onKeyDown={(event) => {
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
             event.preventDefault();
-            useUiStore
-              .getState()
-              .setUiState({ sidebarWidth: sidebarWidth(useUiStore.getState().sidebarWidth + (event.key === "ArrowRight" ? 4 : -4)) });
+            const width = event.currentTarget.parentElement?.getBoundingClientRect().width;
+            if (width !== undefined) {
+              resize(width + (event.key === "ArrowRight" ? 4 : -4));
+            }
           }}
           onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
           onPointerMove={(event) => {
             if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
             const left = event.currentTarget.parentElement?.getBoundingClientRect().left ?? 0;
-            useUiStore.getState().setUiState({ sidebarWidth: sidebarWidth(event.clientX - left) });
+            resize(event.clientX - left);
           }}
           onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
         />
@@ -83,7 +81,7 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
 }
 
 // A Compact Brand Row Above Navigation.
-export function SidebarBrand({ collapsed }: { collapsed: boolean }) {
+function SidebarBrand({ collapsed }: { collapsed: boolean }) {
   return (
     <div className={collapsed ? "min-w-0 px-2 py-3" : "min-w-0 px-4 py-3"} data-slot="sidebar-brand">
       <BrandMark className="sidebar-brand" logoOnly={collapsed} />

@@ -29,7 +29,7 @@ import { HeatStripPlot } from "../../plots/catalog/HeatStripPlot";
 import { GridChartPlot } from "../../plots/catalog/GridChartPlot";
 import { XyIntervalPlot } from "../../plots/catalog/XyIntervalPlot";
 import { XyPlot } from "../../plots/catalog/XyPlot";
-import { PlotInteractionProvider, usePlotInteraction } from "@/plots/interaction";
+import { PlotInteractionProvider, usePlotInteraction, usePlotMeasurements } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap, plotWaitingLabel } from "../../plots/live-frames";
 import { PlotPlaceholder } from "../../plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText, STREAM_ERROR } from "../../plots/plot-placeholder";
@@ -37,8 +37,6 @@ import { type PlotDisplaySettings, usePlotSettingsEditor } from "../../plots/plo
 import { type PromptMarker, promptMarkers } from "../../plots/prompt-markers";
 import type { PlotCardSpec, PlotViewportMode } from "../../plots/types";
 import { usePlotPalette } from "../../plots/use-plot-palette";
-
-import { useSummaryWindowStore } from "../../stores/summary-window-store";
 
 /* === Types === */
 
@@ -157,6 +155,7 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
   const [visible, setVisible] = useState(eager);
   const [mounted, setMounted] = useState(eager);
   const root = useRef<HTMLDivElement>(null);
+  const setVisibleMeasurement = usePlotMeasurements()?.setVisible;
   useEffect(() => {
     const plotId = props.descriptor.plot_id;
     if (eager || !root.current) {
@@ -172,7 +171,7 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
       { rootMargin: "200px" },
     );
     visibilityListeners.set(element, (shown) => {
-      useSummaryWindowStore.getState().setVisible(plotId, shown);
+      setVisibleMeasurement?.(plotId, shown);
       setVisible(shown);
       if (shown) {
         setMounted(true);
@@ -182,9 +181,9 @@ function VisiblePlotCard(props: ComponentProps<typeof LivePlotCard>) {
     return () => {
       visibilityObserver?.unobserve(element);
       visibilityListeners.delete(element);
-      useSummaryWindowStore.getState().setVisible(plotId, null);
+      setVisibleMeasurement?.(plotId, null);
     };
-  }, [eager, props.descriptor.plot_id]);
+  }, [eager, props.descriptor.plot_id, setVisibleMeasurement]);
   return (
     <div ref={root} className="min-w-0" data-plot-viewport={props.descriptor.plot_id}>
       {mounted || eager ? <VisiblePlotContent {...props} visible={visible || eager} /> : <div className="min-h-72" aria-hidden />}
@@ -227,10 +226,10 @@ const LivePlotCard = memo(function LivePlotCard({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { zoom } = usePlotInteraction();
-  const setPanelWidth = useSummaryWindowStore((store) => store.setPanelWidth);
+  const setPanelWidth = usePlotMeasurements()?.setPanelWidth;
   useEffect(() => {
     const panel = panelRef.current;
-    if (!panel || zoom) {
+    if (!panel || !setPanelWidth || zoom) {
       return;
     }
     const measure = () => {

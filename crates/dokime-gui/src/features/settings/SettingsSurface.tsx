@@ -16,7 +16,7 @@ import { failureOf } from "@/lib/notification-details";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
-import { useNavigationMode } from "@/shell/use-sidebar-state";
+import { useNavigationMode } from "@/shell/use-navigation-mode";
 import { useUiStore } from "@/stores/ui-store";
 
 /* === Local Imports === */

@@ -16,8 +16,7 @@
 // Third Party Imports
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import * as lucideReact from "lucide-react";
-import { Bell, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
+import { Bell, History, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 // Local Imports
@@ -46,7 +45,7 @@ import { SidebarFrame } from "@/shell/SidebarFrame";
 const DESTINATIONS: Destination[] = [
   { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
   { icon: Library, label: "Library", prefix: "/library", to: "/library" },
-  { icon: lucideReact.History, label: "History", prefix: "/history", to: "/history" },
+  { icon: History, label: "History", prefix: "/history", to: "/history" },
   { icon: Bell, label: "Notifications", prefix: "/notifications", to: "/notifications" },
   { icon: Settings, label: "Settings", prefix: "/settings", to: "/settings" },
 ];
@@ -78,7 +77,8 @@ type Destination = {
 /* === Components === */
 
 export function Sidebar(props: SidebarProps) {
-  const { mode } = useSidebarState();
+  const sidebar = useSidebarState();
+  const { mode } = sidebar;
   const [drawer, setDrawer] = useState(false);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -104,7 +104,7 @@ export function Sidebar(props: SidebarProps) {
     );
   return (
     <>
-      <SidebarFrame>
+      <SidebarFrame {...sidebar}>
         {props.live === false ? (
           <ul className="grid min-h-0 content-start gap-1 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
             <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />

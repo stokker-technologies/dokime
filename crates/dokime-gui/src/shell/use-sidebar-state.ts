@@ -11,7 +11,7 @@
 
 /* === External Imports === */
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback } from "react";
 
 /* === Local Imports === */
 
@@ -19,13 +19,11 @@ import { useFocusMode } from "./focus-mode";
 import { useShellDensity } from "./use-shell-density";
 import { useUiStore } from "../stores/ui-store";
 
-import { navigationMode, sidebarWidth, type NavigationMode } from "./navigation-model";
+import { type NavigationMode, sidebarFrameWidth, sidebarWidth } from "./navigation-model";
+import { useNavigationMode } from "./use-navigation-mode";
 
 /* === Public Functions === */
 
-export function useNavigationMode() {
-  return useSyncExternalStore(observeViewport, readViewport, () => "desktop" as const);
-}
 export function useSidebarState(): SidebarState {
   const mode = useNavigationMode();
   const density = useShellDensity();
@@ -41,7 +39,8 @@ export function useSidebarState(): SidebarState {
     collapsed,
     toggle,
     mode,
-    width: mode === "phone" ? "0px" : mode === "tablet" ? "4.5rem" : collapsed ? "3.5rem" : `${sidebarWidth(savedWidth)}px`,
+    width: sidebarFrameWidth(mode, collapsed, savedWidth),
+    resize: (width) => setUiState({ sidebarWidth: sidebarWidth(width) }),
   };
 }
 
@@ -49,18 +48,7 @@ export function useSidebarState(): SidebarState {
 export type SidebarState = {
   collapsed: boolean;
   toggle: () => void;
+  resize: (width: number) => void;
   width: string;
   mode: NavigationMode;
 };
-
-/* === Private Functions === */
-function readViewport(): NavigationMode {
-  return navigationMode(typeof window === "undefined" ? 1024 : window.innerWidth);
-}
-function observeViewport(onChange: () => void): () => void {
-  const queries = [window.matchMedia("(min-width: 600px)"), window.matchMedia("(min-width: 1024px)")];
-  for (const query of queries) query.addEventListener("change", onChange);
-  return () => {
-    for (const query of queries) query.removeEventListener("change", onChange);
-  };
-}

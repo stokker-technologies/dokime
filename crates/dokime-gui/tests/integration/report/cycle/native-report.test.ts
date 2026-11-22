@@ -20,7 +20,6 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
-import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { onTestFinished, test, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -28,7 +27,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
 import type { DocumentSurface } from "@/features/cycle/document-view-model";
-import { CycleSnapshotProvider } from "@/features/cycle/snapshot-source";
 import { ReportShell } from "@/report/ReportShell";
 import { ReportCycleWorkspace } from "@/report/ReportCycleWorkspace";
 import { NativeIntegerValue } from "@/lib/api/native-values";
@@ -441,32 +439,14 @@ test("Report Shell Navigation Follows the Subject Even with One Execution", asyn
     const { source, executionId } = await materializeReport(capture);
     assert.equal(source.executions.length, 1);
     assert.equal(executionId, executionSubject ? "execution" : null);
-    const router = createRouter({
-      history: createMemoryHistory({ initialEntries: ["/"] }),
-      routeTree: createRootRoute({
-        component: () =>
-          createElement(
-            CycleSnapshotProvider,
-            { source } as Parameters<typeof CycleSnapshotProvider>[0],
-            createElement(
-              ReportShell,
-              {
-                executionId,
-                frozen: {
-                  cycleId: "cycle",
-                  selection: { executionId: "execution" },
-                  generatedAt: source.generatedAt,
-                  title: "Fixture",
-                  onSelect: executionSubject ? undefined : () => undefined,
-                },
-              } as Parameters<typeof ReportShell>[0],
-              createElement("output", { "data-execution": "execution" }),
-            ),
-          ),
+    const html = renderToStaticMarkup(
+      createElement(ReportShell, {
+        source,
+        selection: { executionId: "execution" },
+        onSelect: executionId === null ? () => undefined : undefined,
+        children: createElement("output", { "data-execution": "execution" }),
       }),
-    });
-    await router.load();
-    const html = renderToStaticMarkup(createElement(RouterProvider, { router }));
+    );
     assert.equal(/<nav\b/.test(html), !executionSubject);
     assert.match(html, /data-execution="execution"/);
     assert.equal(/data-slot="sidebar-brand"/.test(html), !executionSubject);

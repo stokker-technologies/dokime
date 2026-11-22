@@ -15,6 +15,8 @@ import { useNativeSessionOptional } from "@/app/native-session/context";
 import { useReportDefaults } from "@/lib/application-settings";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
+import { PlotMeasurementsContext } from "@/plots/interaction";
+import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import { useLivePlotPayloads } from "@/plots/live-data";
 import { PlotSettingsEditorContext, type PlotDisplaySettings } from "@/plots/plot-settings";
 import { updatePlotSettings } from "../../lib/api/native-document-session";
@@ -32,7 +34,9 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
     <DocumentWorkspacePresentation {...props} />
   ) : (
     <PlotSettingsEditorContext.Provider value={PlotSettingsButton}>
-      <ConnectedDocumentWorkspace {...props} />
+      <PlotMeasurementsContext.Provider value={useSummaryWindowStore.getInitialState()}>
+        <ConnectedDocumentWorkspace {...props} />
+      </PlotMeasurementsContext.Provider>
     </PlotSettingsEditorContext.Provider>
   );
 }
