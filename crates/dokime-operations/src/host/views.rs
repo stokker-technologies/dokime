@@ -20,10 +20,8 @@ use std::future::Future;
 use std::pin::Pin;
 
 // Third Party Imports
-use harmos_operations::storage::{
-    CreateFileProduction, CreateFileProductionRequest, DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest,
-};
-use harmos_protocol::model::{FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
+use harmos_operations::storage::{DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest};
+use harmos_protocol::model::{FileMetadata, FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
 use harmos_runtime::storage::{self, Identifier, StagedFile};
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -32,11 +30,9 @@ use uuid::Uuid;
 
 // Local Imports
 use crate::host::files::transfer;
-use crate::host::files::uploads::{append, delete, publish};
 use crate::host::projection;
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::host::files::{UploadsAppendRequest, UploadsDeleteRequest, UploadsPublishRequest};
 
 /* === Constants === */
 
@@ -232,65 +228,25 @@ async fn retain_owned(
     // Produce the Complete View in Bounded Native Chunks Before Publishing Its Index.
     let digest: [u8; 32] = Sha256::digest(payload).into();
     let request_id = Uuid::now_v7().to_string();
-    let (maximum, mutation) = transfer::admission(context, "Retain View", &request_id).await?;
-    let created = transfer::write(context, "Retain View", &request_id, mutation, |mutation| {
-        context.storage::<CreateFileProduction>(CreateFileProductionRequest {
-            metadata: Some(storage::FileMetadata {
-                id: Identifier::new(format!("view/{request_id}")).map_err(|source| Error::Invalid(format!("Retain View: {source}")))?,
-                scope: Some(scope.clone()),
-                media_type: "application/x-protobuf".into(),
-                expected_length: Some(payload.len() as u64),
-                expected_sha256: Some(digest),
-            }),
-            mutation: Some(mutation),
-        })
-    })
+    let file = transfer::publication(
+        context,
+        "Retain View",
+        &request_id,
+        FileMetadata {
+            id: format!("view/{request_id}"),
+            scope: Some(scope.to_string()),
+            media_type: "application/x-protobuf".into(),
+            expected_length: Some(payload.len() as u64),
+            expected_sha256: Some(digest.to_vec()),
+        },
+        |offset, data| {
+            let start = offset as usize;
+            data.copy_from_slice(&payload[start..start + data.len()]);
+            Ok(())
+        },
+        || sender.is_closed(),
+    )
     .await?;
-    let upload =
-        created.production.map(transfer::upload).ok_or_else(|| Error::Precondition("Retain View: Create Its Native Upload".into()))?;
-    let produced = async {
-        let mut offset = 0;
-        for data in payload.chunks(maximum) {
-            if sender.is_closed() {
-                return Err(Error::Cancelled("Retain View: Read Ended Before Publication".into()));
-            }
-            append::handle(
-                context,
-                UploadsAppendRequest {
-                    upload: Some(upload.clone()),
-                    offset,
-                    data: data.to_vec(),
-                    request_id: format!("{request_id}/{offset}"),
-                },
-            )
-            .await?;
-            offset += data.len() as u64;
-        }
-        if sender.is_closed() {
-            return Err(Error::Cancelled("Retain View: Read Ended Before Publication".into()));
-        }
-        let published = publish::handle(
-            context,
-            UploadsPublishRequest {
-                upload: Some(upload.clone()),
-                length: payload.len() as u64,
-                sha256: digest.to_vec(),
-                request_id: request_id.clone(),
-            },
-        )
-        .await?;
-        published.upload.ok_or_else(|| Error::Precondition("Retain View: Publish Its Native File".into()))
-    }
-    .await;
-    let file = match produced {
-        Ok(file) => file,
-        Err(source) => {
-            if let Err(cleanup) = delete::handle(context, UploadsDeleteRequest { upload: Some(upload), request_id }).await {
-                return Err(Error::Invalid(format!("Retain View: {source}; Remove Its Failed Upload: {cleanup}")));
-            }
-            return Err(source);
-        }
-    };
     if sender.is_closed() {
         discard(context, file, &request_id).await?;
         return Err(Error::Cancelled("Retain View: Read Ended Before Indexing".into()));
@@ -320,7 +276,10 @@ async fn discard(context: &Context, file: FileReference, request_id: &str) -> Re
     let file = storage::FileReference::try_from(file)
         .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;
     let mutation = transfer::mutation(context, "Discard Unused View", request_id).await?;
-    let file = StagedFile { history: file.position.history, id: file.metadata.id };
+    let file = StagedFile {
+        history: file.position.history,
+        id: file.metadata.id,
+    };
     transfer::write(context, "Discard Unused View", request_id, mutation, |mutation| {
         context.storage::<DeleteFile>(DeleteFileRequest {
             file: Some(file.clone()),

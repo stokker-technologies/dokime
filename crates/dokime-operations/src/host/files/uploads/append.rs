@@ -58,7 +58,10 @@ pub async fn handle(context: &Context, request: UploadsAppendRequest) -> Result<
             mutation: None,
         };
         let response = transfer::write(context, ID, &request.request_id, mutation, |mutation| {
-            context.storage::<AppendFileBytes>(AppendFileBytesRequest { mutation: Some(mutation), ..native.clone() })
+            context.storage::<AppendFileBytes>(AppendFileBytesRequest {
+                mutation: Some(mutation),
+                ..native.clone()
+            })
         })
         .await?;
         Ok(UploadsAppendResponse {

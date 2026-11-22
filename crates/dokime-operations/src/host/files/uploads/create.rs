@@ -85,12 +85,12 @@ pub(crate) async fn derived(context: &Context, request: UploadsCreateRequest) ->
             metadata.id = mutation.key.to_string();
         }
         let metadata = storage::FileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
-        let native = CreateFileProductionRequest {
-            metadata: Some(metadata),
-            mutation: None,
-        };
+        let native = CreateFileProductionRequest { metadata: Some(metadata), mutation: None };
         let response = transfer::write(context, ID, &request.request_id, mutation, |mutation| {
-            context.storage::<CreateFileProduction>(CreateFileProductionRequest { mutation: Some(mutation), ..native.clone() })
+            context.storage::<CreateFileProduction>(CreateFileProductionRequest {
+                mutation: Some(mutation),
+                ..native.clone()
+            })
         })
         .await?;
         let upload = response.production.map(transfer::upload);

@@ -53,12 +53,12 @@ pub async fn handle(context: &Context, request: UploadsDeleteRequest) -> Result<
             id: session.id.clone(),
         };
         let mutation = transfer::mutation(context, ID, &request.request_id).await?;
-        let native = DeleteFileProductionRequest {
-            session: Some(session),
-            mutation: None,
-        };
+        let native = DeleteFileProductionRequest { session: Some(session), mutation: None };
         let response = transfer::write(context, ID, &request.request_id, mutation, |mutation| {
-            context.storage::<DeleteFileProduction>(DeleteFileProductionRequest { mutation: Some(mutation), ..native.clone() })
+            context.storage::<DeleteFileProduction>(DeleteFileProductionRequest {
+                mutation: Some(mutation),
+                ..native.clone()
+            })
         })
         .await?;
         let upload = response.production.map(|value| transfer::progress(file, value, 0, value.length, value.length));
