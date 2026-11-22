@@ -70,7 +70,7 @@ pub async fn wait(ctx: &Context, bench: &Bench, samples: u64) -> Result<()> {
     let target = bench.index() + samples;
     loop {
         let remaining = target.saturating_sub(bench.index());
-        if remaining == 0 {
+        if remaining == 0 || ctx.stop_requested() {
             return Ok(());
         }
         let count = u32::try_from(remaining).map_err(|_| Error::Invalid("Wait for Samples: Shorten the Run".into()))?;

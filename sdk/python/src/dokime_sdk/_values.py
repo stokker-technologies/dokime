@@ -56,6 +56,7 @@ class Termination(IntEnum):
     CANCELLED = 3
     INTERRUPTED = 4
     NOT_RUN = 5
+    STOPPED = 6
 
 
 @dataclass(frozen=True)

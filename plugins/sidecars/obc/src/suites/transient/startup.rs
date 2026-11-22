@@ -148,11 +148,12 @@ async fn inrush(ctx: &Context) -> Result<()> {
     bench.sequence(checkpoint, total);
     if ctx.parameter::<bool>("continuous")? {
         // Observe Until a Host Stop or Cancellation Ends the Step
-        loop {
+        while !ctx.stop_requested() {
             suites::wait(ctx, &bench, total).await?;
             let produced = bench.index();
             ctx.progress(produced, produced, "Observing Continuously").await?;
         }
+        return Ok(());
     }
     let produced = bench.index();
     suites::wait(ctx, &bench, checkpoint.saturating_sub(produced)).await?;

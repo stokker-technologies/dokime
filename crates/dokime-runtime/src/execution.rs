@@ -542,6 +542,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             .bind_grpc(&activation, &execution, time.clock.clone(), &owner_context)
             .await
             .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
+        control.bind(&binding)?;
         active.bindings.push((binding, streams));
     }
     // Close Every Binding on Every Exit Before Removing the Sample Scope.
@@ -676,6 +677,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             dokime_operations::host::executions::commands::save(&dispatch.resources.context, &command).await?;
         }
         let mut termination = match &result {
+            Ok(()) if control.stop_requested()? => Termination::Stopped,
             Ok(()) => Termination::Completed,
             Err(Error::Cancelled) => Termination::Cancelled,
             Err(Error::Plugin(_)) => Termination::Failed,
@@ -747,6 +749,9 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     }
     let _finality = resources.context.administration.lock().await;
     host.inner.store.close_streams(&execution)?;
+    if termination == Termination::Completed && control.stop_requested()? {
+        termination = Termination::Stopped;
+    }
     let attribution = if termination == Termination::Failed {
         Attribution::Evaluated(EvaluatedOutcome {
             status: ResultStatus::Failed as i32,
@@ -760,7 +765,9 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     } else {
         Attribution::NotEvaluated(UnevaluatedOutcome {
             termination: termination as i32,
-            reason: result.as_ref().err().map(ToString::to_string).or(interruption).unwrap_or_else(|| "No Evaluated Criteria".into()),
+            reason: result.as_ref().err().map(ToString::to_string).or(interruption).unwrap_or_else(|| {
+                if termination == Termination::Stopped { "Execution Stopped by the Operator" } else { "No Evaluated Criteria" }.into()
+            }),
         })
     };
     host.inner.store.close(&execution, termination, ExecutionOutcome { attribution: Some(attribution) })?;

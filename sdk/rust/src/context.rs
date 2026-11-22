@@ -290,6 +290,12 @@ impl Context {
     pub fn termination(&self) -> Option<Termination> {
         self.termination
     }
+    pub fn stop_requested(&self) -> bool {
+        match &self.transport {
+            Transport::Harmos(transport) => transport.wind_down_requested(),
+            Transport::Local(_) => false,
+        }
+    }
     pub(crate) fn with_termination(mut self, termination: i32) -> Result<Self> {
         self.termination = Some(Termination::try_from(termination).map_err(|_| Error::Invalid("Invalid Cleanup Termination".into()))?);
         Ok(self)

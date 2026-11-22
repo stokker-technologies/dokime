@@ -32,6 +32,7 @@ class CaseStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     CASE_STATUS_CANCELLED: _ClassVar[CaseStatus]
     CASE_STATUS_INTERRUPTED: _ClassVar[CaseStatus]
     CASE_STATUS_NOT_RUN: _ClassVar[CaseStatus]
+    CASE_STATUS_STOPPED: _ClassVar[CaseStatus]
 CASE_STATUS_UNSPECIFIED: CaseStatus
 CASE_STATUS_SKIPPED: CaseStatus
 CASE_STATUS_INVALIDATED: CaseStatus
@@ -44,6 +45,7 @@ CASE_STATUS_BLOCKED: CaseStatus
 CASE_STATUS_CANCELLED: CaseStatus
 CASE_STATUS_INTERRUPTED: CaseStatus
 CASE_STATUS_NOT_RUN: CaseStatus
+CASE_STATUS_STOPPED: CaseStatus
 
 @final
 class CasesCreateRequest(_message.Message, metaclass=GeneratedProtocolMessageType):

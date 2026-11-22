@@ -113,4 +113,7 @@ enum Termination {
 
   // The cycle was sealed before this execution started.
   TERMINATION_NOT_RUN = 5;
+
+  // The operator stopped the run; active work, criteria and cleanup finished normally.
+  TERMINATION_STOPPED = 6;
 }

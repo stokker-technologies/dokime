@@ -5463,6 +5463,7 @@ pub enum CaseStatus {
     Cancelled = 9,
     Interrupted = 10,
     NotRun = 11,
+    Stopped = 12,
 }
 impl CaseStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -5483,6 +5484,7 @@ impl CaseStatus {
             Self::Cancelled => "CASE_STATUS_CANCELLED",
             Self::Interrupted => "CASE_STATUS_INTERRUPTED",
             Self::NotRun => "CASE_STATUS_NOT_RUN",
+            Self::Stopped => "CASE_STATUS_STOPPED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -5500,6 +5502,7 @@ impl CaseStatus {
             "CASE_STATUS_CANCELLED" => Some(Self::Cancelled),
             "CASE_STATUS_INTERRUPTED" => Some(Self::Interrupted),
             "CASE_STATUS_NOT_RUN" => Some(Self::NotRun),
+            "CASE_STATUS_STOPPED" => Some(Self::Stopped),
             _ => None,
         }
     }

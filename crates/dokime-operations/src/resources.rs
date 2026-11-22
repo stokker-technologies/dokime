@@ -55,10 +55,8 @@ pub struct Resources {
 
 /* === Traits === */
 
-#[async_trait]
 pub trait Clock: Send + Sync {
     fn now_ns(&self) -> i64;
-    async fn sleep(&self, duration_ns: i64) -> Result<()>;
 }
 #[async_trait]
 pub trait Prompts: Send + Sync {

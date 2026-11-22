@@ -73,6 +73,9 @@ impl Context {
     pub fn attempt(&self) -> u32 {
         self.inner.attempt()
     }
+    pub fn stop_requested(&self) -> bool {
+        self.inner.stop_requested()
+    }
     pub async fn sleep(&self, duration: Duration) -> Result<()> {
         self.inner.sleep(duration).await
     }

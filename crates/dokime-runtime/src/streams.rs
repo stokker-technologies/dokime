@@ -25,11 +25,10 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 // Third Party Imports
-use async_trait::async_trait;
 use harmos_domain::schema::json::JsonCodec;
 use harmos_protocol::model::Declarations;
 use harmos_runtime::BackendFailure;
@@ -191,7 +190,6 @@ impl ExecutionTime {
     }
 }
 
-#[async_trait]
 impl Clock for ExecutionTime {
     fn now_ns(&self) -> i64 {
         self.clock
@@ -199,11 +197,6 @@ impl Clock for ExecutionTime {
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|value| value.as_nanos() as i64)
             .unwrap_or_else(|value| -(value.duration().as_nanos() as i64))
-    }
-    async fn sleep(&self, duration_ns: i64) -> Result<()> {
-        let duration = u64::try_from(duration_ns).map_err(|source| dokime_operations::Error::Invalid(format!("Sleep: {source}")))?;
-        self.clock.sleep(Duration::from_nanos(duration)).await;
-        Ok(())
     }
 }
 

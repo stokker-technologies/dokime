@@ -166,6 +166,15 @@ test("Not-Run Executions Retain Their Sealed State and Outcome", () => {
   );
 });
 
+test("Stopped Executions Retain Their Sealed State", () => {
+  const outcome = create(ExecutionOutcomeSchema, { attribution: { case: "notEvaluated", value: { termination: Termination.STOPPED } } });
+  const attempt = create(ExecutionSummarySchema, { executionId: "stopped", caseId: "case", state: ExecutionState.SEALED, outcome });
+  const cycle = create(CycleSummarySchema, { cycleId: "cycle" });
+  const execution = mapNativeExecutionSummary(attempt, [], cycle);
+  assert.equal(execution.status, "stopped");
+  assert.equal(execution.sealed, true);
+});
+
 test("Planned Execution Retains Host Start Capability", () => {
   for (const canStart of [true, false]) {
     const attempt = create(ExecutionSummarySchema, {

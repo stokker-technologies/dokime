@@ -15,29 +15,32 @@ context accessor to end their own loops. The stop state belongs to the execution
 and must reach plugin contexts through the existing host/library boundary.
 Runtime policy deadlines remain active and separate from execution waits.
 
-Implementation requires the library's scoped wait owner to support graceful
-early completion. At workspace pin `d9af0b8`, library
-`crates/harmos-runtime/src/operations/clock.rs:174` waits for
-`windows.committed_through(deadline)` after its registered timer returns. Waking
-the clock alone still requests samples through the original, possibly hours-long
-deadline. `operations/manager/mod.rs:223` selects this private unit clock ahead
-of an injected ClockAccess. The product must not duplicate that wait or window
-owner; the library needs an execution stop signal that settles waits and sample
-cuts at actual completion while preserving policy deadlines.
+Library revision `253e3b7c2f8e0456b8ec810da10fe824d1775726` supplies graceful
+scope wind-down. Each bound execution owner registers its library WindDown handle
+with run control; Stop requests those handles, including bindings admitted after
+Stop. The library settles scoped waits and sample cuts at actual completion and
+keeps policy deadlines and cancellation unchanged. The product owns no second
+wait implementation or plugin stop state.
 
-The product protocol also needs an owned contract change: its Termination enum
-has no Stopped value, Executions.Get is CLIENTS-only, and Backend.Environment
-does not expose stop state. Neither SDK can expose the requested state through
-an existing plugin operation. Protocol changes and regenerated bindings are
-outside this worker's ownership; runtime/SDK adoption and real-host proof remain
-blocked on these capabilities, with no compatibility path or second mechanism.
+The protocol adds `Termination::Stopped` and `CaseStatus::Stopped`.
+Python `ctx.stop_requested` and Rust
+`ctx.stop_requested()` delegate directly to the library context accessor. A Stop
+ends step admission normally, then evaluates criteria and runs cleanup before
+sealing Stopped. Its criterion evidence remains retained; the execution's outcome
+identifies the stop rather than presenting a complete-run verdict. Cancel still
+aborts the active invocation and seals Cancelled after cleanup.
 
-Overlap for the owner: product `crates/dokime-operations/src/resources.rs:59`
-declares Clock.sleep, implemented by `crates/dokime-runtime/src/streams.rs:202`,
-but no product operation calls it. Library `operations/clock.rs:174` implements
-the active scoped wait used by SDK Time.Sleep calls. Prefer deleting the unused
-product sleep trait method and implementation; this worker leaves both intact
-pending the owner's overlap decision.
+OBC's sample-target wait and continuous startup loop also read the same SDK
+accessor. A released sleep must not restart an unfinished sample target or keep
+continuous observation running after Stop.
+
+The owner authorized removal of the unused product `Clock.sleep` declaration in
+`crates/dokime-operations/src/resources.rs` and its runtime implementation in
+`crates/dokime-runtime/src/streams.rs`. SDK Time.Sleep remains library-owned.
+
+Protocol generation reads the exported README from `proto/export.md`; its former
+`docs/project/protocol-export.md` input was deleted on dev. The export text is
+preserved at its new source path; documentation-site contents are untouched.
 
 ## Library State and Ownership
 
