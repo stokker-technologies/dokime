@@ -128,8 +128,7 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
             str(profile_file),
             "--profile",
             nextest.PROFILE,
-            "--no-tests",
-            "fail",
+            *([] if "--no-run" in compiler_arguments else ["--no-tests", "fail"]),
             *values,
         ]
         print(f"Run Rust Stories: {shlex.join(command)}", flush=True)

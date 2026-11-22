@@ -76,6 +76,7 @@ usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Sy
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups",
+  "{{vars.tools}} dokime_tools.build.protocol --inputs-only",
   "{% if not usage.tools_only and not usage.docs_only %}mise run build:python{% endif %}",
   "{% if not usage.tools_only and not usage.docs_only %}mise -C sdk/python run install{% endif %}",
   "{% if not usage.tools_only and (usage.docs_only or not usage.without_frontend) %}pnpm install --frozen-lockfile{% endif %}",
@@ -83,12 +84,10 @@ run = [
 
 [tasks."generate"]
 description = "Generate Clients from Contracts"
-usage = 'flag "--check" help="Check Bindings; Requires --protocol"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"; flag "--language <language>" { choices "python" }'
+usage = 'flag "--check" help="Check Checked-In Protocol Bindings"; flag "--protocol" help="Generate Checked-In Protocol Bindings Only"; flag "--language <language>" { choices "python" }'
 run = """
-{% if usage.protocol %}
+{% if usage.protocol or usage.check %}
 {{vars.tools}} dokime_tools.build.protocol {% if usage.check %}--check{% endif %}{% if usage.language %} --language {{usage.language}}{% endif %}
-{% elif usage.check %}
-python -c "raise SystemExit('Check Protocol: Add --protocol; Native Client Drift Returns With the Desktop')"
 {% else %}
 {{vars.tools}} dokime_tools.prepare.generated --generate
 {% endif %}
@@ -96,7 +95,11 @@ python -c "raise SystemExit('Check Protocol: Add --protocol; Native Client Drift
 
 [tasks.format]
 description = "Format Every Language"
-run = ["buf format --write", "{{vars.tools}} dokime_tools.ci.tasks format"]
+run = [
+  "{{vars.tools}} dokime_tools.build.protocol --inputs-only",
+  "buf format proto --write",
+  "{{vars.tools}} dokime_tools.ci.tasks format",
+]
 
 [tasks.lint]
 description = "Lint Every Language"
@@ -285,9 +288,9 @@ hide = true
 description = "Check Repository Configuration"
 run = [
   { task = "format:toml --check" },
-  "buf format --diff --exit-code",
-  # D6 Reuses Library Payloads; Upstream Owns the Vendored Protocol's Lint Policy.
-  "buf lint --exclude-path proto/harmos",
+  "{{vars.tools}} dokime_tools.build.protocol --inputs-only",
+  "buf format proto --diff --exit-code",
+  "buf lint",
   "{{vars.tools}} dokime_tools.build.protocol_callers",
   "{{vars.tools}} dokime_tools.ci.mise",
   "shellcheck --version",
@@ -709,14 +712,7 @@ run = "{{vars.tools}} dokime_tools.release.run python-dry"
 [tasks."prepare:locks"]
 hide = true
 description = "Refresh Dependency Locks After a Library Pin Change"
-run = [
-  "cargo update --package harmos",
-  "cargo update --manifest-path sdk/rust/tests/consumer/Cargo.toml --package harmos",
-  "cargo fetch --locked",
-  "cargo fetch --manifest-path sdk/rust/tests/consumer/Cargo.toml --locked",
-  "uv lock",
-  "uv lock --project sdk/python",
-]
+run = "{{vars.tools}} dokime_tools.build.protocol --locks"
 
 [tasks."check:locks"]
 hide = true

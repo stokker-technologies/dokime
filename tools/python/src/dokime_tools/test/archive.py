@@ -141,12 +141,12 @@ def require(directory: Path, profile: str) -> Path:
 
 
 def install_wheels(directory: Path, profile: str) -> None:
-    roots = [paths.output(directory, "build", profile, "any") / "python"]
-    wheels = sorted(path for root in roots for path in root.glob("*.whl"))
+    root = paths.output(directory, "build", profile, "any") / "python"
+    wheels = sorted(root.glob("*.whl"))
     names = [path.name.split("-", 1)[0].replace("_", "-").lower() for path in wheels]
     if len(names) != len(set(names)):
         raise policy.TestError("Run Archive Tests: ambiguous built wheels in the shared output")
-    if any(root.is_dir() for root in roots) and not wheels:
+    if root.is_dir() and not wheels:
         raise policy.TestError("Run Archive Tests: missing built wheels in the selected profile/target")
     if wheels:
         environment = dict(os.environ)
@@ -169,6 +169,29 @@ def install_wheels(directory: Path, profile: str) -> None:
             cwd=directory,
             env=environment,
             check=True,
+        )
+
+        # Prepare Examples Without Replacing the Selected SDK Wheel.
+        subprocess.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                sys.executable,
+                "--no-deps",
+                "--reinstall",
+                str(directory / "sdk/python/examples/client"),
+                str(directory / "sdk/python/examples/starter"),
+                str(directory / "sdk/python/examples/thermal"),
+            ],
+            cwd=directory,
+            env=environment,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
         )
 
 
@@ -240,7 +263,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
 def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequence[str] = ()) -> None:
     """Keep One Layer's Binaries and All Runtime Inputs Without Unpacking Other Test Layers."""
     metadata_name = "target/nextest/binaries-metadata.json"
-    with tarfile.open(path, "r|zst") as source:
+    source = tarfile.open(path, "r|zst")
+    try:
         member = next((member for member in source if member.name == metadata_name), None)
         metadata = source.extractfile(member) if member is not None else None
         if metadata is None:
@@ -284,13 +308,18 @@ def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequ
         document["rust-binaries"] = included
         if not document["rust-binaries"]:
             raise policy.TestError(f"Run Archive Tests: nextest archive has no {category} binaries")
+    finally:
+        source.close()
 
     # Stream The Archive Again So Memory And Disk Follow The Selected Lane's Inputs.
-    with tarfile.open(path, "r|zst") as source:
+    source = tarfile.open(path, "r|zst")
+    try:
         for member in source:
             if member.name in omitted:
                 continue
             source.extract(member, destination, filter="data")
+    finally:
+        source.close()
     (destination / metadata_name).write_text(json.dumps(document), encoding="utf-8")
 
 

@@ -12,16 +12,20 @@
 # === Imports === #
 
 # Standard Library Imports
+import runpy
 import shutil
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 # Third Party Imports
 # Local Imports
 from dokime_tools import policy
+from dokime_tools.build import paths
 from dokime_tools.release import contracts
+from dokime_tools.test.archive import install_wheels
 
 # Type Checking Imports
 
@@ -36,6 +40,27 @@ from dokime_tools.release import contracts
 
 
 class ContractsTests(unittest.TestCase):
+    def test_sdk_install_uses_selected_profile_and_shared_example_preparation(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, scratch)
+        for profile in ("dev", "release"):
+            directory = paths.output(scratch, "build", profile, "any") / "python"
+            directory.mkdir(parents=True)
+            wheel = directory / "dokime_sdk-0.1.5-py3-none-any.whl"
+            wheel.touch()
+            with mock.patch("dokime_tools.test.archive.subprocess.run") as install:
+                install_wheels(scratch, profile)
+            commands = [call.args[0] for call in install.call_args_list]
+            self.assertEqual(len(commands), 2)
+            self.assertEqual(commands[0][-1], str(wheel))
+            self.assertIn("--no-deps", commands[1])
+            self.assertEqual(commands[1][-3:], [str(scratch / "sdk/python/examples" / name) for name in ("client", "starter", "thermal")])
+        script = Path(__file__).resolve().parents[4] / "sdk/python/tools/installed.py"
+        with mock.patch.dict("os.environ", {"DOKIME_BUILD_PROFILE": "release"}):
+            with mock.patch("dokime_tools.test.archive.install_wheels") as install:
+                runpy.run_path(str(script))["main"]()
+        install.assert_called_once_with(script.parents[3], "release")
+
     def test_archive_requires_the_complete_import_closure(self) -> None:
         scratch = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, scratch)

@@ -95,7 +95,7 @@ class RecordingServer:
 
 def main() -> None:
     root = Path(__file__).resolve().parents[3]
-    sources = root / "proto"
+    sources = root / "target/protocol"
     manifest = json.loads(files("dokime_sdk").joinpath("_wire").joinpath("sources.json").read_text())
     expected = {path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")}
     if manifest != expected:

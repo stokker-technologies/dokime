@@ -14,12 +14,10 @@
 # Standard Library Imports
 import runpy
 import shutil
-import tarfile
 import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
-from tarfile import TarInfo
 from unittest import mock
 
 # isort: split
@@ -29,7 +27,8 @@ from unittest import mock
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol import cpp_dependency, library_dependencies, library_protocol
+from dokime_tools.build import protocol
+from dokime_tools.build.protocol import cpp_dependency, library_dependencies
 from dokime_tools.build.protocol_callers import check_public_surfaces
 
 # Type Checking Imports
@@ -44,37 +43,60 @@ from dokime_tools.build.protocol_callers import check_public_surfaces
 
 
 class GenerationContracts(unittest.TestCase):
-    def test_library_protocol_replaces_the_inventory_and_rejects_drift(self) -> None:
+    def test_protocol_inputs_export_the_workspace_pin_and_replace_product_inputs(self) -> None:
         scratch = Path(tempfile.mkdtemp())
-        archive = BytesIO()
-        files = tarfile.open(fileobj=archive, mode="w:gz")
-        try:
-            for name, data in {
-                "library/proto/harmos/plugin/v1/plugins/state.proto": b"state contract",
-                "library/proto/other/ignored.proto": b"other contract",
-            }.items():
-                entry = TarInfo(name)
-                entry.size = len(data)
-                files.addfile(entry, BytesIO(data))
-        finally:
-            files.close()
-        try:
-            stale = scratch / "proto/harmos/removed.proto"
-            stale.parent.mkdir(parents=True)
-            stale.write_bytes(b"removed contract")
-            library_protocol(scratch, archive.getvalue())
-            self.assertFalse(stale.exists())
-            self.assertFalse((scratch / "proto/other").exists())
-            library_protocol(scratch, archive.getvalue(), check=True)
-            state = scratch / "proto/harmos/plugin/v1/plugins/state.proto"
-            self.assertEqual(state.read_bytes(), b"state contract")
-            state.write_bytes(b"changed contract")
-            self.assertRaises(ValueError, library_protocol, scratch, archive.getvalue(), check=True)
-            library_protocol(scratch, archive.getvalue())
-            library_protocol(scratch, archive.getvalue(), check=True)
-            self.assertRaises(tarfile.ReadError, library_protocol, scratch, b"not an archive")
-        finally:
-            shutil.rmtree(scratch)
+        self.addCleanup(shutil.rmtree, scratch)
+        manifest = scratch / "Cargo.toml"
+        manifest.write_text('[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "first"\n')
+        product = scratch / "proto/dokime/model/v1/value.proto"
+        product.parent.mkdir(parents=True)
+        product.write_text("product contract")
+
+        def export(command: list[str], **options: object) -> None:
+            output = Path(command[command.index("--output") + 1])
+            source = output / "harmos/model/v1/value.proto"
+            source.parent.mkdir(parents=True)
+            source.write_text(command[2])
+
+        with mock.patch.object(protocol.subprocess, "run", side_effect=export) as run:
+            output = protocol.inputs(scratch)
+            self.assertEqual(run.call_args.args[0][2], "https://example.test/library.git#ref=first,subdir=proto,depth=2147483647")
+            self.assertEqual((output / "dokime/model/v1/value.proto").read_text(), "product contract")
+            product.unlink()
+            protocol.inputs(scratch)
+            self.assertFalse((output / "dokime/model/v1/value.proto").exists())
+            self.assertEqual(run.call_count, 1)
+            manifest.write_text(manifest.read_text().replace('"first"', '"second"'))
+            protocol.inputs(scratch)
+            self.assertEqual(run.call_count, 2)
+            self.assertIn("ref=second", (output / "harmos/model/v1/value.proto").read_text())
+        self.assertFalse((scratch / "proto/harmos").exists())
+
+    def test_pin_projection_and_lock_refresh_precede_locked_generation(self) -> None:
+        root = Path.cwd()
+        with (
+            mock.patch.object(protocol.sys, "argv", ["protocol", "--language", "python"]),
+            mock.patch.object(protocol, "library_dependencies", return_value=True) as projection,
+            mock.patch.object(protocol, "locks") as locks,
+            mock.patch.object(protocol, "inputs") as inputs,
+            mock.patch.object(protocol.subprocess, "run") as run,
+        ):
+            order = mock.Mock()
+            order.attach_mock(projection, "project")
+            order.attach_mock(locks, "locks")
+            order.attach_mock(run, "reload")
+            protocol.main()
+            self.assertEqual([call[0] for call in order.mock_calls], ["project", "locks", "reload"])
+            inputs.assert_not_called()
+            projection.assert_called_once_with(root, check=False)
+            locks.assert_called_once_with(root)
+            self.assertEqual(run.call_args.args[0][-2:], ["--language", "python"])
+        with mock.patch.object(protocol.subprocess, "run") as run:
+            protocol.locks(root)
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[0], ["cargo", "update", "--package", "harmos"])
+        self.assertEqual(commands[-1], ["uv", "sync", "--locked", "--all-groups"])
+        self.assertLess(commands.index(["uv", "lock"]), commands.index(commands[-1]))
 
     def test_manifest_pins_follow_workspace_and_reject_each_stale_consumer(self) -> None:
         scratch = Path(tempfile.mkdtemp())

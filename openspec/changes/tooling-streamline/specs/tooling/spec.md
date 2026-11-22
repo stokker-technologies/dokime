@@ -1,5 +1,45 @@
 ## ADDED Requirements
 
+### Requirement: One Pinned Protocol Inventory
+
+Generation SHALL resolve library protocols from the workspace Cargo library
+revision into ignored build storage and SHALL NOT track a vendored copy.
+All language generators and Buf SHALL consume those resolved library inputs.
+
+#### Scenario: Fresh Clone Generation
+
+- **WHEN** a developer generates without an existing protocol export
+- **THEN** generation exports the pinned library's proto directory from git and stages current product protocols automatically
+
+#### Scenario: Generated Drift
+
+- **WHEN** a developer runs either generation check entry point
+- **THEN** it resolves the same inputs and rejects missing, extra or changed generated output without rewriting it
+
+#### Scenario: Pin Change Bootstrap
+
+- **WHEN** a developer edits the workspace library revision and runs protocol generation once
+- **THEN** one projection owner updates consumer manifests before refreshing locks and tooling and invoking the locked generator
+
+### Requirement: Shared SDK Installation
+
+The SDK install task SHALL reuse profile-aware wheel installation and the same
+example-distribution preparation used by binding checks and test consumers.
+
+#### Scenario: Selected Profile Installation
+
+- **WHEN** SDK installation selects a build profile
+- **THEN** the shared installer installs that profile's wheels and the example fixtures without replacing them with a hard-coded dev wheel
+
+### Requirement: Compile-Only Focused Selection
+
+Focused compile-only selections SHALL omit nextest's ignored empty-test policy.
+
+#### Scenario: Compile Without Execution
+
+- **WHEN** a focused selection includes --no-run
+- **THEN** its command omits --no-tests while executed selections retain empty-test failure
+
 ### Requirement: Language-Agnostic Entry Points
 
 A developer SHALL be able to prepare, generate, format, lint, check, build, test, benchmark and package the project through one task each, without knowing which languages it contains.

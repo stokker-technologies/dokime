@@ -14,12 +14,10 @@
 # Standard Library Imports
 import argparse
 import hashlib
-import io
 import runpy
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
 import tomllib
 import urllib.request
@@ -50,15 +48,14 @@ from dokime_tools.process import spawn_flags
 # === Public Functions === #
 
 
-def cpp_dependency(root: Path, *, check: bool = False) -> bytes:
+def cpp_dependency(root: Path, *, check: bool = False) -> None:
     """Bind the C++ Archive Checksum to the Workspace Library Revision."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     dependency = manifest["workspace"]["dependencies"]["harmos"]
     url = f"{dependency['git']}/archive/{dependency['rev']}.tar.gz"
     response = urllib.request.urlopen(url)
     try:
-        archive = response.read()
-        checksum = hashlib.sha256(archive).hexdigest()
+        checksum = hashlib.file_digest(response, "sha256").hexdigest()
     finally:
         response.close()
     text = (
@@ -80,50 +77,43 @@ def cpp_dependency(root: Path, *, check: bool = False) -> bytes:
             raise ValueError("Check C++ Dependency: Run mise run generate -- --protocol to Refresh the Pinned Archive and Checksum")
     else:
         path.write_text(text, encoding="utf-8", newline="\n")
-    return archive
 
 
-def library_protocol(root: Path, archive: bytes, *, check: bool = False) -> None:
-    """Refresh Vendored Protocol Inputs From the Same Pinned Library Archive."""
-    files = tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz")
-    expected: dict[Path, bytes] = {}
-    try:
-        for member in files.getmembers():
-            relative = Path(*Path(member.name).parts[1:])
-            if not member.isfile() or not relative.is_relative_to("proto/harmos"):
-                continue
-            source = files.extractfile(member)
-            if source is None:
-                raise ValueError("Vendor Library Protocol: Download a Complete Library Archive")
-            try:
-                expected[relative] = source.read()
-            finally:
-                source.close()
-    finally:
-        files.close()
-    if not expected:
-        raise ValueError("Vendor Library Protocol: Download an Archive Containing proto/harmos")
-    existing = {path.relative_to(root) for path in (root / "proto/harmos").rglob("*") if path.is_file()}
-    if check:
-        differences = existing ^ expected.keys()
-        differences.update(path for path in existing & expected.keys() if (root / path).read_bytes() != expected[path])
-        if differences:
-            raise ValueError("Check Library Protocol: Run mise run generate -- --protocol\n" + "\n".join(map(str, sorted(differences))))
-        return
-    for relative in existing - expected.keys():
-        (root / relative).unlink()
-    for relative, data in expected.items():
-        destination = root / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(data)
+def inputs(root: Path) -> Path:
+    """Resolve Library Inputs at the Workspace Pin and Stage Current Product Sources."""
+    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+    dependency = manifest["workspace"]["dependencies"]["harmos"]
+    # Git's Infinite Depth Keeps Old Pins Reachable After the Default Branch Advances.
+    source = f"{dependency['git'].removesuffix('.git')}.git#ref={dependency['rev']},subdir=proto,depth=2147483647"
+    output = root / "target/protocol"
+    stamp = output / ".revision"
+    if not stamp.is_file() or stamp.read_text(encoding="utf-8") != source:
+        if output.exists():
+            shutil.rmtree(output)
+        subprocess.run(
+            ["buf", "export", source, "--output", str(output)],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        stamp.write_text(source, encoding="utf-8")
+    product = output / "dokime"
+    if product.exists():
+        shutil.rmtree(product)
+    shutil.copytree(root / "proto/dokime", product)
+    return output
 
 
-def library_dependencies(root: Path, *, check: bool = False) -> None:
+def library_dependencies(root: Path, *, check: bool = False) -> bool:
     """Generate or Verify Required Manifest Literals From the Workspace Pin."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     dependency = manifest["workspace"]["dependencies"]["harmos"]
     source = dependency["git"]
     revision = dependency["rev"]
+    changed = False
     manifests = (
         (Path("Cargo.toml"), ("workspace", "dependencies")),
         (Path("sdk/rust/tests/consumer/Cargo.toml"), ("dev-dependencies",)),
@@ -142,8 +132,9 @@ def library_dependencies(root: Path, *, check: bool = False) -> None:
         if check:
             if text != original:
                 raise ValueError(f"Check Library Pin: Run mise run generate -- --protocol to Refresh {relative}")
-        else:
+        elif text != original:
             path.write_text(text, encoding="utf-8", newline="\n")
+            changed = True
 
     path = root / "sdk/python/pyproject.toml"
     original = path.read_text(encoding="utf-8")
@@ -158,8 +149,24 @@ def library_dependencies(root: Path, *, check: bool = False) -> None:
         archive = f"URL {source}/archive/{revision}.tar.gz\n"
         if archive not in (root / "sdk/cpp/cmake/Dependencies.cmake").read_text(encoding="utf-8"):
             raise ValueError("Check Library Pin: Run mise run generate -- --protocol to Refresh the C++ Archive")
-    else:
+    elif text != original:
         path.write_text(text, encoding="utf-8", newline="\n")
+        changed = True
+    return changed
+
+
+def locks(root: Path) -> None:
+    """Refresh Locks and Tooling After the Pin's Manifest Projection."""
+    for command in (
+        ["cargo", "update", "--package", "harmos"],
+        ["cargo", "update", "--manifest-path", "sdk/rust/tests/consumer/Cargo.toml", "--package", "harmos"],
+        ["cargo", "fetch", "--locked"],
+        ["cargo", "fetch", "--manifest-path", "sdk/rust/tests/consumer/Cargo.toml", "--locked"],
+        ["uv", "lock"],
+        ["uv", "lock", "--project", "sdk/python"],
+        ["uv", "sync", "--locked", "--all-groups"],
+    ):
+        subprocess.run(command, cwd=root, check=True, creationflags=spawn_flags(), stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def configuration(root: Path) -> Configuration:
@@ -270,12 +277,35 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--language", choices=("python",))
+    parser.add_argument("--inputs-only", action="store_true")
+    parser.add_argument("--locks", action="store_true")
     options = parser.parse_args()
-    library_dependencies(Path.cwd(), check=options.check)
+    root = Path.cwd()
+    if options.locks and (options.check or options.inputs_only or options.language):
+        parser.error("--locks cannot be combined with generation selections")
+    if options.inputs_only:
+        inputs(root)
+        return
+    changed = library_dependencies(root, check=options.check)
+    if options.locks or changed:
+        locks(root)
+        if options.locks:
+            return
+        # Reload the Generator From the Newly Selected Tooling Environment.
+        subprocess.run(
+            [sys.executable, "-m", "dokime_tools.build.protocol", *sys.argv[1:]],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        return
+    inputs(root)
     # Generate or Verify the C++ Archive Against the Workspace Pin.
     if options.language is None:
-        archive = cpp_dependency(Path.cwd(), check=options.check)
-        library_protocol(Path.cwd(), archive, check=options.check)
+        cpp_dependency(Path.cwd(), check=options.check)
     if options.check and options.language is None:
         # Verify Protocol Output Against Its Generator.
         command = ["mise", "run", "test", "--", "--package", "dokime-protocol", "--target", "integration"]

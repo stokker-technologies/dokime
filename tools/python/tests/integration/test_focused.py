@@ -300,6 +300,7 @@ class ChangedPathsTests(unittest.TestCase):
             self.assertLess(command.index("--features"), command.index("--"))
             self.assertEqual(command[-3:], ["--", "--exact", "save"])
             self.assertEqual(command[command.index("--no-tests") + 1], "fail")
+            self.assertNotIn("--no-tests", observed[1][0])
             self.assertEqual(options["env"]["CARGO_BUILD_WARNINGS"], "deny")
             self.assertEqual(options["env"]["CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER"], "custom-linker")
             self.assertFalse(profile["fail-fast"])

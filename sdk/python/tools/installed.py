@@ -11,14 +11,12 @@
 # === Imports === #
 
 # Standard Library Imports
-import subprocess
-import sys
+import os
 from pathlib import Path
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build.paths import output
-from dokime_tools.process import spawn_flags
+from dokime_tools.test.archive import install_wheels
 
 # Type Checking Imports
 
@@ -35,31 +33,7 @@ from dokime_tools.process import spawn_flags
 
 def main() -> None:
     root = Path(__file__).resolve().parents[3]
-    wheels = list((output(root, "build", "dev", "any") / "python").glob("*.whl"))
-    if len(wheels) != 1:
-        raise ValueError("Build exactly one SDK wheel first")
-    subprocess.run(
-        ["uv", "pip", "install", "--python", sys.executable, "--reinstall-package", "dokime-sdk", str(wheels[0])],
-        check=True,
-        creationflags=spawn_flags(),
-    )
-    # Install the Example Distributions Without Replacing the Selected SDK Wheel.
-    subprocess.run(
-        [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            sys.executable,
-            "--no-deps",
-            "--reinstall",
-            str(root / "sdk/python/examples/client"),
-            str(root / "sdk/python/examples/starter"),
-            str(root / "sdk/python/examples/thermal"),
-        ],
-        check=True,
-        creationflags=spawn_flags(),
-    )
+    install_wheels(root, os.environ.get("DOKIME_BUILD_PROFILE", "dev"))
 
 
 # === Private Functions === #

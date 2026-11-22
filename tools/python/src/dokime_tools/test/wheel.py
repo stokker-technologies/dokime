@@ -29,6 +29,7 @@ from tempfile import mkdtemp
 
 # Local Imports
 from ..build import paths
+from ..build.protocol import inputs
 from ..process import spawn_flags
 
 # Type Checking Imports
@@ -51,6 +52,8 @@ def main() -> None:
     parser.add_argument("--generated-only", action="store_true")
     options = parser.parse_args()
     root = Path.cwd()
+    if options.stubs:
+        inputs(root)
     stub_requirements = tomllib.loads((root / "sdk/python/pyproject.toml").read_text(encoding="utf-8"))["dependency-groups"]["stubs"]
     wheels = list((paths.output(root, "build", options.profile, "any") / "python").glob("*.whl"))
     if len(wheels) != 1:
