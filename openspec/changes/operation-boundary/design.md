@@ -121,7 +121,7 @@ delivery; it is not permission to begin another open change.
 
 | Owner | Source Set and Required Replacement |
 | --- | --- |
-| 1.6–1.7 | `crates/dokime-storage/src/execution.rs`, `persisted.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/{storage,executions/commands}/**`; `crates/dokime-runtime/src/services/{composition,mod}.rs`: persisted objects, frozen schemas, exact scopes, durable evidence-cut ownership, native backend registration and inline command-recovery proof. |
+| 1.6, 1.7a–1.7b | `crates/dokime-storage/src/execution.rs`, `persisted.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/{storage,executions/commands}/**`; `crates/dokime-runtime/src/services/{composition,mod}.rs`: persisted objects, frozen schemas, exact scopes, native backend registration and inline command-recovery proof. Remaining execution-owned evidence-cut issuance and retention are consolidated into 2.3. |
 | 2.2–2.4 | Storage `store.rs`, `cycles.rs`, `history.rs`, `resource_values.rs`, `evidence_positions.rs`, `outcome.rs`; runtime `execution.rs`, `execution_manager.rs`, `run_control.rs`, `capabilities.rs`, `host.rs`; operations `host/{cases,cycles,executions}/**`, `host/execution_state.rs`, `host/projection.rs`: lifecycle, bindings, attributed outcomes, seal and deletion policy. Command persistence in `host/executions/commands/**` also adopts exact E. |
 | 3.3–3.5 | Runtime `streams.rs` and composition's sample consumer; operations `resources.rs`, `host/evidence/**`; storage `telemetry.rs`, `telemetry/{codec,writer,reader,catalog}.rs`, `ipc.rs`, `ipc/**`: admitted columnar intake, records, notes, traceability, health, native row watches and frozen decoding. Physical Arrow/catalog code survives only under the backend. |
 | 4.4–4.5 | Runtime `documents.rs`, `prompts.rs`, `reports.rs`; operations `host/{documents,prompts,prompt_definitions,reports,content,files}/**`, `host/views.rs`, `host/catalog_inventory.rs`, `host/record_schemas/**`, `host/evidence/archive.rs`; storage `content.rs`, `content_name.rs`, `document_values.rs`, `report.rs`: source reads at C, explicit publication and byte-preserving archives. |
@@ -596,7 +596,7 @@ The backend still refuses scope deletion until all its productions are settled.
 
 G4 adoption does not implement the coupled lifecycle/evidence replacement:
 2.3 finalization, 2.4 guarded execution deletion, 2.2 lifecycle/history and the
-remaining 1.6/1.7 consumers stay open until their own replacement and proof.
+remaining 1.6 consumers and execution-owned cut retention in 2.3 stay open until their own replacement and proof.
 
 The independent SQL command and note APIs are retired. Note ownership and
 open-owner policy belong to the host evidence operations, shared by native
@@ -611,23 +611,14 @@ occupied retired journals refuse admission with an action to select a fresh
 root, preserving their bytes. No migration, legacy payload reader or reset is
 performed.
 
-#### Desktop Brand Input Ownership Conflict
+#### Desktop Brand Input Ownership
 
-The workspace test-target compile is blocked by a REWORK outside this worker's
-ownership. `crates/dokime-gui/src-tauri/build.rs::brand_text` reads
-`crates/dokime-gui/src/generated/organization/default-organization.json`, while
-`tools/python/src/dokime_tools/build/organization.py::generate` writes the
-canonical brand into `packages/document/src/generated/organization` for the
-shared document/report package. `mise run generate` supplies that canonical
-output; it does not recreate the retired GUI-local directory. The desktop build
-script consequently fails before desktop test targets can compile.
-
-The desktop owner must reconcile the remaining consumer with the shared package
-owner. Recommend deleting the GUI-local path assumption and reading the canonical
-package's generated brand, preserving the existing missing-input check. Restoring
-a second generated directory, copying files, a symlink or a path shim would keep
-two designs alive. No GUI, package or tooling source is changed by this worker;
-workspace compilation remains unproved until its owner repairs the consumer.
+`crates/dokime-gui/src-tauri/build.rs::brand_text` reads the canonical
+`packages/document/src/generated/organization/default-organization.json` written
+by `tools/python/src/dokime_tools/build/organization.py::generate`. The retired
+GUI-local brand directory is no longer a build input. Run `mise run generate`
+before compiling runtime or desktop consumers to prepare their generated inputs,
+including the runtime's `target/generated/report/report.html` template.
 
 ## Stored Envelope Coarsening at the Pinned Revision
 
@@ -647,7 +638,7 @@ The remaining task closures retain their coupled consumer dependencies:
 
 | Tasks | Required Completion |
 | --- | --- |
-| 1.6, 1.7 | Migrate the remaining persisted shapes, frozen bindings and execution-owned retained cuts with their canonical lifecycle/evidence consumers. Shape-only scaffolds do not close these tasks. |
+| 1.6 | Migrate the remaining persisted shapes and frozen bindings with their canonical lifecycle/evidence consumers. Shape-only scaffolds do not close this task; execution-owned retained cuts are consolidated into 2.3. |
 | 2.2–2.4, 3.3–3.5, 4.4–4.5, 5.1–5.3 | Switch the canonical lifecycle, intake, queries, watches, seal and preview owners together. The former coarsening gap no longer blocks their implementation; their own source and focused proof remain open. |
 | 6.1, 6.2a, 6.4 | Finish bootstrap/removal and complete-cutover guides after all canonical consumers replace the Store. Retaining the Store or claiming those consumers migrated would not close these tasks. |
 
@@ -736,15 +727,33 @@ preserving the existing SQL identity/key metadata. Keep both until the owner dec
 this prefix repair reads only SQL key metadata when pruning and introduces no new
 payload store or reader.
 
-`crates/dokime-storage/src/cycles.rs::{command,save_command,interrupt_commands}`
-and `crates/dokime-operations/src/host/executions/commands/mod.rs` both implement
-command persistence and restart interruption. The SQL methods have no remaining
-repository callers; runtime `run_control.rs`, `execution.rs` and
-`services/mod.rs` call the native operations, as do the command RPC handlers.
-Prefer deleting the unused SQL methods and their `commands` table/refusal path
-under the owner's coupled ledger-removal decision. This persisted-shape change
-replaces the native administration envelope only; it does not independently
-delete that discovered SQL mechanism.
+Backend `ScanPage` readers return at least the first matching entry even when
+that entry alone exceeds the page byte budget; subsequent entries end the
+page before exceeding that budget. This removes the storage-side rejection of
+individually oversized rows without changing accepted sizes or library scan/watch
+bounds. The payload ownership overlap remains an owner
+decision and no longer blocks typed note/event adoption. The pinned reference
+backend's identity reader still refuses an over-budget response; the product
+identity reader follows this task's explicit first-entry progress decision.
+Recovery, columnar and index work limits retain their separate strict contracts.
+
+### Maximum Note Client Retention for Owner Review
+
+The accepted-maximum note journey has a separate client admission REWORK at
+Harmos `59822db5d5299aa24ea6d00957abcda1a4bde1d3`. Dokime's runtime
+`tests/support/mod.rs::client_settings` uses the same 4 MiB value for
+`message_bytes` and `retained_bytes`. Harmos
+`sdk/rust/src/connection/admission.rs::allocations` charges twice each string's
+length plus allocation and message overhead; `connection/codec.rs::claim`
+therefore refuses the create response for a 2 MiB note with
+`client retained_bytes bound exceeded`. The runtime story stops at Create,
+before edit/list/watch catch-up/replay/restart can be proved.
+
+The per-message accepted size and conservative decoded-memory admission must
+be reconciled by their owner at the pinned SDK boundary. Keep all bounds and
+accepted sizes unchanged; do not bypass the SDK, reduce the test payload or
+add a second reader. The unlanded failing journey is omitted from the passing
+backend subset; the complete maximum-note journey remains open in 3.3c.
 
 ### Populated Release Measurement Baseline
 
