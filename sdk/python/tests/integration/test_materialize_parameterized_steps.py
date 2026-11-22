@@ -159,11 +159,20 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             def create(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
                 materialized.append(parameters)
                 case.step("Read", self.read)
+                case.criterion("Declared Parameters", self.resolved_parameters)
 
             @step("Read")
             async def read(self, ctx: Context) -> None:
                 if ctx.parameter(RadioTestTemplate.channel) != 6:
                     raise ValueError("Select Wi-Fi Channel 6")
+
+            @criterion("Declared Parameters")
+            async def resolved_parameters(self, ctx: Context) -> bool:
+                return (
+                    ctx.parameter(RadioTestTemplate.channel) == 6
+                    and ctx.parameter(RadioTestTemplate.country) == "CH"
+                    and ctx.parameter(RadioTestTemplate.power) == 5.0
+                )
 
         class RadioSuite(Suite):
             templates = (RadioTestTemplate,)
