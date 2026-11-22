@@ -19,7 +19,10 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
+    result,
     sync::Arc,
+    task::{Context, Poll, Waker},
 };
 
 // Third Party Imports
@@ -28,8 +31,9 @@ use arrow_schema::SchemaRef;
 use arrow_schema::{DataType, Field, Schema};
 use arrow_select::filter::filter_record_batch;
 use harmos_domain::Identifier;
-use harmos_domain::model::storage::query::{Source as QuerySource, StreamSelection, TimeMerge, TimeMergeMode};
+use harmos_domain::model::storage::query::{self, StreamSelection, TimeMerge, TimeMergeMode};
 use harmos_domain::model::storage::{PayloadEncoding, ReadLimits, SchemaKey, StorageCursor, StoreHistory};
+use harmos_protocol::model::Declarations;
 use harmos_query::TableReader;
 use harmos_query::batches::{BatchPage, BatchReader, QueryFuture};
 use harmos_query::merge::TimeMergeReader;
@@ -43,12 +47,10 @@ use harmos_query::{
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use rusqlite::params;
-use std::num::NonZeroU32;
-use std::task::{Context, Poll, Waker};
 
 // Local Imports
 use crate::{
-    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store,
+    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store, plot_selection,
     scalar::{self, Agg, ScalarValue},
     telemetry::codec::Codec,
 };
@@ -63,7 +65,6 @@ use dokime_protocol::model::RecordContracts;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::origin;
 use dokime_protocol::model::transform_expression;
-use harmos_protocol::model::Declarations;
 
 /* === Constants === */
 
@@ -106,6 +107,21 @@ struct RetainedTable {
 
 /* === Implementations === */
 
+impl Projection {
+    pub(crate) fn source(&self) -> Result<Source> {
+        if !self.stream.is_empty() {
+            return Ok((false, self.stream.clone()));
+        }
+        self.fields
+            .values()
+            .chain(self.grouping.iter())
+            .chain(self.filters.iter().filter_map(|filter| filter.expression.as_ref()))
+            .find_map(plot_selection::reference)
+            .map(|(reference, record)| (record, reference.identifier.clone()))
+            .ok_or(Error::Data("Render Plot: Bind at Least One Stored Stream or Record Expression"))
+    }
+}
+
 impl Store {
     pub(crate) fn constant_expression(&self, cut: &ExecutionCut, expression: &DataExpression) -> Result<ScalarValue> {
         let evaluation = Evaluation {
@@ -136,7 +152,8 @@ impl Store {
         let mut inputs = expressions.clone();
         inputs.extend(plan.filters.iter().filter_map(|f| f.expression.clone()));
         inputs.extend(plan.grouping.clone());
-        self.evaluate(&plan.cut, (false, window.stream.into()), BatchSelection::from(window), &inputs, |evaluation, batch| {
+        let source = plan.source()?;
+        self.evaluate(&plan.cut, source, BatchSelection::from(window), &inputs, |evaluation, batch| {
             let mut columns = Vec::new();
             for (field, expression) in fields.iter().zip(&expressions) {
                 let values = (0..batch.num_rows()).map(|row| evaluation.value(expression, &batch, row, 0)).collect::<Result<Vec<_>>>()?;
@@ -305,22 +322,18 @@ impl Store {
             return Ok(codec.as_ref().clone());
         }
         let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
-        let message = if source.0 {
-            let contracts = catalog
-                .sections
-                .iter()
-                .filter(|s| s.r#type == "dokime.model.v1.RecordContracts")
-                .map(|s| RecordContracts::decode(s.payload.as_slice()))
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            contracts
-                .into_iter()
-                .flat_map(|c| c.records)
-                .find(|c| c.metadata.as_ref().is_some_and(|m| m.identifier == source.1))
-                .map(|c| c.message)
-        } else {
-            catalog.streams.iter().find(|s| s.id == source.1).map(|s| s.row.clone())
-        }
-        .ok_or_else(|| Error::Invalid(format!("Query Evidence: Declare Source {}", source.1)))?;
+        let contracts = catalog
+            .sections
+            .iter()
+            .filter(|s| s.r#type == "dokime.model.v1.RecordContracts")
+            .map(|s| RecordContracts::decode(s.payload.as_slice()))
+            .collect::<result::Result<Vec<_>, _>>()?;
+        let message = contracts
+            .into_iter()
+            .flat_map(|c| c.records)
+            .find(|c| c.metadata.as_ref().is_some_and(|m| m.identifier == source.1))
+            .map(|c| c.message)
+            .ok_or_else(|| Error::Invalid(format!("Query Evidence: Declare Source {}", source.1)))?;
         let pool = DescriptorPool::from_file_descriptor_set(catalog.types.ok_or(Error::Data("restore frozen descriptors"))?)
             .map_err(|_| Error::Data("restore valid frozen descriptors"))?;
         Codec::new(pool.get_message_by_name(&message).ok_or(Error::Data("restore the source row descriptor"))?)
@@ -367,7 +380,7 @@ impl Store {
                         ],
                         |row| row.get::<_, Vec<u8>>(0),
                     )?
-                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .collect::<result::Result<Vec<_>, _>>()?
             };
             if bytes.is_empty() {
                 break;
@@ -572,7 +585,7 @@ fn align(store: &Store, cut: &ExecutionCut, base: &Table, right: &Table, name: &
         payload_encoding: PayloadEncoding::PostcardV1,
     };
     let plan = TimeMerge {
-        source: QuerySource::Stream(StreamSelection {
+        source: query::Source::Stream(StreamSelection {
             schema,
             scope: None,
             item: None,
@@ -696,18 +709,17 @@ pub(crate) fn values_array(values: &[ScalarValue]) -> Result<ArrayRef> {
     })
 }
 pub(crate) fn accumulator(kind: Aggregate, percentile: f64) -> Result<Accumulator> {
-    use harmos_storage::Aggregate as EngineAggregate;
     let kind = match kind {
-        Aggregate::Count => EngineAggregate::Count,
-        Aggregate::Sum => EngineAggregate::Sum,
-        Aggregate::Min => EngineAggregate::Min,
-        Aggregate::Max => EngineAggregate::Max,
-        Aggregate::Mean => EngineAggregate::Mean,
-        Aggregate::Stddev => EngineAggregate::Std,
-        Aggregate::Rms => EngineAggregate::Rms,
-        Aggregate::Median => EngineAggregate::Median,
+        Aggregate::Count => harmos_storage::Aggregate::Count,
+        Aggregate::Sum => harmos_storage::Aggregate::Sum,
+        Aggregate::Min => harmos_storage::Aggregate::Min,
+        Aggregate::Max => harmos_storage::Aggregate::Max,
+        Aggregate::Mean => harmos_storage::Aggregate::Mean,
+        Aggregate::Stddev => harmos_storage::Aggregate::Std,
+        Aggregate::Rms => harmos_storage::Aggregate::Rms,
+        Aggregate::Median => harmos_storage::Aggregate::Median,
         Aggregate::Percentile if percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 => {
-            EngineAggregate::Percentile(percentile as u8)
+            harmos_storage::Aggregate::Percentile(percentile as u8)
         }
         _ => return Err(Error::Data("select a supported aggregate and an integer percentile from 0 to 100")),
     };

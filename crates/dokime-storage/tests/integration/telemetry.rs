@@ -1004,7 +1004,16 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     execution.catalog = catalog.encode_to_vec();
     store.create(&execution)?;
     store.open_stream("execution", "readings")?;
-    for (record, time) in [("start", 2_000_000_000), ("finish", 4_000_000_000), ("start", 6_000_000_000)] {
+    for (record, time) in [
+        ("start", 2_000_000_000),
+        ("finish", 4_000_000_000),
+        ("start", 6_000_000_000),
+        ("finish", 10_000_000_000),
+        ("start", 12_000_000_000),
+        ("finish", 14_000_000_000),
+        ("start", 16_000_000_000),
+        ("finish", 22_000_000_000),
+    ] {
         let payload = RecordsAppendRequest {
             payload: Vec::new(),
             ..Default::default()
@@ -1044,7 +1053,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
         &cut,
         &PlotRequest {
             stream: "readings".into(),
-            y_expressions: vec![expression],
+            y_expressions: vec![expression.clone()],
             ..Default::default()
         },
     )?;
@@ -1055,6 +1064,28 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     })?;
     assert_eq!(statistics.count, 2);
     assert_eq!(statistics.mean.unwrap().kind, Some(value::Kind::Number(2.0)));
+
+    // Anchor a Record-Only Selection to Its Occurrences, Without Repeating Values at Stream Samples.
+    let selected = reader.plot_selection(
+        &cut,
+        &PlotRequest {
+            x_expression: Some(expression),
+            series_by: Some("label".into()),
+            ..Default::default()
+        },
+    )?;
+    let Some(data_expression::Kind::Stream(field)) = &selected.request.x_expression.as_ref().unwrap().kind else { unreachable!() };
+    let histogram = reader.histogram_window(
+        NumericWindow {
+            stream: "",
+            field: &field.field,
+            ..numeric(cut.frontier)
+        },
+        2,
+    )?;
+    assert_eq!(histogram.count, 4);
+    let bins = histogram.bins.iter().map(|bin| (bin.lower, bin.upper, bin.count)).collect::<Vec<_>>();
+    assert_eq!(bins, vec![(2.0, 4.0, 2), (4.0, 6.0, 2)]);
     Ok(())
 }
 

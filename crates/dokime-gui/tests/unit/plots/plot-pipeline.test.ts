@@ -21,7 +21,7 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { SnapshotsWatchResponseSchema } from "@host/model";
+import { DataExpressionSchema, PlotKind, SnapshotsWatchResponseSchema } from "@host/model";
 import { Downsample, PlotStreamKind } from "@host/model";
 import { mapNativePlotWatchPage, toNativePlotRequest } from "@/lib/api/native-plots";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@dokime/plots/lib/types";
@@ -114,6 +114,37 @@ test("Viewport and Panel Width Reach the Native Request With Defaults Enabled", 
   assert.equal(native.panelWidth, 960);
   assert.ok((native.maxPoints ?? 0n) > 0n);
   assert.throws(() => toNativePlotRequest({ ...input, panelWidth: 0 }));
+});
+
+test("Record-Only Document Intervals Reach the Native Histogram Request", () => {
+  const interval = create(DataExpressionSchema, {
+    kind: {
+      case: "transform",
+      value: {
+        input: { kind: { case: "record", value: { identifier: "connected", field: "" } } },
+        kind: { case: "timeBetween", value: "disconnected" },
+      },
+    },
+  });
+  const plot: DocumentViewPlot = {
+    plot_id: "intervals",
+    title: "Intervals",
+    stream: "",
+    plot_type: "histogram",
+    style: "line",
+    x_scale: "linear",
+    y_scale: "linear",
+    fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
+    y: [],
+    x_expression: interval,
+    histogram: { bins: 2 },
+  };
+  const native = toNativePlotRequest(plotRequestForDocumentPlot(plot, { scope: null }));
+  assert.equal(native.stream, "");
+  assert.equal(native.plotType, PlotKind.HISTOGRAM);
+  assert.deepEqual(native.xExpression, interval);
+  assert.deepEqual(native.yExpressions, []);
+  assert.equal(native.histogram?.bins, 2n);
 });
 
 test("The Native Watch Decodes Bucket Deltas and Independent Statistics", () => {
