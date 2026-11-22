@@ -132,15 +132,6 @@ export function seriesLegendColumns(unit?: string | null): SeriesLegendColumn[] 
 }
 
 /**
- * A legend value column's fixed width. It depends on the column alone, never
- * on its unit (the full heading can truncate), so every statistics table on a
- * page lines its columns up; the x cursor holds a full date and clock.
- */
-export function seriesLegendColumnWidth(id: SeriesLegendColumn["id"]): string {
-  return id === "xCursor" ? "w-52" : "w-32";
-}
-
-/**
  * One row per trace, in trace order. Statistics come from the backend summary
  * with the trace's key; a trace without one shows dashes rather than numbers
  * the browser computed from its reduced points.

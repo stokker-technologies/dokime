@@ -22,6 +22,7 @@ import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { XyPlot } from "@dokime/plots/catalog/XyPlot";
+import { TimeSeriesPlot } from "@dokime/plots/catalog/TimeSeriesPlot";
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { documentPlotSpec } from "@dokime/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@dokime/plots/lib/types";
@@ -213,4 +214,55 @@ test("Plot Placeholder Failures Retain Their Title and Settings Action", () => {
   assert.equal(host.querySelector(".plot-card strong")?.textContent, descriptor.title);
   assert.ok(host.querySelector(".plot-card button[aria-label]"));
   assert.ok(host.querySelector('.plot-card [role="alert"]'));
+});
+
+test("Live and Frozen Plots Keep All Traces in One Card Below the Description", async () => {
+  const { host, root } = mountPlot();
+  const series = Array.from({ length: 12 }, (_, index) => ({
+    key: `trace-${index}`,
+    label: `Trace ${index + 1}`,
+    raw_points: 3,
+    downsampled: false,
+    points: [],
+  }));
+  const plot = documentPlotSpec({
+    plot: { ...descriptor, plot_type: "time_series", description: "Signal over the shown window." },
+    payload: {
+      ...payload,
+      series,
+      cartesian: { ...payload.cartesian!, point_count: 36, series: series.map(() => payload.cartesian!.series[0]) },
+      summaries: series.map((trace) => ({ series_id: trace.key, count: 3, min: 1000, max: 1000.5, mean: 1000.25 })),
+    },
+  });
+  for (const viewportMode of ["live", "fit"] as const) {
+    await act(async () =>
+      root.render(
+        createElement(TimeSeriesPlot, {
+          plot,
+          viewportMode,
+          actions: createElement("button", { type: "button", "aria-label": "Plot Settings" }),
+        }),
+      ),
+    );
+    const card = host.querySelector("article.plot-card")!;
+    assert.equal(host.querySelectorAll("article").length, 1);
+    assert.ok(card.classList.contains("border"));
+    const [header, chart, description, statistics] = Array.from(card.children);
+    assert.ok(header.querySelector('button[aria-label="Plot Settings"]'));
+    assert.ok(header.querySelector("button[aria-pressed]"));
+    assert.ok(chart.querySelector(".min-h-60"));
+    assert.equal(description.tagName, "P");
+    assert.equal(description.textContent, plot.description);
+    const table = statistics.querySelector('table[aria-label="Trace Statistics"]')!;
+    assert.equal(table.querySelectorAll("tbody tr").length, 12);
+    assert.equal(card.querySelectorAll('[data-slot="data-table"], input, select, tfoot').length, 0);
+    assert.equal(statistics.querySelectorAll("h1, h2, h3, h4, h5, h6, .border").length, 0);
+    const toggle = table.querySelector("tbody button")!;
+    await act(async () => toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    assert.equal(toggle.getAttribute("aria-pressed"), "false");
+    assert.ok(toggle.querySelector('[data-trace-hidden="true"]'));
+    await act(async () => toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    assert.equal(toggle.getAttribute("aria-pressed"), "true");
+    assert.equal(table.querySelectorAll("tbody tr").length, 12);
+  }
 });

@@ -16,9 +16,10 @@ import { useMemo } from "react";
 import { AbbreviatedValue } from "./AbbreviatedValue";
 import { DataTable } from "./data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "./data-table/data-table-model";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { formatUnitLabel } from "../lib/format";
 import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "../lib/statistics";
-import { formatSummaryValue, seriesLegendColumnWidth, statsSummaryCells } from "../lib/statistics";
+import { formatSummaryValue, statsSummaryCells } from "../lib/statistics";
 import { cn } from "../lib/utils";
 
 /* === Types === */
@@ -102,35 +103,6 @@ function rowLabel(row: DescribedRow): string {
   return row.label;
 }
 
-function legendRowKey(row: SeriesLegendRow): string {
-  return row.key;
-}
-
-function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLegendRow> {
-  const legend = dataTableColumns<SeriesLegendRow>();
-  return columns.map(({ header, id }) => {
-    if (id === "trace") {
-      return legend.accessor("label", {
-        cell: ({ row }) => <TraceCell row={row.original} />,
-        header,
-        id,
-        meta: { label: header, primary: true, width: "w-44" },
-      });
-    }
-    const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);
-    return legend.accessor(read, {
-      // Cells keep the exact statistic for sorting, filters and the title;
-      // a long value is shown abbreviated.
-      cell: ({ getValue, row }) => (
-        <AbbreviatedValue className={cn("tabular-nums", row.original.hidden && "opacity-50")} exact={getValue()} />
-      ),
-      header,
-      id,
-      meta: { align: "end", label: header, truncate: true, width: seriesLegendColumnWidth(id) },
-    });
-  }) as DataTableColumns<SeriesLegendRow>;
-}
-
 /* === Private Components === */
 
 function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled: boolean }) {
@@ -162,20 +134,53 @@ function DescribedStatsTable({ rows, titled }: { rows: StatsSummaryRow[]; titled
 }
 
 function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
-  const columns = useMemo(() => legendColumns(legend.columns), [legend.columns]);
   const onToggle = legend.onToggle;
   return (
-    <DataTable
-      aria-label="Trace Statistics"
-      title="Trace Statistics"
-      description="Statistics for the shown window; select a trace to toggle its visibility."
-      className={cn("transition-opacity", legend.pending && "opacity-50")}
-      columns={columns}
-      data={legend.rows}
-      emptyText="No Traces Recorded"
-      getRowId={legendRowKey}
-      onRowClick={onToggle ? (row) => onToggle(row.key) : undefined}
-    />
+    <Table aria-label="Trace Statistics" className={cn("transition-opacity", legend.pending && "opacity-50")}>
+      <TableHeader>
+        <TableRow>
+          {legend.columns.map(({ header, id }) => (
+            <TableHead className={id === "trace" ? undefined : "text-right"} key={id}>
+              {header}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {legend.rows.map((row) => (
+          <TableRow
+            className={onToggle ? "cursor-pointer" : undefined}
+            data-row-id={row.key}
+            key={row.key}
+            onClick={onToggle ? () => onToggle(row.key) : undefined}
+          >
+            {legend.columns.map(({ id }) => (
+              <TableCell className={id === "trace" ? undefined : "text-right tabular-nums"} key={id}>
+                {id === "trace" ? (
+                  onToggle ? (
+                    <button type="button" aria-pressed={!row.hidden} className="block w-full text-left">
+                      <TraceCell row={row} />
+                    </button>
+                  ) : (
+                    <TraceCell row={row} />
+                  )
+                ) : (
+                  <AbbreviatedValue
+                    className={cn(row.hidden && "opacity-50")}
+                    exact={id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]}
+                  />
+                )}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+        {legend.rows.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={legend.columns.length}>No Traces Recorded</TableCell>
+          </TableRow>
+        ) : null}
+      </TableBody>
+    </Table>
   );
 }
 

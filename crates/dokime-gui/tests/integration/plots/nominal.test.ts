@@ -36,7 +36,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 // Local Imports
-import { StatsSummaryTable } from "@dokime/plots/components/StatsSummaryTable";
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
@@ -48,7 +47,6 @@ import { jsonToNativeValue } from "@dokime/plots/lib/host/values";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
-  seriesLegendColumnWidth,
   seriesLegendColumns,
   seriesLegendRows,
   statsSummaryCells,
@@ -1513,23 +1511,9 @@ test("Series Legend", () => {
       assert.equal(suffix, ["trace", "xCursor", "count"].includes(column.id) ? "" : ` [${unit}]`);
       assert.doesNotMatch(column.header, /[\r\n]/);
     });
-    const html = renderToStaticMarkup(
-      createElement(StatsSummaryTable, {
-        legend: { columns, rows: [], pending: false },
-      }),
-    );
-    const headings = html.match(/<thead\b[\s\S]*?<\/thead>/)?.[0] ?? "";
-    assert.match(headings, /class="[^"]*truncate[^"]*" title="[^"<>]* \[/);
-    assert.doesNotMatch(headings, /whitespace-normal|overflow-wrap:anywhere/);
   }
   assert.equal(formatUnitLabel("fixture", "  "), "fixture");
   assert.equal(formatUnitLabel("fixture", " ms "), "fixture [ms]");
-  // Widths Depend on the Column Alone, So Every Table on a Page Lines up Whatever Its Unit
-  const widths = (unit: string | null) => seriesLegendColumns(unit).map((column) => seriesLegendColumnWidth(column.id));
-  assert.deepEqual(widths("dBm"), widths(null));
-  assert.deepEqual(widths("M\u03a9"), widths("V"));
-  assert.deepEqual(widths(null).slice(1), ["w-52", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32", "w-32"]);
-
   // Rows Follow Trace Order and Read Each Trace's Own Backend Summary
   const rows = seriesLegendRows({ hidden: new Set(), summaries: SUMMARIES, traces: TRACES });
   assert.deepEqual(
