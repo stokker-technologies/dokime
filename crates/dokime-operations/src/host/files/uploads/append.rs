@@ -51,19 +51,19 @@ pub async fn handle(context: &Context, request: UploadsAppendRequest) -> Result<
             return Err(Error::Bound(format!("{ID}: Respect the Returned Chunk Bound")));
         }
         let session = transfer::session(request.upload)?;
-        let mut native = AppendFileBytesRequest {
+        let native = AppendFileBytesRequest {
             session: Some(session),
             offset: request.offset,
             data: request.data,
-            mutation: Some(mutation),
+            mutation: None,
         };
-        let response = match context.storage::<AppendFileBytes>(native.clone()).await {
-            Err(source) if transfer::expired(&source) => {
-                native.mutation = Some(transfer::mutation(context, ID, &request.request_id).await?);
-                context.storage::<AppendFileBytes>(native).await?
-            }
-            response => response?,
-        };
+        let response = transfer::write(context, ID, &request.request_id, mutation, |mutation| {
+            context.storage::<AppendFileBytes>(AppendFileBytesRequest {
+                mutation: Some(mutation),
+                ..native.clone()
+            })
+        })
+        .await?;
         Ok(UploadsAppendResponse {
             upload: response.production.map(transfer::upload),
             receipt: response.receipt,

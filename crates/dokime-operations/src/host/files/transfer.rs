@@ -17,10 +17,11 @@
 
 // Standard Library Imports
 use std::error;
+use std::future::Future;
 
 // Third Party Imports
 use harmos_operations::storage::{Info, InfoRequest};
-use harmos_protocol::model::{FileReference, History, Upload, UploadState};
+use harmos_protocol::model::{FileMetadata, FileReference, History, Upload, UploadState};
 use harmos_runtime::BackendFailure;
 use harmos_runtime::Identifier;
 use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, MutationId, StagedFile, StoreHistory};
@@ -28,7 +29,9 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::host::Context;
+use crate::host::files::uploads::{append, create, delete, publish};
 use crate::{Error, Result};
+use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
 use dokime_storage::persisted::Scope;
 
 /* === Constants === */
@@ -77,6 +80,83 @@ pub(crate) async fn mutation(context: &Context, action: &str, request_id: &str) 
     let mutation = MutationId { window: window.id, key };
     tracing::debug!(action, request_id, window = %mutation.window, mutation = %mutation.key, "Admit Storage Mutation");
     Ok(mutation)
+}
+
+pub(crate) async fn write<T, F: Future<Output = Result<T>>>(
+    context: &Context, action: &'static str, request_id: &str, identity: MutationId, call: impl FnMut(MutationId) -> F,
+) -> Result<T> {
+    retry(action, identity, mutation(context, action, request_id), call).await
+}
+
+pub(crate) async fn publication(
+    context: &Context, action: &str, request_id: &str, metadata: FileMetadata, mut read: impl FnMut(u64, &mut [u8]) -> Result<()>,
+    cancelled: impl Fn() -> bool,
+) -> Result<FileReference> {
+    let length = metadata.expected_length.ok_or_else(|| Error::Invalid(format!("{action}: Supply the File Length")))?;
+    let digest = metadata.expected_sha256.clone().ok_or_else(|| Error::Invalid(format!("{action}: Supply the File Digest")))?;
+    let created = create::derived(
+        context,
+        UploadsCreateRequest {
+            metadata: Some(metadata),
+            request_id: format!("{request_id}/create"),
+        },
+    )
+    .await?;
+    let upload = created.upload.ok_or_else(|| Error::Precondition(format!("{action}: Create Its Native Upload")))?;
+    let result = async {
+        let mut offset = 0;
+        while offset < length {
+            if cancelled() {
+                return Err(Error::Cancelled(format!("{action}: Read Ended Before Publication")));
+            }
+            let count = (length - offset).min(created.chunk_bytes) as usize;
+            let mut data = vec![0; count];
+            read(offset, &mut data)?;
+            append::handle(
+                context,
+                UploadsAppendRequest {
+                    upload: Some(upload.clone()),
+                    offset,
+                    data,
+                    request_id: format!("{request_id}/{offset}"),
+                },
+            )
+            .await?;
+            offset += count as u64;
+        }
+        if cancelled() {
+            return Err(Error::Cancelled(format!("{action}: Read Ended Before Publication")));
+        }
+        let published = publish::handle(
+            context,
+            UploadsPublishRequest {
+                upload: Some(upload.clone()),
+                length,
+                sha256: digest,
+                request_id: format!("{request_id}/publish"),
+            },
+        )
+        .await?;
+        published.upload.ok_or_else(|| Error::Precondition(format!("{action}: Publish Its Native File")))
+    }
+    .await;
+    match result {
+        Ok(file) => Ok(file),
+        Err(source) => {
+            if let Err(cleanup) = delete::handle(
+                context,
+                UploadsDeleteRequest {
+                    upload: Some(upload),
+                    request_id: format!("{request_id}/delete"),
+                },
+            )
+            .await
+            {
+                return Err(Error::Invalid(format!("{action}: {source}; Remove Its Failed Upload: {cleanup}")));
+            }
+            Err(source)
+        }
+    }
 }
 
 pub(crate) fn expired(source: &Error) -> bool {
@@ -146,6 +226,21 @@ pub(crate) fn progress(file: StagedFile, progress: FileProgress, generation: u64
 
 /* === Private Functions === */
 
+async fn retry<T, F: Future<Output = Result<T>>>(
+    action: &'static str, identity: MutationId, fresh: impl Future<Output = Result<MutationId>>, mut call: impl FnMut(MutationId) -> F,
+) -> Result<T> {
+    match call(identity).await {
+        Err(source) if expired(&source) => {
+            let identity = fresh.await?;
+            call(identity).await.map_err(|source| match source {
+                Error::Native { source, .. } => Error::Native { action, source },
+                source => source,
+            })
+        }
+        result => result,
+    }
+}
+
 fn chunk_limit(context: &Context, file_batch_bytes: u64) -> Result<usize> {
     let available = context.settings.message_bytes.saturating_sub(1024);
     let maximum = usize::try_from(file_batch_bytes).unwrap_or(usize::MAX).min(available);
@@ -171,10 +266,10 @@ fn mutation_key(context: &Context, action: &str, request_id: &str) -> Result<Ide
 mod tests {
     use std::sync::Arc;
 
-    use super::{expired, progress, session, staged, upload};
+    use super::{expired, progress, retry, session, staged, upload};
     use harmos_protocol::model::{History, Upload, UploadState};
     use harmos_runtime::operations::FailureKind;
-    use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, StoreHistory};
+    use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, MutationId, StoreHistory};
     use harmos_runtime::{BackendFailure, Failure, Identifier};
 
     #[test]
@@ -196,6 +291,83 @@ mod tests {
             source: Arc::new(failure),
         };
         assert!(expired(&crate::Error::Native { action: "Write File", source }));
+    }
+
+    #[test]
+    fn expired_write_refreshes_once() {
+        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        runtime.block_on(async {
+            for expires_again in [false, true] {
+                let initial = MutationId {
+                    window: Identifier::new("old-window").unwrap(),
+                    key: Identifier::new("request").unwrap(),
+                };
+                let fresh = MutationId {
+                    window: Identifier::new("current-window").unwrap(),
+                    ..initial.clone()
+                };
+                let mut calls = Vec::new();
+                let mut refreshed = false;
+                let result = retry(
+                    "Retain View",
+                    initial.clone(),
+                    async {
+                        refreshed = true;
+                        Ok(fresh.clone())
+                    },
+                    |identity| {
+                        calls.push(identity);
+                        let result = if calls.len() == 1 || expires_again {
+                            let source = harmos_runtime::Error::backend(
+                                "Create File",
+                                BackendFailure::MutationExpired,
+                                std::io::Error::other("expired"),
+                            );
+                            Err(crate::Error::Native { action: "Create File", source })
+                        } else {
+                            Ok("published")
+                        };
+                        std::future::ready(result)
+                    },
+                )
+                .await;
+                assert!(refreshed);
+                assert_eq!(calls, vec![initial, fresh]);
+                if expires_again {
+                    assert!(matches!(result, Err(crate::Error::Native { action: "Retain View", .. })));
+                } else {
+                    assert_eq!(result.unwrap(), "published");
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn writes_only_refresh_expired_identities() {
+        let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        runtime.block_on(async {
+            for kind in [None, Some(BackendFailure::Transient), Some(BackendFailure::Conflict)] {
+                let initial = MutationId {
+                    window: Identifier::new("current-window").unwrap(),
+                    key: Identifier::new("request").unwrap(),
+                };
+                let mut calls = 0;
+                let result = retry("Retain View", initial, async { panic!("unexpected refresh") }, |_| {
+                    calls += 1;
+                    let result = match kind {
+                        None => Ok(()),
+                        Some(kind) => Err(crate::Error::Native {
+                            action: "Create File",
+                            source: harmos_runtime::Error::backend("Create File", kind, std::io::Error::other("failed")),
+                        }),
+                    };
+                    std::future::ready(result)
+                })
+                .await;
+                assert_eq!(calls, 1);
+                assert_eq!(result.is_ok(), kind.is_none());
+            }
+        });
     }
 
     fn producer() -> FileProducer {

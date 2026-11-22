@@ -845,13 +845,12 @@ worker prohibitions on release profiles and lint.
 ## Browsing View Retention Ownership
 
 `crates/dokime-operations/src/host/views.rs::read` retains a native file index per
-resource/content digest and a separate `view-at` index per resource/evidence position.
-Both carry the supplied resource scope. `retain` removes only a newly produced file
-that lost a publication race; no normal read, page completion, disconnect or shutdown
-releases a published view or either index. Administration uses `ObjectRetention::All`.
-This explains growth during a desktop session and across restarts: viewport selections
-change resource keys, response changes create content revisions, and new evidence
-positions create additional cut indexes even for unchanged response bytes.
+resource/content digest with the supplied resource scope. The redundant `view-at` index was removed
+by the 2026-11-22 decision. `retain` removes newly produced files on index failure, publication-race
+loss or ended observation; normal read completion, disconnect and shutdown still do not release an
+indexed view. Administration uses `ObjectRetention::All`. Viewport selections change resource keys
+and response changes create content revisions, so retained views still grow during a session and
+across restarts until session retirement is implemented.
 
 The native backend's `backend/compound.rs::delete_scope` can tombstone scoped objects
 and files. `host/cases/storage.rs::delete` already calls native `DeleteScope` for C,
@@ -890,13 +889,16 @@ connection loss from an operation error. Session-owned retirement remains deferr
 while this prerequisite is unresolved. Failure cleanup is independent and follows
 the document-read decision below.
 
-The same `views.rs::read` has two retained-reference lookup paths: position-only
-client cuts select `view-at:{resource}:{epoch}:{sequence}`, while returned cuts with
-a resource revision select `view:{resource}:{digest}`. Both resolve a native file
-through `retained`; catalog, document, content, plot and report read operations call
-this function with their client's cut. Prefer deleting the position-only lookup and
-`view-at` index family after canonical cuts and their consumers migrate, subject to
-the owner's contract decision. Keep both paths and their existing accepted cuts now.
+Generic retained reads use only `view:{resource}:{digest}` and require the returned canonical cut
+with its resource revision. The 2026-11-22 decision supersedes acceptance of position-only generic
+view cuts: no repository caller constructs those cuts for this reader. Position-only execution
+evidence and plot-definition cuts have independent evidence readers and never selected this view
+index. Delete the `view-at` lookup and writer together; a generic caller that omits its revision
+must supply the returned cut. Existing development roots are never reset or migrated. Legacy SQL-root rejection in
+`crates/dokime-storage/src/store.rs` and its guard in
+`crates/dokime-storage/tests/integration/resource_positions.rs` still recognize old `view-at`
+journal entries, preserving their bytes while refusing admission. These are incompatible-root
+guards, not native view-index readers or writers, and remain unchanged.
 
 ## Document Card Result Reads
 
@@ -929,7 +931,7 @@ and deletes the unfinished upload or unindexed published file. Index rejection
 and publication-race loss delete only the newly produced file. Existing operation
 bounds remain unchanged. This failure cleanup does not implement session-owned
 view retirement, which still requires the library connection-lifetime contract.
-Both generic view index families remain used and retain the earlier owner decision.
+Generic views now retain only the canonical revision index, per the 2026-11-22 decision below.
 
 Upload Append, Create, Resume and retained-view file creation read native Info once
 for their chunk limit and mutation window.
@@ -942,9 +944,8 @@ not retire either owner implicitly.
 
 | Locations | Responsibilities and Callers | Preferred Removal |
 | --- | --- | --- |
-| `crates/dokime-operations/src/host/views.rs::read` position-only `view-at` lookup and revision-based `view` lookup | Catalog, case, document, content, plot and report readers use the same retained file through two index families, selected by the caller's cut shape. | Delete `view-at` after every caller uses its returned canonical revision. Both accepted cut shapes remain supported now. |
-| `crates/dokime-operations/src/host/reports/create.rs` upload loop and `crates/dokime-operations/src/host/views.rs::retain_owned` upload loop | Reports.Create uploads temporary HTML; latest resource reads upload protobuf views. Both create, append and publish native files with failure cleanup. | Delete the report-specific loop after the transfer owner exposes bounded publication for both byte producers; preserve their distinct durable and browsing owners. |
-| `crates/dokime-gui/src/features/cycle/server-state.ts::capturedDocuments` and the same file's root `useQuery` hooks | Execution/cycle document hooks retain mapped payloads in the query cache and again alongside native captures in a separately capped map. Card queries read the latter for declarations and the root cut. | Delete `capturedDocuments` after root queries own native captures and project their view with the existing query selector; preserve progressive publication and in-flight card refresh. |
+| `crates/dokime-operations/src/host/files/transfer.rs::write` and `host/{cycles/seal.rs,cases/storage.rs,executions/commands/mod.rs}` expiry matches | Owned upload/view writes use the transfer retry policy. Cycle seal writer recovery/abandonment and scope deletion, case registration/deletion and execution commands independently retry the same mutation-expired failure. | Delete the remaining local retry matches after those families' owners adopt transfer; those files are outside this worker's ownership. |
+| `crates/dokime-operations/src/host/files/transfer.rs::publication` and `crates/dokime-operations/src/host/evidence/archive.rs::materialize` | Views and Reports.Create publish known-length/digest byte producers through transfer. Evidence.Archive and Cycles.Seal call materialize, which independently uploads an already materialized ZIP with known length/digest and failed-upload cleanup. | Delete materialize's upload loop after the evidence owner adopts the transfer publisher. Evidence handlers are outside this worker's ownership. |
 | `sdk/python/tools/installed.py::main` and `tools/python/src/dokime_tools/test/archive.py::install_wheels` | SDK Install selects a dev wheel and installs examples; bindings/archive preparation selects wheels by profile. Both install the SDK in the root environment. | Delete the SDK installer's hardcoded profile selection by reusing the profile-aware artifact owner, with one owner for example preparation. This remains outside the document worker's tooling ownership. |
 
 Generic retained revisions still hash raw protobuf bytes. Map-bearing declarations
@@ -958,6 +959,38 @@ The repair's in-process storage/task proof stays in the owned operations modules
 existing libtest harness. This differs from the generic pure-unit layer. Moving
 these stories to an integration target requires the test-composition owner's
 decision; this change adds no public testing API or alternate test harness.
+
+## View Single Owners
+
+Owner decision, 2026-11-22: consolidate mutation-expiry handling in the file transfer owner. Upload
+Append, Create, Resume, Publish, Delete, Files.Delete and retained-view create/discard use the same
+policy: retry only the library's mutation-expired failure, fetch the current window, preserve the
+request key and issue one further storage call. A second failure is returned with the owning action;
+no third attempt, delay or deadline change is allowed. Retry matches outside the assigned file/view
+families remain for their owners to migrate.
+
+Views and reports publish through `host/files/transfer.rs::publication`: one create, bounded
+read/append sequence, publish and failed-upload cleanup. The byte producer remains with its caller
+(view bytes or temporary report HTML). View cancellation is checked between storage calls; admitted
+host settlement and unindexed-file cleanup remain in views. Reports retain their durable
+cycle/execution owner and never inherit view cancellation or browsing lifetime. This supersedes the
+earlier pending report/view publication-loop overlap, not the separate report-retention decisions.
+
+The capture engine's `host/files/captures/engine.rs::attach` remains distinct: Files.Capture and
+capture Stop admit public execution evidence, asynchronously read a device byte range and compute
+its digest during that single read, then attach the artifact. The fixed view/report publisher
+requires the digest before creation and takes a synchronous byte producer. Reusing it for captures
+would require a second device scan or a changed producer/admission contract. Keep the capture path
+pending that owner's decision; do not introduce an adapter or extra scan.
+
+Desktop execution/cycle root query data owns both the current progressive native capture and the
+last completed capture, plus its mapped display projection. A stable query selector exposes the
+projection; cards read their declarations, root cut and page from that same query data. Unchanged
+completed captures reuse the same projection. Query cancellation, generation keys, garbage
+collection and cache clearing now govern the captures without a separately capped process-global
+map. Native captures contain Maps, so root queries preserve their reference identity instead of
+recursively structurally sharing their raw captures. Independent card queries and their existing
+refresh coordinator are unchanged.
 
 ## Administration Reader Ownership Review
 
@@ -996,7 +1029,6 @@ The report-creation performance task leaves the listed overlaps intact for the o
 | `crates/dokime-runtime/src/reports.rs::ReportManager::temporary` and `crates/dokime-operations/src/host/reports/get.rs` durable `PreparedReport::response` lookup | `Reports/Create` calls `Host::retain_report` through `services/state.rs`, which calls `ReportManager::retain`; `Reports/Get` calls `Host::temporary_report` through the same adapter, which calls `ReportManager::temporary`, then falls back to native administration. Runtime shutdown clears the bounded map. Both paths return the same immutable native file reference; the durable path survives eviction and restart. | Delete the runtime map and its `retain`/`temporary` methods, the two Host trait methods and state adapters, and Create's map insertion. Get should always resolve the retained native object. Keep the report manager's publication/admission responsibility until its separate canonical-source migration. |
 | `crates/dokime-storage/src/report.rs::Report::html` and Create's native HTML file retained by `PreparedReport::response.file` | `Reports/Publish` downloads the complete native file and passes HTML through `Host::publish_report`, `services/state.rs`, `ReportManager::publish_prepared` and `Store::publish_report`. `Store::reports` decodes and verifies the copied HTML as part of the report seal; `Reports/Get`, `host/execution_state.rs::detail` and runtime `Host::reports` call it. `storage/content.rs::write_execution_archive` writes the complete report payload into `ExecutionArchive::reports`, and storage/history.rs deletes those report rows with their execution. Integrity, publication, document/report and lifecycle stories inspect these bytes. | Delete the copied HTML after replacing published reports with metadata, frozen document, execution seal and native file identity/digest. Update report sealing/validation, atomic publication, archive export/import and all listed readers/tests to carry and restore the native bytes. Merely removing the field would break the archive and seal contract. This is the open canonical-source migration in task 4.4, not a report-performance repair. |
 | `crates/dokime-storage/src/query.rs::{cached_statistics,cache_statistics}` and `crates/dokime-storage/src/telemetry/aggregates.rs::numeric_summary` | `host/evidence/statistics.rs::select` retains complete statistics responses and audit positions on the Store. Plot `numeric_rms`, `numeric_statistics`, `time_series_window`, `histogram_window`, `box_window` and document `reduce_expression` use request-local numeric moments. Their keys and response families differ, but both retain numeric results for stream selections. | Prefer deleting the Store-wide response cache during the native query cutover, assembling responses and audit positions over the single finite query owner. Do not remove its retained-cut or audit behavior as a performance shortcut. |
-| `crates/dokime-operations/src/host/reports/create.rs` and `crates/dokime-operations/src/host/views.rs::retain` upload loops | Reports/Create publishes temporary HTML through native Create/Append/Publish. `views::read` calls `views::retain`, which publishes encoded resource responses through the same upload operations and retains their references. One producer starts with a temporary file, the other with message bytes. | Prefer deleting Create's separate upload loop after the content owner exposes one bounded publication operation for either byte producer; preserve scopes, chunk limits, digests, cleanup and durable retention. This existing overlap remains unchanged. |
 | `crates/dokime-storage/src/plot_windows.rs::{histogram_window,numeric_order_statistics}` and `plot_windows.rs::{box_window,reduce_numeric}` | The Histogram and BoxPlot branches of `host/plots/snapshots/list.rs::snapshot_prepared` request rank work over the same selected field/window through separate native transforms. Histogram keeps an exact native Median; box summaries retain the native box-summary floating-point result contract. | Prefer deleting the histogram's separate rank-input traversal after a shared native rank-input owner can serve both transforms. Preserve their distinct result arithmetic and prove equivalence; do not replace either with a product rank kernel or silently reuse floating-point box medians for exact histogram medians. Leave this to the owner. |
 | `crates/dokime-runtime/benches/storage/main.rs::StageTimes` and `benches/storage/reports.rs::Times` | Cold numeric/document benchmarks use StageTimes to total plot-span durations; report benchmarks use Times to retain per-call source/document/plot span durations, sample counts and report debug events. Both measure plot-span lifetimes. | Prefer deleting the separate StageTimes layer after the owner agrees to use Times for cold-stage totals as well; keep both current output contracts until then. |
 

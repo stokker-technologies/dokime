@@ -50,7 +50,6 @@ import { frozenQuery, useCycleSnapshotSource } from "@dokime/document/features/c
 
 /* === Constants === */
 
-const GUI_CAPTURED_DOCUMENTS = 16;
 /** How Long an Unobserved Evidence Read Stays Cached; Records and Documents Are Large. */
 const GUI_EVIDENCE_GC_MS = 30_000;
 const GUI_PAGE_ITEMS = 500;
@@ -73,6 +72,14 @@ type EditNoteVariables = {
   noteId: string;
   text: string;
 };
+
+type RootDocument = {
+  completed?: NativeDocumentCapture;
+  current: NativeDocumentCapture;
+  mapped: DocumentViewPayload;
+};
+
+type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
 
 /* === Query Keys === */
 
@@ -220,25 +227,24 @@ export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: s
   const query = useQuery({
     enabled: Boolean(cycleId && executionId) && session !== null && !snapshot,
     queryFn: ({ queryKey, signal }) =>
-      capturedDocument(
-        queryKey,
-        (previous, publish) =>
-          fetchNativeDocument(
-            nativeDocumentSession(requireSession(session)),
-            {
-              cycleId: cycleId ?? "",
-              documentId: "default",
-              executionId: executionId ?? "",
-              epoch: nativeEpoch(requireSession(session)),
-              structureOnly: true,
-              page: navigation.token,
-            },
-            signal,
-            previous,
-            publish,
-          ),
-        (document) => queryClient.setQueryData(queryKey, document),
+      capturedDocument(queryClient, queryKey, (previous, publish) =>
+        fetchNativeDocument(
+          nativeDocumentSession(requireSession(session)),
+          {
+            cycleId: cycleId ?? "",
+            documentId: "default",
+            executionId: executionId ?? "",
+            epoch: nativeEpoch(requireSession(session)),
+            structureOnly: true,
+            page: navigation.token,
+          },
+          signal,
+          previous,
+          publish,
+        ),
       ),
+    select: selectDocument,
+    structuralSharing: false,
     queryKey: captureKey,
     gcTime: GUI_EVIDENCE_GC_MS,
     retry: documentRetry,
@@ -277,25 +283,24 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
   const query = useQuery({
     enabled: Boolean(cycleId) && enabled && session !== null && !snapshot,
     queryFn: ({ queryKey, signal }) =>
-      capturedDocument(
-        queryKey,
-        (previous, publish) =>
-          fetchNativeDocument(
-            nativeDocumentSession(requireSession(session)),
-            {
-              cycleId: cycleId ?? "",
-              documentId: "default",
-              executionId: "",
-              epoch: nativeEpoch(requireSession(session)),
-              structureOnly: true,
-              page: navigation.token,
-            },
-            signal,
-            previous,
-            publish,
-          ),
-        (document) => queryClient.setQueryData(queryKey, document),
+      capturedDocument(queryClient, queryKey, (previous, publish) =>
+        fetchNativeDocument(
+          nativeDocumentSession(requireSession(session)),
+          {
+            cycleId: cycleId ?? "",
+            documentId: "default",
+            executionId: "",
+            epoch: nativeEpoch(requireSession(session)),
+            structureOnly: true,
+            page: navigation.token,
+          },
+          signal,
+          previous,
+          publish,
+        ),
       ),
+    select: selectDocument,
+    structuralSharing: false,
     queryKey: captureKey,
     gcTime: GUI_EVIDENCE_GC_MS,
     retry: documentRetry,
@@ -442,43 +447,26 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
 
 /* === Captured Documents === */
 
-/** The documents last captured, by query: a capture whose frontiers are unchanged answers these. */
-const capturedDocuments = new Map<
-  string,
-  { completed?: NativeDocumentCapture; current: NativeDocumentCapture; mapped: DocumentViewPayload }
->();
 const documentRefreshes = new WeakMap<Query, RuntimeProjectionRefreshCoordinator>();
 
-/** The most open documents remembered at once; the oldest is forgotten first. */
-const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;
+function selectDocument(document: RootDocument): DocumentViewPayload {
+  return document.mapped;
+}
 
-/**
- * Capture a document, handing the capture the one held for this query: an
- * unchanged capture returns the held document, and the held projection is
- * answered unmapped, so nothing downstream re-renders.
- */
+/** Root query data owns native captures and their stable display projection. */
 async function capturedDocument(
+  queryClient: QueryClient,
   queryKey: readonly unknown[],
   capture: (previous: NativeDocumentCapture | null, publish: (document: NativeDocumentCapture) => void) => Promise<NativeDocumentCapture>,
-  publish: (document: DocumentViewPayload) => void,
-): Promise<DocumentViewPayload> {
-  const key = JSON.stringify(queryKey);
-  const held = capturedDocuments.get(key);
+): Promise<RootDocument> {
+  const held = queryClient.getQueryData<RootDocument>(queryKey);
   let progress = held?.mapped;
   const completed = await capture(held?.completed ?? null, (document) => {
     progress = mergeDocumentProgress(mapNativeDocument(document), progress);
-    capturedDocuments.set(key, { completed: held?.completed, current: document, mapped: progress });
-    publish(progress);
+    queryClient.setQueryData<RootDocument>(queryKey, { completed: held?.completed, current: document, mapped: progress });
   });
-  if (held && completed === held.completed) return held.mapped;
-  const mapped = mapNativeDocument(completed);
-  capturedDocuments.delete(key);
-  capturedDocuments.set(key, { completed, current: completed, mapped });
-  for (const oldest of capturedDocuments.keys()) {
-    if (capturedDocuments.size <= CAPTURED_DOCUMENT_LIMIT) break;
-    capturedDocuments.delete(oldest);
-  }
-  return mapped;
+  if (held && completed === held.completed) return held;
+  return { completed, current: completed, mapped: mapNativeDocument(completed) };
 }
 
 /* === Record Tails === */
@@ -511,8 +499,6 @@ function useDocumentNavigation(owner: string) {
   };
 }
 
-type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
-
 function useDocumentCards({
   document,
   queryKey,
@@ -531,7 +517,7 @@ function useDocumentCards({
   enabled: boolean;
 }) {
   const queryClient = useQueryClient();
-  const held = capturedDocuments.get(JSON.stringify(queryKey));
+  const held = queryClient.getQueryData<RootDocument>(queryKey);
   const candidates = (document?.cards ?? []).flatMap((card) => {
     const source = held?.current.bindings.has(card.card_id) ? held.current : held?.completed;
     if (source?.bindings.get(card.card_id)?.result?.kind.case !== "pending") return [];
@@ -547,7 +533,7 @@ function useDocumentCards({
       retryDelay: documentRetryDelay,
       queryFn: async ({ signal }: { signal: AbortSignal }): Promise<CardRead> => {
         if (!session) throw new Error("A connected native backend is required.");
-        const latest = capturedDocuments.get(JSON.stringify(queryKey));
+        const latest = queryClient.getQueryData<RootDocument>(queryKey);
         const source = latest?.current.bindings.has(id) ? latest.current : latest?.completed;
         const previous = queryClient.getQueryData<CardRead>(key);
         const captured = await fetchNativeDocument(

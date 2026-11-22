@@ -24,21 +24,20 @@ use std::time::Instant;
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
-use dokime_storage::ArchivedNativeFile;
 use harmos_protocol::model::{FileMetadata, FileReference};
 use harmos_runtime::Identifier;
 use prost::Message;
 
 // Local Imports
 use super::{PreparedReport, capture};
-use crate::host::files::uploads::{append, create, delete, publish};
+use crate::host::files::transfer;
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::ReportsGetRequest;
-use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
 use dokime_protocol::host::report_subject::Kind;
+use dokime_storage::ArchivedNativeFile;
 use dokime_storage::persisted::Scope;
 
 /* === Constants === */
@@ -113,69 +112,21 @@ pub(crate) fn prepare(
         let retained =
             File::open(&rendered.path).map_err(|source| Error::Invalid(format!("Create Report: Reopen Its Temporary HTML: {source}")))?;
         let phase = Instant::now();
-        let created = create::derived(
+        let reference = transfer::publication(
             context,
-            UploadsCreateRequest {
-                metadata: Some(FileMetadata {
-                    id: name.clone(),
-                    scope: Some(scope.to_string()),
-                    media_type: "text/html".into(),
-                    expected_length: Some(length),
-                    expected_sha256: Some(digest.clone()),
-                }),
-                request_id: format!("{ID}/{name}/create"),
+            "Create Report",
+            &format!("{ID}/{name}"),
+            FileMetadata {
+                id: name.clone(),
+                scope: Some(scope.to_string()),
+                media_type: "text/html".into(),
+                expected_length: Some(length),
+                expected_sha256: Some(digest),
             },
+            |offset, data| crate::host::content::transfer::read_temporary(&retained, offset, data),
+            || false,
         )
         .await?;
-        let upload = created.upload.ok_or_else(|| Error::Precondition("Create Report: Create Its Native Upload".into()))?;
-        let result = async {
-            let mut offset = 0;
-            while offset < length {
-                let count = (length - offset).min(created.chunk_bytes) as usize;
-                let mut data = vec![0; count];
-                crate::host::content::transfer::read_temporary(&retained, offset, &mut data)?;
-                append::handle(
-                    context,
-                    UploadsAppendRequest {
-                        upload: Some(upload.clone()),
-                        offset,
-                        data,
-                        request_id: format!("{ID}/{name}/{offset}"),
-                    },
-                )
-                .await?;
-                offset += count as u64;
-            }
-            let published = publish::handle(
-                context,
-                UploadsPublishRequest {
-                    upload: Some(upload.clone()),
-                    length,
-                    sha256: digest,
-                    request_id: format!("{ID}/{name}/publish"),
-                },
-            )
-            .await?;
-            published.upload.ok_or_else(|| Error::Precondition("Create Report: Publish Its Native File".into()))
-        }
-        .await;
-        let reference = match result {
-            Ok(reference) => reference,
-            Err(source) => {
-                if let Err(cleanup) = delete::handle(
-                    context,
-                    UploadsDeleteRequest {
-                        upload: Some(upload),
-                        request_id: uuid::Uuid::now_v7().to_string(),
-                    },
-                )
-                .await
-                {
-                    return Err(Error::Invalid(format!("Create Report: {source}; Remove Its Failed Upload: {cleanup}")));
-                }
-                return Err(source);
-            }
-        };
 
         let response = prepared.response.as_mut().unwrap();
         response.file = Some(reference);
