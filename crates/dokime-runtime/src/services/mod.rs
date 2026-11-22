@@ -14,6 +14,8 @@
 mod access_credentials;
 mod clock;
 pub(crate) mod composition;
+#[cfg(test)]
+mod record_fanout;
 mod root_claim;
 mod state;
 mod status;

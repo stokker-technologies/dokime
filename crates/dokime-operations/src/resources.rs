@@ -44,6 +44,7 @@ pub struct Resources {
     pub context: Arc<Context>,
     pub store: Store,
     pub execution: String,
+    pub capturing_executions: Vec<String>,
     pub step: String,
     pub operation: String,
     pub attempt: Arc<AtomicU32>,

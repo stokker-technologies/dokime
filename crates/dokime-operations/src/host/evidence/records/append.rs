@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use prost::Message;
@@ -44,7 +45,31 @@ pub const ID: &str = "dokime.host.v1.evidence.Records/Append";
 /* === Public Functions === */
 
 pub async fn handle(resources: &Resources, request: RecordsAppendRequest) -> Result<RecordsAppendResponse> {
-    resources.check_action_scope(&request.execution, ID)?;
+    if resources.capturing_executions.is_empty() {
+        resources.check_action_scope(&request.execution, ID)?;
+        return append(resources, request);
+    }
+    if !request.execution.is_empty() {
+        resources.check_scope(&request.execution)?;
+    }
+    for execution in &resources.capturing_executions {
+        resources.store.require_run_open(execution)?;
+    }
+    let mut first = None;
+    for execution in &resources.capturing_executions {
+        let mut target = resources.clone();
+        target.execution = execution.clone();
+        let mut request = request.clone();
+        request.execution = execution.clone();
+        let response = append(&target, request)?;
+        first.get_or_insert(response);
+    }
+    Ok(first.expect("Capturing Executions Are Nonempty"))
+}
+
+/* === Private Functions === */
+
+fn append(resources: &Resources, request: RecordsAppendRequest) -> Result<RecordsAppendResponse> {
     let source = request.source_at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
     let (position, receipt) = resources.evidence_requested(
         ID,
@@ -62,7 +87,7 @@ pub async fn handle(resources: &Resources, request: RecordsAppendRequest) -> Res
             &resources.execution,
             after,
             position,
-            std::num::NonZeroUsize::new(resources.context.settings.page_items).unwrap(),
+            NonZeroUsize::new(resources.context.settings.page_items).unwrap(),
         )?;
         if entries.is_empty() {
             break;
@@ -74,8 +99,6 @@ pub async fn handle(resources: &Resources, request: RecordsAppendRequest) -> Res
     }
     Ok(RecordsAppendResponse { ordinal, receipt: Some(receipt) })
 }
-
-/* === Private Functions === */
 
 /* === Tests === */
 

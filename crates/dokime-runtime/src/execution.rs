@@ -518,6 +518,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
         store: host.inner.store.clone(),
         execution: execution.clone(),
+        capturing_executions: Vec::new(),
         step: String::new(),
         operation: String::new(),
         attempt: Arc::new(AtomicU32::new(0)),

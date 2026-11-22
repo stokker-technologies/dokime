@@ -22,6 +22,7 @@ use std::time::Duration;
 // Third Party Imports
 use harmos_runtime::operations::{ExecutionContext, HostContext, Lane, OperationFactory, ProtobufOperation, Registration, ServingError};
 use harmos_runtime::plugin::grpc::CallingPlugin;
+use harmos_runtime::streams::CapturingExecutions;
 
 // Local Imports
 use crate::host::{self, ClientSettings, Context};
@@ -359,8 +360,13 @@ fn admitted(execution: &ExecutionContext, action: &str, plugin_wide: bool) -> Re
             }
             return Err(Error::Permission(format!("{action}: Enter an Active Execution")));
         };
-        resources.check_action_scope(&resources.execution, action)?;
-        context.caller = Some(resources.clone());
+        let captures = host.context().get::<CapturingExecutions>().map(|captures| captures.0.clone()).unwrap_or_default();
+        if captures.is_empty() || action != host::evidence::records::append::ID {
+            resources.check_action_scope(&resources.execution, action)?;
+        }
+        let mut resources = resources.clone();
+        resources.capturing_executions = captures;
+        context.caller = Some(resources);
     }
     Ok(context)
 }
