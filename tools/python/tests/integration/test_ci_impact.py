@@ -96,8 +96,7 @@ class ImpactTests(unittest.TestCase):
             "pnpm-lock.yaml",
             "biome.json",
             "tsconfig.json",
-            "vite.config.ts",
-            "vitest.config.ts",
+            "tools/config/vite.base.ts",
         )
         for path in paths:
             with self.subTest(path=path):

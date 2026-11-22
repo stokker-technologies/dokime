@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { defineConfig } from "vitest/config";
-import workspace from "../../vitest.config.ts";
+import workspace from "../../tools/config/vite.base.ts";
 
 export default defineConfig({
   publicDir: false,
@@ -14,7 +14,10 @@ export default defineConfig({
   build: {
     outDir: "../../target/generated/report",
     emptyOutDir: true,
-    rolldownOptions: { input: fileURLToPath(new URL("./report.html", import.meta.url)), checks: { pluginTimings: false } },
+    rolldownOptions: {
+      input: fileURLToPath(new URL("./report.html", import.meta.url)),
+      checks: { pluginTimings: false },
+    },
   },
   test: { ...workspace.test },
 });
