@@ -10,13 +10,17 @@
 /* === Imports === */
 
 #include "dokime/operations.hpp"
+#include "dokime/host/v1/evidence/records.pb.h"
 #include "dokime/host/v1/secrets.pb.h"
 #include "dokime/plugin.hpp"
+#include "harmos/client_transport.hpp"
 #include <cmath>
 #include <exception>
 
 using dokime::host::v1::SecretsGetRequest;
 using dokime::host::v1::SecretsGetResponse;
+using dokime::host::v1::evidence::RecordsAppendRequest;
+using dokime::host::v1::evidence::RecordsAppendResponse;
 using google::protobuf::Duration;
 using harmos::SettingValue;
 using harmos::VISIBILITY_PUBLIC;
@@ -84,6 +88,15 @@ string Context::secret(const string &identifier) {
   request.set_name(identifier);
   const Operation<SecretsGetRequest, SecretsGetResponse> operation("dokime.host.v1.Secrets/Get", VISIBILITY_PUBLIC);
   return transport_.operation(operation, request).get().secret();
+}
+std::uint64_t Context::append_record(const string &identity, const string &payload) {
+  RecordsAppendRequest request;
+  request.set_kind(identity);
+  request.set_payload(payload);
+  *request.mutable_source_at() = transport_.now();
+  request.set_request_id(harmos::detail::request_id());
+  const Operation<RecordsAppendRequest, RecordsAppendResponse> operation("dokime.host.v1.evidence.Records/Append", VISIBILITY_PUBLIC);
+  return transport_.operation(operation, request).get().ordinal();
 }
 SettingValue Settings::encode(duration<double> value) {
   SettingValue result;

@@ -75,7 +75,7 @@ public:
         if (output.response().has_failure()) {
           const auto failure = output.response().failure();
           call->Finish();
-          throw harmos::Failure(failure);
+          throw harmos::OperationError(failure);
         }
         payload = output.response().payload();
       }

@@ -56,7 +56,7 @@ public:
 protected:
   template <class T>
   T setting(std::string name, std::string title, T initial, std::optional<T> minimum = {}, std::optional<T> maximum = {},
-            std::string description = {}) {
+            std::string description = {}, std::vector<T> choices = {}, bool required = false) {
     harmos::SettingDeclaration declaration;
     declaration.set_name(name);
     declaration.set_title(std::move(title));
@@ -66,6 +66,9 @@ protected:
       *declaration.mutable_minimum() = encode(*minimum);
     if (maximum)
       *declaration.mutable_maximum() = encode(*maximum);
+    for (const auto &choice : choices)
+      *declaration.add_choices() = encode(choice);
+    declaration.set_required(required);
     declarations_.push_back(std::move(declaration));
     if (!values_)
       return initial;
@@ -143,6 +146,7 @@ struct ResourceEntry {
 struct PluginState {
   Plugin *plugin = nullptr;
   std::atomic_bool closed = false;
+  std::unordered_map<std::shared_ptr<const int>, std::string> records;
   std::map<std::type_index, std::shared_ptr<ResourceEntry>> resources;
   std::mutex opened_gate;
   std::vector<std::shared_ptr<operations::Resource>> opened;
@@ -186,6 +190,13 @@ public:
     return transport_.cancelled();
   }
   std::string secret(const std::string &identifier);
+  template <class T> std::uint64_t record(const templates::Record<T> &record, const std::type_identity_t<T> &value) {
+    const auto found = plugin_->records.find(record.key);
+    if (found == plugin_->records.end())
+      throw std::invalid_argument("Write Plugin Record: Declare the Record on This Plugin");
+    const auto payload = templates::detail::pack<T>(value).SerializeAsString();
+    return append_record(found->second, payload);
+  }
   template <class T> std::shared_ptr<T> resource() {
     static_assert(std::is_base_of_v<Resource, T>, "Declare Resource: Derive From Resource");
     const auto declared = plugin_->resources.find(typeid(T));
@@ -219,6 +230,7 @@ public:
   }
 
 protected:
+  std::uint64_t append_record(const std::string &identity, const std::string &payload);
   Context(harmos::plugin::Context &transport, std::shared_ptr<dokime::detail::PluginState> plugin)
       : transport_(transport), plugin_(std::move(plugin)) {}
   harmos::plugin::Context transport_;

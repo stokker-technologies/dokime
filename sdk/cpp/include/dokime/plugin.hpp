@@ -81,6 +81,10 @@ public:
     native_.lane(lane);
     return *this;
   }
+  Plugin &failure(std::function<std::optional<harmos::OperationError>(std::exception_ptr)> mapper) {
+    native_.failure_mapper(std::move(mapper));
+    return *this;
+  }
   virtual void initialize(operations::Context &) {}
   virtual void finalize(operations::Context &) {}
   template <class T> Plugin &resource() {
@@ -108,6 +112,19 @@ public:
   template <class Q, class R> Plugin &operation(const operations::OperationValue<Q, R> &operation) {
     Registrar registrar(native_);
     registrar.add(operation.native(plugin_));
+    return *this;
+  }
+  template <class T> Plugin &record(templates::Record<T> record) {
+    const auto identity = templates::build_identifier(record.name, record.identifier, identifier_);
+    if (!plugin_->records.emplace(record.key, identity).second)
+      throw std::invalid_argument("Declare Plugin Records: List Each Record Once");
+    auto *contract = records_.add_records();
+    contract->mutable_metadata()->set_identifier(identity);
+    contract->mutable_metadata()->set_label(record.label.empty() ? identity : record.label);
+    contract->set_message(decltype(templates::detail::payload_message<T>())::descriptor()->full_name());
+    native_.add([](harmos::plugin::Registrar &registrar) {
+      registrar.add(harmos::plugin::Descriptor<decltype(templates::detail::payload_message<T>())>{});
+    });
     return *this;
   }
   Plugin &secrets(SecretsDeclarations secrets);

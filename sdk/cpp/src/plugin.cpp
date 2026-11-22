@@ -52,7 +52,7 @@ using std::vector;
 
 using google::protobuf::util::MessageDifferencer;
 using harmos::Declarations;
-using harmos::Failure;
+using harmos::OperationError;
 using harmos::OperationPolicy;
 using harmos::VISIBILITY_PROTECTED;
 using harmos::plugin::Contribution;
@@ -372,7 +372,7 @@ Plugin &Plugin::suite(Suite suite) {
           try {
             transport.scope();
             throw invalid_argument("Materialize Test Case: Omit the Execution Scope");
-          } catch (const Failure &failure) {
+          } catch (const OperationError &failure) {
             if (failure.value.code() != "scope_required")
               throw;
           }

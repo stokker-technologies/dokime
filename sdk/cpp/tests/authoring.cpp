@@ -296,6 +296,14 @@ TEST_CASE("Typed Settings Preserve Signed Durations and Inclusive Bounds") {
     using Settings::Settings;
     const duration<double> offset = setting<duration<double>>("offset", "Clock Offset", duration<double>(-1.25), seconds(-2), seconds(0));
   };
+  class RequiredSettings : public Settings {
+  public:
+    using Settings::Settings;
+    const string mode = setting<string>("mode", "Mode", "first", {}, {}, "", {"first", "second"}, true);
+  };
+  const RequiredSettings required;
+  REQUIRE(required.declarations().front().required());
+  REQUIRE(required.declarations().front().choices_size() == 2);
   const ClockSettings defaults;
   const auto &declaration = defaults.declarations().front();
   REQUIRE(declaration.default_().duration().seconds() == -1);
@@ -308,6 +316,20 @@ TEST_CASE("Typed Settings Preserve Signed Durations and Inclusive Bounds") {
   saved_duration->set_nanos(-500000000);
   const ClockSettings snapshot(saved);
   REQUIRE(snapshot.offset.count() == -1.5);
+}
+
+TEST_CASE("Plugin Records Share One Contract Across Templates and Observers") {
+  const Record<bool> event("event", "Event");
+  Plugin plugin("events", "1.0.0");
+  plugin.record(event);
+  plugin.operation(operation<bool, bool>("events.write", Visibility::Public, [event](dokime::operations::Context &context, bool value) {
+    context.record(event, value);
+    return value;
+  }));
+  const auto description = plugin.describe();
+  REQUIRE(description.records.size() == 1);
+  REQUIRE(description.records.front().identifier == "events.event");
+  REQUIRE_THROWS_AS(plugin.record(event), invalid_argument);
 }
 
 /* === Private Functions === */
