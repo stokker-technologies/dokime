@@ -10,8 +10,8 @@
 
 # === Imports === #
 # Standard Library Imports
-import hashlib
 import json
+import runpy
 from collections.abc import Callable
 from difflib import unified_diff
 from importlib import import_module
@@ -97,9 +97,10 @@ def main() -> None:
     root = Path(__file__).resolve().parents[3]
     sources = root / "target/protocol"
     manifest = json.loads(files("dokime_sdk").joinpath("_wire").joinpath("sources.json").read_text())
-    expected = {path.relative_to(sources).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources.rglob("*.proto")}
+    source_inventory = runpy.run_path(str(Path(__file__).with_name("generate.py")))["source_inventory"]
+    expected = source_inventory(sources)
     if manifest != expected:
-        raise ValueError("Installed generated surface differs from proto/; rebuild and reinstall the SDK wheel")
+        raise ValueError("Installed generated surface differs from target/protocol; rebuild and reinstall the SDK wheel")
     channel = RecordingChannel()
     server = RecordingServer()
     services: set[str] = set()
