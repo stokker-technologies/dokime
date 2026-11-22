@@ -25,7 +25,7 @@ from harmos._wire.plugin.v1.invocation_pb2 import Request
 # Local Imports
 import dokime_sdk.operations
 import dokime_sdk.templates
-from dokime_sdk import Client, Failure, Plugin, ResultStatus, Scalar, SdkError, Suite
+from dokime_sdk import Client, Plugin, ResultStatus, Scalar, SdkError, Suite
 from dokime_sdk.operations import OperationPolicy, RetryPolicy
 from dokime_sdk.templates import (
     Context,
@@ -259,7 +259,9 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             async def measure(self, ctx: Context, *, channel: int) -> None:
                 attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
-                    raise dokime_sdk.operations.OperationError("transient", code="retry_measurement", message="Measurement Requires Another Attempt", action="Retry Measurement")
+                    raise dokime_sdk.operations.OperationError(
+                        "transient", code="retry_measurement", message="Measurement Requires Another Attempt", action="Retry Measurement"
+                    )
                 measured = channel * channel
                 await ctx.artifact(f"channel_{channel}.bin", measured.to_bytes(4, "big"))
                 self.measured_channels.append(measured)

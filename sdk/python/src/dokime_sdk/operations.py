@@ -42,7 +42,8 @@ if TYPE_CHECKING:
 
 Context = _context.Context
 StreamSubscription = _context.StreamSubscription
-FailureError = _errors.FailureError
+
+OperationError = harmos.OperationError
 
 
 # === Constants === #
@@ -76,11 +77,8 @@ class OperationPolicy:
     attempt_timeout: timedelta | None = None
     cancellation_timeout: timedelta | None = None
     retries: RetryPolicy | None = None
-    transient: Callable[[Exception], bool] | None = None
 
     def __post_init__(self) -> None:
-        if self.transient is not None and not callable(self.transient):
-            raise TypeError("Declare Operation Policy: Supply a Callable transient Predicate")
         for duration in (self.timeout, self.attempt_timeout, self.cancellation_timeout):
             if duration is not None and (not math.isfinite(duration.total_seconds()) or duration <= timedelta()):
                 raise ValueError("Declare Operation Policy: Supply Positive Finite Durations")
@@ -107,18 +105,6 @@ class OperationPolicy:
             value.retries.deterministic_jitter = self.retries.deterministic_jitter
         return value
 
-    def _failure(self, error: Exception, identity: str, owner: str) -> harmos.FailureError:
-        transient = self.transient is not None and self.transient(error)
-        failure = _errors.Failure(
-            "Transient" if transient else "Permanent",
-            "handler_failed",
-            f"{identity}: {error}",
-            "Retry the Operation" if transient else "Correct the Handler or Its Inputs, Then Retry",
-            identity,
-            owner,
-        )
-        return harmos.FailureError(_errors.wire_failure(failure))
-
 
 @dataclass(frozen=True)
 class Setting:
@@ -127,13 +113,33 @@ class Setting:
     default: harmos.SettingValue
     minimum: harmos.SettingValue | None = None
     maximum: harmos.SettingValue | None = None
+    choices: tuple[harmos.SettingValue, ...] = ()
+    required: bool = False
 
     @staticmethod
-    def flag(title: str, *, default: bool, description: str = "") -> bool:
-        return cast(bool, Setting(title, description, harmos.SettingValue(flag=default)))
+    def flag(title: str, *, default: bool, description: str = "", choices: tuple[bool, ...] = (), required: bool = False) -> bool:
+        return cast(
+            bool,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(flag=default),
+                choices=tuple(harmos.SettingValue(flag=item) for item in choices),
+                required=required,
+            ),
+        )
 
     @staticmethod
-    def integer(title: str, *, default: int, min: int | None = None, max: int | None = None, description: str = "") -> int:
+    def integer(
+        title: str,
+        *,
+        default: int,
+        min: int | None = None,
+        max: int | None = None,
+        description: str = "",
+        choices: tuple[int, ...] = (),
+        required: bool = False,
+    ) -> int:
         return cast(
             int,
             Setting(
@@ -142,11 +148,22 @@ class Setting:
                 harmos.SettingValue(integer=default),
                 harmos.SettingValue(integer=min) if min is not None else None,
                 harmos.SettingValue(integer=max) if max is not None else None,
+                choices=tuple(harmos.SettingValue(integer=item) for item in choices),
+                required=required,
             ),
         )
 
     @staticmethod
-    def number(title: str, *, default: float, min: float | None = None, max: float | None = None, description: str = "") -> float:
+    def number(
+        title: str,
+        *,
+        default: float,
+        min: float | None = None,
+        max: float | None = None,
+        description: str = "",
+        choices: tuple[float, ...] = (),
+        required: bool = False,
+    ) -> float:
         return cast(
             float,
             Setting(
@@ -155,16 +172,34 @@ class Setting:
                 harmos.SettingValue(number=default),
                 harmos.SettingValue(number=min) if min is not None else None,
                 harmos.SettingValue(number=max) if max is not None else None,
+                choices=tuple(harmos.SettingValue(number=item) for item in choices),
+                required=required,
             ),
         )
 
     @staticmethod
-    def text(title: str, *, default: str, description: str = "") -> str:
-        return cast(str, Setting(title, description, harmos.SettingValue(text=default)))
+    def text(title: str, *, default: str, description: str = "", choices: tuple[str, ...] = (), required: bool = False) -> str:
+        return cast(
+            str,
+            Setting(
+                title,
+                description,
+                harmos.SettingValue(text=default),
+                choices=tuple(harmos.SettingValue(text=item) for item in choices),
+                required=required,
+            ),
+        )
 
     @staticmethod
     def duration(
-        title: str, *, default: timedelta, min: timedelta | None = None, max: timedelta | None = None, description: str = ""
+        title: str,
+        *,
+        default: timedelta,
+        min: timedelta | None = None,
+        max: timedelta | None = None,
+        description: str = "",
+        choices: tuple[timedelta, ...] = (),
+        required: bool = False,
     ) -> timedelta:
         value = harmos.SettingValue()
         value.duration.FromTimedelta(default)
@@ -174,7 +209,12 @@ class Setting:
             minimum.duration.FromTimedelta(min)
         if maximum is not None and max is not None:
             maximum.duration.FromTimedelta(max)
-        return cast(timedelta, Setting(title, description, value, minimum, maximum))
+        encoded_choices = []
+        for item in choices:
+            encoded = harmos.SettingValue()
+            encoded.duration.FromTimedelta(item)
+            encoded_choices.append(encoded)
+        return cast(timedelta, Setting(title, description, value, minimum, maximum, tuple(encoded_choices), required))
 
     def _definition(self, name: str) -> harmos.SettingDeclaration:
         return harmos.SettingDeclaration(
@@ -184,6 +224,8 @@ class Setting:
             default=self.default,
             minimum=self.minimum,
             maximum=self.maximum,
+            choices=self.choices,
+            required=self.required,
         )
 
     def __get__(self, instance: "Settings | None", owner: "type[Settings]") -> object:
@@ -297,7 +339,6 @@ def operation[F: Callable[..., object]](
 
 def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier: str) -> Callable[..., Awaitable[Message]]:
     definition = cast(plugin.Operation[Message, Message], vars(handler)["__dokime_operation__"])
-    policy = cast(OperationPolicy | None, vars(handler)["__dokime_policy__"]) or OperationPolicy()
     annotations = get_type_hints(handler)
     parameters = tuple(inspect.signature(handler).parameters)
     request_type = annotations[parameters[1]]
@@ -309,11 +350,11 @@ def _bind_operation(handler: Callable[..., object], owner: "Plugin", identifier:
             result = await _logs.run(context, handler, context, unpack(request_type, request))
             return pack(response_type, cast(Payload, result))
         except _errors.SdkError as error:
-            raise harmos.FailureError(_errors.wire_failure(error.failure)) from error
-        except harmos.FailureError:
+            raise harmos.OperationError(_errors.wire_failure(error.failure)) from error
+        except harmos.OperationError:
             raise
         except Exception as error:
-            raise policy._failure(error, identifier, owner.identifier) from error
+            raise owner._failure(error, identifier) from error
 
     return plugin.operation(
         identifier,

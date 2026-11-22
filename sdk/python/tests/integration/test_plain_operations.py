@@ -159,17 +159,19 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
     async def test_author_failures_keep_classification_and_causes_on_the_carrier(self) -> None:
         @operation("example.failure", visibility=Visibility.PUBLIC)
         async def fail(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
-            raise OperationError(wire_failure(
-                Failure(
-                    "Transient",
-                    "outer_failure",
-                    "Read Failed",
-                    "Retry Read",
-                    cause=Failure("Refused", "inner_failure", "Device Refused", "Check Device"),
-                    details={"device": "42"},
-                    diagnostics="trace_42",
+            raise OperationError(
+                wire_failure(
+                    Failure(
+                        "Transient",
+                        "outer_failure",
+                        "Read Failed",
+                        "Retry Read",
+                        cause=Failure("Refused", "inner_failure", "Device Refused", "Check Device"),
+                        details={"device": "42"},
+                        diagnostics="trace_42",
+                    )
                 )
-            ))
+            )
 
         class FailurePlugin(Plugin):
             identifier = "example"

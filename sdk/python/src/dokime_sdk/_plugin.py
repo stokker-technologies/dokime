@@ -39,7 +39,7 @@ from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, Recor
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
 from . import _logs
-from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
+from ._authoring import Materialization, Record, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._configuration import load
 from ._connection import connect
 from ._errors import SdkError, wire_failure
@@ -83,9 +83,11 @@ class Plugin:
     version: ClassVar[str | None] = None
     suites: ClassVar[Sequence[type[Suite]]] = ()
     lanes: ClassVar[Sequence[Lane]] = ()
+    records: ClassVar[Sequence[Record[Any]]] = ()
     operations: ClassVar[Sequence[Callable[..., object]]] = ()
     settings: ClassVar[Sequence[type[dokime_sdk.operations.Settings]]] = ()
     secrets: ClassVar[Sequence[dokime_sdk.operations.Secret]] = ()
+    failure: ClassVar[Callable[[Exception], harmos.OperationError | None] | None] = None
     resources: ClassVar[Sequence[type[dokime_sdk.operations.Resource]]] = ()
 
     def __init__(self) -> None:
@@ -95,6 +97,18 @@ class Plugin:
         self._version = self.version if self.version is not None else _distribution_version(type(self))
         self._suites = tuple(bind_suite(item, self.identifier) for item in tuple(self.suites))
         self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
+        self._plugin_records = tuple(self.records)
+        self._record_identities: dict[int, str] = {}
+        for record in self._plugin_records:
+            if not isinstance(record, Record) or not record.identifier:
+                raise ValueError("Declare Plugin Record: Supply a Record With an Identifier")
+            identity = build_identifier(record.identifier, record.identifier, prefix=self.identifier)
+            if identity in self._record_identities.values():
+                raise ValueError("Declare Plugin Records: Give Every Record a Unique Identifier")
+            self._record_identities[id(record)] = identity
+        for suite in self._suites:
+            for template in suite.templates:
+                template._identifiers.update(self._record_identities)
         self._operations = tuple(self.operations)
         plugin_methods: dict[str, object] = {}
         for cls in reversed(type(self).__mro__):
@@ -122,7 +136,7 @@ class Plugin:
         for name, identifiers in (
             ("suite", [item.identifier for item in self._suites]),
             ("template", [item.identifier for item in templates]),
-            ("record", [template.resolve(item) for template, item in self._records]),
+            ("record", [template.resolve(item) for template, item in self._records] + list(self._record_identities.values())),
             ("secret", [item.identifier for item in self._secrets]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
@@ -170,7 +184,7 @@ class Plugin:
         methods["finalize"] = self._lifecycle("finalize")
         adapter = type("DokimeOperations", (), methods)()
         contributions: list[Message] = [Suites(suites=[item.definition() for item in self._suites])] if self._suites else []
-        if self._records:
+        if self._records or self._plugin_records:
             contributions.append(
                 RecordContracts(
                     records=[
@@ -179,6 +193,13 @@ class Plugin:
                             message=message_type(item.row).DESCRIPTOR.full_name,
                         )
                         for template, item in self._records
+                    ]
+                    + [
+                        RecordContract(
+                            metadata={"identifier": self._record_identities[id(item)], "label": item.label or item.identifier},
+                            message=message_type(item.row).DESCRIPTOR.full_name,
+                        )
+                        for item in self._plugin_records
                     ],
                 )
             )
@@ -192,16 +213,33 @@ class Plugin:
             requires=requires,
             sections=contributions,
             settings=[field._definition(name) for item in self._settings for name, field in item._fields().items()],
-            messages=[message_type(record.row) for _, record in self._records],
+            messages=[message_type(record.row) for _, record in self._records]
+            + [message_type(record.row) for record in self._plugin_records],
         )
         self._plugin = harmos.plugin.Plugin(
             id=self.identifier,
             version=self._version,
             register=catalog.register,
             lanes=tuple(self.lanes),
+            failure_mapper=type(self).failure,
         )
 
         self._plugin.declarations()
+
+    def _failure(self, error: Exception, identity: str) -> harmos.OperationError:
+        mapper = type(self).failure
+        mapped = mapper(error) if mapper is not None else None
+        return (
+            mapped
+            if mapped is not None
+            else harmos.OperationError(
+                "permanent",
+                code="handler_failed",
+                message=f"{identity}: {error}",
+                action="Correct the Handler or Its Inputs, Then Retry",
+                operation=identity,
+            )
+        )
 
     def declarations(self) -> Declarations:
         return self._plugin.declarations()
@@ -258,7 +296,7 @@ class Plugin:
         async def execute(adapter: object, transport: harmos.plugin.Context, request: TestCasesMaterializeRequest) -> Message:
             try:
                 transport.scope()
-            except harmos.FailureError as error:
+            except harmos.OperationError as error:
                 if error.value.code != "scope_required":
                     raise
             else:
@@ -338,12 +376,11 @@ class Plugin:
                     return CriteriaEvaluateResponse(passed=result)
                 return response_type()
             except SdkError as error:
-                raise harmos.FailureError(wire_failure(error.failure)) from error
-            except harmos.FailureError:
+                raise harmos.OperationError(wire_failure(error.failure)) from error
+            except harmos.OperationError:
                 raise
             except Exception as error:
-                failure_policy = policy or dokime_sdk.operations.OperationPolicy()
-                raise failure_policy._failure(error, identity, self.identifier) from error
+                raise self._failure(error, identity) from error
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)
@@ -376,11 +413,11 @@ class Plugin:
                 result = await _logs.run(context, getattr(instance, name), context)
                 return pack(definition.row, result)
             except SdkError as error:
-                raise harmos.FailureError(wire_failure(error.failure)) from error
-            except harmos.FailureError:
+                raise harmos.OperationError(wire_failure(error.failure)) from error
+            except harmos.OperationError:
                 raise
             except Exception as error:
-                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
+                raise self._failure(error, identity) from error
 
         async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
             try:
@@ -389,11 +426,11 @@ class Plugin:
                 columns = cast(type[Message], sampling.columns if sampling else None)
                 return pack(columns, result)
             except SdkError as error:
-                raise harmos.FailureError(wire_failure(error.failure)) from error
-            except harmos.FailureError:
+                raise harmos.OperationError(wire_failure(error.failure)) from error
+            except harmos.OperationError:
                 raise
             except Exception as error:
-                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
+                raise self._failure(error, identity) from error
 
         async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
             try:
@@ -407,11 +444,11 @@ class Plugin:
 
                 await _logs.run(context, produce)
             except SdkError as error:
-                raise harmos.FailureError(wire_failure(error.failure)) from error
-            except harmos.FailureError:
+                raise harmos.OperationError(wire_failure(error.failure)) from error
+            except harmos.OperationError:
                 raise
             except Exception as error:
-                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
+                raise self._failure(error, identity) from error
 
         if sampling:
             nanoseconds = round(sampling.interval_ms * 1_000_000)
@@ -478,12 +515,12 @@ class Plugin:
 
                     await _logs.run(context, finalize)
             except SdkError as error:
-                raise harmos.FailureError(wire_failure(error.failure)) from error
-            except harmos.FailureError:
+                raise harmos.OperationError(wire_failure(error.failure)) from error
+            except harmos.OperationError:
                 raise
             except Exception as error:
                 identity = f"{self.identifier}.{name}"
-                raise dokime_sdk.operations.OperationPolicy()._failure(error, identity, self.identifier) from error
+                raise self._failure(error, identity) from error
             finally:
                 if name == "finalize":
                     self._sessions.clear()

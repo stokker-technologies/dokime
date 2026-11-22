@@ -14,6 +14,7 @@
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, TypeVar, cast
+from uuid import uuid4
 
 # Third Party Imports
 import harmos
@@ -23,13 +24,14 @@ from harmos import plugin
 
 # Local Imports
 from . import _logs
-from ._errors import FailureError, project_failure, refused
+from ._errors import project_failure, refused
 from ._generated.host import HostRoot
+from ._payloads import Payload, pack
 
 # Type Checking Imports
 if TYPE_CHECKING:
     from . import operations
-    from ._authoring import Stream
+    from ._authoring import Record, Stream
     from ._plugin import Plugin
 
 # === Public Exports === #
@@ -57,10 +59,7 @@ class Context:
         self, operation: str, request: dict[str, Any] | None = None, *, policy: "operations.OperationPolicy | None" = None
     ) -> dict[str, Any]:
         await _logs.flush()
-        try:
-            return await self._transport.operation(operation, request, policy=policy._definition() if policy is not None else None)
-        except harmos.FailureError as error:
-            raise FailureError(project_failure(error.value)) from error
+        return await self._transport.operation(operation, request, policy=policy._definition() if policy is not None else None)
 
     async def sleep(self, duration: float | timedelta) -> None:
         seconds = duration.total_seconds() if isinstance(duration, timedelta) else duration
@@ -97,7 +96,7 @@ class Context:
             raise ValueError("Read Secret: Select a Secret Declared on This Plugin")
         try:
             value = (await self._host.secrets.get(declaration.identifier)).secret
-        except harmos.FailureError as error:
+        except harmos.OperationError as error:
             failure = project_failure(error.value)
             while failure.cause is not None:
                 failure = failure.cause
@@ -130,6 +129,15 @@ class Context:
                 await value.open(self)
                 self.plugin._resource_values[resource] = value
             return cast(T, self.plugin._resource_values[resource])
+
+    async def record[T: Payload](self, declaration: "Record[T]", payload: T, *, request_id: str | None = None) -> int:
+        identity = self.plugin._record_identities.get(id(declaration))
+        if identity is None:
+            raise ValueError("Write Plugin Record: Declare the Record on This Plugin")
+        row = pack(declaration.row, payload)
+        at = await self._transport.now()
+        reply = await self._host.evidence.records.append("", identity, row.SerializeToString(), at, request_id=request_id or str(uuid4()))
+        return reply.ordinal
 
     def settings[T: operations.Settings](self, settings: type[T]) -> T:
         value = self.plugin._settings_values.get(settings)

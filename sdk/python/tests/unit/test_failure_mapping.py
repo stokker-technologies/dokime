@@ -5,7 +5,6 @@
 import asyncio
 from unittest import IsolatedAsyncioTestCase
 
-import harmos
 from google.protobuf.wrappers_pb2 import Int64Value
 from harmos import plugin
 from harmos._wire.plugin.v1.invocation_pb2 import Request
