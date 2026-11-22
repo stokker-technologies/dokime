@@ -26,22 +26,6 @@ type Selection<T> = { data: T; instants: string[]; index: number; playing: boole
 
 /* === Public Functions === */
 
-export function instantTime(instant: string): bigint | null {
-  const millis = Date.parse(instant);
-  if (!Number.isFinite(millis)) return null;
-  const fraction = instant.match(/\.(\d+)(?:Z|[+-]\d\d:\d\d)$/)?.[1] ?? "";
-  return BigInt(millis) * 1_000_000n + BigInt(fraction.padEnd(9, "0").slice(3, 9) || "0");
-}
-
-export function orderedInstants(values: Iterable<string>): string[] {
-  const times = new Map<bigint, string>();
-  for (const value of values) {
-    const time = instantTime(value);
-    if (time !== null && !times.has(time)) times.set(time, value);
-  }
-  return [...times].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, value]) => value);
-}
-
 /* === Hooks === */
 
 export function usePlotPlayback<T>(incoming: T, available: string[]) {
@@ -52,10 +36,14 @@ export function usePlotPlayback<T>(incoming: T, available: string[]) {
   const index = held?.index ?? Math.max(0, instants.length - 1);
   const playing = held?.playing ?? false;
   useEffect(() => {
-    if (!playing) return;
+    if (!playing) {
+      return;
+    }
     const timer = globalThis.setInterval(() => {
       setHeld((selection) => {
-        if (!selection?.playing) return selection;
+        if (!selection?.playing) {
+          return selection;
+        }
         const next = Math.min(selection.index + 1, selection.instants.length - 1);
         return { ...selection, index: next, playing: next < selection.instants.length - 1 };
       });
@@ -108,7 +96,9 @@ export function PlotPlayback({ title, playback }: { title: string; playback: Omi
           interacting.current = false;
         }}
         onValueChange={([next]) => {
-          if (interacting.current) playback.seek(next);
+          if (interacting.current) {
+            playback.seek(next);
+          }
         }}
         onValueCommit={([next]) => {
           interacting.current = false;

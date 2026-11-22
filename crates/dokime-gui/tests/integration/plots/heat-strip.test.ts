@@ -20,13 +20,13 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
-import { onTestFinished, test, vi } from "vitest";
+import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import { afterEach, onTestFinished, test, vi } from "vitest";
 
 // Local Imports
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { emptyLivePlotState } from "@/plots/live-frames";
-import { HeatStripPlot } from "../../../src/plots/catalog/HeatStripPlot";
+import HeatStripPlot from "@/plots/catalog/HeatStripPlot.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
 
@@ -44,7 +44,9 @@ import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
 
 /* === Entry Point === */
 
-test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", () => {
+afterEach(cleanup);
+
+test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", async () => {
   const payload: PlotPayload = {
     stream: "samples",
     x_key: "cell",
@@ -64,17 +66,27 @@ test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", 
   };
   const descriptor = { plot_id: "heat", title: "Heat Strip", plot_type: "heat_strip", y: ["value"] } as DocumentViewPlot;
   const plot = documentPlotSpec({ plot: descriptor, payload });
-  const container = document.createElement("div");
-  container.innerHTML = renderToStaticMarkup(createElement(HeatStripPlot, { plot }));
-  const routed = renderToStaticMarkup(
-    createElement(LivePlotGroupGrid, {
-      documentPlots: [descriptor],
-      liveStates: { heat: { ...emptyLivePlotState(), payload } },
-      title: "Values",
-      viewportMode: "fit",
-    }),
+  const { container, rerender } = render(HeatStripPlot, { plot });
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const routed = document.createElement("div");
+  document.body.append(routed);
+  const root = createRoot(routed);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    routed.remove();
+    vi.unstubAllGlobals();
+  });
+  await act(async () =>
+    root.render(
+      createElement(LivePlotGroupGrid, {
+        documentPlots: [descriptor],
+        liveStates: { heat: { ...emptyLivePlotState(), payload } },
+        title: "Values",
+        viewportMode: "fit",
+      }),
+    ),
   );
-  assert.ok(routed.includes('data-testid="heat-strip-plot"'));
+  assert.ok(routed.querySelector('[data-testid="heat-strip-plot"]'));
   const strips = container.querySelectorAll("[data-facet]");
   assert.equal(strips.length, 2);
   for (const [index, strip] of Array.from(strips).entries()) {
@@ -104,30 +116,21 @@ test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", 
       point.y = 4;
     }
   }
-  container.innerHTML = renderToStaticMarkup(createElement(HeatStripPlot, { plot }));
+  await rerender({ plot: { ...plot } });
   assert.equal(container.querySelectorAll("[data-heat-legend]").length, 1);
   for (const series of plot.series) {
     for (const point of series.points) {
       point.y = null;
     }
   }
-  container.innerHTML = renderToStaticMarkup(createElement(HeatStripPlot, { plot }));
+  await rerender({ plot: { ...plot } });
   assert.equal(container.querySelectorAll("[data-heat-legend]").length, 0);
   assert.equal(container.querySelectorAll('[data-valid="false"]').length, 6);
 });
 
 test("Heat Strip Slider Selects Values and Latest Returns to New Live Samples", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    vi.unstubAllGlobals();
-  });
   const descriptor = { plot_id: "heat", title: "Heat Strip", plot_type: "heat_strip", y: ["value"] } as DocumentViewPlot;
-  const render = async (values: number[]) => {
+  const fixture = (values: number[]) => {
     const payload: PlotPayload = {
       stream: "samples",
       x_key: "cell",
@@ -144,24 +147,23 @@ test("Heat Strip Slider Selects Values and Latest Returns to New Live Samples", 
       ],
     };
     const plot = documentPlotSpec({ plot: descriptor, payload });
-    await act(async () => root.render(createElement(HeatStripPlot, { plot })));
+    return { plot };
   };
-  await render([3, 7]);
+  const { container: host, getByRole, rerender } = render(HeatStripPlot, fixture([3, 7]));
   assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 7 · "));
   const slider = host.querySelector<HTMLElement>('[role="slider"]');
   assert.ok(slider);
   assert.equal(slider.getAttribute("aria-valuenow"), "1");
   assert.ok(host.querySelector('[data-slot="slider"]')?.classList.contains("w-full"));
-  await act(async () => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+  await fireEvent.keyDown(slider, { key: "ArrowLeft" });
   assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
-  await render([3, 7, 9]);
+  await rerender(fixture([3, 7, 9]));
   assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
-  await render([]);
+  await rerender(fixture([]));
   assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
-  await render([3, 7, 9]);
-  const latest = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === "Latest");
-  assert.ok(latest);
-  await act(async () => latest.click());
+  await rerender(fixture([3, 7, 9]));
+  const latest = getByRole("button", { name: "Latest" });
+  await fireEvent.click(latest);
   assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
   assert.ok(host.querySelector("output")?.textContent?.includes("00:00:03"));
 });

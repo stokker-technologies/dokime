@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -17,10 +18,10 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { test, vi } from "vitest";
+import { onTestFinished, test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 
 // Local Imports
 import {
@@ -128,6 +129,27 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
     scope: create(EvidenceScopeSchema, { executionId: "execution", cycleId: "cycle" }),
   });
   const stream = await openNativePlotStream(session, [request]);
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(private readonly notify: IntersectionObserverCallback) {}
+
+      observe(target: Element) {
+        this.notify([{ target, isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+      }
+
+      unobserve() {}
+    },
+  );
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  onTestFinished(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
   let state = emptyLivePlotState();
   let frames = 0;
   for await (const page of stream) {
@@ -139,17 +161,19 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
       state = applyPlotMessages(state, [update]);
     }
     assert.equal(state.status, "live");
-    const markup = renderToStaticMarkup(
-      createElement(LivePlotGroupGrid, {
-        documentPlots: [descriptor],
-        liveStates: { heat: state },
-        title: "Values",
-        viewportMode: "live",
-      }),
-    );
-    assert.ok(markup.includes('data-testid="heat-strip-plot"'));
-    assert.ok(markup.includes('data-cell="6"'));
-    assert.ok(markup.includes(`6 · Band · ${frames ? 7 : 3}`));
+    await act(async () => {
+      root.render(
+        createElement(LivePlotGroupGrid, {
+          documentPlots: [descriptor],
+          liveStates: { heat: state },
+          title: "Values",
+          viewportMode: "live",
+        }),
+      );
+    });
+    assert.ok(host.querySelector('[data-testid="heat-strip-plot"]'));
+    const cell = host.querySelector<HTMLElement>('[data-cell="6"]');
+    assert.ok(cell?.title.includes(`6 · Band · ${frames ? 7 : 3}`));
     frames += 1;
   }
   assert.equal(frames, 2);

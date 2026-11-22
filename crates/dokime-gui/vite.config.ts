@@ -11,7 +11,9 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
@@ -35,9 +37,9 @@ export default defineConfig(({ mode }) => ({
     __DOKIME_UI_MODE__: JSON.stringify(mode === "report" ? "report" : "live"),
   },
   plugins: {
-    test: [],
-    report: [react(), tailwindcss(), viteSingleFile()],
-  }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+    test: [svelte(), svelteTesting({ autoCleanup: false })],
+    report: [svelte(), react(), tailwindcss(), viteSingleFile()],
+  }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), svelte(), react(), tailwindcss()],
   resolve: {
     dedupe: workspace.resolve?.dedupe,
     alias: {

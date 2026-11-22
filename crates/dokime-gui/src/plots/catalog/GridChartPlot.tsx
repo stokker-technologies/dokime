@@ -21,7 +21,8 @@ import { formatNumber, formatUnitLabel } from "../../lib/format";
 import type { Wire } from "../../lib/rpc/canonical";
 import { PlotPlaceholder } from "../PlotPlaceholder";
 import { plotPlaceholderText } from "../plot-placeholder";
-import { orderedInstants, PlotPlayback, usePlotPlayback } from "../playback";
+import { orderedInstants } from "../instants";
+import { PlotPlayback, usePlotPlayback } from "../playback";
 import type { PlotCardSpec } from "../types";
 
 /* === Types === */

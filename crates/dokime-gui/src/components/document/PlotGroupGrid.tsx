@@ -25,7 +25,8 @@ import { ContourPlot } from "../../plots/catalog/ContourPlot";
 import { HistogramSeriesPlot } from "../../plots/catalog/HistogramPlot";
 import { TimeSeriesPlot } from "../../plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "../../plots/catalog/TrajectoryPlot";
-import { HeatStripPlot } from "../../plots/catalog/HeatStripPlot";
+import HeatStripPlot from "../../plots/catalog/HeatStripPlot.svelte";
+import { SvelteMount } from "../SvelteMount";
 import { GridChartPlot } from "../../plots/catalog/GridChartPlot";
 import { XyIntervalPlot } from "../../plots/catalog/XyIntervalPlot";
 import { XyPlot } from "../../plots/catalog/XyPlot";
@@ -308,7 +309,7 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
     return <PlotPlaceholder title={plot.title} actions={actions} {...plotUnavailableText(plot.analysis.message)} />;
   }
   if (plot.plotType === "heat_strip") {
-    return <HeatStripPlot key={resetKey ?? plot.key} plot={plot} />;
+    return <SvelteMount key={resetKey ?? plot.key} component={HeatStripPlot} props={{ plot }} />;
   }
   if (plot.plotType === "grid_chart") {
     return <GridChartPlot key={plot.key} plot={plot} />;

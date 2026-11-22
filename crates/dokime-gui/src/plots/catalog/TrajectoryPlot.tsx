@@ -15,7 +15,8 @@ import { type ReactNode, useMemo } from "react";
 
 import type { PlotCartesianFrame } from "../../lib/types";
 import { CartesianPlot } from "../CartesianPlot";
-import { instantTime, orderedInstants, PlotPlayback, usePlotPlayback } from "../playback";
+import { instantTime, orderedInstants } from "../instants";
+import { PlotPlayback, usePlotPlayback } from "../playback";
 import type { PlotCardSpec, PlotViewportMode } from "../types";
 
 /* === Components === */
