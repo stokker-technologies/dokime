@@ -14,11 +14,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { useReportDefaults } from "@/lib/application-settings";
 import { orderedDocumentSections } from "@/lib/document-layout";
-import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
-import { PlotMeasurementsContext } from "@/plots/interaction";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import { useLivePlotPayloads } from "@/plots/live-data";
-import { PlotSettingsEditorContext, type PlotDisplaySettings } from "@/plots/plot-settings";
+import type { PlotDisplaySettings } from "@/plots/plot-settings";
+import { PlotMeasurementsContext, PlotReportDefaultsContext } from "./PlotGroupGrid";
 import { updatePlotSettings } from "../../lib/api/native-document-session";
 import { DocumentCardContent } from "./DocumentSurface";
 import {
@@ -33,11 +32,9 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
   return props.renderMode === "report" ? (
     <DocumentWorkspacePresentation {...props} />
   ) : (
-    <PlotSettingsEditorContext.Provider value={PlotSettingsButton}>
-      <PlotMeasurementsContext.Provider value={useSummaryWindowStore.getInitialState()}>
-        <ConnectedDocumentWorkspace {...props} />
-      </PlotMeasurementsContext.Provider>
-    </PlotSettingsEditorContext.Provider>
+    <PlotMeasurementsContext.Provider value={useSummaryWindowStore.getInitialState()}>
+      <ConnectedDocumentWorkspace {...props} />
+    </PlotMeasurementsContext.Provider>
   );
 }
 
@@ -120,12 +117,14 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
   });
 
   return (
-    <DocumentWorkspacePresentation
-      {...props}
-      document={document}
-      livePlotStates={livePlotStates}
-      onPlotSettingsChange={cycleId ? onPlotSettingsChange : undefined}
-      renderCardContent={(cardProps) => <DocumentCardContent {...cardProps} />}
-    />
+    <PlotReportDefaultsContext.Provider value={reportDefaults}>
+      <DocumentWorkspacePresentation
+        {...props}
+        document={document}
+        livePlotStates={livePlotStates}
+        onPlotSettingsChange={cycleId ? onPlotSettingsChange : undefined}
+        renderCardContent={(cardProps) => <DocumentCardContent {...cardProps} />}
+      />
+    </PlotReportDefaultsContext.Provider>
   );
 }

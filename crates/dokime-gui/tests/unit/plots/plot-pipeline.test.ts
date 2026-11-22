@@ -20,8 +20,7 @@ import assert from "node:assert/strict";
 // Third Party Imports
 import { onTestFinished, test, vi } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { cleanup, render } from "@testing-library/svelte";
 
 // Local Imports
 import {
@@ -36,7 +35,7 @@ import { documentPlot } from "@/lib/document-presentation";
 import { Downsample, PlotStreamKind } from "@generated/host/model";
 import { mapNativePlotWatchPage, openNativePlotStream } from "@/lib/api/native-plots";
 import { plotsSnapshotsWatch } from "@/lib/host/client";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyPlotMessages, emptyLivePlotState } from "@/plots/live-frames";
 
@@ -129,7 +128,6 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
     scope: create(EvidenceScopeSchema, { executionId: "execution", cycleId: "cycle" }),
   });
   const stream = await openNativePlotStream(session, [request]);
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
     "IntersectionObserver",
     class {
@@ -142,15 +140,17 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
       unobserve() {}
     },
   );
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
+  let state = emptyLivePlotState();
+  const { container: host, rerender } = render(PlotGroupGrid, {
+    documentPlots: [descriptor],
+    liveStates: { heat: state },
+    title: "Values",
+    viewportMode: "live",
+  });
+  onTestFinished(() => {
+    cleanup();
     vi.unstubAllGlobals();
   });
-  let state = emptyLivePlotState();
   let frames = 0;
   for await (const page of stream) {
     for (const update of page.updates) {
@@ -161,16 +161,7 @@ test("Running Execution Heat Strip Draws Native Watch Cells and Replaces Them Wh
       state = applyPlotMessages(state, [update]);
     }
     assert.equal(state.status, "live");
-    await act(async () => {
-      root.render(
-        createElement(LivePlotGroupGrid, {
-          documentPlots: [descriptor],
-          liveStates: { heat: state },
-          title: "Values",
-          viewportMode: "live",
-        }),
-      );
-    });
+    await rerender({ liveStates: { heat: state } });
     assert.ok(host.querySelector('[data-testid="heat-strip-plot"]'));
     const cell = host.querySelector<HTMLElement>('[data-cell="6"]');
     assert.ok(cell?.title.includes(`6 · Band · ${frames ? 7 : 3}`));

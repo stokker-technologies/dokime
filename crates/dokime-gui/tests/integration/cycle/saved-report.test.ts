@@ -21,7 +21,8 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { Metric } from "@/components/Metric";
-import { StatsSummaryTable } from "@/plots/StatsSummaryTable";
+import StatsSummaryTable from "@/plots/StatsSummaryTable.svelte";
+import { render } from "@testing-library/svelte";
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
 import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { type CompletedDocument, mapNativeDocument } from "@/lib/api/native-documents";
@@ -175,12 +176,11 @@ test("Report Unit Labels", () => {
   assert.match(tile.label, / \[Mbps\]$/);
   const metric = renderToStaticMarkup(createElement(Metric, { label: tile.label, value: tile.formatted }));
   assert.match(metric, /<span[^>]*class="[^"]*truncate[^"]*"[^>]*title="[^"<>]* \[Mbps\]"/);
-  const table = renderToStaticMarkup(
-    createElement(StatsSummaryTable, {
-      legend: { columns: seriesLegendColumns("Mbps"), rows: [], pending: false },
-    }),
-  );
-  const headings = table.match(/<thead\b[\s\S]*?<\/thead>/)?.[0] ?? "";
+  const { container, unmount } = render(StatsSummaryTable, {
+    legend: { columns: seriesLegendColumns("Mbps"), rows: [], pending: false },
+  });
+  const headings = container.querySelector("thead")?.outerHTML ?? "";
+  unmount();
   assert.match(headings, /title="[^"<>]* \[Mbps\]"/);
   assert.doesNotMatch(headings, /whitespace-normal|overflow-wrap:anywhere|<br/);
 });
@@ -376,13 +376,11 @@ test("Plot Legend Statistics Abbreviate and Keep Every Digit", () => {
     summaries: [{ series_id: "counter", count: 4487, min: exact, max: exact, mean: exact, median: exact }],
     traces: [{ key: "counter", label: "Counter", color: "#000000" }],
   });
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(
-    createElement(StatsSummaryTable, { legend: { columns: seriesLegendColumns(null), rows, pending: false } }),
-  );
+  const { container: host, unmount } = render(StatsSummaryTable, { legend: { columns: seriesLegendColumns(null), rows, pending: false } });
   const values = [...host.querySelectorAll("tbody [data-exact-value]")].filter(
     (cell) => cell.getAttribute("data-exact-value") === exact.decimal,
   );
+  unmount();
   assert.equal(values.length, 4);
   for (const value of values) {
     assert.equal(value.textContent, "1.15292e+18");

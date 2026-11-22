@@ -16,7 +16,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { ApplicationSettings } from "@generated/typescript/application-settings";
-import defaults from "@generated/typescript/application-settings.json";
+import { BUILT_IN_REPORT_DEFAULTS, type ReportDefaults } from "@/plots/plot-settings";
 import { usePreferences, useSavePreferences } from "@/features/settings/application-preferences";
 
 /* === Types === */
@@ -28,18 +28,6 @@ export type Appearance = {
   themeFamily: ApplicationSettings["appearance"]["theme_family"];
   density: Density;
 };
-export type ReportDefaults = {
-  plotPoints: ApplicationSettings["report"]["plot_points"];
-  plotDownsample: Exclude<ApplicationSettings["report"]["plot_downsample"], "unspecified">;
-};
-
-/* === Constants === */
-
-export const BUILT_IN_REPORT_DEFAULTS: ReportDefaults = {
-  plotPoints: defaults.report.plot_points,
-  plotDownsample: defaults.report.plot_downsample as ReportDefaults["plotDownsample"],
-};
-
 /* === Public Functions === */
 
 export function useApplicationSettings() {

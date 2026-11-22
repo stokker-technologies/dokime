@@ -18,8 +18,6 @@ import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import type { DocumentViewCard, DocumentViewPayload, DocumentViewPlot } from "@/lib/types";
 import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-import { PlotSettingsEditorContext } from "@/plots/plot-settings";
-import { PlotSettingsButton } from "../../../src/plots/PlotSettingsDialog";
 
 /* === Re-Exports === */
 
@@ -103,21 +101,20 @@ const liveStates: LivePlotStateMap = Object.fromEntries(
 export function PlotCardDocument({ frozen = false }: { frozen?: boolean }) {
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <PlotSettingsEditorContext.Provider value={frozen ? null : PlotSettingsButton}>
-        <DocumentViewRenderer
-          document={documentView}
-          renderCard={(card, section) => (
-            <LivePlotGroupGrid
-              documentPlots={card.plots}
-              liveStates={liveStates}
-              title={section?.label ?? card.title}
-              showGroupHeaders={false}
-              viewportMode={frozen ? "fit" : "live"}
-              onPlotSettingsChange={frozen ? undefined : async () => {}}
-            />
-          )}
-        />
-      </PlotSettingsEditorContext.Provider>
+      <DocumentViewRenderer
+        document={documentView}
+        renderCard={(card, section) => (
+          <LivePlotGroupGrid
+            documentPlots={card.plots}
+            liveStates={liveStates}
+            title={section?.label ?? card.title}
+            showGroupHeaders={false}
+            viewportMode={frozen ? "fit" : "live"}
+            zoom={frozen}
+            onPlotSettingsChange={frozen ? undefined : async () => {}}
+          />
+        )}
+      />
     </main>
   );
 }

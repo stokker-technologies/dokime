@@ -18,11 +18,11 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { fireEvent, render } from "@testing-library/svelte";
+import { createElement } from "react";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { onTestFinished, test, vi } from "vitest";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
@@ -30,7 +30,7 @@ import type { DocumentSurface } from "@/features/cycle/document-view-model";
 import { ReportShell } from "@/report/ReportShell";
 import { ReportCycleWorkspace } from "@/report/ReportCycleWorkspace";
 import { NativeIntegerValue } from "@/lib/api/native-values";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { emptyLivePlotState } from "@/plots/live-frames";
 import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
 import {
@@ -339,32 +339,20 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
     assert.equal(payload.series[0].points[0].y, 3);
     assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
     if (plotType === PlotKind.HEAT_STRIP) {
-      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-      const host = document.createElement("div");
-      document.body.append(host);
-      const root = createRoot(host);
-      onTestFinished(async () => {
-        await act(async () => root.unmount());
-        host.remove();
-        vi.unstubAllGlobals();
-      });
       const descriptor = source.document("execution")?.cards[0].plots[0];
       assert.ok(descriptor);
-      await act(async () =>
-        root.render(
-          createElement(LivePlotGroupGrid, {
-            title: "Values",
-            documentPlots: [descriptor],
-            viewportMode: "fit",
-            liveStates: { [metadata.identifier]: { ...emptyLivePlotState(), payload } },
-          }),
-        ),
-      );
+      const { container: host, unmount } = render(PlotGroupGrid, {
+        title: "Values",
+        documentPlots: [descriptor],
+        viewportMode: "fit",
+        liveStates: { [metadata.identifier]: { ...emptyLivePlotState(), payload } },
+      });
+      onTestFinished(unmount);
       assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 9 · "));
       const slider = host.querySelector<HTMLElement>('[role="slider"]');
       assert.ok(slider);
       assert.equal(slider.getAttribute("aria-valuenow"), "1");
-      await act(async () => slider.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })));
+      await fireEvent.keyDown(slider, { key: "ArrowLeft" });
       assert.ok(host.querySelector<HTMLElement>("[data-cell]")?.title.includes(" · 3 · "));
       assert.equal(source.plotPayloads("execution").plots[metadata.identifier].series[0].points[1].y, 9);
     }

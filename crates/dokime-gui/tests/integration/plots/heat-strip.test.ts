@@ -18,13 +18,11 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
-import { afterEach, onTestFinished, test, vi } from "vitest";
+import { afterEach, test } from "vitest";
 
 // Local Imports
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { emptyLivePlotState } from "@/plots/live-frames";
 import HeatStripPlot from "@/plots/catalog/HeatStripPlot.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
@@ -67,25 +65,12 @@ test("Heat Strip Fills Each Facet With Equal Width Cells and Shares Its Scale", 
   const descriptor = { plot_id: "heat", title: "Heat Strip", plot_type: "heat_strip", y: ["value"] } as DocumentViewPlot;
   const plot = documentPlotSpec({ plot: descriptor, payload });
   const { container, rerender } = render(HeatStripPlot, { plot });
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  const routed = document.createElement("div");
-  document.body.append(routed);
-  const root = createRoot(routed);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    routed.remove();
-    vi.unstubAllGlobals();
+  const { container: routed } = render(PlotGroupGrid, {
+    documentPlots: [descriptor],
+    liveStates: { heat: { ...emptyLivePlotState(), payload } },
+    title: "Values",
+    viewportMode: "fit",
   });
-  await act(async () =>
-    root.render(
-      createElement(LivePlotGroupGrid, {
-        documentPlots: [descriptor],
-        liveStates: { heat: { ...emptyLivePlotState(), payload } },
-        title: "Values",
-        viewportMode: "fit",
-      }),
-    ),
-  );
   assert.ok(routed.querySelector('[data-testid="heat-strip-plot"]'));
   const strips = container.querySelectorAll("[data-facet]");
   assert.equal(strips.length, 2);

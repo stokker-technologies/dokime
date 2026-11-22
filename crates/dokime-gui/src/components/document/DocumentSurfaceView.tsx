@@ -50,7 +50,6 @@ import type {
   TelemetryStream,
   TraceabilitySnapshot,
 } from "@/lib/types";
-import { PlotInteractionProvider } from "@/plots/interaction";
 import { emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 
 /* === Types === */
@@ -148,19 +147,18 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
   if (props.card.kind === "plots") {
     return reportMode ? (
       <div className="plot-grid grid gap-3">
-        <PlotInteractionProvider zoom>
-          <LivePlotGroupGrid
-            {...plotMarkers(props.records)}
-            documentPlots={props.card.plots}
-            liveStates={reportPlotStates(props.card.plots, props.reportPlots)}
-            parameters={props.plotParameterContext}
-            resetKey="All"
-            showGroupHeaders={false}
-            telemetry={props.reportTelemetry}
-            title={props.sectionTitle}
-            viewportMode="fit"
-          />
-        </PlotInteractionProvider>
+        <LivePlotGroupGrid
+          {...plotMarkers(props.records)}
+          documentPlots={props.card.plots}
+          liveStates={reportPlotStates(props.card.plots, props.reportPlots)}
+          parameters={props.plotParameterContext}
+          resetKey="All"
+          showGroupHeaders={false}
+          telemetry={props.reportTelemetry}
+          title={props.sectionTitle}
+          viewportMode="fit"
+          zoom
+        />
       </div>
     ) : (
       <div className="plot-grid grid gap-3">

@@ -9,6 +9,7 @@
     class: className,
     "aria-label": label,
     "aria-valuetext": valueText,
+    disabled = false,
     min = 0,
     max = 100,
     value = $bindable<number[]>(),
@@ -21,6 +22,9 @@
   type="multiple"
   value={values}
   {min}
+  {disabled}
+  aria-label={label}
+  aria-disabled={disabled || undefined}
   {max}
   data-slot="slider"
   class={cn(

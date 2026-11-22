@@ -40,7 +40,7 @@ operator questions, retries, cancellation, cleanup and report publication.
 The native desktop is back in the Cargo workspace and uses the execution host.
 Its product includes native installers and self-contained HTML reports.
 The desktop and report build entries live in `crates/dokime-gui` and share their presentation components.
-The desktop and report share Svelte renderers for heat strips, grids, pies, bars, box plots, histograms, and contours.
+The desktop and report share a Svelte plot grid and renderers. The connected desktop provides plot settings and live viewport measurements.
 The report renders captured data locally and can open without a backend connection.
 See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 

@@ -16,22 +16,19 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { createElement } from "react";
-import { createRoot } from "react-dom/client";
-import type { ComponentProps } from "svelte";
+import { type Component, mount, unmount } from "svelte";
 
 // Local Imports
-import { SvelteMount } from "@/components/SvelteMount";
 import type { DocumentPlotStyle, PlotCartesianFrame, PlotSeries } from "@/lib/types";
-import { CartesianPlot } from "@/plots/CartesianPlot";
-import { PlotInteractionProvider } from "@/plots/interaction";
+import CartesianPlot from "@/plots/CartesianPlot.svelte";
+import { plotInteractionContext } from "@/plots/plot-interaction";
 import HistogramChart from "@/plots/HistogramChart.svelte";
 import PiePlot from "@/plots/catalog/PiePlot.svelte";
 import BarPlot from "@/plots/catalog/BarPlot.svelte";
 import BoxPlot from "@/plots/catalog/BoxPlot.svelte";
 import ContourPlot from "@/plots/catalog/ContourPlot.svelte";
-import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
-import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
+import XyIntervalPlot from "@/plots/catalog/XyIntervalPlot.svelte";
+import TrajectoryPlot from "@/plots/catalog/TrajectoryPlot.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
 import GridChartPlot from "@/plots/catalog/GridChartPlot.svelte";
@@ -75,7 +72,32 @@ function startCanvasFixture() {
   if (!rootElement) {
     throw new Error("Canvas fixture root is missing");
   }
-  const root = createRoot(rootElement);
+  const mounted: Record<string, unknown>[] = [];
+
+  function render(content: () => HTMLElement) {
+    for (const instance of mounted.splice(0)) {
+      void unmount(instance);
+    }
+    rootElement!.replaceChildren(content());
+  }
+
+  function chart<Props extends Record<string, unknown>>(component: Component<Props>, props: Props, zoom: boolean): HTMLElement {
+    const target = document.createElement("div");
+    target.className = "contents";
+    const context = new Map([[plotInteractionContext, { zoom }]]);
+    const instance = mount(component, { target, props, context });
+    mounted.push(instance);
+    return target;
+  }
+
+  function group(attributes: Record<string, string | number>, children: HTMLElement[]): HTMLDivElement {
+    const element = document.createElement("div");
+    for (const [name, value] of Object.entries(attributes)) {
+      element.setAttribute(name, String(value));
+    }
+    element.append(...children);
+    return element;
+  }
   const arcs = new WeakMap<Path2D, Array<[number, number]>>();
   const painted = new WeakMap<HTMLCanvasElement, Set<string>>();
   const nativeArc = Path2D.prototype.arc;
@@ -100,7 +122,9 @@ function startCanvasFixture() {
         continue;
       }
       const pixel = this.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-      if (pixel[3] > 0) samples.add(`${x}:${y}`);
+      if (pixel[3] > 0) {
+        samples.add(`${x}:${y}`);
+      }
     }
     painted.set(this.canvas, samples);
   };
@@ -152,18 +176,7 @@ function startCanvasFixture() {
           },
         },
       });
-      root.render(
-        createElement(
-          PlotInteractionProvider,
-          { zoom: frozen },
-          createElement(
-            "div",
-            null,
-            createElement(TrajectoryPlot, { key: `trajectory:${frozen}`, plot: trajectory }),
-            createElement(SvelteMount<{ plot: PlotCardSpec }>, { component: GridChartPlot, key: `grid:${frozen}`, props: { plot: grid } }),
-          ),
-        ),
-      );
+      render(() => group({}, [chart(TrajectoryPlot, { plot: trajectory }, frozen), chart(GridChartPlot, { plot: grid }, frozen)]));
       await settled();
     },
     async summaries(dark, touch) {
@@ -189,16 +202,12 @@ function startCanvasFixture() {
           series: [{ key: "A", label: "A", lower_whisker: 0, q1: 1, median: 2, q3: 3, upper_whisker: 4, outliers: [5] }],
         },
       } as unknown as PlotCardSpec;
-      root.render(
-        createElement(
-          "div",
-          {},
-          createElement(
-            "div",
-            { "data-plot-kind": "histogram" },
-            createElement(SvelteMount<ComponentProps<typeof HistogramChart>>, {
-              component: HistogramChart,
-              props: {
+      render(() =>
+        group({}, [
+          group({ "data-plot-kind": "histogram" }, [
+            chart(
+              HistogramChart,
+              {
                 title: "Samples",
                 unit: "V",
                 distribution: {
@@ -210,24 +219,15 @@ function startCanvasFixture() {
                   ],
                 },
               },
-            }),
-          ),
-          createElement(
-            "div",
-            { "data-plot-kind": "bar" },
-            createElement(SvelteMount<ComponentProps<typeof BarPlot>>, { component: BarPlot, props: { plot } }),
-          ),
-          createElement(
-            "div",
-            { "data-plot-kind": "box" },
-            createElement(SvelteMount<ComponentProps<typeof BoxPlot>>, { component: BoxPlot, props: { plot } }),
-          ),
-          createElement(
-            "div",
-            { "data-plot-kind": "grid" },
-            createElement(SvelteMount<{ plot: PlotCardSpec }>, {
-              component: GridChartPlot,
-              props: {
+              false,
+            ),
+          ]),
+          group({ "data-plot-kind": "bar" }, [chart(BarPlot, { plot }, false)]),
+          group({ "data-plot-kind": "box" }, [chart(BoxPlot, { plot }, false)]),
+          group({ "data-plot-kind": "grid" }, [
+            chart(
+              GridChartPlot,
+              {
                 plot: {
                   ...plot,
                   analysis: {
@@ -244,13 +244,13 @@ function startCanvasFixture() {
                   },
                 },
               },
-            }),
-          ),
+              false,
+            ),
+          ]),
           ...["cells", "bands"].map((render) =>
-            createElement(SvelteMount<ComponentProps<typeof ContourPlot>>, {
-              component: ContourPlot,
-              key: render,
-              props: {
+            chart(
+              ContourPlot,
+              {
                 plot: documentPlotSpec({
                   plot: {
                     plot_id: `contour.${render}`,
@@ -280,13 +280,13 @@ function startCanvasFixture() {
                   },
                 }),
               },
-            }),
+              false,
+            ),
           ),
           ...["grouped", "stacked", "pareto"].map((option) =>
-            createElement(SvelteMount<ComponentProps<typeof BarPlot>>, {
-              component: BarPlot,
-              key: option,
-              props: {
+            chart(
+              BarPlot,
+              {
                 plot: {
                   ...plot,
                   plotType: "bar",
@@ -306,38 +306,41 @@ function startCanvasFixture() {
                   })),
                 },
               },
-            }),
+              false,
+            ),
           ),
-          createElement(XyIntervalPlot, {
-            plot: documentPlotSpec({
-              plot: {
-                plot_id: "interval",
-                title: "Interval",
-                stream: "readings",
-                plot_type: "xy",
-                xy_interval: "sigma",
-                y: ["value"],
-              } as DocumentViewPlot,
-              payload: {
-                stream: "readings",
-                x_key: "x",
-                max_points: 10,
-                generated_at: "2026-01-01T00:00:00Z",
-                series: [],
-                analysis: {
-                  kind: "sigma_interval",
-                  series: [{ key: "value", raw_points: 5, bins: [{ x: 1, count: 5, mean: 4, lower: 2, upper: 6 }] }],
+          chart(
+            XyIntervalPlot,
+            {
+              plot: documentPlotSpec({
+                plot: {
+                  plot_id: "interval",
+                  title: "Interval",
+                  stream: "readings",
+                  plot_type: "xy",
+                  xy_interval: "sigma",
+                  y: ["value"],
+                } as DocumentViewPlot,
+                payload: {
+                  stream: "readings",
+                  x_key: "x",
+                  max_points: 10,
+                  generated_at: "2026-01-01T00:00:00Z",
+                  series: [],
+                  analysis: {
+                    kind: "sigma_interval",
+                    series: [{ key: "value", raw_points: 5, bins: [{ x: 1, count: 5, mean: 4, lower: 2, upper: 6 }] }],
+                  },
                 },
-              },
-            }),
-          }),
+              }),
+            },
+            false,
+          ),
           ...[0, 0.5].map((hole) =>
-            createElement(
-              "div",
-              { "data-pie-hole": hole },
-              createElement(SvelteMount<{ plot: PlotCardSpec }>, {
-                component: PiePlot,
-                props: {
+            group({ "data-pie-hole": hole }, [
+              chart(
+                PiePlot,
+                {
                   plot: {
                     ...plot,
                     plotType: "pie",
@@ -358,10 +361,11 @@ function startCanvasFixture() {
                     ],
                   },
                 },
-              }),
-            ),
+                false,
+              ),
+            ]),
           ),
-        ),
+        ]),
       );
       await settled();
     },
@@ -382,12 +386,10 @@ function startCanvasFixture() {
         point_count: 20,
         signature: `${style}:${faceted}:${zoom}:${dark}:${withMarkers}`,
       };
-      root.render(
-        createElement(
-          PlotInteractionProvider,
-          { zoom },
-          createElement(CartesianPlot, {
-            key: cartesian.signature,
+      render(() =>
+        chart(
+          CartesianPlot,
+          {
             title: "Samples",
             cartesian,
             series,
@@ -407,7 +409,8 @@ function startCanvasFixture() {
                 ]
               : [],
             legend: { summaries: series.map((item) => ({ series_id: item.key, count: 10 })), pending: false },
-          }),
+          },
+          zoom,
         ),
       );
       await settled();

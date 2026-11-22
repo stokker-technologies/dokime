@@ -14,22 +14,21 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
+import { act, cleanup, fireEvent, render } from "@testing-library/svelte";
+import { createRawSnippet } from "svelte";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { XyPlot } from "@/plots/catalog/XyPlot";
-import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import XyPlot from "@/plots/catalog/XyPlot.svelte";
+import TimeSeriesPlot from "@/plots/catalog/TimeSeriesPlot.svelte";
+import PlotGroupGrid from "@/components/document/PlotGroupGrid.svelte";
 import { documentPlotSpec } from "@/plots/grouping";
 import type { DocumentViewPlot, PlotPayload } from "@/lib/types";
 import { failureOf } from "@/lib/notification-details";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { emptyLivePlotState } from "@/plots/live-frames";
-import { PlotPlaceholder } from "../../../src/plots/PlotPlaceholder";
+import PlotPlaceholder from "../../../src/plots/PlotPlaceholder.svelte";
 
 /* === Re-Exports === */
 
@@ -68,21 +67,19 @@ const payload: PlotPayload = {
 
 /* === Private Functions === */
 
-function mountPlot() {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+function stubChartSize() {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 600, height: 230 } as DOMRect);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
+  onTestFinished(() => {
+    cleanup();
     charts.options.length = 0;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
-  return { host, root };
 }
+
+const settingsAction = createRawSnippet(() => ({
+  render: () => '<button type="button" aria-label="Plot Settings"></button>',
+}));
 
 vi.mock("uplot", () => ({
   default: class {
@@ -105,9 +102,10 @@ vi.mock("uplot", () => ({
 /* === Entry Point === */
 
 test("XY Axes Keep Numeric Tick Spacing and Share Number Formatting", async () => {
-  const { root } = mountPlot();
+  stubChartSize();
   const plot = documentPlotSpec({ plot: descriptor, payload });
-  await act(async () => root.render(createElement(XyPlot, { plot })));
+  render(XyPlot, { plot });
+  await act(() => vi.dynamicImportSettled());
   assert.equal(charts.options.length, 1);
   const options = charts.options[0];
   assert.equal(options.scales?.x.time, false);
@@ -122,7 +120,8 @@ test("XY Axes Keep Numeric Tick Spacing and Share Number Formatting", async () =
 });
 
 test("XY Frames With No Drawable Pairs Show an Empty State and Recover", async () => {
-  const { host, root } = mountPlot();
+  stubChartSize();
+  const { container: host, rerender } = render(XyPlot, { plot: documentPlotSpec({ plot: descriptor, payload: null }) });
   for (const mode of ["aligned", "faceted"] as const) {
     for (const series of [
       { x: [0, 1, 2], y: [null, null, null] },
@@ -132,7 +131,7 @@ test("XY Frames With No Drawable Pairs Show an Empty State and Recover", async (
         plot: descriptor,
         payload: { ...payload, cartesian: { mode, series: [series], point_count: 91, signature: `missing:${mode}` } },
       });
-      await act(async () => root.render(createElement(XyPlot, { plot })));
+      await rerender({ plot });
       assert.ok(host.querySelector('[data-testid="plot-placeholder"]'));
       assert.equal(host.querySelector(".plot-card strong")?.textContent, descriptor.title);
       assert.equal(charts.options.length, 0);
@@ -140,13 +139,15 @@ test("XY Frames With No Drawable Pairs Show an Empty State and Recover", async (
     }
   }
   const plot = documentPlotSpec({ plot: descriptor, payload });
-  await act(async () => root.render(createElement(XyPlot, { plot })));
+  await rerender({ plot });
+  await act(() => vi.dynamicImportSettled());
   assert.equal(host.querySelector('[data-testid="plot-placeholder"]'), null);
   assert.equal(charts.options.length, 1);
 });
 
 test("XY Counts Only Finite Pairs Admitted by the Selected Scales", async () => {
-  const { host, root } = mountPlot();
+  stubChartSize();
+  const { container: host, rerender } = render(XyPlot, { plot: documentPlotSpec({ plot: descriptor, payload: null }) });
   for (const scale of ["linear", "log"] as const) {
     const plot = documentPlotSpec({
       plot: { ...descriptor, x_scale: scale, y_scale: scale },
@@ -160,14 +161,14 @@ test("XY Counts Only Finite Pairs Admitted by the Selected Scales", async () => 
         },
       },
     });
-    await act(async () => root.render(createElement(XyPlot, { plot })));
+    await rerender({ plot });
     const count = host.querySelector(".plot-card span.text-xs")?.textContent?.trim().split(" ")[0];
     assert.equal(Number(count), scale === "linear" ? 4 : 1);
   }
 });
 
 test("Document Plot Titles Remain in Their Cards Through Loading, Empty and Failure States", () => {
-  const host = document.createElement("div");
+  onTestFinished(cleanup);
   for (const plot_type of ["xy", "time_series"] as const) {
     const plot = { ...descriptor, plot_type };
     for (const status of ["loading", "live", "error"] as const) {
@@ -184,15 +185,13 @@ test("Document Plot Titles Remain in Their Cards Through Loading, Empty and Fail
           : {}),
         ...(status === "error" ? { failure: failureOf(new Error("Reload the plot."), "Plot Refresh Failed") } : {}),
       };
-      host.innerHTML = renderToStaticMarkup(
-        createElement(LivePlotGroupGrid, {
-          documentPlots: [plot],
-          liveStates: { position: state },
-          showGroupHeaders: false,
-          title: plot.title,
-          viewportMode: "fit",
-        }),
-      );
+      const { container: host } = render(PlotGroupGrid, {
+        documentPlots: [plot],
+        liveStates: { position: state },
+        showGroupHeaders: false,
+        title: plot.title,
+        viewportMode: "fit",
+      });
       const title = host.querySelector(".plot-card strong");
       assert.equal(title?.textContent, plot.title);
       assert.ok(!title?.classList.contains("sr-only"));
@@ -202,23 +201,21 @@ test("Document Plot Titles Remain in Their Cards Through Loading, Empty and Fail
 });
 
 test("Plot Placeholder Failures Retain Their Title and Settings Action", () => {
-  const host = document.createElement("div");
-  host.innerHTML = renderToStaticMarkup(
-    createElement(PlotPlaceholder, {
-      title: descriptor.title,
-      label: "Stream Error",
-      detail: "Reload the plot.",
-      tone: "error",
-      actions: createElement("button", { type: "button", "aria-label": "Plot Settings" }),
-    }),
-  );
+  onTestFinished(cleanup);
+  const { container: host } = render(PlotPlaceholder, {
+    title: descriptor.title,
+    label: "Stream Error",
+    detail: "Reload the plot.",
+    tone: "error",
+    actions: settingsAction,
+  });
   assert.equal(host.querySelector(".plot-card strong")?.textContent, descriptor.title);
   assert.ok(host.querySelector(".plot-card button[aria-label]"));
   assert.ok(host.querySelector('.plot-card [role="alert"]'));
 });
 
 test("Live and Frozen Plots Keep All Traces in One Card Below the Description", async () => {
-  const { host, root } = mountPlot();
+  stubChartSize();
   const series = Array.from({ length: 12 }, (_, index) => ({
     key: `trace-${index}`,
     label: `Trace ${index + 1}`,
@@ -236,15 +233,7 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     },
   });
   for (const viewportMode of ["live", "fit"] as const) {
-    await act(async () =>
-      root.render(
-        createElement(TimeSeriesPlot, {
-          plot,
-          viewportMode,
-          actions: createElement("button", { type: "button", "aria-label": "Plot Settings" }),
-        }),
-      ),
-    );
+    const { container: host } = render(TimeSeriesPlot, { plot, viewportMode, actions: settingsAction });
     const card = host.querySelector("article.plot-card")!;
     assert.equal(host.querySelectorAll("article").length, 1);
     assert.ok(card.classList.contains("border"));
@@ -259,17 +248,17 @@ test("Live and Frozen Plots Keep All Traces in One Card Below the Description", 
     assert.equal(card.querySelectorAll('[data-slot="data-table"], input, select, tfoot').length, 0);
     assert.equal(statistics.querySelectorAll("h1, h2, h3, h4, h5, h6, .border").length, 0);
     const toggle = table.querySelector("tbody button")!;
-    await act(async () => toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await fireEvent.click(toggle);
     assert.equal(toggle.getAttribute("aria-pressed"), "false");
     assert.ok(toggle.querySelector('[data-trace-hidden="true"]'));
-    await act(async () => toggle.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await fireEvent.click(toggle);
     assert.equal(toggle.getAttribute("aria-pressed"), "true");
     assert.equal(table.querySelectorAll("tbody tr").length, 12);
   }
 });
 
 test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside Their Card", async () => {
-  const { host, root } = mountPlot();
+  stubChartSize();
   vi.stubGlobal("IntersectionObserver", undefined);
   const exact = new NativeIntegerValue(1152921504606847975n, true);
   for (const count of [1, 12]) {
@@ -299,16 +288,12 @@ test("Live and Frozen Histograms Keep Every Statistic in One Plain Table Inside 
       },
     };
     for (const viewportMode of ["live", "fit"] as const) {
-      await act(async () =>
-        root.render(
-          createElement(LivePlotGroupGrid, {
-            title: "Distributions",
-            documentPlots: [plot],
-            liveStates: { [plot.plot_id]: state },
-            viewportMode,
-          }),
-        ),
-      );
+      const { container: host } = render(PlotGroupGrid, {
+        title: "Distributions",
+        documentPlots: [plot],
+        liveStates: { [plot.plot_id]: state },
+        viewportMode,
+      });
       const card = host.querySelector("article.plot-card")!;
       assert.ok(card.classList.contains("border"));
       const table = card.querySelector('table[aria-label="Histogram Statistics"]')!;

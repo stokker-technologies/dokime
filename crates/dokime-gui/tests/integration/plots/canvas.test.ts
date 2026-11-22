@@ -70,7 +70,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           transformIndexHtml: {
             order: "pre",
             handler: () =>
-              '<!doctype html><html><body><div id="root" style="width:800px"></div><script type="module" src="/tests/integration/plots/canvas-fixture.tsx"></script></body></html>',
+              '<!doctype html><html><body><div id="root" style="width:800px"></div><script type="module" src="/tests/integration/plots/canvas-fixture.ts"></script></body></html>',
           },
         },
       ],
