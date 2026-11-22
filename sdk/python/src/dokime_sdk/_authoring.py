@@ -119,6 +119,7 @@ class _Template:
     steps: Sequence[Step] = ()
     criteria: Sequence[Criterion] = ()
     streams: Sequence[Stream[Any]] = ()
+    uses_streams: Sequence[Stream[Any]] = ()
     parameters: Sequence[Parameter] = ()
     documents: Sequence["Document"] = ()
     files: Sequence[FileParameter] = ()
@@ -142,6 +143,13 @@ class _Template:
         self.streams = tuple(self.streams) + tuple(
             method.__dokime_stream__ for method in self._methods.values() if hasattr(method, "__dokime_stream__")
         )
+        for stream in self.uses_streams:
+            if (
+                not isinstance(stream, Stream)
+                or not stream.identifier
+                or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+)+", stream.identifier)
+            ):
+                raise ValueError("Use Template Stream: Supply a Stream With an Explicit Qualified Identifier")
         if sum(bool(getattr(method, "__dokime_materialize__", False)) for method in self._methods.values()) > 1:
             raise ValueError("Build Template: Declare Exactly One Custom Materializer")
         self.records = tuple(member for member in self._methods.values() if isinstance(member, Record))
@@ -220,6 +228,9 @@ class _Template:
 
     def resolve(self, declaration: object) -> str:
         member = getattr(declaration, "__func__", declaration)
+        if isinstance(member, Stream) and any(member is stream for stream in self.uses_streams):
+            assert member.identifier is not None
+            return member.identifier
         identity = self._identifiers.get(id(member))
         if identity is None:
             raise ValueError("Resolve Declaration: Supply a Member of This Template")
@@ -268,6 +279,7 @@ class TestTemplate:
     parameters: ClassVar[Sequence[Parameter]] = ()
     files: ClassVar[Sequence[FileParameter]] = ()
     documents: ClassVar[Sequence["Document"]] = ()
+    uses_streams: ClassVar[Sequence[Stream]] = ()
 
     def __init__(self) -> None:
         pass
@@ -307,7 +319,7 @@ class Materialization:
         self.parameters: Mapping[str, Scalar] = MappingProxyType(deepcopy(parameters))
         self.message = TestCase(
             parameters={key: encode(value) for key, value in parameters.items()},
-            streams=[template.resolve(item) for item in template.streams],
+            streams=list(dict.fromkeys(template.resolve(item) for item in (*template.streams, *template.uses_streams))),
         )
         self.bindings: dict[tuple[str, str], tuple[Callable[..., object], dict[str, object]]] = {}
 
@@ -498,6 +510,7 @@ def bind_suite(declaration: type[Suite]) -> _Suite:
             parameters=tuple(deepcopy(item.parameters)),
             files=tuple(deepcopy(item.files)),
             documents=tuple(item.documents),
+            uses_streams=tuple(item.uses_streams),
         ).bind(identity)
         templates.append(template)
     return _Suite(identity, tuple(templates), declaration.label or build_label(declaration.__name__))
