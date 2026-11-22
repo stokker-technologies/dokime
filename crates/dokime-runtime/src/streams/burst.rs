@@ -104,7 +104,7 @@ impl Instance for Fixture {
                             offset: 0,
                             last: true,
                             streams: vec![CollectionRows {
-                                stream: "readings".into(),
+                                stream: "fixture.readings".into(),
                                 rows: (0..burst)
                                     .map(|index| {
                                         Reading {
@@ -140,9 +140,9 @@ async fn capture(burst: u64, window: usize) -> Result<(Vec<u64>, Option<String>)
     let mut catalog = Declarations {
         types: Some(<Reading as dokime::encoding::contract::Message>::types()),
         streams: vec![StreamDeclaration {
-            id: "readings".into(),
+            id: "fixture.readings".into(),
             row: <Reading as dokime::encoding::contract::Message>::name(),
-            collection: "readings".into(),
+            collection: "fixture.readings".into(),
             interval: Some(prost_types::Duration { seconds: 60, nanos: 0 }),
             ..Default::default()
         }],
@@ -160,9 +160,9 @@ async fn capture(burst: u64, window: usize) -> Result<(Vec<u64>, Option<String>)
         catalog: catalog.encode_to_vec(),
         ..Default::default()
     })?;
-    store.open_stream("execution", "readings")?;
+    store.open_stream("execution", "fixture.readings")?;
     let failures = Arc::new(Mutex::new(HashMap::new()));
-    let scopes = Arc::new(Mutex::new(HashMap::from([("execution".into(), SampleScope::new(&catalog, &["readings".into()])?)])));
+    let scopes = Arc::new(Mutex::new(HashMap::from([("execution".into(), SampleScope::new(&catalog, &["fixture.readings".into()])?)])));
 
     // Attach the Real Execution Consumer and Freeze Time Between Collection Ticks.
     let (clock, controller) = Clock::virtual_at(SystemTime::UNIX_EPOCH);
@@ -226,7 +226,7 @@ async fn capture(burst: u64, window: usize) -> Result<(Vec<u64>, Option<String>)
     let binding = runtime.bind_grpc(&attached.activation().unwrap(), "execution", clock, &CallContext::default()).await?;
 
     // A Single-Thread Executor Cannot Drain Until the Publisher Awaits; Two Ticks Reveal a Terminated Demand.
-    binding.start_samples(["readings"]).await?;
+    binding.start_samples(["fixture.readings"]).await?;
     controller.advance_by(Duration::from_secs(120)).await;
     let outcome = binding.stop_samples().await.err().map(|error| error.to_string());
     binding.close().await?;
@@ -239,7 +239,7 @@ async fn capture(burst: u64, window: usize) -> Result<(Vec<u64>, Option<String>)
     assert!(failures.lock().unwrap().is_empty());
     store.flush_samples()?;
     let through = store.cut("execution")?.frontier;
-    let saved = store.sample_page("execution", "readings", 0, through, NonZeroUsize::new(100).unwrap())?;
+    let saved = store.sample_page("execution", "fixture.readings", 0, through, NonZeroUsize::new(100).unwrap())?;
     let values = saved.into_iter().map(|sample| Reading::decode(sample.row.as_slice()).map(|row| row.value)).collect::<Result<_, _>>()?;
     Ok((values, outcome))
 }
@@ -247,10 +247,10 @@ async fn capture(burst: u64, window: usize) -> Result<(Vec<u64>, Option<String>)
 /* === Tests === */
 
 #[tokio::test]
-async fn collection_burst_larger_than_the_window_exposes_library_backlog() -> Result<(), Box<dyn Error>> {
+async fn collection_burst_larger_than_the_window_waits_for_ingest_and_keeps_every_row() -> Result<(), Box<dyn Error>> {
     let (rows, failure) = capture(3, 2).await?;
-    assert_eq!(rows, [0, 1]);
-    assert!(failure.unwrap().contains("the stream window is full of rows its ingest has not taken in"));
+    assert_eq!(rows, [0, 1, 2, 3, 4, 5]);
+    assert!(failure.is_none(), "{failure:?}");
     Ok(())
 }
 

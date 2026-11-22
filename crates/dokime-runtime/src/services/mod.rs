@@ -798,7 +798,7 @@ mod tests {
                 let runtime = &host.assembly.as_ref().unwrap().runtime;
                 let stream = runtime
                     .streams
-                    .current_publication("network_probe")
+                    .current_publication("host.network_probe")
                     .ok_or("Observe Host Network Probe: Admit the Collection Stream")?;
                 let mut rows = stream.watch();
                 for _ in 0..2 {
