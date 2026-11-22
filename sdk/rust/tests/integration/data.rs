@@ -96,6 +96,7 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
             }),
             minimum: None,
             maximum: None,
+            ..Default::default()
         })
         .suite(Suite::of::<()>().identifier("data.data").label("Data").template(template))
         .declarations()?;

@@ -74,7 +74,13 @@ fn observer_records_fan_out_to_two_capturing_executions_only() -> Result<(), Box
                 identifier: identifier.into(),
                 cycle: "cycle".into(),
                 origin: Some(Origin {
-                    kind: Some(origin::Kind::PluginRun(PluginRun { plugin: "example".into(), template: "example.capture".into(), test_case: Some(TestCase::default()), digest: vec![1], started_at: Some(Timestamp::default()) })),
+                    kind: Some(origin::Kind::PluginRun(PluginRun {
+                        plugin: "example".into(),
+                        template: "example.capture".into(),
+                        test_case: Some(TestCase::default()),
+                        digest: vec![1],
+                        started_at: Some(Timestamp::default()),
+                    })),
                 }),
                 ..Default::default()
             })?;

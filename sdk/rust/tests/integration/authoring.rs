@@ -263,6 +263,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         period: Some(period),
         count: 2,
         sequence: 1,
+        capturing_executions: Vec::new(),
     };
     let columns = Process::window(&grants, &mut samples, window).await?;
     assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [84.0, 84.0]);
@@ -273,6 +274,7 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         period: Some(period),
         count: 1,
         sequence: 3,
+        capturing_executions: Vec::new(),
     };
     let columns = Process::window(&grants, &mut samples, window).await?;
     assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [84.0]);

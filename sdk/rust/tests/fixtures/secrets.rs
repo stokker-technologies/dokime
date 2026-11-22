@@ -85,6 +85,7 @@ fn main() -> Result<()> {
             default: Some(SettingValue {
                 value: Some(setting_value::Value::Text(String::new())),
             }),
+            ..Default::default()
         })
         .run()
 }

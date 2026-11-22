@@ -117,6 +117,7 @@ impl Process {
                 invocation: format!("{scope}:{operation}"),
                 attempt: 1,
                 scope: scope.into(),
+                capturing_executions: Vec::new(),
             })),
         })
         .await?;

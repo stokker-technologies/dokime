@@ -69,8 +69,6 @@ path = "../fixtures/plugin.rs"
 [dependencies]
 # Local
 dokime = { path = "../.." }
-prost-types = { version = "0.14.4" }
-tonic = { version = "0.14.8", features = ["transport"] }
 
 # Git
 
@@ -81,6 +79,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 # Utilities
 
 # Serialization
+prost-types = { version = "0.14.4" }
 
 # Configuration
 
@@ -94,6 +93,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 tokio = { version = "1.50.0", features = ["macros", "sync", "rt-multi-thread", "net", "time"] }
 
 # Networking
+tonic = { version = "0.14.8", features = ["transport"] }
 
 # Storage
 
