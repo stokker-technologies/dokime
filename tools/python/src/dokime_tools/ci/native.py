@@ -435,8 +435,10 @@ def default_caches(workspace: Path, environment: Mapping[str, str]) -> dict[str,
     }
     if environment.get("COMPILER_CACHE_BACKEND") == "disk":
         profile = environment.get("CI_CACHE_PROFILE") or environment.get("PROFILE", "dev")
-        prefix = f"ci-v6-sccache-{platform}-{profile}-" + environment["RUST_TOOLCHAIN"] + "-"
-        caches["sccache"] = {"path": ".cache/sccache/", "key": prefix + digest("Cargo.lock"), "restore-keys": prefix}
+        # Retire Empty Snapshots and Refresh Changed Source Without Invalidating Compatible Entries.
+        prefix = f"ci-v7-sccache-{platform}-{profile}-" + environment["RUST_TOOLCHAIN"] + "-"
+        revision = environment.get("GITHUB_SHA", "local")
+        caches["sccache"] = {"path": ".cache/sccache/", "key": prefix + digest("Cargo.lock") + "-" + revision, "restore-keys": prefix}
     if environment.get("CI_BENCH") == "true":
         layer = environment.get("CI_BENCH_LAYER", "build")
         prefix = f"ci-v6-baselines-{platform}-{layer}-"

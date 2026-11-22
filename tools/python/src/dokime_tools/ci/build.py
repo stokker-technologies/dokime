@@ -119,6 +119,15 @@ def run_command(command: Sequence[str] | str, label: str) -> int:
             flush=True,
         )
         summary.render(label, elapsed, statistics, phases=measured)
+        # Preserve a Job's Write Signal Across Commands; Hits and Empty Stores Need No Upload.
+        writes = statistics.get("cache_writes")
+        if backend == "disk" and mode == "READ_WRITE" and type(writes) is int and writes > 0:
+            if destination := os.environ.get("GITHUB_ENV"):
+                written = Path(destination).open("a", encoding="utf-8", newline="\n")
+                try:
+                    written.write("COMPILER_CACHE_WRITTEN=true\n")
+                finally:
+                    written.close()
 
 
 # === Private Functions === #

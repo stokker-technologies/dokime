@@ -110,7 +110,7 @@ jobs:
         path: ${{ steps.setup.outputs.uv-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
-        && steps.setup.outputs.sccache-path != ''
+        && steps.setup.outputs.sccache-path != '' && env.COMPILER_CACHE_WRITTEN == 'true'
       with:
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
         path: ${{ steps.setup.outputs.sccache-path }}
@@ -118,7 +118,6 @@ jobs:
       MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,cmake,dotnet,ninja,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-      SCCACHE_CACHE_SIZE: 8G
       COMPILER_CACHE_MODE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       DOKIME_HOST_FIXTURE_LANGUAGE: rust
       CI_TRANSPORT: 'true'
@@ -187,7 +186,7 @@ jobs:
         path: ${{ steps.setup.outputs.uv-path }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.sccache-cache-hit != 'true'
-        && steps.setup.outputs.sccache-path != ''
+        && steps.setup.outputs.sccache-path != '' && env.COMPILER_CACHE_WRITTEN == 'true'
       with:
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
         path: ${{ steps.setup.outputs.sccache-path }}
