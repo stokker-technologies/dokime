@@ -44,6 +44,11 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.TransformExpression").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::AtExpression {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.AtExpression").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::DocumentFilter {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.DocumentFilter").expect("generated protocol descriptor")

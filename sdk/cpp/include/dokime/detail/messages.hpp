@@ -81,6 +81,7 @@ inline constexpr auto VALUE_TYPE_LIST = static_cast<::dokime::model::v1::ValueTy
 inline constexpr auto VALUE_TYPE_DATETIME = static_cast<::dokime::model::v1::ValueType>(8);
 using ::dokime::model::v1::Aggregate;
 using ::dokime::model::v1::AggregateExpression;
+using ::dokime::model::v1::AtExpression;
 using ::dokime::model::v1::DataExpression;
 using ::dokime::model::v1::DocumentFilter;
 using ::dokime::model::v1::FieldReference;

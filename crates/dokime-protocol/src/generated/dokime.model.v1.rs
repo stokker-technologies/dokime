@@ -159,7 +159,7 @@ pub struct AggregateExpression {
 pub struct TransformExpression {
     #[prost(message, optional, boxed, tag = "1")]
     pub input: ::core::option::Option<::prost::alloc::boxed::Box<DataExpression>>,
-    #[prost(oneof = "transform_expression::Kind", tags = "2, 3, 4, 5, 6")]
+    #[prost(oneof = "transform_expression::Kind", tags = "2, 3, 4, 5, 6, 7")]
     pub kind: ::core::option::Option<transform_expression::Kind>,
 }
 /// Nested message and enum types in `TransformExpression`.
@@ -177,7 +177,17 @@ pub mod transform_expression {
         Scale(f64),
         #[prost(double, tag = "6")]
         Offset(f64),
+        #[prost(message, tag = "7")]
+        At(super::AtExpression),
     }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AtExpression {
+    #[prost(string, tag = "1")]
+    pub record_type: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "2")]
+    pub within_s: ::core::option::Option<f64>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

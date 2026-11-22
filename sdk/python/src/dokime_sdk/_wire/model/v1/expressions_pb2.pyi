@@ -110,13 +110,24 @@ class TransformExpression(_message.Message, metaclass=GeneratedProtocolMessageTy
     PER_CASE_FIELD_NUMBER: _ClassVar[int]
     SCALE_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
+    AT_FIELD_NUMBER: _ClassVar[int]
     input: DataExpression
     detail: str
     time_between: str
     per_case: bool
     scale: float
     offset: float
-    def __init__(self, input: _Optional[_Union[DataExpression, _Mapping]] = ..., detail: _Optional[str] = ..., time_between: _Optional[str] = ..., per_case: _Optional[bool] = ..., scale: _Optional[float] = ..., offset: _Optional[float] = ...) -> None: ...
+    at: AtExpression
+    def __init__(self, input: _Optional[_Union[DataExpression, _Mapping]] = ..., detail: _Optional[str] = ..., time_between: _Optional[str] = ..., per_case: _Optional[bool] = ..., scale: _Optional[float] = ..., offset: _Optional[float] = ..., at: _Optional[_Union[AtExpression, _Mapping]] = ...) -> None: ...
+
+@final
+class AtExpression(_message.Message, metaclass=GeneratedProtocolMessageType):
+    __slots__: tuple[str, ...]
+    RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
+    WITHIN_S_FIELD_NUMBER: _ClassVar[int]
+    record_type: str
+    within_s: float
+    def __init__(self, record_type: _Optional[str] = ..., within_s: _Optional[float] = ...) -> None: ...
 
 @final
 class DocumentFilter(_message.Message, metaclass=GeneratedProtocolMessageType):
