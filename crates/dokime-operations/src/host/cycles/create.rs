@@ -18,9 +18,11 @@
 // Standard Library Imports
 
 // Third Party Imports
+use uuid::Uuid;
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::host::{Context, cases, execution_state, executions, projection, views};
+use crate::{Error, Result};
 use dokime_protocol::host::CasesCreateResponse;
 use dokime_protocol::host::CycleSummary;
 use dokime_protocol::host::CyclesCreateRequest;
@@ -55,14 +57,14 @@ pub async fn handle(context: &Context, request: CyclesCreateRequest) -> Result<C
         let mut request = request;
         let mut skipped = Vec::new();
         if !request.source_cycle.is_empty() {
-            let source = crate::host::execution_state::cycle(context, &request.source_cycle).await?;
+            let source = execution_state::cycle(context, &request.source_cycle).await?;
             if source.running_count > 0 || source.queued_count > 0 {
                 return Err(Error::Precondition("Create Cycle: Finish the Source Before Rerunning".into()));
             }
             if !request.origins.is_empty() {
                 return Err(Error::Invalid("Create Cycle: Select Origins or a Source Cycle".into()));
             }
-            for snapshot in crate::host::execution_state::snapshots(context, &request.source_cycle)? {
+            for snapshot in execution_state::snapshots(context, &request.source_cycle)? {
                 match snapshot.execution.origin {
                     Some(origin) if matches!(origin.kind, Some(Kind::PluginRun(_))) => request.origins.push(origin),
                     _ => skipped.push(RerunCaseNotice {
@@ -83,73 +85,79 @@ pub async fn handle(context: &Context, request: CyclesCreateRequest) -> Result<C
         if request.metadata.as_ref().is_some_and(|metadata| metadata.label.trim().is_empty()) {
             return Err(Error::Invalid("Create Cycle: Supply a Nonempty Cycle Label".into()));
         }
-        let now = Some(crate::host::projection::timestamp(context.host.now_ns()));
+        let now = Some(projection::timestamp(context.host.now_ns()));
         let mut cycle = CycleSummary {
-            cycle_id: uuid::Uuid::now_v7().to_string(),
+            cycle_id: Uuid::now_v7().to_string(),
             metadata: request.metadata,
             continue_automatically: request.continue_automatically,
             created_at: now,
             updated_at: now,
             ..Default::default()
         };
-        let mut execution_ids = Vec::new();
         if !request.origins.is_empty() {
-            if request.continue_automatically {
-                let started = context.host.start(request.origins).await?;
-                cycle.cycle_id = started.identifier;
-                execution_ids = started.executions;
-            } else {
-                let cases = request
-                    .origins
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, origin)| {
-                        crate::host::execution_state::case(&origin)?;
-                        Ok(PlannedCase {
-                            origin: Some(origin),
-                            ordinal: index as u64,
-                            ..Default::default()
+            let suites = context.host.suites()?;
+            let cases = request
+                .origins
+                .into_iter()
+                .enumerate()
+                .map(|(index, origin)| {
+                    execution_state::case(&origin)?;
+                    let Some(Kind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
+                    let (suite, template) = suites
+                        .iter()
+                        .filter(|(plugin, _)| plugin == &run.plugin)
+                        .find_map(|(_, suite)| {
+                            suite
+                                .templates
+                                .iter()
+                                .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == run.template))
+                                .map(|template| (suite, template))
                         })
+                        .ok_or_else(|| Error::Precondition("Create Cycle: Reconnect the Case's Template Before Admission".into()))?;
+                    Ok(PlannedCase {
+                        template_id: run.template.clone(),
+                        suite_id: suite.metadata.as_ref().map(|metadata| metadata.identifier.clone()).unwrap_or_default(),
+                        metadata: template.metadata.clone(),
+                        origin: Some(origin),
+                        ordinal: index as u64,
+                        ..Default::default()
                     })
-                    .collect::<Result<Vec<_>>>()?;
-                context.host.store().save_cycle(&cycle)?;
-                let registration_id = format!("cycle/{}", cycle.cycle_id);
-                let registered = crate::host::cases::storage::register(
-                    context,
-                    &registration_id,
-                    &[],
-                    &cycle.cycle_id,
-                    CasesCreateResponse { cases, ..Default::default() },
-                )
-                .await?;
-                let bindings = registered
-                    .cases
-                    .into_iter()
-                    .map(|case| ExecutionBinding {
-                        execution_id: uuid::Uuid::now_v7().to_string(),
-                        case_id: case.case_id,
-                    })
-                    .collect();
-                let reply = crate::host::executions::create::handle(
-                    context,
-                    ExecutionsCreateRequest {
-                        parent: cycle.cycle_id.clone(),
-                        executions: bindings,
-                        request_id: request.request_id.clone(),
-                    },
-                )
-                .await?;
-                execution_ids =
-                    reply.executions.into_iter().filter_map(|execution| execution.summary.map(|summary| summary.execution_id)).collect();
-            }
+                })
+                .collect::<Result<Vec<_>>>()?;
+            context.host.store().save_cycle(&cycle)?;
+            let registration_id = format!("cycle/{}", cycle.cycle_id);
+            let registered = cases::storage::register(
+                context,
+                &registration_id,
+                &[],
+                &cycle.cycle_id,
+                CasesCreateResponse { cases, ..Default::default() },
+            )
+            .await?;
+            let bindings = registered
+                .cases
+                .into_iter()
+                .map(|case| ExecutionBinding {
+                    execution_id: Uuid::now_v7().to_string(),
+                    case_id: case.case_id,
+                })
+                .collect();
+            executions::create::handle(
+                context,
+                ExecutionsCreateRequest {
+                    parent: cycle.cycle_id.clone(),
+                    executions: bindings,
+                    request_id: request.request_id.clone(),
+                },
+            )
+            .await?;
         }
         if !request.source_cycle.is_empty() {
             cycle.rerun_of = Some(request.source_cycle);
         }
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-        let _ = execution_ids;
-        let admitted = crate::host::executions::list::handle(
+        let admitted = executions::list::handle(
             context,
             ExecutionsListRequest {
                 parent: cycle.cycle_id.clone(),
@@ -157,7 +165,7 @@ pub async fn handle(context: &Context, request: CyclesCreateRequest) -> Result<C
             },
         )
         .await?;
-        let mut receipt = crate::host::views::receipt(context, &request.request_id)?;
+        let mut receipt = views::receipt(context, &request.request_id)?;
         receipt.durable_at = admitted.resolved_at.as_ref().and_then(|cut| cut.positions.first()).cloned();
         receipt.accepted_at = receipt.durable_at.clone();
         Ok(CyclesCreateResponse {
