@@ -47,7 +47,7 @@ import {
 } from "@/lib/api/native-execution";
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import { downloadNativeReport, type NativeReportSource, openNativeReport } from "@/lib/api/native-reports";
+import { downloadNativeReport, type NativeReportSource } from "@/lib/api/native-reports";
 import { reportFilename } from "@dokime/document/features/cycle/cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
 import { frozenQuery, useCycleSnapshotSource } from "@dokime/document/features/cycle/snapshot-source";
@@ -61,7 +61,9 @@ const EMPTY_PROMPTS: Awaited<ReturnType<typeof fetchNativePendingPrompts>> = [];
 
 /** The identity a live read needs. Unreachable while a snapshot stands in. */
 function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  if (!session) throw new Error("A connected native backend is required.");
+  if (!session) {
+    throw new Error("A connected native backend is required.");
+  }
   return session.identity;
 }
 
@@ -128,7 +130,9 @@ export function useCycleCommands(cycleId: string) {
      built without a connection and asks for one only when a command runs. */
   const connection = useNativeSessionOptional();
   const session = () => {
-    if (!connection) throw new Error("A connected native backend is required.");
+    if (!connection) {
+      throw new Error("A connected native backend is required.");
+    }
     return connection;
   };
   const queryClient = useQueryClient();
@@ -182,10 +186,6 @@ export function useCycleCommands(cycleId: string) {
     downloadReport: useMutation({
       mutationFn: async ({ executionId, label }: { executionId: string | null; label: string }) =>
         downloadNativeReport(session().identity, reportSource(executionId), reportFilename(label)),
-    }),
-    /* Open the Retained Report; Missing Reports Name the Creation Action. */
-    openReport: useMutation({
-      mutationFn: (executionId: string | null) => openNativeReport(session().identity, reportSource(executionId)),
     }),
     pauseExecution: useMutation({
       mutationFn: (executionId: string) => pauseNativeTestExecution(session().identity, executionId),

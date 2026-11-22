@@ -161,6 +161,7 @@ export function ExecutionSections({
         menu={pluginAvailable === false ? { ...menu, onRerun: null, rerunRefusal: "Plugin Unavailable" } : menu}
         primary={primary && actions ? <ExecutionActionButton action={primary} actions={actions} /> : null}
         subject={reportSubject}
+        reportSealed={execution?.sealed === true}
       />
     </>
   ) : null;

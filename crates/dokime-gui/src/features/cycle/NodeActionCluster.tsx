@@ -21,7 +21,7 @@ import type { ReactNode } from "react";
 import { Button } from "@dokime/plots/components/ui/button";
 import { focusPresentation, useFocusMode } from "@dokime/document/shell/focus-mode";
 import { CycleExportMenuItem } from "./CycleExportMenuItem";
-import { CycleReportMenuItem } from "./CycleReportMenuItem";
+import { DownloadReportAction } from "./DownloadReportAction";
 import { type CycleMenu, type ExecutionMenu, NodeMenu } from "./NodeMenu";
 
 /* === Re-Exports === */
@@ -36,12 +36,13 @@ export type NodeActionClusterProps = {
   primary: ReactNode;
   /** The node whose evidence and report the buttons save; `null` for a case that never ran. */
   subject: { executionId: string | null; label: string; sealed: boolean } | null;
+  reportSealed: boolean;
   menu: CycleMenu | ExecutionMenu;
 };
 
 /* === Components === */
 
-export function NodeActionCluster({ cycleId, menu, primary, subject }: NodeActionClusterProps) {
+export function NodeActionCluster({ cycleId, menu, primary, subject, reportSealed }: NodeActionClusterProps) {
   const focus = useFocusMode();
   const focusLabel = focusPresentation(focus.focused).toggleLabel;
   return (
@@ -69,7 +70,7 @@ export function NodeActionCluster({ cycleId, menu, primary, subject }: NodeActio
         {subject ? (
           <>
             <CycleExportMenuItem cycleId={cycleId} executionId={subject.executionId} sealed={subject.sealed} />
-            <CycleReportMenuItem cycleId={cycleId} executionId={subject.executionId} label={subject.label} />
+            <DownloadReportAction cycleId={cycleId} executionId={subject.executionId} label={subject.label} sealed={reportSealed} />
           </>
         ) : null}
       </NodeMenu>

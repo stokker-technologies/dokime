@@ -455,7 +455,7 @@ pub async fn desktop_artifact_deliver(
     // Prepare the Destination Before Requesting Content
     ensure_main_window(&window).map_err(prepare)?;
     ensure_generation_token(&generation).map_err(prepare)?;
-    ensure_picker_kind(request.kind).map_err(prepare)?;
+    validate_delivery_request(&request).map_err(prepare)?;
     let session = state.inner().clone();
     let filename = sanitize_filename(&request.filename, request.kind, DESKTOP_REPORT_FILENAME_CHARS as usize).map_err(prepare)?;
     if request.action == DeliveryAction::Save {
@@ -501,22 +501,13 @@ pub async fn desktop_artifact_deliver(
     // thread other in-flight async commands need.
     let path = verified.path.to_string_lossy().into_owned();
     let launched = path.clone();
-    let automation = env::var("TAURI_WEBVIEW_AUTOMATION").as_deref() == Ok("true") && env::var("DOKIME_AUTOMATION_REPORT_OPENER").is_ok();
-    if automation {
-        lease
-            .guard(desktop_open_path(app, launched))
-            .await
-            .map_err(|error| open(format!("Native report delivery lost its owning connection: {error:?}")))?
-            .map_err(open)?;
-    } else {
-        tauri::async_runtime::spawn_blocking(move || {
-            let opened = session.with_current(&generation, || open_path(&app, launched));
-            opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?
-        })
-        .await
-        .map_err(|error| open(error.to_string()))?
-        .map_err(open)?;
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let opened = session.with_current(&generation, || open_path(&app, launched));
+        opened.map_err(|error| format!("Native artifact delivery lost its owning connection: {error:?}"))?
+    })
+    .await
+    .map_err(|error| open(error.to_string()))?
+    .map_err(open)?;
     cleanup.keep().map_err(|error| open(error.to_string()))?;
     Ok(Some(Delivered { path, origin: verified.report_origin() }))
 }
@@ -642,6 +633,15 @@ fn validate_save_document(generation: &str, document: &DesktopSaveDocument) -> R
     let filename = sanitize_filename(&document.filename, document.kind, DESKTOP_REPORT_FILENAME_CHARS as usize)?;
     let bytes = decode_bounded(&document.bytes_base64, max_encoded_chars, max_bytes, label)?;
     Ok((filename, bytes, document.kind))
+}
+
+fn validate_delivery_request(request: &ArtifactDeliveryRequest) -> Result<(), String> {
+    ensure_picker_kind(request.kind)?;
+    let report = matches!(request.source, ArtifactSource::CycleReport { .. } | ArtifactSource::ExecutionReport { .. });
+    if report && request.action != DeliveryAction::Save {
+        return Err("Download Report: Save the Report Before Opening Its Saved File".into());
+    }
+    Ok(())
 }
 
 fn ensure_picker_kind(kind: DesktopSaveKind) -> Result<(), String> {
@@ -914,6 +914,44 @@ mod tests {
         };
         let error = validate_save_document("7", &document).unwrap_err();
         assert!(error.contains("desktop_artifact_deliver"));
+    }
+
+    #[test]
+    fn reports_require_saving_before_opening() {
+        let sources = [
+            ArtifactSource::CycleReport {
+                cycle_id: "cycle".into(),
+                name: "report".into(),
+            },
+            ArtifactSource::ExecutionReport {
+                execution_id: "execution".into(),
+                name: "report".into(),
+            },
+        ];
+        for source in sources {
+            let mut request = ArtifactDeliveryRequest {
+                source,
+                kind: DesktopSaveKind::HtmlReport,
+                filename: "report.html".into(),
+                action: DeliveryAction::Save,
+            };
+            validate_delivery_request(&request).unwrap();
+            request.action = DeliveryAction::Open;
+            assert!(validate_delivery_request(&request).unwrap_err().contains("Save the Report"));
+            request.kind = DesktopSaveKind::Artifact;
+            assert!(validate_delivery_request(&request).is_err());
+        }
+    }
+
+    #[test]
+    fn artifacts_still_open_without_a_report_save() {
+        let request = ArtifactDeliveryRequest {
+            source: ArtifactSource::Artifact { artifact_id: "artifact".into() },
+            kind: DesktopSaveKind::Artifact,
+            filename: "artifact.txt".into(),
+            action: DeliveryAction::Open,
+        };
+        validate_delivery_request(&request).unwrap();
     }
 
     fn json_document(filename: &str, bytes: &[u8]) -> DesktopSaveDocument {

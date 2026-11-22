@@ -142,7 +142,6 @@ export type NodeMenuItem =
   | "Add Cases"
   | "Settings"
   | "Follow Active"
-  | "Open Report"
   | "Archive"
   | "Unarchive"
   | "Re-Run";
@@ -341,9 +340,7 @@ export function sealedCaseCount(cases: readonly CycleCase[]): number {
 }
 
 /**
- * A node's "…" menu, as groups a separator divides. Open Report is always
- * there and always enabled: the runtime answers with the sealed report, the
- * one regenerated from sealed evidence, or one rendered from the run so far.
+ * A node's "…" menu, as groups a separator divides.
  * The last group archives the node, or unarchives one already archived.
  * Rerun Cycle is offered in every phase, sealed and archived alike: it plans
  * a new cycle and leaves this one untouched.
@@ -351,16 +348,8 @@ export function sealedCaseCount(cases: readonly CycleCase[]): number {
 export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
   const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [
-        ["Rerun Cycle", "Add Cases", "Follow Active"],
-        ["Open Report", "Settings"],
-        ["Seal Cycle", archive],
-      ]
-    : [
-        ["Start Execution", "Re-Run"],
-        ["Open Report", "Settings"],
-        [archive, "Delete Case"],
-      ];
+    ? [["Rerun Cycle", "Add Cases", "Follow Active"], ["Settings"], ["Seal Cycle", archive]]
+    : [["Start Execution", "Re-Run"], ["Settings"], [archive, "Delete Case"]];
 }
 
 /**
@@ -377,13 +366,20 @@ export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution")
     : "Archiving becomes available once the run is sealed.";
 }
 
-/** Download Report waits only for a save already in progress. */
-export function reportDownloadState(saving: boolean): ReportDownloadState {
+/** Download Report waits for sealed evidence and any save already in progress. */
+export function reportDownloadState(saving: boolean, sealed: boolean): ReportDownloadState {
   return {
-    disabled: saving,
+    disabled: saving || !sealed,
     label: "Download Report",
-    title: saving ? "Saving The Report…" : "Download Report",
+    title: saving ? "Saving The Report…" : sealed ? "Download Report" : "Downloading becomes available once the run is sealed.",
   };
+}
+
+/** A cycle report captures every execution, so each must have sealed. */
+export function cycleReportSealed(status: CycleLifecycle, executions: readonly Pick<TestExecution, "sealed">[]): boolean {
+  const inFlight = isCycleInFlight(status);
+  const sealed = executions.every((execution) => execution.sealed);
+  return !inFlight && sealed;
 }
 
 /** The file a saved report is offered as, named after its cycle or execution. */

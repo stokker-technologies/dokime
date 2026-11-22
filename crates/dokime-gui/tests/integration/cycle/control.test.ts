@@ -221,7 +221,6 @@ test("Entry Header Menu Invokes Start and Delete and Respects Refusals", async (
     onDeleteCase: remove,
     onRerun: null,
     onSettings: null,
-    onOpenReport: null,
   };
   const open = async () => {
     const trigger = element.querySelector("button");

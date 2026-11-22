@@ -19,7 +19,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { Archive, ArchiveRestore, Ellipsis, FileText, LockKeyhole, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Ellipsis, LockKeyhole, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
 // Local Imports
@@ -56,8 +56,6 @@ export type CycleMenu = {
   onAddCases: () => void;
   /** Plans a new cycle with this one's cases against the installed plugin, and opens it. */
   onRerunCycle: () => void;
-  /** Opens the report the cycle has now: current or sealed. */
-  onOpenReport: () => void;
   /** Opens the cycle's Settings: title, description, Continue Automatically. */
   onSettings: () => void;
   onToggleFollowActive: () => void;
@@ -74,9 +72,6 @@ export type ExecutionMenu = {
   deleteRefusal?: string;
   /** `null` for a case that has not run, which has no execution to archive. */
   archive: ArchiveAction | null;
-  /** Opens the report the execution has now: current or sealed;
-   *  `null` for a case that has not run, which has no report of its own. */
-  onOpenReport: (() => void) | null;
   /** Re-Run the execution's case; `null` while the execution is not sealed. */
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
@@ -137,13 +132,6 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         >
           {item === "Archive" ? <Archive /> : <ArchiveRestore />}
           {item}
-        </DropdownMenuItem>
-      );
-    case "Open Report":
-      return (
-        <DropdownMenuItem disabled={!menu.onOpenReport} onSelect={() => menu.onOpenReport?.()}>
-          <FileText />
-          Open Report
         </DropdownMenuItem>
       );
     case "Settings":
