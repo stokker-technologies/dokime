@@ -13,6 +13,8 @@ The public homes are `Dokime`, `Dokime.Operations` and `Dokime.Templates`.
 
 Integration Only: `prepare:harmos` stages the sibling `harmos` main checkout
 into this repository's `target/` directory. `HARMOS_SOURCE` can select that checkout.
+`build:reference` uses the shared fixture builder and the library source resolved by
+Cargo for this workspace; both integration entry points build the same reference host.
 
 ## Operation Calls
 
