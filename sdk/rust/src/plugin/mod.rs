@@ -50,7 +50,6 @@ use crate::SecretsDeclarations;
 use crate::SettingDeclaration;
 use crate::SettingsDeclarations;
 use crate::context::{self, Executions};
-use crate::data;
 use crate::host::Request;
 use crate::message::Wire;
 use crate::operation::{self, Operation};
@@ -255,13 +254,6 @@ impl Plugin {
     }
     pub fn setting(mut self, setting: SettingDeclaration) -> Self {
         self.assembly.settings.push(setting);
-        self
-    }
-    pub fn settings<T: Message>(mut self, defaults: T) -> Self {
-        match data::settings(defaults) {
-            Ok(settings) => self.assembly.settings.extend(settings),
-            Err(error) => self.assembly.errors.push(error.to_string()),
-        }
         self
     }
     pub fn secret(mut self, secret: SecretDeclaration) -> Self {
