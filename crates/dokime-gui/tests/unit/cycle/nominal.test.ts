@@ -60,7 +60,7 @@ import { RECORD_TAIL, appendRecordTail } from "@/lib/api/native-evidence";
 import { failureOf } from "@/lib/notification-details";
 import { defaultCycleLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
-import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
+import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/row-window";
 import { focusPresentation } from "@/shell/focus-mode";
 
 /* === Re-Exports === */

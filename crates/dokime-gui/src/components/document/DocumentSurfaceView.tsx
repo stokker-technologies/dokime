@@ -24,21 +24,19 @@ import { type ReactNode, useContext } from "react";
 import { ErrorCard } from "@/components/ErrorCard";
 import { DocumentRetryContext } from "./DocumentViewRenderer";
 import { ArtifactTreeView } from "../ArtifactTreeView";
-import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "./DocumentEmbeddedContent";
 import DocumentMetricFlow from "./overview/DocumentMetricFlow.svelte";
 import { metricFlowStorageKey } from "./overview/metric-model";
+import DocumentStatus from "./DocumentStatus.svelte";
 import DocumentTable from "./DocumentTable.svelte";
+import DocumentTraceability from "./DocumentTraceability.svelte";
 import { SvelteMount } from "../SvelteMount";
-import { FrozenOperatorNotes } from "./OperatorNotesView";
+import OperatorNotes from "./OperatorNotes.svelte";
 import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/document/PlotGroupGrid";
 import { RecordTimeline } from "./RecordTimeline";
 import { StepRecordList } from "./StepRecordsCard";
 import { MediaGalleryView } from "../MediaGalleryView";
 import type { MediaGalleryArtifact } from "../media-gallery-model";
-import { CopyableTraceabilityValue } from "../traceability/CopyableTraceabilityValue";
 import type { ArtifactTreeInput } from "../../lib/artifact-tree";
-import { formatValue } from "../../lib/dashboard";
-import { isStatedGroup } from "../../lib/traceability";
 import type {
   DocumentViewCard,
   DocumentViewPlot,
@@ -178,15 +176,15 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
   }
 
   if (props.card.kind === "traceability") {
-    return <TraceabilityDocumentContent traceability={props.traceability} />;
+    return <SvelteMount component={DocumentTraceability} props={{ traceability: props.traceability }} />;
   }
 
   if (props.card.kind === "telemetry_context") {
-    return <TelemetryContextDocumentContent streams={props.streams} />;
+    return <SvelteMount component={DocumentStatus} props={{ streams: props.streams }} />;
   }
 
   if (props.card.kind === "notes") {
-    return props.notesContent ?? <FrozenOperatorNotes notes={props.notes} />;
+    return props.notesContent ?? <SvelteMount component={OperatorNotes} props={{ notes: props.notes }} />;
   }
 
   if (props.card.kind === "steps") {
@@ -208,7 +206,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
   }
 
   if (props.card.kind === "health") {
-    return <HealthDocumentContent health={props.health} />;
+    return <SvelteMount component={DocumentStatus} props={{ health: props.health }} />;
   }
 
   if (props.card.kind === "records") {
@@ -216,89 +214,6 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
   }
 
   return null;
-}
-
-export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {
-  const groups = traceability?.groups ?? [];
-  return groups.length ? (
-    <div className="min-w-0 columns-1 gap-4 md:columns-2 xl:columns-3">
-      {groups.map((group) => (
-        <DocumentEmbeddedBlock className="mb-4 break-inside-avoid" key={group.group_id}>
-          <div className="min-w-0">
-            <strong className="block truncate" title={group.title}>
-              {group.title}
-            </strong>
-            {group.summary ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{group.summary}</p> : null}
-          </div>
-          <dl className="grid min-w-0 gap-2">
-            {/* A stated section is shown whole: the author chose its rows, so
-                cutting it at an arbitrary count would drop evidence on
-                purpose. A derived group is a projection and stays capped. */}
-            {(isStatedGroup(group) ? group.items : group.items.slice(0, 8)).map((item) => (
-              <div className="grid min-w-0 grid-cols-2 gap-2" key={String(item.details?.identifier ?? item.label)}>
-                <dt className="truncate text-xs text-muted-foreground" title={item.label}>
-                  {item.label}
-                </dt>
-                <dd className="min-w-0 text-right">
-                  <CopyableTraceabilityValue value={formatValue(item.value, item.unit)} />
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </DocumentEmbeddedBlock>
-      ))}
-      {traceability?.warnings.length ? (
-        <DocumentEmbeddedBlock as="ul" className="mb-4 break-inside-avoid gap-1 text-sm text-muted-foreground" tone="warning">
-          {traceability.warnings.slice(0, 6).map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </DocumentEmbeddedBlock>
-      ) : null}
-    </div>
-  ) : (
-    <DocumentEmbeddedEmptyState>No traceability information available.</DocumentEmbeddedEmptyState>
-  );
-}
-
-export function TelemetryContextDocumentContent({ streams }: { streams: TelemetryStream[] }) {
-  return streams.length ? (
-    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-      {streams.map((stream) => (
-        <DocumentEmbeddedBlock className="gap-1" key={stream.stream}>
-          <div className="min-w-0">
-            <strong className="block truncate" title={stream.spec?.label ?? stream.stream}>
-              {stream.spec?.label ?? stream.stream}
-            </strong>
-            <span className="text-xs text-muted-foreground">{stream.stream}</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {stream.total_samples} samples
-            {stream.dropped_samples ? `, ${stream.dropped_samples} dropped` : ""}
-          </p>
-        </DocumentEmbeddedBlock>
-      ))}
-    </div>
-  ) : (
-    <DocumentEmbeddedEmptyState>No telemetry streams recorded.</DocumentEmbeddedEmptyState>
-  );
-}
-
-export function HealthDocumentContent({ health }: { health: HealthItem[] }) {
-  return health.length ? (
-    <div className="grid gap-2">
-      {health.map((item) => (
-        <DocumentEmbeddedBlock as="article" className="gap-1" key={item.health_id}>
-          <div className="flex items-center justify-between gap-3">
-            <strong className="[overflow-wrap:anywhere]">{item.title}</strong>
-            <span className="rounded-lg border bg-muted/40 px-2 py-1 text-xs capitalize text-muted-foreground">{item.level}</span>
-          </div>
-          {item.message ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.message}</p> : null}
-        </DocumentEmbeddedBlock>
-      ))}
-    </div>
-  ) : (
-    <DocumentEmbeddedEmptyState>No health records for this scope.</DocumentEmbeddedEmptyState>
-  );
 }
 
 export function RecordListContent({ live = true, records }: { live?: boolean; records: HubRecord[] }) {

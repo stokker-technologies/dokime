@@ -62,7 +62,9 @@ export function useSaveAppearance() {
   return useMutation({
     mutationFn: async (patch: Partial<Appearance>) => {
       const previous = query.data;
-      if (!previous) throw new Error("Local settings are unavailable");
+      if (!previous) {
+        throw new Error("Reload local preferences before saving appearance.");
+      }
       const appearance = { ...previous.settings.appearance };
       if (patch.themeMode !== undefined) appearance.theme_mode = patch.themeMode;
       if (patch.themeFamily !== undefined) appearance.theme_family = patch.themeFamily;

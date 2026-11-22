@@ -38,7 +38,8 @@ import {
 } from "@/components/start-cycle-form-model";
 import { apiSelection } from "@/components/suite-picker/model";
 import { useAppendTestCycleMutation, usePreviewTestCycleMutation } from "@/components/suite-picker/server-state";
-import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
+import CopyableTraceabilityValue from "@/components/traceability/CopyableTraceabilityValue.svelte";
+import { SvelteMount } from "@/components/SvelteMount";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -401,7 +402,7 @@ export function TemplateDialog({
         ].map(({ label, value }) => (
           <div className="flex min-w-0 items-center justify-between gap-2" key={label}>
             <span className="shrink-0 text-muted-foreground">{label}</span>
-            <CopyableTraceabilityValue value={value} />
+            <SvelteMount component={CopyableTraceabilityValue} props={{ value }} />
           </div>
         ))}
       </div>

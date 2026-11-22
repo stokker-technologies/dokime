@@ -38,11 +38,12 @@ import { DocumentRetryContext } from "../../components/document/DocumentViewRend
 import { ErrorCard } from "@/components/ErrorCard";
 import type { ComponentType, ReactNode } from "react";
 import { ArtifactTreeView } from "../../components/ArtifactTreeView";
-import { TraceabilityDocumentContent } from "../../components/document/DocumentSurfaceView";
+import DocumentTraceability from "../../components/document/DocumentTraceability.svelte";
 import type { DocumentBlockChrome } from "../../components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "../../components/document/document-surface-policy";
-import { FrozenOperatorNotes } from "../../components/document/OperatorNotesView";
-import { MarkdownText } from "../../components/MarkdownText";
+import OperatorNotes from "../../components/document/OperatorNotes.svelte";
+import MarkdownText from "../../components/MarkdownText.svelte";
+import { SvelteMount } from "../../components/SvelteMount";
 import { MediaGalleryView } from "../../components/MediaGalleryView";
 import { TraceabilityJsonDialog } from "../../components/traceability/TraceabilityJsonDialog";
 import { parseTimestampMs } from "../../lib/time-format";
@@ -127,7 +128,9 @@ export function ExecutionSectionsView({
   const { shared, view } = surface;
   const mainCards = view.sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
   const present = new Set(executionDocumentSections(mainCards));
-  if (view.sections.some((section) => section.loading || section.unavailable)) present.add("report");
+  if (view.sections.some((section) => section.loading || section.unavailable)) {
+    present.add("report");
+  }
   const reportSections = view.sections.map((section) => ({
     ...section,
     cards: section.cards.filter(isReportCard),
@@ -138,7 +141,7 @@ export function ExecutionSectionsView({
     <div className="grid min-h-0">
       <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={[...trail.slice(0, -1), `${titlePrefix ?? ""}${label}`]}>
         <NodeSummary
-          description={template?.description ? <MarkdownText text={template.description} /> : null}
+          description={template?.description ? <SvelteMount component={MarkdownText} props={{ text: template.description }} /> : null}
           live={live}
           onRename={onRename}
           prefix={titlePrefix}
@@ -181,7 +184,9 @@ export function ExecutionSectionsView({
 
             {present.has("notes") ? (
               <ExecutionSectionCard empty={notesContent || view.notes.length ? null : "No operator notes recorded."} title="Operator Notes">
-                {notesContent || view.notes.length ? (notesContent ?? <FrozenOperatorNotes notes={view.notes} />) : null}
+                {notesContent || view.notes.length
+                  ? (notesContent ?? <SvelteMount component={OperatorNotes} props={{ notes: view.notes }} />)
+                  : null}
               </ExecutionSectionCard>
             ) : null}
 
@@ -227,7 +232,7 @@ export function ExecutionSectionsView({
                 title="Traceability"
               >
                 {view.traceability?.groups.length || view.traceability?.warnings.length ? (
-                  <TraceabilityDocumentContent traceability={view.traceability} />
+                  <SvelteMount component={DocumentTraceability} props={{ traceability: view.traceability }} />
                 ) : null}
               </ExecutionSectionCard>
             ) : null}
@@ -268,7 +273,9 @@ function measuredSeconds(execution: Pick<TestExecution, "started_at" | "finished
 
 /** The header's progress text: how many of the execution's steps have settled. */
 function stepProgress(steps: readonly { status: string }[]): string | null {
-  if (!steps.length) return null;
+  if (!steps.length) {
+    return null;
+  }
   const settled = steps.filter((step) => step.status !== "pending" && step.status !== "running").length;
   return `${settled} of ${steps.length} steps finished`;
 }
