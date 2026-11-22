@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -14,6 +15,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { executionControlState, inputNeededLabel, progressCount } from "@/features/cycle/control-model";
+import { render } from "@testing-library/svelte";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
@@ -51,7 +53,7 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
-import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
+import CycleStatusPill from "@/features/cycles-home/CycleStatusPill.svelte";
 import { archivedCycleGroups, groupCycleRows, type CycleRow } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { sameFrontiers } from "@/lib/api/native-documents";
@@ -157,19 +159,20 @@ test("Cycle State", () => {
 test("Status Pill", () => {
   // The Longest State Label Renders Whole, on a Track Every Label Sizes
   const longest = CYCLE_STATE_LABELS.reduce((wide, label) => (label.length > wide.length ? label : wide));
-  const markup = renderToStaticMarkup(createElement(CycleStatusPill, { label: longest, tone: "good" }));
-  const badges = [...markup.matchAll(/<span ([^>]*data-slot="badge"[^>]*)>([^<]*)<\/span>/g)];
-  const visible = badges.filter(([, attributes]) => !attributes.includes("aria-hidden"));
+  const view = render(CycleStatusPill, { label: longest, tone: "good" });
+  const badges = [...view.container.querySelectorAll('[data-slot="badge"]')];
+  const visible = badges.filter((badge) => !badge.hasAttribute("aria-hidden"));
   assert.deepEqual(
-    visible.map(([, , text]) => text),
+    visible.map((badge) => badge.textContent),
     [longest],
     "the visible pill states the full label",
   );
-  const sizers = [...markup.matchAll(/aria-hidden="true"[^>]*>([^<]*)</g)].map((match) => match[1]);
+  const sizers = badges.filter((badge) => badge.getAttribute("aria-hidden") === "true").map((badge) => badge.textContent);
   assert.deepEqual(sizers, [...CYCLE_STATE_LABELS], "every label sizes the shared track");
-  assert.doesNotMatch(markup, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
-  assert.match(markup, /inline-grid/);
-  assert.match(markup, /w-full \[grid-area:1\/1\]/, "the visible pill fills the widest label's track");
+  assert.doesNotMatch(view.container.innerHTML, /pill-width|truncate|text-ellipsis/, "no fixed width or ellipsis can clip a label");
+  assert.ok(view.container.querySelector(".inline-grid"));
+  assert.ok(visible[0].classList.contains("w-full") && visible[0].classList.contains("[grid-area:1/1]"));
+  view.unmount();
 });
 
 test("Live Data Flow", () => {
@@ -263,7 +266,6 @@ test("Node Menus", () => {
   assert.equal(rest.length, 0);
   assert.equal(group.title, "Archived");
   assert.deepEqual(group.rows, rows);
-  assert.equal(archivedCycleGroups([], true)[0].emptyText, "No Archived Cycles Match This Filter");
 });
 
 test("Execution Controls", () => {

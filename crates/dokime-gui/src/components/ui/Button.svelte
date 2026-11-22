@@ -5,11 +5,20 @@
   import { cn } from "../../lib/utils";
   import { buttonVariants } from "./button-variants";
 
-  type Props = HTMLButtonAttributes & VariantProps<typeof buttonVariants>;
-  let { children, class: style, size = "default", type = "button", variant = "default", ...attributes }: Props = $props();
+  type Props = HTMLButtonAttributes & VariantProps<typeof buttonVariants> & { ref?: HTMLButtonElement };
+  let {
+    children,
+    class: style,
+    ref = $bindable(),
+    size = "default",
+    type = "button",
+    variant = "default",
+    ...attributes
+  }: Props = $props();
 </script>
 
 <button
+  bind:this={ref}
   {type}
   data-slot="button"
   data-variant={variant}

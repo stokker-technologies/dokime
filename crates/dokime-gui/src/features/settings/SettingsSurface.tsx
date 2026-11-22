@@ -37,7 +37,9 @@ import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { PanelHeader } from "@/shell/PageShell";
 import { usePageChrome } from "@/shell/page-chrome";
 import { ApplicationPreferences } from "./ApplicationPreferences";
-import { BackendsTable } from "./BackendsTable";
+import { useNativeSessionController } from "@/app/native-session/context";
+import { SvelteMount } from "@/components/SvelteMount";
+import BackendsTable from "./BackendsTable.svelte";
 
 /* === Types === */
 
@@ -116,21 +118,30 @@ function SectionContent({
   retry: () => void;
   section: SettingsSectionId;
 }) {
-  if (section === "backends") return <BackendsTable />;
-  if (section === "appearance") return <ApplicationPreferences advanced={advanced} />;
-  if (section === "remote") return <RemoteSection advanced={advanced} />;
-  if (section === "plugins") return <PluginsSection />;
-  if (section === "secrets") return <SecretsSection />;
-  if (section === "engine") return <EngineSection />;
-  if (section === "diagnostics")
-    return (
-      <>
-        <BootstrapPaths />
-        <DiagnosticsSection />
-        <StorageSourcesCard />
-      </>
-    );
-  if (section === "about") return <AboutSection />;
+  switch (section) {
+    case "backends":
+      return <SavedBackends />;
+    case "appearance":
+      return <ApplicationPreferences advanced={advanced} />;
+    case "remote":
+      return <RemoteSection advanced={advanced} />;
+    case "plugins":
+      return <PluginsSection />;
+    case "secrets":
+      return <SecretsSection />;
+    case "engine":
+      return <EngineSection />;
+    case "diagnostics":
+      return (
+        <>
+          <BootstrapPaths />
+          <DiagnosticsSection />
+          <StorageSourcesCard />
+        </>
+      );
+    case "about":
+      return <AboutSection />;
+  }
 
   if (loading) {
     return (
@@ -197,10 +208,15 @@ export function DisconnectedSettings({ close }: { close: () => void }) {
             ))}
           </nav>
           <SettingsGrid>
-            {section === "backends" ? <BackendsTable /> : <ApplicationPreferences advanced={advanced} localOnly />}
+            {section === "backends" ? <SavedBackends /> : <ApplicationPreferences advanced={advanced} localOnly />}
           </SettingsGrid>
         </div>
       </div>
     </main>
   );
+}
+
+function SavedBackends() {
+  const owner = useNativeSessionController();
+  return <SvelteMount component={BackendsTable} props={{ owner }} />;
 }

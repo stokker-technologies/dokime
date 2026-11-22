@@ -14,13 +14,13 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import { type StorageResetContext, storageResetAvailable } from "@/features/settings/storage-reset-model";
-import { ConnectionScreen } from "@/app/native-session/ConnectionScreen";
+import ConnectionScreen from "@/app/native-session/ConnectionScreen.svelte";
+import type { SessionState } from "@/app/native-session/session";
 import { storageRecoveryAvailable } from "@/app/native-session/errors";
 
 /* === Re-Exports === */
@@ -60,63 +60,44 @@ function resetContext(overrides: Partial<StorageResetContext> = {}): StorageRese
 /* === Entry Point === */
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
-vi.mock("@/app/native-session/context", () => ({
-  useNativeSessionController: () => ({
-    subscribe: () => () => {},
-    snapshot: () => fixture.state,
-    select: fixture.select,
-    backupAndResetLocalStorage: fixture.reset,
-  }),
-}));
 vi.mock("@/lib/desktop/commands", () => ({
   commands: {
     desktopSessionStatus: fixture.status,
     desktopStorageBackupDestination: fixture.destination,
   },
 }));
-vi.mock("@/lib/brand", () => ({ defaultBrand: { label: "Fixture" } }));
-vi.mock("@/shell/BrandMark", () => ({ BrandMark: () => null }));
-vi.mock("@/features/settings/BackendsTable", () => ({ BackendsTable: () => null }));
-vi.mock("@/features/settings/SettingsSurface", () => ({ DisconnectedSettings: () => null }));
-vi.mock("@/components/PathPill", () => ({
-  PathPill: ({ value }: { value: string }) => createElement("code", { "data-path": value }, value),
+vi.mock("@/lib/desktop/settings", () => ({
+  preferencesCommands: { desktopBackendsList: async () => ({ profiles: [] }) },
 }));
-
-let root: Root;
-let container: HTMLDivElement;
 
 beforeEach(() => {
   vi.clearAllMocks();
   fixture.state = { phase: "failed", error: { kind: "startup", message: "fixture", diagnostics: null } };
   fixture.destination.mockResolvedValue({ directory: "/fixture/data", archive: "/fixture/archive.zip" });
   fixture.status.mockResolvedValue({ statusRevision: 1, phase: null, connection: { endpoint: null } });
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
 });
 
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
-});
+afterEach(cleanup);
 
-async function renderConnection() {
-  await act(async () =>
-    root.render(
-      createElement(ConnectionScreen, {
-        launch: { localBackendAvailable: true, target: null, expectedBackendId: null, error: null },
-      }),
-    ),
-  );
+function renderConnection() {
+  return render(ConnectionScreen, {
+    owner: {
+      subscribe: () => () => {},
+      snapshot: () => fixture.state as SessionState,
+      select: fixture.select,
+      disconnect: async () => {},
+    },
+    launch: { localBackendAvailable: true, target: null, expectedBackendId: null, error: null },
+    onSettings: () => {},
+  });
 }
 
 test("Unavailable Host Recovery Cannot Open a Picker or Mutate Storage", async () => {
-  await renderConnection();
+  const { container } = renderConnection();
   const trigger = container.querySelector<HTMLButtonElement>('[data-action="backup-reset"]');
   assert.ok(trigger);
   assert.equal(trigger.disabled, true);
-  await act(async () => trigger.click());
+  await fireEvent.click(trigger);
   assert.equal(fixture.destination.mock.calls.length, 0);
   assert.equal(fixture.reset.mock.calls.length, 0);
   assert.equal(document.querySelector('[role="dialog"]'), null);
@@ -124,7 +105,7 @@ test("Unavailable Host Recovery Cannot Open a Picker or Mutate Storage", async (
 
 test("Another Backend's Folder Never Offers Recovery", async () => {
   fixture.state.error = { kind: "backend_running", root: "/fixture/data", message: "fixture" };
-  await renderConnection();
+  const { container } = renderConnection();
   assert.equal(container.querySelector('[data-action="backup-reset"]'), null);
   assert.equal(storageRecoveryAvailable(fixture.state.error, true, true), false);
 });
@@ -142,17 +123,19 @@ test("Local Startup Failures Do Not Require Diagnostics or Specific Error Prose"
 
 test("A Saved Archive Remains Visible After Restart Fails", async () => {
   fixture.state.error = { kind: "archived", archive: "/fixture/archive.zip", error: { kind: "startup", diagnostics: null } };
-  await renderConnection();
-  assert.ok(container.querySelector('[data-path="/fixture/archive.zip"]'));
+  const { container } = renderConnection();
+  assert.ok(container.querySelector('[title="/fixture/archive.zip"]'));
 });
 
 test("Reset Progress Includes Archive and Reinstallation Phases", async () => {
   fixture.state = { phase: "connecting", reset: "backup", error: null };
   fixture.status.mockResolvedValue({ statusRevision: 2, phase: "reinstalling", connection: { endpoint: null } });
-  await renderConnection();
-  assert.deepEqual(
-    [...container.querySelectorAll("li[data-state]")].map((step) => step.getAttribute("data-state")),
-    ["done", "done", "done", "active", "waiting"],
+  const { container } = renderConnection();
+  await waitFor(() =>
+    assert.deepEqual(
+      [...container.querySelectorAll("li[data-state]")].map((step) => step.getAttribute("data-state")),
+      ["done", "done", "done", "active", "waiting"],
+    ),
   );
 });
 

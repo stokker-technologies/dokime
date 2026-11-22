@@ -18,14 +18,12 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { fireEvent, render } from "@testing-library/svelte";
 import { onTestFinished, test, vi } from "vitest";
 
 // Local Imports
-import { Controller } from "@/app/native-session/context";
 import { NativeSession } from "@/app/native-session/session";
-import { BackendsTable } from "@/features/settings/BackendsTable";
+import BackendsTable from "@/features/settings/BackendsTable.svelte";
 import { preferencesCommands } from "@/lib/desktop/settings";
 
 /* === Re-Exports === */
@@ -43,7 +41,6 @@ import { preferencesCommands } from "@/lib/desktop/settings";
 /* === Entry Point === */
 
 test("Backend Action Menus Survive Owner Renders", async () => {
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.spyOn(preferencesCommands, "desktopBackendsList").mockResolvedValue({
     profiles: [
       {
@@ -58,27 +55,16 @@ test("Backend Action Menus Survive Owner Renders", async () => {
     ],
   });
   const owner = new NativeSession();
-  const host = document.createElement("div");
-  document.body.append(host);
-  const root = createRoot(host);
-  onTestFinished(async () => {
-    await act(async () => root.unmount());
-    host.remove();
+  const table = render(BackendsTable, { owner });
+  onTestFinished(() => {
+    table.unmount();
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
-  const render = async () => {
-    await act(async () => root.render(createElement(Controller.Provider, { value: owner }, createElement(BackendsTable))));
-  };
-  await render();
-  const trigger = host.querySelector<HTMLButtonElement>('[data-row-id="lab"] [data-testid="table-row-actions"]');
-  assert.ok(trigger);
-  await act(async () => trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 })));
-  assert.ok(document.querySelector("[role=menu]"));
-  await render();
-  assert.ok(document.querySelector("[role=menu]"));
-  const action = document.querySelector<HTMLElement>("[role=menuitem]");
-  assert.ok(action);
-  await act(async () => action.click());
-  assert.ok(document.querySelector("[role=dialog]"));
+  const trigger = await table.findByRole("button", { name: "Actions for lab" });
+  await fireEvent.pointerDown(trigger, { button: 0 });
+  assert.ok(await table.findByRole("menu"));
+  await table.rerender({ owner, endpoint: "http://127.0.0.1:8765" });
+  assert.ok(table.getByRole("menu"));
+  await fireEvent.click(table.getByRole("menuitem"));
+  assert.ok(await table.findByRole("dialog"));
 });

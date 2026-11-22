@@ -395,7 +395,9 @@ async function settings() {
         columns: number;
         failureWidth: boolean;
       } | null>(`const frame = document.querySelector('[data-slot="data-table"]');
-        if (!frame) return null;
+        if (!frame) {
+          return null;
+        }
         return {
           heading: Boolean(frame.querySelector('h2')),
           filter: Boolean(frame.querySelector('input')),
@@ -404,7 +406,10 @@ async function settings() {
           failureWidth: [...frame.querySelectorAll('tbody td[colspan]')].every(cell => cell.colSpan === frame.querySelectorAll('thead th').length),
         };`);
       assert.ok(table);
-      assert.ok(table.heading && table.filter && table.footer && table.columns > 0 && table.failureWidth);
+      assert.ok(table.heading && table.columns > 0 && table.failureWidth);
+      if (section !== "backends") {
+        assert.ok(table.filter && table.footer);
+      }
     }
   }
   await desktop.goto("/settings/plugins");

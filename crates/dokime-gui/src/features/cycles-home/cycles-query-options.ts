@@ -6,19 +6,15 @@ import type { SessionIdentity } from "../../lib/rpc/transport";
 import { workflowQueryKeys } from "../cycle/workflow-query-keys";
 
 export type CyclesQuerySelection = {
-  /** Matched server-side against the cycle's label and identifier. */
-  text?: string;
   /* True lists only archived cycles, false only the others. False is the
-     default so the status bar and an unfiltered Cycles home ask the identical
-     question and share one cached read rather than paginating the whole list
-     twice every five seconds. */
+     default so the status bar and Cycles home share one cached read. */
   archived?: boolean;
 };
 
 export const cyclesHomeQueryKeys = {
   all: ["cycles-home"] as const,
   cycles: (generation: string, selection: CyclesQuerySelection = {}) =>
-    [...cyclesHomeQueryKeys.all, "cycles", generation, { archived: selection.archived ?? false, text: selection.text ?? "" }] as const,
+    [...cyclesHomeQueryKeys.all, "cycles", generation, { archived: selection.archived ?? false }] as const,
 };
 
 /**
@@ -30,7 +26,7 @@ export const cyclesHomeQueryKeys = {
 function cycleListSelection(selection: CyclesQuerySelection): NativeCycleSelection {
   return {
     filter: {
-      text: selection.text?.trim() ?? "",
+      text: "",
       statuses: [],
       archive: selection.archived ? ArchiveScope.ARCHIVED : ArchiveScope.UNARCHIVED,
     },

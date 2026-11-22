@@ -3,10 +3,13 @@
 import { RouterProvider } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { router } from "@/app/router";
+import { SvelteMount } from "@/components/SvelteMount";
+import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
+import { useBrand } from "@/lib/brand-context";
 import { commands } from "@/lib/desktop/commands";
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { AppProviders } from "./AppProviders";
-import { ConnectionScreen } from "./native-session/ConnectionScreen";
+import ConnectionScreen from "./native-session/ConnectionScreen.svelte";
 import { NativeSessionProvider } from "./native-session/NativeSessionProvider";
 import { NativeSession } from "./native-session/session";
 
@@ -19,11 +22,17 @@ export function AppRoot() {
     void commands
       .desktopSessionLaunch()
       .then(async (configuration) => {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         setLaunch(configuration);
-        if (configuration.error) return;
+        if (configuration.error) {
+          return;
+        }
         const current = await commands.desktopSessionStatus();
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         if (current.connection.phase === "connected" && current.connection.backend) {
           await owner.refresh();
         } else if (configuration.target) {
@@ -37,7 +46,9 @@ export function AppRoot() {
         }
       })
       .catch((error: unknown) => {
-        if (active) setError(error);
+        if (active) {
+          setError(error);
+        }
       });
     return () => {
       active = false;
@@ -48,11 +59,21 @@ export function AppRoot() {
       owner={owner}
       disconnected={
         <AppProviders>
-          <ConnectionScreen launch={launch} launchError={error} />
+          <DisconnectedDesktop owner={owner} launch={launch} launchError={error} />
         </AppProviders>
       }
     >
       <RouterProvider router={router} />
     </NativeSessionProvider>
+  );
+}
+
+function DisconnectedDesktop({ owner, launch, launchError }: { owner: NativeSession; launch: DesktopLaunch | null; launchError: unknown }) {
+  const [settings, setSettings] = useState(false);
+  const brand = useBrand();
+  return settings ? (
+    <DisconnectedSettings close={() => setSettings(false)} />
+  ) : (
+    <SvelteMount component={ConnectionScreen} props={{ owner, brand, launch, launchError, onSettings: () => setSettings(true) }} />
   );
 }

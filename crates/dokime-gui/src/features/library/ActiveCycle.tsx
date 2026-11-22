@@ -23,7 +23,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
+import { SvelteMount } from "@/components/SvelteMount";
+import CycleStatusPill from "@/features/cycles-home/CycleStatusPill.svelte";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { caseCountLabel, filterOpenCycles, type OpenCycle } from "@/features/library/active-cycle-model";
 import { NO_ACTIVE_CYCLE, NO_CHOSEN_CYCLE } from "@/features/library/template-dialog-model";
@@ -61,7 +62,7 @@ export function ActiveCycleSummary({ cycle }: { cycle: OpenCycle }) {
     <span className="grid min-w-0 grid-cols-[minmax(0,auto)_auto_auto] items-center gap-2">
       <span className="truncate font-medium text-foreground">{cycle.label}</span>
       <span className="font-mono text-muted-foreground tabular-nums">{cycle.shortId}</span>
-      <CycleStatusPill label={cycle.statusLabel} tone={cycle.statusTone} />
+      <SvelteMount component={CycleStatusPill} props={{ label: cycle.statusLabel, tone: cycle.statusTone }} />
     </span>
   );
 }
@@ -147,7 +148,7 @@ export function ActiveCyclePickerList({ activeId, cycles, loading, onChoose, onN
               type="button"
             >
               <span className="truncate font-medium">{cycle.label}</span>
-              <CycleStatusPill label={cycle.statusLabel} tone={cycle.statusTone} />
+              <SvelteMount component={CycleStatusPill} props={{ label: cycle.statusLabel, tone: cycle.statusTone }} />
               <span className="font-mono text-xs text-muted-foreground tabular-nums">{cycle.createdLabel}</span>
               <span className="font-mono text-xs text-muted-foreground tabular-nums">{cycle.shortId}</span>
               <span className="text-right font-mono text-xs text-muted-foreground tabular-nums">{caseCountLabel(cycle.caseCount)}</span>
