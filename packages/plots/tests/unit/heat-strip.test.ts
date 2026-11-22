@@ -9,7 +9,7 @@
  */
 
 /**
- * Plot Marker Colors
+ * Heat Strip Samples and Layout
  */
 
 /* === Imports === */
@@ -22,12 +22,14 @@ import { create } from "@bufbuild/protobuf";
 import { onTestFinished, test, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
 import { mapNativePlotPayload, plotType } from "@dokime/plots/lib/api/native-plot-projection";
 import { PlotKind, PlotPayloadSchema, PlotCartesianMode } from "@generated/host/model";
-import { heatStripSample } from "../../src/catalog/HeatStripPlot";
-import type { PlotSeries } from "@dokime/plots/lib/types";
+import { HeatStripPlot, heatStripSample } from "../../src/catalog/HeatStripPlot";
+import { documentPlotSpec } from "@dokime/plots/grouping";
+import type { DocumentViewPlot, PlotPayload, PlotSeries } from "@dokime/plots/lib/types";
 import { usePlotPlayback } from "@dokime/plots/playback";
 
 /* === Re-Exports === */
@@ -43,6 +45,48 @@ import { usePlotPlayback } from "@dokime/plots/playback";
 /* === Private Functions === */
 
 /* === Entry Point === */
+
+test("Dense Heat Strip Layout Wraps Readable Cells and Preserves Sparse Rows and Hover Values", () => {
+  const instant = "1970-01-01T00:00:01Z";
+  const payload: PlotPayload = {
+    stream: "samples",
+    x_key: "channel",
+    max_points: 100,
+    generated_at: "",
+    series: [13, 28, 59].map((count, index) => ({
+      key: String(index),
+      label: ["2.4GHz", "5GHz", "6GHz"][index],
+      downsampled: false,
+      raw_points: count,
+      points: Array.from({ length: count }, (_, channel) => ({
+        x: 1 + channel * (index === 2 ? 4 : 1),
+        y: channel === 0 ? 2.6 : 0,
+        instant,
+      })),
+    })),
+  };
+  const descriptor = { plot_id: "heat", title: "Channel Occupancy", plot_type: "heat_strip", y: ["occupancy"] } as DocumentViewPlot;
+  const plot = documentPlotSpec({ plot: descriptor, payload });
+  const container = document.createElement("div");
+  container.innerHTML = renderToStaticMarkup(createElement(HeatStripPlot, { plot }));
+  const facets = container.querySelectorAll("[data-facet]");
+  assert.equal(facets.length, 3);
+  const sparse = facets[0].querySelector<HTMLElement>("[data-cell]");
+  assert.equal(sparse?.parentElement?.style.gridTemplateColumns, "repeat(13, minmax(0, 1fr))");
+  for (const [index, count] of [
+    [1, 28],
+    [2, 59],
+  ]) {
+    const cells = facets[index].querySelectorAll<HTMLElement>("[data-cell]");
+    assert.equal(cells.length, count);
+    assert.equal(cells[0].parentElement?.style.gridTemplateColumns, "repeat(auto-fit, minmax(min(100%, 2.5rem), 1fr))");
+    assert.ok(cells[0].title.includes(" · 2.6 · "));
+    assert.ok(cells[1].title.includes(" · 0 · "));
+    assert.ok(cells[1].title.endsWith(instant));
+    assert.ok(Array.from(cells).every((cell) => cell.dataset.valid === "true" && cell.textContent === cell.dataset.cell));
+  }
+  assert.equal(facets[2].querySelector<HTMLElement>("[data-cell='233']")?.textContent, "233");
+});
 
 test("Sample Selection Uses Only the Selected Instant and Keeps Each Facet's Categories", () => {
   const first = "1970-01-01T00:00:01.000000001Z";
