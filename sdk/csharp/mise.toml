@@ -79,8 +79,9 @@ run = [
 
 [tasks."test"]
 description = "Test the C# Solution"
+usage = 'flag "--builders" help="Run Only the Builder Contracts"'
 run = [
-  '"{{tools.dotnet.path}}/dotnet" test Dokime.slnx --configuration {{vars.configuration}} --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"',
+  '{% if not usage.builders %}"{{tools.dotnet.path}}/dotnet" test Dokime.slnx --configuration {{vars.configuration}} --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"{% endif %}',
   '"{{tools.dotnet.path}}/dotnet" ../../target/cs/bin/Builders/{{vars.configuration | lower}}/Builders.dll',
 ]
 

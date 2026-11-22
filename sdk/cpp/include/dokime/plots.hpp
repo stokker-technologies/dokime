@@ -11,6 +11,7 @@
 
 // Standard Library Imports
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,6 +33,28 @@ namespace dokime::authoring {
 
 struct Expression {
   DataExpression message;
+  Expression at(std::string record_type) const {
+    Expression value;
+    value.message.set_label(message.label());
+    *value.message.mutable_transform()->mutable_input() = message;
+    value.message.mutable_transform()->mutable_at()->set_record_type(std::move(record_type));
+    return value;
+  }
+  Expression within_s(double tolerance_s) const {
+    if (!message.has_transform() || !message.transform().has_at()) {
+      throw std::invalid_argument("Set Within Seconds: Apply at Before within_s");
+    }
+    Expression value{message};
+    value.message.mutable_transform()->mutable_at()->set_within_s(tolerance_s);
+    return value;
+  }
+  Expression detail(std::string name) const {
+    Expression value;
+    value.message.set_label(message.label());
+    *value.message.mutable_transform()->mutable_input() = message;
+    value.message.mutable_transform()->set_detail(std::move(name));
+    return value;
+  }
   Expression scale(double factor) const {
     Expression value;
     value.message.set_label(message.label());

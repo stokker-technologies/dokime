@@ -3,6 +3,6 @@
 - [x] 2.1 Bind the document expression to Harmos at-or-before time merge for live and sealed evidence; deterministic constructed-stream tests for no qualifying row, exact and duplicate times, record details, aggregates, and existing event filters.
 - [ ] 2.3 Implement and prove nearest-within ties and tolerance edges after the library supplies the capability; keep the Tolerance scenario open.
 - [x] 2.2 Refuse `at` on repeat selectors with the `time_between` diagnostic shape; test.
-- [ ] 3.1 Harmonized Python, Rust, C# and C++ SDK builders and generated stubs; shipped examples gain event histograms and builder tests.
+- [x] 3.1 Harmonized Python, Rust, C# and C++ SDK builders and generated stubs; shipped examples gain event histograms and builder tests.
 - [ ] 3.2 Owner updates authoring skill and product guide examples; worker must not edit docs/.
 - [ ] 4.1 Run focused protocol/expression, document and Python tests plus applicable format/lint checks through project tasks after implementation.

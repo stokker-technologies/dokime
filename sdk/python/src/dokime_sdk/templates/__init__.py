@@ -84,6 +84,7 @@ AxisScale = _plots.AxisScale
 BarArrangement = _plots.BarArrangement
 ContourRender = _plots.ContourRender
 Expression = _plots.Expression
+FilterOperator = _plots.FilterOperator
 Plot = _plots.Plot
 PlotStyle = _plots.PlotStyle
 Reduction = _plots.Reduction

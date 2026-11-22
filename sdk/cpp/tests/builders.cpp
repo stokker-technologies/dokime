@@ -21,6 +21,19 @@ using dokime::ReferenceBand;
 using std::find_if;
 using std::invalid_argument;
 
+TEST_CASE("Telemetry at Records Preserves Owned Operands and Optional Tolerance") {
+  const auto input = dokime::authoring::field("readings", "value");
+  const auto sampled = input.at("status");
+  const auto bounded = sampled.within_s(0.5);
+  dokime::DataExpression decoded;
+  REQUIRE(decoded.ParseFromString(bounded.message.SerializeAsString()));
+  REQUIRE_FALSE(sampled.message.transform().at().has_within_s());
+  REQUIRE(decoded.transform().at().within_s() == 0.5);
+  REQUIRE(decoded.transform().at().record_type() == "status");
+  REQUIRE(sampled.detail("event").message.transform().detail() == "event");
+  REQUIRE_THROWS_AS(input.within_s(0.5), invalid_argument);
+}
+
 TEST_CASE("Documents Preserve Composed Plot Operands") {
   using namespace dokime::authoring;
   auto input = field("scan", "temperature");

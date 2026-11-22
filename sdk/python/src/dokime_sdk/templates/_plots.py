@@ -19,6 +19,7 @@ from typing import Self, cast
 # Local Imports
 from .._generated import shared
 from .._generated.shared import (
+    AtExpression,
     DataExpression,
     FieldReference,
     GridAxisEntry,
@@ -28,6 +29,7 @@ from .._generated.shared import (
     ReferenceLine,
     TransformExpression,
 )
+from .._values import Scalar, encode
 
 # Type Checking Imports
 
@@ -87,6 +89,17 @@ class Aggregate(IntEnum):
     RMS = shared.Aggregate.Value("AGGREGATE_RMS")
 
 
+class FilterOperator(IntEnum):
+    EQ = shared.FilterOperator.Value("FILTER_OPERATOR_EQ")
+    NE = shared.FilterOperator.Value("FILTER_OPERATOR_NE")
+    GT = shared.FilterOperator.Value("FILTER_OPERATOR_GT")
+    GE = shared.FilterOperator.Value("FILTER_OPERATOR_GE")
+    LT = shared.FilterOperator.Value("FILTER_OPERATOR_LT")
+    LE = shared.FilterOperator.Value("FILTER_OPERATOR_LE")
+    CONTAINS = shared.FilterOperator.Value("FILTER_OPERATOR_CONTAINS")
+    EXISTS = shared.FilterOperator.Value("FILTER_OPERATOR_EXISTS")
+
+
 class Expression:
     def __init__(self, value: DataExpression) -> None:
         if not isinstance(value, DataExpression):
@@ -110,6 +123,17 @@ class Expression:
 
     def time_between(self, record: str) -> Self:
         return self._transform(TransformExpression(time_between=record))
+
+    def at(self, record_type: str) -> Self:
+        return self._transform(TransformExpression(at=AtExpression(record_type=record_type)))
+
+    def within_s(self, tolerance_s: float) -> Self:
+        if self.message.WhichOneof("kind") != "transform" or self.message.transform.WhichOneof("kind") != "at":
+            raise ValueError("Set Within Seconds: Apply at Before within_s")
+        value = DataExpression()
+        value.CopyFrom(self.message)
+        value.transform.at.within_s = tolerance_s
+        return type(self)(value)
 
     def per_case(self) -> Self:
         return self._transform(TransformExpression(per_case=True))
@@ -167,6 +191,14 @@ class Plot:
 
     def x(self, value: Expression) -> Self:
         self.message.x.CopyFrom(_expression(value))
+        return self
+
+    def filter(self, expression: Expression, operator: FilterOperator, value: Scalar = None) -> Self:
+        self.message.filters.add(
+            expression=_expression(expression),
+            operator=cast(shared.FilterOperator, _enum(operator, FilterOperator)),
+            value=encode(value),
+        )
         return self
 
     def y(self, value: Expression) -> Self:
