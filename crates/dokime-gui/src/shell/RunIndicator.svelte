@@ -4,12 +4,13 @@
   import { LoaderCircle } from "lucide-svelte";
   import type { ConnectedSession } from "../app/native-session/session";
   import Button from "../components/ui/Button.svelte";
+  import { observeElapsedSeconds } from "../features/cycle/elapsed";
   import { workflowQueryKeys } from "../features/cycle/workflow-query-keys";
   import { cyclesQueryOptions, pendingPromptsQueryOptions } from "../features/cycles-home/cycles-query-options";
   import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "../lib/api/native-execution";
   import { isNativeCycleLive } from "../lib/api/native-planning-projection";
   import { cn } from "../lib/utils";
-  import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
+  import { activeRunFocus, runDestination, runElapsed } from "./run-focus";
 
   type Destination = NonNullable<ReturnType<typeof runDestination>>;
   let { session, onNavigate }: { session: ConnectedSession; onNavigate: (destination: Destination) => void } = $props();
@@ -57,27 +58,9 @@
     first?.execution.controls?.paused ||
       (prompts.data ?? []).some((prompt) => prompt.scope?.executionId === first?.execution.test_execution_id),
   );
-  let minutes = $state<number | null>(null);
+  let elapsedS = $state<number | null>(null);
 
-  $effect(() => {
-    const start = startedAt;
-    if (!ticking) {
-      return;
-    }
-    const tick = () => {
-      minutes = elapsedMinutes(start, Date.now());
-    };
-    tick();
-    // The Clock Updates The Label. Runtime Data Arrives From Its Stream.
-    const timer = window.setInterval(tick, 1000);
-    window.addEventListener("focus", tick);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", tick);
-      document.removeEventListener("visibilitychange", tick);
-    };
-  });
+  $effect(() => observeElapsedSeconds(startedAt, ticking, (seconds) => (elapsedS = seconds)));
 
   function navigate() {
     const destination = runDestination(focus);
@@ -100,7 +83,7 @@
     {/if}
     <span class="truncate">
       {first.cycleLabel}
-      / {first.executionLabel} / {first.percent === null ? runElapsed(minutes) : `${first.percent}%`}
+      / {first.executionLabel} / {first.percent === null ? runElapsed(elapsedS) : `${first.percent}%`}
     </span>
     {#if focus.length > 1}
       <span class="shrink-0">+{focus.length - 1}</span>
