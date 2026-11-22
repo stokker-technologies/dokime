@@ -1,9 +1,9 @@
 ## Stop Ends Execution Waits
 
 - [x] Record the Locked Decision: Stop Completes Execution-Scoped Host Waits Normally, Lets the Active Step Finish, Evaluates Criteria, Runs Cleanup and Seals Stopped With Evidence Intact; Cancel Still Aborts and Unstopped Waits Keep Their Duration.
-- [ ] Library Owner: Add Graceful Stop to Scoped Waits and Their Sample Cuts; the Pinned Registered Clock Still Settles Through the Original Deadline and Overrides Injected ClockAccess, so a Product Clock Wakeup Cannot Fulfil This Contract.
-- [ ] Protocol Owner: Declare Stopped Termination and Plugin-Accessible Execution Stop State and Regenerate Tracked Bindings; the Current Termination Enum and Plugin Operations Cannot Represent the Locked Result or Context Accessor.
-- [ ] Runtime/SDK Worker: Adopt the Library Stop Facility in Execution Waits and Condition Operations, Preserve Active Work and Criteria/Cleanup, and Expose Python `ctx.stop_requested` and the Equivalent Rust Context Accessor; Blocked on the Two Owner Capabilities Above.
+- [x] Library Owner: Supply Graceful Scope Wind-Down and Actual-Completion Sample Cuts at Revision `253e3b7c2f8e0456b8ec810da10fe824d1775726`.
+- [x] Pin Cargo and Python to the Wind-Down Revision; Regenerate Every Projection and Tracked Lock, Preserving the Exported Protocol README After Its Former Source Was Deleted on Dev.
+- [ ] Declare Stopped Termination and Regenerate Tracked Bindings; Adopt Library Scope Wind-Down in Run Control, Preserve Active Work and Criteria/Cleanup, Expose Python `ctx.stop_requested` and Rust `ctx.stop_requested()`, Display Stopped and Delete the Unused Product Sleep.
 - [ ] Prove Stop, Cancel and Complete Unstopped Wait Durations on a Controlled Clock Through the Real Host With Streams and Records Retained; Run Focused Runtime/Operations and SDK Tests, Workspace Test Compilation, Formatting, Repository and Strict OpenSpec Checks After Source Adoption.
 
 ## Peer Stream Capture
