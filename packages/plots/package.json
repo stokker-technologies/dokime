@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./axis": "./src/axis.ts",
+    "./cartesian-frame": "./src/cartesian-frame.ts",
     "./CartesianPlot": "./src/CartesianPlot.tsx",
     "./catalog/BarPlot": "./src/catalog/BarPlot.tsx",
     "./catalog/BoxPlot": "./src/catalog/BoxPlot.tsx",

@@ -8,11 +8,12 @@
 
 ## 2. Plots
 
-- [ ] 2.1 Port `CartesianPlot`, the placeholder, HistogramChart, and all catalog entries (Bar, Box, Contour, Frequency Series, Grid Chart, Heat Strip, Histogram, Pie, Time Series, Trajectory, XY and XY Interval). Preserve canvas and SVG geometry, viewport, legends, pointer and resizing behavior. Verify the existing presentation, heat strip and viewport suites.
-- [ ] 2.2 Port PlotGroupGrid, AbbreviatedValue, FailureDetails, ErrorCard, StatsSummaryTable and the DataTable group. Preserve existing column sorting, remove generic search, filtering and pagination presentation, and verify semantic tables and current summary calculations.
-- [ ] 2.3 Port the badge, button, checkbox, dialog, dropdown, input, popover, select, slider, table and tooltip primitives. Preserve focus, keyboard and pointer interaction and existing classes and slots.
-- [ ] 2.4 Port interaction, playback, plot settings, plot palette, summary window and notifications presentation state. Preserve the axis, category, colors, expressions, grouping, frames, markers, bins, reduction, viewport, statistics, format and projection modules. Verify teardown and existing palette, point color and color suites.
-- [ ] 2.5 Update plots exports, package manifest, tsconfig, Vite/Vitest and formatter configuration. Port component assertions to Testing Library. Run package typecheck and focused unit/integration tasks and capture matching plot states in both themes under `target/svelte-parity/after/plots/`.
+- [x] 2.1 Separate Cartesian frame selection, range calculation and viewport reduction from the component. Verify the plots palette and desktop plot integration tests against the shared functions.
+- [ ] 2.2 Port `CartesianPlot`, the placeholder, HistogramChart, and all catalog entries (Bar, Box, Contour, Frequency Series, Grid Chart, Heat Strip, Histogram, Pie, Time Series, Trajectory, XY and XY Interval). Preserve canvas and SVG geometry, viewport, legends, pointer and resizing behavior. Verify the existing presentation, heat strip and viewport suites.
+- [ ] 2.3 Port PlotGroupGrid, AbbreviatedValue, FailureDetails, ErrorCard, StatsSummaryTable and the DataTable group. Preserve existing column sorting, remove generic search, filtering and pagination presentation, and verify semantic tables and current summary calculations.
+- [ ] 2.4 Port the badge, button, checkbox, dialog, dropdown, input, popover, select, slider, table and tooltip primitives. Preserve focus, keyboard and pointer interaction and existing classes and slots.
+- [ ] 2.5 Port interaction, playback, plot settings, plot palette, summary window and notifications presentation state. Preserve the axis, category, colors, expressions, grouping, frames, markers, bins, reduction, viewport, statistics, format and projection modules. Verify teardown and existing palette, point color and color suites.
+- [ ] 2.6 Update plots exports, package manifest, tsconfig, Vite/Vitest and formatter configuration. Port component assertions to Testing Library. Run package typecheck and focused unit/integration tasks and capture matching plot states in both themes under `target/svelte-parity/after/plots/`.
 
 ## 3. Document
 

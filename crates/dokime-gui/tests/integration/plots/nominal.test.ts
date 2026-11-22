@@ -64,7 +64,8 @@ import type {
   TelemetryColumnSpec,
   TelemetryStream,
 } from "@dokime/plots/lib/types";
-import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@dokime/plots/CartesianPlot";
+import { drawnData } from "@dokime/plots/cartesian-frame";
+import { CartesianPlot, cursorPointOptions, facetedSeriesPaths, seriesPointMarks } from "@dokime/plots/CartesianPlot";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import { formatBooleanState, formatCursorX } from "@dokime/plots/axis";
 import { BarPlot } from "@dokime/plots/catalog/BarPlot";

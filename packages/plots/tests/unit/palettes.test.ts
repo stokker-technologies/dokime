@@ -17,7 +17,8 @@ import assert from "node:assert/strict";
 import type uPlot from "uplot";
 import { test } from "vitest";
 import type { DocumentViewPlot } from "@dokime/plots/lib/types";
-import { drawReferenceBands, paddedYRange, referenceYValues } from "@dokime/plots/CartesianPlot";
+import { paddedYRange, referenceYValues } from "@dokime/plots/cartesian-frame";
+import { drawReferenceBands } from "@dokime/plots/CartesianPlot";
 import { plotColor, referenceColor } from "@dokime/plots/colors";
 import { documentPlotSpec } from "@dokime/plots/grouping";
 
