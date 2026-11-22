@@ -15,7 +15,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
-import workspace from "../../vitest.config.ts";
+import workspace from "../../tools/config/vite.base.ts";
 
 /* === Constants === */
 
@@ -68,7 +68,10 @@ export default defineConfig(({ mode }) => ({
             { name: "plot-vendor", test: /node_modules.*(?:d3-|uplot)/ },
             { name: "tauri-vendor", test: /node_modules.*@tauri-apps/ },
             { name: "react-vendor", test: /node_modules.*(?:react|scheduler)/ },
-            { name: "document-surface", test: /\/src\/(?:components\/document|plots)\// },
+            {
+              name: "document-surface",
+              test: /\/src\/(?:components\/document|plots)\//,
+            },
           ],
         },
       },

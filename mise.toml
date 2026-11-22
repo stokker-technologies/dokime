@@ -201,7 +201,7 @@ description = "Format TypeScript"
 usage = 'flag "--check"'
 run = [
   "pnpm -r exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
-  "pnpm exec biome format{% if usage.check %}{% else %} --write{% endif %} biome.json tsconfig.json vite.config.ts vitest.config.ts package.json tools/typescript",
+  "pnpm exec biome format{% if usage.check %}{% else %} --write{% endif %} biome.json tsconfig.json package.json tools/config/vite.base.ts tools/typescript",
 ]
 
 [tasks."lint:python"]
@@ -223,10 +223,7 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = [
-  "pnpm -r exec biome lint .",
-  "pnpm exec biome lint biome.json tsconfig.json vite.config.ts vitest.config.ts package.json tools/typescript",
-]
+run = ["pnpm -r exec biome lint .", "pnpm exec biome lint biome.json tsconfig.json package.json tools/config/vite.base.ts tools/typescript"]
 
 [tasks."typecheck:typescript"]
 hide = true

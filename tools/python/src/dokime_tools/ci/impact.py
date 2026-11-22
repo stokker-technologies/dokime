@@ -87,8 +87,7 @@ def classify(paths: Iterable[str] | None) -> frozenset[str]:
             "pnpm-lock.yaml",
             "biome.json",
             "tsconfig.json",
-            "vite.config.ts",
-            "vitest.config.ts",
+            "tools/config/vite.base.ts",
         }:
             classes.update({"gui", "docs"})
         elif (
