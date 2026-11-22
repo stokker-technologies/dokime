@@ -1594,13 +1594,14 @@ still settle on cancellation under their operation policies.
 
 ### Python Authoring Capability Dependencies
 
-- Typed stream subscription remains blocked at library revision
-  `3cc1166fa`: Python `plugin.Context` exposes operation
-  `watch`, but no admitted stream-sample demand API. Rust `operations::Context`
-  likewise has no subscription surface. The library must provide typed stream
-  demand in inherited scope, bounded/backpressured row delivery with source and
-  receipt timestamps, cancellation and explicit close releasing demand without
-  stopping the provider. Product code must consume that API, not poll stored samples.
+- Library revision `9403bbf02` provides admitted typed stream subscriptions in
+  inherited scope through Python `plugin.Context.subscribe`. Rows carry source
+  and receipt timestamps, gaps are explicit, and close releases only the owning
+  demand. Cancellation and bounded, backpressured delivery belong to the library;
+  the product adapter must delegate to that API without polling stored samples.
+  The product binding remains tracked in the task list. Its recorded `SampleRow`
+  return requires stored-evidence metadata absent from live rows; the owner must
+  resolve that public row shape and its closed export inventory before binding it.
 - Library revision `3cc1166fa` supports proto3 optional observer fields with per-row
   presence in Rust and Python. The SDK preserves message presence through authoring
   and decoding, distinguishing absent, zero and nonzero values without NaN sentinels.
@@ -2858,6 +2859,14 @@ remains with `remote-access-simplification`; this section adds no retry budget.
 | `sdk/cpp/tools/sdk.py` and the library `tools/python/src/harmos_tools/build/cpp.py` | Product and library SDK tasks independently bootstrap the pinned vcpkg checkout and orchestrate native compiler, CMake, format, test and install operations. | Give the library a configurable native build owner, then delete the duplicated product bootstrap/build orchestration after the owner agrees; keep product task and artifact policy product-owned. |
 | `sdk/cpp/cmake/Protocol.cmake:dokime_protocol`, `sdk/cpp/tests/CMakeLists.txt` and the library `sdk/cpp/cmake/Protocol.cmake:harmos_protocol` | Product services, the thermal fixture and library services independently configure native protobuf generation and its compiler dependencies. | Share one configurable generation recipe, then delete the product helper and separate fixture recipe after the owner agrees; preserve their distinct protocol inventories and install namespaces. |
 | `tools/python/src/dokime_tools/test/archive.py:install_wheels` and `sdk/python/tools/installed.py:main` | Archived test lanes and bindings install the selected-profile wheel through the former; SDK preparation installs a hard-coded development wheel and its example distributions through the latter. Both select and install the built SDK wheel. | Give wheel installation one profile-aware owner, then delete the hard-coded development-wheel selection and installation block after the owner agrees; retain explicit example installation and the caller's selected artifact. |
+| `tools/python/src/dokime_tools/build/protocol_callers.py:check_public_surfaces` and library `tools/python/src/harmos_tools/source/protocol.py:check_public_surfaces` | Product repository and SDK checks and the library source check independently scan public surfaces for wire names and exports. The product additionally owns its closed public-home inventory. | Prefer the configurable library scan and delete the product's generic scanning loops after the owner resolves internal generated-path exclusions; retain the product inventory guard. |
+
+Protocol-only generation currently leaves the desktop dispatch digest to the
+desktop host generator. Prefer invoking that existing generator from the pin
+projection. Focused package tests also select narrower dependency feature graphs
+than workspace test compilation and recompile shared dependencies. Prefer reusing
+the prepared test artifacts for focused execution. Both orchestration changes
+remain owner decisions.
 
 The pinned library's `sdk/cpp/CMakeLists.txt` also adds its sample executables to
 consumer builds. Make those examples opt-in or top-level-only upstream; product

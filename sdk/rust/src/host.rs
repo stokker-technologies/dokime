@@ -181,6 +181,11 @@ impl Request for harmos_protocol::host::plugins::StatePutRequest {
     const ID: &'static str = "harmos.plugin.v1.plugins.State/Put";
     const WATCH: bool = false;
 }
+impl Request for harmos_protocol::plugin::SubscriptionsSubscribeRequest {
+    type Response = harmos_protocol::plugin::SubscriptionsSubscribeResponse;
+    const ID: &'static str = "harmos.plugin.v1.Subscriptions/Subscribe";
+    const WATCH: bool = true;
+}
 impl Request for harmos_protocol::host::TimeGetRequest {
     type Response = harmos_protocol::host::TimeGetResponse;
     const ID: &'static str = "harmos.plugin.v1.Time/Get";

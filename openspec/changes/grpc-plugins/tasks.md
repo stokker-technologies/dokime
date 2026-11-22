@@ -182,6 +182,11 @@
 
 ## Locked Python Shape
 
+- [x] Adopt the Library Typed Subscription Pin and Regenerate All Protocol Projections and Tracked Locks; Repair Forced Rust Callers and Tooling Imports.
+- [ ] Bind Python Typed Live Rows and Explicit Gaps to Library Subscription Demand; Prove Both Timestamps, Independent Close and Scope Cancellation.
+- [ ] Remove the Unused Rust Settings Derive and Migrate Host Duration Reads Directly to the SDK.
+- [ ] Complete Pin and Cleanup SDK Units, Integration, Lint, Type and Stub Checks; Focused Rust Proof, Workspace and Consumer Test Compilation, Binding, Supply, Build/Package, Generation Drift, Format, Repository and Strict Change Gates.
+
 - [x] Python Peer Calls: Derive Frozen Requirements From Typed Handler References and Preserve the Existing Bound Call and One-Call Policy Override, Without Author Requirements.
 - [x] Python Peer Calls: Prove Derivation, Conflicting Contracts, Structured Failures and Undeclared References With SDK Unit Tests.
 - [x] Python Peer Calls: Prove Two Fixture Plugins Through the Host, Including Success, Scope, Callee Deadline/Cancellation, Lane Release and Actionable Unavailable/Undeclared Failures.
@@ -193,7 +198,7 @@
   - [x] Bind Explicit Plugin, Suite and TestTemplate Classes, Derived Identities and Labels, Annotated Plain Operations and Separate Contexts; Move Documents, Plots and Parameters to Templates and Delete Replaced Authoring Entry Points.
   - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Initialization With Python-Only Tests.
   - [ ] Complete Typed Stream Subscription and Real-Host Failure/Cancelled Plugin Initialization Finalization, Admission Draining and Repeated Shutdown Proof; the Operation-Encoded Hooks and Their Native Host Invocation Are Implemented.
-  - [ ] Bind Typed Host/Plugin Stream Subscription After the Library Provides Admitted Sample Demand, Backpressure and Close in Inherited Scope.
+  - [ ] Bind Typed Host/Plugin Stream Subscription to the Library's Admitted Demand, Backpressure and Close After Resolving the Live Row Shape and Public Export Ownership.
   - [x] Publish Records From Plugin Observers After the Library Allows Product Call-Context Resources on Scoped Sample Child Calls.
   - [x] Prove Product Failure Classifications, Causes, Identity and Actionable Details From Bound Python Operations.
   - [x] Expose and Prove a Decorated Operation's Immutable Typed Declaration Through `operations.declaration`.

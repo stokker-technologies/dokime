@@ -55,6 +55,7 @@ internal enum HostOperation
   PluginsSettingsList,
   PluginsStateGet,
   PluginsStatePut,
+  SubscriptionsSubscribe,
   TimeGet,
   TimeSleep,
 }
@@ -125,6 +126,7 @@ internal static class HostRequirements
     HostOperation.PluginsSettingsList => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsSettingsList),
     HostOperation.PluginsStateGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsStateGet),
     HostOperation.PluginsStatePut => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsStatePut),
+    HostOperation.SubscriptionsSubscribe => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.SubscriptionsSubscribe),
     HostOperation.TimeGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.TimeGet),
     HostOperation.TimeSleep => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.TimeSleep),
     _ => throw new ArgumentOutOfRangeException(nameof(operation), "Declare Host Requirement: Unknown Operation")

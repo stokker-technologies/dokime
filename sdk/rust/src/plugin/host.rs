@@ -98,6 +98,7 @@ use harmos_protocol::model::Position;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
 use harmos_protocol::model::Upload;
+use harmos_protocol::plugin::SubscriptionsSubscribeRequest;
 use prost_types::Duration;
 use prost_types::Timestamp;
 use std::num::NonZeroUsize;
@@ -136,11 +137,12 @@ pub enum HostOperation {
     PluginsSettingsList,
     PluginsStateGet,
     PluginsStatePut,
+    SubscriptionsSubscribe,
     TimeGet,
     TimeSleep,
 }
 impl HostOperation {
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 37] = [
         Self::BackendEnvironment,
         Self::ContentArtifactsCreate,
         Self::DocumentsAppendParts,
@@ -175,6 +177,7 @@ impl HostOperation {
         Self::PluginsSettingsList,
         Self::PluginsStateGet,
         Self::PluginsStatePut,
+        Self::SubscriptionsSubscribe,
         Self::TimeGet,
         Self::TimeSleep,
     ];
@@ -216,6 +219,7 @@ impl Registration for HostOperation {
             HostOperation::PluginsSettingsList => ctx.register(Dependency::<SettingsListRequest>::new()),
             HostOperation::PluginsStateGet => ctx.register(Dependency::<StateGetRequest>::new()),
             HostOperation::PluginsStatePut => ctx.register(Dependency::<StatePutRequest>::new()),
+            HostOperation::SubscriptionsSubscribe => ctx.register(Dependency::<SubscriptionsSubscribeRequest>::new()),
             HostOperation::TimeGet => ctx.register(Dependency::<TimeGetRequest>::new()),
             HostOperation::TimeSleep => ctx.register(Dependency::<TimeSleepRequest>::new()),
         }

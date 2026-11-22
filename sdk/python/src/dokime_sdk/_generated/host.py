@@ -27,6 +27,7 @@ from harmos._wire.model.v1.page_pb2 import PageRequest
 from harmos._wire.model.v1.policy_pb2 import OperationPolicy
 from harmos._wire.model.v1.position_pb2 import Position, ReadCut
 from harmos._wire.model.v1.receipt_pb2 import Receipt
+from harmos._wire.plugin.v1.subscriptions_pb2 import SubscriptionsSubscribeRequest, SubscriptionsSubscribeResponse
 
 import dokime_sdk._wire.model.v1.metadata_pb2
 from dokime_sdk._wire.host.v1.backend_pb2 import BackendEnvironmentRequest, BackendEnvironmentResponse
@@ -136,6 +137,7 @@ class HostOperation(Enum):
     PLUGINS_SETTINGS_LIST = "harmos.plugin.v1.plugins.Settings/List"
     PLUGINS_STATE_GET = "harmos.plugin.v1.plugins.State/Get"
     PLUGINS_STATE_PUT = "harmos.plugin.v1.plugins.State/Put"
+    SUBSCRIPTIONS_SUBSCRIBE = "harmos.plugin.v1.Subscriptions/Subscribe"
     TIME_GET = "harmos.plugin.v1.Time/Get"
     TIME_SLEEP = "harmos.plugin.v1.Time/Sleep"
 
@@ -254,6 +256,13 @@ _PLUGINS_STATE_GET = Operation(
 _PLUGINS_STATE_PUT = Operation(
     HostOperation.PLUGINS_STATE_PUT.value, StatePutRequest, StatePutResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
+_SUBSCRIPTIONS_SUBSCRIBE = Operation(
+    HostOperation.SUBSCRIPTIONS_SUBSCRIBE.value,
+    SubscriptionsSubscribeRequest,
+    SubscriptionsSubscribeResponse,
+    visibility=VISIBILITY_PUBLIC,
+    watch=True,
+)
 _TIME_GET = Operation(HostOperation.TIME_GET.value, TimeGetRequest, TimeGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 _TIME_SLEEP = Operation(HostOperation.TIME_SLEEP.value, TimeSleepRequest, TimeSleepResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 
@@ -328,6 +337,8 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
             return cast(Operation[Message, Message], _PLUGINS_STATE_GET)
         case HostOperation.PLUGINS_STATE_PUT:
             return cast(Operation[Message, Message], _PLUGINS_STATE_PUT)
+        case HostOperation.SUBSCRIPTIONS_SUBSCRIBE:
+            return cast(Operation[Message, Message], _SUBSCRIPTIONS_SUBSCRIBE)
         case HostOperation.TIME_GET:
             return cast(Operation[Message, Message], _TIME_GET)
         case HostOperation.TIME_SLEEP:

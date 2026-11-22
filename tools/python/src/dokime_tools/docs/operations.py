@@ -26,7 +26,7 @@ from google.protobuf.descriptor_pb2 import (
     FileDescriptorProto,
     FileDescriptorSet,
 )
-from harmos_tools.source.protocol import caller_options
+from harmos_tools.build.resources.descriptor import caller_options
 
 # isort: split
 

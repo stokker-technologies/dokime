@@ -2,7 +2,7 @@
 use super::{Error, Session};
 use dokime_protocol::host;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [100, 198, 61, 6, 168, 9, 117, 88, 166, 118, 224, 129, 181, 184, 39, 93, 19, 158, 125, 127, 177, 136, 178, 172, 175, 2, 25, 74, 47, 171, 101, 142];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [126, 162, 195, 29, 39, 38, 105, 132, 18, 164, 117, 241, 72, 36, 167, 176, 86, 66, 37, 89, 104, 100, 185, 103, 89, 187, 2, 62, 30, 138, 208, 131];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
