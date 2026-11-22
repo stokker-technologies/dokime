@@ -8,11 +8,15 @@ export function mountSvelte<Props extends Record<string, unknown>>(
   context?: Map<unknown, unknown>,
 ) {
   let props = $state.raw(initial);
-  const reactiveProps = new Proxy(initial, {
-    get(_, key) {
-      return Reflect.get(props, key);
+  // Development React Freezes The Props Received By Its Components.
+  const reactiveProps = new Proxy(
+    { ...initial },
+    {
+      get(_, key) {
+        return Reflect.get(props, key);
+      },
     },
-  });
+  );
   const instance = mount(component, { target, props: reactiveProps, context });
 
   return {

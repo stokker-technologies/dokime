@@ -133,6 +133,9 @@
 
   const interaction = getPlotInteraction();
   const eager = $derived(viewportMode !== "live" || typeof IntersectionObserver === "undefined");
+  const plotId = $derived(descriptor.plot_id);
+  const reportVisibility = $derived(interaction.measurements?.setVisible);
+  const reportWidth = $derived(interaction.zoom ? undefined : interaction.measurements?.setPanelWidth);
   let visible = $state(false);
   let mounted = $state(false);
   let root: HTMLDivElement | undefined = $state();
@@ -156,8 +159,8 @@
       return;
     }
     const element = root;
-    const plotId = descriptor.plot_id;
-    const report = interaction.measurements?.setVisible;
+    const id = plotId;
+    const report = reportVisibility;
     visibilityObserver ??= new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -171,27 +174,27 @@
       if (shown) {
         mounted = true;
       }
-      report?.(plotId, shown);
+      report?.(id, shown);
     });
     visibilityObserver.observe(element);
     return () => {
       visibilityObserver?.unobserve(element);
       visibilityListeners.delete(element);
-      report?.(plotId, null);
+      report?.(id, null);
     };
   });
 
   $effect(() => {
-    const report = interaction.measurements?.setPanelWidth;
-    if (!panel || !report || interaction.zoom) {
+    const report = reportWidth;
+    if (!panel || !report) {
       return;
     }
     const element = panel;
-    const plotId = descriptor.plot_id;
+    const id = plotId;
     const measure = () => {
       const width = Math.round(element.getBoundingClientRect().width);
       if (width > 0) {
-        report(plotId, width);
+        report(id, width);
       }
     };
     untrack(measure);
@@ -199,7 +202,7 @@
     observer.observe(element);
     return () => {
       observer.disconnect();
-      report(plotId, null);
+      report(id, null);
     };
   });
 
