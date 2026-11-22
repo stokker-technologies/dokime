@@ -208,16 +208,9 @@ test("Saved Report Browser", async () => {
   vi.doMock("@/lib/desktop/commands", () => ({
     commands: {
       desktopArtifactDeliver: async (_generation: string, document: { filename: string; source: unknown; action: string }) => {
-        assert.deepEqual(
-          document.source,
-          document.action === "open"
-            ? { kind: "cycle_report", cycleId: "cycle-1" }
-            : { kind: "cycle_report", cycleId: "cycle-1", name: "prepared-report/one" },
-        );
+        assert.deepEqual(document.source, { kind: "cycle_report", cycleId: "cycle-1", name: "prepared-report/one" });
         assert.equal("bytesBase64" in document, false);
-        if (document.action === "open") {
-          return { path: "/native/cache/report.html", origin: "current" };
-        }
+        assert.equal(document.action, "save");
         saved.push(document.filename);
         return document.filename === "cancelled.html" ? null : { path: `/home/operator/${document.filename}`, origin: "sealed" };
       },
@@ -231,7 +224,7 @@ test("Saved Report Browser", async () => {
     },
   }));
   try {
-    const { downloadNativeReport, openNativeReport } = await import("@/lib/api/native-reports");
+    const { downloadNativeReport } = await import("@/lib/api/native-reports");
     const session = { generation: "generation-1", isCurrent: () => true } as never;
     const source = { kind: "cycle_report", cycleId: "cycle-1" } as const;
 
@@ -251,9 +244,6 @@ test("Saved Report Browser", async () => {
     assert.deepEqual(saved, ["bench.html", "cancelled.html", "night.html"]);
     assert.equal(created.length, 3);
     assert.equal(published.length, 0);
-
-    // Current Report Origin Survives the Native Pull Without an HTML Payload
-    assert.equal(await openNativeReport(session, source), "Current");
   } finally {
     vi.doUnmock("@/lib/host/client");
     vi.doUnmock("@dokime/document/lib/surface-environment");
@@ -421,7 +411,9 @@ test("Long Tile Values Abbreviate from Their Exact Digits", () => {
 test("Integer Statistics Show Every Digit on Desktop and Report Cards", () => {
   for (const integer of [1152921504606847975n, 18446744073709551615n]) {
     for (const kind of ["integer", "unsignedInteger"] as const) {
-      if (kind === "integer" && integer > 9223372036854775807n) continue;
+      if (kind === "integer" && integer > 9223372036854775807n) {
+        continue;
+      }
       const signed = kind === "integer" ? -integer : integer;
       const value = nativeValueToJson(create(ValueSchema, { kind: { case: kind, value: signed } }));
       const tile = documentSummaryTile({

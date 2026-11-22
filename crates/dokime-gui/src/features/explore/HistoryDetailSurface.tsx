@@ -10,7 +10,7 @@
 import { ErrorCard } from "@dokime/plots/components/ErrorCard";
 import { failureOf } from "@dokime/plots/lib/notification-details";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, FileText, Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { DataTable, DataTableRowActions } from "@dokime/plots/components/data-table/DataTable";
@@ -21,7 +21,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenuItem } from "@dokime/plots/components/ui/dropdown-menu";
 import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { checkpointStepStatus } from "@/lib/api/native-checkpoints";
-import { openNativeReport } from "@/lib/api/native-reports";
+import { DownloadReportAction } from "@/features/cycle/DownloadReportAction";
+import { useCycleDetailQuery } from "@/features/cycle/cycle-queries";
+import { cycleReportSealed } from "@dokime/document/features/cycle/cycle-workspace-model";
 import { timestampIso } from "@dokime/plots/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@dokime/plots/lib/types/browse";
 import { usePageChrome } from "@dokime/document/shell/page-chrome";
@@ -61,7 +63,13 @@ function SessionHistoryDetail({ target, onOpenCycle }: HistoryDetailProps) {
   const [deleteError, setDeleteError] = useState<unknown>(null);
   const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
-  const actions = useMemo(() => (target.kind === "cycle" ? <CycleReportActions cycleId={target.id} /> : null), [target.kind, target.id]);
+  const actions = useMemo(
+    () =>
+      target.kind === "cycle" ? (
+        <CycleReportActions cycleId={target.id} label={entry?.title ?? target.id} sealed={entry?.phase === "sealed"} />
+      ) : null,
+    [target.kind, target.id, entry?.title, entry?.phase],
+  );
   // The page bar carries the title, so the surface never repeats it.
   usePageChrome({
     actions,
@@ -328,34 +336,11 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
   );
 }
 
-/** Opens the cycle's report: the sealed one, or one generated when it is missing. */
-function CycleReportActions({ cycleId }: { cycleId: string }) {
-  const session = useNativeSession();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-
-  async function openReport() {
-    if (busy) {
-      return;
-    }
-    setBusy(true);
-    try {
-      setError(null);
-      await openNativeReport(session.identity, { kind: "cycle_report", cycleId });
-    } catch (error: unknown) {
-      setError(error);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={busy} onClick={() => void openReport()} size="sm" variant="outline">
-        {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
-        {busy ? "Opening…" : "Open Report"}
-      </Button>
-      {error ? <ErrorCard notificationContext="action" failure={failureOf(error, "Operation Failed")} /> : null}
-    </div>
-  );
+/** History uses the same sealed report download as the live workspace. */
+function CycleReportActions({ cycleId, label, sealed }: { cycleId: string; label: string; sealed: boolean }) {
+  const detail = useCycleDetailQuery(cycleId, !sealed);
+  const plan = detail.data?.plan;
+  const currentSealed = plan !== null && plan !== undefined && cycleReportSealed(plan.test_cycle.status, detail.data?.executions ?? []);
+  const available = sealed || currentSealed;
+  return <DownloadReportAction cycleId={cycleId} executionId={null} label={label} sealed={available} presentation="button" />;
 }

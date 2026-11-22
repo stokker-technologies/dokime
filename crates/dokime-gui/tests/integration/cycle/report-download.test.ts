@@ -12,7 +12,7 @@ import { createRoot } from "react-dom/client";
 import { test, vi } from "vitest";
 
 // Local Imports
-import { CycleReportMenuItem } from "@/features/cycle/CycleReportMenuItem";
+import { DownloadReportAction } from "@/features/cycle/DownloadReportAction";
 import { DropdownMenu, DropdownMenuContent } from "@dokime/plots/components/ui/dropdown-menu";
 
 /* === Constants === */
@@ -29,9 +29,13 @@ test("Download Report Enables When the Seal Is Observed Without Remounting", asy
   document.body.append(element);
   const root = createRoot(element);
   const render = (sealed: boolean) =>
-    createElement(DropdownMenu, { open: true },
-      createElement(DropdownMenuContent, {},
-        createElement(CycleReportMenuItem, { cycleId: "cycle", executionId: "execution", label: "Execution", sealed }),
+    createElement(
+      DropdownMenu,
+      { open: true },
+      createElement(
+        DropdownMenuContent,
+        {},
+        createElement(DownloadReportAction, { cycleId: "cycle", executionId: "execution", label: "Execution", sealed }),
       ),
     );
   const item = () => {
@@ -53,6 +57,42 @@ test("Download Report Enables When the Seal Is Observed Without Remounting", asy
   } finally {
     await act(async () => root.unmount());
     element.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+test("History Button Uses the Same Sealed-Only Download and Save State", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  download.mutateAsync.mockClear();
+  const element = document.createElement("div");
+  const root = createRoot(element);
+  const render = (sealed: boolean) =>
+    createElement(DownloadReportAction, {
+      cycleId: "cycle",
+      executionId: null,
+      label: "Cycle",
+      sealed,
+      presentation: "button",
+    });
+  const button = () => {
+    const found = element.querySelector("button");
+    assert.ok(found);
+    return found;
+  };
+  try {
+    await act(async () => root.render(render(false)));
+    assert.equal(button().disabled, true);
+    await act(async () => root.render(render(true)));
+    assert.equal(button().disabled, false);
+    await act(async () => button().click());
+    assert.deepEqual(download.mutateAsync.mock.calls, [[{ executionId: null, label: "Cycle" }]]);
+    download.isPending = true;
+    await act(async () => root.render(render(true)));
+    assert.equal(button().disabled, true);
+    assert.equal(button().textContent, "Saving Report…");
+  } finally {
+    download.isPending = false;
+    await act(async () => root.unmount());
     vi.unstubAllGlobals();
   }
 });

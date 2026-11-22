@@ -43,17 +43,6 @@ export interface SavedReport {
 
 /* === Public Functions === */
 
-/** Pull and verify a report into the native cache before opening it. */
-export async function openNativeReport(session: SessionIdentity, source: NativeReportSource): Promise<"Current" | "Sealed" | undefined> {
-  const delivered = await deliverNativeContent(session, {
-    source,
-    kind: "html_report",
-    filename: source.kind === "cycle_report" ? `cycle-${source.cycleId}.html` : `execution-${source.executionId}.html`,
-    action: "open",
-  });
-  return delivered?.origin === "current" ? "Current" : delivered?.origin === "sealed" ? "Sealed" : undefined;
-}
-
 /** Save a report without routing its bytes through the WebView, then open the saved file. */
 export async function downloadNativeReport(
   session: SessionIdentity,

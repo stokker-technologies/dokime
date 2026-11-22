@@ -21,7 +21,7 @@ import type { ReactNode } from "react";
 import { Button } from "@dokime/plots/components/ui/button";
 import { focusPresentation, useFocusMode } from "@dokime/document/shell/focus-mode";
 import { CycleExportMenuItem } from "./CycleExportMenuItem";
-import { CycleReportMenuItem } from "./CycleReportMenuItem";
+import { DownloadReportAction } from "./DownloadReportAction";
 import { type CycleMenu, type ExecutionMenu, NodeMenu } from "./NodeMenu";
 
 /* === Re-Exports === */
@@ -70,7 +70,7 @@ export function NodeActionCluster({ cycleId, menu, primary, subject, reportSeale
         {subject ? (
           <>
             <CycleExportMenuItem cycleId={cycleId} executionId={subject.executionId} sealed={subject.sealed} />
-            <CycleReportMenuItem cycleId={cycleId} executionId={subject.executionId} label={subject.label} sealed={reportSealed} />
+            <DownloadReportAction cycleId={cycleId} executionId={subject.executionId} label={subject.label} sealed={reportSealed} />
           </>
         ) : null}
       </NodeMenu>

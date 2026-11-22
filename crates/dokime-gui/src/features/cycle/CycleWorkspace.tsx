@@ -208,18 +208,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
     }
   }, [activeExecutionId, executionId, followActive, live, onSelectionChange, selectedStatus, selection]);
 
-  /* A command reports what happened, not what was attempted: the operator
-     needs the outcome and, when it failed, what the backend said. */
-  const openReport = (executionId: string | null) => {
-    commands.openReport
-      .mutateAsync(executionId)
-      .then((origin) =>
-        toast.success("Report Opened", {
-          description: origin === "Current" ? "Generated from the run so far." : undefined,
-        }),
-      )
-      .catch((error: unknown) => toast.error(failureOf(error, "The Report Could Not Be Opened")));
-  };
   /* Archive and Unarchive say what they did; neither changes the lifecycle. */
   const archiveAction = (
     archived: boolean,
@@ -283,7 +271,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
               }),
           )
         : null,
-      onOpenReport: selectedRow.execution ? () => openReport(selectedRow.execution?.test_execution_id ?? null) : null,
       onRerun:
         selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
           ? () =>
@@ -383,7 +370,6 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
         setRerunNotices(response.cycleId, response);
         await navigate({ to: "/cycles/$cycleId", params: { cycleId: response.cycleId } });
       }),
-    onOpenReport: () => openReport(null),
     onSettings: () => setSettingsOpen(true),
     onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
     onSeal:
