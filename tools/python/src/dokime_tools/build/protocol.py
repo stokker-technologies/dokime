@@ -18,6 +18,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 import urllib.request
@@ -83,22 +84,36 @@ def inputs(root: Path) -> Path:
     """Resolve Library Inputs at the Workspace Pin and Stage Current Product Sources."""
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
     dependency = manifest["workspace"]["dependencies"]["harmos"]
-    # Git's Infinite Depth Keeps Old Pins Reachable After the Default Branch Advances.
-    source = f"{dependency['git'].removesuffix('.git')}.git#ref={dependency['rev']},subdir=proto,depth=2147483647"
+    # The Pinned Git Archive Is the Same Source the C++ Dependency Downloads; No Tool Is Required.
+    source = f"{dependency['git'].removesuffix('.git')}/archive/{dependency['rev']}.tar.gz"
     output = root / "target/protocol"
     stamp = output / ".revision"
     if not stamp.is_file() or stamp.read_text(encoding="utf-8") != source:
         if output.exists():
             shutil.rmtree(output)
-        subprocess.run(
-            ["buf", "export", source, "--output", str(output)],
-            cwd=root,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+        response = urllib.request.urlopen(source)
+        files = tarfile.open(fileobj=response, mode="r|gz")
+        exported = 0
+        try:
+            for member in files:
+                relative = Path(*Path(member.name).parts[1:])
+                if not member.isfile() or relative.suffix != ".proto" or not relative.is_relative_to("proto"):
+                    continue
+                contents = files.extractfile(member)
+                if contents is None:
+                    raise ValueError("Export Library Protocol: Download a Complete Library Archive")
+                destination = output / relative.relative_to("proto")
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    destination.write_bytes(contents.read())
+                finally:
+                    contents.close()
+                exported += 1
+        finally:
+            files.close()
+            response.close()
+        if not exported:
+            raise ValueError(f"Export Library Protocol: Pin a Library Revision Whose Archive Contains proto/ ({source})")
         stamp.write_text(source, encoding="utf-8")
     product = output / "dokime"
     if product.exists():
