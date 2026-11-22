@@ -762,6 +762,10 @@ pub struct Plot {
     pub y_scale: i32,
     #[prost(uint32, optional, tag = "25")]
     pub input_samples: ::core::option::Option<u32>,
+    #[prost(message, optional, tag = "26")]
+    pub cell: ::core::option::Option<DataExpression>,
+    #[prost(message, optional, tag = "27")]
+    pub facet: ::core::option::Option<DataExpression>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -828,24 +832,6 @@ pub struct ReferenceBand {
     pub center: ::core::option::Option<DataExpression>,
     #[prost(message, optional, tag = "6")]
     pub tolerance: ::core::option::Option<DataExpression>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GridDefinition {
-    #[prost(message, optional, tag = "1")]
-    pub row: ::core::option::Option<DataExpression>,
-    #[prost(message, optional, tag = "2")]
-    pub column: ::core::option::Option<DataExpression>,
-    #[prost(message, optional, tag = "3")]
-    pub frame: ::core::option::Option<DataExpression>,
-    #[prost(message, repeated, tag = "4")]
-    pub rows: ::prost::alloc::vec::Vec<GridAxisEntry>,
-    #[prost(message, repeated, tag = "5")]
-    pub columns: ::prost::alloc::vec::Vec<GridAxisEntry>,
-    #[prost(message, repeated, tag = "6")]
-    pub highlights: ::prost::alloc::vec::Vec<GridHighlight>,
-    #[prost(string, tag = "7")]
-    pub summary_label: ::prost::alloc::string::String,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
@@ -969,6 +955,8 @@ pub enum Reduction {
     Mean = 1,
     Min = 2,
     Max = 3,
+    Last = 4,
+    Count = 5,
 }
 impl Reduction {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -981,6 +969,8 @@ impl Reduction {
             Self::Mean => "REDUCTION_MEAN",
             Self::Min => "REDUCTION_MIN",
             Self::Max => "REDUCTION_MAX",
+            Self::Last => "REDUCTION_LAST",
+            Self::Count => "REDUCTION_COUNT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -990,6 +980,8 @@ impl Reduction {
             "REDUCTION_MEAN" => Some(Self::Mean),
             "REDUCTION_MIN" => Some(Self::Min),
             "REDUCTION_MAX" => Some(Self::Max),
+            "REDUCTION_LAST" => Some(Self::Last),
+            "REDUCTION_COUNT" => Some(Self::Count),
             _ => None,
         }
     }
@@ -1096,6 +1088,7 @@ pub enum PlotKind {
     Contour = 18,
     GridChart = 19,
     BoxPlot = 20,
+    HeatStrip = 21,
 }
 impl PlotKind {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1115,6 +1108,7 @@ impl PlotKind {
             Self::Contour => "PLOT_KIND_CONTOUR",
             Self::GridChart => "PLOT_KIND_GRID_CHART",
             Self::BoxPlot => "PLOT_KIND_BOX_PLOT",
+            Self::HeatStrip => "PLOT_KIND_HEAT_STRIP",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -1131,6 +1125,7 @@ impl PlotKind {
             "PLOT_KIND_CONTOUR" => Some(Self::Contour),
             "PLOT_KIND_GRID_CHART" => Some(Self::GridChart),
             "PLOT_KIND_BOX_PLOT" => Some(Self::BoxPlot),
+            "PLOT_KIND_HEAT_STRIP" => Some(Self::HeatStrip),
             _ => None,
         }
     }

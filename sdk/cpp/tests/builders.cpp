@@ -111,3 +111,19 @@ TEST_CASE("Lanes Preserve Declarations and Operation Assignments", "[builders]")
   missing.operation(operation);
   REQUIRE_THROWS_AS(missing.describe(), invalid_argument);
 }
+
+TEST_CASE("Heat Strip Builders Preserve Bindings and Reducers") {
+  auto heat = dokime::authoring::heat_strip(dokime::authoring::field("scan", "value"));
+  heat.cells(dokime::authoring::field("scan", "cell")).facet(dokime::authoring::field("scan", "facet"));
+  REQUIRE(heat.message.reduction() == dokime::REDUCTION_LAST);
+  for (auto reduction : {dokime::REDUCTION_LAST, dokime::REDUCTION_MAX, dokime::REDUCTION_MEAN, dokime::REDUCTION_COUNT}) {
+    heat.reduce(reduction);
+    dokime::Plot decoded;
+    REQUIRE(decoded.ParseFromString(heat.message.SerializeAsString()));
+    REQUIRE(decoded.kind() == dokime::PLOT_KIND_HEAT_STRIP);
+    REQUIRE(decoded.reduction() == reduction);
+    REQUIRE(decoded.cell().stream().field() == "cell");
+    REQUIRE(decoded.facet().stream().field() == "facet");
+    REQUIRE(decoded.y_size() == 1);
+  }
+}

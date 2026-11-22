@@ -97,7 +97,7 @@ export type DocumentViewPlot = {
   title: string;
   stream: string;
   plot_type: DocumentPlotType;
-  reduction?: "mean" | "min" | "max" | null;
+  reduction?: "mean" | "min" | "max" | "last" | "count" | null;
   render?: "cells" | "bands";
   grid?: import("./plot").GridDefinition | null;
   style: DocumentPlotStyle;
@@ -110,6 +110,8 @@ export type DocumentViewPlot = {
   x_expression?: DocumentDataExpression | null;
   y_expressions?: DocumentDataExpression[];
   series_by_expression?: DocumentDataExpression | null;
+  cell_expression?: DocumentDataExpression | null;
+  facet_expression?: DocumentDataExpression | null;
   z_expression?: DocumentDataExpression | null;
   z_stream?: string | null;
   z_field?: string | null;

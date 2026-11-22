@@ -78,7 +78,6 @@ pub use crate::wire::model::FrequencyLevelUnit;
 pub use crate::wire::model::FtpLocation;
 pub use crate::wire::model::GridAxisEntry;
 pub use crate::wire::model::GridChart;
-pub use crate::wire::model::GridDefinition;
 pub use crate::wire::model::GridHighlight;
 pub use crate::wire::model::Import;
 pub use crate::wire::model::ImportSource;

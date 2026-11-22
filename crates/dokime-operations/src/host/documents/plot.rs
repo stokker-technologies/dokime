@@ -29,7 +29,6 @@ use dokime_protocol::host::PlotReferenceValue;
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::model::DataExpression;
 use dokime_protocol::model::EvidenceScope;
-use dokime_protocol::model::GridDefinition;
 use dokime_protocol::model::Plot;
 use dokime_protocol::model::PlotFftOptions;
 use dokime_protocol::model::PlotFilter;
@@ -56,7 +55,7 @@ use dokime_protocol::model::value;
 /* === Public Functions === */
 
 pub fn request(plot: &Plot, scope: EvidenceScope) -> Result<PlotRequest> {
-    Ok(PlotRequest {
+    let request = PlotRequest {
         plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
         plot_type: plot.kind,
         style: plot.style,
@@ -91,17 +90,13 @@ pub fn request(plot: &Plot, scope: EvidenceScope) -> Result<PlotRequest> {
         xy_interval: plot.interval,
         reduction: plot.reduction,
         render: plot.render,
-        grid: plot.grid.as_ref().map(|grid| GridDefinition {
-            row: grid.row.clone(),
-            column: grid.column.clone(),
-            frame: grid.frame.clone(),
-            rows: grid.rows.clone(),
-            columns: grid.columns.clone(),
-            highlights: grid.highlights.clone(),
-            summary_label: grid.summary_label.clone(),
-        }),
+        grid: plot.grid.clone(),
+        cell_expression: plot.cell.clone(),
+        facet_expression: plot.facet.clone(),
         ..Default::default()
-    })
+    };
+    request.validate_heat_strip().map_err(Error::Invalid)?;
+    Ok(request)
 }
 
 pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<PlotPresentation> {
@@ -400,5 +395,64 @@ mod tests {
         let request = request(&plot, EvidenceScope::default()).unwrap();
         assert!(store.plot_selection(&cut, &request).is_err());
         assert!(store.plot_selection(&cut, &Default::default()).is_err());
+    }
+    #[tokio::test]
+    async fn heat_strip_snapshots_keep_cell_times_windows_and_fixed_cuts() {
+        let (_root, store, _) = fixture();
+        let cut = store.cut("execution").unwrap();
+        let input = DataExpression {
+            kind: Some(data_expression::Kind::Record(FieldReference {
+                identifier: "connected".into(),
+                field: "value".into(),
+            })),
+            ..Default::default()
+        };
+        let plot = dokime_protocol::builders::Plot::heat_strip(input.clone())
+            .cells(input.clone())
+            .facet(DataExpression {
+                kind: Some(data_expression::Kind::Literal(Value {
+                    kind: Some(value::Kind::Text("facet".into())),
+                })),
+                ..Default::default()
+            })
+            .message;
+        let request = request(
+            &plot,
+            EvidenceScope {
+                execution_id: Some("execution".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(request.cell_expression, plot.cell);
+        assert_eq!(request.facet_expression, plot.facet);
+        let captured = snapshots_at(&store, &cut, vec![request.clone()], 128, 0, "epoch").await.unwrap();
+        let frame = captured[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+        assert_eq!(frame.series.len(), 1);
+        assert_eq!(frame.series[0].y.iter().map(|v| v.value).collect::<Vec<_>>(), vec![Some(1.0), Some(2.0)]);
+        assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: 86410, nanos: 0 }.to_string());
+        store
+            .append(
+                "execution",
+                Evidence {
+                    kind: "record:connected".into(),
+                    source_ns: 300000_000_000_000,
+                    payload: RecordsAppendRequest {
+                        payload: Row { value: 3 }.encode_to_vec(),
+                        ..Default::default()
+                    }
+                    .encode_to_vec(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let frozen = snapshots_at(&store, &cut, vec![request.clone()], 128, 0, "epoch").await.unwrap();
+        assert_eq!(captured[0].payload, frozen[0].payload);
+        let mut window = request;
+        window.viewport = Some(dokime_protocol::host::plots::PlotWindow { from: 0.0, to: 10.0 });
+        let snapshot = snapshots_at(&store, &cut, vec![window], 128, 0, "epoch").await.unwrap();
+        let frame = snapshot[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+        assert_eq!(frame.series[0].y.len(), 1);
+        assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: 4, nanos: 0 }.to_string());
     }
 }

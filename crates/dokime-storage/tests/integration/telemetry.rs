@@ -49,7 +49,7 @@ use dokime_protocol::model::FftWindow;
 use dokime_protocol::model::FieldReference;
 use dokime_protocol::model::FilterOperator;
 use dokime_protocol::model::GridAxisEntry;
-use dokime_protocol::model::GridDefinition;
+use dokime_protocol::model::GridChart;
 use dokime_protocol::model::GridHighlight;
 use dokime_protocol::model::PlotFftOptions;
 use dokime_protocol::model::Reduction;
@@ -493,7 +493,7 @@ fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> 
             group: None,
             limit: 18,
         },
-        &GridDefinition {
+        &GridChart {
             rows: axes.to_vec(),
             columns: axes.to_vec(),
             highlights: vec![GridHighlight {
@@ -1376,5 +1376,178 @@ fn sealing_as_not_run_refuses_started_evidence() -> Result<()> {
     )?;
     assert!(store.seal_unstarted("execution", Default::default()).is_err());
     assert_eq!(store.cut("execution")?.state, ExecutionState::Open);
+    Ok(())
+}
+
+#[test]
+fn heat_strip_reduces_typed_cells_facets_absence_and_windows() -> Result<()> {
+    #[derive(Clone, PartialEq, Message)]
+    struct HeatRow {
+        #[prost(double, optional, tag = "1")]
+        value: Option<f64>,
+
+        #[prost(uint64, tag = "2")]
+        cell: u64,
+
+        #[prost(string, tag = "3")]
+        facet: String,
+    }
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let mut execution = fixture::execution();
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+    let file = &mut catalog.types.as_mut().unwrap().file[0];
+    file.syntax = Some("proto2".into());
+    file.message_type[0].field = [("value", Type::Double), ("cell", Type::Uint64), ("facet", Type::String)]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (name, kind))| FieldDescriptorProto {
+            name: Some(name.into()),
+            number: Some(index as i32 + 1),
+            label: Some(Label::Optional as i32),
+            r#type: Some(kind as i32),
+            ..Default::default()
+        })
+        .collect();
+    execution.catalog = catalog.encode_to_vec();
+    store.create(&execution)?;
+    store.open_stream("execution", "readings")?;
+    let large = 9_007_199_254_740_992u64;
+    for (cell, facet, value, time) in [
+        (10, "a", Some(1.0), 1),
+        (2, "a", Some(4.0), 5),
+        (2, "a", Some(8.0), 3),
+        (2, "a", Some(8.0), 4),
+        (2, "a", Some(6.0), 5),
+        (10, "b", None, 6),
+        (large, "a", Some(2.0), 7),
+        (large + 1, "a", Some(3.0), 8),
+        (10, "b", Some(f64::NAN), 9),
+        (0, "a", Some(9.0), 10),
+        (1, "", Some(9.0), 11),
+    ] {
+        store.sample(
+            "execution",
+            Sample {
+                stream: "readings".into(),
+                source_ns: time * 1_000_000_000,
+                row: HeatRow { value, cell, facet: facet.into() }.encode_to_vec(),
+                ..Default::default()
+            },
+        )?;
+    }
+    store.flush_samples()?;
+    let cut = store.cut("execution")?;
+    let binding = || KindWindow {
+        window: numeric(cut.frontier),
+        x: Some("cell"),
+        z: None,
+        group: Some("facet"),
+        limit: 8,
+    };
+    for (reducer, expected, at) in
+        [(Reduction::Last, 6.0, 5), (Reduction::Max, 8.0, 4), (Reduction::Mean, 6.5, 5), (Reduction::Count, 4.0, 5)]
+    {
+        let (frame, count, groups) = store.heat_strip_window(binding(), reducer)?;
+        assert_eq!(count, 7);
+        assert_eq!(groups, vec![("a".into(), 7), ("b".into(), 0)]);
+        assert_eq!(frame.point_count, 8);
+        assert_eq!(
+            frame.series[0]
+                .x
+                .iter()
+                .map(|v| match v.kind {
+                    Some(value::Kind::UnsignedInteger(v)) => v,
+                    _ => panic!("typed cell"),
+                })
+                .collect::<Vec<_>>(),
+            vec![2, 10, large, large + 1]
+        );
+        assert_eq!(frame.series[0].y[0].value, Some(expected));
+        assert_eq!(frame.series[0].instants[0], prost_types::Timestamp { seconds: at, nanos: 0 }.to_string());
+        assert!(frame.series[1].y.iter().all(|v| v.value.is_none()));
+        assert!(frame.series[1].instants.iter().all(String::is_empty));
+    }
+    assert!(store.heat_strip_window(KindWindow { limit: 7, ..binding() }, Reduction::Last).is_err());
+    let (frame, count, _) = store.heat_strip_window(
+        KindWindow {
+            window: NumericWindow {
+                end_ns: 4_000_000_000,
+                ..numeric(cut.frontier)
+            },
+            ..binding()
+        },
+        Reduction::Last,
+    )?;
+    assert_eq!(count, 3);
+    assert_eq!(frame.series[0].y[0].value, Some(8.0));
+    let (frame, count, _) = store.heat_strip_window(
+        KindWindow {
+            window: NumericWindow {
+                start_ns: 6_000_000_000,
+                end_ns: 6_000_000_000,
+                ..numeric(cut.frontier)
+            },
+            ..binding()
+        },
+        Reduction::Count,
+    )?;
+    assert_eq!(count, 0);
+    assert_eq!(frame.series.len(), 1);
+    assert_eq!(frame.series[0].y[0].value, None);
+    Ok(())
+}
+
+#[test]
+fn heat_strip_projection_applies_filters_cuts_and_indexed_source_bounds() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    let mut samples = fixture::samples(6);
+    for (index, sample) in samples.iter_mut().enumerate() {
+        sample.source_ns = index as i64 * 86_400_000_000_000;
+    }
+    store.sample_batch("execution", &samples)?;
+    store.flush_samples()?;
+    let cut = store.cut("execution")?;
+    let source = FieldReference::new("readings");
+    let request = PlotRequest {
+        stream: "readings".into(),
+        y_expressions: vec![source.field("value").scale(2.0)],
+        cell_expression: Some(source.field("value")),
+        facet_expression: Some(source.field("label")),
+        filters: vec![PlotFilter {
+            expression: Some(source.field("value")),
+            operator: FilterOperator::Gt as i32,
+            value: Some(model::Value {
+                kind: Some(value::Kind::UnsignedInteger(1)),
+            }),
+        }],
+        ..Default::default()
+    };
+    let selected = store.plot_selection(&cut, &request)?;
+    assert_eq!(store.plot_source_bounds(&cut, 0, cut.frontier)?, Some((0, 5 * 86_400_000_000_000)));
+    assert_eq!(store.plot_source_bounds(&cut, 1, 4)?, Some((86_400_000_000_000, 3 * 86_400_000_000_000)));
+    let Some(data_expression::Kind::Stream(value)) = selected.request.y_expressions[0].kind.as_ref() else { panic!("projected value") };
+    let (frame, count, groups) = store.heat_strip_window(
+        KindWindow {
+            window: NumericWindow {
+                field: &value.field,
+                through: 5,
+                ..numeric(5)
+            },
+            x: Some("value"),
+            z: None,
+            group: Some("label"),
+            limit: 9,
+        },
+        Reduction::Last,
+    )?;
+    assert_eq!(count, 3);
+    assert_eq!(groups.len(), 3);
+    let mut values = frame.series.iter().flat_map(|c| c.y.iter().filter_map(|y| y.value)).collect::<Vec<_>>();
+    values.sort_by(f64::total_cmp);
+    assert_eq!(values, vec![4.0, 6.0, 8.0]);
     Ok(())
 }

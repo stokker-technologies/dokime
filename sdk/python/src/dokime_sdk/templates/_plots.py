@@ -45,6 +45,8 @@ class Reduction(IntEnum):
     MEAN = shared.Reduction.Value("REDUCTION_MEAN")
     MIN = shared.Reduction.Value("REDUCTION_MIN")
     MAX = shared.Reduction.Value("REDUCTION_MAX")
+    LAST = shared.Reduction.Value("REDUCTION_LAST")
+    COUNT = shared.Reduction.Value("REDUCTION_COUNT")
 
 
 class ContourRender(IntEnum):
@@ -169,6 +171,14 @@ class Plot:
 
     def y(self, value: Expression) -> Self:
         self.message.y.add().CopyFrom(_expression(value))
+        return self
+
+    def cells(self, value: Expression) -> Self:
+        self.message.cell.CopyFrom(_expression(value))
+        return self
+
+    def facet(self, value: Expression) -> Self:
+        self.message.facet.CopyFrom(_expression(value))
         return self
 
     def series_by(self, value: Expression) -> Self:
@@ -324,6 +334,11 @@ def trajectory(value: Expression, *, label: str | None = None) -> Plot:
 
 def contour(value: Expression, *, label: str | None = None) -> Plot:
     plot = _new_plot("CONTOUR", value)
+    return plot.label(label) if label is not None else plot
+
+
+def heat_strip(value: Expression, *, label: str | None = None) -> Plot:
+    plot = _new_plot("HEAT_STRIP", value).reduce(Reduction.LAST)
     return plot.label(label) if label is not None else plot
 
 

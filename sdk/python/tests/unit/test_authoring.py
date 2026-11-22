@@ -468,6 +468,19 @@ class AuthoringStory(unittest.TestCase):
         self.assertRaises(ValueError, ReportPlugin)
 
 
+class HeatStripTests(unittest.TestCase):
+    def test_heat_strip_authoring_preserves_defaults_and_operands(self) -> None:
+        samples = dokime_sdk.templates.Stream("example.samples")
+        plot = dokime_sdk.templates.heat_strip(samples.field("value")).cells(samples.field("cell")).facet(samples.field("facet"))
+        self.assertEqual(plot.message.kind, shared.PLOT_KIND_HEAT_STRIP)
+        self.assertEqual(plot.message.reduction, shared.REDUCTION_LAST)
+        self.assertEqual(plot.message.cell.stream.field, "cell")
+        self.assertEqual(plot.message.facet.stream.field, "facet")
+        self.assertRaises(TypeError, plot.cells, "cell")
+        self.assertRaises(TypeError, plot.reduce, "mean")
+        self.assertRaises(TypeError, plot.reduce, 4)
+
+
 # === Public Functions === #
 
 # === Private Functions === #

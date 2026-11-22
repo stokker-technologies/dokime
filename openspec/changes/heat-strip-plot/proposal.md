@@ -46,7 +46,6 @@ and stale report ownership statements identified in `design.md`.
 
 ## Agreement and Activation
 
-The owner has locked the feature behaviour in the task. This concrete proposal,
-wire mapping, scenarios and inventory await agreement. Implementation also awaits
-the owner running `stkr specification start heat-strip-plot` in this worktree;
-the implementation worker is prohibited from running specification commands.
+The owner has locked the feature behaviour in the task. The owner agreed the proposal, wire mapping, scenarios and inventory and activated
+`heat-strip-plot` on `feat/heat-strip-plot`. The activation marker was verified
+before implementation. The worker hands back local commits without pushing.

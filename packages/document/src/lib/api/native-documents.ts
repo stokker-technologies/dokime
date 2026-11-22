@@ -427,6 +427,8 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
           [Reduction.MEAN]: "mean" as const,
           [Reduction.MIN]: "min" as const,
           [Reduction.MAX]: "max" as const,
+          [Reduction.LAST]: "last" as const,
+          [Reduction.COUNT]: "count" as const,
         }[request.reduction] ?? null)
       : null,
     render: request.render === ContourRender.BANDS ? "bands" : "cells",
@@ -453,6 +455,8 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
     x_expression: xExpression,
     y_expressions: yExpressions,
     series_by_expression: seriesByExpression,
+    cell_expression: mapNativeExpression(request.cellExpression),
+    facet_expression: mapNativeExpression(request.facetExpression),
     z_expression: mapNativeExpression(definition.zExpression ?? request.zExpression),
     z_stream: request.zStream ?? null,
     z_field: request.zField ?? null,
@@ -509,6 +513,8 @@ function mapNativePlotType(value?: PlotType): DocumentViewCard["plots"][number][
       return "trajectory";
     case PlotKind.CONTOUR:
       return "contour";
+    case PlotKind.HEAT_STRIP:
+      return "heat_strip";
     case PlotKind.GRID_CHART:
       return "grid_chart";
     case PlotKind.BAR:

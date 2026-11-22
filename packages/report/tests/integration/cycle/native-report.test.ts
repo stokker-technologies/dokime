@@ -215,7 +215,7 @@ test("Execution Reports Keep Records Without a Case Tag", async () => {
 });
 
 test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async () => {
-  for (const plotType of [PlotKind.BAR, PlotKind.PIE, PlotKind.TRAJECTORY]) {
+  for (const plotType of [PlotKind.BAR, PlotKind.PIE, PlotKind.TRAJECTORY, PlotKind.HEAT_STRIP]) {
     const capture = await nativeReport();
     const execution = capture.executions[0];
     const header = execution.document?.frames[0];
@@ -254,7 +254,23 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
                 sourceId: metadata.identifier,
                 metadata,
                 result: {
-                  kind: { case: "plot", value: { metadata, request: { plotId: metadata.identifier, plotType, stream: "samples" } } },
+                  kind: {
+                    case: "plot",
+                    value: {
+                      metadata,
+                      request: {
+                        plotId: metadata.identifier,
+                        plotType,
+                        stream: "samples",
+                        ...(plotType === PlotKind.HEAT_STRIP
+                          ? {
+                              cellExpression: { kind: { case: "stream", value: { identifier: "samples", field: "cell" } } },
+                              facetExpression: { kind: { case: "stream", value: { identifier: "samples", field: "facet" } } },
+                            }
+                          : {}),
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -265,6 +281,7 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
       ],
     });
     const trajectory = plotType === PlotKind.TRAJECTORY;
+    const timed = trajectory || plotType === PlotKind.HEAT_STRIP;
     execution.plots = create(ReportCaptureSchema, {
       executions: [
         {
@@ -286,7 +303,7 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
                         x: [{ kind: trajectory ? { case: "number", value: 2 } : { case: "text", value: "category" } }],
                         y: [{ value: 3 }],
                         totals: [{ kind: { case: "unsignedInteger", value: 3n } }],
-                        instants: trajectory ? ["1970-01-01T00:00:01Z"] : [],
+                        instants: timed ? ["1970-01-01T00:00:01Z"] : [],
                       },
                     ],
                   },
@@ -298,12 +315,18 @@ test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async
       ],
     }).executions[0].plots;
     const { source } = await materializeReport(capture);
+    if (plotType === PlotKind.HEAT_STRIP) {
+      const declaration = source.document("execution")?.cards[0].plots[0];
+      assert.equal(declaration?.plot_type, "heat_strip");
+      assert.equal(declaration?.cell_expression?.kind.case, "stream");
+      assert.equal(declaration?.facet_expression?.kind.case, "stream");
+    }
     const payload = source.plotPayloads("execution").plots[metadata.identifier];
     assert.equal(payload.cartesian, null);
     const coordinate = payload.series[0].points[0].x;
     assert.equal(trajectory ? Number(coordinate) : coordinate, trajectory ? 2 : "category");
     assert.equal(payload.series[0].points[0].y, 3);
-    assert.equal(payload.series[0].points[0].instant, trajectory ? "1970-01-01T00:00:01Z" : null);
+    assert.equal(payload.series[0].points[0].instant, timed ? "1970-01-01T00:00:01Z" : null);
   }
 });
 

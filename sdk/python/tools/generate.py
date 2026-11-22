@@ -124,6 +124,7 @@ PUBLIC_HOMES = {
             "field",
             "frequency_series",
             "grid_chart",
+            "heat_strip",
             "histogram",
             "materialize",
             "observer",

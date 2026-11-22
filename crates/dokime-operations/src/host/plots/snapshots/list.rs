@@ -323,6 +323,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     } = read;
     let execution = cut.execution.identifier.as_str();
     let original = request;
+    request.validate_heat_strip().map_err(Error::Invalid)?;
     let selection_key = Sha256::digest(request.encode_to_vec()).iter().map(|byte| format!("{byte:02x}")).collect();
     let selected = store.plot_selection(cut, request)?;
     let request = &selected.request;
@@ -435,6 +436,8 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let x = field_reference(request.x_expression.as_ref(), request.x_key.as_deref())?;
     let group = field_reference(request.series_by_expression.as_ref(), request.series_by.as_deref())?;
     let z = field_reference(request.z_expression.as_ref(), request.z_field.as_deref())?;
+    let cell = field_reference(request.cell_expression.as_ref(), None)?;
+    let facet = field_reference(request.facet_expression.as_ref(), None)?;
     if request.hole.is_some_and(|hole| !hole.is_finite() || !(0.0..1.0).contains(&hole)) {
         return Err(Error::Invalid("Query Pie: Choose a Hole Fraction in [0, 1)".into()));
     }
@@ -447,7 +450,9 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if request.xy_interval.is_some() && (kind != PlotKind::Xy || request.xy_interval != Some(XyInterval::Sigma as i32)) {
         return Err(Error::Invalid("Query XY Intervals: Select Sigma on an XY Plot".into()));
     }
-    if fields.len() != 1 && (matches!(kind, PlotKind::Pie | PlotKind::Contour | PlotKind::GridChart) || request.pareto) {
+    if fields.len() != 1
+        && (matches!(kind, PlotKind::Pie | PlotKind::Contour | PlotKind::GridChart | PlotKind::HeatStrip) || request.pareto)
+    {
         return Err(Error::Invalid("Query Plot: Select Exactly One Value Column for This Kind".into()));
     }
     let requested = usize::try_from(request.max_points.unwrap_or(DEFAULT_POINTS))
@@ -466,20 +471,26 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         cut.frontier,
         NonZeroUsize::new(maximum).unwrap(),
     )?;
-    let (start_ns, end_ns) =
-        if let Some(viewport) = request.viewport.as_ref().filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified)) {
-            (ns(viewport.from)?, ns(viewport.to)?)
+    let (start_ns, end_ns) = if let Some(viewport) =
+        request.viewport.as_ref().filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified | PlotKind::HeatStrip))
+    {
+        (ns(viewport.from)?, ns(viewport.to)?)
+    } else {
+        let bounds = if kind == PlotKind::HeatStrip {
+            store.plot_source_bounds(cut, after, through)?
         } else {
-            let bounds = store.numeric_bounds(execution, stream, &fields[0], through)?.unwrap_or((0, 0));
-            if let Some(window_s) = request.window_s {
-                if !window_s.is_finite() || window_s < 0.0 {
-                    return Err(Error::Invalid("Query Plot: Choose a Finite Nonnegative Time Window".into()));
-                }
-                (bounds.0.max(bounds.1.saturating_sub(ns(window_s)?)), bounds.1)
-            } else {
-                bounds
+            store.numeric_bounds(execution, stream, &fields[0], through)?
+        }
+        .unwrap_or((0, 0));
+        if let Some(window_s) = request.window_s {
+            if !window_s.is_finite() || window_s < 0.0 {
+                return Err(Error::Invalid("Query Plot: Choose a Finite Nonnegative Time Window".into()));
             }
-        };
+            (bounds.0.max(bounds.1.saturating_sub(ns(window_s)?)), bounds.1)
+        } else {
+            bounds
+        }
+    };
     if start_ns > end_ns {
         return Err(Error::Invalid("Query Plot: Choose Increasing Viewport Bounds".into()));
     }
@@ -648,6 +659,27 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 frame.series.extend(series.series);
                 count
             }
+        } else if kind == PlotKind::HeatStrip {
+            let reduction = request
+                .reduction
+                .map(Reduction::try_from)
+                .transpose()
+                .map_err(|_| Error::Invalid("Query Heat Strip: Select Last, Max, Mean or Count".into()))?
+                .unwrap_or(Reduction::Last);
+            let (series, count, groups) = store.heat_strip_window(
+                KindWindow {
+                    window,
+                    x: cell.as_deref(),
+                    z: None,
+                    group: facet.as_deref(),
+                    limit: display,
+                },
+                reduction,
+            )?;
+            column_groups = Some(groups);
+            frame.point_count += series.point_count;
+            frame.series.extend(series.series);
+            count
         } else if kind == PlotKind::GridChart {
             let grid =
                 request.grid.as_ref().ok_or_else(|| Error::Invalid("Query Grid Chart: Supply Row, Column and Frame Bindings".into()))?;

@@ -94,6 +94,7 @@ export function plotType(value?: DocumentPlotType | null): PlotType {
     trajectory: PlotKind.TRAJECTORY,
     contour: PlotKind.CONTOUR,
     grid_chart: PlotKind.GRID_CHART,
+    heat_strip: PlotKind.HEAT_STRIP,
     frequency_series: PlotKind.FREQUENCY_SERIES,
     histogram: PlotKind.HISTOGRAM,
     box_plot: PlotKind.BOX_PLOT,
@@ -106,7 +107,7 @@ export function plotType(value?: DocumentPlotType | null): PlotType {
 }
 
 export function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlotType | null): PlotPayload {
-  const points = plotType === "trajectory" || plotType === "bar" || plotType === "pie";
+  const points = plotType === "trajectory" || plotType === "bar" || plotType === "pie" || plotType === "heat_strip";
   return {
     stream: payload.stream,
     x_key: payload.xKey,

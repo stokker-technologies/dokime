@@ -2,7 +2,7 @@
 
 ## Context
 
-Proposed design; see `proposal.md` for scope.
+Agreed design; see `proposal.md` for scope.
 `docs/project/architecture.md:646` states: "Plot/document readers consume
 projected batches." Its purpose is one typed evaluation path through the library.
 Invariant 19 states: "Rendering Does Not Publish." Heat Strip preserves both.
@@ -26,6 +26,7 @@ plot.reduce(Reduction.LAST)
 ```
 
 ```rust
+use dokime::builders::{Plot, Reduction};
 let plot = Plot::heat_strip(value_expression)
     .label("Wi-Fi Channel Occupancy")
     .cells(cell_expression)
@@ -38,8 +39,7 @@ all four SDKs serialize one model.
 
 ## Wire Mapping
 
-Proposed additions preserve all existing tags and reserved names:
-
+Existing tags and reserved names are preserved:
 ```proto
 // PlotKind
 PLOT_KIND_HEAT_STRIP = 21;
@@ -95,6 +95,6 @@ If the pinned library lacks a required facility, stop that item and report the g
 
 `GridChart` and `GridDefinition` in `proto/dokime/model/v1/plots.proto` have identical
 fields. Authored `Plot.grid` uses the former; `PlotRequest.grid` uses the
-latter through `host/documents/plot.rs`. Recommend reusing `GridChart` and deleting
-`GridDefinition` in owner-approved work; do not merge either mechanism here.
+latter through `host/documents/plot.rs`. The owner approved reusing `GridChart` and deleting
+`GridDefinition`, migrating request mapping, storage and exports in this change.
 Documentation: `docs/guides/query-api.md:22`, `docs/guides/gui.md:459` need Heat Strip; architecture line 646 needs grouped reads.

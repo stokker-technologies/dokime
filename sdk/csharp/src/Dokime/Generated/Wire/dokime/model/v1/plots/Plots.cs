@@ -27,7 +27,7 @@ namespace Dokime;
             "Chtkb2tpbWUvbW9kZWwvdjEvcGxvdHMucHJvdG8SD2Rva2ltZS5tb2RlbC52",
             "MRohZG9raW1lL21vZGVsL3YxL2V4cHJlc3Npb25zLnByb3RvGh5kb2tpbWUv",
             "bW9kZWwvdjEvbWV0YWRhdGEucHJvdG8aHGRva2ltZS9tb2RlbC92MS9zY2Fs",
-            "YXIucHJvdG8i5QoKBFBsb3QSNQoIbWV0YWRhdGEYASABKAsyGS5kb2tpbWUu",
+            "YXIucHJvdG8i0QsKBFBsb3QSNQoIbWV0YWRhdGEYASABKAsyGS5kb2tpbWUu",
             "bW9kZWwudjEuTWV0YWRhdGFSCG1ldGFkYXRhEi0KBGtpbmQYAiABKA4yGS5k",
             "b2tpbWUubW9kZWwudjEuUGxvdEtpbmRSBGtpbmQSLQoBeBgDIAEoCzIfLmRv",
             "a2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIBeBItCgF5GAQgAygLMh8u",
@@ -55,111 +55,105 @@ namespace Dokime;
             "YWxlGBcgASgOMhouZG9raW1lLm1vZGVsLnYxLkF4aXNTY2FsZVIGeFNjYWxl",
             "EjMKB3lfc2NhbGUYGCABKA4yGi5kb2tpbWUubW9kZWwudjEuQXhpc1NjYWxl",
             "UgZ5U2NhbGUSKAoNaW5wdXRfc2FtcGxlcxgZIAEoDUgHUgxpbnB1dFNhbXBs",
-            "ZXOIAQFCEQoPX2hpc3RvZ3JhbV9iaW5zQhEKD19zYW1wbGVfcmF0ZV9oekIR",
-            "Cg9fZGlzcGxheV9wb2ludHNCDgoMX2FycmFuZ2VtZW50QgcKBV9ob2xlQgsK",
-            "CV9pbnRlcnZhbEIMCgpfcmVkdWN0aW9uQhAKDl9pbnB1dF9zYW1wbGVzInIK",
-            "DUdyaWRBeGlzRW50cnkSEAoDa2V5GAEgASgJUgNrZXkSFAoFbGFiZWwYAiAB",
-            "KAlSBWxhYmVsEhQKBW9yZGVyGAMgASgRUgVvcmRlchIZCgVncm91cBgEIAEo",
-            "CUgAUgVncm91cIgBAUIICgZfZ3JvdXAikQEKDUdyaWRIaWdobGlnaHQSMQoD",
-            "cm93GAEgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgNy",
-            "b3cSNwoGY29sdW1uGAIgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHBy",
-            "ZXNzaW9uUgZjb2x1bW4SFAoFbGFiZWwYAyABKAlSBWxhYmVsIoEDCglHcmlk",
-            "Q2hhcnQSMQoDcm93GAEgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHBy",
-            "ZXNzaW9uUgNyb3cSNwoGY29sdW1uGAIgASgLMh8uZG9raW1lLm1vZGVsLnYx",
-            "LkRhdGFFeHByZXNzaW9uUgZjb2x1bW4SNQoFZnJhbWUYAyABKAsyHy5kb2tp",
-            "bWUubW9kZWwudjEuRGF0YUV4cHJlc3Npb25SBWZyYW1lEjIKBHJvd3MYBCAD",
-            "KAsyHi5kb2tpbWUubW9kZWwudjEuR3JpZEF4aXNFbnRyeVIEcm93cxI4Cgdj",
-            "b2x1bW5zGAUgAygLMh4uZG9raW1lLm1vZGVsLnYxLkdyaWRBeGlzRW50cnlS",
-            "B2NvbHVtbnMSPgoKaGlnaGxpZ2h0cxgGIAMoCzIeLmRva2ltZS5tb2RlbC52",
-            "MS5HcmlkSGlnaGxpZ2h0UgpoaWdobGlnaHRzEiMKDXN1bW1hcnlfbGFiZWwY",
-            "ByABKAlSDHN1bW1hcnlMYWJlbCJyCg1SZWZlcmVuY2VMaW5lEjUKBXZhbHVl",
-            "GAEgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgV2YWx1",
-            "ZRIUCgVsYWJlbBgCIAEoCVIFbGFiZWwSFAoFY29sb3IYAyABKAlSBWNvbG9y",
-            "IpkCCg1SZWZlcmVuY2VCYW5kEjEKA21pbhgBIAEoCzIfLmRva2ltZS5tb2Rl",
-            "bC52MS5EYXRhRXhwcmVzc2lvblIDbWluEjEKA21heBgCIAEoCzIfLmRva2lt",
-            "ZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIDbWF4EhQKBWxhYmVsGAMgASgJ",
-            "UgVsYWJlbBIUCgVjb2xvchgEIAEoCVIFY29sb3ISNwoGY2VudGVyGAUgASgL",
-            "Mh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgZjZW50ZXISPQoJ",
-            "dG9sZXJhbmNlGAYgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNz",
-            "aW9uUgl0b2xlcmFuY2UihgMKDkdyaWREZWZpbml0aW9uEjEKA3JvdxgBIAEo",
-            "CzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIDcm93EjcKBmNv",
-            "bHVtbhgCIAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIG",
-            "Y29sdW1uEjUKBWZyYW1lGAMgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFF",
-            "eHByZXNzaW9uUgVmcmFtZRIyCgRyb3dzGAQgAygLMh4uZG9raW1lLm1vZGVs",
-            "LnYxLkdyaWRBeGlzRW50cnlSBHJvd3MSOAoHY29sdW1ucxgFIAMoCzIeLmRv",
-            "a2ltZS5tb2RlbC52MS5HcmlkQXhpc0VudHJ5Ugdjb2x1bW5zEj4KCmhpZ2hs",
-            "aWdodHMYBiADKAsyHi5kb2tpbWUubW9kZWwudjEuR3JpZEhpZ2hsaWdodFIK",
-            "aGlnaGxpZ2h0cxIjCg1zdW1tYXJ5X2xhYmVsGAcgASgJUgxzdW1tYXJ5TGFi",
-            "ZWwi4AMKDlBsb3RGZnRPcHRpb25zEikKDnNhbXBsZV9yYXRlX2h6GAEgASgB",
-            "SABSDHNhbXBsZVJhdGVIeogBARIyCgZ3aW5kb3cYAiABKA4yGi5kb2tpbWUu",
-            "bW9kZWwudjEuRmZ0V2luZG93UgZ3aW5kb3cSNQoHZGV0cmVuZBgDIAEoDjIb",
-            "LmRva2ltZS5tb2RlbC52MS5GZnREZXRyZW5kUgdkZXRyZW5kEkIKCmxldmVs",
-            "X3VuaXQYBCABKA4yIy5kb2tpbWUubW9kZWwudjEuRnJlcXVlbmN5TGV2ZWxV",
-            "bml0UglsZXZlbFVuaXQSHQoKaW5jbHVkZV9kYxgFIAEoCFIJaW5jbHVkZURj",
-            "Ei0KEG1pbl9mcmVxdWVuY3lfaHoYBiABKAFIAVIObWluRnJlcXVlbmN5SHqI",
-            "AQESLQoQbWF4X2ZyZXF1ZW5jeV9oehgHIAEoAUgCUg5tYXhGcmVxdWVuY3lI",
-            "eogBARIoCg1pbnB1dF9zYW1wbGVzGAggASgNSANSDGlucHV0U2FtcGxlc4gB",
-            "AUIRCg9fc2FtcGxlX3JhdGVfaHpCEwoRX21pbl9mcmVxdWVuY3lfaHpCEwoR",
-            "X21heF9mcmVxdWVuY3lfaHpCEAoOX2lucHV0X3NhbXBsZXMiuAEKClBsb3RG",
-            "aWx0ZXISPwoKZXhwcmVzc2lvbhgBIAEoCzIfLmRva2ltZS5tb2RlbC52MS5E",
-            "YXRhRXhwcmVzc2lvblIKZXhwcmVzc2lvbhI7CghvcGVyYXRvchgCIAEoDjIf",
-            "LmRva2ltZS5tb2RlbC52MS5GaWx0ZXJPcGVyYXRvclIIb3BlcmF0b3ISLAoF",
-            "dmFsdWUYAyABKAsyFi5kb2tpbWUubW9kZWwudjEuVmFsdWVSBXZhbHVlIkwK",
-            "FFBsb3RIaXN0b2dyYW1PcHRpb25zEhIKBGJpbnMYASABKARSBGJpbnMSFwoE",
-            "dW5pdBgCIAEoCUgAUgR1bml0iAEBQgcKBV91bml0InIKE1Bsb3RJbnRlcnZh",
-            "bE9wdGlvbnMSGwoJYmluX3dpZHRoGAEgASgBUghiaW5XaWR0aBIUCgVzaWdt",
-            "YRgCIAEoAVIFc2lnbWESKAoQY2xpcF90b19vYnNlcnZlZBgDIAEoCFIOY2xp",
-            "cFRvT2JzZXJ2ZWQqhAEKCVBsb3RTdHlsZRIaChZQTE9UX1NUWUxFX1VOU1BF",
-            "Q0lGSUVEEAASEwoPUExPVF9TVFlMRV9MSU5FEAESFQoRUExPVF9TVFlMRV9Q",
-            "T0lOVFMQAhIaChZQTE9UX1NUWUxFX0xJTkVfUE9JTlRTEAMSEwoPUExPVF9T",
-            "VFlMRV9TVEVQEAQqUgoJQXhpc1NjYWxlEhoKFkFYSVNfU0NBTEVfVU5TUEVD",
-            "SUZJRUQQABIVChFBWElTX1NDQUxFX0xJTkVBUhABEhIKDkFYSVNfU0NBTEVf",
-            "TE9HEAIqYAoJUmVkdWN0aW9uEhkKFVJFRFVDVElPTl9VTlNQRUNJRklFRBAA",
-            "EhIKDlJFRFVDVElPTl9NRUFOEAESEQoNUkVEVUNUSU9OX01JThACEhEKDVJF",
-            "RFVDVElPTl9NQVgQAypjCg1Db250b3VyUmVuZGVyEh4KGkNPTlRPVVJfUkVO",
-            "REVSX1VOU1BFQ0lGSUVEEAASGAoUQ09OVE9VUl9SRU5ERVJfQ0VMTFMQARIY",
-            "ChRDT05UT1VSX1JFTkRFUl9CQU5EUxACKmsKDkJhckFycmFuZ2VtZW50Eh8K",
-            "G0JBUl9BUlJBTkdFTUVOVF9VTlNQRUNJRklFRBAAEhsKF0JBUl9BUlJBTkdF",
-            "TUVOVF9HUk9VUEVEEAESGwoXQkFSX0FSUkFOR0VNRU5UX1NUQUNLRUQQAipA",
-            "CgpYeUludGVydmFsEhsKF1hZX0lOVEVSVkFMX1VOU1BFQ0lGSUVEEAASFQoR",
-            "WFlfSU5URVJWQUxfU0lHTUEQASq7BAoIUGxvdEtpbmQSGQoVUExPVF9LSU5E",
-            "X1VOU1BFQ0lGSUVEEAASGQoVUExPVF9LSU5EX1RJTUVfU0VSSUVTEAESEQoN",
-            "UExPVF9LSU5EX0JBUhACEhEKDVBMT1RfS0lORF9QSUUQBRIQCgxQTE9UX0tJ",
-            "TkRfWFkQCBIYChRQTE9UX0tJTkRfVFJBSkVDVE9SWRAKEh4KGlBMT1RfS0lO",
-            "RF9GUkVRVUVOQ1lfU0VSSUVTEA4SFwoTUExPVF9LSU5EX0hJU1RPR1JBTRAP",
-            "EhUKEVBMT1RfS0lORF9DT05UT1VSEBISGAoUUExPVF9LSU5EX0dSSURfQ0hB",
-            "UlQQExIWChJQTE9UX0tJTkRfQk9YX1BMT1QQFCIECAMQAyIECAQQBCIECAYQ",
-            "BiIECAcQByIECAkQCSIECAsQCyIECAwQDCIECA0QDSIECBAQECIECBEQESoV",
-            "UExPVF9LSU5EX0dST1VQRURfQkFSKhVQTE9UX0tJTkRfU1RBQ0tFRF9CQVIq",
-            "D1BMT1RfS0lORF9ET05VVCoQUExPVF9LSU5EX1BBUkVUTyoVUExPVF9LSU5E",
-            "X1hZX0lOVEVSVkFMKhFQTE9UX0tJTkRfSEVBVE1BUCoaUExPVF9LSU5EX1hZ",
-            "X1ZBTFVFX0hFQVRNQVAqIFBMT1RfS0lORF9XSUZJX0NIQU5ORUxfT0NDVVBB",
-            "TkNZKhVQTE9UX0tJTkRfQk9YX1NVTU1BUlkqGVBMT1RfS0lORF9BR0dSRUdB",
-            "VEVfVEFCTEUqfgoKRG93bnNhbXBsZRIaChZET1dOU0FNUExFX1VOU1BFQ0lG",
-            "SUVEEAASEgoORE9XTlNBTVBMRV9SQVcQARIWChJET1dOU0FNUExFX01JTl9N",
-            "QVgQAhITCg9ET1dOU0FNUExFX0xUVEIQAxITCg9ET1dOU0FNUExFX0FVVE8Q",
-            "BCpVCgpGZnREZXRyZW5kEhsKF0ZGVF9ERVRSRU5EX1VOU1BFQ0lGSUVEEAAS",
-            "FAoQRkZUX0RFVFJFTkRfTk9ORRABEhQKEEZGVF9ERVRSRU5EX01FQU4QAipY",
-            "CglGZnRXaW5kb3cSGgoWRkZUX1dJTkRPV19VTlNQRUNJRklFRBAAEhMKD0ZG",
-            "VF9XSU5ET1dfSEFOThABEhoKFkZGVF9XSU5ET1dfUkVDVEFOR1VMQVIQAiq0",
-            "AQoSRnJlcXVlbmN5TGV2ZWxVbml0EiQKIEZSRVFVRU5DWV9MRVZFTF9VTklU",
-            "X1VOU1BFQ0lGSUVEEAASHwobRlJFUVVFTkNZX0xFVkVMX1VOSVRfTElORUFS",
-            "EAESGwoXRlJFUVVFTkNZX0xFVkVMX1VOSVRfREIQAhIcChhGUkVRVUVOQ1lf",
-            "TEVWRUxfVU5JVF9EQlUQAxIcChhGUkVRVUVOQ1lfTEVWRUxfVU5JVF9EQk0Q",
-            "BCqEAQoJTGluZVN0eWxlEhoKFkxJTkVfU1RZTEVfVU5TUEVDSUZJRUQQABIT",
-            "Cg9MSU5FX1NUWUxFX0xJTkUQARIVChFMSU5FX1NUWUxFX1BPSU5UUxACEhoK",
-            "FkxJTkVfU1RZTEVfTElORV9QT0lOVFMQAxITCg9MSU5FX1NUWUxFX1NURVAQ",
-            "BEIJqgIGRG9raW1lYgZwcm90bzM="));
+            "ZXOIAQESMwoEY2VsbBgaIAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhw",
+            "cmVzc2lvblIEY2VsbBI1CgVmYWNldBgbIAEoCzIfLmRva2ltZS5tb2RlbC52",
+            "MS5EYXRhRXhwcmVzc2lvblIFZmFjZXRCEQoPX2hpc3RvZ3JhbV9iaW5zQhEK",
+            "D19zYW1wbGVfcmF0ZV9oekIRCg9fZGlzcGxheV9wb2ludHNCDgoMX2FycmFu",
+            "Z2VtZW50QgcKBV9ob2xlQgsKCV9pbnRlcnZhbEIMCgpfcmVkdWN0aW9uQhAK",
+            "Dl9pbnB1dF9zYW1wbGVzInIKDUdyaWRBeGlzRW50cnkSEAoDa2V5GAEgASgJ",
+            "UgNrZXkSFAoFbGFiZWwYAiABKAlSBWxhYmVsEhQKBW9yZGVyGAMgASgRUgVv",
+            "cmRlchIZCgVncm91cBgEIAEoCUgAUgVncm91cIgBAUIICgZfZ3JvdXAikQEK",
+            "DUdyaWRIaWdobGlnaHQSMQoDcm93GAEgASgLMh8uZG9raW1lLm1vZGVsLnYx",
+            "LkRhdGFFeHByZXNzaW9uUgNyb3cSNwoGY29sdW1uGAIgASgLMh8uZG9raW1l",
+            "Lm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgZjb2x1bW4SFAoFbGFiZWwYAyAB",
+            "KAlSBWxhYmVsIoEDCglHcmlkQ2hhcnQSMQoDcm93GAEgASgLMh8uZG9raW1l",
+            "Lm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgNyb3cSNwoGY29sdW1uGAIgASgL",
+            "Mh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHByZXNzaW9uUgZjb2x1bW4SNQoF",
+            "ZnJhbWUYAyABKAsyHy5kb2tpbWUubW9kZWwudjEuRGF0YUV4cHJlc3Npb25S",
+            "BWZyYW1lEjIKBHJvd3MYBCADKAsyHi5kb2tpbWUubW9kZWwudjEuR3JpZEF4",
+            "aXNFbnRyeVIEcm93cxI4Cgdjb2x1bW5zGAUgAygLMh4uZG9raW1lLm1vZGVs",
+            "LnYxLkdyaWRBeGlzRW50cnlSB2NvbHVtbnMSPgoKaGlnaGxpZ2h0cxgGIAMo",
+            "CzIeLmRva2ltZS5tb2RlbC52MS5HcmlkSGlnaGxpZ2h0UgpoaWdobGlnaHRz",
+            "EiMKDXN1bW1hcnlfbGFiZWwYByABKAlSDHN1bW1hcnlMYWJlbCJyCg1SZWZl",
+            "cmVuY2VMaW5lEjUKBXZhbHVlGAEgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRh",
+            "dGFFeHByZXNzaW9uUgV2YWx1ZRIUCgVsYWJlbBgCIAEoCVIFbGFiZWwSFAoF",
+            "Y29sb3IYAyABKAlSBWNvbG9yIpkCCg1SZWZlcmVuY2VCYW5kEjEKA21pbhgB",
+            "IAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIDbWluEjEK",
+            "A21heBgCIAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblID",
+            "bWF4EhQKBWxhYmVsGAMgASgJUgVsYWJlbBIUCgVjb2xvchgEIAEoCVIFY29s",
+            "b3ISNwoGY2VudGVyGAUgASgLMh8uZG9raW1lLm1vZGVsLnYxLkRhdGFFeHBy",
+            "ZXNzaW9uUgZjZW50ZXISPQoJdG9sZXJhbmNlGAYgASgLMh8uZG9raW1lLm1v",
+            "ZGVsLnYxLkRhdGFFeHByZXNzaW9uUgl0b2xlcmFuY2Ui4AMKDlBsb3RGZnRP",
+            "cHRpb25zEikKDnNhbXBsZV9yYXRlX2h6GAEgASgBSABSDHNhbXBsZVJhdGVI",
+            "eogBARIyCgZ3aW5kb3cYAiABKA4yGi5kb2tpbWUubW9kZWwudjEuRmZ0V2lu",
+            "ZG93UgZ3aW5kb3cSNQoHZGV0cmVuZBgDIAEoDjIbLmRva2ltZS5tb2RlbC52",
+            "MS5GZnREZXRyZW5kUgdkZXRyZW5kEkIKCmxldmVsX3VuaXQYBCABKA4yIy5k",
+            "b2tpbWUubW9kZWwudjEuRnJlcXVlbmN5TGV2ZWxVbml0UglsZXZlbFVuaXQS",
+            "HQoKaW5jbHVkZV9kYxgFIAEoCFIJaW5jbHVkZURjEi0KEG1pbl9mcmVxdWVu",
+            "Y3lfaHoYBiABKAFIAVIObWluRnJlcXVlbmN5SHqIAQESLQoQbWF4X2ZyZXF1",
+            "ZW5jeV9oehgHIAEoAUgCUg5tYXhGcmVxdWVuY3lIeogBARIoCg1pbnB1dF9z",
+            "YW1wbGVzGAggASgNSANSDGlucHV0U2FtcGxlc4gBAUIRCg9fc2FtcGxlX3Jh",
+            "dGVfaHpCEwoRX21pbl9mcmVxdWVuY3lfaHpCEwoRX21heF9mcmVxdWVuY3lf",
+            "aHpCEAoOX2lucHV0X3NhbXBsZXMiuAEKClBsb3RGaWx0ZXISPwoKZXhwcmVz",
+            "c2lvbhgBIAEoCzIfLmRva2ltZS5tb2RlbC52MS5EYXRhRXhwcmVzc2lvblIK",
+            "ZXhwcmVzc2lvbhI7CghvcGVyYXRvchgCIAEoDjIfLmRva2ltZS5tb2RlbC52",
+            "MS5GaWx0ZXJPcGVyYXRvclIIb3BlcmF0b3ISLAoFdmFsdWUYAyABKAsyFi5k",
+            "b2tpbWUubW9kZWwudjEuVmFsdWVSBXZhbHVlIkwKFFBsb3RIaXN0b2dyYW1P",
+            "cHRpb25zEhIKBGJpbnMYASABKARSBGJpbnMSFwoEdW5pdBgCIAEoCUgAUgR1",
+            "bml0iAEBQgcKBV91bml0InIKE1Bsb3RJbnRlcnZhbE9wdGlvbnMSGwoJYmlu",
+            "X3dpZHRoGAEgASgBUghiaW5XaWR0aBIUCgVzaWdtYRgCIAEoAVIFc2lnbWES",
+            "KAoQY2xpcF90b19vYnNlcnZlZBgDIAEoCFIOY2xpcFRvT2JzZXJ2ZWQqhAEK",
+            "CVBsb3RTdHlsZRIaChZQTE9UX1NUWUxFX1VOU1BFQ0lGSUVEEAASEwoPUExP",
+            "VF9TVFlMRV9MSU5FEAESFQoRUExPVF9TVFlMRV9QT0lOVFMQAhIaChZQTE9U",
+            "X1NUWUxFX0xJTkVfUE9JTlRTEAMSEwoPUExPVF9TVFlMRV9TVEVQEAQqUgoJ",
+            "QXhpc1NjYWxlEhoKFkFYSVNfU0NBTEVfVU5TUEVDSUZJRUQQABIVChFBWElT",
+            "X1NDQUxFX0xJTkVBUhABEhIKDkFYSVNfU0NBTEVfTE9HEAIqiQEKCVJlZHVj",
+            "dGlvbhIZChVSRURVQ1RJT05fVU5TUEVDSUZJRUQQABISCg5SRURVQ1RJT05f",
+            "TUVBThABEhEKDVJFRFVDVElPTl9NSU4QAhIRCg1SRURVQ1RJT05fTUFYEAMS",
+            "EgoOUkVEVUNUSU9OX0xBU1QQBBITCg9SRURVQ1RJT05fQ09VTlQQBSpjCg1D",
+            "b250b3VyUmVuZGVyEh4KGkNPTlRPVVJfUkVOREVSX1VOU1BFQ0lGSUVEEAAS",
+            "GAoUQ09OVE9VUl9SRU5ERVJfQ0VMTFMQARIYChRDT05UT1VSX1JFTkRFUl9C",
+            "QU5EUxACKmsKDkJhckFycmFuZ2VtZW50Eh8KG0JBUl9BUlJBTkdFTUVOVF9V",
+            "TlNQRUNJRklFRBAAEhsKF0JBUl9BUlJBTkdFTUVOVF9HUk9VUEVEEAESGwoX",
+            "QkFSX0FSUkFOR0VNRU5UX1NUQUNLRUQQAipACgpYeUludGVydmFsEhsKF1hZ",
+            "X0lOVEVSVkFMX1VOU1BFQ0lGSUVEEAASFQoRWFlfSU5URVJWQUxfU0lHTUEQ",
+            "ASrVBAoIUGxvdEtpbmQSGQoVUExPVF9LSU5EX1VOU1BFQ0lGSUVEEAASGQoV",
+            "UExPVF9LSU5EX1RJTUVfU0VSSUVTEAESEQoNUExPVF9LSU5EX0JBUhACEhEK",
+            "DVBMT1RfS0lORF9QSUUQBRIQCgxQTE9UX0tJTkRfWFkQCBIYChRQTE9UX0tJ",
+            "TkRfVFJBSkVDVE9SWRAKEh4KGlBMT1RfS0lORF9GUkVRVUVOQ1lfU0VSSUVT",
+            "EA4SFwoTUExPVF9LSU5EX0hJU1RPR1JBTRAPEhUKEVBMT1RfS0lORF9DT05U",
+            "T1VSEBISGAoUUExPVF9LSU5EX0dSSURfQ0hBUlQQExIWChJQTE9UX0tJTkRf",
+            "Qk9YX1BMT1QQFBIYChRQTE9UX0tJTkRfSEVBVF9TVFJJUBAVIgQIAxADIgQI",
+            "BBAEIgQIBhAGIgQIBxAHIgQICRAJIgQICxALIgQIDBAMIgQIDRANIgQIEBAQ",
+            "IgQIERARKhVQTE9UX0tJTkRfR1JPVVBFRF9CQVIqFVBMT1RfS0lORF9TVEFD",
+            "S0VEX0JBUioPUExPVF9LSU5EX0RPTlVUKhBQTE9UX0tJTkRfUEFSRVRPKhVQ",
+            "TE9UX0tJTkRfWFlfSU5URVJWQUwqEVBMT1RfS0lORF9IRUFUTUFQKhpQTE9U",
+            "X0tJTkRfWFlfVkFMVUVfSEVBVE1BUCogUExPVF9LSU5EX1dJRklfQ0hBTk5F",
+            "TF9PQ0NVUEFOQ1kqFVBMT1RfS0lORF9CT1hfU1VNTUFSWSoZUExPVF9LSU5E",
+            "X0FHR1JFR0FURV9UQUJMRSp+CgpEb3duc2FtcGxlEhoKFkRPV05TQU1QTEVf",
+            "VU5TUEVDSUZJRUQQABISCg5ET1dOU0FNUExFX1JBVxABEhYKEkRPV05TQU1Q",
+            "TEVfTUlOX01BWBACEhMKD0RPV05TQU1QTEVfTFRUQhADEhMKD0RPV05TQU1Q",
+            "TEVfQVVUTxAEKlUKCkZmdERldHJlbmQSGwoXRkZUX0RFVFJFTkRfVU5TUEVD",
+            "SUZJRUQQABIUChBGRlRfREVUUkVORF9OT05FEAESFAoQRkZUX0RFVFJFTkRf",
+            "TUVBThACKlgKCUZmdFdpbmRvdxIaChZGRlRfV0lORE9XX1VOU1BFQ0lGSUVE",
+            "EAASEwoPRkZUX1dJTkRPV19IQU5OEAESGgoWRkZUX1dJTkRPV19SRUNUQU5H",
+            "VUxBUhACKrQBChJGcmVxdWVuY3lMZXZlbFVuaXQSJAogRlJFUVVFTkNZX0xF",
+            "VkVMX1VOSVRfVU5TUEVDSUZJRUQQABIfChtGUkVRVUVOQ1lfTEVWRUxfVU5J",
+            "VF9MSU5FQVIQARIbChdGUkVRVUVOQ1lfTEVWRUxfVU5JVF9EQhACEhwKGEZS",
+            "RVFVRU5DWV9MRVZFTF9VTklUX0RCVRADEhwKGEZSRVFVRU5DWV9MRVZFTF9V",
+            "TklUX0RCTRAEKoQBCglMaW5lU3R5bGUSGgoWTElORV9TVFlMRV9VTlNQRUNJ",
+            "RklFRBAAEhMKD0xJTkVfU1RZTEVfTElORRABEhUKEUxJTkVfU1RZTEVfUE9J",
+            "TlRTEAISGgoWTElORV9TVFlMRV9MSU5FX1BPSU5UUxADEhMKD0xJTkVfU1RZ",
+            "TEVfU1RFUBAEQgmqAgZEb2tpbWViBnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.ExpressionsReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Dokime.ScalarReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.PlotStyle), typeof(global::Dokime.AxisScale), typeof(global::Dokime.Reduction), typeof(global::Dokime.ContourRender), typeof(global::Dokime.BarArrangement), typeof(global::Dokime.XyInterval), typeof(global::Dokime.PlotKind), typeof(global::Dokime.Downsample), typeof(global::Dokime.FftDetrend), typeof(global::Dokime.FftWindow), typeof(global::Dokime.FrequencyLevelUnit), typeof(global::Dokime.LineStyle), }, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Plot), global::Dokime.Plot.Parser, new[]{ "Metadata", "Kind", "X", "Y", "Z", "SeriesBy", "Filters", "Unit", "MarkerRecords", "HistogramBins", "SampleRateHz", "DisplayPoints", "ReferenceLines", "ReferenceBands", "Arrangement", "Pareto", "Hole", "Interval", "Reduction", "Render", "Grid", "Style", "XScale", "YScale", "InputSamples" }, new[]{ "HistogramBins", "SampleRateHz", "DisplayPoints", "Arrangement", "Hole", "Interval", "Reduction", "InputSamples" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Plot), global::Dokime.Plot.Parser, new[]{ "Metadata", "Kind", "X", "Y", "Z", "SeriesBy", "Filters", "Unit", "MarkerRecords", "HistogramBins", "SampleRateHz", "DisplayPoints", "ReferenceLines", "ReferenceBands", "Arrangement", "Pareto", "Hole", "Interval", "Reduction", "Render", "Grid", "Style", "XScale", "YScale", "InputSamples", "Cell", "Facet" }, new[]{ "HistogramBins", "SampleRateHz", "DisplayPoints", "Arrangement", "Hole", "Interval", "Reduction", "InputSamples" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.GridAxisEntry), global::Dokime.GridAxisEntry.Parser, new[]{ "Key", "Label", "Order", "Group" }, new[]{ "Group" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.GridHighlight), global::Dokime.GridHighlight.Parser, new[]{ "Row", "Column", "Label" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.GridChart), global::Dokime.GridChart.Parser, new[]{ "Row", "Column", "Frame", "Rows", "Columns", "Highlights", "SummaryLabel" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.ReferenceLine), global::Dokime.ReferenceLine.Parser, new[]{ "Value", "Label", "Color" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.ReferenceBand), global::Dokime.ReferenceBand.Parser, new[]{ "Min", "Max", "Label", "Color", "Center", "Tolerance" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.GridDefinition), global::Dokime.GridDefinition.Parser, new[]{ "Row", "Column", "Frame", "Rows", "Columns", "Highlights", "SummaryLabel" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.PlotFftOptions), global::Dokime.PlotFftOptions.Parser, new[]{ "SampleRateHz", "Window", "Detrend", "LevelUnit", "IncludeDc", "MinFrequencyHz", "MaxFrequencyHz", "InputSamples" }, new[]{ "SampleRateHz", "MinFrequencyHz", "MaxFrequencyHz", "InputSamples" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.PlotFilter), global::Dokime.PlotFilter.Parser, new[]{ "Expression", "Operator", "Value" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.PlotHistogramOptions), global::Dokime.PlotHistogramOptions.Parser, new[]{ "Bins", "Unit" }, new[]{ "Unit" }, null, null, null),
@@ -189,6 +183,8 @@ namespace Dokime;
     [pbr::OriginalName("REDUCTION_MEAN")] Mean = 1,
     [pbr::OriginalName("REDUCTION_MIN")] Min = 2,
     [pbr::OriginalName("REDUCTION_MAX")] Max = 3,
+    [pbr::OriginalName("REDUCTION_LAST")] Last = 4,
+    [pbr::OriginalName("REDUCTION_COUNT")] Count = 5,
   }
 
   public enum ContourRender {
@@ -220,6 +216,7 @@ namespace Dokime;
     [pbr::OriginalName("PLOT_KIND_CONTOUR")] Contour = 18,
     [pbr::OriginalName("PLOT_KIND_GRID_CHART")] GridChart = 19,
     [pbr::OriginalName("PLOT_KIND_BOX_PLOT")] BoxPlot = 20,
+    [pbr::OriginalName("PLOT_KIND_HEAT_STRIP")] HeatStrip = 21,
   }
 
   public enum Downsample {
@@ -323,6 +320,8 @@ namespace Dokime;
       xScale_ = other.xScale_;
       yScale_ = other.yScale_;
       inputSamples_ = other.inputSamples_;
+      cell_ = other.cell_ != null ? other.cell_.Clone() : null;
+      facet_ = other.facet_ != null ? other.facet_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -747,6 +746,30 @@ namespace Dokime;
       _hasBits0 &= ~128;
     }
 
+    /// <summary>Field number for the "cell" field.</summary>
+    public const int CellFieldNumber = 26;
+    private global::Dokime.DataExpression cell_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.DataExpression Cell {
+      get { return cell_; }
+      set {
+        cell_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "facet" field.</summary>
+    public const int FacetFieldNumber = 27;
+    private global::Dokime.DataExpression facet_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.DataExpression Facet {
+      get { return facet_; }
+      set {
+        facet_ = value;
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -787,6 +810,8 @@ namespace Dokime;
       if (XScale != other.XScale) return false;
       if (YScale != other.YScale) return false;
       if (InputSamples != other.InputSamples) return false;
+      if (!object.Equals(Cell, other.Cell)) return false;
+      if (!object.Equals(Facet, other.Facet)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -819,6 +844,8 @@ namespace Dokime;
       if (XScale != global::Dokime.AxisScale.Unspecified) hash ^= XScale.GetHashCode();
       if (YScale != global::Dokime.AxisScale.Unspecified) hash ^= YScale.GetHashCode();
       if (HasInputSamples) hash ^= InputSamples.GetHashCode();
+      if (cell_ != null) hash ^= Cell.GetHashCode();
+      if (facet_ != null) hash ^= Facet.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -922,6 +949,14 @@ namespace Dokime;
         output.WriteRawTag(200, 1);
         output.WriteUInt32(InputSamples);
       }
+      if (cell_ != null) {
+        output.WriteRawTag(210, 1);
+        output.WriteMessage(Cell);
+      }
+      if (facet_ != null) {
+        output.WriteRawTag(218, 1);
+        output.WriteMessage(Facet);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -1017,6 +1052,14 @@ namespace Dokime;
         output.WriteRawTag(200, 1);
         output.WriteUInt32(InputSamples);
       }
+      if (cell_ != null) {
+        output.WriteRawTag(210, 1);
+        output.WriteMessage(Cell);
+      }
+      if (facet_ != null) {
+        output.WriteRawTag(218, 1);
+        output.WriteMessage(Facet);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -1091,6 +1134,12 @@ namespace Dokime;
       }
       if (HasInputSamples) {
         size += 2 + pb::CodedOutputStream.ComputeUInt32Size(InputSamples);
+      }
+      if (cell_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(Cell);
+      }
+      if (facet_ != null) {
+        size += 2 + pb::CodedOutputStream.ComputeMessageSize(Facet);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -1183,6 +1232,18 @@ namespace Dokime;
       }
       if (other.HasInputSamples) {
         InputSamples = other.InputSamples;
+      }
+      if (other.cell_ != null) {
+        if (cell_ == null) {
+          Cell = new global::Dokime.DataExpression();
+        }
+        Cell.MergeFrom(other.Cell);
+      }
+      if (other.facet_ != null) {
+        if (facet_ == null) {
+          Facet = new global::Dokime.DataExpression();
+        }
+        Facet.MergeFrom(other.Facet);
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -1318,6 +1379,20 @@ namespace Dokime;
             InputSamples = input.ReadUInt32();
             break;
           }
+          case 210: {
+            if (cell_ == null) {
+              Cell = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(Cell);
+            break;
+          }
+          case 218: {
+            if (facet_ == null) {
+              Facet = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(Facet);
+            break;
+          }
         }
       }
     #endif
@@ -1450,6 +1525,20 @@ namespace Dokime;
           }
           case 200: {
             InputSamples = input.ReadUInt32();
+            break;
+          }
+          case 210: {
+            if (cell_ == null) {
+              Cell = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(Cell);
+            break;
+          }
+          case 218: {
+            if (facet_ == null) {
+              Facet = new global::Dokime.DataExpression();
+            }
+            input.ReadMessage(Facet);
             break;
           }
         }
@@ -3187,420 +3276,6 @@ namespace Dokime;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class GridDefinition : pb::IMessage<GridDefinition>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<GridDefinition> _parser = new pb::MessageParser<GridDefinition>(() => new GridDefinition());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<GridDefinition> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[6]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public GridDefinition() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public GridDefinition(GridDefinition other) : this() {
-      row_ = other.row_ != null ? other.row_.Clone() : null;
-      column_ = other.column_ != null ? other.column_.Clone() : null;
-      frame_ = other.frame_ != null ? other.frame_.Clone() : null;
-      rows_ = other.rows_.Clone();
-      columns_ = other.columns_.Clone();
-      highlights_ = other.highlights_.Clone();
-      summaryLabel_ = other.summaryLabel_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public GridDefinition Clone() {
-      return new GridDefinition(this);
-    }
-
-    /// <summary>Field number for the "row" field.</summary>
-    public const int RowFieldNumber = 1;
-    private global::Dokime.DataExpression row_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.DataExpression Row {
-      get { return row_; }
-      set {
-        row_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "column" field.</summary>
-    public const int ColumnFieldNumber = 2;
-    private global::Dokime.DataExpression column_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.DataExpression Column {
-      get { return column_; }
-      set {
-        column_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "frame" field.</summary>
-    public const int FrameFieldNumber = 3;
-    private global::Dokime.DataExpression frame_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Dokime.DataExpression Frame {
-      get { return frame_; }
-      set {
-        frame_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "rows" field.</summary>
-    public const int RowsFieldNumber = 4;
-    private static readonly pb::FieldCodec<global::Dokime.GridAxisEntry> _repeated_rows_codec
-        = pb::FieldCodec.ForMessage(34, global::Dokime.GridAxisEntry.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.GridAxisEntry> rows_ = new pbc::RepeatedField<global::Dokime.GridAxisEntry>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.GridAxisEntry> Rows {
-      get { return rows_; }
-    }
-
-    /// <summary>Field number for the "columns" field.</summary>
-    public const int ColumnsFieldNumber = 5;
-    private static readonly pb::FieldCodec<global::Dokime.GridAxisEntry> _repeated_columns_codec
-        = pb::FieldCodec.ForMessage(42, global::Dokime.GridAxisEntry.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.GridAxisEntry> columns_ = new pbc::RepeatedField<global::Dokime.GridAxisEntry>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.GridAxisEntry> Columns {
-      get { return columns_; }
-    }
-
-    /// <summary>Field number for the "highlights" field.</summary>
-    public const int HighlightsFieldNumber = 6;
-    private static readonly pb::FieldCodec<global::Dokime.GridHighlight> _repeated_highlights_codec
-        = pb::FieldCodec.ForMessage(50, global::Dokime.GridHighlight.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.GridHighlight> highlights_ = new pbc::RepeatedField<global::Dokime.GridHighlight>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.GridHighlight> Highlights {
-      get { return highlights_; }
-    }
-
-    /// <summary>Field number for the "summary_label" field.</summary>
-    public const int SummaryLabelFieldNumber = 7;
-    private string summaryLabel_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string SummaryLabel {
-      get { return summaryLabel_; }
-      set {
-        summaryLabel_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as GridDefinition);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(GridDefinition other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (!object.Equals(Row, other.Row)) return false;
-      if (!object.Equals(Column, other.Column)) return false;
-      if (!object.Equals(Frame, other.Frame)) return false;
-      if(!rows_.Equals(other.rows_)) return false;
-      if(!columns_.Equals(other.columns_)) return false;
-      if(!highlights_.Equals(other.highlights_)) return false;
-      if (SummaryLabel != other.SummaryLabel) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (row_ != null) hash ^= Row.GetHashCode();
-      if (column_ != null) hash ^= Column.GetHashCode();
-      if (frame_ != null) hash ^= Frame.GetHashCode();
-      hash ^= rows_.GetHashCode();
-      hash ^= columns_.GetHashCode();
-      hash ^= highlights_.GetHashCode();
-      if (SummaryLabel.Length != 0) hash ^= SummaryLabel.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (row_ != null) {
-        output.WriteRawTag(10);
-        output.WriteMessage(Row);
-      }
-      if (column_ != null) {
-        output.WriteRawTag(18);
-        output.WriteMessage(Column);
-      }
-      if (frame_ != null) {
-        output.WriteRawTag(26);
-        output.WriteMessage(Frame);
-      }
-      rows_.WriteTo(output, _repeated_rows_codec);
-      columns_.WriteTo(output, _repeated_columns_codec);
-      highlights_.WriteTo(output, _repeated_highlights_codec);
-      if (SummaryLabel.Length != 0) {
-        output.WriteRawTag(58);
-        output.WriteString(SummaryLabel);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (row_ != null) {
-        output.WriteRawTag(10);
-        output.WriteMessage(Row);
-      }
-      if (column_ != null) {
-        output.WriteRawTag(18);
-        output.WriteMessage(Column);
-      }
-      if (frame_ != null) {
-        output.WriteRawTag(26);
-        output.WriteMessage(Frame);
-      }
-      rows_.WriteTo(ref output, _repeated_rows_codec);
-      columns_.WriteTo(ref output, _repeated_columns_codec);
-      highlights_.WriteTo(ref output, _repeated_highlights_codec);
-      if (SummaryLabel.Length != 0) {
-        output.WriteRawTag(58);
-        output.WriteString(SummaryLabel);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (row_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Row);
-      }
-      if (column_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Column);
-      }
-      if (frame_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Frame);
-      }
-      size += rows_.CalculateSize(_repeated_rows_codec);
-      size += columns_.CalculateSize(_repeated_columns_codec);
-      size += highlights_.CalculateSize(_repeated_highlights_codec);
-      if (SummaryLabel.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(SummaryLabel);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(GridDefinition other) {
-      if (other == null) {
-        return;
-      }
-      if (other.row_ != null) {
-        if (row_ == null) {
-          Row = new global::Dokime.DataExpression();
-        }
-        Row.MergeFrom(other.Row);
-      }
-      if (other.column_ != null) {
-        if (column_ == null) {
-          Column = new global::Dokime.DataExpression();
-        }
-        Column.MergeFrom(other.Column);
-      }
-      if (other.frame_ != null) {
-        if (frame_ == null) {
-          Frame = new global::Dokime.DataExpression();
-        }
-        Frame.MergeFrom(other.Frame);
-      }
-      rows_.Add(other.rows_);
-      columns_.Add(other.columns_);
-      highlights_.Add(other.highlights_);
-      if (other.SummaryLabel.Length != 0) {
-        SummaryLabel = other.SummaryLabel;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            if (row_ == null) {
-              Row = new global::Dokime.DataExpression();
-            }
-            input.ReadMessage(Row);
-            break;
-          }
-          case 18: {
-            if (column_ == null) {
-              Column = new global::Dokime.DataExpression();
-            }
-            input.ReadMessage(Column);
-            break;
-          }
-          case 26: {
-            if (frame_ == null) {
-              Frame = new global::Dokime.DataExpression();
-            }
-            input.ReadMessage(Frame);
-            break;
-          }
-          case 34: {
-            rows_.AddEntriesFrom(input, _repeated_rows_codec);
-            break;
-          }
-          case 42: {
-            columns_.AddEntriesFrom(input, _repeated_columns_codec);
-            break;
-          }
-          case 50: {
-            highlights_.AddEntriesFrom(input, _repeated_highlights_codec);
-            break;
-          }
-          case 58: {
-            SummaryLabel = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            if (row_ == null) {
-              Row = new global::Dokime.DataExpression();
-            }
-            input.ReadMessage(Row);
-            break;
-          }
-          case 18: {
-            if (column_ == null) {
-              Column = new global::Dokime.DataExpression();
-            }
-            input.ReadMessage(Column);
-            break;
-          }
-          case 26: {
-            if (frame_ == null) {
-              Frame = new global::Dokime.DataExpression();
-            }
-            input.ReadMessage(Frame);
-            break;
-          }
-          case 34: {
-            rows_.AddEntriesFrom(ref input, _repeated_rows_codec);
-            break;
-          }
-          case 42: {
-            columns_.AddEntriesFrom(ref input, _repeated_columns_codec);
-            break;
-          }
-          case 50: {
-            highlights_.AddEntriesFrom(ref input, _repeated_highlights_codec);
-            break;
-          }
-          case 58: {
-            SummaryLabel = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
   public sealed partial class PlotFftOptions : pb::IMessage<PlotFftOptions>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
@@ -3616,7 +3291,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[7]; }
+      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[6]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -4134,7 +3809,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[8]; }
+      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[7]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -4424,7 +4099,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[9]; }
+      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[8]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -4673,7 +4348,7 @@ namespace Dokime;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[10]; }
+      get { return global::Dokime.PlotsReflection.Descriptor.MessageTypes[9]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
