@@ -38,7 +38,7 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import type { PluginSource } from "@/lib/api/native-plugins";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 import { isTauriDesktop } from "@/lib/surface-environment";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 

@@ -24,7 +24,7 @@ import { toast } from "@/lib/notifications";
 
 import { TagChip } from "@/components/suite-picker/SuiteTags";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 import { cn } from "@/lib/utils";
 
 /* === Types === */

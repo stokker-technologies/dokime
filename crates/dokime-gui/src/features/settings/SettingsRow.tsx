@@ -20,7 +20,7 @@ import { type ReactNode, useId } from "react";
 
 /* === Local Imports === */
 
-import { notificationText } from "@/lib/notifications";
+import { notificationText } from "@/lib/notifications-react";
 import { failureOf } from "@/lib/notification-details";
 import { ErrorCard } from "@/components/ErrorCard";
 

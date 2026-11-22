@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: {
     test: [svelte(), svelteTesting({ autoCleanup: false })],
-    report: [svelte(), react(), tailwindcss(), viteSingleFile()],
+    report: [svelte(), tailwindcss(), viteSingleFile()],
   }[mode] ?? [tanstackRouter({ target: "react", autoCodeSplitting: true }), svelte(), react(), tailwindcss()],
   resolve: {
     dedupe: workspace.resolve?.dedupe,

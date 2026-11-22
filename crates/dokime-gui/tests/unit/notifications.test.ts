@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -19,46 +20,38 @@ import { forceCloseDatabase, IDBFactory, IDBKeyRange, IDBObjectStore } from "fak
 // Third Party Imports
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ComponentProps } from "svelte";
 import { afterEach, beforeEach, test, vi } from "vitest";
 
 // Local Imports
 import { Button } from "@/components/ui/button";
+import type NotificationToast from "@/features/notifications/NotificationToast.svelte";
 import { failureOf } from "@/lib/notification-details";
 
 /* === Re-Exports === */
 
 /* === Constants === */
 
+type ToastOptions = { id?: string | number; duration?: number; componentProps?: ComponentProps<typeof NotificationToast> };
+
 const shown = vi.hoisted(() => ({
-  error: vi.fn((_title: ReactNode, options?: { id?: string | number; duration?: number }) => options?.id ?? "error"),
-  info: vi.fn((_title: ReactNode) => "info"),
-  success: vi.fn((_title: ReactNode) => "success"),
-  warning: vi.fn((_title: ReactNode) => "warning"),
+  error: vi.fn((_component: typeof NotificationToast, options?: ToastOptions) => options?.id ?? "error"),
+  info: vi.fn((_component: typeof NotificationToast, _options?: ToastOptions) => "info"),
+  success: vi.fn((_component: typeof NotificationToast, _options?: ToastOptions) => "success"),
+  warning: vi.fn((_component: typeof NotificationToast, _options?: ToastOptions) => "warning"),
   dismiss: vi.fn(),
 }));
-const controls = vi.hoisted(() => ({ close: () => {}, copy: () => {}, buttons: [] as (() => void)[] }));
-vi.mock("sonner", () => ({ toast: shown }));
+const controls = vi.hoisted(() => ({ buttons: [] as (() => void)[] }));
+vi.mock("svelte-sonner", () => ({ toast: shown }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useId: () => "fixture-feedback",
   useEffect: (effect: () => void) => effect(),
   useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
 }));
-vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ open, onOpenChange, children }: { open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) => {
-    controls.close = () => onOpenChange(false);
-    return open ? children : null;
-  },
-  DialogContent: ({ children }: { children: ReactNode }) => createElement("section", { role: "dialog" }, children),
-  DialogHeader: ({ children }: { children: ReactNode }) => createElement("header", null, children),
-  DialogTitle: ({ children }: { children: ReactNode }) => createElement("h2", null, children),
-  DialogDescription: ({ children }: { children: ReactNode }) => createElement("p", null, children),
-  DialogFooter: ({ children }: { children: ReactNode }) => createElement("footer", null, children),
-}));
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => {
     if (onClick) controls.buttons.push(onClick);
-    if (children === "Copy" && onClick) controls.copy = onClick;
     return createElement("button", { type: "button", onClick }, children);
   },
 }));
@@ -259,16 +252,23 @@ test("Closed Connections Recover", async () => {
 });
 
 test("Every Toast and History Entry Opens the Retained Details", async () => {
+  const { fireEvent, render } = await import("@testing-library/svelte");
   const history = await import("@/lib/notifications");
   const { NotificationHistoryEntry } = await import("@/features/notifications/NotificationsSurface");
   for (const tone of ["error", "warning", "info", "success"] as const) {
-    if (tone === "error") history.toast.error(failureOf("complete message", "fixture"), { source: "fixture-source" });
-    else history.toast[tone]("fixture", { description: "complete message", source: "fixture-source" });
-    const trigger = buttonIn(shown[tone].mock.calls.at(-1)?.[0]);
-    assert.ok(trigger);
-    assert.equal(trigger.props.type, "button");
-    assert.equal(trigger.props["aria-haspopup"], "dialog");
-    trigger.props.onClick();
+    if (tone === "error") {
+      history.toast.error(failureOf("complete message", "fixture"), { source: "fixture-source" });
+    } else {
+      history.toast[tone]("fixture", { description: "complete message", source: "fixture-source" });
+    }
+    const call = shown[tone].mock.calls.at(-1);
+    assert.ok(call?.[1]?.componentProps);
+    const { getByRole, unmount } = render(call[0], call[1].componentProps);
+    const trigger = getByRole("button");
+    assert.equal(trigger.getAttribute("type"), "button");
+    assert.equal(trigger.getAttribute("aria-haspopup"), "dialog");
+    await fireEvent.click(trigger);
+    unmount();
     assert.equal(history.getNotificationDetails()?.tone, tone);
     assert.equal(history.getNotificationDetails()?.description, "complete message");
     history.openNotificationDetails(null);
@@ -462,9 +462,10 @@ test("Description Readiness Remains a Quiet Waiting State", async () => {
 });
 
 test("Feedback Is Recorded", async () => {
+  const { render } = await import("@testing-library/svelte");
   const history = await import("@/lib/notifications");
   const { ErrorCard } = await import("@/components/ErrorCard");
-  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
+  const { default: NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog.svelte");
   const failure = failureOf(new Error("fixture-action"), "fixture-title");
   const write = vi.spyOn(IDBObjectStore.prototype, "put");
   for (let render = 0; render < 2; render++) renderToStaticMarkup(createElement(ErrorCard, { failure, notificationContext: "action" }));
@@ -476,7 +477,9 @@ test("Feedback Is Recorded", async () => {
   );
   assert.equal(shown.error.mock.calls.length, 1);
   history.openNotificationDetails(page.records[0]);
-  renderToStaticMarkup(createElement(NotificationDetailsDialog));
+  const details = render(NotificationDetailsDialog);
+  assert.ok(await details.findByRole("dialog"));
+  details.unmount();
   renderToStaticMarkup(createElement(ErrorCard, { failure: failureOf(new Error("fixture-load"), "fixture-load-title") }));
   assert.equal(write.mock.calls.length, 1);
   assert.equal(shown.error.mock.calls.length, 1);
@@ -508,8 +511,9 @@ test("Failure Stem Retains Identity and All Context", async () => {
 });
 
 test("Failure Copy Retains Notification Metadata and Field Problems", async () => {
+  const { fireEvent, render } = await import("@testing-library/svelte");
   const { failureText, notificationDetailsText } = await import("@/lib/notification-details");
-  const { NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog");
+  const { default: NotificationDetailsDialog } = await import("@/features/notifications/NotificationDetailsDialog.svelte");
   const history = await import("@/lib/notifications");
   const failure = failureOf(
     Object.assign(new Error("fixture-failure"), {
@@ -540,9 +544,13 @@ test("Failure Copy Retains Notification Metadata and Field Problems", async () =
   const copy = vi.fn(async (_text: string) => {});
   vi.stubGlobal("navigator", { clipboard: { writeText: copy } });
   history.openNotificationDetails(entry);
-  const html = renderToStaticMarkup(createElement(NotificationDetailsDialog));
-  assert.ok(!/<details[^>]*\bopen\b/.test(html));
-  await controls.copy();
+  const { findByRole, unmount } = render(NotificationDetailsDialog);
+  const dialog = await findByRole("dialog");
+  assert.equal(dialog.querySelector("details[open]"), null);
+  const copyButton = [...dialog.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Copy");
+  assert.ok(copyButton);
+  await fireEvent.click(copyButton);
+  unmount();
   assert.equal(copy.mock.calls.length, 1);
   assert.ok(copy.mock.calls[0][0].includes(failureText(failure)));
   assert.ok(copy.mock.calls[0][0].includes(new Date(entry.at).toISOString()));

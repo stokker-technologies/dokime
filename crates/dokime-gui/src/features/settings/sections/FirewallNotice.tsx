@@ -22,7 +22,7 @@ import { useState } from "react";
 // Local Imports
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */

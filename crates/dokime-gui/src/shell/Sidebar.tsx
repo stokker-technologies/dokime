@@ -30,7 +30,7 @@ import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/pr
 import { cycleRows } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
-import { useNotificationSummary } from "@/lib/notifications";
+import { useNotificationSummary } from "@/lib/notifications-react";
 import { recordLevelVariant } from "@/lib/record-display";
 import { cycleIdOfPathname } from "@/shell/route-scope";
 import { sidebarCycles } from "@/shell/sidebar-cycles";

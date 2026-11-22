@@ -59,3 +59,4 @@ export function plotWindowOptions(presets: readonly number[]): [PlotWindowOption
 }
 
 export const plotWindows = plotWindowOptions([60, 120, 300, 600, 1_800, 3_600]);
+export const defaultPlotWindowIndex = plotWindows.findIndex((option) => option.value === 300);

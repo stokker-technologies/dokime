@@ -37,7 +37,7 @@ const DESKTOP_MODULES = [
   /^\.\.\/\.\.\/target\/generated\/host\/client\./,
 ];
 const DESKTOP_DEPENDENCIES =
-  /^(?:@tauri-apps\/|@tanstack\/(?:[^/]+-(?:router|query)|query-core|router-core)(?:\/|$)|@connectrpc\/|@grpc\/|zustand(?:\/|$))/;
+  /^(?:@tauri-apps\/|@tanstack\/(?:[^/]+-(?:router|query)|query-core|router-core)(?:\/|$)|@connectrpc\/|@grpc\/|(?:react(?:-dom)?|radix-ui|next-themes|sonner|zustand)(?:\/|$))/;
 
 /* === Types === */
 

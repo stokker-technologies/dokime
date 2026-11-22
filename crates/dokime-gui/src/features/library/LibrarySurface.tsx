@@ -28,7 +28,7 @@ import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { useActiveCycle } from "@/features/library/use-active-cycle";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { PageShell } from "@/shell/PageShell";
 

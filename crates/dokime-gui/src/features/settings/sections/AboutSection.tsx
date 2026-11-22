@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { buildLabel } from "@/features/settings/sections/build-version";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 import { isTauriDesktop } from "@/lib/surface-environment";
 import { commands } from "@/lib/desktop/commands";
 import type { BuildIdentity } from "@/lib/contracts/connection";

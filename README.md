@@ -41,7 +41,7 @@ The native desktop is back in the Cargo workspace and uses the execution host.
 Its product includes native installers and self-contained HTML reports.
 The desktop and report build entries live in `crates/dokime-gui` and share Svelte components for document layout and evidence, including plots, tables, media, artifacts, and traceability.
 Captured document tables show all rows. The connected desktop provides plot settings and live viewport measurements.
-The report renders captured data locally and can open without a backend connection.
+The Svelte report entry renders captured data locally and can open without a backend connection.
 See [GUI Guidance](docs/guides/gui.md) for host connections and controls.
 
 #### Examples

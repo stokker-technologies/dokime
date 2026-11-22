@@ -20,7 +20,7 @@ import { ErrorCard } from "@/components/ErrorCard";
 
 import { Button } from "@/components/ui/button";
 import { formatInstallPluginBytes, type InstallPluginProgress } from "@/lib/api/native-plugins";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 import { isTauriDesktop } from "@/lib/surface-environment";
 import { toast } from "@/lib/notifications";
 import { cn } from "@/lib/utils";

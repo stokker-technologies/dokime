@@ -7,10 +7,6 @@
  * ***
  */
 
-/* === External Imports === */
-
-import { createContext, type ReactNode, useContext } from "react";
-
 /* === Local Imports === */
 
 import type { BootOrganization, BootOrganizationPack } from "./contracts/organization";
@@ -47,8 +43,6 @@ export const defaultBrand: Brand = organizationPack
 /** The window title template of the brand that applies; `{app}` is the label. */
 export const defaultTitleTemplate: string = organizationPack?.titleTemplate ?? "{app}";
 
-const BrandContext = createContext<Brand>(defaultBrand);
-
 /* === Types === */
 
 export type LogoVariant = RuntimeAppLogo["variant"];
@@ -64,18 +58,6 @@ type DefaultBrandManifest = {
   title: string;
   logos: Partial<Record<LogoVariant, BrandLogo>>;
 };
-
-/* === Components === */
-
-export function BrandProvider({ brand = defaultBrand, children }: { brand?: Brand; children: ReactNode }) {
-  return <BrandContext.Provider value={brand}>{children}</BrandContext.Provider>;
-}
-
-/* === Hooks === */
-
-export function useBrand(): Brand {
-  return useContext(BrandContext);
-}
 
 /* === Public Functions === */
 

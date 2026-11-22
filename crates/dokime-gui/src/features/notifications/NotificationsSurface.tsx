@@ -22,7 +22,8 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { relativeTime } from "@/components/document/document-overview-model";
-import { FailureConsequences } from "@/components/FailureConsequences";
+import FailureConsequences from "@/components/FailureConsequences.svelte";
+import { SvelteMount } from "@/components/SvelteMount";
 // Local Imports
 import { Button } from "@/components/ui/button";
 import {
@@ -33,9 +34,9 @@ import {
   type NotificationRecord,
   notificationPage,
   openNotificationDetails,
-  useNotificationSummary,
   toast,
 } from "@/lib/notifications";
+import { useNotificationSummary } from "@/lib/notifications-react";
 import { PageShell } from "@/shell/PageShell";
 
 /* === Re-Exports === */
@@ -175,7 +176,7 @@ export function NotificationHistoryEntry({ record, now }: { record: Notification
           <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{record.source}</span>
         )}
         <div className="relative z-10">
-          <FailureConsequences items={record.consequences ?? []} />
+          <SvelteMount component={FailureConsequences} props={{ items: record.consequences ?? [] }} />
         </div>
         {record.missingSecret ? (
           <Link

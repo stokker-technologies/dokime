@@ -22,7 +22,7 @@ import { toast } from "@/lib/notifications";
 
 /* === Local Imports === */
 
-import { notificationText } from "@/lib/notifications";
+import { notificationText } from "@/lib/notifications-react";
 import { ErrorCard } from "@/components/ErrorCard";
 
 import type { FileRowState } from "@/components/start-cycle-form-model";

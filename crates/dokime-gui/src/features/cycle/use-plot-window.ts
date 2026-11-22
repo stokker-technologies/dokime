@@ -1,10 +1,10 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import { useCallback, useRef, useState } from "react";
-import { plotWindows, type PlotWindowState } from "./plot-window";
+import { defaultPlotWindowIndex, plotWindows, type PlotWindowState } from "./plot-window";
 
 /** The plot window one document view scales its plots by. */
 export function usePlotWindow(): PlotWindowState {
-  const [index, setIndex] = useState(() => plotWindows.findIndex((option) => option.value === 300));
+  const [index, setIndex] = useState(defaultPlotWindowIndex);
   const option = plotWindows[index] ?? plotWindows[0];
   const [refreshKey, setRefreshKey] = useState(0);
   const [status, setStatus] = useState({ refreshing: false, updatedAt: null as number | null });

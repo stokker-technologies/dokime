@@ -23,7 +23,7 @@ import { InstalledPluginSettingsForm } from "@/features/settings/installed-plugi
 import type * as contracts from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import { useBrand } from "@/lib/brand";
+import { useBrand } from "@/lib/brand-context";
 
 /* === Types === */
 

@@ -11,7 +11,8 @@ import { useEffect, useMemo, type ReactNode } from "react";
 /* === Local Imports === */
 
 import { useNativeAppearance } from "@/app/native-session/context";
-import { BrandProvider, bootOrganization, brandFromLogos, defaultBrand, organizationPack, packLogos } from "@/lib/brand";
+import { bootOrganization, brandFromLogos, defaultBrand, organizationPack, packLogos } from "@/lib/brand";
+import { BrandProvider } from "@/lib/brand-context";
 
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import { applyBrandFavicon } from "@/lib/favicon";

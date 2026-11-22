@@ -34,7 +34,7 @@ export function SvelteMount<Props extends Record<string, unknown>>({ component, 
 }
 
 /** Keep remaining React children in their desktop providers while their owning view is ported. */
-export function useSvelteSlots<Name extends string>(slots: Record<Name, ReactNode>) {
+export function useSvelteSlots<Name extends string>(slots: Partial<Record<Name, ReactNode>>) {
   const snippets = useRef(new Map<Name, Snippet>());
   const [targets, setTargets] = useState(new Map<Name, Element>());
   const rendered: Partial<Record<Name, Snippet>> = {};
