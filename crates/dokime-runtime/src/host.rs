@@ -274,11 +274,11 @@ impl Host {
                 if entry.state == PluginState::Stopped as i32 {
                     return None;
                 }
-                let failure = entry.failure.as_ref().map_or_else(
-                    || "The Plugin Became Unavailable; Restart It".to_owned(),
-                    |failure| format!("{}; {}", failure.message, failure.action),
-                );
-                Some(Error::Invalid(format!("Add Plugin {name}: {failure}")))
+                let Some(mut failure) = entry.failure else {
+                    return Some(Error::Invalid(format!("Add Plugin {name}: The Plugin Became Unavailable; Restart It")));
+                };
+                failure.message = format!("Add Plugin {name}: {}", failure.message);
+                Some(Error::Plugin(Box::new(failure)))
             },
             || Error::Invalid(format!("Add Plugin {name}: Plugin Watch Closed")),
         )

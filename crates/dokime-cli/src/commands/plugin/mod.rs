@@ -27,7 +27,6 @@ mod secrets;
 // Standard Library Imports
 
 // Third Party Imports
-use tonic::Status;
 
 // Local Imports
 use crate::{Result, settings::Settings};
@@ -126,14 +125,12 @@ async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, a
         },
         |(_, _, _, _, _, watch)| Box::pin(async move { Ok(watch.next().await?.is_some()) }),
         |entry| {
-            Some(
-                Status::failed_precondition(format!(
-                    "{action} {}: {}",
-                    entry.name,
-                    entry.failure.map_or_else(|| "Activation Stopped".into(), |failure| failure.message)
-                ))
-                .into(),
-            )
+            let summary = list::summary(&entry);
+            let Some(mut failure) = entry.failure else {
+                return Some(format!("{action} {summary}: Restart the Plugin and Check Its Status").into());
+            };
+            failure.message = format!("{action} {summary}: {}", failure.message);
+            Some(dokime_runtime::Error::Plugin(Box::new(failure)).into())
         },
         || format!("{action}: Plugin Watch Closed Before Readiness").into(),
     )

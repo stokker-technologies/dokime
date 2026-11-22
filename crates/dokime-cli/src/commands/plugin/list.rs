@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::iter;
 
 // Third Party Imports
 
@@ -70,9 +71,11 @@ pub(super) fn summary(entry: &PluginEntry) -> String {
     let version = entry.description.as_ref().map(|description| description.version.as_str()).unwrap_or("?");
     let mut summary = format!("{}\t{version}\t{}", entry.name, status(entry));
     if entry.state != PluginState::Ready as i32 || entry.failure.is_some() {
-        let action = entry.failure.as_ref().map(|failure| failure.action.as_str()).filter(|action| !action.is_empty());
+        let failure = iter::successors(entry.failure.as_ref(), |failure| failure.cause.as_deref()).last();
+        let action = failure.map(|failure| if failure.action.is_empty() { failure.message.as_str() } else { failure.action.as_str() });
         summary.push('\t');
-        summary.push_str(action.unwrap_or("Enable or Restart the Plugin and Check Its Status"));
+        let action = action.filter(|action| !action.is_empty()).unwrap_or("Enable or Restart the Plugin and Check Its Status");
+        summary.push_str(&action.split_whitespace().collect::<Vec<_>>().join(" "));
     }
     summary
 }
@@ -113,7 +116,10 @@ mod tests {
     fn plugin_summary_keeps_identity_state_and_recovery_without_declarations() {
         let mut entry = PluginEntry {
             name: "fixture".into(),
-            description: Some(PluginDescription { version: "1.2.3".into(), ..Default::default() }),
+            description: Some(PluginDescription {
+                version: "1.2.3".into(),
+                ..Default::default()
+            }),
             state: PluginState::Ready as i32,
             value: Some(PluginValue { enabled: true }),
             ..Default::default()

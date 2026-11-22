@@ -25,7 +25,7 @@ from harmos._wire.model.v1.failure_pb2 import Failure
 
 # Local Imports
 from dokime_sdk import Plugin, Suite
-from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, Visibility, declaration, operation
+from dokime_sdk.operations import Context, FailureError, Operation, OperationPolicy, SecretDeclaration, Visibility, declaration, operation
 from dokime_sdk.templates import TestTemplate, step
 
 # Type Checking Imports
@@ -44,6 +44,38 @@ PRIVATE = Operation("caller.local", int, int, Visibility.PRIVATE)
 
 class Contracts(ModuleType):
     increment: Operation[int, int]
+
+
+class MissingSecretPlugin(Plugin):
+    version = "0.1.5"
+    secrets = [SecretDeclaration("api_token", "API Token")]
+
+    async def initialize(self, ctx: Context) -> None:
+        await ctx.secret(self.secrets[0].identifier)
+
+
+class InitializeFailureStory(unittest.IsolatedAsyncioTestCase):
+    async def test_initialize_preserves_missing_secret_host_failure(self) -> None:
+        transport = AsyncMock(spec=plugin.Context)
+        transport.attempt = 1
+        cause = Failure(
+            classification=harmos.CLASSIFICATION_REFUSED,
+            code="NOT_FOUND",
+            message="Missing api_token",
+            action="Add api_token in Secret Storage",
+        )
+        failure = Failure(operation="dokime.host.v1.Secrets/Get", cause=cause)
+        transport.call.side_effect = harmos.FailureError(failure)
+        owner = MissingSecretPlugin()
+        try:
+            await owner._lifecycle("initialize")(object(), cast(plugin.Context, transport))
+        except harmos.FailureError as error:
+            self.assertEqual(error.value, failure)
+            self.assertEqual(error.value.cause.classification, cause.classification)
+            self.assertIn(cause.message, error.value.cause.message)
+        else:
+            self.fail("Initialize Must Propagate the Host Failure")
+        transport.call.assert_awaited_once()
 
 
 CONTRACTS = Contracts("peer_contracts")
