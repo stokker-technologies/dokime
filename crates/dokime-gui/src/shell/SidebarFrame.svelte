@@ -35,7 +35,11 @@
       </div>
       {#if mode === "desktop"}
         <Button aria-label={collapsed ? "Expand Sidebar" : "Collapse Sidebar"} size="icon" variant="ghost" onclick={toggle}>
-          {#if collapsed}<PanelLeftOpen />{:else}<PanelLeftClose />{/if}
+          {#if collapsed}
+            <PanelLeftOpen />
+          {:else}
+            <PanelLeftClose />
+          {/if}
         </Button>
       {/if}
     </div>

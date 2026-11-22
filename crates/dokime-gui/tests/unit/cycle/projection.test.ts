@@ -26,7 +26,8 @@ import {
   runtimeStateOf,
   settledOf,
 } from "@/app/live/runtime-refresh";
-import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
+import { invalidateWorkflowDocuments } from "@/features/cycle/server-state";
+import { workflowQueryKeys } from "@/features/cycle/workflow-query-keys";
 import { executionControlState } from "@/features/cycle/control-model";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning-projection";

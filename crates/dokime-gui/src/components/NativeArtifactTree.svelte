@@ -21,7 +21,13 @@
   });
 </script>
 
-<ArtifactTreeView {...tree} {actions} onPreview={(artifact) => { preview = artifact; }} />
+<ArtifactTreeView
+  {...tree}
+  {actions}
+  onPreview={(artifact) => {
+    preview = artifact;
+  }}
+/>
 <TextArtifactViewer
   artifact={preview}
   {session}

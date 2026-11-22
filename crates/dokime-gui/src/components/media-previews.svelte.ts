@@ -67,7 +67,10 @@ export function mediaPreviews(
         }
         const key = artifactContentKey(artifact);
         const previous = desired.get(id);
-        next.set(id, previous?.key === key && previous.transfers.generation === transfers.generation ? previous : { artifact, key, transfers });
+        next.set(
+          id,
+          previous?.key === key && previous.transfers.generation === transfers.generation ? previous : { artifact, key, transfers },
+        );
       }
     }
     untrack(() => {

@@ -17,85 +17,22 @@ import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tan
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/context";
-import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
-import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
-import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
+import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
+import { createNativeTestCycle, type NewCycleRequest } from "@/lib/api/native-planning";
 import type { PromptRequest } from "@/lib/types";
-import { ArchiveScope, CycleOrderKey } from "@generated/host/model";
 import type { CycleSummary } from "@/lib/api/native-planning-projection";
-
-/* === Types === */
-
-export type CyclesQuerySelection = {
-  /** Matched server-side against the cycle's label and identifier. */
-  text?: string;
-  /* True lists only archived cycles, false only the others. False is the
-     default so the status bar and an unfiltered Cycles home ask the identical
-     question and share one cached read rather than paginating the whole list
-     twice every five seconds. */
-  archived?: boolean;
-};
-
-/* === Query Keys === */
-
-export const cyclesHomeQueryKeys = {
-  all: ["cycles-home"] as const,
-  cycles: (generation: string, selection: CyclesQuerySelection = {}) =>
-    [...cyclesHomeQueryKeys.all, "cycles", generation, { archived: selection.archived ?? false, text: selection.text ?? "" }] as const,
-};
-
-/* === Constants === */
-
-/* === Public Functions === */
-
-/**
- * The selection and order every page of one read repeats.
- *
- * The server's default order is UPDATED_AT ascending, so newest-first is a
- * request the client has to make.
- */
-export function cycleListSelection(selection: CyclesQuerySelection): NativeCycleSelection {
-  return {
-    filter: {
-      text: selection.text?.trim() ?? "",
-      statuses: [],
-      archive: selection.archived ? ArchiveScope.ARCHIVED : ArchiveScope.UNARCHIVED,
-    },
-    order: { key: CycleOrderKey.UPDATED_AT, descending: true },
-  };
-}
+import { cyclesHomeQueryKeys, cyclesQueryOptions, pendingPromptsQueryOptions, type CyclesQuerySelection } from "./cycles-query-options";
 
 /* === Query Hooks === */
 
-/**
- * Every page of Execution.ListCycles under one server-side selection.
- *
- * The selection belongs to the caller: the Cycles home filters and the status
- * bar counts, and a bar that inherited the home's filter box would report an
- * activity count of whatever the operator happened to be typing.
- */
 export function useCyclesQuery(selection: CyclesQuerySelection = {}): UseQueryResult<CycleSummary[]> {
   const session = useNativeSession();
-  const archived = selection.archived ?? false;
-  const text = selection.text ?? "";
-  return useQuery({
-    queryFn: () => listNativeCycles(session.identity, cycleListSelection({ archived, text })),
-    queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { archived, text }),
-    // The runtime stream invalidates the lists on every runtime change; nothing polls.
-    staleTime: Number.POSITIVE_INFINITY,
-  });
+  return useQuery(cyclesQueryOptions(session.identity, selection));
 }
 
-/** Every pending prompt across cycles, hydrated through the existing adapter. */
 export function usePendingPromptsQuery(): UseQueryResult<PromptRequest[]> {
   const session = useNativeSession();
-  return useQuery({
-    queryFn: () => fetchNativePendingPrompts(session.identity),
-    // The workflow prompt key, so every runtime change that invalidates the
-    // cycle's prompts refreshes the navigation and status counts at once.
-    queryKey: [...workflowQueryKeys.prompts(), session.identity.generation],
-    staleTime: Number.POSITIVE_INFINITY,
-  });
+  return useQuery(pendingPromptsQueryOptions(session.identity));
 }
 
 /* === Mutation Hooks === */

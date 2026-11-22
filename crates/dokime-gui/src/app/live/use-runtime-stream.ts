@@ -17,8 +17,9 @@ import { useEffect } from "react";
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
-import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-queries";
+import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries } from "@/features/cycle/server-state";
+import { workflowQueryKeys } from "@/features/cycle/workflow-query-keys";
+import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-query-options";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";

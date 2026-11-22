@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -16,33 +17,20 @@
 // Standard Library Imports
 
 // Third Party Imports
+import { fireEvent, render, within } from "@testing-library/svelte";
+import { IDBFactory } from "fake-indexeddb";
+import { expect, onTestFinished, test, vi } from "vitest";
 
-import { Children, isValidElement, type ReactElement } from "react";
 // Local Imports
-import { expect, test, vi } from "vitest";
+import { createDokimeQueryClient } from "@/app/query-client";
+import { cyclesQueryOptions, pendingPromptsQueryOptions } from "@/features/cycles-home/cycles-query-options";
+import { defaultBrand } from "@/lib/brand";
 import { navigationMode, settingsParent, sidebarWidth } from "@/shell/navigation-model";
-import { Sidebar } from "@/shell/Sidebar";
-import { SidebarFrame } from "@/shell/SidebarFrame";
+import Sidebar from "@/shell/Sidebar.svelte";
 
 /* === Re-Exports === */
 
 /* === Constants === */
-const fixture = vi.hoisted(() => ({ width: 500, pathname: "/cycles", navigate: vi.fn() }));
-vi.mock("react", async (original) => ({
-  ...(await original<typeof import("react")>()),
-  useState: (initial: unknown) => [initial, vi.fn()],
-}));
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => fixture.navigate,
-  useRouterState: ({ select }: { select: (state: unknown) => unknown }) => select({ location: { pathname: fixture.pathname, search: {} } }),
-}));
-vi.mock("@/shell/use-sidebar-state", async () => {
-  const { navigationMode } = await import("@/shell/navigation-model");
-  return {
-    useSidebarState: () => ({ mode: navigationMode(fixture.width), collapsed: fixture.width < 1024, toggle: vi.fn(), width: "256px" }),
-  };
-});
-
 /* === Types === */
 
 /* === Classes === */
@@ -59,15 +47,37 @@ test("settings back", () => {
   expect(settingsParent("/settings/plugins/installed")).toBe("/settings/plugins");
 });
 
-test("destination switching", () => {
-  fixture.width = 599;
-  const phone = Sidebar() as ReactElement<{ children: unknown }>;
-  const tabs = Children.toArray(phone.props.children as import("react").ReactNode).filter(isValidElement) as ReactElement<{
-    onClick: () => void;
-  }>[];
+test("Destination Switching", async () => {
+  vi.stubGlobal("indexedDB", new IDBFactory());
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+  const identity = { generation: "navigation", isCurrent: () => true };
+  const queryClient = createDokimeQueryClient();
+  queryClient.setQueryData(cyclesQueryOptions(identity).queryKey, []);
+  queryClient.setQueryData(pendingPromptsQueryOptions(identity).queryKey, []);
+  const navigate = vi.fn();
+  function props(width: number) {
+    return {
+      brand: defaultBrand,
+      session: { identity, queryClient },
+      sidebar: { mode: navigationMode(width), collapsed: width < 1024, toggle: vi.fn(), resize: vi.fn(), width: "256px" },
+      pathname: "/cycles",
+      cycleId: null,
+      navigate,
+      openCycle: vi.fn(),
+      openSettings: vi.fn(),
+    };
+  }
+
+  const { container, getByRole, rerender, unmount } = render(Sidebar, props(599));
+  onTestFinished(unmount);
+  const tabs = within(getByRole("navigation")).getAllByRole("button");
   expect(tabs).toHaveLength(5);
-  for (const tab of tabs) tab.props.onClick();
-  expect(fixture.navigate.mock.calls.map(([target]) => target.to)).toEqual([
+  for (const tab of tabs) {
+    await fireEvent.click(tab);
+  }
+  expect(navigate.mock.calls.map(([destination]) => destination)).toEqual([
     "/cycles",
     "/library",
     "/history",
@@ -75,13 +85,11 @@ test("destination switching", () => {
     "/settings",
   ]);
   for (const width of [600, 1023, 1024]) {
-    fixture.width = width;
-    const shell = Sidebar() as ReactElement<{ children: import("react").ReactNode }>;
-    const frames = Children.toArray(shell.props.children).filter(isValidElement);
-    expect(frames.some((node) => node.type === SidebarFrame)).toBe(true);
+    await rerender(props(width));
+    expect(getByRole("navigation").querySelector('[data-slot="sidebar-brand"]')).not.toBeNull();
   }
-  fixture.width = 599;
-  expect((Sidebar() as ReactElement).type).toBe("nav");
+  await rerender(props(599));
+  expect(container.firstElementChild?.tagName).toBe("NAV");
 });
 
 /* === Private Functions === */

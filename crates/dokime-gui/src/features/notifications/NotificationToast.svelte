@@ -16,5 +16,7 @@
     aria-haspopup="dialog"
     aria-label={`Details for ${record.title}`}
     onclick={openDetails}
-  >Details</button>
+  >
+    Details
+  </button>
 </div>

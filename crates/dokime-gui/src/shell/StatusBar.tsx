@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Progress } from "@/components/ui/progress";
+import Progress from "@/components/ui/Progress.svelte";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/ActiveCycle";
@@ -40,7 +40,7 @@ import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
-import { consoleAttentionCount } from "@/shell/ConsoleDrawerView";
+import { consoleAttentionCount } from "@/shell/console-view-model";
 import { useRouteCycleId } from "@/shell/route-scope";
 import {
   type BackendOperation,
@@ -51,7 +51,8 @@ import {
 } from "@/shell/status-bar-operations";
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
-import { RunIndicator } from "./RunIndicator";
+import { SvelteMount } from "../components/SvelteMount";
+import RunIndicator from "./RunIndicator.svelte";
 import { StatusBarFrame } from "./StatusBarFrame";
 
 /* === Constants === */
@@ -79,10 +80,12 @@ type AttentionEntry = {
 
 /** Live Execution Focus Followed By Backend And Operator Attention. */
 export function StatusBar() {
+  const session = useNativeSession();
+  const navigate = useNavigate();
   return (
     <StatusBarFrame>
       <div className="flex w-full min-w-0 items-stretch justify-between gap-2 px-4">
-        <RunIndicator />
+        <SvelteMount component={RunIndicator} props={{ session, onNavigate: (destination) => void navigate(destination) }} />
         <div className="hidden min-w-0 items-stretch gap-4 lg:flex">
           <BackendItem />
           <StorageItem />
@@ -198,10 +201,13 @@ export function OperationsItem() {
 function OperationBar({ operation }: { operation: BackendOperation }) {
   const percent = operationPercent(operation);
   return (
-    <Progress
-      aria-label={operation.label}
-      value={operation.status === "running" ? percent : 100}
-      className={cn("self-center", operation.status === "failed" && "[&_[data-slot=progress-indicator]]:bg-destructive")}
+    <SvelteMount
+      component={Progress}
+      props={{
+        "aria-label": operation.label,
+        value: operation.status === "running" ? percent : 100,
+        class: cn("self-center", operation.status === "failed" && "[&_[data-slot=progress-indicator]]:bg-destructive"),
+      }}
     />
   );
 }

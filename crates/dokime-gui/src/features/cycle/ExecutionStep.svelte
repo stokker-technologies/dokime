@@ -17,8 +17,12 @@
   const ticking = $derived(live && running && record.record_type === "step");
   const duration = $derived(
     documentLayout
-      ? running || record.status === "pending" ? null : formatDuration(record.duration_s)
-      : record.record_type === "step" ? durationText(record, live, elapsed) : "",
+      ? running || record.status === "pending"
+        ? null
+        : formatDuration(record.duration_s)
+      : record.record_type === "step"
+        ? durationText(record, live, elapsed)
+        : "",
   );
   const message = $derived(
     record.record_type === "criterion" && typeof record.result.details.message === "string" ? record.result.details.message : null,
@@ -31,13 +35,18 @@
   );
 </script>
 
-<li class={documentLayout
-  ? "grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-l-2 border-border/70 py-2 pr-1 pl-3 text-sm"
-  : "col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-sm leading-5"}>
-  <span class={[
-    "text-xs text-muted-foreground tabular-nums",
-    documentLayout && "grid size-7 shrink-0 place-items-center rounded-lg border bg-muted/40 font-semibold",
-  ]}>{ordinal}</span>
+<li
+  class={documentLayout
+    ? "grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-l-2 border-border/70 py-2 pr-1 pl-3 text-sm"
+    : "col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-sm leading-5"}
+>
+  <span
+    class={[
+      "text-xs text-muted-foreground tabular-nums",
+      documentLayout && "grid size-7 shrink-0 place-items-center rounded-lg border bg-muted/40 font-semibold",
+    ]}
+    >{ordinal}</span
+  >
   <div class="min-w-0">
     <span class={["block font-medium [overflow-wrap:break-word]", documentLayout && "min-w-0 leading-tight"]}>
       {stepRecordLabel(record, showRecordType)}
@@ -54,7 +63,10 @@
   {#if !documentLayout}
     <span class="text-xs text-muted-foreground tabular-nums">{duration}</span>
   {/if}
-  <Badge class={`${documentLayout ? "justify-self-end text-xs" : LIST_STATUS_PILL_CLASS} gap-1 capitalize`} variant={stepBadgeVariant(record.status)}>
+  <Badge
+    class={`${documentLayout ? "justify-self-end text-xs" : LIST_STATUS_PILL_CLASS} gap-1 capitalize`}
+    variant={stepBadgeVariant(record.status)}
+  >
     {#if running}
       <LoaderCircle aria-hidden="true" class="animate-spin motion-reduce:animate-none" size={10} />
     {/if}

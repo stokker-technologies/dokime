@@ -36,7 +36,6 @@
   import type { ArtifactRecord, ExecutionFileFollowEvent } from "@/lib/types";
   import { occurrenceKeys } from "@/lib/utils";
 
-
   type TextViewerArtifact = Pick<
     ArtifactRecord,
     "artifact_id" | "downloadHref" | "href" | "label" | "path" | "scope" | "size_bytes" | "stream_state"
@@ -58,7 +57,6 @@
     | { kind: "finished"; bytes: number }
     | { kind: "abandoned"; bytes: number }
     | { kind: "error"; message: string; failure?: unknown };
-
 
   function requireSession(session: ConnectedSession | null) {
     if (!session) {
@@ -160,13 +158,7 @@
     return untrack(() => readFile(connection, file, name, execution, following));
   });
 
-  function readFile(
-    connection: ConnectedSession | null,
-    artifactId: string,
-    path: string,
-    executionId: string | null,
-    following: boolean,
-  ) {
+  function readFile(connection: ConnectedSession | null, artifactId: string, path: string, executionId: string | null, following: boolean) {
     const controller = new AbortController();
     const signal = controller.signal;
     let stream: NativeStream<ExecutionFileFollowEvent> | null = null;
@@ -331,7 +323,9 @@
       <div class="flex min-w-0 items-start justify-between gap-3">
         <div class="min-w-0">
           <Dialog.Title data-slot="dialog-title" class="truncate font-sans text-base leading-none font-medium">{title}</Dialog.Title>
-          <Dialog.Description data-slot="dialog-description" class="truncate text-sm text-muted-foreground">{description}</Dialog.Description>
+          <Dialog.Description data-slot="dialog-description" class="truncate text-sm text-muted-foreground"
+            >{description}</Dialog.Description
+          >
         </div>
         <div class="flex shrink-0 items-center gap-2">
           {#if streamed}
@@ -340,7 +334,9 @@
                 checked={follow}
                 id="text-artifact-follow"
                 size="sm"
-                onCheckedChange={(checked) => { followChoice = { fileKey, follow: checked }; }}
+                onCheckedChange={(checked) => {
+                  followChoice = { fileKey, follow: checked };
+                }}
               />
               <label class="text-xs text-muted-foreground" for="text-artifact-follow">Follow</label>
             </div>
@@ -351,8 +347,11 @@
             size="icon-sm"
             title={wrap ? "Disable Wrapping" : "Enable Wrapping"}
             variant={wrap ? "default" : "outline"}
-            onclick={() => { wrap = !wrap; }}
-          ><FileText /></Button>
+            onclick={() => {
+              wrap = !wrap;
+            }}
+            ><FileText /></Button
+          >
           <Button aria-label="Copy" disabled={!displayText} size="icon-sm" title="Copy" variant="outline" onclick={copyText}>
             <Clipboard />
           </Button>
@@ -362,10 +361,22 @@
             size="icon-sm"
             title="Refresh"
             variant="outline"
-            onclick={() => { generation += 1; }}
-          ><RefreshCw /></Button>
+            onclick={() => {
+              generation += 1;
+            }}
+            ><RefreshCw /></Button
+          >
           {#if artifact?.downloadHref}
-            <a aria-label="Download" class={downloadClass} data-slot="button" data-size="icon-sm" data-variant="outline" download href={artifact.downloadHref} title="Download">
+            <a
+              aria-label="Download"
+              class={downloadClass}
+              data-slot="button"
+              data-size="icon-sm"
+              data-variant="outline"
+              download
+              href={artifact.downloadHref}
+              title="Download"
+            >
               <Download />
             </a>
           {/if}
@@ -374,7 +385,12 @@
     </div>
     <div class="grid min-h-0 gap-0">
       {#if status.kind === "error"}
-        <ErrorCard failure={failureOf(status.failure ?? status.message, "Artifact Unavailable")} onRetry={() => { generation += 1; }} />
+        <ErrorCard
+          failure={failureOf(status.failure ?? status.message, "Artifact Unavailable")}
+          onRetry={() => {
+            generation += 1;
+          }}
+        />
       {/if}
       <section
         bind:this={codePane}
@@ -385,16 +401,31 @@
       >
         <div class={wrap ? "min-w-full" : "min-w-max"}>
           {#each lines as { key, value: line }, index (key)}
-            <div class={wrap ? "grid grid-cols-(--layout-record-label) hover:bg-muted/25" : "grid grid-cols-(--layout-record-value) hover:bg-muted/25"}>
-              <span aria-hidden="true" class="sticky left-0 z-10 select-none border-r bg-muted/45 px-3 text-right tabular-nums text-muted-foreground" data-testid="text-artifact-line-number">
+            <div
+              class={wrap
+                ? "grid grid-cols-(--layout-record-label) hover:bg-muted/25"
+                : "grid grid-cols-(--layout-record-value) hover:bg-muted/25"}
+            >
+              <span
+                aria-hidden="true"
+                class="sticky left-0 z-10 select-none border-r bg-muted/45 px-3 text-right tabular-nums text-muted-foreground"
+                data-testid="text-artifact-line-number"
+              >
                 {index + 1}
               </span>
-              <code class={wrap ? "block min-h-5 whitespace-pre-wrap break-words px-3" : "block min-h-5 whitespace-pre px-3"}>{#each occurrenceKeys(highlightTextLine(line, language), tokenSignature) as { key, value: token } (key)}<span class={tokenClassName(token.kind)}>{token.text}</span>{/each}</code>
+              <code class={wrap ? "block min-h-5 whitespace-pre-wrap break-words px-3" : "block min-h-5 whitespace-pre px-3"}
+                >{#each occurrenceKeys(highlightTextLine(line, language), tokenSignature) as { key, value: token } (key)}
+                  <span class={tokenClassName(token.kind)}>{token.text}</span>
+                {/each}</code
+              >
             </div>
           {/each}
         </div>
       </section>
-      <footer class="flex min-h-9 items-center justify-between gap-3 border-t px-4 py-2 text-xs text-muted-foreground" data-testid="text-artifact-status">
+      <footer
+        class="flex min-h-9 items-center justify-between gap-3 border-t px-4 py-2 text-xs text-muted-foreground"
+        data-testid="text-artifact-status"
+      >
         <span class="min-w-0 truncate" data-state={status.kind}>
           {status.kind === "error" ? describeStatus(status) : `${describeStatus(status)} · ${language.toUpperCase()}`}
         </span>

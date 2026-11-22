@@ -41,12 +41,12 @@ import {
   type NativeDocumentSession,
 } from "../../lib/api/native-document-session";
 import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "@/features/cycle/document-query-model";
+import { workflowQueryKeys } from "./workflow-query-keys";
 
 /* === Constants === */
 
 /** How Long an Unobserved Evidence Read Stays Cached; Records and Documents Are Large. */
 const GUI_EVIDENCE_GC_MS = 30_000;
-const GUI_PAGE_ITEMS = 500;
 const GUI_RECONNECT_MS = 1_000;
 
 /* === Types === */
@@ -74,28 +74,6 @@ type RootDocument = {
 };
 
 type CardRead = { document: NativeDocumentCapture; card: DocumentViewCard };
-
-/* === Query Keys === */
-
-export const workflowQueryKeys = {
-  all: ["workflow"] as const,
-  artifacts: () => [...workflowQueryKeys.all, "artifacts"] as const,
-  cycleDetails: () => [...workflowQueryKeys.all, "cycles", "detail"] as const,
-  cycleDetail: (cycleId: string | null = null) => [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
-  cycleHistory: () => [...workflowQueryKeys.all, "cycles", "history"] as const,
-  records: (limit = GUI_PAGE_ITEMS) => [...workflowQueryKeys.all, "records", { limit }] as const,
-  executionDocument: ({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) =>
-    [...workflowQueryKeys.all, "documents", "execution", cycleId ?? "", executionId ?? ""] as const,
-  executionDetails: () => [...workflowQueryKeys.all, "execution-detail"] as const,
-  executionDetail: (executionId: string | null = null) => [...workflowQueryKeys.all, "execution-detail", executionId ?? ""] as const,
-  executionFiles: (executionId: string | null) => [...workflowQueryKeys.all, "execution-files", executionId ?? ""] as const,
-  health: () => [...workflowQueryKeys.all, "health"] as const,
-  notes: () => [...workflowQueryKeys.all, "notes"] as const,
-  prompts: () => [...workflowQueryKeys.all, "prompts"] as const,
-  runtimeShell: () => [...workflowQueryKeys.all, "runtime-shell"] as const,
-  traceability: (scope?: Wire<EvidenceScope> | null) =>
-    scope ? ([...workflowQueryKeys.all, "traceability", scope] as const) : ([...workflowQueryKeys.all, "traceability"] as const),
-};
 
 /* === Private Functions === */
 

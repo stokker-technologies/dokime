@@ -36,7 +36,8 @@ import {
   groupCycleRows,
   promptCountsByCycle,
 } from "@/features/cycles-home/cycles-model";
-import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { cyclesHomeQueryKeys } from "@/features/cycles-home/cycles-query-options";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { PageShell } from "@/shell/PageShell";

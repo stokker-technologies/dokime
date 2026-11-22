@@ -14,13 +14,26 @@
 <section aria-label="Console" class="grid gap-2">
   <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
     <h3 class="font-sans text-sm leading-6 font-semibold tracking-wide uppercase">Console</h3>
-    <SelectField label="Console Level" class="w-32" size="sm" value={level} options={consoleLevelOptions} onChange={(next) => {
-      level = next;
-    }} />
+    <SelectField
+      label="Console Level"
+      class="w-32"
+      size="sm"
+      value={level}
+      options={consoleLevelOptions}
+      onChange={(next) => {
+        level = next;
+      }}
+    />
   </div>
   <div class="rounded-lg border">
-    <ConsoleRecordList class="h-96" empty="No records at this level." {follow} {rows} onFollowChange={(next) => {
-      follow = next;
-    }} />
+    <ConsoleRecordList
+      class="h-96"
+      empty="No records at this level."
+      {follow}
+      {rows}
+      onFollowChange={(next) => {
+        follow = next;
+      }}
+    />
   </div>
 </section>

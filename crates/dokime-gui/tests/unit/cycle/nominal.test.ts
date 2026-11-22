@@ -13,8 +13,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
-import { progressCount } from "@/features/cycle/ControlCard";
-import { executionControlState, inputNeededLabel } from "@/features/cycle/control-model";
+import { executionControlState, inputNeededLabel, progressCount } from "@/features/cycle/control-model";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";

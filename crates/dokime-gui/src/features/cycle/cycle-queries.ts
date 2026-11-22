@@ -44,7 +44,8 @@ import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import { downloadNativeReport, type NativeReportSource } from "@/lib/api/native-reports";
 import { reportFilename } from "@/features/cycle/cycle-workspace-model";
-import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
+import { invalidateWorkflowResourceQueries } from "./server-state";
+import { workflowQueryKeys } from "./workflow-query-keys";
 
 /* === Private Functions === */
 

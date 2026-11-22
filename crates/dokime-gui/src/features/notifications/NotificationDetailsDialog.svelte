@@ -9,7 +9,13 @@
   import { buttonVariants } from "../../components/ui/button-variants";
   import DialogContent from "../../components/ui/DialogContent.svelte";
   import { failureOf, notificationDetailsText } from "../../lib/notification-details";
-  import { getNotificationDetails, openNotificationDetails, subscribeNotificationDetails, toast, type NotificationRecord } from "../../lib/notifications";
+  import {
+    getNotificationDetails,
+    openNotificationDetails,
+    subscribeNotificationDetails,
+    toast,
+    type NotificationRecord,
+  } from "../../lib/notifications";
 
   let record = $state.raw<NotificationRecord | null>(null);
   let copyStatus = $state("");
@@ -85,7 +91,10 @@
         </dl>
         <FailureConsequences items={record.consequences ?? []} />
       </div>
-      <div class="-mx-4 -mb-4 flex min-w-0 flex-col-reverse gap-2 rounded-b-lg border-t bg-muted/50 p-4 sm:flex-row sm:flex-wrap sm:justify-end" data-slot="dialog-footer">
+      <div
+        class="-mx-4 -mb-4 flex min-w-0 flex-col-reverse gap-2 rounded-b-lg border-t bg-muted/50 p-4 sm:flex-row sm:flex-wrap sm:justify-end"
+        data-slot="dialog-footer"
+      >
         <span role="status" class="self-center text-xs text-muted-foreground">{copyStatus}</span>
         <Button variant="outline" onclick={copy}>Copy</Button>
         <Dialog.Close class={buttonVariants({ variant: "outline" })}>Close</Dialog.Close>

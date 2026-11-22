@@ -4,6 +4,7 @@ import type { HubRecord } from "../lib/types";
 
 const consoleLevels = ["trace", "debug", "info", "warning", "error"] as const;
 export type ConsoleLevel = (typeof consoleLevels)[number];
+export type ConsoleScope = "instance" | "cycle" | "execution";
 export const consoleLevelOptions = consoleLevels.map((value) => ({ value, label: recordLevelLabel(value) }));
 
 export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel, filter: string): HubRecord[] {
@@ -15,4 +16,25 @@ export function visibleConsoleRecords(records: HubRecord[], level: ConsoleLevel,
     }
     return !needle || `${record.source} ${record.message ?? ""}`.toLowerCase().includes(needle);
   });
+}
+
+export function resolvedConsoleScope(scope: ConsoleScope, cycleId: string | null, executionId: string | null): ConsoleScope {
+  if (scope === "execution" && !executionId) {
+    return cycleId ? "cycle" : "instance";
+  }
+  if (scope === "cycle" && !cycleId) {
+    return "instance";
+  }
+  return scope;
+}
+
+/** Warnings And Errors That Arrived After The Drawer Was Last Opened. */
+export function consoleAttentionCount(records: HubRecord[], since: number): number {
+  return records.filter((record) => {
+    if (record.level !== "warning" && record.level !== "error") {
+      return false;
+    }
+    const at = Date.parse(record.timestamp);
+    return !Number.isFinite(at) || at > since;
+  }).length;
 }

@@ -17,11 +17,9 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import { isTauriDesktop } from "../lib/surface-environment";
 import type { DensityPreference } from "../lib/theme";
-import type { ConsoleLevel } from "../shell/console-view-model";
+import type { ConsoleLevel, ConsoleScope } from "../shell/console-view-model";
 
 /* === Types === */
-
-export type ConsoleScope = "instance" | "cycle" | "execution";
 
 export type ConsoleState = {
   /**

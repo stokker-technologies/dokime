@@ -63,8 +63,24 @@
   };
 
   let {
-    plan, row, live, titlePrefix, label, onRename, started, surface, pane, plotWindow, onRetry,
-    control, promptQueue, notesContent, mediaContent, artifactsContent, documentView, traceabilitySave,
+    plan,
+    row,
+    live,
+    titlePrefix,
+    label,
+    onRename,
+    started,
+    surface,
+    pane,
+    plotWindow,
+    onRetry,
+    control,
+    promptQueue,
+    notesContent,
+    mediaContent,
+    artifactsContent,
+    documentView,
+    traceabilitySave,
   }: Props = $props();
 
   const { shared, view } = $derived(surface);
@@ -193,11 +209,7 @@
         {#if present.has("traceability")}
           <ExecutionSectionCard empty={hasTraceability ? null : "No traceability information available."} title="Traceability">
             {#snippet action()}
-              <TraceabilityJsonDialog
-                exportName={shared.traceabilityExportName}
-                traceability={view.traceability}
-                save={traceabilitySave}
-              />
+              <TraceabilityJsonDialog exportName={shared.traceabilityExportName} traceability={view.traceability} save={traceabilitySave} />
             {/snippet}
             {#if hasTraceability}
               <DocumentTraceability traceability={view.traceability} />

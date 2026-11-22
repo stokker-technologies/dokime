@@ -10,7 +10,12 @@
   let props: Props = $props();
 </script>
 
-{#snippet recordList(records: StepExecutionRecord[], live: boolean, empty: string, documentLayout = false)}
+{#snippet recordList(
+  records: StepExecutionRecord[],
+  live: boolean,
+  empty: string,
+  documentLayout = false,
+)}
   {@const ordered = sortedStepRecords(records)}
   {@const ordinalWidth = Math.max(2, String(ordered.length).length)}
   {@const showRecordType = documentLayout && new Set(ordered.map((record) => record.record_type)).size > 1}
@@ -25,7 +30,12 @@
   {/if}
 {/snippet}
 
-{#snippet recordColumn(title: string, records: StepExecutionRecord[], live: boolean, empty: string)}
+{#snippet recordColumn(
+  title: string,
+  records: StepExecutionRecord[],
+  live: boolean,
+  empty: string,
+)}
   <section aria-label={title} class="grid min-w-0 content-start gap-2">
     <h3
       class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 border-b pb-2 text-xs font-semibold text-muted-foreground uppercase"

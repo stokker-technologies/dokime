@@ -20,9 +20,11 @@ import { useStore } from "zustand";
 
 /* === Local Imports === */
 import { useUiStore } from "@/stores/ui-store";
-import { LiveConsoleView, resolvedConsoleScope } from "@/shell/ConsoleDrawerView";
+import { SvelteMount } from "../components/SvelteMount";
 import { consoleRecordsStore } from "./console-buffer";
 import { useConsoleRecords } from "./console-records";
+import { resolvedConsoleScope } from "./console-view-model";
+import ConsoleDrawerView from "./ConsoleDrawerView.svelte";
 
 /* === Components === */
 export function ConsoleDrawer({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
@@ -38,14 +40,6 @@ export function ConsoleDrawer({ cycleId, executionId }: { cycleId: string | null
     level: drawer.level,
   });
   return (
-    <LiveConsoleView
-      cycleId={cycleId}
-      executionId={executionId}
-      streamed={streamed}
-      drawer={drawer}
-      setConsoleState={setConsoleState}
-      filter={filter}
-      setFilter={setFilter}
-    />
+    <SvelteMount component={ConsoleDrawerView} props={{ cycleId, executionId, streamed, drawer, setConsoleState, filter, setFilter }} />
   );
 }

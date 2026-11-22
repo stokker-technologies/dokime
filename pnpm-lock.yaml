@@ -56,6 +56,9 @@ importers:
       '@tanstack/react-table':
         specifier: 9.3.1
         version: 9.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@tanstack/svelte-query':
+        specifier: 6.3.2
+        version: 6.3.2(svelte@5.59.1)
       '@tauri-apps/api':
         specifier: ^2.12.3
         version: 2.12.3
@@ -2010,6 +2013,11 @@ packages:
 
   '@tanstack/store@0.11.2':
     resolution: {integrity: sha512-sJ4mjol8uQsHV0gOJzzjwXfh2Fwm+Sz0+8deqiTm4jGbMdjzNSW+xZCFm0kUa870uhd8yi+DpKnZb5Kc4apa0Q==}
+
+  '@tanstack/svelte-query@6.3.2':
+    resolution: {integrity: sha512-bMPh3iyijRxqLlulDqJO80wm6mJughvVVTV4SZFMgTNSiA5AJJoOHJ3btQtYpeHgN0dMALhfo4R8chwB/9JA2Q==}
+    peerDependencies:
+      svelte: ^5.25.0
 
   '@tanstack/table-core@9.3.1':
     resolution: {integrity: sha512-zQvlxSNi2qGM3L4jh85Z6hqMfdIR5qOfD9KHOU32nuKFJGN0RlJ7UvV1lsPb1fPVhpFYI0VP3jJGxLdLDpTKjQ==}
@@ -5913,6 +5921,11 @@ snapshots:
       - supports-color
 
   '@tanstack/store@0.11.2': {}
+
+  '@tanstack/svelte-query@6.3.2(svelte@5.59.1)':
+    dependencies:
+      '@tanstack/query-core': 5.104.2
+      svelte: 5.59.1
 
   '@tanstack/table-core@9.3.1':
     dependencies:

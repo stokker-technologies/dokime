@@ -146,10 +146,7 @@
             {:else if selected.nativeTransfer && mediaBlobType(selected)}
               <div class="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
                 {#if selectedError}
-                  <ErrorCard
-                    failure={selectedError}
-                    onRetry={() => preview.retry(selected.artifact_id)}
-                  />
+                  <ErrorCard failure={selectedError} onRetry={() => preview.retry(selected.artifact_id)} />
                 {:else}
                   <p>Loading media preview…</p>
                 {/if}

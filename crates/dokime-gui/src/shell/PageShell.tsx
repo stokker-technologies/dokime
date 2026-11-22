@@ -102,7 +102,13 @@ export function PanelHeader({
     </DropdownMenu>
   ) : null;
   const { rendered, portals } = useSvelteSlots({
-    actions: actions || menu ? <>{actions}{menu}</> : null,
+    actions:
+      actions || menu ? (
+        <>
+          {actions}
+          {menu}
+        </>
+      ) : null,
   });
   return (
     <>
