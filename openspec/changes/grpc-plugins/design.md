@@ -3349,15 +3349,14 @@ is deleted. Median and standard deviation therefore arrive for default windows.
 Each plain table header retains its complete unit-bearing label in `title`,
 preserving the existing report unit-label contract.
 
-The refresh tests in `crates/dokime-gui/tests/integration/plots/nominal.test.ts`
-assume snapshot completion immediately after changing the selected window.
-`crates/dokime-gui/src/plots/live-data.ts` commits the queued snapshot and its
-refresh timestamp on the next animation frame. Refresh Failure captures a null
-timestamp before that commit; Refresh Cancellation checks a disabled button
-before the commit. Both failures reproduce on the unmodified base. This is
-test/presentation REWORK awaiting the owner's decision; neither test is weakened.
-The clean shape has one completion boundary for snapshots and watches, with
-deterministic tests driven to that boundary rather than Promise resolution.
+Snapshots and watches share one completion boundary:
+`crates/dokime-gui/src/plots/live-data.ts` commits queued payloads and their
+refresh timestamp on the next animation frame. Failure and cancellation signals
+remain immediate. The refresh stories in
+`crates/dokime-gui/tests/integration/plots/nominal.test.ts` drive that frame through
+the shared harness's fake-timer `advance` helper before asserting completion;
+cancelled snapshots never commit. This resolves the former test/presentation
+REWORK in favor of the existing product contract.
 
 Every other desktop table uses `src/components/data-table/DataTable.tsx` under
 `crates/dokime-gui/`. It owns the frame, title and one-line description,

@@ -11,7 +11,17 @@
 /* === Imports === */
 
 // Standard Library Imports
+import assert from "node:assert/strict";
+
+// Third Party Imports
 import { create } from "@bufbuild/protobuf";
+import { act, createElement, type ComponentProps } from "react";
+import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import type uPlot from "uplot";
+import { onTestFinished, test, vi } from "vitest";
+
+// Local Imports
 import {
   ElapsedUnit,
   EvidenceScopeSchema,
@@ -25,17 +35,8 @@ import {
   ValueFormatSchema,
   XyInterval,
 } from "@generated/host/model";
-import assert from "node:assert/strict";
-
-// Third Party Imports
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
-import { act, createElement, type ComponentProps } from "react";
-import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
-import type uPlot from "uplot";
-import { onTestFinished, test, vi } from "vitest";
-// Local Imports
 import { LivePlotGroupGrid } from "@dokime/plots/components/document/PlotGroupGrid";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@dokime/document/features/cycle/PlotWindowSlider";
 import { mapNativePlotWatchPage, type NativePlotStreamMessage, type NativePlotStreamUpdate } from "@/lib/api/native-plots";
@@ -58,6 +59,7 @@ import type {
   DocumentViewPlot,
   HubRecord,
   PlotPayload,
+  PlotPayloadEnvelope,
   PlotPayloadStreamMessage,
   TelemetryColumnSpec,
   TelemetryStream,
@@ -101,7 +103,6 @@ import { usePlotPalette } from "@/plots/desktop-plot-palette";
 import { heldViewport } from "@dokime/plots/viewport";
 import { applyReportAppearance } from "@dokime/report/report-appearance";
 import { useSummaryWindowStore } from "@dokime/plots/stores/summary-window-store";
-import type { PlotPayloadEnvelope } from "@dokime/plots/lib/types";
 
 /* === Re-Exports === */
 
@@ -651,12 +652,15 @@ test("Refresh Failure", async () => {
     snapshots.filter((envelope) => requests.some((request: { plotId: string }) => request.plotId === envelope.plot_id)),
   );
   await view.choose(6);
+  assert.equal(view.window().refresh.updatedAt, null);
+  assert.equal(view.button().disabled, true);
+  await view.advance();
   const firstTime = view.window().refresh.updatedAt;
+  assert.notEqual(firstTime, null);
   await view.runtimeUpdate();
   refreshFixture.read.mockRejectedValueOnce(new NativeApiLimitError("Plots.Snapshots.List", "plot response exceeds transport limit"));
   await view.advance(1_000);
   await view.click();
-  await view.advance();
   assert.equal(view.button().disabled, false);
   assert.equal(view.window().refresh.updatedAt, firstTime);
   assert.equal(refreshFixture.notify.mock.calls.length, 1);
@@ -666,6 +670,10 @@ test("Refresh Failure", async () => {
   assert.equal(refreshFixture.read.mock.calls.length, 2);
   await view.click();
   assert.equal(refreshFixture.read.mock.calls.length, 3);
+  assert.equal(view.window().refresh.updatedAt, firstTime);
+  assert.equal(view.button().disabled, true);
+  await view.advance();
+  assert.equal(view.button().disabled, false);
   assert.ok((view.window().refresh.updatedAt ?? 0) > (firstTime ?? 0));
 });
 
@@ -693,14 +701,21 @@ test("Refresh Cancellation", async () => {
       complete();
     }
   });
+  await view.advance();
   assert.equal(view.window().refresh.updatedAt, null);
   assert.equal(view.button().disabled, true);
+  assert.ok(Object.values(view.states()).every((state) => state.payload === null));
   refreshFixture.read.mockImplementation(async (_session, requests) =>
     snapshotEnvelopes(view.plots).filter((envelope) => requests.some((request: { plotId: string }) => request.plotId === envelope.plot_id)),
   );
   await view.choose(6);
   assert.equal(refreshFixture.read.mock.calls.length, 2);
+  assert.equal(view.window().refresh.updatedAt, null);
+  assert.equal(view.button().disabled, true);
+  await view.advance();
   assert.equal(view.button().disabled, false);
+  assert.notEqual(view.window().refresh.updatedAt, null);
+  assert.ok(Object.values(view.states()).every((state) => state.status === "live"));
 });
 
 test("Empty Snapshot", () => {
