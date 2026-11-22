@@ -334,8 +334,6 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
             await context.document("unknown", Section("Measured"))
         with self.assertRaises(SdkError):
             await context.note("Operator Note")
-        with self.assertRaises(SdkError):
-            await context.subscribe(vars(CaptureTestTemplate.voltage)["__dokime_stream__"])
         cleanup = Context(ScopedCarrier(channel), owner, {}, owner._suites[0].templates[0], termination=3)
         self.assertIs(cleanup.termination, Termination.CANCELLED)
 

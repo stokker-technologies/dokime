@@ -11,13 +11,14 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar
+from typing import TYPE_CHECKING, ClassVar, Protocol, TypeVar, cast
 
 # Third Party Imports
 import harmos
 from google.protobuf.duration_pb2 import Duration
+from google.protobuf.message import Message
 from harmos import VISIBILITY_PUBLIC, plugin
 
 # Local Imports
@@ -26,7 +27,6 @@ import dokime_sdk._generated.client
 from ._errors import Failure, FailureError, call, invalid, project_failure, refused
 from ._generated.host import HostRoot
 from ._payloads import Payload, message_type, pack, unpack
-from ._values import SampleRow
 
 # Type Checking Imports
 if TYPE_CHECKING:
@@ -35,6 +35,9 @@ if TYPE_CHECKING:
     from ._plugin import Plugin
 
 # === Public Exports === #
+
+Gap = plugin.Gap
+StreamRow = plugin.StreamRow
 
 # === Constants === #
 
@@ -50,6 +53,7 @@ class Context:
         self.plugin = owner
         self.attempt = transport.attempt
         self._secrets = frozenset(item.identifier for item in owner.secrets)
+        self._stream_identities: Mapping[int, str] = owner._streams
 
     def operation[Q: Payload, R: Payload](self, operation: "operations.Operation[Q, R]") -> "BoundOperation[Q, R]":
         return BoundOperation(self._transport, operation)
@@ -66,12 +70,14 @@ class Context:
     async def cancelled(self) -> str:
         return await self._transport.cancelled()
 
-    async def subscribe[T: Payload](self, stream: "Stream[T]") -> "StreamSubscription[T]":
-        raise refused(
-            "streams.subscribe",
-            "The Pinned Library Has No Admitted Typed Sample Subscription API",
-            "Upgrade harmos-sdk to Provide Scoped Sample Demand, Cancellation and Subscription Close on plugin.Context",
-        )
+    async def subscribe[T: Message](self, stream: "Stream[T]", *, max_item_bytes: int) -> "StreamSubscription[T]":
+        identity = self._stream_identities.get(id(stream), stream.identifier)
+        if identity is None:
+            raise ValueError("Subscribe to Stream: Supply a Bound Stream Declaration or Its Explicit Identifier")
+        if not issubclass(stream.row, Message):
+            raise TypeError("Subscribe to Stream: Declare a Protobuf Row Type Supported by the Library")
+        subscription = await self._transport.subscribe(identity, stream.row, max_item_bytes=max_item_bytes)
+        return cast(StreamSubscription[T], subscription)
 
     async def secret(self, identifier: str) -> bytes:
         if identifier not in self._secrets:
@@ -102,10 +108,9 @@ class Context:
         return values
 
 
-class StreamSubscription[T: Payload](Protocol):
+class StreamSubscription[T: Message](AsyncIterator[StreamRow[T] | Gap], Protocol):
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
-    def __aiter__(self) -> AsyncIterator[SampleRow[T]]: ...
     async def close(self) -> None: ...
 
 

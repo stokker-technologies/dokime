@@ -1208,9 +1208,9 @@ The two names `Context` denote different classes, each owned by its submodule.
 # dokime_sdk
 from dokime_sdk import (
     Artifact, Case, Cases, Client, Cycle, Cycles, Execution, Executions,
-    Failure, Note, Outcome, Plugin, Plugins, Progress, PromptAnswer,
+    Failure, Gap, Note, Outcome, Plugin, Plugins, Progress, PromptAnswer,
     PromptQuestion, RegisteredPlugin, ResultStatus, Scalar, SdkError,
-    Suite, connect,
+    StreamRow, Suite, connect,
 )
 
 # dokime_sdk.operations
@@ -1544,13 +1544,12 @@ class Context:  # dokime_sdk.operations
     async def cancelled(self) -> str: ...  # Wait for cancellation and return its reason.
     async def secret(self, identifier: str) -> bytes: ...  # Read a declared secret slot.
     async def settings(self) -> dict[str, SettingValue]: ...  # Read the saved plugin settings.
-    async def subscribe[T: Payload](self, stream: Stream[T]) -> StreamSubscription[T]: ...  # Open admitted typed stream demand in inherited scope.
+    async def subscribe[T: Message](self, stream: Stream[T], *, max_item_bytes: int) -> StreamSubscription[T]: ...  # Open admitted typed stream demand in inherited scope.
 
 class BoundOperation[Q: Payload, R: Payload]:
     async def __call__(self, request: Q, *, policy: OperationPolicy | None = None) -> R: ...  # Apply one-call override and return the decoded result.
 
-class StreamSubscription[T: Payload]:
-    def __aiter__(self) -> AsyncIterator[SampleRow[T]]: ...  # Read demand-controlled samples until close/disconnect.
+class StreamSubscription[T: Message](AsyncIterator[StreamRow[T] | Gap]):
     async def close(self) -> None: ...  # Release this subscription without stopping its provider.
 
 class Context(operations.Context):  # dokime_sdk.templates
@@ -1599,9 +1598,19 @@ still settle on cancellation under their operation policies.
   and receipt timestamps, gaps are explicit, and close releases only the owning
   demand. Cancellation and bounded, backpressured delivery belong to the library;
   the product adapter must delegate to that API without polling stored samples.
-  The product binding remains tracked in the task list. Its recorded `SampleRow`
-  return requires stored-evidence metadata absent from live rows; the owner must
-  resolve that public row shape and its closed export inventory before binding it.
+  Live subscriptions return the library's `StreamRow(value, source, received)` and
+  `Gap(missed)` unchanged, re-exported from `dokime_sdk` through its closed root
+  inventory. Stored-evidence `SampleRow` is a separate contract. The pinned Python
+  API requires a protobuf row type and an explicit `max_item_bytes` keyword; it
+  provides no default and the product adds none. Bound declarations reuse the
+  existing plugin/template identity maps, while explicit references name their
+  stream identifier. Real-host typed delivery, timestamp fields, lag gaps and
+  independent close are proved. Real-host scope cancellation remains blocked:
+  the pinned library's Python `_authoring.py`, `_Service.invoke` teardown cancels
+  its tasks without cancelling their context, leaving outstanding subscription
+  reads pending. The library must close that context on invocation teardown;
+  direct context cancellation already ends the iterator. Keep the real-host
+  cancellation task open without adding a product cancellation mechanism.
 - Library revision `3cc1166fa` supports proto3 optional observer fields with per-row
   presence in Rust and Python. The SDK preserves message presence through authoring
   and decoding, distinguishing absent, zero and nonzero values without NaN sentinels.
