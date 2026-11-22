@@ -3,7 +3,7 @@
 ## 1. Inventory and Baseline
 
 - [x] 1.1 Lock the producer, consumer, route, state, test, build and dependency inventory below and record the presentation contracts in the proposal, design and requirement delta.
-- [ ] 1.2 Prepare the React worktree with the existing tasks. Capture connection, Cycles, Library, History, execution or cycle evidence with plots, Settings, Notifications and a saved report at matching viewports in Light and Dark under `target/svelte-parity/before/` with headless Playwright. Record reproducible fixture and route selection under the ignored evidence directory.
+- [x] 1.2 Prepare the React worktree with the existing tasks. Capture connection, Cycles, Library, History, execution or cycle evidence with plots, Settings, Notifications and a saved report at matching viewports in Light and Dark under `target/svelte-parity/before/` with headless Playwright. Record reproducible fixture and route selection under the ignored evidence directory.
 - [x] 1.3 Validate and commit the OpenSpec artifacts before porting source.
 
 ## 2. Plots
