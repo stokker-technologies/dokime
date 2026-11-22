@@ -24,6 +24,7 @@ use std::time::Duration;
 // Local Imports
 use dokime::prelude::*;
 use dokime::templates::Context;
+use dokime::{SettingDeclaration, SettingValue, setting_value};
 
 /* === Constants === */
 
@@ -160,20 +161,24 @@ fn main() -> Result<()> {
         .observer(lag_observer);
     Plugin::of::<()>("1.0.0")
         .identifier("execution")
-        .setting(dokime::SettingDeclaration {
+        .setting(SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: "overflow_window".into(),
             title: "Overflow Window".into(),
             description: "Sampling time one window of the overflow stream covers".into(),
-            default: Some(dokime::SettingValue {
-                value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 3600, nanos: 0 })),
+            default: Some(SettingValue {
+                value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 3600, nanos: 0 })),
             }),
         })
-        .setting(dokime::SettingDeclaration {
+        .setting(SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: "sample_window".into(),
             title: "Sample Window".into(),
             description: "Sampling time one window of the setting stream covers".into(),
-            default: Some(dokime::SettingValue {
-                value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
+            default: Some(SettingValue {
+                value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
             }),
         })
         .suite(

@@ -153,6 +153,8 @@ pub fn serve() -> Result<()> {
     Plugin::of::<()>("1.0.0")
         .identifier("storage.windows")
         .setting(SettingDeclaration {
+            minimum: None,
+            maximum: None,
             name: "sample_window".into(),
             title: "Sample Window".into(),
             description: "Sampling time one window of a 1 MHz stream covers".into(),

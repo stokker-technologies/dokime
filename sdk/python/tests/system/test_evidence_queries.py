@@ -13,6 +13,7 @@
 # Standard Library Imports
 import asyncio
 import unittest
+from datetime import timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 from io import BytesIO
 from pathlib import Path
@@ -20,8 +21,11 @@ from typing import Protocol, cast
 from zipfile import ZipFile
 
 # Third Party Imports
+from grpc.aio import AioRpcError
+
 # Local Imports
-from dokime_sdk import Client, Plugin, ResultStatus, Suite
+from dokime_sdk import Client, Plugin, ResultStatus, SdkError, Suite
+from dokime_sdk._generated.shared import SettingValues
 from dokime_sdk.operations import SettingDeclaration, SettingValue
 from dokime_sdk.templates import Context, TestTemplate, criterion, observer, record, step, stream
 
@@ -69,6 +73,73 @@ class HostFactory(Protocol):
 
 
 class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
+    async def test_library_host_enforces_setting_defaults_and_writes(self) -> None:
+        class SettingsPlugin(Plugin):
+            version = "1.0.0"
+            settings = (
+                SettingDeclaration(
+                    "count", "Count", "", SettingValue(integer=5), minimum=SettingValue(integer=0), maximum=SettingValue(integer=10)
+                ),
+                SettingDeclaration(
+                    "level", "Level", "", SettingValue(number=0.5), minimum=SettingValue(number=0.0), maximum=SettingValue(number=1.0)
+                ),
+                SettingDeclaration(
+                    "interval",
+                    "Interval",
+                    "",
+                    SettingValue(duration=timedelta(seconds=1)),
+                    minimum=SettingValue(duration=timedelta()),
+                    maximum=SettingValue(duration=timedelta(seconds=2)),
+                ),
+            )
+
+        class OutsideBoundsPlugin(Plugin):
+            version = "1.0.0"
+            settings = (
+                SettingDeclaration(
+                    "count", "Count", "", SettingValue(integer=11), minimum=SettingValue(integer=0), maximum=SettingValue(integer=10)
+                ),
+            )
+
+        # Admit Defaults Through the Library Host Without Native Collectors or Controls.
+        specification = spec_from_file_location("settings_host", REPOSITORY / "sdk/python/tests/support/host.py")
+        assert specification is not None and specification.loader is not None
+        module = module_from_spec(specification)
+        specification.loader.exec_module(module)
+        host = await cast(HostFactory, module.Host).start(self)
+        client = host.client
+        with self.assertRaises(SdkError):
+            await client.plugins.register(OutsideBoundsPlugin())
+        entry = await client.plugins.register(SettingsPlugin())
+        initial = await client._transport.plugins.settings.list(name=entry.identifier)
+
+        # Refused Writes Preserve the Complete Saved Value.
+        for name, outside in (
+            ("count", SettingValue(integer=-1)),
+            ("count", SettingValue(integer=11)),
+            ("level", SettingValue(number=-0.5)),
+            ("level", SettingValue(number=1.5)),
+            ("interval", SettingValue(duration=timedelta(seconds=-1))),
+            ("interval", SettingValue(duration=timedelta(seconds=3))),
+        ):
+            values = SettingValues()
+            values.CopyFrom(initial.value)
+            values.values[name].CopyFrom(outside._definition())
+            with self.assertRaises(AioRpcError):
+                await client._transport.plugins.settings.set(entry.identifier, values, initial.revision)
+            current = await client._transport.plugins.settings.list(name=entry.identifier)
+            self.assertEqual(current.value, initial.value)
+
+        # Inclusive Bounds Are Saved Through the Same Host Resource.
+        revision = initial.revision
+        for bound in ("minimum", "maximum"):
+            values = SettingValues(
+                values={declaration.name: getattr(declaration, bound)._definition() for declaration in SettingsPlugin.settings}
+            )
+            saved = await client._transport.plugins.settings.set(entry.identifier, values, revision)
+            self.assertEqual(saved.value, values)
+            revision = saved.revision
+
     async def test_observer_children(self) -> None:
         class ObserverTestTemplate(TestTemplate):
             flag = record(bool)

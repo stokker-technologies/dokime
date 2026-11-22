@@ -296,14 +296,14 @@ pub const SETTINGS: &[Setting] = &[
         "Lower anti-windup bound of the controller integrator; must not exceed zero.",
         -1.0,
         None,
-        None,
+        Some(0.0),
     ),
     Setting::number(
         CPU_LOAD_INTEGRATOR_MAXIMUM,
         "Integrator Maximum",
         "Upper anti-windup bound of the controller integrator; must not be below zero.",
         1.0,
-        None,
+        Some(0.0),
         None,
     ),
     Setting::milliseconds(
@@ -402,11 +402,22 @@ impl Setting {
     }
 
     pub fn declaration(&self) -> SettingDeclaration {
+        let (minimum, maximum) = match self.kind {
+            Kind::Milliseconds { min, max, .. } => (
+                Some(setting_value::Value::Duration(duration(Duration::from_millis(min)))),
+                Some(setting_value::Value::Duration(duration(Duration::from_millis(max)))),
+            ),
+            Kind::Integer { min, max, .. } => (Some(setting_value::Value::Integer(min)), Some(setting_value::Value::Integer(max))),
+            Kind::Number { min, max, .. } => (min.map(setting_value::Value::Number), max.map(setting_value::Value::Number)),
+            Kind::Text { .. } => (None, None),
+        };
         SettingDeclaration {
             name: self.name.into(),
             title: self.title.into(),
             description: self.description.into(),
             default: Some(self.default_value()),
+            minimum: minimum.map(|value| SettingValue { value: Some(value) }),
+            maximum: maximum.map(|value| SettingValue { value: Some(value) }),
         }
     }
 
@@ -418,42 +429,6 @@ impl Setting {
             Kind::Text { default } => setting_value::Value::Text(default.into()),
         };
         SettingValue { value: Some(value) }
-    }
-
-    /// Refuse a Saved Value of the Wrong Kind or Outside the Declared Range, Naming the Setting to Correct.
-    pub fn check(&self, value: &SettingValue) -> Result<()> {
-        let title = self.title;
-        let refused = |range: String| Error::Invalid(format!("Read Setting {title}: Configure {range} in the Plugin Settings"));
-        match (&self.kind, &value.value) {
-            (Kind::Milliseconds { min, max, .. }, Some(setting_value::Value::Duration(value))) => {
-                let value = Duration::try_from(*value).map_err(|_| refused("a Nonnegative Duration".into()))?;
-                if value < Duration::from_millis(*min) || value > Duration::from_millis(*max) {
-                    return Err(refused(format!("a Duration From {min} ms to {max} ms")));
-                }
-            }
-            (Kind::Integer { min, max, .. }, Some(setting_value::Value::Integer(value))) => {
-                if value < min || value > max {
-                    return Err(refused(format!("an Integer From {min} to {max}")));
-                }
-            }
-            (Kind::Number { min, max, .. }, Some(setting_value::Value::Number(value))) => {
-                if !value.is_finite() || min.is_some_and(|min| *value < min) || max.is_some_and(|max| *value > max) {
-                    let range = match (min, max) {
-                        (Some(min), Some(max)) => format!("a Number From {min} to {max}"),
-                        (Some(min), None) => format!("a Number of at Least {min}"),
-                        (None, Some(max)) => format!("a Number of at Most {max}"),
-                        (None, None) => "a Finite Number".into(),
-                    };
-                    return Err(refused(range));
-                }
-            }
-            (Kind::Text { .. }, Some(setting_value::Value::Text(_))) => {}
-            (Kind::Milliseconds { .. }, _) => return Err(refused("a Duration".into())),
-            (Kind::Integer { .. }, _) => return Err(refused("an Integer".into())),
-            (Kind::Number { .. }, _) => return Err(refused("a Number".into())),
-            (Kind::Text { .. }, _) => return Err(refused("a Text Value".into())),
-        }
-        Ok(())
     }
 }
 
@@ -477,35 +452,17 @@ impl CpuLoad {
 
     /// Relations Between the CPU Load Settings That Single-Setting Ranges Cannot Express.
     pub fn validate(&self) -> Result<()> {
-        if self.period.is_zero()
-            || self.sample_period.is_zero()
-            || self.slice.is_zero()
-            || self.batch_iterations == 0
-            || self.settlement < self.slice
-            || self.settlement > CPU_LOAD_CANCELLATION_GRACE
-            || self.sample_period > self.period
-            || self.slice > self.period
-        {
+        if self.settlement < self.slice || self.sample_period > self.period || self.slice > self.period {
             return Err(Error::Invalid(
-                "Read CPU Load Settings: Keep Timing Positive, Fit Sampling and Slices in a Controller Period and Let Settlement Cover a \
+                "Read CPU Load Settings: Fit Sampling and Slices in a Controller Period and Let Settlement Cover a \
                  Slice Within the Cancellation Grace"
                     .into(),
             ));
         }
-        if !self.proportional_gain.is_finite()
-            || self.proportional_gain < 0.0
-            || !self.integral_gain.is_finite()
-            || self.integral_gain < 0.0
-            || !self.integral_min.is_finite()
-            || !self.integral_max.is_finite()
-            || self.integral_min > 0.0
-            || self.integral_max < 0.0
-            || self.integral_min >= self.integral_max
-        {
-            return Err(Error::Invalid(
-                "Read CPU Load Settings: Keep Gains Finite and Nonnegative and Let Finite Integrator Bounds Bracket Zero".into(),
-            ));
+        if self.integral_min >= self.integral_max {
+            return Err(Error::Invalid("Read CPU Load Settings: Keep the Integrator Minimum Below Its Maximum".into()));
         }
+
         Ok(())
     }
 }
@@ -527,36 +484,32 @@ pub fn catalog() -> Vec<SettingDeclaration> {
     SETTINGS.iter().map(Setting::declaration).collect()
 }
 
-/// Validate Every Saved Host Setting, So a Misconfiguration Surfaces When the Plugin Connects.
+/// Validate Relations Between Settings When the Plugin Connects.
 pub async fn validate(ctx: &Context) -> Result<()> {
-    for setting in SETTINGS {
-        setting.check(&ctx.setting(setting.name).await?)?;
-    }
     CpuLoad::read(ctx).await?;
     Ok(())
 }
 
 pub async fn duration_value(ctx: &Context, name: &str) -> Result<Duration> {
-    checked(ctx, name).await?;
     ctx.duration_setting(name).await
 }
 
 pub async fn integer(ctx: &Context, name: &str) -> Result<i64> {
-    match checked(ctx, name).await?.value {
+    match ctx.setting(name).await?.value {
         Some(setting_value::Value::Integer(value)) => Ok(value),
         _ => Err(Error::Invalid(format!("Read Setting {name}: Configure an Integer in the Plugin Settings"))),
     }
 }
 
 pub async fn number(ctx: &Context, name: &str) -> Result<f64> {
-    match checked(ctx, name).await?.value {
+    match ctx.setting(name).await?.value {
         Some(setting_value::Value::Number(value)) => Ok(value),
         _ => Err(Error::Invalid(format!("Read Setting {name}: Configure a Number in the Plugin Settings"))),
     }
 }
 
 pub async fn text(ctx: &Context, name: &str) -> Result<String> {
-    match checked(ctx, name).await?.value {
+    match ctx.setting(name).await?.value {
         Some(setting_value::Value::Text(value)) => Ok(value),
         _ => Err(Error::Invalid(format!("Read Setting {name}: Configure a Text Value in the Plugin Settings"))),
     }
@@ -574,12 +527,6 @@ pub fn setting(name: &str) -> Result<&'static Setting> {
 }
 
 /* === Private Functions === */
-
-async fn checked(ctx: &Context, name: &str) -> Result<SettingValue> {
-    let value = ctx.setting(name).await?;
-    setting(name)?.check(&value)?;
-    Ok(value)
-}
 
 fn duration(value: Duration) -> prost_types::Duration {
     prost_types::Duration {
